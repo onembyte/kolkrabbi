@@ -1,0 +1,84 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # windows is advisory until migration step 13 (docs/plan/02-architecture.md §12)
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "these files need gofmt:"; echo "$unformatted"; exit 1
+          fi
+
+      - name: build (CGO_ENABLED=0 — the cgo rule, §1)
+        env:
+          CGO_ENABLED: "0"
+        run: go build ./cmd/...
+
+      - name: test
+        run: go test ./...
+
+      - name: test-count floor
+        shell: bash
+        run: |
+          count="$(go test ./... -v 2>/dev/null | grep -c '^=== RUN' || true)"
+          echo "tests run: $count"
+          if [ "$count" -lt 22 ]; then
+            echo "::error::test count fell below the floor of 22 (got $count)"; exit 1
+          fi
+
+  budgets:
+    name: budgets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: binary size + cold start
+        env:
+          CGO_ENABLED: "0"
+        shell: bash
+        run: |
+          go build -ldflags="-s -w" -o /tmp/kolk ./cmd/kolk
+          size=$(stat -c %s /tmp/kolk)
+          echo "binary: $size bytes"
+          # budget: 20 MB (docs/plan/02-architecture.md §11)
+          if [ "$size" -gt 20971520 ]; then
+            echo "::error::binary exceeds the 20 MB budget ($size bytes)"; exit 1
+          fi
+          start=$(date +%s%N)
+          for _ in $(seq 20); do /tmp/kolk help >/dev/null; done
+          end=$(date +%s%N)
+          avg=$(( (end - start) / 20 / 1000000 ))
+          echo "cold start: ${avg} ms (budget 30 ms)"
+          if [ "$avg" -gt 30 ]; then
+            echo "::error::cold start ${avg} ms exceeds the 30 ms budget"; exit 1
+          fi
