@@ -9,6 +9,43 @@ This file is the **index of open plan items**. Each item is sized to be hardened
 (template: `docs/plan/README.md`), tick the box here and add a one-line decision summary.
 Research inputs gathered on 2026-08-21 live in `docs/research/`.
 
+---
+
+## ★ North star — the product constraint that outranks every item
+
+> **Stated by the owner, 2026-08-22:** *"I need this project to be perfect, easy to use. No configs
+> needed. Just a command to install — like Anthropic's Claude Code CLI — and a command to configure
+> the OpenRouter API key, or any API key the user wants to use."*
+
+Kolkrabbi's whole surface must fit on a napkin:
+
+```
+curl -fsSL <install-url> | sh        # 1. one command to install. no runtime, no deps, no prompts.
+kolk key sk-or-v1-…                  # 2. one command for a key (any provider's key).
+kolk                                 # 3. it works. no config file was ever opened.
+```
+
+Binding rules, which every remaining item inherits:
+
+1. **Zero-config is the product, not a feature.** A brand-new user must never be required to read,
+   create or edit a config file to get a working agent. Config exists only to *override* defaults
+   that are already good. If a decision produces a required setting, the decision is wrong.
+2. **Every default must be computed, not asked.** Free models, effort tiers, the fast lane, the
+   catalog — all derived at runtime (item 8), never a setup questionnaire.
+3. **One install command**, single static binary, no runtime and no toolchain on the user's machine
+   (item 20). Package managers are additional paths, never the required one.
+4. **One key command**, provider-agnostic — `kolk key <key>` accepts any supported provider's key
+   and infers the provider from the key's shape where it can; `kolk login` is the optional
+   nicer path, never the required one (item 5).
+5. **Complexity is opt-in and discoverable later.** Profiles, tiers, routing, permissions, MCP —
+   every one of them ships *off*, with a working default, and is found when wanted (items 7, 9, 16, 18).
+6. **Simple to type beats simple to explain.** Short verbs, no flags required for the common path
+   (item 9).
+
+When an item's design conflicts with this section, this section wins, and the item's doc must say
+how it complied. Items most directly bound: **5** (keys), **8** (free-model defaults), **9**
+(commands), **18** (config), **20** (install), **22** (onboarding).
+
 **How to run a hardening loop** (copy, edit the item number):
 
 ```
