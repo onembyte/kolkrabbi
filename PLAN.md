@@ -79,7 +79,8 @@ offline e2e testing via `internal/enginetest`.
 **Hardened when:** architecture doc with module map, protocol sketch, dependency rules and budgets; a tiny proof (core package compiled separately from the CLI).
 **Inputs:** `docs/research/platform-strategy.md`
 
-### [ ] 3. Provider layer — one key, many models (and any OpenAI-compatible endpoint)
+### [x] 3. Provider layer — **hardened → [`docs/plan/03-provider-layer.md`](docs/plan/03-provider-layer.md)**
+**Decision:** one `Chat{Stream, Capabilities, Close}` interface returning a closable pull-`Stream` of a flat `Event` union, implemented by three adapters — `openrouter` (HTTP+SSE), `openaicompat` (the shared engine, with Ollama/LM Studio/vLLM/llama.cpp/LiteLLM/Vercel AI Gateway as data-only `Dialect` presets, **no second gateway adapter**), and `agentcli` (spawns the user's own logged-in binary) — with retry/rotation/budget/recording in L4 driven by a pure `provider.Decide()` table. Reasoning bytes enter a message only on the terminal frame; content and tool-arg deltas concatenate as raw JSON-escaped bytes (split runes are silently corrupted otherwise); every count is a pointer with a `CostSource` + `Measurement` so unknown ≠ zero ≠ free; a committed stream is never replayed, only rotated or surfaced; one usage row per attempt on every terminal path. **Native provider keys are out of v0.x with the hole pre-cut**; **per-model quirks live in the cached `/models` catalog + a generated `//go:embed` seed, never in the binary.** 12-step migration (M0–M11) slots into architecture §12 steps 5–9 keeping all 22 tests green — and forces §12 step 10 (`session.Message`) before the reasoning round-trip.
 **Scope:** the abstraction every mode talks to; OpenRouter as primary; local/self-hosted; optional direct providers.
 **Today:** `internal/provider` streaming client (chat/completions, tools, usage+cost), `ListModels`, `--base-url` override.
 **Decide:**

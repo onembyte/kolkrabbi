@@ -170,13 +170,18 @@ kolkrabbi/                                repo root · module github.com/onembyt
 │   ├── provider/
 │   │   ├── provider.go                   Chat iface + the canonical Message / Tool / ToolCall / FunctionCall / Meta
 │   │   ├── registry.go                   name → constructor + capability matrix (tools? reasoning? cost?)
+│   │   ├── catalog/                      ★ model profiles + pricing: cached HTTP doc + //go:embed seed +
+│   │   │                                 user override, 12 h mtime TTL, never on the startup path (item 3 §5)
 │   │   ├── openrouter/                   client.go stream.go models.go pricing.go errors.go oauth.go
-│   │   ├── openaicompat/                 Ollama / LiteLLM / vLLM behind --base-url
+│   │   ├── openaicompat/                 one engine + a data-only Dialect table: Ollama · LM Studio · vLLM ·
+│   │   │                                 llama.cpp · LiteLLM · Vercel AI Gateway · generic (item 3 §7)
 │   │   └── agentcli/                     ★ external agent CLI backends — spawns the user's OWN logged-in binary
 │   │       ├── agentcli.go               spawn (via L0 shell) · stdio pump · capability probe · redaction
 │   │       ├── claude.go  codex.go       vendor NDJSON → protocol.Event, as PURE FUNCTIONS
-│   │       ├── detect_unix.go  detect_windows.go
+│   │       ├── detect.go                 pure: candidate paths in, choice out — OS lookup is L0 shell's job,
+│   │       │                             so this file needs no _unix/_windows twin and stays testable
 │   │       └── translate_test.go         replays spec/testdata/foreign/** — offline forever, no vendor binary
+│   │                                     (real captured fixtures already committed, 2026-08-22)
 │   ├── tools/     registry.go bash.go fs.go edit.go list.go search.go web.go  (+ tools_test.go, unchanged)
 │   ├── perm/      allow/ask/deny globs · last-match-wins · hardline blocklist that survives --yolo · doom-loop
 │   │
@@ -513,7 +518,7 @@ the honest number) and close it file by file:
 | ANSI / VT enable | `internal/term/vt_windows.go` (`SetConsoleMode` + `ENABLE_VIRTUAL_TERMINAL_PROCESSING`) — no stdlib API exists, so this is where `golang.org/x/sys` enters, isolated so daemon/desktop/mobile never link it | — |
 | keychain | `internal/secret/keyring_windows.go` (Credential Manager) | — |
 | daemon listener | `internal/serve/listen_windows.go` (named pipe instead of unix socket) | — |
-| agent-CLI process trees | `internal/provider/agentcli/detect_windows.go` | — |
+| agent-CLI binary discovery | `internal/shell/lookpath.go` (L0) — `agentcli/detect.go` stays pure and OS-free | — |
 
 Then: `windows/{amd64,arm64}` in `.goreleaser.yaml` (one line — `CGO_ENABLED=0` already), and the
 `hello` event's capabilities drop `shell:posix` and gain `shell:pwsh`, so a client knows without
@@ -939,7 +944,7 @@ files; neither changes an assertion.
 | 7 | **`internal/bus` + the engine emits events.** ★ The one risky step, made safe: **retain `Options.Out`** as a convenience that attaches `cli/render.Plain` as a bus subscriber, and write `render.Plain` **byte-identical** to today's output (the ANSI consts and `footer()` move over verbatim). Result: **zero test edits** — `Out: &out` appears at exactly 2 sites and neither changes. `kolk -p --output stream-json` falls out for free. Only once green: add event-sequence assertions alongside the string ones, then delete the string ones. | nothing, if `render.Plain` is byte-identical. If it is not, you are debugging five e2e tests and a new event bus simultaneously — do not skip the byte-identity check. | 22 |
 | 8 | **`confirm()` → `engine.Decider`.** Delete the `bufio` stdin read at `agent.go:272`. `internal/cli/prompt.go` implements the TTY prompt; tests use auto-allow. `tools.Execute`'s signature is unchanged, so all 5 tool tests are untouched, and the e2e tests already run with `Yolo: true`. **This one refactor unblocks desktop, iPad and Android simultaneously** — which is why it comes before any of them exist. | nothing testable | 22 |
 | 9 | `engine.Port` interfaces + `internal/enginetest/fakes.go` (incl. `Clock`); `engine` stops importing `session`/`checkpoint`/`stats` concretely; `internal/cli` does the wiring; lift `orchestrator.go` into `internal/orchestrator` behind `engine.Runner`. | nothing | 22 |
-| 10 | **The on-disk format cut.** Commit `internal/session/testdata/v0-session.json` (a real session captured from the prototype) **and** a load test **in the same commit** as introducing `session.Message` with frozen JSON tags + conversion at the store boundary. `session.Session.Messages` stops being `[]provider.Message`. | this is the one place a silent data regression is possible — the fixture is the whole defence | 22 + 1 |
+| 10 | ⚠ **Amended by item 3 (`docs/plan/03-provider-layer.md` §11): this step MUST land BEFORE the reasoning round-trip work**, not after. Reasoning bytes are persisted on the assistant message, so the format cut has to exist first or a half-signed thinking block gets written in the old shape and bricks the session on disk. **The on-disk format cut.** Commit `internal/session/testdata/v0-session.json` (a real session captured from the prototype) **and** a load test **in the same commit** as introducing `session.Message` with frozen JSON tags + conversion at the store boundary. `session.Session.Messages` stops being `[]provider.Message`. | this is the one place a silent data regression is possible — the fixture is the whole defence | 22 + 1 |
 | 11 | **`internal/serve` + `kolk serve` + `cmd/kolkd`.** `sse.go` (`id:`/`retry:`/`Last-Event-ID`/`: ping`), `auth.go` (bearer, required off-loopback), `stdio.go`, `permission.go`. `serve/conform_test.go` replays `spec/testdata/streams/*.ndjson` through **both** stdout NDJSON and SSE and requires byte-identical frames. **★ The interim iPad story ships here** — `--addr` must bind beyond `127.0.0.1` or `tailscale serve` cannot proxy. | nothing; purely additive | 22 + new |
 | 12 | `web/dash` + `internal/dash`. First third-party dependency (`modernc.org/sqlite`). `//go:embed all:dist`; commit the sentinel `dist/index.html`; `ingest.go` imports the existing `stats.jsonl` so no recorded data is lost. **Record the size and startup numbers in this PR.** | budgets move — measure, do not discover | 22 + new |
 | 13 | **Windows.** Fill in every `_windows.go` twin. `windows-latest` goes from advisory to required; `windows` joins the goreleaser goos list. | expect breakage here, in CI, on purpose | 22 on all three |

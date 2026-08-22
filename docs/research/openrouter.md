@@ -1,5 +1,12 @@
 # Research: OpenRouter platform specifics for kolk
 
+> ⚠ **SUPERSEDED for anything implementation-facing.** The item-3 hardening pass re-derived this
+> material from `https://openrouter.ai/docs/openapi/openapi.yaml` (the authority — the prose doc
+> pages lag it) and corrected several points here. Use
+> [`docs/plan/03-provider-layer.md`](../plan/03-provider-layer.md) §6 as the source of truth for
+> headers, request fields, reasoning round-tripping, error taxonomy and cost accounting. This file
+> remains a useful dated snapshot of the survey, not a spec.
+
 Date: 2026-08-21/22. Method: live API probes (no key needed for catalog endpoints) + WebFetch of
 docs pages. Feeds PLAN.md items 3, 5, 7, 8, 17. Numbers drift — re-verify at build time.
 
