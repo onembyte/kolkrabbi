@@ -94,7 +94,8 @@ offline e2e testing via `internal/enginetest`.
 **Hardened when:** interface spec + OpenRouter adapter spec + error/retry matrix + model-catalog cache design; test plan against `mockrouter`.
 **Inputs:** `docs/research/openrouter.md`
 
-### [ ] 4. Subscription logins — Claude Max via Claude Code (and the Codex / Gemini analogues)
+### [x] 4. Subscription backends — **hardened → [`docs/plan/04-subscription-backends.md`](docs/plan/04-subscription-backends.md)**
+**Decision:** spawn the user's own unmodified, self-logged-in `claude` as a first-class `provider.Chat` (`internal/provider/agentcli`, registry key `claude`, label **"Claude Agent"**) — kolk never sees, stores or proxies a credential, and that is enforced by code shape + a CI source denylist, not a promise. `ExecutesOwnTools:true` / `HistoryOwned:true` / `IdempotentConnect:false` / `ModelSelection:ModelAliasOnly` — item 3's interface needed **no** change. In this mode kolk is a frontend and recorder: the vendor runs its own tools, so kolk's permissions/path jail/checkpoints do **not** gate them and the UI says so per tool line. Tokens are exact; **cost is not a charge** — `total_cost_usd` is a deterministic function of tokens at list prices (verified against both fixtures), so it is labelled `API-equiv.`, never pooled with metered rows, and `rate_limit_event.utilization` becomes the real cost series. Codex ships v0.4 on the same bones; **Gemini never spawns** (Google names account suspension) — API key only.
 **Scope:** "instead of an Anthropic API key, use my Claude Max plan". Must be done in the shape the vendor permits.
 **Today:** nothing.
 **Answered by research** (`docs/research/subscription-auth.md`, vendor docs quoted, 2026-08-22):
@@ -105,7 +106,7 @@ credential touching, no resale, "Claude Agent" branding, risk note); (iv) Codex/
 gray, verify OpenAI terms; (v) Gemini login — OAuth reuse **explicitly prohibited** → API-key
 backend only.
 **Still to decide:**
-- If (iii) is the path: `kolk login claude` = detect the `claude` binary + login state; a "claude-code" provider that maps kolk modes/efforts to `claude -p` flags (`--permission-mode`, `--allowedTools`, `--append-system-prompt`, `--model`, effort); who runs the tools (Claude Code runs its own tools — so in that backend kolk is a frontend + recorder); what the dashboard can still capture (usage from stream-json result events).
+- ~~If (iii) is the path: … a "claude-code" provider …~~ **Settled.** Registry key `claude`, label **"Claude Agent"**, package `agentcli`. The string `claude-code` must never ship as a product/feature name — it is on Anthropic's own "Not permitted" branding list. Flags verified present in 2.1.240: `--output-format stream-json`, `--verbose`, `--safe-mode`, `--setting-sources`, `--model`, **`--effort`** (so the effort dial maps straight through), `--allowedTools`, `--permission-mode`, `--resume`, `--append-system-prompt`. `--bare` is banned (it ignores subscription login). See `docs/plan/04-subscription-backends.md` §4.
 - Product stance for the prohibited shapes (token reuse, Gemini OAuth): document clearly, offer the API-key path, keep adapters pluggable in case policy changes; decide whether to build the Codex adapter before or after verifying OpenAI's terms.
 - Terms/risk note in README (account-suspension risk language) and a per-backend capability matrix (tools, streaming, cost reporting, context size).
 **Hardened when:** a written allowed/gray/prohibited table with citations, a chosen shape, a flag-mapping spec, and a fallback plan.
