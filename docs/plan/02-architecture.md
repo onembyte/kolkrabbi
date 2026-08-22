@@ -929,9 +929,9 @@ files; neither changes an assertion.
 
 | # | Step | Breaks | Green after |
 |---|---|---|---|
-| 0 | `git init` — the directory is not a repo today. Commit the prototype verbatim, tag `proto-0`. Do this first or every move below is unrecoverable. | nothing | 22 |
-| 1 | **The identity commit** (below) — module path + all renames in one mechanical pass | nothing user-visible (no published version, no installs); `go build .` at the root stops working — intentional, the binary is now `kolk` | 22 |
-| 2 | **Three-OS CI on the single module, before any restructuring.** `{ubuntu, macos, windows}`. Tag `internal/tools/tools_test.go` `//go:build !windows` and record the honest baseline. Add `scripts/check-budgets.sh`. | Windows baseline is red by design | 22 unix / 17 windows |
+| 0 | ✅ **DONE 2026-08-22** — `git init`, prototype committed verbatim, tagged `proto-0`. | nothing | 22 |
+| 1 | ✅ **DONE 2026-08-22** — the identity commit (below): module path + all renames in one mechanical pass. Repo pushed to `onembyte/kolkrabbi`. | nothing user-visible (no published version, no installs); `go build .` at the root stops working — intentional, the binary is now `kolk` | 22 |
+| 2 | ◐ **PARTLY DONE 2026-08-22** — `.github/workflows/ci.yml` runs `{ubuntu, macos}` + a budgets job (20 MB binary / 30 ms cold start / test-count floor of 22); first run green at 6.25 MB and 2 ms. **Windows is deliberately deferred to step 13** rather than added red now — revisit if the `_windows.go` work slips. Budget checks live in the workflow; extract to `scripts/check-budgets.sh` when the other `scripts/check-*.sh` land at step 4. | Windows baseline is red by design | 22 unix / 17 windows |
 | 3 | Split `cmd/kolk/main.go` (606 L) into `internal/cli/*` per the §4 table, leaving ~40 lines. | nothing | 22 |
 | 4 | Guard rails: `internal/arch/{layers.go,arch_test.go}`, `internal/buildinfo`, `scripts/{check-purity,check-buildtags,test}.sh`, `Makefile`, `LICENSE`, `.goreleaser.yaml`. CI asserts `! grep -q '^replace' go.mod`. | nothing | 22 + 1 |
 | 5 | **L0 platform extraction** — `paths` (from `main.go:32-40` + `config.dir()`), `shell` (from `tools.go:119`), `atomicfile` (from `session.go:51,64`), `lock`, `term`, `secret`. Real unix impls, honest Windows stubs. | nothing observable; `TestBash` still passes because `shell.Run` on unix is the same `bash -c` | 22 + new |
@@ -976,11 +976,18 @@ grep -rl '"kolkrabbi/internal' --include='*.go' . | xargs sed -i '' \
  -e 's|"kolkrabbi/internal/|"github.com/onembyte/kolkrabbi/internal/|'
 
 # qualifiers — the capital-letter guard is what makes this safe (verified: every match is a
-# real qualifier; the only lowercase `agent`/`api` occurrences are prose in help text and comments)
-grep -rl --include='*.go' -E '\b(api|agent|mockrouter)\.[A-Z]' . | xargs sed -i '' -E \
- -e 's/\bapi\.([A-Z])/provider.\1/g' \
- -e 's/\bagent\.([A-Z])/engine.\1/g' \
- -e 's/\bmockrouter\.([A-Z])/enginetest.\1/g'
+# real qualifier; the only lowercase `agent`/`api` occurrences are prose in help text and comments).
+#
+# ⚠ USE perl, NOT sed/grep. BSD grep and BSD sed do not support \b, and they fail SILENTLY:
+#   `grep -rlE '\b(api|agent)\.[A-Z]'` matches nothing on macOS, xargs then gets no input, the
+#   substitution never runs, and the first sign of trouble is `undefined: api` from go vet.
+#   (Hit for real on 2026-08-22 during the actual identity commit.) perl's \b is portable, and
+#   \b before `agent` correctly does NOT match `subagent`.
+find . -name '*.go' -print0 | xargs -0 perl -pi -e \
+ 's/\bapi\.([A-Z])/provider.$1/g; s/\bagent\.([A-Z])/engine.$1/g; s/\bmockrouter\.([A-Z])/enginetest.$1/g;'
+
+# verify the pass actually did something — 0 means clean, and never trust silence
+grep -roE '(^|[^A-Za-z0-9_])(api|agent|mockrouter)\.[A-Z]' --include='*.go' . | wc -l   # expect 0
 
 gofmt -w . && go vet ./... && go build ./cmd/... && go test ./...   # expect: ok, 22 tests
 ```

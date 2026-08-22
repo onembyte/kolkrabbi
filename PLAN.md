@@ -50,7 +50,9 @@ offline e2e testing via `internal/enginetest`.
 
 ## A. Foundations
 
-### [ ] 1. Identity, repository & release skeleton
+### [~] 1. Identity, repository & release skeleton
+**Done 2026-08-22:** repo live at **https://github.com/onembyte/kolkrabbi** (private, `main`), history = `proto-0` tag → docs → identity commit → CI. Module path `github.com/onembyte/kolkrabbi`, binary `kolk`, **Apache-2.0**, go 1.25. CI green on ubuntu + macOS with budget enforcement (6.25 MB binary, 2 ms cold start, 22-test floor).
+**Still open:** public vs private (private for now — one click to flip, not reversible the other way); goreleaser + release-on-tag; `go install …/cmd/kolk@latest` cannot work for anyone else while the repo is private; README still describes the prototype rather than the vision; `docs/plan/01-identity-release.md` not written.
 **Scope:** names, GitHub repo, module path, license, versioning, CI skeleton.
 **Today:** README says *kolkrabbi* = Icelandic "octopus" (kol+krabbi); binary `kolk`; module `kolkrabbi`.
 **Decide:**
