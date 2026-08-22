@@ -19,12 +19,12 @@ import (
 	"strconv"
 	"strings"
 
-	"kolkrabbi/internal/agent"
-	"kolkrabbi/internal/api"
-	"kolkrabbi/internal/checkpoint"
-	"kolkrabbi/internal/config"
-	"kolkrabbi/internal/session"
-	"kolkrabbi/internal/stats"
+	"github.com/onembyte/kolkrabbi/internal/checkpoint"
+	"github.com/onembyte/kolkrabbi/internal/config"
+	"github.com/onembyte/kolkrabbi/internal/engine"
+	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/session"
+	"github.com/onembyte/kolkrabbi/internal/stats"
 )
 
 const defaultModel = "openrouter/auto" // OpenRouter's auto-router; override with -m or `kolk config set-model`
@@ -157,7 +157,7 @@ func main() {
 	}
 	sess.Model = model
 
-	client := api.NewClient(apiKey)
+	client := provider.NewClient(apiKey)
 	client.BaseURL = resolveBaseURL(baseURL, cfg)
 
 	ckpt, err := checkpoint.Open(sess.CkptDir())
@@ -167,7 +167,7 @@ func main() {
 	}
 
 	stdin := bufio.NewReader(os.Stdin)
-	ag := agent.New(agent.Options{
+	ag := engine.New(engine.Options{
 		Client:   client,
 		Model:    model,
 		Mode:     mode,
@@ -208,10 +208,10 @@ func resolveBaseURL(flagVal string, cfg *config.Config) string {
 	if cfg.BaseURL != "" {
 		return strings.TrimRight(cfg.BaseURL, "/")
 	}
-	return api.DefaultBaseURL
+	return provider.DefaultBaseURL
 }
 
-func runREPL(ag *agent.Agent, reader *bufio.Reader) {
+func runREPL(ag *engine.Agent, reader *bufio.Reader) {
 	resumedNote := ""
 	if n := len(ag.Sess.Messages); n > 1 {
 		resumedNote = fmt.Sprintf("  (resumed, %d messages)", n-1)
@@ -251,7 +251,7 @@ func runREPL(ag *agent.Agent, reader *bufio.Reader) {
 }
 
 // handleSlash processes a /command; returns true if the REPL should exit.
-func handleSlash(ag *agent.Agent, line string) bool {
+func handleSlash(ag *engine.Agent, line string) bool {
 	fields := strings.Fields(line)
 	cmd := fields[0]
 	arg := strings.TrimSpace(strings.TrimPrefix(line, cmd))
@@ -315,7 +315,7 @@ func handleSlash(ag *agent.Agent, line string) bool {
 		opts := ag.Options
 		opts.Sess = sess
 		opts.Ckpt = ckpt
-		*ag = *agent.New(opts)
+		*ag = *engine.New(opts)
 		fmt.Printf("new session: %s\n", sess.ID)
 	case "/session":
 		fmt.Printf("id:    %s\nfile:  %s\n", ag.Sess.ID, filepath.Join(sessionsDir(), ag.Sess.ID+".json"))
@@ -412,7 +412,7 @@ func runConfigCmd(args []string) {
 			fatal(fmt.Errorf("usage: kolk config set-tier <quick|standard|deep|ultra> <model>"))
 		}
 		valid := false
-		for _, e := range agent.Efforts {
+		for _, e := range engine.Efforts {
 			if e == args[1] {
 				valid = true
 			}
@@ -434,10 +434,10 @@ func runConfigCmd(args []string) {
 		fmt.Printf("api_key:  %s\nmodel:    %s\nbase_url: %s\n",
 			key,
 			orDefault(cfg.Model, defaultModel+" (default)"),
-			orDefault(cfg.BaseURL, api.DefaultBaseURL+" (default)"))
+			orDefault(cfg.BaseURL, provider.DefaultBaseURL+" (default)"))
 		if len(cfg.Tiers) > 0 {
 			fmt.Println("tiers:")
-			for _, e := range agent.Efforts {
+			for _, e := range engine.Efforts {
 				if m, ok := cfg.Tiers[e]; ok {
 					fmt.Printf("  %-9s %s\n", e, m)
 				}
@@ -522,7 +522,7 @@ func runModelsCmd(args []string) {
 	if err != nil {
 		fatal(err)
 	}
-	client := api.NewClient(config.ResolveAPIKey(cfg))
+	client := provider.NewClient(config.ResolveAPIKey(cfg))
 	client.BaseURL = resolveBaseURL("", cfg)
 	models, err := client.ListModels(context.Background())
 	if err != nil {

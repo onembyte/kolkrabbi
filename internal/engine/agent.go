@@ -4,7 +4,7 @@
 //	chat  — plain conversation, no tools
 //	code  — the classic agentic coding loop (tools until a final answer)
 //	agent — orchestrated: plan → delegate to isolated subagents → synthesize
-package agent
+package engine
 
 import (
 	"bufio"
@@ -17,11 +17,11 @@ import (
 	"runtime"
 	"strings"
 
-	"kolkrabbi/internal/api"
-	"kolkrabbi/internal/checkpoint"
-	"kolkrabbi/internal/session"
-	"kolkrabbi/internal/stats"
-	"kolkrabbi/internal/tools"
+	"github.com/onembyte/kolkrabbi/internal/checkpoint"
+	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/session"
+	"github.com/onembyte/kolkrabbi/internal/stats"
+	"github.com/onembyte/kolkrabbi/internal/tools"
 )
 
 const (
@@ -58,7 +58,7 @@ const maxProjectMemory = 16 * 1024
 
 // Options configures an Agent; zero values get sensible defaults.
 type Options struct {
-	Client   *api.Client
+	Client   *provider.Client
 	Model    string // the session's base model
 	Mode     string // chat | code | agent (default code)
 	Effort   string // quick | standard | deep | ultra (default standard)
@@ -99,7 +99,7 @@ func New(o Options) *Agent {
 	}
 	a := &Agent{Options: o}
 
-	sys := api.Message{Role: "system", Content: a.systemPrompt(o.Mode)}
+	sys := provider.Message{Role: "system", Content: a.systemPrompt(o.Mode)}
 	if len(o.Sess.Messages) == 0 {
 		o.Sess.Messages = append(o.Sess.Messages, sys)
 	} else {
@@ -117,7 +117,7 @@ func (a *Agent) SetMode(mode string) error {
 	for _, m := range Modes {
 		if m == mode {
 			a.Mode = mode
-			a.Sess.Messages[0] = api.Message{Role: "system", Content: a.systemPrompt(mode)}
+			a.Sess.Messages[0] = provider.Message{Role: "system", Content: a.systemPrompt(mode)}
 			return nil
 		}
 	}
@@ -145,7 +145,7 @@ func (a *Agent) modelFor(effort string) string {
 }
 
 // toolsFor returns the tool set for a mode: chat gets none.
-func toolsFor(mode string) []api.Tool {
+func toolsFor(mode string) []provider.Tool {
 	if mode == ModeChat {
 		return nil
 	}
@@ -203,7 +203,7 @@ func (a *Agent) repairDanglingToolCalls() {
 	}
 	for _, tc := range msgs[last].ToolCalls {
 		if !answered[tc.ID] {
-			a.Sess.Messages = append(a.Sess.Messages, api.Message{
+			a.Sess.Messages = append(a.Sess.Messages, provider.Message{
 				Role:       "tool",
 				ToolCallID: tc.ID,
 				Content:    "Interrupted before this tool ran. Re-issue the call if it is still needed.",
@@ -220,7 +220,7 @@ func (a *Agent) save() {
 }
 
 // record appends a stats line; never fatal, warn once.
-func (a *Agent) record(role string, meta api.Meta, toolCalls int) {
+func (a *Agent) record(role string, meta provider.Meta, toolCalls int) {
 	if a.StatsDir == "" {
 		return
 	}
@@ -294,7 +294,7 @@ func (a *Agent) preWrite(tool, path string) error {
 	return a.Ckpt.Record(tool, path)
 }
 
-func summarizeCall(tc api.ToolCall) string {
+func summarizeCall(tc provider.ToolCall) string {
 	args := tc.Function.Arguments
 	if len(args) > 120 {
 		args = args[:120] + "…"
@@ -302,7 +302,7 @@ func summarizeCall(tc api.ToolCall) string {
 	return fmt.Sprintf("%s(%s)", tc.Function.Name, args)
 }
 
-func (a *Agent) footer(meta api.Meta) {
+func (a *Agent) footer(meta provider.Meta) {
 	cost := ""
 	if meta.Cost > 0 {
 		cost = fmt.Sprintf(" · $%.4f", meta.Cost)
@@ -333,7 +333,7 @@ func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 // loop until the model returns a plain answer. The session is saved as it
 // goes.
 func (a *Agent) runLoop(ctx context.Context, userInput string) error {
-	a.Sess.Messages = append(a.Sess.Messages, api.Message{Role: "user", Content: userInput})
+	a.Sess.Messages = append(a.Sess.Messages, provider.Message{Role: "user", Content: userInput})
 	a.save()
 
 	model := a.modelFor(a.Effort)
@@ -364,7 +364,7 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 			if err != nil {
 				result = "Error: " + err.Error()
 			}
-			a.Sess.Messages = append(a.Sess.Messages, api.Message{
+			a.Sess.Messages = append(a.Sess.Messages, provider.Message{
 				Role:       "tool",
 				ToolCallID: tc.ID,
 				Content:    result,

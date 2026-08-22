@@ -1,3 +1,3 @@
-module kolkrabbi
+module github.com/onembyte/kolkrabbi
 
-go 1.22.2
+go 1.25

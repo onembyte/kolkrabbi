@@ -44,7 +44,7 @@ starts in ~10 ms per invocation (fork+exec+run, measured over 20 runs on an M-se
 
 Things the prototype gets right that we keep: stdlib-only core, streaming SSE client with tool-call
 reassembly, OpenRouter `usage.include` for exact cost, project memory via `KOLKRABBI.md`/`AGENTS.md`,
-offline e2e testing via `internal/mockrouter`.
+offline e2e testing via `internal/enginetest`.
 
 ---
 
@@ -79,7 +79,7 @@ offline e2e testing via `internal/mockrouter`.
 
 ### [ ] 3. Provider layer — one key, many models (and any OpenAI-compatible endpoint)
 **Scope:** the abstraction every mode talks to; OpenRouter as primary; local/self-hosted; optional direct providers.
-**Today:** `internal/api` streaming client (chat/completions, tools, usage+cost), `ListModels`, `--base-url` override.
+**Today:** `internal/provider` streaming client (chat/completions, tools, usage+cost), `ListModels`, `--base-url` override.
 **Decide:**
 - Provider interface: stream, tools (parallel tool calls), reasoning params, prompt caching hints, usage/cost, model capabilities (ctx, pricing, supported params, reasoning, vision), errors (429/402/5xx/timeouts) → typed.
 - OpenRouter specifics to support: `models` fallback array, provider routing (`sort: throughput|latency|price`, `:nitro`, `:floor`, `:free`), `reasoning` unified param, `reasoning_details` passthrough for tool loops, `usage.include`, app attribution headers, `/models` catalog cache (TTL + `kolk models --refresh`), `/key` credits check, data-policy filters.

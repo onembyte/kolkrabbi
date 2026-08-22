@@ -1,4 +1,4 @@
-package agent
+package engine
 
 import (
 	"bytes"
@@ -8,16 +8,16 @@ import (
 	"strings"
 	"testing"
 
-	"kolkrabbi/internal/api"
-	"kolkrabbi/internal/checkpoint"
-	"kolkrabbi/internal/mockrouter"
-	"kolkrabbi/internal/session"
-	"kolkrabbi/internal/stats"
+	"github.com/onembyte/kolkrabbi/internal/checkpoint"
+	"github.com/onembyte/kolkrabbi/internal/enginetest"
+	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/session"
+	"github.com/onembyte/kolkrabbi/internal/stats"
 )
 
-func newTestAgent(t *testing.T, srv *mockrouter.Server, mode string) (*Agent, *bytes.Buffer, string, string) {
+func newTestAgent(t *testing.T, srv *enginetest.Server, mode string) (*Agent, *bytes.Buffer, string, string) {
 	t.Helper()
-	client := api.NewClient("test-key")
+	client := provider.NewClient("test-key")
 	client.BaseURL = srv.URL
 	sdir, statsDir := t.TempDir(), t.TempDir()
 	sess := session.New(sdir, "mock/model")
@@ -41,18 +41,18 @@ func TestE2E_ToolLoopWithPersistenceAndRewind(t *testing.T) {
 	work := t.TempDir()
 	target := filepath.Join(work, "hello.txt")
 
-	srv := mockrouter.New(
-		mockrouter.Step{
+	srv := enginetest.New(
+		enginetest.Step{
 			Text: "Creating the file now.",
-			ToolCalls: []api.ToolCall{{
+			ToolCalls: []provider.ToolCall{{
 				ID: "call_1",
-				Function: api.FunctionCall{
+				Function: provider.FunctionCall{
 					Name:      "write_file",
 					Arguments: `{"path":"` + jsonEsc(target) + `","content":"hi from kolk\n"}`,
 				},
 			}},
 		},
-		mockrouter.Step{Text: "Done — hello.txt is created.", Cost: 0.002},
+		enginetest.Step{Text: "Done — hello.txt is created.", Cost: 0.002},
 	)
 	defer srv.Close()
 
@@ -139,7 +139,7 @@ func TestE2E_ToolLoopWithPersistenceAndRewind(t *testing.T) {
 // TestE2E_ChatModeHasNoTools verifies chat mode sends no tool schemas and
 // answers plainly.
 func TestE2E_ChatModeHasNoTools(t *testing.T) {
-	srv := mockrouter.New(mockrouter.Step{Text: "hola Franco"})
+	srv := enginetest.New(enginetest.Step{Text: "hola Franco"})
 	defer srv.Close()
 
 	ag, out, _, _ := newTestAgent(t, srv, ModeChat)
@@ -161,22 +161,22 @@ func TestE2E_OrchestratedAgentMode(t *testing.T) {
 	work := t.TempDir()
 	target := filepath.Join(work, "notes.txt")
 
-	srv := mockrouter.New(
+	srv := enginetest.New(
 		// planner
-		mockrouter.Step{Text: `["write the notes file", "verify it exists"]`},
+		enginetest.Step{Text: `["write the notes file", "verify it exists"]`},
 		// subagent 1: tool call then summary
-		mockrouter.Step{ToolCalls: []api.ToolCall{{
+		enginetest.Step{ToolCalls: []provider.ToolCall{{
 			ID: "c1",
-			Function: api.FunctionCall{
+			Function: provider.FunctionCall{
 				Name:      "write_file",
 				Arguments: `{"path":"` + jsonEsc(target) + `","content":"orchestrated\n"}`,
 			},
 		}}},
-		mockrouter.Step{Text: "Wrote notes.txt with the content."},
+		enginetest.Step{Text: "Wrote notes.txt with the content."},
 		// subagent 2: plain summary
-		mockrouter.Step{Text: "Verified: notes.txt exists."},
+		enginetest.Step{Text: "Verified: notes.txt exists."},
 		// synthesis
-		mockrouter.Step{Text: "Both tasks complete: notes.txt written and verified.", Cost: 0.003},
+		enginetest.Step{Text: "Both tasks complete: notes.txt written and verified.", Cost: 0.003},
 	)
 	defer srv.Close()
 
@@ -222,9 +222,9 @@ func TestE2E_OrchestratedAgentMode(t *testing.T) {
 // TestE2E_OrchestratorFallsBackOnSingleTask degrades to the normal loop when
 // the planner returns one task.
 func TestE2E_OrchestratorFallsBackOnSingleTask(t *testing.T) {
-	srv := mockrouter.New(
-		mockrouter.Step{Text: `["just answer"]`}, // planner: single task
-		mockrouter.Step{Text: "direct answer"},   // normal loop reply
+	srv := enginetest.New(
+		enginetest.Step{Text: `["just answer"]`}, // planner: single task
+		enginetest.Step{Text: "direct answer"},   // normal loop reply
 	)
 	defer srv.Close()
 
@@ -246,21 +246,21 @@ func TestE2E_OrchestratorFallsBackOnSingleTask(t *testing.T) {
 func TestE2E_ResumeRepairsDanglingToolCalls(t *testing.T) {
 	sdir := t.TempDir()
 	sess := session.New(sdir, "mock/model")
-	sess.Messages = []api.Message{
+	sess.Messages = []provider.Message{
 		{Role: "system", Content: "old system prompt"},
 		{Role: "user", Content: "list the files"},
-		{Role: "assistant", ToolCalls: []api.ToolCall{{
+		{Role: "assistant", ToolCalls: []provider.ToolCall{{
 			ID: "call_dangling", Type: "function",
-			Function: api.FunctionCall{Name: "bash", Arguments: `{"command":"ls","description":"list"}`},
+			Function: provider.FunctionCall{Name: "bash", Arguments: `{"command":"ls","description":"list"}`},
 		}}},
 	}
 	if err := sess.Save(); err != nil {
 		t.Fatal(err)
 	}
 
-	srv := mockrouter.New(mockrouter.Step{Text: "ok, continuing."})
+	srv := enginetest.New(enginetest.Step{Text: "ok, continuing."})
 	defer srv.Close()
-	client := api.NewClient("test-key")
+	client := provider.NewClient("test-key")
 	client.BaseURL = srv.URL
 
 	loaded, err := session.Load(sdir, sess.ID)

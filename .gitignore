@@ -1,2 +1,15 @@
+# built binaries
 /kolk
+/kolkd
+/kolk-mock
+
+# go workspace files are developer-local by design (see docs/plan/02-architecture.md)
+/go.work
+/go.work.sum
+
+# test + build artifacts
 *.test
+/dist/
+
+# dashboard SPA build inputs
+/web/dash/node_modules

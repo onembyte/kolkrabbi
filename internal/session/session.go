@@ -15,16 +15,16 @@ import (
 	"strings"
 	"time"
 
-	"kolkrabbi/internal/api"
+	"github.com/onembyte/kolkrabbi/internal/provider"
 )
 
 type Session struct {
-	ID        string        `json:"id"`
-	Model     string        `json:"model"`
-	Title     string        `json:"title"`
-	CreatedAt time.Time     `json:"created_at"`
-	UpdatedAt time.Time     `json:"updated_at"`
-	Messages  []api.Message `json:"messages"`
+	ID        string             `json:"id"`
+	Model     string             `json:"model"`
+	Title     string             `json:"title"`
+	CreatedAt time.Time          `json:"created_at"`
+	UpdatedAt time.Time          `json:"updated_at"`
+	Messages  []provider.Message `json:"messages"`
 
 	dir string // where this session is stored; not serialized
 }

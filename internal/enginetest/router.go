@@ -3,7 +3,7 @@
 // API key, fully deterministic. Each Step is one assistant response; the
 // server streams them back in order as SSE, deliberately fragmenting content
 // and tool-call arguments across chunks the way real providers do.
-package mockrouter
+package enginetest
 
 import (
 	"encoding/json"
@@ -12,7 +12,7 @@ import (
 	"net/http/httptest"
 	"sync"
 
-	"kolkrabbi/internal/api"
+	"github.com/onembyte/kolkrabbi/internal/provider"
 )
 
 // Step is one scripted assistant response. If ToolCalls is non-empty the
@@ -21,7 +21,7 @@ import (
 // synthetic defaults.
 type Step struct {
 	Text             string
-	ToolCalls        []api.ToolCall
+	ToolCalls        []provider.ToolCall
 	PromptTokens     int
 	CompletionTokens int
 	Cost             float64
@@ -33,8 +33,8 @@ type Server struct {
 	mu       sync.Mutex
 	steps    []Step
 	i        int
-	Requests [][]api.Message // messages array of every request received, in order
-	Tools    []int           // number of tool schemas each request carried
+	Requests [][]provider.Message // messages array of every request received, in order
+	Tools    []int                // number of tool schemas each request carried
 }
 
 func New(steps ...Step) *Server {
@@ -45,9 +45,9 @@ func New(steps ...Step) *Server {
 
 // delta mirrors the wire shape of a single streaming chunk.
 type delta struct {
-	Role      string         `json:"role,omitempty"`
-	Content   string         `json:"content,omitempty"`
-	ToolCalls []api.ToolCall `json:"tool_calls,omitempty"`
+	Role      string              `json:"role,omitempty"`
+	Content   string              `json:"content,omitempty"`
+	ToolCalls []provider.ToolCall `json:"tool_calls,omitempty"`
 }
 
 type wireUsage struct {
@@ -78,8 +78,8 @@ func mkChunk(d delta, finish *string) chunk {
 
 func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Messages []api.Message `json:"messages"`
-		Tools    []api.Tool    `json:"tools"`
+		Messages []provider.Message `json:"messages"`
+		Tools    []provider.Tool    `json:"tools"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
@@ -117,14 +117,14 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 
 	// stream each tool call: header chunk (id/type/name), then argument fragments
 	for idx, tc := range step.ToolCalls {
-		emit(mkChunk(delta{ToolCalls: []api.ToolCall{{
+		emit(mkChunk(delta{ToolCalls: []provider.ToolCall{{
 			Index: idx, ID: tc.ID, Type: "function",
-			Function: api.FunctionCall{Name: tc.Function.Name},
+			Function: provider.FunctionCall{Name: tc.Function.Name},
 		}}}, nil))
 		for _, frag := range fragments(tc.Function.Arguments, 9) {
-			emit(mkChunk(delta{ToolCalls: []api.ToolCall{{
+			emit(mkChunk(delta{ToolCalls: []provider.ToolCall{{
 				Index:    idx,
-				Function: api.FunctionCall{Arguments: frag},
+				Function: provider.FunctionCall{Arguments: frag},
 			}}}, nil))
 		}
 	}

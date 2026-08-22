@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"kolkrabbi/internal/api"
+	"github.com/onembyte/kolkrabbi/internal/provider"
 )
 
 // Confirm is called before any side-effecting action (bash, write, edit).
@@ -45,9 +45,9 @@ func schema(props string, required ...string) json.RawMessage {
 }
 
 // Definitions returns the OpenAI-compatible tool schemas sent to the model.
-func Definitions() []api.Tool {
-	return []api.Tool{
-		{Type: "function", Function: api.FunctionDef{
+func Definitions() []provider.Tool {
+	return []provider.Tool{
+		{Type: "function", Function: provider.FunctionDef{
 			Name:        "bash",
 			Description: "Execute a shell command and return its combined stdout/stderr. Use for running builds, tests, git, searching (grep/find), etc.",
 			Parameters: schema(`{
@@ -55,14 +55,14 @@ func Definitions() []api.Tool {
 				"description":{"type":"string","description":"One short sentence: what this command does and why"}
 			}`, "command", "description"),
 		}},
-		{Type: "function", Function: api.FunctionDef{
+		{Type: "function", Function: provider.FunctionDef{
 			Name:        "read_file",
 			Description: "Read a text file's contents from disk, with line numbers.",
 			Parameters: schema(`{
 				"path":{"type":"string","description":"Path to the file, absolute or relative to the working directory"}
 			}`, "path"),
 		}},
-		{Type: "function", Function: api.FunctionDef{
+		{Type: "function", Function: provider.FunctionDef{
 			Name:        "write_file",
 			Description: "Create a new file or fully overwrite an existing one with the given content.",
 			Parameters: schema(`{
@@ -70,7 +70,7 @@ func Definitions() []api.Tool {
 				"content":{"type":"string","description":"Full file content"}
 			}`, "path", "content"),
 		}},
-		{Type: "function", Function: api.FunctionDef{
+		{Type: "function", Function: provider.FunctionDef{
 			Name:        "edit_file",
 			Description: "Replace one exact, unique occurrence of old_str with new_str in an existing file. old_str must match the file's current content exactly and appear exactly once.",
 			Parameters: schema(`{
@@ -79,7 +79,7 @@ func Definitions() []api.Tool {
 				"new_str":{"type":"string","description":"Text to replace it with"}
 			}`, "path", "old_str", "new_str"),
 		}},
-		{Type: "function", Function: api.FunctionDef{
+		{Type: "function", Function: provider.FunctionDef{
 			Name:        "list_dir",
 			Description: "List the contents of a directory (non-recursive).",
 			Parameters: schema(`{

@@ -114,14 +114,14 @@ In-session: `/mode`, `/effort`, `/model`, `/rate 1-5`, `/changes`, `/rewind`,
 
 ## Sandbox testing (no network, no key, no cost)
 
-`go test ./...` runs 25+ tests fully offline, including end-to-end drives of
+`go test ./...` runs 22 tests fully offline, including end-to-end drives of
 the code loop *and* the full orchestrator (plan → subagents → synthesis)
 against a scripted in-process mock of the OpenRouter API
-(`internal/mockrouter`) that streams realistically fragmented SSE with usage
+(`internal/enginetest`) that streams realistically fragmented SSE with usage
 chunks. For manual rehearsal:
 
 ```bash
-go run ./cmd/mockserver      # prints its URL; scripted demo session inside
+go run ./cmd/kolk-mock       # prints its URL; scripted demo session inside
 kolk --base-url <url> -y "create the hello file"
 ```
 
@@ -141,18 +141,24 @@ side-effecting action unless `-y`/`/yolo`.
 ## Architecture
 
 ```
-main.go               flags, REPL, subcommands (config/models/sessions/stats)
-internal/api          streaming SSE client, tool-call reassembly, usage/cost
-internal/agent         modes, effort tiers, the code loop, the orchestrator
+cmd/kolk               flags, REPL, subcommands (config/models/sessions/stats)
+cmd/kolk-mock          standalone mock for manual sandbox runs
+internal/provider      streaming SSE client, tool-call reassembly, usage/cost
+internal/engine        modes, effort tiers, the code loop, the orchestrator
 internal/tools         tool schemas + execution, confirm gating, ckpt hook
 internal/session       persistent conversations (atomic JSON)
 internal/checkpoint    pre-change snapshots, per-turn rewind
 internal/stats         local JSONL store + aggregation (the dashboard)
-internal/mockrouter    scripted fake OpenRouter for offline e2e testing
-cmd/mockserver          standalone mock for manual sandbox runs
+internal/enginetest    scripted fake OpenRouter for offline e2e testing
 ```
 
-Go module path: `kolkrabbi`. Binary: `kolk`.
+Go module path: `github.com/onembyte/kolkrabbi`. Binary: `kolk`.
+
+> This is the prototype layout. The hardened target architecture — one event bus
+> with three byte-identical exits, a language-neutral `spec/` contract, and
+> desktop/iPad/Android attaching as new directories — is
+> [`docs/plan/02-architecture.md`](docs/plan/02-architecture.md); the open plan
+> items are in [`PLAN.md`](PLAN.md).
 
 ## Known limitations / next steps
 

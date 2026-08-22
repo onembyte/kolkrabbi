@@ -4,17 +4,17 @@ import (
 	"testing"
 	"time"
 
-	"kolkrabbi/internal/api"
+	"github.com/onembyte/kolkrabbi/internal/provider"
 )
 
 func TestSaveLoadRoundtrip(t *testing.T) {
 	dir := t.TempDir()
 	s := New(dir, "test/model")
 	s.SetTitleFromInput("  fix   the\nlogin bug  ")
-	s.Messages = []api.Message{
+	s.Messages = []provider.Message{
 		{Role: "system", Content: "sys"},
 		{Role: "user", Content: "fix the login bug"},
-		{Role: "assistant", Content: "", ToolCalls: []api.ToolCall{{ID: "c1", Type: "function", Function: api.FunctionCall{Name: "bash", Arguments: `{"command":"ls"}`}}}},
+		{Role: "assistant", Content: "", ToolCalls: []provider.ToolCall{{ID: "c1", Type: "function", Function: provider.FunctionCall{Name: "bash", Arguments: `{"command":"ls"}`}}}},
 		{Role: "tool", ToolCallID: "c1", Content: "file.go"},
 	}
 	if err := s.Save(); err != nil {

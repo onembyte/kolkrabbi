@@ -1,4 +1,4 @@
-package agent
+package engine
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 	"runtime"
 	"strings"
 
-	"kolkrabbi/internal/api"
-	"kolkrabbi/internal/tools"
+	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/tools"
 )
 
 // maxTasksFor maps effort to orchestration width.
@@ -34,7 +34,7 @@ const maxSubagentRounds = 12 // tool-loop iterations per subagent, runaway guard
 // final answer. The main session only ever sees user input -> final answer,
 // so its history stays small and valid.
 func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
-	a.Sess.Messages = append(a.Sess.Messages, api.Message{Role: "user", Content: userInput})
+	a.Sess.Messages = append(a.Sess.Messages, provider.Message{Role: "user", Content: userInput})
 	a.save()
 
 	model := a.modelFor(a.Effort)
@@ -82,7 +82,7 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 	}
 	sb.WriteString("\nWrite the final answer to the original request based on this work. Be concise; report what was done, key findings, and anything the user must know. Do not repeat raw task output verbatim.")
 
-	synth := []api.Message{
+	synth := []provider.Message{
 		{Role: "system", Content: "You are the orchestrator's synthesis step. You produce the final user-facing answer from completed subagent work."},
 		{Role: "user", Content: sb.String()},
 	}
@@ -98,14 +98,14 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 	a.record("synthesis", meta, 0)
 
 	// the main session only records the final answer: valid, compact history
-	a.Sess.Messages = append(a.Sess.Messages, api.Message{Role: "assistant", Content: msg.Content})
+	a.Sess.Messages = append(a.Sess.Messages, provider.Message{Role: "assistant", Content: msg.Content})
 	a.save()
 	a.footer(meta)
 	return nil
 }
 
 // plan asks the planner for a strict-JSON task list.
-func (a *Agent) plan(ctx context.Context, model, userInput string, maxTasks int) ([]string, api.Meta, error) {
+func (a *Agent) plan(ctx context.Context, model, userInput string, maxTasks int) ([]string, provider.Meta, error) {
 	prompt := fmt.Sprintf(`Decompose the request below into at most %d concrete, self-contained tasks for coding subagents that have file and shell access but cannot talk to each other. Order matters: later tasks may depend on earlier results. If the request is trivial or a single step, return a single task.
 
 Respond with ONLY a JSON array of task strings. No prose, no markdown fences.
@@ -113,7 +113,7 @@ Respond with ONLY a JSON array of task strings. No prose, no markdown fences.
 Request:
 %s`, maxTasks, userInput)
 
-	msgs := []api.Message{
+	msgs := []provider.Message{
 		{Role: "system", Content: "You are a planning module. You output only strict JSON."},
 		{Role: "user", Content: prompt},
 	}
@@ -165,7 +165,7 @@ Overall request: %s
 		}
 	}
 
-	msgs := []api.Message{
+	msgs := []provider.Message{
 		{Role: "system", Content: briefing.String()},
 		{Role: "user", Content: "Your task: " + tasks[idx]},
 	}
@@ -191,7 +191,7 @@ Overall request: %s
 			if err != nil {
 				result = "Error: " + err.Error()
 			}
-			msgs = append(msgs, api.Message{Role: "tool", ToolCallID: tc.ID, Content: result})
+			msgs = append(msgs, provider.Message{Role: "tool", ToolCallID: tc.ID, Content: result})
 		}
 	}
 	return "", fmt.Errorf("exceeded %d tool rounds without finishing", maxSubagentRounds)

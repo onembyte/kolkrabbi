@@ -1,7 +1,7 @@
 // Package api implements a minimal client for the OpenRouter chat-completions
 // API (OpenAI-compatible), including streamed responses, tool calling, and
 // usage/cost accounting.
-package api
+package provider
 
 import (
 	"bufio"
