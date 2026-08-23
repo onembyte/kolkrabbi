@@ -2053,3 +2053,54 @@ checks, 24 release checks, 41 release-workflow checks, and 30 release-verifier c
 
 U0.2d is the first leaf allowed to expose the updater: keyless top-level `kolk update` and non-fatal
 in-session `/update`, with one injected function, exact help/argument behavior, and restart guidance.
+
+---
+
+## Owner UX / U0.2d — update command surfaces
+
+**Status:** done, 2026-08-23 · **Host tests:** 681 · **Static surface:** 13 checks ·
+**Dependencies:** unchanged · **User-visible changes:** `kolk update` and `/update`
+
+The verified updater is now reachable through both requested surfaces. `kolk update` is an
+argument-free generated command that dispatches before the default model session; tests point all
+three state directories at absent temporary paths and prove a successful update creates none of
+them and requests no key. Invalid arguments stop before the injected updater, failures exit 1, and
+`Ctrl+C` uses the existing interrupt/exit-130 contract.
+
+In the REPL, `/update` uses the same single app dependency and a per-command interrupt context. An
+error is printed as `update failed` and the session continues. A replacement prints current→latest,
+the canonical executable path, any durability warning on stderr, and the required restart message;
+an unchanged build says it is current and does not ask for a restart. The same command context also
+makes the earlier `/model` network listing cancellable without terminating the REPL.
+
+### TDD record
+
+**Red:** the focused CLI suite failed to compile because `app` had no updater seam; therefore neither
+top-level nor slash behavior could be injected or dispatched.
+
+**Green:** `newApp` owns one `selfupdate.Update` function, the generated command table owns
+`kolk update`, slash handling owns `/update`, and one renderer owns current/updated/warning/restart
+output. Tests cover keyless/stateless dispatch, exact call counts, arguments, errors, warnings,
+restart truth, unchanged truth, active context, and REPL survival.
+
+**Refactor:** signal ownership moved around each slash command and the top-level update so network
+work can be interrupted safely. The static release-surface script now pins both spellings, growing
+from 11 to 13 checks.
+
+### Verification
+
+```sh
+gofmt -d internal/cli/cli.go internal/cli/cmd_update.go internal/cli/repl.go internal/cli/slash.go internal/cli/*_test.go
+go test -count=1 ./internal/cli
+./scripts/test-v01-surface.sh
+make check
+```
+
+The complete gate passed with 681 tests, five compile targets, zero lint issues, a 6.32 MB binary,
+4.9 ms cold-start p50, one root dependency, 110 site checks, 13 mode/update-surface checks, 56
+installer checks, 24 release checks, 41 release-workflow checks, and 30 release-verifier checks.
+
+### Next checkpoint
+
+U0.3 adds the TTY-only loading octopus on the provider-wait boundary. U0.4 then replaces the
+single-line REPL with the persistent terminal composer/status layout already frozen in the ledger.

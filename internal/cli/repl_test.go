@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/enginetest"
 	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/selfupdate"
 	"github.com/onembyte/kolkrabbi/internal/session"
 )
 
@@ -167,6 +169,9 @@ func TestSlashHelpListsAllReleaseModes(t *testing.T) {
 	if !strings.Contains(out.String(), "/model [id]") || !strings.Contains(out.String(), "list available models") {
 		t.Fatalf("slash help does not describe model listing and switching: %q", out.String())
 	}
+	if !strings.Contains(out.String(), "/update") {
+		t.Fatalf("slash help does not list the update command: %q", out.String())
+	}
 }
 
 func TestSlashAutoApproveControlsTheLiveSession(t *testing.T) {
@@ -224,6 +229,81 @@ func TestSlashYoloExplainsProcessScope(t *testing.T) {
 	if !ag.Yolo || !strings.Contains(out.String(), "this process only") ||
 		!strings.Contains(out.String(), "kolk --yolo") {
 		t.Fatalf("/yolo did not enable or explain process scope: state %v, output %q", ag.Yolo, out.String())
+	}
+}
+
+func TestSlashUpdateReportsRestartAndKeepsSessionAlive(t *testing.T) {
+	a, ag, out := replFixture(t, "")
+	calls := 0
+	a.update = func(context.Context) (selfupdate.Result, error) {
+		calls++
+		return selfupdate.Result{
+			Current: "1.0.0", Latest: "1.2.3", Updated: true, Path: "/usr/local/bin/kolk",
+		}, nil
+	}
+	if a.slash(context.Background(), ag, "/update") {
+		t.Fatal("/update must not exit the REPL")
+	}
+	if calls != 1 || !strings.Contains(out.String(), "restart kolk to use 1.2.3") {
+		t.Fatalf("calls = %d, output = %q", calls, out.String())
+	}
+}
+
+func TestSlashUpdateUnchangedDoesNotRequestRestart(t *testing.T) {
+	a, ag, out := replFixture(t, "")
+	a.update = func(context.Context) (selfupdate.Result, error) {
+		return selfupdate.Result{Current: "1.2.3", Latest: "1.2.3"}, nil
+	}
+	if a.slash(context.Background(), ag, "/update") {
+		t.Fatal("unchanged /update must not exit the REPL")
+	}
+	if !strings.Contains(out.String(), "already current") || strings.Contains(out.String(), "restart") {
+		t.Fatalf("unchanged output = %q", out.String())
+	}
+}
+
+func TestSlashUpdateFailureAndArgumentsKeepSessionAlive(t *testing.T) {
+	t.Run("failure", func(t *testing.T) {
+		a, ag, out := replFixture(t, "")
+		a.update = func(context.Context) (selfupdate.Result, error) {
+			return selfupdate.Result{}, errors.New("network unavailable")
+		}
+		if a.slash(context.Background(), ag, "/update") {
+			t.Fatal("failed /update must not exit the REPL")
+		}
+		if !strings.Contains(out.String(), "update failed: network unavailable") {
+			t.Fatalf("failure output = %q", out.String())
+		}
+	})
+
+	t.Run("argument", func(t *testing.T) {
+		a, ag, out := replFixture(t, "")
+		calls := 0
+		a.update = func(context.Context) (selfupdate.Result, error) {
+			calls++
+			return selfupdate.Result{}, nil
+		}
+		if a.slash(context.Background(), ag, "/update now") {
+			t.Fatal("invalid /update must not exit the REPL")
+		}
+		if calls != 0 || !strings.Contains(out.String(), "usage: /update") {
+			t.Fatalf("calls = %d, output = %q", calls, out.String())
+		}
+	})
+}
+
+func TestSlashUpdateUsesActiveContext(t *testing.T) {
+	a, ag, _ := replFixture(t, "")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	a.update = func(got context.Context) (selfupdate.Result, error) {
+		if !errors.Is(got.Err(), context.Canceled) {
+			t.Fatalf("updater context error = %v, want cancelled", got.Err())
+		}
+		return selfupdate.Result{}, got.Err()
+	}
+	if a.slash(ctx, ag, "/update") {
+		t.Fatal("cancelled /update must not exit the REPL")
 	}
 }
 

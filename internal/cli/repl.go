@@ -43,7 +43,10 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 		}
 
 		if strings.HasPrefix(line, "/") {
-			if a.slash(ctx, ag, line) || eof {
+			tctx, stop := signal.NotifyContext(ctx, os.Interrupt)
+			shouldExit := a.slash(tctx, ag, line)
+			stop()
+			if shouldExit || eof {
 				return nil
 			}
 			continue

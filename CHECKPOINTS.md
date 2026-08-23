@@ -93,7 +93,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   exact release archive entirely before exposing binary bytes.
 - [x] **U0.2c atomic executable replacement** — preserve the running executable on every failure and
   replace it atomically with the verified binary at mode `0755`.
-- [ ] **U0.2d update command surfaces** — wire the shared updater into keyless `kolk update` and
+- [x] **U0.2d update command surfaces** — wire the shared updater into keyless `kolk update` and
   non-fatal in-session `/update` with exact help and restart guidance.
 - [ ] **U0.3 loading octopus** — show a TTY-only animated octopus while Kolkrabbi is waiting,
   without corrupting streamed replies, redirected output, or cancellation.
@@ -208,7 +208,7 @@ Acceptance checklist:
 - [x] focused engine/CLI tests and every repository gate pass; the build log records the live-session
   diagnosis and red/green/refactor evidence.
 
-### U0.2 verified self-update — planned detail
+### U0.2 verified self-update — verified detail
 
 Implementation leaves (U0.2a–U0.2d) close independently in that order; only the current leaf may
 change production code.
@@ -305,6 +305,37 @@ Acceptance checklist:
 - [x] focused updater/atomic-file tests and race coverage plus every repository gate pass; the build
   log records red/green/refactor.
 
+#### U0.2d update command surfaces — verified acceptance
+
+Scope:
+
+- Add argument-free top-level `kolk update` before the default session path, so it calls the shared
+  updater without resolving a home, key, config, migration, provider, or session.
+- Add argument-free in-session `/update` using the same app-level updater seam and active REPL
+  context; it reports errors without exiting or changing the session.
+- Render already-current, updated current→latest/path, durability warning, and in-session restart
+  guidance consistently; document both forms in generated and slash help.
+
+Non-goals:
+
+- No duplicate updater, URL/version/path arguments, force/downgrade/channel flags, startup/background
+  check, confirmation prompt, API key, config setting, relaunch, or release publication.
+- No TUI/loading state; U0.3 and U0.4 own presentation beyond deterministic text.
+
+Acceptance checklist:
+
+- [x] top-level update succeeds with no API key or directories, appears in generated help, and calls
+  exactly one injected updater.
+- [x] arguments are usage errors before an updater call; updater errors exit 1 at top level.
+- [x] unchanged and updated results include normalized current/latest facts; success names the path,
+  and durability warnings go to stderr.
+- [x] `/update` appears in help, uses the active context, rejects arguments, and keeps the session
+  alive after updater error or success.
+- [x] a successful in-session replacement says to restart Kolkrabbi before the new version is active;
+  unchanged results do not claim a restart.
+- [x] focused CLI tests and every repository gate pass; command/static-surface tests and build log
+  record red/green/refactor.
+
 Scope:
 
 - Add `kolk update` outside a session and `/update` inside a session; both call one updater and need
@@ -330,20 +361,20 @@ Non-goals:
 
 Acceptance checklist:
 
-- [ ] stable versions compare numerically; dev/malformed versions and unsupported targets fail
+- [x] stable versions compare numerically; dev/malformed versions and unsupported targets fail
   before network or filesystem mutation, and a same/newer build downloads no archive.
-- [ ] latest discovery accepts only the exact repository's `releases/tag/v<stable-semver>` result.
-- [ ] manifest and archive downloads are status/size bounded; the manifest must contain one unique
+- [x] latest discovery accepts only the exact repository's `releases/tag/v<stable-semver>` result.
+- [x] manifest and archive downloads are status/size bounded; the manifest must contain one unique
   lowercase SHA-256 for the exact target archive, and digest mismatch fails closed.
-- [ ] archive validation accepts exactly regular `kolk`, `README.md`, and `LICENSE` members, rejects
+- [x] archive validation accepts exactly regular `kolk`, `README.md`, and `LICENSE` members, rejects
   links, extra/missing/duplicate paths and empty binaries, and never writes before all checks pass.
-- [ ] successful replacement is atomic, mode `0755`, and reports old/new versions and path; every
+- [x] successful replacement is atomic, mode `0755`, and reports old/new versions and path; every
   download, validation, cancellation, or write failure preserves the previous executable.
-- [ ] `kolk update` is in top-level help, rejects arguments, runs without a key, and reports updated
+- [x] `kolk update` is in top-level help, rejects arguments, runs without a key, and reports updated
   or already-current state.
-- [ ] `/update` is in session help, rejects arguments without making a request, uses the same updater,
+- [x] `/update` is in session help, rejects arguments without making a request, uses the same updater,
   continues the session after errors, and tells the user to restart after a replacement.
-- [ ] focused updater/CLI tests, race-sensitive tests where applicable, architecture and full
+- [x] focused updater/CLI tests, race-sensitive tests where applicable, architecture and full
   repository gates pass; the build log records red/green/refactor.
 
 ### U0.3 loading octopus — planned detail

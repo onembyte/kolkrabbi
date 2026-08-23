@@ -25,6 +25,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		fmt.Fprint(a.stdout, `/mode <chat|code|agent>   switch mode (agent = orchestrated; code is the default)
 /effort <quick|standard|deep|ultra>   select model tier and agent orchestration width
 /model [id]    list available models or switch this session
+/update        install the latest verified release
 /rate <1-5>    rate the last turn (feeds the local dashboard)
 /auto-approve [on|off]   control tool confirmations for this session
 /yolo          toggle auto-approve of tool actions
@@ -140,6 +141,14 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			ag.Model = arg
 			ag.Sess.Model = arg
 			fmt.Fprintf(a.stdout, "model set to %s\n", arg)
+		}
+	case "/update":
+		if arg != "" {
+			fmt.Fprintln(a.stdout, "usage: /update")
+			break
+		}
+		if err := a.applyUpdate(ctx, true); err != nil {
+			fmt.Fprintf(a.stderr, "update failed: %v\n", err)
 		}
 	default:
 		fmt.Fprintln(a.stdout, "unknown command, /help for a list")

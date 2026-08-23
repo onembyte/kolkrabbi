@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/paths"
+	"github.com/onembyte/kolkrabbi/internal/selfupdate"
 )
 
 // defaultModel is OpenRouter's auto-router: the zero-config answer to "which
@@ -48,12 +49,14 @@ type app struct {
 	// and the one T0.1 store.
 	verifyOpenRouter verifyOpenRouterFunc
 	setCredential    setCredentialFunc
+	update           func(context.Context) (selfupdate.Result, error)
 	now              func() time.Time
 }
 
 func newApp() *app {
 	a := &app{stdout: os.Stdout, stderr: os.Stderr, in: bufio.NewReader(os.Stdin)}
 	a.initKeyDependencies()
+	a.update = selfupdate.Update
 	return a
 }
 
@@ -106,6 +109,7 @@ func commandTable() []command {
 		{"config", "[set-model <id> | set-base-url <url> | set-tier <effort> <id> | show]",
 			"read and write saved settings", (*app).runConfig},
 		{"models", "[filter]", "list models with context size and $/1M pricing", (*app).runModels},
+		{"update", "", "install the latest verified release", (*app).runUpdate},
 		{"sessions", "[rm <id> | clear]", "list or delete saved sessions", (*app).runSessions},
 		{"stats", "[--json]", "100% local usage and rating dashboard", (*app).runStats},
 		{"version", "[--json]", "print the running build", (*app).runVersion},

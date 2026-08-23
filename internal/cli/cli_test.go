@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/keystore"
 	"github.com/onembyte/kolkrabbi/internal/paths"
+	"github.com/onembyte/kolkrabbi/internal/selfupdate"
 )
 
 // newTestApp builds an app whose streams are buffers, so a whole kolk
@@ -88,6 +90,94 @@ func TestHelpFlagsAreEquivalent(t *testing.T) {
 			t.Errorf("kolk %v printed different help than `kolk help`", args)
 		}
 	}
+}
+
+func TestTopLevelUpdateNeedsNoKeyOrState(t *testing.T) {
+	d := isolateHome(t)
+	a, out, errOut := newTestApp("")
+	calls := 0
+	a.update = func(context.Context) (selfupdate.Result, error) {
+		calls++
+		return selfupdate.Result{
+			Current: "1.0.0", Latest: "1.2.3", Updated: true, Path: "/usr/local/bin/kolk",
+		}, nil
+	}
+
+	if code := a.main(context.Background(), []string{"update"}); code != ExitOK {
+		t.Fatalf("kolk update exit = %d, stderr %q", code, errOut.String())
+	}
+	if calls != 1 {
+		t.Fatalf("updater calls = %d, want 1", calls)
+	}
+	for _, want := range []string{"updated kolk 1.0.0 → 1.2.3", "/usr/local/bin/kolk"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("update output omitted %q: %q", want, out.String())
+		}
+	}
+	for _, dir := range []string{d.Config, d.Data, d.Cache} {
+		if _, err := os.Stat(dir); !os.IsNotExist(err) {
+			t.Fatalf("keyless update created state at %s: %v", dir, err)
+		}
+	}
+}
+
+func TestTopLevelUpdateRejectsArgumentsBeforeCallingUpdater(t *testing.T) {
+	a, _, errOut := newTestApp("")
+	calls := 0
+	a.update = func(context.Context) (selfupdate.Result, error) {
+		calls++
+		return selfupdate.Result{}, nil
+	}
+	if code := a.main(context.Background(), []string{"update", "now"}); code != ExitUsage {
+		t.Fatalf("update with argument exit = %d, want %d", code, ExitUsage)
+	}
+	if calls != 0 || !strings.Contains(errOut.String(), "usage: kolk update") {
+		t.Fatalf("calls = %d, stderr = %q", calls, errOut.String())
+	}
+}
+
+func TestTopLevelUpdateReportsUnchangedFailureAndWarning(t *testing.T) {
+	t.Run("unchanged", func(t *testing.T) {
+		a, out, _ := newTestApp("")
+		a.update = func(context.Context) (selfupdate.Result, error) {
+			return selfupdate.Result{Current: "1.2.3", Latest: "1.2.3"}, nil
+		}
+		if code := a.main(context.Background(), []string{"update"}); code != ExitOK {
+			t.Fatalf("exit = %d", code)
+		}
+		if !strings.Contains(out.String(), "kolk 1.2.3 is already current") {
+			t.Fatalf("unchanged output = %q", out.String())
+		}
+	})
+
+	t.Run("failure", func(t *testing.T) {
+		a, _, errOut := newTestApp("")
+		a.update = func(context.Context) (selfupdate.Result, error) {
+			return selfupdate.Result{}, errors.New("release unavailable")
+		}
+		if code := a.main(context.Background(), []string{"update"}); code != ExitError {
+			t.Fatalf("exit = %d, want %d", code, ExitError)
+		}
+		if !strings.Contains(errOut.String(), "release unavailable") {
+			t.Fatalf("failure stderr = %q", errOut.String())
+		}
+	})
+
+	t.Run("durability warning", func(t *testing.T) {
+		a, out, errOut := newTestApp("")
+		a.update = func(context.Context) (selfupdate.Result, error) {
+			return selfupdate.Result{
+				Current: "1.0.0", Latest: "1.2.3", Updated: true,
+				Path: "/bin/kolk", Warning: "directory sync refused",
+			}, nil
+		}
+		if code := a.main(context.Background(), []string{"update"}); code != ExitOK {
+			t.Fatalf("exit = %d", code)
+		}
+		if !strings.Contains(out.String(), "updated kolk") || !strings.Contains(errOut.String(), "warning: directory sync refused") {
+			t.Fatalf("stdout %q, stderr %q", out.String(), errOut.String())
+		}
+	})
 }
 
 func TestCommandNamesAreUniqueAndTypeable(t *testing.T) {
