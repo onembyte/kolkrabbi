@@ -43,7 +43,7 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 		}
 
 		if strings.HasPrefix(line, "/") {
-			if a.slash(ag, line) || eof {
+			if a.slash(ctx, ag, line) || eof {
 				return nil
 			}
 			continue

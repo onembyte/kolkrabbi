@@ -5,7 +5,10 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/onembyte/kolkrabbi/internal/engine"
@@ -128,7 +131,7 @@ func TestReplRunsATurnAndSlashCommands(t *testing.T) {
 
 func TestSlashUnknownCommandDoesNotExit(t *testing.T) {
 	a, ag, out := replFixture(t, "")
-	if a.slash(ag, "/nonsense") {
+	if a.slash(context.Background(), ag, "/nonsense") {
 		t.Error("an unknown slash command must not quit the REPL")
 	}
 	if !strings.Contains(out.String(), "/help") {
@@ -138,7 +141,7 @@ func TestSlashUnknownCommandDoesNotExit(t *testing.T) {
 
 func TestSlashModeSwitchesToAgent(t *testing.T) {
 	a, ag, out := replFixture(t, "")
-	if a.slash(ag, "/mode agent") {
+	if a.slash(context.Background(), ag, "/mode agent") {
 		t.Fatal("/mode agent must not exit the REPL")
 	}
 	if ag.Mode != engine.ModeAgent {
@@ -151,7 +154,7 @@ func TestSlashModeSwitchesToAgent(t *testing.T) {
 
 func TestSlashHelpListsAllReleaseModes(t *testing.T) {
 	a, ag, out := replFixture(t, "")
-	a.slash(ag, "/help")
+	a.slash(context.Background(), ag, "/help")
 	if !strings.Contains(out.String(), "/mode <chat|code|agent>") {
 		t.Fatalf("slash help does not list all three release modes: %q", out.String())
 	}
@@ -161,6 +164,9 @@ func TestSlashHelpListsAllReleaseModes(t *testing.T) {
 	if !strings.Contains(out.String(), "/auto-approve [on|off]") {
 		t.Fatalf("slash help does not list the explicit auto-approve command: %q", out.String())
 	}
+	if !strings.Contains(out.String(), "/model [id]") || !strings.Contains(out.String(), "list available models") {
+		t.Fatalf("slash help does not describe model listing and switching: %q", out.String())
+	}
 }
 
 func TestSlashAutoApproveControlsTheLiveSession(t *testing.T) {
@@ -168,7 +174,7 @@ func TestSlashAutoApproveControlsTheLiveSession(t *testing.T) {
 	ag.Yolo = false
 
 	for _, command := range []string{"/auto-approve", "/auto-approve on"} {
-		if a.slash(ag, command) {
+		if a.slash(context.Background(), ag, command) {
 			t.Fatalf("%s must not exit the REPL", command)
 		}
 		if !ag.Yolo {
@@ -179,7 +185,7 @@ func TestSlashAutoApproveControlsTheLiveSession(t *testing.T) {
 		t.Fatalf("enabled state does not name the risk: %q", out.String())
 	}
 
-	if a.slash(ag, "/auto-approve off") {
+	if a.slash(context.Background(), ag, "/auto-approve off") {
 		t.Fatal("/auto-approve off must not exit the REPL")
 	}
 	if ag.Yolo {
@@ -194,7 +200,7 @@ func TestSlashAutoApproveRejectsUnknownArgumentWithoutChangingState(t *testing.T
 	a, ag, out := replFixture(t, "")
 	ag.Yolo = false
 
-	if a.slash(ag, "/auto-approve forever") {
+	if a.slash(context.Background(), ag, "/auto-approve forever") {
 		t.Fatal("invalid auto-approve argument must not exit the REPL")
 	}
 	if ag.Yolo {
@@ -202,5 +208,93 @@ func TestSlashAutoApproveRejectsUnknownArgumentWithoutChangingState(t *testing.T
 	}
 	if got := out.String(); !strings.Contains(got, "usage: /auto-approve [on|off]") {
 		t.Fatalf("invalid auto-approve argument did not print exact usage: %q", got)
+	}
+}
+
+func TestSlashModelListsTheActiveProviderCatalog(t *testing.T) {
+	var requests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"data":[`+
+			`{"id":"z/model","name":"Zulu","context_length":32000,"pricing":{"prompt":"0.000001","completion":"0.000002"}},`+
+			`{"id":"a/free","name":"Alpha","context_length":1000000,"pricing":{"prompt":"0","completion":"0"}}]}`)
+	}))
+	defer srv.Close()
+
+	client := provider.NewClient("test-key")
+	client.BaseURL = srv.URL
+	a, out, errOut := newTestApp("")
+	ag := engine.New(engine.Options{
+		Client: client, Model: "current/model", Sess: session.New(t.TempDir(), "current/model"), Out: io.Discard,
+	})
+
+	if a.slash(context.Background(), ag, "/model") {
+		t.Fatal("/model must not exit the REPL")
+	}
+	got := out.String()
+	if !strings.Contains(got, "current model: current/model") {
+		t.Fatalf("/model omitted the current model: %q", got)
+	}
+	free, paid := strings.Index(got, "a/free"), strings.Index(got, "z/model")
+	if free < 0 || paid < 0 || free > paid {
+		t.Fatalf("/model catalog is missing or unsorted: %q", got)
+	}
+	for _, want := range []string{"ctx 1000000", "free", "$1.00 in / $2.00 out per 1M tokens"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("/model catalog omitted %q: %q", want, got)
+		}
+	}
+	if requests.Load() != 1 || errOut.Len() != 0 {
+		t.Fatalf("catalog requests = %d, stderr = %q", requests.Load(), errOut.String())
+	}
+}
+
+func TestSlashModelDirectSwitchDoesNotFetchCatalog(t *testing.T) {
+	var requests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		requests.Add(1)
+	}))
+	defer srv.Close()
+	client := provider.NewClient("test-key")
+	client.BaseURL = srv.URL
+	a, ag, out := replFixture(t, "")
+	ag.Client = client
+
+	if a.slash(context.Background(), ag, "/model vendor/new") {
+		t.Fatal("/model <id> must not exit the REPL")
+	}
+	if ag.Model != "vendor/new" || ag.Sess.Model != "vendor/new" {
+		t.Fatalf("direct model switch = (%q, %q)", ag.Model, ag.Sess.Model)
+	}
+	if requests.Load() != 0 {
+		t.Fatalf("direct model switch made %d catalog requests", requests.Load())
+	}
+	if !strings.Contains(out.String(), "model set to vendor/new") {
+		t.Fatalf("direct switch was not reported: %q", out.String())
+	}
+}
+
+func TestSlashModelCatalogFailureKeepsTheSession(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "catalog unavailable", http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+	client := provider.NewClient("test-key")
+	client.BaseURL = srv.URL
+	a, out, errOut := newTestApp("")
+	ag := engine.New(engine.Options{
+		Client: client, Model: "current/model", Sess: session.New(t.TempDir(), "current/model"), Out: io.Discard,
+	})
+
+	if a.slash(context.Background(), ag, "/model") {
+		t.Fatal("catalog failure must not exit the REPL")
+	}
+	if ag.Model != "current/model" || ag.Sess.Model != "current/model" {
+		t.Fatal("catalog failure changed the current model")
+	}
+	if !strings.Contains(out.String(), "current model: current/model") ||
+		!strings.Contains(errOut.String(), "could not list models") {
+		t.Fatalf("catalog failure output = stdout %q, stderr %q", out.String(), errOut.String())
 	}
 }

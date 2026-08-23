@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strconv"
@@ -26,12 +27,23 @@ func (a *app) runModels(ctx context.Context, args []string) error {
 	client := provider.NewClient(os.Getenv("OPENROUTER_API_KEY"))
 	client.BaseURL = config.ResolveBaseURL("", cfg)
 
+	return a.printModelCatalog(ctx, client, strings.Join(args, " "))
+}
+
+func (a *app) printModelCatalog(ctx context.Context, client *provider.Client, filter string) error {
+	if client == nil {
+		return fmt.Errorf("model provider is not configured")
+	}
 	models, err := client.ListModels(ctx)
 	if err != nil {
 		return err
 	}
+	renderModelCatalog(a.stdout, models, filter)
+	return nil
+}
 
-	filter := strings.ToLower(strings.Join(args, " "))
+func renderModelCatalog(out io.Writer, models []provider.ModelInfo, filter string) {
+	filter = strings.ToLower(filter)
 	sort.Slice(models, func(i, j int) bool { return models[i].ID < models[j].ID })
 	for _, m := range models {
 		if filter != "" &&
@@ -39,10 +51,9 @@ func (a *app) runModels(ctx context.Context, args []string) error {
 			!strings.Contains(strings.ToLower(m.Name), filter) {
 			continue
 		}
-		fmt.Fprintf(a.stdout, "%-48s ctx %-9d %s\n",
+		fmt.Fprintf(out, "%-48s ctx %-9d %s\n",
 			m.ID, m.ContextLength, formatPricing(m.Pricing.Prompt, m.Pricing.Completion))
 	}
-	return nil
 }
 
 // formatPricing converts OpenRouter's per-token USD strings to $/1M tokens.

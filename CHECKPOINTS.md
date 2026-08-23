@@ -83,12 +83,16 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   `/auto-approve [on|off]` control while preserving `-y` and `/yolo` compatibility.
 - [x] **U0.1b mode-prefixed prompt** — identify Kolkrabbi and the active mode as `kolk-<mode>`
   at every interactive prompt.
-- [ ] **U0.1c in-session model catalog** — make bare `/model` show the current selection and the
+- [x] **U0.1c in-session model catalog** — make bare `/model` show the current selection and the
   available provider models while preserving `/model <id>` as the direct switch.
+- [ ] **U0.1d resilient agent completion** — recover once from an empty provider response, strengthen
+  project-execution instructions, and make process-local auto-approve scope unmistakable.
 - [ ] **U0.2 verified self-update** — add `kolk update` and `/update`, resolving the latest GitHub
   Release with platform checks, checksum verification, and atomic binary replacement.
 - [ ] **U0.3 loading octopus** — show a TTY-only animated octopus while Kolkrabbi is waiting,
   without corrupting streamed replies, redirected output, or cancellation.
+- [ ] **U0.4 persistent terminal UI** — add a Codex-style persistent multiline input area, live
+  activity/tool status, visible model/mode/effort/session state, and robust terminal interaction.
 
 ### U0.1 explicit auto-approve command — active detail
 
@@ -136,6 +140,31 @@ Acceptance checklist:
 - [x] fresh interactive prompts use `kolk-<mode>` for all three supported modes.
 - [x] changing mode changes the next prefix, and no legacy bare `code>`, `chat>`, or `agent>` prompt
   is rendered.
+- [x] focused CLI tests and every repository gate pass; the build log records red/green/refactor.
+
+### U0.1c in-session model catalog — verified detail
+
+Scope:
+
+- Make bare `/model` print the current model and list the active provider's available catalog using
+  the same sorting, filtering, context-length, and pricing renderer as top-level `kolk models`.
+- Keep `/model <id>` as a direct session switch with no catalog request.
+- Thread the REPL context through slash handling so catalog cancellation follows the running CLI.
+
+Non-goals:
+
+- No interactive picker, paging, fuzzy search, automatic model switch, catalog cache, provider
+  redesign, free-model policy, config persistence, or change to top-level `kolk models` semantics.
+- No self-update, loading animation, or model API request when an explicit ID is supplied.
+
+Acceptance checklist:
+
+- [x] bare `/model` prints the current ID followed by the sorted catalog with the existing context
+  and pricing format.
+- [x] a catalog failure is reported clearly, does not change the current model, and does not exit
+  the session.
+- [x] `/model <id>` changes both agent and session model without fetching the catalog.
+- [x] `/help` describes the list-or-switch behavior and slash commands receive the REPL context.
 - [x] focused CLI tests and every repository gate pass; the build log records red/green/refactor.
 
 ### U0.2 verified self-update — planned detail

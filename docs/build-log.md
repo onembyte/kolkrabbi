@@ -1793,3 +1793,45 @@ checks, and all release contracts green.
 ### Next checkpoint
 
 U0.1c makes bare `/model` list the provider catalog before the frozen U0.2 self-update work resumes.
+
+---
+
+## Owner UX / U0.1c — in-session model catalog
+
+**Status:** done, 2026-08-23 · **Host tests:** 580 · **Dependencies:** unchanged ·
+**User-visible change:** bare `/model` lists available models
+
+Bare `/model` now prints the current model and the active provider's available catalog, sorted and
+rendered with the same context-length and pricing format as top-level `kolk models`. Supplying an ID
+keeps the existing fast path: `/model <id>` updates the live agent and saved session without making
+a catalog request. Catalog failures are reported without changing the model or ending the REPL.
+
+### TDD record
+
+**Red:** the focused CLI suite failed to compile because slash handling did not accept the REPL
+context required by a cancellable catalog request. The new behavior tests also specified sorted
+free/paid rendering, failure recovery, and the no-request direct-switch path.
+
+**Green:** the REPL now passes its context into slash commands, and bare `/model` calls the active
+agent client while `/model <id>` retains its direct state update.
+
+**Refactor:** top-level and in-session listing share one fetch path and one renderer, removing the
+previous sorting/filtering/formatting ownership from `runModels`. Slash help describes the two forms.
+
+### Verification
+
+```sh
+gofmt -d internal/cli/cmd_models.go internal/cli/slash.go internal/cli/repl.go internal/cli/repl_test.go
+go test -count=1 ./internal/cli
+make check
+```
+
+The complete gate passed with 580 tests, five compile targets, zero lint issues, a 6.21 MB binary,
+4.9 ms cold-start p50, one root dependency, 110 site checks, 11 mode-surface checks, 56 installer
+checks, and all release contracts green.
+
+### Next checkpoint
+
+U0.1d addresses the owner's observed empty-response stop and clarifies the process-local scope of
+auto-approval. U0.2 self-update, U0.3 loading state, and U0.4 persistent terminal UI remain isolated
+follow-on checkpoints.

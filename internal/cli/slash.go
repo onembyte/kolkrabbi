@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -12,7 +13,7 @@ import (
 
 // slash handles a /command typed in the REPL. It returns true when the REPL
 // should exit.
-func (a *app) slash(ag *engine.Agent, line string) bool {
+func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 	fields := strings.Fields(line)
 	cmd := fields[0]
 	arg := strings.TrimSpace(strings.TrimPrefix(line, cmd))
@@ -23,7 +24,7 @@ func (a *app) slash(ag *engine.Agent, line string) bool {
 	case "/help":
 		fmt.Fprint(a.stdout, `/mode <chat|code|agent>   switch mode (agent = orchestrated; code is the default)
 /effort <quick|standard|deep|ultra>   select model tier and agent orchestration width
-/model <id>    override the base model for this session
+/model [id]    list available models or switch this session
 /rate <1-5>    rate the last turn (feeds the local dashboard)
 /auto-approve [on|off]   control tool confirmations for this session
 /yolo          toggle auto-approve of tool actions
@@ -127,7 +128,10 @@ func (a *app) slash(ag *engine.Agent, line string) bool {
 		}
 	case "/model":
 		if arg == "" {
-			fmt.Fprintln(a.stdout, "usage: /model <model-id>")
+			fmt.Fprintf(a.stdout, "current model: %s\n", ag.Model)
+			if err := a.printModelCatalog(ctx, ag.Client, ""); err != nil {
+				fmt.Fprintf(a.stderr, "could not list models: %v\n", err)
+			}
 		} else {
 			ag.Model = arg
 			ag.Sess.Model = arg
