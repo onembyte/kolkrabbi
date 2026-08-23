@@ -106,26 +106,26 @@ func TestSlashUnknownCommandDoesNotExit(t *testing.T) {
 	}
 }
 
-func TestSlashModeRejectsUnreleasedAgentMode(t *testing.T) {
+func TestSlashModeSwitchesToAgent(t *testing.T) {
 	a, ag, out := replFixture(t, "")
 	if a.slash(ag, "/mode agent") {
-		t.Fatal("a rejected mode must not exit the REPL")
+		t.Fatal("/mode agent must not exit the REPL")
 	}
-	if ag.Mode != engine.ModeCode {
-		t.Fatalf("mode = %q after rejection, want %q", ag.Mode, engine.ModeCode)
+	if ag.Mode != engine.ModeAgent {
+		t.Fatalf("mode = %q, want %q", ag.Mode, engine.ModeAgent)
 	}
-	if !strings.Contains(out.String(), `unknown mode "agent" (chat|code)`) {
-		t.Fatalf("rejection did not name the two released modes: %q", out.String())
+	if !strings.Contains(out.String(), "mode: agent") {
+		t.Fatalf("mode switch was not reported: %q", out.String())
 	}
 }
 
-func TestSlashHelpListsOnlyReleaseModes(t *testing.T) {
+func TestSlashHelpListsAllReleaseModes(t *testing.T) {
 	a, ag, out := replFixture(t, "")
 	a.slash(ag, "/help")
-	if !strings.Contains(out.String(), "/mode <chat|code>") {
-		t.Fatalf("slash help does not list the two released modes: %q", out.String())
+	if !strings.Contains(out.String(), "/mode <chat|code|agent>") {
+		t.Fatalf("slash help does not list all three release modes: %q", out.String())
 	}
-	if strings.Contains(strings.ToLower(out.String()), "agent") {
-		t.Fatalf("slash help advertises an unreleased mode: %q", out.String())
+	if !strings.Contains(out.String(), "agent = orchestrated") {
+		t.Fatalf("slash help does not explain agent mode: %q", out.String())
 	}
 }

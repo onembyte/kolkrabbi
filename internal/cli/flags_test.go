@@ -26,6 +26,7 @@ func TestParseFlags(t *testing.T) {
 		{"mixed", []string{"-e", "ultra", "--mode", "code", "ship", "it"},
 			options{effort: "ultra", mode: "code", prompt: "ship it", rest: []string{"ship", "it"}}},
 		{"chat mode", []string{"--mode", "chat"}, options{mode: "chat"}},
+		{"agent mode", []string{"--mode", "agent"}, options{mode: "agent"}},
 		{"flag wins over positional", []string{"-p", "flagged", "positional"},
 			options{prompt: "flagged", rest: []string{"positional"}}},
 		// The only way to write a prompt that starts with a dash.
@@ -63,7 +64,7 @@ func TestParseFlagsRejects(t *testing.T) {
 		{"missing value long", []string{"--model"}},
 		{"value given to a boolean", []string{"--yolo=true"}},
 		{"unknown flag in equals form", []string{"--nope=1"}},
-		{"agent mode is not released", []string{"--mode", "agent"}},
+		{"unknown mode", []string{"--mode", "delegate"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

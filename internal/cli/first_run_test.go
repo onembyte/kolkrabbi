@@ -13,19 +13,22 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/engine"
+	"github.com/onembyte/kolkrabbi/internal/enginetest"
 	"github.com/onembyte/kolkrabbi/internal/keystore"
+	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/secret"
 )
 
 const firstRunStoredKey = "sk-or-v1-0123456789abcdef0123456789abcdef"
 
-func storeFirstRunKey(t *testing.T) {
+func storeFirstRunKey(t *testing.T) paths.Dirs {
 	t.Helper()
 	d := isolateHome(t)
 	store := keystore.NewFileStore(d.CredentialsFile())
 	if err := store.Set(context.Background(), keystore.Ref{Provider: "openrouter"}, secret.New(firstRunStoredKey)); err != nil {
 		t.Fatal(err)
 	}
+	return d
 }
 
 func writeCorruptCredentialManifest(t *testing.T, path string) {
@@ -60,6 +63,37 @@ func TestStoredCredentialBuildsComputedDefaultAgent(t *testing.T) {
 	}
 	if strings.Contains(out.String()+errOut.String(), firstRunStoredKey) {
 		t.Fatal("constructing an agent printed the stored credential")
+	}
+}
+
+func TestModeAgentFlagRunsTheOrchestratedPipeline(t *testing.T) {
+	d := storeFirstRunKey(t)
+	srv := enginetest.New(
+		enginetest.Step{Text: `["inspect the request", "prepare the answer"]`},
+		enginetest.Step{Text: "Inspection complete."},
+		enginetest.Step{Text: "Answer prepared."},
+		enginetest.Step{Text: "The public agent route completed."},
+	)
+	defer srv.Close()
+	if err := config.Save(d.ConfigFile(), &config.Config{BaseURL: srv.URL}); err != nil {
+		t.Fatal(err)
+	}
+
+	a, out, errOut := newTestApp("")
+	args := []string{"--mode", "agent", "-p", "inspect and answer"}
+	if code := a.main(context.Background(), args); code != ExitOK {
+		t.Fatalf("kolk %v exit = %d, stderr:\n%s", args, code, errOut)
+	}
+	for _, want := range []string{"plan (2 tasks)", "subagent 1/2", "subagent 2/2", "The public agent route completed."} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("agent output missing %q:\n%s", want, out)
+		}
+	}
+	if len(srv.Tools) != 4 {
+		t.Fatalf("model calls = %d, want planner + two subagents + synthesis", len(srv.Tools))
+	}
+	if srv.Tools[0] != 0 || srv.Tools[1] == 0 || srv.Tools[2] == 0 || srv.Tools[3] != 0 {
+		t.Errorf("tool schemas by role = %v, want none/tools/tools/none", srv.Tools)
 	}
 }
 

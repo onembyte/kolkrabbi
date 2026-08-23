@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Public product contract for the first working deploy.
+# Public mode contract for the first working deploy.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -9,7 +9,7 @@ failures=0
 checks=0
 
 pass() { checks=$((checks + 1)); }
-fail() { checks=$((checks + 1)); failures=$((failures + 1)); printf 'v0.1 surface: %s\n' "$1" >&2; }
+fail() { checks=$((checks + 1)); failures=$((failures + 1)); printf 'mode surface: %s\n' "$1" >&2; }
 
 contains() {
   local file="$1" text="$2" label="$3"
@@ -21,16 +21,18 @@ excludes() {
   if ! grep -Eiq -- "$pattern" "$file"; then pass; else fail "$label"; fi
 }
 
-contains "$README" '## The two modes' "README does not define the two-mode release"
+contains "$README" '## The three modes' "README does not define the three-mode release"
 contains "$README" 'kolk                          # interactive, code mode' "README does not state that code is the default"
-excludes "$README" 'three modes|/mode agent|--mode agent|agent mode|orchestrated agents' "README advertises the unreleased agent mode"
-contains "$CLI/flags.go" '<chat|code>' "CLI mode flag does not name exactly chat and code"
-excludes "$CLI/flags.go" 'chat\|code\|agent|agent = orchestrated' "CLI mode flag advertises the unreleased agent mode"
-contains "$CLI/cli.go" 'kolk — chat / code in one CLI' "top-level help does not name the two-mode release"
-excludes "$CLI/cli.go" 'chat / code / agent|In agent mode' "top-level help advertises the unreleased agent mode"
+contains "$README" '/mode agent' "README does not document agent mode"
+excludes "$README" 'parallel subagents|subagents in parallel|at once' "README inaccurately claims parallel orchestration"
+contains "$CLI/flags.go" '<chat|code|agent>' "CLI mode flag does not name exactly chat, code, and agent"
+contains "$CLI/flags.go" 'agent = orchestrated' "CLI mode flag does not explain agent mode"
+contains "$CLI/cli.go" 'kolk — chat / code / agent in one CLI' "top-level help does not name the three-mode release"
+contains "$CLI/cli.go" 'In agent mode, effort also scales orchestration width.' "top-level help does not explain agent effort"
+contains "$ROOT/internal/engine/agent.go" 'var Modes = []string{ModeChat, ModeCode, ModeAgent}' "engine registry does not expose exactly three modes"
 
 if [ "$failures" -ne 0 ]; then
-  printf 'v0.1 surface: %d/%d checks failed\n' "$failures" "$checks" >&2
+  printf 'mode surface: %d/%d checks failed\n' "$failures" "$checks" >&2
   exit 1
 fi
-printf 'v0.1 surface: %d checks passed\n' "$checks"
+printf 'mode surface: %d checks passed\n' "$checks"

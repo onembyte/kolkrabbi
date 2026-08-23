@@ -72,6 +72,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   enters a working session using computed defaults.
 - [x] **R0.1 v0.1 two-mode surface** — ship only chat and code, with code as the default; keep the
   experimental orchestrator unreachable until the later agentic phase.
+- [x] **R0.2 agentic surface restoration** — at the owner's direction, expose the preserved
+  sequential agent orchestrator as the third mode while keeping code as the default.
 - [!] **T0.4 release and installer** — local implementation is complete; the public cutover is
   postponed at the owner's request while the remaining project is built.
 - [!] **T0.5 clean-machine rehearsal** — waits for the postponed public cutover, then proves install,
@@ -107,6 +109,43 @@ Acceptance checklist:
 - [x] the dormant internal orchestration tests remain green, proving the future implementation was
   preserved behind the release boundary.
 - [x] focused checks and the full repository gates pass, and the build log records red and green.
+
+### R0.2 agentic surface restoration — verified detail
+
+R0.1 remains the verified history of the first working-deploy boundary. This checkpoint supersedes
+that product boundary at the owner's direction; it does not rewrite the earlier evidence.
+
+Scope:
+
+- Expose exactly `chat`, `code`, and `agent` through the engine registry, command-line flags, the
+  REPL, help, README, landing page, and their static guard rails.
+- Preserve `code` as the zero-configuration default for plain `kolk`.
+- Surface the existing agent pipeline truthfully: one planner, ordered isolated subagents, then one
+  synthesis response; effort controls both the configured model tier and the maximum task count.
+- Retain invalid-mode rejection and all existing chat-, code-, session-, tool-, and confirmation
+  behavior.
+
+Non-goals:
+
+- No orchestration redesign, parallel execution, provider work, protocol integration, or new tool
+  permissions in this checkpoint.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+- No changes to the owner's unhardened mode-plan draft.
+
+Acceptance checklist:
+
+- [x] the public engine registry contains exactly `chat`, `code`, and `agent`; all three can be set,
+  while an unknown value is rejected without changing the current mode.
+- [x] `--mode agent` parses before runtime setup, while an unknown command-line mode remains a usage
+  error.
+- [x] `/mode agent` switches the active session and `/help` names all three modes.
+- [x] CLI help, README, and landing page explain agent mode as ordered orchestration without claiming
+  parallel execution.
+- [x] zero-value engine options still select `code`, and the existing orchestrated end-to-end and
+  single-task fallback tests remain green.
+- [x] focused red/green evidence and every full repository gate pass, and the build log records the
+  checkpoint.
 
 ### T0.4 release and installer — active detail
 

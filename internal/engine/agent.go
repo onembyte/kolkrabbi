@@ -33,14 +33,12 @@ const (
 
 // Modes and efforts.
 const (
-	ModeChat = "chat"
-	ModeCode = "code"
-	// ModeAgent is experimental. It remains available to internal tests but is
-	// deliberately absent from Modes and every v0.1 user surface.
+	ModeChat  = "chat"
+	ModeCode  = "code"
 	ModeAgent = "agent"
 )
 
-var Modes = []string{ModeChat, ModeCode}
+var Modes = []string{ModeChat, ModeCode, ModeAgent}
 
 const (
 	EffortQuick    = "quick"
@@ -61,7 +59,7 @@ const maxProjectMemory = 16 * 1024
 type Options struct {
 	Client   *provider.Client
 	Model    string // the session's base model
-	Mode     string // chat | code (default code)
+	Mode     string // chat | code | agent (default code)
 	Effort   string // quick | standard | deep | ultra (default standard)
 	Yolo     bool
 	Sess     *session.Session
@@ -122,7 +120,7 @@ func (a *Agent) SetMode(mode string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("unknown mode %q (chat|code)", mode)
+	return fmt.Errorf("unknown mode %q (chat|code|agent)", mode)
 }
 
 // SetEffort validates and sets the effort level.

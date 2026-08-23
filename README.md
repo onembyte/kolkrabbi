@@ -1,7 +1,7 @@
 # Kolkrabbi
 
-**Chat and code in one fast CLI — any model, any provider, with a 100% local
-rating dashboard.**
+**Chat, code, and ordered agents in one fast CLI — any model, any provider,
+with a 100% local rating dashboard.**
 
 *Kolkrabbi* is Icelandic for octopus — *kol* ("coal") + *krabbi* ("crab").
 Fitting: roughly two-thirds of an octopus's neurons live in its arms. Many
@@ -10,23 +10,26 @@ arms, one small terminal, and many model providers within reach.
 Binary name: **`kolk`**.
 
 Think Claude Code, but: any model on [OpenRouter](https://openrouter.ai) (or
-any OpenAI-compatible endpoint — LiteLLM, Ollama, vLLM), separate chat and
-code modes, an effort dial that selects *which model* instead of just thinking
-tokens, and every call tracked locally so you learn which models actually earn
-their cost.
+any OpenAI-compatible endpoint — LiteLLM, Ollama, vLLM), separate chat, code,
+and agent modes, an effort dial that selects *which model* and agent task width
+instead of just thinking tokens, and every call tracked locally so you learn
+which models actually earn their cost.
 
 Go, zero external dependencies, single ~5MB static binary, ~2ms startup.
 
-## The two modes
+## The three modes
 
 ```
 /mode chat    plain conversation, no tools — cheap and instant
 /mode code    the coding loop: read/write/edit files, run commands,
               iterate until done (Claude-Code style)
+/mode agent   ordered orchestration: plan the work, run isolated
+              subagents one by one, then synthesize one answer
 ```
 
 Code is the default, so plain `kolk` is ready for file and command work. Switch
-to chat when you want a tool-free conversation.
+to chat when you want a tool-free conversation, or agent when a longer task
+benefits from decomposition and isolated working contexts.
 
 ## The effort dial
 
@@ -35,7 +38,9 @@ to chat when you want a tool-free conversation.
 ```
 
 Claude Code's `ultrathink` scales thinking on one Anthropic model. Kolkrabbi's
-effort scales across providers: each level maps to a model tier you choose.
+effort scales across providers: each level maps to a model tier you choose. In
+agent mode it also caps orchestration width: quick 2 tasks, standard 3, deep 4,
+and ultra 6.
 
 ```bash
 kolk config set-tier quick    google/gemini-2.5-flash   # pennies
@@ -81,6 +86,7 @@ That's the whole setup. Everything else is optional.
 ```bash
 kolk                          # interactive, code mode
 kolk --mode chat              # start in chat
+kolk --mode agent "plan, implement, and verify this change"
 kolk -y "run the tests and fix failures"    # auto-approve tool actions
 kolk -r                       # resume the most recent session
 kolk --base-url http://localhost:11434/v1 -m qwen2.5-coder:14b "..."  # Ollama
@@ -125,8 +131,9 @@ kolk --base-url <url> -y "create the hello file"
 | `edit_file` | unique exact find/replace | yes | yes |
 | `list_dir` | list a directory | no | — |
 
-Chat mode carries no tools at all. Confirmation prompts gate every
-side-effecting action unless `-y`/`/yolo`.
+Chat mode carries no tools at all. Code mode and agent subagents use the same
+tool and confirmation gates; every side-effecting action requires approval
+unless `-y`/`/yolo` is active.
 
 ## Architecture
 
@@ -134,7 +141,7 @@ side-effecting action unless `-y`/`/yolo`.
 cmd/kolk               flags, REPL, subcommands (config/models/sessions/stats)
 cmd/kolk-mock          standalone mock for manual sandbox runs
 internal/provider      streaming SSE client, tool-call reassembly, usage/cost
-internal/engine        chat/code modes, effort tiers, and the code loop
+internal/engine        chat/code/agent modes, effort tiers, and orchestration
 internal/tools         tool schemas + execution, confirm gating, ckpt hook
 internal/session       persistent conversations (atomic JSON)
 internal/checkpoint    pre-change snapshots, per-turn rewind
@@ -157,4 +164,6 @@ Go module path: `github.com/onembyte/kolkrabbi`. Binary: `kolk`.
   chat turns to my best-rated cheap model") is the phase-3 flywheel.
 - `bash` changes aren't checkpointed; a git-stash snapshot per turn would
   cover repos.
+- Agent-mode subagents currently run in a fixed order; concurrency is future
+  work.
 - Unix-only in practice (bash tool, ANSI colors). Single-line REPL input.

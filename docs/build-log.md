@@ -1088,3 +1088,57 @@ checks, seven v0.1 surface checks, 56 installer checks, and all release contract
 At the owner's direction, the preserved experimental agent implementation is restored through the
 public mode surfaces as its own TDD checkpoint before A6.2b2 resumes the session-lifecycle contract.
 Publishing, the public tag, and the clean-machine rehearsal remain postponed.
+
+---
+
+## Owner trial / R0.2 — agentic surface restoration
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 50 · **Host tests:** 365 ·
+**User-visible changes:** agent mode restored · **Default mode:** code
+
+At the owner's direction, the preserved orchestrator is reachable again as the third public mode.
+The engine registry, `--mode`, `/mode`, top-level and slash help, README, landing page, and static
+guard rails now expose exactly `chat`, `code`, and `agent`. Plain `kolk` still computes `code` as
+its default.
+
+The restored copy describes the implementation that actually exists: agent mode asks one planner
+for an ordered task list, runs each tool-capable subagent sequentially in an isolated context, and
+uses a tool-free synthesis call for the final response. Effort continues to select a configured
+model tier and, in agent mode, caps task width at 2, 3, 4, or 6. This checkpoint did not redesign
+or parallelize orchestration and did not change providers, tools, permissions, or protocol code.
+
+### TDD record
+
+**Red:** the new exact-three-mode registry test found only `[chat code]`; `--mode agent` returned the
+old `(chat|code)` usage error; `/mode agent` stayed in code mode; slash help listed only two modes;
+the public-surface contract failed seven of nine checks; and the landing-page contract failed its
+three new agent assertions.
+
+**Green:** `ModeAgent` joined the accepted registry and both invalid-mode errors now enumerate all
+three choices. Flags, live mode switching, help, README, and site copy expose agent mode while
+retaining code as the default. The pre-existing multi-task orchestration and single-task fallback
+tests stayed green without any production change to the orchestrator.
+
+**Refactor:** a CLI-level offline end-to-end test now drives the real `--mode agent -p` path using a
+stored credential and scripted provider. It proves four distinct calls with the correct tool
+boundaries: planner without tools, two ordered tool-capable subagents, then synthesis without tools.
+Static contracts reject inaccurate parallel-execution claims.
+
+### Verification
+
+```sh
+go test -count=1 ./internal/engine ./internal/cli -run '<focused R0.2 matrix>'
+./scripts/test-v01-surface.sh
+./scripts/test-site.sh
+go run ./cmd/kolk help
+make check
+```
+
+The complete gate passed with 365 tests, five compile targets, zero lint issues, a 6.21 MB binary,
+4.9 ms cold-start p50, one root dependency, 48 site checks, nine mode-surface checks, 56 installer
+checks, and all release contracts unchanged.
+
+### Next checkpoint
+
+A6.2b2 resumes the session-lifecycle protocol contract as an independent schema, binding, golden,
+and validation slice. Publishing, the public tag, and the clean-machine rehearsal remain postponed.

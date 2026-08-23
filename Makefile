@@ -60,7 +60,7 @@ budgets: ## binary size, cold start, test floor, dependency count
 	./scripts/check-budgets.sh
 site: ## static landing-page content, safety and deployment contract
 	./scripts/test-site.sh
-surface: ## v0.1 exposes chat and code only, with code as the default
+surface: ## exposes chat, code and agent, with code as the default
 	./scripts/test-v01-surface.sh
 installer: ## offline installer platform, integrity, extraction and replacement matrix
 	./scripts/test-installer.sh

@@ -35,9 +35,9 @@ type flagDef struct {
 var flagTable = []flagDef{
 	{long: "model", short: "m", arg: "<id>", summary: "use a specific model for this run",
 		set: func(o *options, v string) { o.model = v }},
-	{long: "mode", arg: "<chat|code>", summary: "chat = no tools · code = tool loop (default)",
+	{long: "mode", arg: "<chat|code|agent>", summary: "chat = no tools · code = tool loop (default) · agent = orchestrated",
 		set: func(o *options, v string) { o.mode = v }},
-	{long: "effort", short: "e", arg: "<quick|standard|deep|ultra>", summary: "select the configured model tier",
+	{long: "effort", short: "e", arg: "<quick|standard|deep|ultra>", summary: "select model tier and agent orchestration width",
 		set: func(o *options, v string) { o.effort = v }},
 	{long: "print", short: "p", arg: "<prompt>", summary: "single-shot: run one turn, then exit",
 		set: func(o *options, v string) { o.prompt = v }},
@@ -122,7 +122,7 @@ func parseFlags(args []string) (*options, error) {
 		o.prompt = strings.Join(o.rest, " ")
 	}
 	if o.mode != "" && !releaseMode(o.mode) {
-		return nil, usagef("unknown mode %q (chat|code)", o.mode)
+		return nil, usagef("unknown mode %q (chat|code|agent)", o.mode)
 	}
 	return o, nil
 }

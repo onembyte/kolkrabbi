@@ -16,18 +16,26 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/stats"
 )
 
-func TestReleaseModesAreExactlyChatAndCode(t *testing.T) {
-	want := []string{ModeChat, ModeCode}
+func TestReleaseModesAreExactlyChatCodeAndAgent(t *testing.T) {
+	want := []string{ModeChat, ModeCode, ModeAgent}
 	if !reflect.DeepEqual(Modes, want) {
 		t.Fatalf("release modes = %q, want %q", Modes, want)
 	}
 
-	ag := &Agent{Options: Options{Mode: ModeCode}}
-	if err := ag.SetMode(ModeAgent); err == nil {
-		t.Fatal("SetMode(agent) succeeded; the experimental mode must be unreachable in v0.1")
+	ag := New(Options{Mode: ModeCode, Sess: session.New(t.TempDir(), "mock/model")})
+	for _, mode := range want {
+		if err := ag.SetMode(mode); err != nil {
+			t.Fatalf("SetMode(%q): %v", mode, err)
+		}
+		if ag.Mode != mode {
+			t.Fatalf("mode = %q after SetMode(%q)", ag.Mode, mode)
+		}
 	}
-	if ag.Mode != ModeCode {
-		t.Fatalf("rejected mode changed current mode to %q, want %q", ag.Mode, ModeCode)
+	if err := ag.SetMode("delegate"); err == nil {
+		t.Fatal("SetMode(delegate) accepted an unknown mode")
+	}
+	if ag.Mode != ModeAgent {
+		t.Fatalf("rejected mode changed current mode to %q, want %q", ag.Mode, ModeAgent)
 	}
 }
 

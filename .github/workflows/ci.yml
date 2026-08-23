@@ -67,7 +67,7 @@ jobs:
       - name: static landing page
         run: make site
 
-      - name: v0.1 chat and code surface
+      - name: chat, code, and agent surface
         run: make surface
 
       - name: offline installer safety matrix
