@@ -10,3 +10,4 @@ are allowed during version 0, but every change is recorded here.
 - Define the `hello` handshake payload for protocol version, server identity, and capabilities.
 - Define started, updated, and ended session lifecycle payloads.
 - Define started, finished, and cancelled turn lifecycle payloads.
+- Define the full-text `message.completed` snapshot payload.

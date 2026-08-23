@@ -1298,3 +1298,53 @@ checks, and all release contracts unchanged.
 A6.2b4 resumes the protocol vocabulary with the authoritative `message.completed` payload as an
 independent schema, golden, binding, and validation slice. Publishing, the public tag, and the
 clean-machine rehearsal remain postponed.
+
+---
+
+## Architecture migration / A6.2b4 — completed message snapshot
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 138 · **Host tests:** 453 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+This slice freezes `message.completed` as the authoritative final display-text snapshot for an
+assistant message. Its one required `text` string contains the complete assembled text rather than
+the last streamed delta, so replay and newly attached clients do not depend on retaining every
+coalescible `message.delta` frame.
+
+An explicit empty string is valid because a tool-only or interrupted assistant message can reach a
+real completion boundary without display text. Missing, null, and non-string values fail closed.
+Unknown future fields remain in the raw envelope, while message identity, status, finish reason,
+tools, reasoning, provider state, usage, and annotations remain owned by the envelope or dedicated
+events.
+
+### TDD record
+
+**Red:** after adding the schema, compact golden frame, changelog entry, and invalid-value matrix,
+`go test -count=1 ./protocol` failed to compile only because `EventMessageCompleted` and
+`MessageCompletedData` were undefined.
+
+**Green:** the new constant and typed payload now match the language-neutral artifacts. Known-event
+validation requires a present string without imposing a non-empty constraint. The golden decodes
+through the typed binding and its complete envelope round-trips byte-for-byte.
+
+**Refactor:** validation uses pointer presence only at the wire boundary, distinguishing missing or
+null text from an explicit empty snapshot without adding optionality to the public payload. Focused
+tests also prove Unicode acceptance and retention of an additive unknown field.
+
+### Verification
+
+```sh
+go test -count=1 ./protocol
+go vet ./protocol
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 453 tests, five compile
+targets, zero lint issues, a 6.21 MB binary, 4.7 ms cold-start p50, one root dependency, 93 site
+checks, nine mode-surface checks, 56 installer checks, and all release contracts unchanged.
+
+### Next checkpoint
+
+A6.2c begins with the smallest tool/decision event slice after auditing the architecture and current
+engine vocabulary. Publishing, the public tag, and the clean-machine rehearsal remain postponed.

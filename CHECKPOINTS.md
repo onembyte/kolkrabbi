@@ -618,7 +618,7 @@ A6.2 is intentionally delivered as independently reviewable vocabulary slices:
 
 - [x] **A6.2a streamed deltas** — `message.delta` and `reasoning.delta`, whose required `text`
   payload is already explicit in the architecture and provider contracts.
-- [~] **A6.2b lifecycle and completed content** — handshake, session, turn, and
+- [x] **A6.2b lifecycle and completed content** — handshake, session, turn, and
   `message.completed` events after their payload fields are fixed.
 - [ ] **A6.2c tools and decisions** — tool and permission events.
 - [ ] **A6.2d orchestration and operations** — subagent, chapter, checkpoint, accounting, score,
@@ -631,7 +631,7 @@ with an already-settled one:
   architecture and mobile handshake constraint.
 - [x] **A6.2b2 session lifecycle** — started, updated, and ended payloads.
 - [x] **A6.2b3 turn lifecycle** — started, finished, and cancelled payloads.
-- [ ] **A6.2b4 completed content** — the authoritative `message.completed` payload.
+- [x] **A6.2b4 completed content** — the authoritative `message.completed` payload.
 
 #### A6.1 envelope foundation acceptance
 
@@ -758,6 +758,42 @@ Acceptance checklist:
   fields, and accepts future reason values.
 - [x] cancelled requires a non-empty reason and accepts future reason values.
 - [x] all three typed payloads decode their goldens, and every envelope round-trips byte-for-byte.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.2b4 completed content acceptance
+
+Scope:
+
+- Define `message.completed` as a public event name with one schema, typed payload, and compact
+  golden envelope.
+- Carry one required `text` string containing the full display-ready assistant-text snapshot, not
+  merely the last delta, so replay remains authoritative when earlier deltas were coalesced or
+  dropped.
+- Permit an empty string because a finalized tool-only or interrupted assistant message can contain
+  no display text while still being a real message boundary. Missing, null, and non-string text
+  remain invalid.
+- Keep the event additive with unknown payload fields retained by the envelope.
+
+Non-goals:
+
+- No message ID, role, model, completion status, truncation flag, finish reason, tool call, reasoning,
+  provider state, usage, annotations, or content-block union. The envelope and the dedicated turn,
+  tool, reasoning, and accounting events own those facts.
+- No event bus, delta aggregation, provider translation, engine wiring, persistence, transport, or
+  CLI output change.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the constant exactly matches the schema filename and golden-envelope type value.
+- [x] the schema requires exactly one known string field named `text`, imposes no non-empty
+  constraint, and permits additive unknown fields.
+- [x] missing, null, and non-string text fail closed, while empty, non-empty, and Unicode snapshots
+  decode successfully.
+- [x] the typed payload decodes the golden and the complete envelope round-trips byte-for-byte.
+- [x] an unknown payload field remains in the raw envelope after decode.
 - [x] the public package remains standard-library-only and disconnected from existing packages.
 - [x] focused tests, architecture gates, full repository gates, and the build log are green.
 

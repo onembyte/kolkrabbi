@@ -14,6 +14,8 @@ const (
 	EventHello EventType = "hello"
 	// EventMessageDelta carries display-ready assistant text as it streams.
 	EventMessageDelta EventType = "message.delta"
+	// EventMessageCompleted carries the authoritative final assistant-text snapshot.
+	EventMessageCompleted EventType = "message.completed"
 	// EventReasoningDelta carries display-ready reasoning text as it streams.
 	EventReasoningDelta EventType = "reasoning.delta"
 	// EventSessionStarted announces the initial live-session projection.
@@ -39,6 +41,11 @@ type HelloData struct {
 
 // MessageDeltaData is the payload of EventMessageDelta.
 type MessageDeltaData struct {
+	Text string `json:"text"`
+}
+
+// MessageCompletedData is the payload of EventMessageCompleted.
+type MessageCompletedData struct {
 	Text string `json:"text"`
 }
 
@@ -123,6 +130,17 @@ func validateEventData(event EventType, raw json.RawMessage) error {
 			return fmt.Errorf("protocol: %s data: %w", event, err)
 		}
 		text = data.Text
+	case EventMessageCompleted:
+		var data struct {
+			Text *string `json:"text"`
+		}
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		if data.Text == nil {
+			return fmt.Errorf("protocol: %s data.text must be present and string-valued", event)
+		}
+		return nil
 	case EventReasoningDelta:
 		var data ReasoningDeltaData
 		if err := json.Unmarshal(raw, &data); err != nil {

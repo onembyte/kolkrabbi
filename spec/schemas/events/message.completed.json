@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/events/message.completed.json",
+  "title": "message.completed payload",
+  "type": "object",
+  "required": ["text"],
+  "properties": {
+    "text": {"type": "string"}
+  },
+  "additionalProperties": true
+}
