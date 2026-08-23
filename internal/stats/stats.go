@@ -1,8 +1,12 @@
 // Package stats is the 100% local usage/rating store behind `kolk stats`.
-// Every model call is appended as one JSON line to stats.jsonl in the config
+// Every model call is appended as one JSON line to stats.jsonl in the data
 // directory — no database, no telemetry, no network; grep it, jq it, back it
 // up, or delete it. Ratings (`/rate 1-5`) are appended as their own lines and
 // joined to turns at read time.
+//
+// The directory is passed in, never computed here: internal/paths owns that
+// answer, and it lives in Data rather than Config because a usage log is state
+// a person would be annoyed to lose, not a setting they would edit.
 package stats
 
 import (

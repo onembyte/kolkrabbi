@@ -126,6 +126,40 @@ esac
 check "config rejects a bad tier" 2 "$K" config set-tier medium some/model
 rm -f "$HOME/.config/kolk/config.json"
 
+# ── the one-time migration off the prototype layout ───────────────────────
+head1 "upgrading from a prototype install"
+OLD_HOME="$SCRATCH/oldhome"
+mkdir -p "$OLD_HOME/.config/kolk/sessions/20260101-old.ckpt"
+printf '{"id":"20260101-old","model":"legacy/model","messages":[{"role":"system","content":"x"},{"role":"user","content":"the old conversation"}],"title":"the old conversation","updated_at":"2026-01-01T00:00:00Z"}\n' \
+  > "$OLD_HOME/.config/kolk/sessions/20260101-old.json"
+printf '[]\n' > "$OLD_HOME/.config/kolk/sessions/20260101-old.ckpt/manifest.json"
+printf '{"kind":"call","time":"2026-01-01T00:00:00Z","model":"legacy/model","mode":"code","prompt_tokens":100,"completion_tokens":50,"cost":0.42,"ms":900}\n' \
+  > "$OLD_HOME/.config/kolk/stats.jsonl"
+
+( export HOME="$OLD_HOME"
+  unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME KOLK_CONFIG_DIR KOLK_DATA_DIR KOLK_CACHE_DIR
+  "$K" sessions ) >"$SCRATCH/mig.out" 2>&1
+LAST_OUT="$(cat "$SCRATCH/mig.out")"
+contains "the old session is still listed" "the old conversation"
+[ -f "$OLD_HOME/.local/share/kolk/sessions/20260101-old.json" ] \
+  && ok "  sessions moved to the data directory" || no "  sessions moved to the data directory"
+[ -f "$OLD_HOME/.local/share/kolk/sessions/20260101-old.ckpt/manifest.json" ] \
+  && ok "  checkpoints came with them" || no "  checkpoints came with them"
+[ -f "$OLD_HOME/.local/share/kolk/.gitignore" ] \
+  && ok "  a .gitignore guards the state directory" || no "  a .gitignore guards the state directory"
+[ -f "$OLD_HOME/.config/kolk/config.json" ] || [ ! -e "$OLD_HOME/.config/kolk/sessions" ] \
+  && ok "  nothing was left behind in config" || no "  nothing was left behind in config"
+
+( export HOME="$OLD_HOME"
+  unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME KOLK_CONFIG_DIR KOLK_DATA_DIR KOLK_CACHE_DIR
+  "$K" stats ) >"$SCRATCH/mig2.out" 2>&1
+LAST_OUT="$(cat "$SCRATCH/mig2.out")"
+contains "the old usage log still aggregates" "legacy/model"
+case "$LAST_OUT" in
+  *"moved your"*) no "  the second run does not migrate again" "it reported another move" ;;
+  *)              ok "  the second run does not migrate again" ;;
+esac
+
 # ── a real turn, against the scripted mock ────────────────────────────────
 head1 "a real turn (scripted mock — no network, no cost)"
 "$SCRATCH/kolk-mock" >"$SCRATCH/mock.log" 2>&1 &

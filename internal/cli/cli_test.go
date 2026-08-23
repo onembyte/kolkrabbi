@@ -4,8 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/onembyte/kolkrabbi/internal/paths"
 )
 
 // newTestApp builds an app whose streams are buffers, so a whole kolk
@@ -15,17 +19,27 @@ func newTestApp(stdin string) (*app, *bytes.Buffer, *bytes.Buffer) {
 	return &app{stdout: &out, stderr: &errOut, in: bufio.NewReader(strings.NewReader(stdin))}, &out, &errOut
 }
 
-// isolateHome points HOME at a temp dir so tests never read or write the
-// developer's real ~/.config/kolk, and clears the env key so a key in the
-// shell running the tests cannot change the outcome.
-func isolateHome(t *testing.T) string {
+// isolateHome points kolk at a temp directory so tests never read or write the
+// developer's real state, and clears the env key so a key in the shell running
+// the tests cannot change the outcome.
+//
+// It sets the KOLK_*_DIR overrides rather than $HOME: those are the one thing
+// that means the same on every platform, so the tests do not quietly depend on
+// the unix layout.
+func isolateHome(t *testing.T) paths.Dirs {
 	t.Helper()
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
-	t.Setenv("USERPROFILE", dir) // os.UserHomeDir on Windows
+	base := t.TempDir()
+	d := paths.Dirs{
+		Config: filepath.Join(base, "config"),
+		Data:   filepath.Join(base, "data"),
+		Cache:  filepath.Join(base, "cache"),
+	}
+	t.Setenv(paths.EnvConfigDir, d.Config)
+	t.Setenv(paths.EnvDataDir, d.Data)
+	t.Setenv(paths.EnvCacheDir, d.Cache)
 	t.Setenv("OPENROUTER_API_KEY", "")
 	t.Setenv("OPENROUTER_BASE_URL", "")
-	return dir
+	return d
 }
 
 func TestHelpDocumentsEveryCommandAndFlag(t *testing.T) {
@@ -263,5 +277,50 @@ func TestBadSubcommandPrintsTheGeneratedUsage(t *testing.T) {
 	}
 	if !strings.Contains(errOut.String(), "usage: kolk config") {
 		t.Errorf("bad subcommand did not print generated usage: %q", errOut.String())
+	}
+}
+
+// The directories are a decision with consequences: a key that lands in a
+// config directory someone symlinks into a dotfiles repo is a published key.
+func TestStateAndConfigAreSeparateOnDisk(t *testing.T) {
+	d := isolateHome(t)
+
+	a, _, _ := newTestApp("")
+	if code := a.main(context.Background(), []string{"config", "set-key", "sk-or-v1-locationtest0000"}); code != ExitOK {
+		t.Fatalf("config set-key exit = %d", code)
+	}
+	if _, err := os.Stat(d.ConfigFile()); err != nil {
+		t.Errorf("config did not land in the config directory: %v", err)
+	}
+
+	a, _, _ = newTestApp("")
+	if code := a.main(context.Background(), []string{"sessions"}); code != ExitOK {
+		t.Fatalf("kolk sessions exit = %d", code)
+	}
+	if _, err := os.Stat(filepath.Join(d.Data, ".gitignore")); err != nil {
+		t.Errorf("the data directory has no .gitignore: %v", err)
+	}
+}
+
+// Commands that need nothing from disk must work on a machine where the home
+// directory cannot be resolved at all.
+func TestHelpAndVersionNeedNoDirectories(t *testing.T) {
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("XDG_DATA_HOME", "")
+	t.Setenv("XDG_CACHE_HOME", "")
+	t.Setenv(paths.EnvConfigDir, "")
+	t.Setenv(paths.EnvDataDir, "")
+	t.Setenv(paths.EnvCacheDir, "")
+
+	for _, verb := range []string{"help", "version"} {
+		a, out, _ := newTestApp("")
+		if code := a.main(context.Background(), []string{verb}); code != ExitOK {
+			t.Errorf("kolk %s exit = %d with no resolvable home directory", verb, code)
+		}
+		if out.Len() == 0 {
+			t.Errorf("kolk %s printed nothing", verb)
+		}
 	}
 }

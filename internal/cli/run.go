@@ -38,7 +38,11 @@ func (a *app) runDefault(ctx context.Context, args []string) error {
 
 // newAgent resolves config, key, session and model into a ready engine.
 func (a *app) newAgent(o *options) (*engine.Agent, error) {
-	cfg, err := config.Load()
+	d, err := a.resolve()
+	if err != nil {
+		return nil, err
+	}
+	cfg, err := config.Load(d.ConfigFile())
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +92,7 @@ func (a *app) newAgent(o *options) (*engine.Agent, error) {
 		Ckpt:     ckpt,
 		In:       a.in,
 		Out:      a.stdout,
-		StatsDir: configDir(),
+		StatsDir: d.Data,
 		Tiers:    cfg.Tiers,
 	}), nil
 }
@@ -96,11 +100,15 @@ func (a *app) newAgent(o *options) (*engine.Agent, error) {
 // resolveSession picks the session this run continues: an explicit id, the most
 // recent one, or a fresh one.
 func (a *app) resolveSession(o *options) (*session.Session, error) {
-	sdir := sessionsDir()
-	var (
-		sess *session.Session
-		err  error
-	)
+	d, err := a.resolve()
+	if err != nil {
+		return nil, err
+	}
+	if err := d.EnsureData(); err != nil {
+		return nil, err
+	}
+	sdir := d.Sessions()
+	var sess *session.Session
 	switch {
 	case o.session != "":
 		sess, err = session.Load(sdir, o.session)

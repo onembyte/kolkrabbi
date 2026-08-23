@@ -12,7 +12,11 @@ import (
 )
 
 func (a *app) runModels(ctx context.Context, args []string) error {
-	cfg, err := config.Load()
+	d, err := a.resolve()
+	if err != nil {
+		return err
+	}
+	cfg, err := config.Load(d.ConfigFile())
 	if err != nil {
 		return err
 	}

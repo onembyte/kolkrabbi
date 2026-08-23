@@ -11,7 +11,11 @@ import (
 )
 
 func (a *app) runConfig(_ context.Context, args []string) error {
-	cfg, err := config.Load()
+	d, err := a.resolve()
+	if err != nil {
+		return err
+	}
+	cfg, err := config.Load(d.ConfigFile())
 	if err != nil {
 		return err
 	}
@@ -26,17 +30,17 @@ func (a *app) runConfig(_ context.Context, args []string) error {
 			return usagef("usage: kolk config set-key <key>")
 		}
 		cfg.APIKey = args[1]
-		if err := config.Save(cfg); err != nil {
+		if err := config.Save(d.ConfigFile(), cfg); err != nil {
 			return err
 		}
-		fmt.Fprintln(a.stdout, "API key saved to ~/.config/kolk/config.json")
+		fmt.Fprintf(a.stdout, "API key saved to %s\n", d.ConfigFile())
 
 	case "set-model":
 		if len(args) < 2 {
 			return usagef("usage: kolk config set-model <model>")
 		}
 		cfg.Model = strings.Join(args[1:], " ")
-		if err := config.Save(cfg); err != nil {
+		if err := config.Save(d.ConfigFile(), cfg); err != nil {
 			return err
 		}
 		fmt.Fprintf(a.stdout, "default model set to %s\n", cfg.Model)
@@ -46,7 +50,7 @@ func (a *app) runConfig(_ context.Context, args []string) error {
 			return usagef("usage: kolk config set-base-url <url>")
 		}
 		cfg.BaseURL = strings.TrimRight(args[1], "/")
-		if err := config.Save(cfg); err != nil {
+		if err := config.Save(d.ConfigFile(), cfg); err != nil {
 			return err
 		}
 		fmt.Fprintf(a.stdout, "base URL set to %s\n", cfg.BaseURL)
@@ -62,7 +66,7 @@ func (a *app) runConfig(_ context.Context, args []string) error {
 			cfg.Tiers = map[string]string{}
 		}
 		cfg.Tiers[args[1]] = args[2]
-		if err := config.Save(cfg); err != nil {
+		if err := config.Save(d.ConfigFile(), cfg); err != nil {
 			return err
 		}
 		fmt.Fprintf(a.stdout, "tier %s → %s\n", args[1], args[2])

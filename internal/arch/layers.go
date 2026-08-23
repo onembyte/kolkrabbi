@@ -73,6 +73,7 @@ var packageLayer = map[string]Layer{
 	// L0 — platform. Everything that knows what an OS is lives here and
 	// nowhere else. Most of these arrive at migration step 5.
 	"internal/buildinfo": L0Platform,
+	"internal/paths":     L0Platform,
 
 	// L2 — the hinge. Arrives at step 7.
 
@@ -169,9 +170,6 @@ type violation struct {
 // only shrink, and the day it empties the ratchet closes for good.
 var knownViolations = []violation{
 	{Pkg: "internal/tools", Rule: "os/exec", Until: "step 5 — internal/shell owns process execution"},
-	{Pkg: "internal/cli", Rule: "os.UserHomeDir", Until: "step 5 — internal/paths owns directory resolution"},
-	{Pkg: "internal/config", Rule: "os.UserHomeDir", Until: "step 5 — internal/paths owns directory resolution"},
-
 	// The engine still constructs its adapters instead of declaring ports.
 	// This is the single largest structural debt in the tree: it is what
 	// stands between here and a daemon, a desktop shell, or a deterministic

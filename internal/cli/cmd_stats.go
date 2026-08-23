@@ -3,13 +3,16 @@ package cli
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
 	"github.com/onembyte/kolkrabbi/internal/stats"
 )
 
 func (a *app) runStats(_ context.Context, args []string) error {
-	recs, err := stats.Load(configDir())
+	d, err := a.resolve()
+	if err != nil {
+		return err
+	}
+	recs, err := stats.Load(d.Data)
 	if err != nil {
 		return err
 	}
@@ -19,6 +22,6 @@ func (a *app) runStats(_ context.Context, args []string) error {
 	}
 	fmt.Fprint(a.stdout, stats.Render(rows))
 	fmt.Fprintf(a.stdout, "\nlocal data: %s (delete it any time; nothing ever leaves this machine)\n",
-		filepath.Join(configDir(), "stats.jsonl"))
+		d.StatsFile())
 	return nil
 }

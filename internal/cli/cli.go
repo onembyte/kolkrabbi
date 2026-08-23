@@ -14,9 +14,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"text/tabwriter"
+
+	"github.com/onembyte/kolkrabbi/internal/paths"
 )
 
 // defaultModel is OpenRouter's auto-router: the zero-config answer to "which
@@ -30,6 +31,11 @@ const defaultModel = "openrouter/auto"
 type app struct {
 	stdout io.Writer
 	stderr io.Writer
+	// dirs is resolved lazily and once. `kolk help` and `kolk version` must
+	// work on a machine where the home directory cannot be found at all, so
+	// nothing touches the filesystem until a command actually needs it.
+	dirs     paths.Dirs
+	migrated bool
 	// in is the one shared stdin reader. The REPL and the engine's tool
 	// confirmations both read lines from it; two readers would each buffer and
 	// one would eat the other's input.
@@ -194,18 +200,46 @@ func (a *app) printJSON(v any) error {
 	return nil
 }
 
-// configDir and sessionsDir are the prototype's hardcoded paths, moved here
-// verbatim. They become internal/paths at migration step 5, which is where the
-// XDG split and the Windows Known Folders live; until then, one place.
-func configDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ".kolk"
+// resolve locates kolk's directories, once per process, and performs the
+// one-time move of prototype-era state out of the config directory.
+//
+// The migration runs here rather than at startup so that a command which needs
+// no state — help, version — neither triggers it nor can be broken by it.
+func (a *app) resolve() (paths.Dirs, error) {
+	if a.dirs.Data != "" {
+		return a.dirs, nil
 	}
-	return filepath.Join(home, ".config", "kolk")
-}
+	d, err := paths.Resolve()
+	if err != nil {
+		return paths.Dirs{}, err
+	}
+	a.dirs = d
 
-func sessionsDir() string { return filepath.Join(configDir(), "sessions") }
+	// Establish the data directory — and its .gitignore — before anything can
+	// write a session, a usage record or a key into it. KOLK_DATA_DIR makes it
+	// legal to point state inside a repository, and the failure mode of getting
+	// that wrong is a published API key, so the guard goes in first.
+	//
+	// A failure here is reported but not fatal: a read-only command still has
+	// useful answers, and the commands that write will fail loudly on their own.
+	if err := d.EnsureData(); err != nil {
+		fmt.Fprintf(a.stderr, "warning: %v\n", err)
+	}
+
+	if !a.migrated {
+		a.migrated = true
+		moved, err := d.Migrate()
+		if len(moved) > 0 {
+			fmt.Fprintf(a.stderr, "moved your %s to %s\n", strings.Join(moved, " and "), d.Data)
+		}
+		if err != nil {
+			// Not fatal: kolk works from the new location either way, and the
+			// old files are still on disk. Say so and continue.
+			fmt.Fprintf(a.stderr, "note: %v\n", err)
+		}
+	}
+	return a.dirs, nil
+}
 
 func orDefault(s, def string) string {
 	if s == "" {

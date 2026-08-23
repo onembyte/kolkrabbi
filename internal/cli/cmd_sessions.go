@@ -8,7 +8,11 @@ import (
 )
 
 func (a *app) runSessions(_ context.Context, args []string) error {
-	sdir := sessionsDir()
+	d, err := a.resolve()
+	if err != nil {
+		return err
+	}
+	sdir := d.Sessions()
 
 	if len(args) > 0 {
 		switch args[0] {

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -69,7 +68,7 @@ func (a *app) slash(ag *engine.Agent, line string) bool {
 			fmt.Fprintf(a.stdout, "rated %d★ — see `kolk stats`\n", n)
 		}
 	case "/new", "/clear":
-		sess := session.New(sessionsDir(), ag.Model)
+		sess := session.New(a.dirs.Sessions(), ag.Model)
 		ckpt, err := checkpoint.Open(sess.CkptDir())
 		if err != nil {
 			ckpt = nil
@@ -80,7 +79,7 @@ func (a *app) slash(ag *engine.Agent, line string) bool {
 		*ag = *engine.New(opts)
 		fmt.Fprintf(a.stdout, "new session: %s\n", sess.ID)
 	case "/session":
-		fmt.Fprintf(a.stdout, "id:    %s\nfile:  %s\n", ag.Sess.ID, filepath.Join(sessionsDir(), ag.Sess.ID+".json"))
+		fmt.Fprintf(a.stdout, "id:    %s\nfile:  %s\n", ag.Sess.ID, a.dirs.Session(ag.Sess.ID))
 	case "/changes":
 		if ag.Ckpt == nil {
 			fmt.Fprintln(a.stdout, "checkpointing is not enabled.")
