@@ -27,7 +27,15 @@ contains_deploy_doc() {
 
 excludes() {
   local file="$1" pattern="$2" label="$3"
-  if [ -f "$SITE/$file" ] && ! grep -Eiq "$pattern" "$SITE/$file"; then pass; else fail "$label"; fi
+  local result
+  if [ ! -f "$SITE/$file" ]; then
+    fail "$label"
+  elif grep -Eiq "$pattern" "$SITE/$file"; then
+    fail "$label"
+  else
+    result=$?
+    if [ "$result" -eq 1 ]; then pass; else fail "$label (invalid exclusion check)"; fi
+  fi
 }
 
 last_section_is() {
@@ -36,7 +44,7 @@ last_section_is() {
   if [[ "$found" == *"id=\"$id\""* ]]; then pass; else fail "$id must be the last main-content section"; fi
 }
 
-for file in index.html capabilities.html styles.css logo.svg favicon.svg 404.html _headers robots.txt; do
+for file in index.html capabilities.html styles.css app.js logo.svg favicon.svg 404.html _headers robots.txt; do
   require_file "$file"
 done
 
@@ -52,8 +60,12 @@ contains index.html 'Chat, code, and agent' "landing page does not name all thre
 contains index.html 'Three modes' "landing page does not present the three-mode surface"
 contains index.html 'agent for longer work' "landing page does not explain when to use agent mode"
 contains index.html 'class="nav-button" href="/capabilities.html"' "landing page has no capabilities navbar button"
+contains index.html 'id="install-command"' "install command has no copy target"
+contains index.html 'class="copy-button" type="button" data-copy-target="install-command"' "install command has no copy button"
+contains index.html 'id="copy-status" role="status" aria-live="polite"' "copy result is not announced accessibly"
+contains index.html '<script src="app.js" defer></script>' "landing page does not load the local copy controller"
 excludes index.html 'parallel subagents|subagents in parallel|at once' "landing page inaccurately claims parallel orchestration"
-excludes index.html '<script([ >])' "landing page must not ship JavaScript"
+excludes index.html '<script[^>]*>[^<]' "landing page must not ship inline JavaScript"
 excludes index.html "<(script|img|link)[^>]+(src|href)=[\"']https?://" "landing page loads an external resource"
 excludes index.html "style=[\"']" "styles must stay in styles.css for a strict CSP"
 
@@ -96,12 +108,19 @@ excludes capabilities.html "style=[\"']" "capabilities styles must stay in style
 
 contains styles.css '--violet:' "purple palette token is missing"
 contains styles.css '.nav-button' "capabilities navbar button style is missing"
+contains styles.css '.copy-button' "install copy button style is missing"
+contains styles.css '.command-row' "install command/button layout is missing"
 contains styles.css '.status-badge' "capability status style is missing"
 contains styles.css '.video-grid' "bilingual video layout style is missing"
 contains styles.css '@media (max-width:' "responsive layout rule is missing"
 contains styles.css ':focus-visible' "keyboard focus style is missing"
 contains styles.css 'prefers-reduced-motion' "reduced-motion support is missing"
 excludes styles.css "@import|url\\([\"']?https?://" "CSS loads an external dependency"
+
+contains app.js 'navigator.clipboard.writeText' "copy controller does not use the Clipboard API"
+contains app.js 'document.execCommand("copy")' "copy controller has no compatibility fallback"
+contains app.js 'Install command copied to clipboard.' "copy controller has no accessible success message"
+excludes app.js 'https?://|eval\(|innerHTML' "copy controller uses an unsafe or external primitive"
 
 contains logo.svg 'role="img"' "logo needs an image role"
 contains logo.svg 'aria-labelledby=' "logo needs an accessible name"
@@ -115,6 +134,7 @@ done
 contains _headers '/install.sh' "_headers has no installer-specific policy"
 contains _headers 'Cache-Control: no-store' "installer must not be cached across releases"
 contains _headers 'Content-Type: text/plain; charset=utf-8' "installer MIME policy is missing"
+contains _headers "script-src 'self'" "CSP does not allow only the local copy controller"
 
 contains_deploy_doc '| Production branch | `main` |' "Pages production branch is not documented"
 contains_deploy_doc '| Build command | `exit 0` |' "Pages build command is not documented"

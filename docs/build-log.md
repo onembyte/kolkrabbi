@@ -1602,3 +1602,47 @@ checks, nine mode-surface checks, 56 installer checks, and all release contracts
 
 A6.2c3b audits and freezes `permission.resolved` correlation and decision vocabulary independently.
 Publishing, the public tag, and the clean-machine rehearsal remain postponed.
+
+---
+
+## Release cutover / R0.3 — public v0.1.0 and copyable install command
+
+**Status:** done, 2026-08-23 · **Release:** `v0.1.0` · **Release commit:** `e0b81a4` ·
+**Site checks:** 105 · **Public installer:** verified on Darwin/arm64
+
+The first owner install exposed an operational gap rather than an installer parsing bug: with no
+public GitHub Release, GitHub sent `/releases/latest` to the releases index. The installer's strict
+tag allowlist correctly rejected that destination instead of downloading mutable or unsigned
+content. The exact green `e0b81a4` commit is now tagged `v0.1.0`; release run `32666486535` built all
+four archives, authenticated the Sigstore bundle, checked every archive against the signed manifest,
+and executed the host binary before completing successfully.
+
+The public install pipeline then resolved `/releases/latest` to `/releases/tag/v0.1.0`, downloaded
+the Darwin/arm64 archive through the live Pages installer, verified its checksum, installed it into
+an isolated temporary directory, and reported the stamped version and commit. A separate temporary
+home proved that bare `kolk` still prints the exact three-line API-key next action without touching
+the owner's configuration.
+
+The landing page now places a keyboard-focusable Copy button beside the install command. One local,
+deferred script uses the secure Clipboard API with a selection-based compatibility fallback, changes
+the visible label after success, and announces success or failure through a polite status region.
+The CSP remains closed to inline and third-party scripts; only same-origin JavaScript is permitted.
+
+### TDD record
+
+**Red:** the expanded site contract failed 12 checks for the absent controller, copy target, button,
+accessible status, responsive layout, styles, fallback, and same-origin CSP allowance.
+
+**Green:** the minimal HTML, CSS, local controller, and header policy passed all 105 site checks and
+`node --check site/app.js`.
+
+**Refactor:** the exclusion helper now distinguishes a real match from an invalid regular expression;
+this removed a false-positive path discovered while checking the new script. The complete repository
+gate passed with 570 tests, five compile targets, zero lint issues, a 6.21 MB binary, 4.7 ms cold-start
+p50, and all installer and release contracts green.
+
+### Remaining release gate
+
+The fully clean-machine trial still needs a machine with no prior Kolkrabbi state or Go toolchain,
+followed by the owner's real key and first model response. This local rehearsal does not claim that
+final box.

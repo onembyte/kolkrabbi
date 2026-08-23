@@ -402,6 +402,58 @@ samp {
   user-select: none;
 }
 
+.command-row {
+  position: relative;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.command-row code {
+  min-width: 0;
+}
+
+.copy-button {
+  min-width: 5.4rem;
+  min-height: 2.4rem;
+  padding: 0.5rem 0.8rem;
+  flex: 0 0 auto;
+  color: var(--violet-pale);
+  border: 1px solid var(--line-bright);
+  background: var(--panel-high);
+  font: 700 0.68rem var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.copy-button:hover,
+.copy-button[data-state="copied"] {
+  color: var(--ink);
+  border-color: var(--violet-light);
+  background: var(--violet-light);
+}
+
+.copy-button:focus-visible {
+  outline: 2px solid var(--violet-light);
+  outline-offset: 4px;
+}
+
+.copy-button:disabled {
+  cursor: wait;
+}
+
+.copy-status,
+.copy-source {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 samp {
   grid-column: 2;
   display: block;
@@ -809,6 +861,12 @@ footer strong {
 
   .steps li {
     grid-template-columns: 1fr;
+  }
+
+  .command-row {
+    gap: 0.8rem;
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   samp {
