@@ -91,7 +91,10 @@ func move(from, to string) error {
 		// Leave the source untouched; a partial destination is removed so the
 		// next run retries cleanly rather than tripping the "both exist" guard.
 		_ = os.RemoveAll(to)
-		return fmt.Errorf("%w (rename first failed with: %v)", err, renameErr)
+		// Both errors, both wrapped: the copy failure is what to read, but the
+		// rename failure is what says whether this was a filesystem boundary
+		// or something worse.
+		return fmt.Errorf("%w (rename first failed with: %w)", err, renameErr)
 	}
 	return os.RemoveAll(from)
 }

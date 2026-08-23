@@ -57,8 +57,19 @@ buildtags: ## every OS-divergent file declares its constraint
 budgets: ## binary size, cold start, test floor, dependency count
 	./scripts/check-budgets.sh
 
+.PHONY: lint
+lint: ## golangci-lint, if it is installed
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+	  golangci-lint run ./...; \
+	elif [ -x "$$(go env GOPATH)/bin/golangci-lint" ]; then \
+	  "$$(go env GOPATH)/bin/golangci-lint" run ./...; \
+	else \
+	  echo "golangci-lint not installed — skipping (CI runs it)"; \
+	  echo "  go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest"; \
+	fi
+
 .PHONY: check
-check: fmt-check vet test arch purity buildtags budgets ## everything CI runs
+check: fmt-check vet test arch purity buildtags lint budgets ## everything CI runs
 
 .PHONY: workspace
 workspace: ## write a gitignored go.work so gopls sees every module
