@@ -11,11 +11,10 @@ import (
 const officialReleasesURL = "https://github.com/onembyte/kolkrabbi/releases"
 
 func discoverLatest(ctx context.Context, client *http.Client, releasesURL string) (stableVersion, error) {
-	base, err := url.Parse(releasesURL)
-	if err != nil || base.Scheme == "" || base.Host == "" || base.RawQuery != "" || base.Fragment != "" {
-		return stableVersion{}, fmt.Errorf("invalid release origin %q", releasesURL)
+	base, err := releaseOrigin(releasesURL)
+	if err != nil {
+		return stableVersion{}, err
 	}
-	base.Path = strings.TrimSuffix(base.Path, "/")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, base.String()+"/latest", nil)
 	if err != nil {
@@ -45,4 +44,14 @@ func discoverLatest(ctx context.Context, client *http.Client, releasesURL string
 		return stableVersion{}, fmt.Errorf("latest release is not a stable semantic version")
 	}
 	return version, nil
+}
+
+func releaseOrigin(raw string) (*url.URL, error) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" || u.Host == "" || u.User != nil ||
+		u.RawQuery != "" || u.Fragment != "" || u.RawPath != "" {
+		return nil, fmt.Errorf("invalid release origin %q", raw)
+	}
+	u.Path = strings.TrimSuffix(u.Path, "/")
+	return u, nil
 }

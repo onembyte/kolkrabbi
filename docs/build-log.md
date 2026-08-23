@@ -1939,3 +1939,61 @@ green.
 
 U0.2b downloads the exact manifest/archive with hard size and status bounds, then validates checksum
 and archive structure entirely in memory. It still cannot locate or replace an executable.
+
+---
+
+## Owner UX / U0.2b — bounded artifact verification
+
+**Status:** done, 2026-08-23 · **Host tests:** 648 · **Race tests:** green ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+The second self-update leaf is a memory-only verification pipeline. It requests the exact versioned
+`checksums.txt` and target archive paths in that order, requires HTTP 200, preserves HTTPS across
+redirects, closes every response body, rejects declared and streamed over-limit responses, and
+honors context cancellation. The limits are 64 KiB for the manifest and 64 MiB compressed for the
+archive.
+
+The manifest must contain one unique exact archive-name row with a lowercase 64-character SHA-256.
+Kolk compares that digest before constructing a gzip reader. A matching archive may contain exactly
+one regular `kolk`, `README.md`, and `LICENSE`, with no path prefix, duplicate, link, extended
+metadata, extra member, oversized payload, truncation, trailing data, or concatenated gzip stream.
+Expanded data is bounded per member and in total; an empty executable fails. Only the verified
+executable bytes leave the function, and no filesystem API is imported.
+
+This matches the public installer's client-side checksum boundary. It does not claim that a checksum
+sidecar authenticates itself: the release workflow and verifier continue to authenticate the
+Sigstore-signed manifest before GitHub publishes it.
+
+### TDD record
+
+**Red:** the focused package test failed to compile only because bounded download, exact checksum
+selection, combined artifact verification, and strict archive extraction did not exist.
+
+**Green:** one standard-library implementation added the status/size/cancellation guards, digest
+gate, gzip/tar structural checks, and in-memory binary result. Tests use local HTTP and generated tar
+fixtures; they create no update files.
+
+**Refactor:** discovery and download now share one strict release-origin parser. HTTPS downgrade and
+missing final URL fail explicitly. The safety matrix added response-body closure, oversize headers,
+truncation, and concatenated streams. The first full gate then identified wrapped-EOF and deprecated
+tar syntax; `errors.Is`, the modern PAX field, and literal legacy regular marker removed those lint
+issues without relaxing the archive contract.
+
+### Verification
+
+```sh
+gofmt -d internal/selfupdate/*.go
+go test -count=1 ./internal/selfupdate ./internal/arch
+go test -race -count=1 ./internal/selfupdate
+make check
+```
+
+After the lint refactor, the complete gate passed with 648 tests, five compile targets, zero lint
+issues, a 6.21 MB binary, 5.0 ms cold-start p50, one root dependency, 110 site checks, 11
+mode-surface checks, 56 installer checks, and all release contracts green.
+
+### Next checkpoint
+
+U0.2c composes version/target/discovery/artifact verification around the running executable and one
+atomic `0755` replacement. It must prove every preflight and verification failure preserves the old
+binary before U0.2d exposes any command.

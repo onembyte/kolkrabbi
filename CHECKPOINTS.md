@@ -89,7 +89,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   project-execution instructions, and make process-local auto-approve scope unmistakable.
 - [x] **U0.2a update identity and discovery** — strictly resolve stable versions, supported release
   targets, archive identity, and the exact GitHub latest-tag redirect without filesystem mutation.
-- [ ] **U0.2b bounded artifact verification** — download and validate the checksum manifest and
+- [x] **U0.2b bounded artifact verification** — download and validate the checksum manifest and
   exact release archive entirely before exposing binary bytes.
 - [ ] **U0.2c atomic executable replacement** — preserve the running executable on every failure and
   replace it atomically with the verified binary at mode `0755`.
@@ -241,6 +241,36 @@ Acceptance checklist:
   this leaf performs no filesystem mutation.
 - [x] focused self-update and architecture tests plus every repository gate pass; the build log
   records red/green/refactor.
+
+#### U0.2b bounded artifact verification — verified acceptance
+
+Scope:
+
+- Download the exact versioned `checksums.txt` and target archive paths with cancellable `GET`
+  requests, successful status requirements, content-length/read bounds, and closed response bodies.
+- Require one unique exact archive-name row with a 64-character lowercase SHA-256 and compare it to
+  the downloaded archive before opening gzip or tar data.
+- Accept exactly one regular `kolk`, `README.md`, and `LICENSE`, enforce member-size and total bounds,
+  reject an empty executable, and return only the verified executable bytes in memory.
+
+Non-goals:
+
+- No executable lookup/write, temporary file, archive extraction directory, chmod/rename, CLI/slash
+  command, API key, version comparison, retry policy, alternate origin, or Sigstore client.
+- No trust claim beyond matching the installer checksum boundary; release CI remains responsible for
+  authenticating the signed checksum manifest before publication.
+
+Acceptance checklist:
+
+- [x] successful verification requests the exact manifest then archive and returns the binary bytes.
+- [x] non-2xx, cancellation, declared or streamed oversize, malformed/missing/duplicate/uppercase
+  digest, and SHA-256 mismatch fail closed; invalid manifests trigger no archive request.
+- [x] digest verification precedes decompression, and invalid gzip/tar data is never interpreted after
+  a mismatch.
+- [x] archives with missing, extra, duplicate, non-regular, linked, prefixed, oversized, truncated,
+  or empty executable members fail; the exact three-member regular archive succeeds.
+- [x] verification remains standard-library-only, memory-only, and context-cancellable; focused tests,
+  architecture and every repository gate pass with red/green/refactor recorded.
 
 Scope:
 
