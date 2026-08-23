@@ -41,7 +41,7 @@ contains index.html 'https://kolkrabbi.francomichetti.com/install.sh' "install U
 contains index.html 'kolk key &lt;API_KEY&gt;' "API-key command drifted"
 contains index.html 'Installer ships with v0.1' "pre-release installer status is missing"
 contains index.html 'https://github.com/onembyte/kolkrabbi' "GitHub link is wrong"
-contains index.html 'MIT License' "license link or label is missing"
+contains index.html 'Apache-2.0 License' "license link or label does not match LICENSE"
 excludes index.html '<script([ >])' "landing page must not ship JavaScript"
 excludes index.html "<(script|img|link)[^>]+(src|href)=[\"']https?://" "landing page loads an external resource"
 excludes index.html "style=[\"']" "styles must stay in styles.css for a strict CSP"

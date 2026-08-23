@@ -574,6 +574,10 @@ public HTTPS check then returned HTTP 200 with the deployed octopus page, CSP, p
 no-referrer policy, MIME-sniffing protection, and frame denial. The owner visually accepted the
 live page, closing the domain-root item in the owner-trial gate.
 
+The post-deploy release audit caught one content error: the footer said MIT while the repository's
+`LICENSE` is Apache-2.0. The site contract was changed first and failed 1/44, then the footer label
+was corrected without changing its source link; all 44 checks returned green.
+
 ### Next checkpoint
 
 T0.3 resumes the executable owner flow: a bare `kolk` must read the credential manifest, print the
