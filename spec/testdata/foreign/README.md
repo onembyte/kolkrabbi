@@ -5,9 +5,9 @@ user's **own, already-logged-in** vendor binary. They exist so `translate_test.g
 vendor output **offline, forever, with no vendor binary and no account** — see
 `docs/plan/02-architecture.md` §2 and §6.
 
-> The rest of `spec/` arrives at migration step 6 (`docs/plan/02-architecture.md` §12). These
-> fixtures landed early because capturing them requires a logged-in binary that happened to be
-> available, and they are inert data.
+> These vendor-native fixtures predate migration step 6 because capturing them requires a logged-in
+> binary that happened to be available. A6.1 has since added the Kolkrabbi envelope foundation;
+> these files remain inert adapter inputs and are deliberately not Kolkrabbi protocol frames.
 
 ## What is here
 

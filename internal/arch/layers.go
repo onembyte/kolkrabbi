@@ -70,6 +70,9 @@ var mayImport = map[Layer][]Layer{
 // question "which layer is this?" to be answered on the way in rather than
 // discovered later.
 var packageLayer = map[string]Layer{
+	// L1 — the language-neutral wire contract's public Go binding.
+	"protocol": L1Contract,
+
 	// L0 — platform. Everything that knows what an OS is lives here and
 	// nowhere else. Most of these arrive at migration step 5.
 	"internal/buildinfo":  L0Platform,

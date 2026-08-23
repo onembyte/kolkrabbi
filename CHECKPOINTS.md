@@ -72,9 +72,10 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   enters a working session using computed defaults.
 - [x] **R0.1 v0.1 two-mode surface** — ship only chat and code, with code as the default; keep the
   experimental orchestrator unreachable until the later agentic phase.
-- [~] **T0.4 release and installer** — tagged macOS/Linux artifacts, checksums, install script, and
-  the exact public URL.
-- [ ] **T0.5 clean-machine rehearsal** — install, first run, key addition, and first model response
+- [!] **T0.4 release and installer** — local implementation is complete; the public cutover is
+  postponed at the owner's request while the remaining project is built.
+- [!] **T0.5 clean-machine rehearsal** — waits for the postponed public cutover, then proves install,
+  first run, key addition, and first model response
   from a machine with no Go toolchain or prior Kolkrabbi files.
 
 ### R0.1 v0.1 two-mode surface — verified detail
@@ -498,10 +499,12 @@ Acceptance checklist:
 These are intentionally coarse until they become active; their detailed red/green checklist is
 written only when the preceding group closes.
 
-The owner-trial checkpoints T0.1–T0.5 run after L0.8 and before A6. They deliberately ship a safe,
-installable version of the working prototype before the protocol migration resumes.
+The original order put owner-trial checkpoints T0.1–T0.5 before A6. On 2026-08-23 the owner
+explicitly postponed publishing and directed the remaining project work to continue first. T0.4d2
+and T0.5 therefore stay blocked without being treated as failed, and the additive A6 migration may
+proceed without changing repository visibility, tags, releases, or deployments.
 
-- [ ] **A6 protocol contract** — add `spec/`, public `protocol/`, and golden conformance tests.
+- [~] **A6 protocol contract** — add `spec/`, public `protocol/`, and golden conformance tests.
 - [ ] **A7 event bus** — emit events while preserving today's plain output byte-for-byte.
 - [ ] **A8 decision port** — move interactive approval out of the engine.
 - [ ] **A9 engine ports** — inject stores/recorders/clock and isolate orchestration.
@@ -512,6 +515,51 @@ installable version of the working prototype before the protocol migration resum
 - [ ] **A14 additive product leaves** — TUI, external agent adapters, and saga, separately.
 - [ ] **A15 generated client proof** — nested tools module and TypeScript protocol client.
 - [ ] **A16 platform clients** — desktop and mobile directories without root-module rewrites.
+
+### A6 protocol contract — active detail
+
+Delivery slices:
+
+- [x] **A6.1 envelope foundation** — protocol version 0, the single language-neutral envelope
+  schema, a golden frame, and its stdlib-only public Go binding.
+- [ ] **A6.2 event vocabulary** — event-name constants, typed event payloads, and one golden frame
+  per shipped event without connecting the engine yet.
+- [ ] **A6.3 commands, entities, and errors** — client commands, shared entities, stable error
+  mapping, and their conformance fixtures.
+- [ ] **A6.4 transport contract closure** — NDJSON/SSE framing rules, stream fixtures, OpenAPI
+  shape, spec-change CI guard, and the complete A6 gate.
+
+#### A6.1 envelope foundation acceptance
+
+Scope:
+
+- Define protocol version `0` and one forward-compatible envelope shared by every future transport.
+- Make the language-neutral schema and golden JSON the source of truth, with a public Go binding
+  that depends only on the standard library.
+
+Non-goals:
+
+- No event catalog beyond the golden frame's opaque event name and data object.
+- No stream decoder, NDJSON writer, SSE, OpenAPI paths, event bus, engine integration, CLI output,
+  session migration, or user-visible behavior change.
+- No installer, repository visibility, tag, release, Pages, or other deployment mutation.
+
+Acceptance checklist:
+
+- [x] `spec/VERSION` is exactly `0`, `protocol.Version` mirrors it, and the protocol changelog
+  records the new contract.
+- [x] `spec/schemas/envelope.json` requires positive `seq`, RFC 3339 `ts`, canonical typed session
+  and turn IDs, a lowercase dot-separated event `type`, and object-valued `data` while permitting
+  unknown fields for forward compatibility.
+- [x] `protocol.Envelope` encodes the six fields in schema order and decodes one complete JSON
+  frame with no trailing value.
+- [x] the golden frame round-trips byte-for-byte; unknown fields and syntactically valid unknown
+  event types decode without weakening required-field validation.
+- [x] zero sequence, malformed timestamps/IDs/types, absent or non-object data, and trailing JSON
+  fail closed in offline table tests.
+- [x] `protocol` is registered as L1, imports only the standard library even from conformance tests,
+  and no existing package depends on it yet.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
 
 ## Product decision queue
 

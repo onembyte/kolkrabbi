@@ -930,3 +930,56 @@ T0.4d2 remains intentionally separate. No repository visibility, tag, release, o
 setting changed in this checkpoint. The exact three-command owner trial is still unavailable until
 the owner authorizes either a public repository or a separate public release-artifact origin, after
 which `v0.1.0` can be published and verified live.
+
+---
+
+## Architecture migration / A6.1 — protocol envelope foundation
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 26 · **Host tests:** 339 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+Publishing remains postponed at the owner's request, so the implementation sequence resumed with
+the first purely additive protocol slice. `spec/VERSION` now holds protocol version `0`;
+`spec/schemas/envelope.json` defines the six-field language-neutral wrapper; and one compact golden
+`message.delta` frame fixes field names, ordering, canonical IDs, timestamp shape, and object data.
+`protocol` is the public Go binding and is registered as the dependency-free L1 contract package.
+
+### TDD record
+
+**Red:** after the spec, golden frame, and conformance test were written, `go test ./protocol`
+failed to compile only on the intended absent surface: `Version`, `Envelope`, `Decode`, and
+`Encode` were undefined. No existing package was touched to manufacture the failure.
+
+**Green:** `Envelope` now validates a positive sequence, canonical uppercase typed session/turn
+ULIDs, RFC 3339 timestamps through `time.Time`, lowercase dot-separated event names, and
+object-valued valid JSON data. `Encode` emits one compact frame with no transport delimiter;
+`Decode` consumes exactly one JSON value, ignores unknown top-level fields, retains unknown data,
+and accepts syntactically valid future event names. This is the byte seam future NDJSON and SSE
+wrappers will share.
+
+**Refactor:** the conformance test parses the actual JSON Schema and checks its dialect, field
+order, positive minimum, date-time format, ID/event patterns, data shape, and explicit forward
+compatibility. Its invalid matrix independently covers every absent required field, zero sequence,
+malformed time, wrong/lowercase/overflow/forbidden IDs, malformed event segments, null/array data,
+and a trailing JSON value. The pre-existing vendor fixtures now state clearly that they are adapter
+inputs rather than Kolkrabbi envelope frames.
+
+### Verification
+
+```sh
+go test -race ./protocol
+go test ./internal/arch
+go vet ./protocol
+go list -deps -f '<non-standard dependency filter>' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 339 tests, five compile
+targets, zero lint issues, a 6.21 MB binary, 4.7 ms cold-start p50, one root dependency, 46 site
+checks, seven v0.1 surface checks, 56 installer checks, and all release contracts unchanged.
+
+### Next checkpoint
+
+A6.2 adds the closed event-name vocabulary and typed payload/golden pairs without connecting the
+engine or changing CLI output. Publishing, the public tag, and the clean-machine rehearsal remain
+blocked by the owner's explicit sequencing decision.

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/envelope.json",
+  "title": "Kolkrabbi protocol envelope",
+  "type": "object",
+  "required": ["seq", "ts", "session", "turn", "type", "data"],
+  "properties": {
+    "seq": {"type": "integer", "minimum": 1},
+    "ts": {"type": "string", "format": "date-time"},
+    "session": {"type": "string", "pattern": "^s_[0-7][0-9A-HJKMNP-TV-Z]{25}$"},
+    "turn": {"type": "string", "pattern": "^t_[0-7][0-9A-HJKMNP-TV-Z]{25}$"},
+    "type": {"type": "string", "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)*$"},
+    "data": {"type": "object"}
+  },
+  "additionalProperties": true
+}
