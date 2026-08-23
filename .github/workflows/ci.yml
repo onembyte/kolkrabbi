@@ -76,6 +76,9 @@ jobs:
       - name: release artifact contract
         run: make release-check
 
+      - name: tag-only release workflow contract
+        run: make release-workflow-check
+
       # `go install <module>/cmd/x@version` hard-fails on a module with a
       # replace directive, which is exactly how kolk is meant to be installed.
       - name: no replace in the root go.mod

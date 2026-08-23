@@ -812,3 +812,66 @@ The script contract is green, but the exact three-command flow is not. No tag-on
 or public `v0.1.0` assets exist, and the GitHub repository is still private. T0.4c builds the release
 workflow; T0.4d requires explicit owner approval before any visibility change or public tag, and
 T0.5 performs the clean-machine rehearsal.
+
+---
+
+## Owner trial / T0.4c — tag-only signed release workflow
+
+**Status:** done, 2026-08-23 · **Workflow contract:** 41 · **Snapshot contract:** 21 ·
+**actionlint:** v1.7.12 · **GoReleaser:** v2.17.1 · **Cosign:** v3.0.6
+
+`.github/workflows/release.yml` now reacts only to pushed `v*` tags. Its read-only `verify` job
+accepts only strict v-prefixed Semantic Versions, runs `make check`, validates GoReleaser, and
+rebuilds/inspects the four release archives. A dependent `publish` job alone receives
+`contents: write` and `id-token: write`, then creates the GitHub Release and keyless Cosign bundle
+with the repository-scoped token.
+
+### TDD record
+
+**Red:** with no workflow or tag guard, the first contract failed 24/26 checks. It identified the
+missing tag-only trigger, default-deny permission boundary, read/write job separation, repository
+identity guard, verification commands, immutable action pins, fixed tool versions, clean publish
+command, and ordinary-CI enforcement before any YAML was written.
+
+**Green:** `scripts/check-release-tag.sh` implements SemVer 2.0 core, prerelease, and build syntax,
+including the no-leading-zero rule for numeric core/prerelease identifiers. The workflow starts
+with `permissions: {}`; `verify` grants only `contents: read`, while `publish` depends on it and
+adds only the release-write and OIDC permissions. Checkout does not persist credentials.
+
+**Supply-chain refactor:** current official documentation was rechecked on 2026-08-23. Checkout v6,
+Setup Go v6, GoReleaser Action v7, and Cosign Installer v4.1.2 were resolved from their official Git
+tags to full 40-character commits. Cosign is separately fixed to v3.0.6 and GoReleaser to the
+already snapshot-tested v2.17.1. The current official actionlint v1.7.12 Darwin/arm64 archive was
+downloaded temporarily and matched its published SHA-256
+`aba9ced2dee8d27fecca3dc7feb1a7f9a52caefa1eb46f3271ea66b6e0e6953f`; it accepted both workflows.
+
+### Verification
+
+```sh
+bash -n scripts/check-release-tag.sh
+shellcheck --shell=bash --severity=style scripts/check-release-tag.sh scripts/test-release-workflow.sh
+make release-workflow-check
+actionlint .github/workflows/ci.yml .github/workflows/release.yml
+goreleaser check
+KOLK_GORELEASER_BIN=/path/to/goreleaser-v2.17.1 ./scripts/test-release-snapshot.sh
+make check
+```
+
+All 41 workflow checks passed. The executable snapshot produced exactly Darwin/Linux × amd64/arm64
+at `0.1.0-dev.c76ebfc` and passed 21 archive/checksum checks. The complete gate remains green: 313
+Go tests, five compile targets, zero lint issues, 6.21 MB, 4.5 ms p50, 46 site checks, seven
+two-mode checks, 56 installer checks, and 24 release checks.
+
+### Live repository settings and remaining owner decision
+
+Read-only GitHub API checks report Actions enabled, all actions allowed, default workflow permission
+`read`, pull-request approval disabled, default branch `main`, and repository visibility `private`.
+No setting, tag, or release was changed. The official references used were
+https://github.com/goreleaser/goreleaser-action,
+https://github.com/sigstore/cosign-installer/releases, and
+https://github.com/rhysd/actionlint/releases.
+
+T0.4d is now the only remaining cutover slice. An unauthenticated installer cannot download release
+assets from the private repository. Changing visibility and pushing `v0.1.0` are intentionally
+blocked on explicit owner approval; keeping the source private instead requires a different public
+artifact origin and an installer contract change.

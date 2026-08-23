@@ -137,7 +137,7 @@ Delivery slices:
   SHA-256 manifest, checksum signature config, and a snapshot content test.
 - [x] **T0.4b installer** — platform mapping, version discovery/pinning, download, verification,
   safe extraction, PATH placement, atomic replacement, and offline failure matrix.
-- [ ] **T0.4c tag workflow** — tag-only Actions job, pinned tools, minimal permissions, config check,
+- [x] **T0.4c tag workflow** — tag-only Actions job, pinned tools, minimal permissions, config check,
   snapshot rehearsal, and no release from branches or pull requests.
 - [ ] **T0.4d public cutover** — explicit owner approval for private→public, `v0.1.0`, asset/signature
   verification, Pages deployment, public shell syntax check, and handoff to T0.5.
@@ -164,6 +164,19 @@ cannot download its GitHub Release assets until the owner approves the repositor
   or archive failures preserve an existing binary and cleanup all staging paths.
 - [x] Bash 3.2 syntax, ShellCheck, 56 offline matrix checks, adjacent site/release contracts, and the
   full repository gate pass.
+
+#### T0.4c tag workflow acceptance
+
+- [x] only pushed `v*` tags can start the workflow, and a strict executable SemVer guard rejects
+  malformed tags before any release step.
+- [x] verification runs with read-only contents permission; only the dependent publish job receives
+  `contents: write` and `id-token: write` for GitHub Releases and keyless Cosign signing.
+- [x] every third-party action is pinned to a full immutable commit with its reviewed version noted.
+- [x] the workflow runs the repository gate, `goreleaser check`, and the four-target snapshot before
+  the publish job can run.
+- [x] GoReleaser is fixed to the snapshot-tested v2.17.1 and publishes with `release --clean` using
+  only the repository-scoped `GITHUB_TOKEN`.
+- [x] a fast workflow contract is enforced by `make check` and ordinary branch/PR CI.
 
 ### T0.3 first-run path — detail
 
