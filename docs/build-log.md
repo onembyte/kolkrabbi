@@ -1752,3 +1752,44 @@ checks, and all release contracts green.
 
 U0.2 freezes and implements the verified `kolk update` and `/update` paths independently from the
 loading octopus in U0.3.
+
+---
+
+## Owner UX / U0.1b — mode-prefixed interactive prompt
+
+**Status:** done, 2026-08-23 · **Host tests:** 577 · **Dependencies:** unchanged ·
+**User-visible change:** `kolk-<mode>` prompt
+
+Every interactive input prompt now identifies the program and its current mode: `kolk-code>`,
+`kolk-chat>`, or `kolk-agent>`. A successful `/mode` change is reflected on the very next prompt.
+The startup banner, mode state, non-interactive output, color sequence, and input behavior are
+otherwise unchanged.
+
+### TDD record
+
+**Red:** the focused CLI test observed the legacy `code>`, `chat>`, and `agent>` strings in all
+three table cases and again across a live code-to-chat switch.
+
+**Green:** one renderer format change added the `kolk-` prefix while continuing to derive the mode
+from the live agent on every loop iteration.
+
+**Refactor:** the table test uses the engine's public three-mode registry, so any future supported
+mode must prove its prompt identity automatically; a separate transition test protects dynamic
+mode changes.
+
+### Verification
+
+```sh
+gofmt -d internal/cli/repl.go internal/cli/repl_test.go
+go test -count=1 ./internal/cli
+go vet ./internal/cli
+make check
+```
+
+The complete gate passed with 577 tests, five compile targets, zero lint issues, a 6.21 MB binary,
+5.0 ms cold-start p50, one root dependency, 110 site checks, 11 mode-surface checks, 56 installer
+checks, and all release contracts green.
+
+### Next checkpoint
+
+U0.1c makes bare `/model` list the provider catalog before the frozen U0.2 self-update work resumes.

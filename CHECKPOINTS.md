@@ -81,6 +81,10 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   from a machine with no Go toolchain or prior Kolkrabbi files.
 - [x] **U0.1 explicit auto-approve command** — add a discoverable, session-only
   `/auto-approve [on|off]` control while preserving `-y` and `/yolo` compatibility.
+- [x] **U0.1b mode-prefixed prompt** — identify Kolkrabbi and the active mode as `kolk-<mode>`
+  at every interactive prompt.
+- [ ] **U0.1c in-session model catalog** — make bare `/model` show the current selection and the
+  available provider models while preserving `/model <id>` as the direct switch.
 - [ ] **U0.2 verified self-update** — add `kolk update` and `/update`, resolving the latest GitHub
   Release with platform checks, checksum verification, and atomic binary replacement.
 - [ ] **U0.3 loading octopus** — show a TTY-only animated octopus while Kolkrabbi is waiting,
@@ -113,6 +117,69 @@ Acceptance checklist:
   exit the REPL.
 - [x] `/help` lists the explicit command, while `/yolo` retains its prior toggle behavior.
 - [x] focused CLI tests and every repository gate pass, and the build log records red/green/refactor.
+
+### U0.1b mode-prefixed prompt — verified detail
+
+Scope:
+
+- Render the interactive input prompt as `kolk-code>`, `kolk-chat>`, or `kolk-agent>` from the
+  current engine mode.
+- Reflect a `/mode` change on the next prompt without changing the existing banner or mode state.
+
+Non-goals:
+
+- No prompt configurability, theme change, loading animation, status-line redesign, non-interactive
+  output change, or mode behavior change.
+
+Acceptance checklist:
+
+- [x] fresh interactive prompts use `kolk-<mode>` for all three supported modes.
+- [x] changing mode changes the next prefix, and no legacy bare `code>`, `chat>`, or `agent>` prompt
+  is rendered.
+- [x] focused CLI tests and every repository gate pass; the build log records red/green/refactor.
+
+### U0.2 verified self-update — planned detail
+
+Scope:
+
+- Add `kolk update` outside a session and `/update` inside a session; both call one updater and need
+  no API key or Kolkrabbi state.
+- Resolve GitHub's latest stable release through the exact `onembyte/kolkrabbi` tag path, compare it
+  with the running stable version, and avoid downloading assets when already current or newer.
+- Select the same Darwin/Linux and amd64/arm64 archive names as the installer, download bounded
+  release assets, require one exact SHA-256 manifest entry, and accept exactly one regular `kolk`,
+  `README.md`, and `LICENSE` archive member.
+- Resolve the running executable, atomically replace it with mode `0755`, and tell an in-session user
+  to restart before the new build is active.
+
+Non-goals:
+
+- No update from `main`, arbitrary repository/URL, prerelease channel, downgrade flag, Windows
+  artifact, package-manager integration, background update, startup check, or persisted preference.
+- No shelling out to the website installer and no dependence on curl, tar, a Go toolchain, or a
+  third-party Go module.
+- No claim that a sidecar checksum replaces the release workflow's Sigstore provenance check; the
+  updater matches the public installer's client-side integrity boundary while CI authenticates the
+  signed manifest before publishing.
+- No animation, engine behavior, provider call, session mutation, or auto-approve change.
+
+Acceptance checklist:
+
+- [ ] stable versions compare numerically; dev/malformed versions and unsupported targets fail
+  before network or filesystem mutation, and a same/newer build downloads no archive.
+- [ ] latest discovery accepts only the exact repository's `releases/tag/v<stable-semver>` result.
+- [ ] manifest and archive downloads are status/size bounded; the manifest must contain one unique
+  lowercase SHA-256 for the exact target archive, and digest mismatch fails closed.
+- [ ] archive validation accepts exactly regular `kolk`, `README.md`, and `LICENSE` members, rejects
+  links, extra/missing/duplicate paths and empty binaries, and never writes before all checks pass.
+- [ ] successful replacement is atomic, mode `0755`, and reports old/new versions and path; every
+  download, validation, cancellation, or write failure preserves the previous executable.
+- [ ] `kolk update` is in top-level help, rejects arguments, runs without a key, and reports updated
+  or already-current state.
+- [ ] `/update` is in session help, rejects arguments without making a request, uses the same updater,
+  continues the session after errors, and tells the user to restart after a replacement.
+- [ ] focused updater/CLI tests, race-sensitive tests where applicable, architecture and full
+  repository gates pass; the build log records red/green/refactor.
 
 ### R0.1 v0.1 two-mode surface — verified detail
 

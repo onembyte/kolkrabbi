@@ -65,6 +65,36 @@ func TestReplExitsOnSlashExit(t *testing.T) {
 	}
 }
 
+func TestReplPrefixesEveryModePromptWithKolk(t *testing.T) {
+	for _, mode := range engine.Modes {
+		t.Run(mode, func(t *testing.T) {
+			a, ag, out := replFixture(t, "/exit\n")
+			ag.Mode = mode
+			if err := a.repl(context.Background(), ag); err != nil {
+				t.Fatalf("repl returned %v", err)
+			}
+			want := "\033[1mkolk-" + mode + ">\033[0m "
+			if !strings.Contains(out.String(), want) {
+				t.Fatalf("%s prompt = %q, want %q", mode, out.String(), want)
+			}
+		})
+	}
+}
+
+func TestReplModeChangeUpdatesTheNextPromptPrefix(t *testing.T) {
+	a, ag, out := replFixture(t, "/mode chat\n/exit\n")
+	ag.Mode = engine.ModeCode
+	if err := a.repl(context.Background(), ag); err != nil {
+		t.Fatalf("repl returned %v", err)
+	}
+	got := out.String()
+	for _, want := range []string{"\033[1mkolk-code>\033[0m ", "\033[1mkolk-chat>\033[0m "} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("mode-changing prompt omitted %q: %q", want, got)
+		}
+	}
+}
+
 func TestReplReportsARealReadError(t *testing.T) {
 	var out bytes.Buffer
 	a := &app{stdout: &out, stderr: &out, in: bufio.NewReader(errReader{})}

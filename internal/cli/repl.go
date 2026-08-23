@@ -25,7 +25,7 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 	fmt.Fprintln(a.stdout, "Type your request, or /help for commands. Ctrl+C interrupts a turn, /exit quits.")
 
 	for {
-		fmt.Fprintf(a.stdout, "\n\033[1m%s>\033[0m ", ag.Mode)
+		fmt.Fprintf(a.stdout, "\n\033[1mkolk-%s>\033[0m ", ag.Mode)
 		line, err := a.in.ReadString('\n')
 		// ReadString returns the final line AND io.EOF together when input ends
 		// without a trailing newline, so returning on err would silently drop
