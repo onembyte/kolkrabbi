@@ -83,6 +83,7 @@ var packageLayer = map[string]Layer{
 	"internal/lock":       L0Platform,
 	"internal/redact":     L0Platform,
 	"internal/secret":     L0Platform,
+	"internal/selfupdate": L0Platform,
 	"internal/term":       L0Platform,
 	"internal/xid":        L0Platform,
 

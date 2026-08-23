@@ -1890,3 +1890,52 @@ checks, and all release contracts green.
 
 U0.2 implements the already-frozen verified self-update contract. U0.3 then supplies a TTY-safe
 loading octopus, and U0.4 builds the persistent terminal UI on that lifecycle seam.
+
+---
+
+## Owner UX / U0.2a — update identity and discovery
+
+**Status:** done, 2026-08-23 · **Host tests:** 620 · **Dependencies:** standard library only ·
+**User-visible changes:** none
+
+The first self-update leaf establishes identity without downloading an artifact or touching the
+filesystem. Stable build versions accept only numeric `major.minor.patch` (plus an optional input
+`v`), reject prerelease/build/dev/ambiguous/overflowing forms, normalize without the prefix, and
+compare each numeric component. Darwin and Linux on amd64 and arm64 are the only update targets;
+their archive names exactly match GoReleaser.
+
+Latest discovery makes a cancellable `HEAD` request to the compiled official releases origin. It
+requires a 2xx final response and accepts only the same scheme/host and exact
+`/onembyte/kolkrabbi/releases/tag/v<stable>` destination, with no query, fragment, escaped path,
+suffix, leading-zero component, prerelease, or alternate host. Local URLs exist only as the private
+test seam; no alternate update source is exposed to users or configuration.
+
+### TDD record
+
+**Red:** the focused package test failed to compile only because stable parsing/comparison, target
+resolution/archive naming, and exact redirect discovery did not exist.
+
+**Green:** two small standard-library files implement those pure contracts, and the architecture
+registry places `internal/selfupdate` at L0 alongside build identity, paths, and atomic files.
+
+**Refactor:** static analysis identified and removed a redundant `HasPrefix` branch. The final tests
+also pin the official origin, oversized-component rejection, cancellation, HTTP status, request
+method, all four targets, and unexpected redirect variants.
+
+### Verification
+
+```sh
+gofmt -d internal/selfupdate/*.go internal/arch/layers.go
+go test -count=1 ./internal/selfupdate ./internal/arch
+make check
+```
+
+The first full gate exposed only staticcheck S1017; after the refactor, the complete gate passed with
+620 tests, five compile targets, zero lint issues, a 6.21 MB binary, 5.2 ms cold-start p50, one root
+dependency, 110 site checks, 11 mode-surface checks, 56 installer checks, and all release contracts
+green.
+
+### Next checkpoint
+
+U0.2b downloads the exact manifest/archive with hard size and status bounds, then validates checksum
+and archive structure entirely in memory. It still cannot locate or replace an executable.

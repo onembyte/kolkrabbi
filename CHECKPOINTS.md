@@ -87,8 +87,14 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   available provider models while preserving `/model <id>` as the direct switch.
 - [x] **U0.1d resilient agent completion** — recover once from an empty provider response, strengthen
   project-execution instructions, and make process-local auto-approve scope unmistakable.
-- [ ] **U0.2 verified self-update** — add `kolk update` and `/update`, resolving the latest GitHub
-  Release with platform checks, checksum verification, and atomic binary replacement.
+- [x] **U0.2a update identity and discovery** — strictly resolve stable versions, supported release
+  targets, archive identity, and the exact GitHub latest-tag redirect without filesystem mutation.
+- [ ] **U0.2b bounded artifact verification** — download and validate the checksum manifest and
+  exact release archive entirely before exposing binary bytes.
+- [ ] **U0.2c atomic executable replacement** — preserve the running executable on every failure and
+  replace it atomically with the verified binary at mode `0755`.
+- [ ] **U0.2d update command surfaces** — wire the shared updater into keyless `kolk update` and
+  non-fatal in-session `/update` with exact help and restart guidance.
 - [ ] **U0.3 loading octopus** — show a TTY-only animated octopus while Kolkrabbi is waiting,
   without corrupting streamed replies, redirected output, or cancellation.
 - [ ] **U0.4 persistent terminal UI** — add a Codex-style persistent multiline input area, live
@@ -203,6 +209,38 @@ Acceptance checklist:
   diagnosis and red/green/refactor evidence.
 
 ### U0.2 verified self-update — planned detail
+
+Implementation leaves (U0.2a–U0.2d) close independently in that order; only the current leaf may
+change production code.
+
+#### U0.2a update identity and discovery — verified acceptance
+
+Scope:
+
+- Parse only stable `major.minor.patch` build identities (with an optional leading `v`) and compare
+  their numeric components rather than their text.
+- Resolve exactly Darwin/Linux on amd64/arm64 and derive the GoReleaser archive name from the
+  normalized version and target.
+- Discover latest with a cancellable `HEAD` request and accept only a successful final redirect at
+  the same origin and exact `/onembyte/kolkrabbi/releases/tag/v<stable>` path.
+
+Non-goals:
+
+- No artifact request, checksum/archive parser, executable lookup/write, CLI command, API key, user
+  setting, alternate origin, prerelease, downgrade, or background check.
+
+Acceptance checklist:
+
+- [x] stable versions normalize and compare numerically; dev, incomplete, prerelease, build metadata,
+  leading-zero, non-numeric, and overflowing versions fail closed.
+- [x] exactly four supported targets produce archive names identical to GoReleaser; all other OS or
+  architecture pairs fail.
+- [x] latest discovery uses `HEAD`, honors cancellation, requires a 2xx final response, and rejects
+  no redirect, another origin/path, suffix/query, leading-zero tag, or non-stable tag.
+- [x] the official origin is a compiled constant, the package is standard-library-only at L0, and
+  this leaf performs no filesystem mutation.
+- [x] focused self-update and architecture tests plus every repository gate pass; the build log
+  records red/green/refactor.
 
 Scope:
 
