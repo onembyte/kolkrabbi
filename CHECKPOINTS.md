@@ -503,6 +503,52 @@ Acceptance checklist:
 - [x] build log records the design, verification, exact Pages build settings, and owner-only
   Cloudflare dashboard steps.
 
+### W0.2 capabilities catalog — active detail
+
+Scope:
+
+- Add a prominent `Capabilities` navbar button and a dedicated static catalog page that covers the
+  complete working surface and roadmap in plain language.
+- Mark every capability as `Available now`, `Designed`, or `Planned`; the page must explain that
+  designed and planned items are not shipped yet.
+- Cover Claude Agent and Codex subscription sign-in, preserving one Kolkrabbi session while
+  switching backends, provider-agnostic API-key onboarding, cap-aware continuation through the
+  best-rated eligible configured models, ask-before-free fallback by default, opt-in automatic
+  switching, themes, and the remaining product capability groups.
+- End the page with two accessible explainer-video slots, one English and one Spanish, that remain
+  honest placeholders until their real media sources are supplied.
+
+Non-goals:
+
+- No implementation of subscription adapters, cross-backend routing, cap detection, automatic
+  failover, themes, TUI, dashboard, daemon, desktop, or mobile clients in this website checkpoint.
+- No invented config keys, release dates, model rankings, live video URLs, embedded third-party
+  players, analytics, cookies, forms, JavaScript, or external site dependencies.
+- No Pages/DNS mutation, installer publication, release tag, repository-visibility change, or
+  clean-machine rehearsal.
+
+Acceptance checklist:
+
+- [x] the landing-page navbar has a visually distinct `Capabilities` link to the dedicated page,
+  and the catalog identifies that link as the current page.
+- [x] the catalog has a status legend and visibly labels working behavior separately from designed
+  and planned behavior; no roadmap item is presented as usable today.
+- [x] the catalog covers current modes, effort, providers, key onboarding, tools, sessions,
+  checkpoints, local stats, and project memory.
+- [x] the catalog covers Claude Agent and Codex subscription sign-in plus same-session backend
+  continuity without shipping the prohibited `claude-code` product/feature name.
+- [x] the planned limit policy preserves work, explains the next backend, selects the best-rated
+  eligible configured model, asks before a free fallback by default, and names automatic switching
+  as an opt-in alternative.
+- [x] themes and the remaining workflow, safety, extensibility, dashboard, protocol, desktop, and
+  mobile roadmap groups are represented with honest status labels.
+- [x] English and Spanish explainer slots are the final main-content section, labelled by language
+  and marked coming soon without broken media or external embeds.
+- [x] both pages remain semantic, responsive, keyboard-visible, JavaScript-free, and free of
+  external runtime assets under the existing strict CSP.
+- [x] the independent site contract records red then green, full repository gates pass, and the
+  build log records exact evidence.
+
 ### L0.7 file lock — active detail
 
 Scope:

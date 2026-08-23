@@ -30,7 +30,13 @@ excludes() {
   if [ -f "$SITE/$file" ] && ! grep -Eiq "$pattern" "$SITE/$file"; then pass; else fail "$label"; fi
 }
 
-for file in index.html styles.css logo.svg favicon.svg 404.html _headers robots.txt; do
+last_section_is() {
+  local file="$1" id="$2" found
+  found="$(grep -Eo '<section[^>]+id="[^"]+"' "$SITE/$file" | tail -n 1)"
+  if [[ "$found" == *"id=\"$id\""* ]]; then pass; else fail "$id must be the last main-content section"; fi
+}
+
+for file in index.html capabilities.html styles.css logo.svg favicon.svg 404.html _headers robots.txt; do
   require_file "$file"
 done
 
@@ -45,12 +51,53 @@ contains index.html 'Apache-2.0 License' "license link or label does not match L
 contains index.html 'Chat, code, and agent' "landing page does not name all three modes"
 contains index.html 'Three modes' "landing page does not present the three-mode surface"
 contains index.html 'agent for longer work' "landing page does not explain when to use agent mode"
+contains index.html 'class="nav-button" href="/capabilities.html"' "landing page has no capabilities navbar button"
 excludes index.html 'parallel subagents|subagents in parallel|at once' "landing page inaccurately claims parallel orchestration"
 excludes index.html '<script([ >])' "landing page must not ship JavaScript"
 excludes index.html "<(script|img|link)[^>]+(src|href)=[\"']https?://" "landing page loads an external resource"
 excludes index.html "style=[\"']" "styles must stay in styles.css for a strict CSP"
 
+contains capabilities.html '<html lang="en">' "capabilities page must declare its language"
+contains capabilities.html 'name="viewport"' "capabilities page must configure a mobile viewport"
+contains capabilities.html '<main id="content">' "capabilities page must have a semantic main region"
+contains capabilities.html 'class="nav-button" href="/capabilities.html" aria-current="page"' "capabilities navbar state is missing"
+contains capabilities.html 'Available now' "capability status legend is missing the working state"
+contains capabilities.html 'Designed, not shipped' "capability status legend is missing the designed state"
+contains capabilities.html 'Planned' "capability status legend is missing the planned state"
+contains capabilities.html 'data-status="available"' "catalog has no available capability rows"
+contains capabilities.html 'data-status="designed"' "catalog has no designed capability rows"
+contains capabilities.html 'data-status="planned"' "catalog has no planned capability rows"
+for section in working access continuity workflows safety interfaces videos; do
+  contains capabilities.html "id=\"$section\"" "capabilities page is missing the $section section"
+done
+contains capabilities.html 'Chat, code, and agent modes' "catalog does not cover all three modes"
+contains capabilities.html 'OpenRouter works today' "catalog does not distinguish the working model path"
+contains capabilities.html 'supported API key' "catalog does not cover provider-agnostic key onboarding"
+contains capabilities.html 'Claude Agent subscription' "catalog does not cover Claude subscription sign-in"
+contains capabilities.html 'Codex subscription' "catalog does not cover Codex subscription sign-in"
+contains capabilities.html 'same Kolkrabbi session' "catalog does not cover cross-backend session continuity"
+contains capabilities.html 'subscription limit' "catalog does not cover subscription-cap handling"
+contains capabilities.html 'best-rated eligible configured model' "catalog does not define the continuation choice"
+contains capabilities.html 'Ask before free fallback' "catalog does not state the safe free-fallback default"
+contains capabilities.html 'Automatic switching' "catalog does not state the opt-in automatic policy"
+contains capabilities.html 'Themes' "catalog does not cover theme choices"
+contains capabilities.html 'data-language="en"' "English explainer slot is missing"
+contains capabilities.html 'data-language="es"' "Spanish explainer slot is missing"
+contains capabilities.html 'English explainer' "English explainer label is missing"
+contains capabilities.html 'Explicación en español' "Spanish explainer label is missing"
+contains capabilities.html 'Coming soon' "video placeholders are not honest about availability"
+contains capabilities.html 'Próximamente' "Spanish video placeholder is not honest about availability"
+last_section_is capabilities.html videos
+excludes capabilities.html 'claude code' "catalog ships the prohibited Claude Code product or feature name"
+excludes capabilities.html '<script([ >])' "capabilities page must not ship JavaScript"
+excludes capabilities.html '<(iframe|video|source)([ >])' "capabilities page ships media before real sources exist"
+excludes capabilities.html "<(script|img|link)[^>]+(src|href)=[\"']https?://" "capabilities page loads an external resource"
+excludes capabilities.html "style=[\"']" "capabilities styles must stay in styles.css for a strict CSP"
+
 contains styles.css '--violet:' "purple palette token is missing"
+contains styles.css '.nav-button' "capabilities navbar button style is missing"
+contains styles.css '.status-badge' "capability status style is missing"
+contains styles.css '.video-grid' "bilingual video layout style is missing"
 contains styles.css '@media (max-width:' "responsive layout rule is missing"
 contains styles.css ':focus-visible' "keyboard focus style is missing"
 contains styles.css 'prefers-reduced-motion' "reduced-motion support is missing"

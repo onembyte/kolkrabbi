@@ -1246,3 +1246,55 @@ A separate website checkpoint adds a capabilities navbar page with honest availa
 status, subscription and API-key options, cap-aware continuity policy, theme plans, and accessible
 English/Spanish explainer-video slots. Publishing, the public tag, and the clean-machine rehearsal
 remain postponed.
+
+---
+
+## Website / W0.2 — capabilities catalog
+
+**Status:** done, 2026-08-23 · **Site checks:** 93 · **Host tests:** 441 ·
+**Runtime dependencies:** none · **User-visible changes:** static catalog and navbar link
+
+The landing-page navigation now includes a prominent `Capabilities` button. Its dedicated page is
+a comprehensive catalog divided into working, access, continuity, workflow, safety, and interface
+groups. A three-state legend and a status badge on every card distinguish `Available now` from
+`Designed` and `Planned`, so the site can describe the product direction without advertising an
+unfinished capability as usable.
+
+The catalog records the requested subscription and continuation direction: Claude Agent and Codex
+sign-in paths, preserving one Kolkrabbi session across backends, provider-agnostic key onboarding,
+limit classification, best-rated eligible-model selection, ask-before-free fallback by default,
+and opt-in automatic switching. It also covers themes and the remaining roadmap groups. The last
+main-content section reserves accessible English and Spanish explainer slots; both are honest
+placeholders with no broken media element or third-party embed.
+
+### TDD record
+
+**Red:** after adding W0.2's checklist and extending the independent contract first,
+`bash scripts/test-site.sh` failed 42 of 90 checks. Every failure named an absent W0.2 surface: the
+page, nav button, statuses, capability groups, requested continuity text, video slots, or styles.
+
+**Green:** `site/capabilities.html`, the landing-page link, and responsive shared CSS satisfied all
+90 checks without JavaScript, external runtime assets, inline styles, a framework, or a build step.
+
+**Refactor:** the site contract now also proves the videos section is the final main-content
+section, both language placeholders disclose their pending state, and no iframe, video, or source
+element ships before real media sources exist. The final independent count is 93.
+
+### Verification
+
+```sh
+bash -n scripts/test-site.sh
+bash scripts/test-site.sh
+git diff --check
+make check
+```
+
+The complete gate passed with 441 tests, five compile targets, zero lint issues, a 6.21 MB binary,
+5.0 ms cold-start p50, one root dependency, 93 site checks, nine mode-surface checks, 56 installer
+checks, and all release contracts unchanged.
+
+### Next checkpoint
+
+A6.2b4 resumes the protocol vocabulary with the authoritative `message.completed` payload as an
+independent schema, golden, binding, and validation slice. Publishing, the public tag, and the
+clean-machine rehearsal remain postponed.

@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="The complete Kolkrabbi capability catalog, clearly separated into available, designed, and planned work.">
+  <meta name="theme-color" content="#09070d">
+  <meta name="color-scheme" content="dark">
+  <meta property="og:title" content="Kolkrabbi capabilities — now and next">
+  <meta property="og:description" content="One honest catalog for every working and planned Kolkrabbi capability.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://kolkrabbi.francomichetti.com/capabilities.html">
+  <title>Capabilities — Kolkrabbi</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+
+  <header class="site-header" aria-label="Primary navigation">
+    <a class="wordmark" href="/" aria-label="Kolkrabbi home">
+      <span class="wordmark-mark" aria-hidden="true">K</span>
+      <span>KOLKRABBI</span>
+    </a>
+    <nav aria-label="Project links">
+      <a href="/#install">Install</a>
+      <a class="nav-button" href="/capabilities.html" aria-current="page">Capabilities</a>
+      <a href="https://github.com/onembyte/kolkrabbi">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="content">
+    <section class="catalog-hero" aria-labelledby="catalog-title">
+      <div>
+        <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Full capability map</p>
+        <h1 id="catalog-title">What it does.<br><em>What comes next.</em></h1>
+      </div>
+      <div class="catalog-intro">
+        <p>Kolkrabbi is being built one independently tested checkpoint at a time. This page keeps
+          the promise honest: working behavior is separated from settled design and future work.</p>
+        <ul class="status-legend" aria-label="Capability status legend">
+          <li data-status="available"><span class="legend-dot" aria-hidden="true"></span><strong>Available now</strong><small>In the current source and test suite.</small></li>
+          <li data-status="designed"><span class="legend-dot" aria-hidden="true"></span><strong>Designed, not shipped</strong><small>The contract is settled; implementation remains.</small></li>
+          <li data-status="planned"><span class="legend-dot" aria-hidden="true"></span><strong>Planned</strong><small>On the roadmap and still subject to hardening.</small></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="working" aria-labelledby="working-title">
+      <div class="catalog-heading">
+        <p class="section-number">01 / WORKING</p>
+        <div>
+          <h2 id="working-title">Useful already.</h2>
+          <p>These capabilities exist in the current binary. Public installer availability is a
+            separate release checkpoint and is not implied here.</p>
+        </div>
+      </div>
+      <div class="spec-grid">
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>MODES</span></div>
+          <h3>Chat, code, and agent modes</h3>
+          <p>Chat stays tool-free. Code runs the focused tool loop. Agent plans, runs isolated
+            subagents in a fixed order, then synthesizes one answer.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>EFFORT</span></div>
+          <h3>One effort dial</h3>
+          <p>Quick, standard, deep, and ultra select model tiers. Agent mode also uses effort to
+            bound the number of planned tasks.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>MODELS</span></div>
+          <h3>Gateway or local models</h3>
+          <p>OpenRouter works today. An OpenAI-compatible base URL can also point Kolkrabbi at
+            Ollama, LiteLLM, vLLM, or another compatible endpoint.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>KEY</span></div>
+          <h3>Safe key onboarding</h3>
+          <p><code>kolk key &lt;key&gt;</code> classifies and masks the value, refuses known subscription
+            tokens, verifies OpenRouter when reachable, and stores credentials outside config.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>TOOLS</span></div>
+          <h3>Five focused tools</h3>
+          <p>Read, list, write, edit, and shell execution cover the first code loop. Side effects ask
+            for confirmation unless the user explicitly enables yolo mode.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>SESSIONS</span></div>
+          <h3>Local sessions and memory</h3>
+          <p>Conversations save atomically and can resume. Project instructions come from
+            <code>KOLKRABBI.md</code> or <code>AGENTS.md</code> in the working directory.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>UNDO</span></div>
+          <h3>File checkpoints</h3>
+          <p>Writes and edits snapshot their previous state. <code>/changes</code> shows touched files
+            and <code>/rewind</code> restores the latest turn's file changes.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>LOCAL</span></div>
+          <h3>Private usage history</h3>
+          <p>Token, cost, latency, mode, effort, and optional 1–5 ratings stay in local JSONL. The
+            <code>kolk stats</code> table sends no telemetry.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>CORE</span></div>
+          <h3>Small, tested core</h3>
+          <p>A static Go binary, a standard-library-only core, offline end-to-end tests, strict
+            architecture rules, and five target builds protect the working surface.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="access" aria-labelledby="access-title">
+      <div class="catalog-heading">
+        <p class="section-number">02 / ACCESS</p>
+        <div>
+          <h2 id="access-title">Your account, your key, your choice.</h2>
+          <p>Additional authentication paths are designed around a hard boundary: Kolkrabbi should
+            not capture or reuse a subscription credential owned by another tool.</p>
+        </div>
+      </div>
+      <div class="spec-grid">
+        <article class="spec-card" data-status="designed">
+          <div class="spec-meta"><span class="status-badge">Designed</span><span>ANY KEY</span></div>
+          <h3>Any supported API key</h3>
+          <p>The provider-agnostic command will infer supported key shapes where safe, ask once when
+            ambiguous, and support explicit provider input for CI or uncommon formats.</p>
+        </article>
+        <article class="spec-card" data-status="designed">
+          <div class="spec-meta"><span class="status-badge">Designed</span><span>CLAUDE</span></div>
+          <h3>Claude Agent subscription</h3>
+          <p>Kolkrabbi will hand sign-in to the user's own unmodified <code>claude</code> CLI and run
+            it as a backend. The vendor owns authentication; Kolkrabbi stores no subscription token.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>CODEX</span></div>
+          <h3>Codex subscription</h3>
+          <p>Codex will use the same external-agent seam after its policy review, offline fixtures,
+            login handoff, capability mapping, and redaction gates are complete.</p>
+        </article>
+        <article class="spec-card" data-status="designed">
+          <div class="spec-meta"><span class="status-badge">Designed</span><span>ONE SESSION</span></div>
+          <h3>Backends in the same Kolkrabbi session</h3>
+          <p>Switching between API and subscription backends will retain the local transcript and
+            project context. Provider-owned history is replayed with an explicit label.</p>
+        </article>
+        <article class="spec-card" data-status="designed">
+          <div class="spec-meta"><span class="status-badge">Designed</span><span>LOGIN</span></div>
+          <h3>Login without lock-in</h3>
+          <p>Optional browser login and vendor CLI handoff complement paste-a-key onboarding. Neither
+            replaces the zero-config path or makes a config file mandatory.</p>
+        </article>
+        <article class="spec-card" data-status="designed">
+          <div class="spec-meta"><span class="status-badge">Designed</span><span>SECRETS</span></div>
+          <h3>Inspectable credential sources</h3>
+          <p>Environment, provider environment, and one named store follow a visible first-hit chain.
+            Optional OS keychain storage and source explanations remain opt-in.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="continuity" aria-labelledby="continuity-title">
+      <div class="catalog-heading">
+        <p class="section-number">03 / CONTINUITY</p>
+        <div>
+          <h2 id="continuity-title">When a limit hits, the work stays.</h2>
+          <p>This target policy is planned and not active today. It will prefer explicit, explainable
+            continuation over a silent change in model or billing path.</p>
+        </div>
+      </div>
+      <div class="spec-grid">
+        <article class="spec-card" data-status="designed">
+          <div class="spec-meta"><span class="status-badge">Designed</span><span>DETECT</span></div>
+          <h3>Know which limit stopped work</h3>
+          <p>A subscription limit, account quota, endpoint capacity problem, budget stop, and model
+            refusal remain distinct. Reset times and cooldown scope are preserved when available.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>RECOMMEND</span></div>
+          <h3>Explain the next move</h3>
+          <p>Kolkrabbi will preserve the turn, say which backend stopped, and show how the project
+            continues with the best-rated eligible configured model for that task.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>CHAIN</span></div>
+          <h3>Respect every configured option</h3>
+          <p>The continuation chain will consider eligible subscription and metered backends in
+            priority order while skipping known cooldowns instead of repeatedly hitting a cap.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>SAFE DEFAULT</span></div>
+          <h3>Ask before free fallback</h3>
+          <p>After configured subscription and paid options are unavailable, Kolkrabbi will ask
+            before continuing with a free model. The model, tradeoffs, and retained context are shown.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>AUTO</span></div>
+          <h3>Automatic switching</h3>
+          <p>An opt-in policy will follow the same visible eligibility and cooldown rules without
+            asking at each switch. Silent auto-switching is never the default.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>PAUSE</span></div>
+          <h3>Stop honestly when all limits are reached</h3>
+          <p>If no eligible backend remains, the session pauses with reset information and a resume
+            path. It does not discard work, loop through capped accounts, or pretend success.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="workflows" aria-labelledby="workflows-title">
+      <div class="catalog-heading">
+        <p class="section-number">04 / WORKFLOWS</p>
+        <div>
+          <h2 id="workflows-title">More capable, still calm.</h2>
+          <p>Advanced behavior remains optional. The first run stays install, key, and use.</p>
+        </div>
+      </div>
+      <div class="spec-grid">
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>ROUTING</span></div>
+          <h3>Task-aware model routing</h3>
+          <p>Planner, editor, researcher, tester, synthesizer, and critic roles can choose different
+            models using capability, price, latency, and the user's own ratings.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>FREE</span></div>
+          <h3>Computed free-model defaults</h3>
+          <p>A refreshed catalog will rank eligible free models and map effort levels automatically,
+            with account limits distinguished from endpoint capacity.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>SAGA</span></div>
+          <h3>Careful long-running progression</h3>
+          <p>Saga advances one bounded chapter at a time: plan, act, verify, checkpoint, report, and
+            decide whether to continue under explicit time, cost, and progress limits.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>CODE</span></div>
+          <h3>Deeper code mode</h3>
+          <p>Repository awareness, diff previews, multi-hunk edits, formatters, automatic test loops,
+            plan mode, conversation undo, and commit assistance extend the focused code loop.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>AGENTS</span></div>
+          <h3>Routed agent teams</h3>
+          <p>Parallel-capable subagents, optional worktree isolation, role-specific models, retries,
+            a critic, and clear partial-failure synthesis build on today's ordered agent mode.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>EXTEND</span></div>
+          <h3>MCP, skills, commands, and hooks</h3>
+          <p>Namespaced external tools, Markdown commands, reusable skills, and lifecycle hooks will
+            extend Kolkrabbi under the same permission and provenance rules.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="safety" aria-labelledby="safety-title">
+      <div class="catalog-heading">
+        <p class="section-number">05 / SAFETY</p>
+        <div>
+          <h2 id="safety-title">Local by default. Explicit at the edges.</h2>
+          <p>Safety claims are only useful when architecture and tests can enforce them.</p>
+        </div>
+      </div>
+      <div class="spec-grid">
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>CONFIRM</span></div>
+          <h3>Confirm side effects</h3>
+          <p>Shell, write, and edit operations ask before running. Yolo mode is an explicit session
+            choice rather than a hidden default.</p>
+        </article>
+        <article class="spec-card" data-status="designed">
+          <div class="spec-meta"><span class="status-badge">Designed</span><span>REDACT</span></div>
+          <h3>Secrets stay out of model context</h3>
+          <p>Opaque secret handles, restricted store imports, sink-specific scrubbing, safe masks,
+            and child-process environment subtraction form the settled credential boundary.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>RULES</span></div>
+          <h3>Permission rules and path jail</h3>
+          <p>Allow, ask, and deny rules will apply by tool and pattern, with project-root boundaries,
+            hardline destructive-command blocks, and visible scope.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>SANDBOX</span></div>
+          <h3>Optional execution sandboxes</h3>
+          <p>Platform isolation and container paths will let unattended work run inside declared
+            boundaries. Yolo inside a sandbox stays different from unrestricted host access.</p>
+        </article>
+        <article class="spec-card" data-status="designed">
+          <div class="spec-meta"><span class="status-badge">Designed</span><span>PROTOCOL</span></div>
+          <h3>Language-neutral event protocol</h3>
+          <p>Versioned schemas, typed payloads, golden frames, forward-compatible fields, and one
+            envelope prepare identical CLI, daemon, desktop, and mobile streams.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>GATES</span></div>
+          <h3>Budgets and offline gates</h3>
+          <p>Tests, lint, architecture checks, platform builds, binary-size and startup budgets,
+            installer safety, and release contracts run without spending model credits.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="interfaces" aria-labelledby="interfaces-title">
+      <div class="catalog-heading">
+        <p class="section-number">06 / INTERFACES</p>
+        <div>
+          <h2 id="interfaces-title">One core, more places to use it.</h2>
+          <p>The terminal remains first. Later clients attach to the same versioned core rather than
+            rebuilding model behavior independently.</p>
+        </div>
+      </div>
+      <div class="spec-grid">
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>CLI</span></div>
+          <h3>Interactive and scripted terminal</h3>
+          <p>Run a REPL, pass a one-shot prompt, resume a session, select mode/model/effort, or point
+            at a compatible endpoint from one command.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>THEME</span></div>
+          <h3>Themes</h3>
+          <p>Multiple terminal themes, a quiet presentation, and <code>NO_COLOR</code> support will
+            change appearance without changing behavior or requiring setup.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>TUI</span></div>
+          <h3>Full terminal UI</h3>
+          <p>Multiline input, history, completions, streaming Markdown, diffs, collapsible tool calls,
+            clear reasoning controls, and a mode/model/context/cost status line.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>DASH</span></div>
+          <h3>Local model dashboard</h3>
+          <p>Session analysis, ratings, cost, speed, task categories, comparisons, and routing insight
+            will stay in a local database with no hosted telemetry service.</p>
+        </article>
+        <article class="spec-card" data-status="designed">
+          <div class="spec-meta"><span class="status-badge">Designed</span><span>DAEMON</span></div>
+          <h3>Attachable local service</h3>
+          <p>NDJSON, child stdio, and HTTP plus server-sent events will carry byte-identical event
+            envelopes so a client can attach, replay, and cancel turns consistently.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>DEVICES</span></div>
+          <h3>Desktop, iPad, Android, and Windows</h3>
+          <p>Thin desktop and mobile clients plus complete Windows support arrive as additive
+            frontends and platform ports after the protocol and service surfaces are stable.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="catalog-section video-section" id="videos" aria-labelledby="videos-title">
+      <div class="catalog-heading">
+        <p class="section-number">07 / WATCH</p>
+        <div>
+          <h2 id="videos-title">See the whole flow.</h2>
+          <p>Two short walkthroughs will live here. Their media sources have not been supplied yet,
+            so these are accessible placeholders rather than broken players.</p>
+        </div>
+      </div>
+      <div class="video-grid">
+        <article class="video-card" data-language="en">
+          <div class="video-placeholder" aria-hidden="true"><span>▶</span><small>EN</small></div>
+          <div class="video-copy">
+            <span class="status-badge">Coming soon</span>
+            <h3>English explainer</h3>
+            <p>Install, first key, chat, code, agent, model switching, and local history.</p>
+          </div>
+        </article>
+        <article class="video-card" data-language="es" lang="es">
+          <div class="video-placeholder" aria-hidden="true"><span>▶</span><small>ES</small></div>
+          <div class="video-copy">
+            <span class="status-badge">Próximamente</span>
+            <h3>Explicación en español</h3>
+            <p>Instalación, primera clave, chat, código, agentes, cambio de modelo e historial local.</p>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div>
+      <span class="footer-mark" aria-hidden="true">K</span>
+      <p><strong>Kolkrabbi</strong><br>Built carefully, one checkpoint at a time.</p>
+    </div>
+    <p class="footer-links">
+      <a href="/">Home</a>
+      <a href="https://github.com/onembyte/kolkrabbi">Source</a>
+      <a href="https://github.com/onembyte/kolkrabbi/blob/main/LICENSE">Apache-2.0 License</a>
+    </p>
+  </footer>
+</body>
+</html>
