@@ -1,6 +1,7 @@
 package atomicfile
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,15 @@ import (
 	"sync"
 	"testing"
 )
+
+func TestDurabilityErrorSaysReplacementWasCommitted(t *testing.T) {
+	cause := errors.New("sync refused")
+	err := &DurabilityError{Path: "/bin/kolk", Err: cause}
+	if !errors.Is(err, cause) || !strings.Contains(err.Error(), "was replaced") ||
+		!strings.Contains(err.Error(), "/bin/kolk") {
+		t.Fatalf("durability error = %v", err)
+	}
+}
 
 func TestWriteCreatesAndReplaces(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "x.json")
@@ -34,7 +44,7 @@ func TestWriteHonoursPermissions(t *testing.T) {
 	}
 	dir := t.TempDir()
 
-	for _, perm := range []os.FileMode{0o600, 0o644} {
+	for _, perm := range []os.FileMode{0o600, 0o644, 0o755} {
 		p := filepath.Join(dir, fmt.Sprintf("m%o.json", perm))
 		if err := Write(p, []byte("x"), perm); err != nil {
 			t.Fatal(err)

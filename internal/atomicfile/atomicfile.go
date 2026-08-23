@@ -24,6 +24,21 @@ import (
 	"path/filepath"
 )
 
+// DurabilityError means the replacement is already committed and visible,
+// but syncing its directory entry failed. Callers must not report this as an
+// untouched write failure: rolling back would require a second mutation and
+// could be less durable than the committed file.
+type DurabilityError struct {
+	Path string
+	Err  error
+}
+
+func (e *DurabilityError) Error() string {
+	return fmt.Sprintf("%s was replaced, but its directory could not be synced: %v", e.Path, e.Err)
+}
+
+func (e *DurabilityError) Unwrap() error { return e.Err }
+
 // Write replaces path with data, atomically.
 //
 // A reader either sees the previous contents or the new ones, never a mixture
@@ -51,7 +66,7 @@ func Write(path string, data []byte, perm os.FileMode) error {
 	// CreateTemp always makes the file 0600. Widen or narrow it deliberately,
 	// before it has any content, so it is never briefly readable at the wrong
 	// mode with the real data in it.
-	if err := tmp.Chmod(perm); err != nil && !os.IsPermission(err) {
+	if err := tmp.Chmod(perm); err != nil {
 		return cleanup(fmt.Errorf("setting permissions on %s: %w", tmpName, err))
 	}
 	if _, err := tmp.Write(data); err != nil {
@@ -74,7 +89,10 @@ func Write(path string, data []byte, perm os.FileMode) error {
 	// is not worth failing the write over — the data is committed and visible;
 	// only its survival of an immediate power loss is in question — so it is
 	// returned and callers may choose to ignore it.
-	return syncDir(dir)
+	if err := syncDir(dir); err != nil {
+		return &DurabilityError{Path: path, Err: err}
+	}
+	return nil
 }
 
 // WriteJSON is the shape almost every caller wants: marshal, then replace.

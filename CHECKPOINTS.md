@@ -91,7 +91,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   targets, archive identity, and the exact GitHub latest-tag redirect without filesystem mutation.
 - [x] **U0.2b bounded artifact verification** — download and validate the checksum manifest and
   exact release archive entirely before exposing binary bytes.
-- [ ] **U0.2c atomic executable replacement** — preserve the running executable on every failure and
+- [x] **U0.2c atomic executable replacement** — preserve the running executable on every failure and
   replace it atomically with the verified binary at mode `0755`.
 - [ ] **U0.2d update command surfaces** — wire the shared updater into keyless `kolk update` and
   non-fatal in-session `/update` with exact help and restart guidance.
@@ -271,6 +271,39 @@ Acceptance checklist:
   or empty executable members fail; the exact three-member regular archive succeeds.
 - [x] verification remains standard-library-only, memory-only, and context-cancellable; focused tests,
   architecture and every repository gate pass with red/green/refactor recorded.
+
+#### U0.2c atomic executable replacement — verified acceptance
+
+Scope:
+
+- Compose preflight, latest discovery, comparison, executable resolution, verified artifact fetch,
+  and atomic replacement behind one public updater function for both future command surfaces.
+- Reject an unstable running build or unsupported target before network/filesystem work; skip the
+  artifact and executable lookup when latest is equal or older.
+- Resolve symlinks to the running regular executable, then replace that target once with verified
+  bytes and mode `0755` using the existing same-directory atomic-file primitive.
+- Distinguish a post-rename directory-sync failure as an installed update with a durability warning,
+  so every returned failure still means the old executable is intact.
+
+Non-goals:
+
+- No CLI/slash/help/output, API key/state, alternate executable argument, package-manager detection,
+  privilege escalation, rollback copy, downgrade, Windows update, background check, or relaunch.
+- No second write path, extraction directory, shell command, or artifact revalidation change.
+
+Acceptance checklist:
+
+- [x] dev/malformed version and unsupported target fail before network, executable lookup, or write.
+- [x] same/newer running versions make only latest discovery requests and return an unchanged result
+  without executable lookup, artifact download, or downgrade.
+- [x] a newer valid release resolves a regular symlink target, installs exact verified bytes at mode
+  `0755`, leaves the symlink intact, and reports current/latest/path.
+- [x] discovery, executable resolution, download, verification, cancellation, and pre-commit write
+  failures preserve the exact old bytes and mode.
+- [x] a directory-sync error after atomic rename reports updated-with-warning rather than a false
+  failure, while non-committed errors remain failures.
+- [x] focused updater/atomic-file tests and race coverage plus every repository gate pass; the build
+  log records red/green/refactor.
 
 Scope:
 

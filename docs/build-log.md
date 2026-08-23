@@ -1997,3 +1997,59 @@ mode-surface checks, 56 installer checks, and all release contracts green.
 U0.2c composes version/target/discovery/artifact verification around the running executable and one
 atomic `0755` replacement. It must prove every preflight and verification failure preserves the old
 binary before U0.2d exposes any command.
+
+---
+
+## Owner UX / U0.2c — atomic executable replacement
+
+**Status:** done, 2026-08-23 · **Host tests:** 669 · **Race tests:** green ·
+**Dependencies:** standard library only · **User-visible changes:** none (internal API only)
+
+The updater now composes the verified leaves behind `selfupdate.Update(ctx)`. It rejects an unstable
+running build and unsupported target before network or filesystem work, discovers latest, and skips
+equal or older releases without executable lookup or artifact requests. For a newer release it
+resolves the running executable through symlinks to a regular canonical target, verifies the entire
+artifact in memory, checks cancellation once more at the mutation boundary, and performs one
+same-directory atomic replacement at mode `0755`.
+
+The success fixture begins with a relative `kolk` symlink and a `0600` target. The exact verified
+binary replaces the canonical target at `0755`, while the launch symlink remains a symlink. Separate
+fixtures prove discovery, executable resolution, archive download, checksum verification,
+cancellation, and replacement errors preserve the old bytes and `0700` mode.
+
+`atomicfile.Write` now distinguishes its only post-commit error: if rename succeeded but directory
+sync failed, `DurabilityError` says the replacement is already visible. The updater returns
+`Updated=true` with that warning rather than falsely claiming a preserved failure. All other errors
+occur before rename and retain the previous file. Chmod failure is no longer ignored before writing,
+which prevents a successful update from silently installing a non-executable file.
+
+### TDD record
+
+**Red:** the focused package test failed to compile only because the updater composition, public
+result/API, executable resolver, and committed durability classification did not exist.
+
+**Green:** the production updater injects only compiled build identity, runtime target, a bounded
+HTTP client, the official release origin, `os.Executable`, and `atomicfile.Write`. Its ordered
+preflight/discovery/compare/resolve/verify/cancel/replace path satisfies the mutation boundary.
+
+**Refactor:** the first green test exposed macOS canonicalizing `/var` to `/private/var`; the test now
+compares canonical targets. Preservation coverage was then expanded to explicit discovery and
+archive-download failures, atomic permissions include `0755`, and pre-write chmod errors fail closed.
+
+### Verification
+
+```sh
+gofmt -d internal/selfupdate/*.go internal/atomicfile/*.go
+go test -count=1 ./internal/selfupdate ./internal/atomicfile ./internal/arch
+go test -race -count=1 ./internal/selfupdate ./internal/atomicfile
+make check
+```
+
+The complete gate passed with 669 tests, five compile targets, zero lint issues, a 6.21 MB binary,
+5.2 ms cold-start p50, one root dependency, 110 site checks, 11 mode-surface checks, 56 installer
+checks, 24 release checks, 41 release-workflow checks, and 30 release-verifier checks.
+
+### Next checkpoint
+
+U0.2d is the first leaf allowed to expose the updater: keyless top-level `kolk update` and non-fatal
+in-session `/update`, with one injected function, exact help/argument behavior, and restart guidance.
