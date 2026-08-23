@@ -25,6 +25,10 @@ type Step struct {
 	PromptTokens     int
 	CompletionTokens int
 	Cost             float64
+	StatusCode       int
+	RetryAfter       string
+	ErrorBody        string
+	StreamError      string
 }
 
 type Server struct {
@@ -63,6 +67,11 @@ type chunk struct {
 		FinishReason *string `json:"finish_reason,omitempty"`
 	} `json:"choices"`
 	Usage *wireUsage `json:"usage,omitempty"`
+	Error *wireError `json:"error,omitempty"`
+}
+
+type wireError struct {
+	Message string `json:"message"`
 }
 
 func mkChunk(d delta, finish *string) chunk {
@@ -98,6 +107,15 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	s.i++
 	s.mu.Unlock()
 
+	if step.StatusCode != 0 && step.StatusCode != http.StatusOK {
+		if step.RetryAfter != "" {
+			w.Header().Set("Retry-After", step.RetryAfter)
+		}
+		w.WriteHeader(step.StatusCode)
+		_, _ = fmt.Fprint(w, step.ErrorBody)
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	fl, _ := w.(http.Flusher)
 	emit := func(c chunk) {
@@ -109,6 +127,10 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	emit(mkChunk(delta{Role: "assistant"}, nil))
+	if step.StreamError != "" {
+		emit(chunk{Error: &wireError{Message: step.StreamError}})
+		return
+	}
 
 	// stream content in small fragments, like a real provider
 	for _, frag := range fragments(step.Text, 7) {

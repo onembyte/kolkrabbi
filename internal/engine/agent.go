@@ -15,6 +15,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/checkpoint"
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -69,6 +70,9 @@ type Options struct {
 	In       *bufio.Reader     // shared stdin reader; may be nil with Yolo
 	Out      io.Writer         // defaults to os.Stdout
 	StatsDir string            // where stats.jsonl lives; "" disables stats
+	// RetryWait is the cancellable wait used between bounded provider retries.
+	// Nil selects the real timer; tests inject it to keep retry gates instant.
+	RetryWait func(context.Context, time.Duration) error
 	// Tiers maps effort level -> model id. Missing tiers fall back to Model,
 	// so everything works zero-config and tiers are a pure optimization.
 	Tiers map[string]string
@@ -97,6 +101,9 @@ func New(o Options) *Agent {
 	}
 	if o.Tiers == nil {
 		o.Tiers = map[string]string{}
+	}
+	if o.RetryWait == nil {
+		o.RetryWait = waitForRetry
 	}
 	a := &Agent{Options: o}
 
@@ -347,7 +354,7 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 
 	for {
 		fmt.Fprintf(a.Out, "%sassistant%s ", colorCyan, colorReset)
-		msg, meta, err := a.Client.StreamChat(ctx, model, requestMessages, toolset, func(tok string) {
+		msg, meta, err := a.streamChat(ctx, model, requestMessages, toolset, func(tok string) {
 			fmt.Fprint(a.Out, tok)
 		})
 		if err != nil {

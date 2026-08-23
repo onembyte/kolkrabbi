@@ -87,6 +87,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   available provider models while preserving `/model <id>` as the direct switch.
 - [x] **U0.1d resilient agent completion** — recover once from an empty provider response, strengthen
   project-execution instructions, and make process-local auto-approve scope unmistakable.
+- [x] **U0.1e bounded rate-limit recovery** — classify pre-stream provider HTTP failures and retry a
+  temporary `429` without hiding cancellation, changing models, or silently spending money.
 - [x] **U0.2a update identity and discovery** — strictly resolve stable versions, supported release
   targets, archive identity, and the exact GitHub latest-tag redirect without filesystem mutation.
 - [x] **U0.2b bounded artifact verification** — download and validate the checksum manifest and
@@ -207,6 +209,41 @@ Acceptance checklist:
   confirmation behavior and launch flag remain unchanged.
 - [x] focused engine/CLI tests and every repository gate pass; the build log records the live-session
   diagnosis and red/green/refactor evidence.
+
+### U0.1e bounded rate-limit recovery — verified detail
+
+Scope:
+
+- Preserve non-success chat responses as a typed provider HTTP error with status, safe response
+  detail, `Retry-After`, and the OpenRouter provider/limit-source metadata when present.
+- Put one shared retry boundary around every engine model call: ordinary chat/code replies, agent
+  planning, subagents, and synthesis.
+- Retry only a pre-stream HTTP `429`, at most three times after the initial request. Use bounded
+  1s/2s/4s backoff, honor a longer `Retry-After` only within the same four-second cap, and make each
+  wait immediately cancellable. Surface longer server delays instead of appearing frozen.
+- After exhaustion, return a concise error that identifies the selected model and suggests `/model`
+  instead of dropping back to an unexplained prompt.
+
+Non-goals:
+
+- No endless retry, background continuation, retry after streamed tokens, or retry of authentication,
+  billing, context-window, server, transport, malformed-stream, empty-completion, or tool errors.
+- No automatic model rotation, provider switch, paid route, account-cap guess, catalog ranking,
+  cooldown persistence, or configuration. Item 8 owns policy-aware free-model handoff.
+- No loading animation or terminal-layout change; U0.3 and U0.4 own visible activity and TUI state.
+
+Acceptance checklist:
+
+- [x] a structured OpenRouter `429` remains discoverable with `errors.As`, retains safe classification
+  metadata, and preserves the existing credential scrubbing boundary.
+- [x] a temporary `429` on any engine model call retries the identical model request and succeeds
+  without duplicating conversation history or accounting.
+- [x] four consecutive `429` responses make exactly four requests, perform only the three bounded
+  waits, and return an actionable error naming `/model`.
+- [x] cancellation during backoff returns the context error without another provider request.
+- [x] non-429 errors are never retried, and no retry can begin after response streaming has started.
+- [x] focused provider/engine tests and every repository gate pass; the build log records the live
+  `stealth/ox-alpha` upstream-pool diagnosis and red/green/refactor evidence.
 
 ### U0.2 verified self-update — verified detail
 

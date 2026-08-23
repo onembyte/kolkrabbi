@@ -3,12 +3,14 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // simulates a real OpenRouter/OpenAI streaming response: content in a few
@@ -116,6 +118,36 @@ func TestStreamChat_HTTPError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "401") {
 		t.Errorf("error = %v, want it to mention 401", err)
+	}
+}
+
+func TestStreamChat_HTTPErrorPreservesRateLimitClassification(t *testing.T) {
+	const echoedKey = "sk-or-v1-0123456789abcdef0123456789abcdef"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "3")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"error":{"message":"Provider returned error ` + echoedKey + `","metadata":{"provider_name":"Stealth","limit_source":"upstream_provider_shared_pool","remedy_hint":"Retry shortly"}}}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient("test-key")
+	c.BaseURL = srv.URL
+	_, _, err := c.StreamChat(context.Background(), "stealth/ox-alpha", []Message{{Role: "user", Content: "continue"}}, nil, nil)
+	if err == nil {
+		t.Fatal("expected an HTTP error")
+	}
+	var httpErr *HTTPError
+	if !errors.As(err, &httpErr) {
+		t.Fatalf("error type = %T, want *HTTPError: %v", err, err)
+	}
+	if httpErr.StatusCode != http.StatusTooManyRequests || httpErr.RetryAfter != 3*time.Second {
+		t.Fatalf("HTTP error status/retry = %d/%v", httpErr.StatusCode, httpErr.RetryAfter)
+	}
+	if httpErr.ProviderName != "Stealth" || httpErr.LimitSource != "upstream_provider_shared_pool" || httpErr.RemedyHint != "Retry shortly" {
+		t.Fatalf("HTTP error metadata = %+v", httpErr)
+	}
+	if strings.Contains(err.Error(), echoedKey) || strings.Contains(httpErr.ResponseBody, echoedKey) {
+		t.Fatalf("typed HTTP error leaked echoed credential: %v / %q", err, httpErr.ResponseBody)
 	}
 }
 

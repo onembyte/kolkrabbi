@@ -213,8 +213,7 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []Messag
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		return Message{}, meta, secret.ScrubError(
-			fmt.Errorf("openrouter: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(b))))
+		return Message{}, meta, secret.ScrubError(newHTTPError(resp.StatusCode, resp.Header, b))
 	}
 
 	var contentBuilder strings.Builder

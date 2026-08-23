@@ -2104,3 +2104,44 @@ installer checks, 24 release checks, 41 release-workflow checks, and 30 release-
 
 U0.3 adds the TTY-only loading octopus on the provider-wait boundary. U0.4 then replaces the
 single-line REPL with the persistent terminal composer/status layout already frozen in the ledger.
+
+## Owner UX / U0.1e — bounded rate-limit recovery
+
+The owner's live agent-planning request reached OpenRouter successfully, but
+`stealth/ox-alpha` returned HTTP 429 with `limit_source: upstream_provider_shared_pool`. Kolkrabbi
+previously flattened the response into text and returned immediately to `kolk-agent>`, which looked
+like the agent had chosen to stop. This checkpoint distinguishes that temporary upstream failure
+from completion while keeping model-routing and cost policy out of the retry mechanism.
+
+**Red:** provider and engine tests required a typed, scrubbed HTTP error plus one shared retry seam.
+The focused compile failed only on the deliberately absent `provider.HTTPError` and
+`Agent.RetryWait`. Fixtures cover the exact OpenRouter metadata, identical request replay, planner
+coverage, bounded exhaustion, `Retry-After`, cancellation, non-429 responses, and an error received
+after streaming has begun.
+
+**Green:** pre-stream HTTP failures now retain status, safe response detail, provider name,
+limit source, remedy hint, and parsed `Retry-After`. Every engine model call passes through one
+boundary that retries only HTTP 429 at 1s, 2s, and 4s, honors a server delay within the four-second
+cap, and returns an actionable `/model` error after four total attempts. The wait is context-owned;
+only the successful call is persisted and accounted.
+
+**Refactor:** direct-call inspection leaves exactly one `Client.StreamChat` invocation in the engine:
+the retry boundary itself. A shared scripted provider fixture can now produce both pre-stream HTTP
+and in-stream errors. Response text is scrubbed before it is stored on the typed error, so
+`errors.As` does not weaken the existing credential boundary.
+
+### Verification
+
+```sh
+go test ./internal/provider ./internal/engine
+make check
+```
+
+The complete gate passed with 692 tests, five compile targets, zero lint issues, a 6.32 MB binary,
+4.9 ms cold-start p50, one root dependency, 110 site checks, 13 mode/update-surface checks, 56
+installer checks, 24 release checks, 41 release-workflow checks, and 30 release-verifier checks.
+
+### Next checkpoint
+
+U0.3 now adds the TTY-only loading octopus using this single provider-wait boundary. U0.4 remains
+the separate persistent composer and status-layout checkpoint.
