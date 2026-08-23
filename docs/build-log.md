@@ -983,3 +983,57 @@ checks, seven v0.1 surface checks, 56 installer checks, and all release contract
 A6.2 adds the closed event-name vocabulary and typed payload/golden pairs without connecting the
 engine or changing CLI output. Publishing, the public tag, and the clean-machine rehearsal remain
 blocked by the owner's explicit sequencing decision.
+
+---
+
+## Architecture migration / A6.2a — streamed delta vocabulary
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 38 · **Host tests:** 351 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+The first event-vocabulary slice is limited to the two payloads already fixed by the hardened
+architecture and provider plans. `message.delta` and `reasoning.delta` now each have an event
+constant, a typed Go payload, a versioned JSON Schema, and a compact golden envelope. Both require
+one non-empty `text` string and allow unknown payload fields so version-0 producers can extend a
+frame without making older decoders discard it.
+
+Lifecycle events and `message.completed` were deliberately excluded: their complete payload fields
+are not fixed in the authoritative plans yet. Tool, permission, orchestration, accounting, and
+diagnostic events remain separate A6.2 slices as well.
+
+### TDD record
+
+**Red:** after the two schemas, the `reasoning.delta` golden, and the conformance matrix were
+written, `go test ./protocol` failed to compile only on the intended missing public surface:
+`EventType`, `EventMessageDelta`, `EventReasoningDelta`, `MessageDeltaData`, and
+`ReasoningDeltaData` were undefined.
+
+**Green:** `Envelope.Type` now uses the string-backed `EventType`, preserving the exact JSON wire
+shape. Known delta events validate their schema-backed payload during both encode and decode;
+missing, empty, null, and non-string `text` fail closed. Syntactically valid unknown event names
+remain accepted, with their raw data retained exactly as before.
+
+**Refactor:** one internal validator owns the shared known-event dispatch, while the public payload
+types remain distinct so later evolution cannot accidentally couple message and reasoning fields.
+The table-driven conformance test derives each schema and fixture path from its event constant and
+checks schema identity, required fields, forward compatibility, typed decoding, and byte-exact
+round trips.
+
+### Verification
+
+```sh
+go test -count=1 ./protocol
+go vet ./protocol
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 351 tests, five compile
+targets, zero lint issues, a 6.21 MB binary, 4.8 ms cold-start p50, one root dependency, 46 site
+checks, seven v0.1 surface checks, 56 installer checks, and all release contracts unchanged.
+
+### Next checkpoint
+
+A6.2b fixes the handshake, session, turn, and completed-message payloads before adding their
+constants, schemas, bindings, and goldens. Publishing, the public tag, and the clean-machine
+rehearsal remain postponed by the owner's explicit sequencing decision.

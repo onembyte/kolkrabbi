@@ -522,12 +522,22 @@ Delivery slices:
 
 - [x] **A6.1 envelope foundation** — protocol version 0, the single language-neutral envelope
   schema, a golden frame, and its stdlib-only public Go binding.
-- [ ] **A6.2 event vocabulary** — event-name constants, typed event payloads, and one golden frame
+- [~] **A6.2 event vocabulary** — event-name constants, typed event payloads, and one golden frame
   per shipped event without connecting the engine yet.
 - [ ] **A6.3 commands, entities, and errors** — client commands, shared entities, stable error
   mapping, and their conformance fixtures.
 - [ ] **A6.4 transport contract closure** — NDJSON/SSE framing rules, stream fixtures, OpenAPI
   shape, spec-change CI guard, and the complete A6 gate.
+
+A6.2 is intentionally delivered as independently reviewable vocabulary slices:
+
+- [x] **A6.2a streamed deltas** — `message.delta` and `reasoning.delta`, whose required `text`
+  payload is already explicit in the architecture and provider contracts.
+- [ ] **A6.2b lifecycle and completed content** — handshake, session, turn, and
+  `message.completed` events after their payload fields are fixed.
+- [ ] **A6.2c tools and decisions** — tool and permission events.
+- [ ] **A6.2d orchestration and operations** — subagent, chapter, checkpoint, accounting, score,
+  error, and log events, followed by a complete closed-vocabulary check.
 
 #### A6.1 envelope foundation acceptance
 
@@ -559,6 +569,34 @@ Acceptance checklist:
   fail closed in offline table tests.
 - [x] `protocol` is registered as L1, imports only the standard library even from conformance tests,
   and no existing package depends on it yet.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.2a streamed deltas acceptance
+
+Scope:
+
+- Define the `message.delta` and `reasoning.delta` event names as public Go constants.
+- Define their shared wire shape as a required, non-empty `text` string while retaining unknown
+  payload fields for version-0 forward compatibility.
+- Give both events a language-neutral JSON Schema, a compact golden envelope, and a typed Go
+  payload that conform to one another.
+
+Non-goals:
+
+- No lifecycle, completed-message, tool, permission, orchestration, accounting, or diagnostic
+  payload decisions.
+- No provider translation, event bus, stream transport, engine integration, or CLI output change.
+- No installer, repository visibility, tag, release, Pages, or deployment mutation.
+
+Acceptance checklist:
+
+- [x] event constant values exactly match the schema filenames and golden-envelope `type` values.
+- [x] both schemas require non-empty `text` and permit unknown fields.
+- [x] both typed payloads decode their golden text and each complete envelope round-trips
+  byte-for-byte.
+- [x] known delta events reject missing, empty, null, or non-string text while a syntactically
+  valid unknown event remains forward-compatible.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
 - [x] focused tests, architecture gates, full repository gates, and the build log are green.
 
 ## Product decision queue

@@ -16,7 +16,7 @@ type Envelope struct {
 	Timestamp time.Time       `json:"ts"`
 	Session   string          `json:"session"`
 	Turn      string          `json:"turn"`
-	Type      string          `json:"type"`
+	Type      EventType       `json:"type"`
 	Data      json.RawMessage `json:"data"`
 }
 
@@ -33,14 +33,14 @@ func (e Envelope) validate() error {
 	if !validID(e.Turn, 't') {
 		return fmt.Errorf("protocol: turn must be a canonical t_ ULID")
 	}
-	if !validEventType(e.Type) {
+	if !validEventType(string(e.Type)) {
 		return fmt.Errorf("protocol: type must be lowercase dot-separated words")
 	}
 	data := bytes.TrimSpace(e.Data)
 	if len(data) == 0 || data[0] != '{' || !json.Valid(data) {
 		return fmt.Errorf("protocol: data must be a JSON object")
 	}
-	return nil
+	return validateEventData(e.Type, data)
 }
 
 func validID(id string, kind byte) bool {

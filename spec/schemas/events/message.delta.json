@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/events/message.delta.json",
+  "title": "message.delta payload",
+  "type": "object",
+  "required": ["text"],
+  "properties": {
+    "text": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": true
+}
