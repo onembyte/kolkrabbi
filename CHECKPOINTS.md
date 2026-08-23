@@ -583,7 +583,7 @@ with an already-settled one:
 
 - [x] **A6.2b1 hello handshake** — `{protocol, server, capabilities[]}` as specified by the
   architecture and mobile handshake constraint.
-- [ ] **A6.2b2 session lifecycle** — started, updated, and ended payloads.
+- [x] **A6.2b2 session lifecycle** — started, updated, and ended payloads.
 - [ ] **A6.2b3 turn lifecycle** — started, finished, and cancelled payloads.
 - [ ] **A6.2b4 completed content** — the authoritative `message.completed` payload.
 
@@ -644,6 +644,40 @@ Acceptance checklist:
 - [x] the typed payload decodes the golden handshake and the envelope round-trips byte-for-byte.
 - [x] missing fields, a mismatched protocol, an empty server, null/non-array capabilities, empty
   capability names, and duplicate capability names fail closed.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.2b2 session lifecycle acceptance
+
+Scope:
+
+- Define `session.started`, `session.updated`, and `session.ended` as public event names with one
+  schema, typed payload, and compact golden envelope each.
+- Require `session.started` to project the non-empty model, mode, effort, and working directory that
+  clients need when attaching to a live session.
+- Define `session.updated` as a non-empty forward-compatible patch. Its known optional fields are
+  model, mode, effort, and title; present known strings must be non-empty, while an unknown-only
+  patch remains valid for additive protocol evolution.
+- Require `session.ended` to carry a non-empty open-ended reason. The envelope remains the only
+  source of session ID, turn ID, and event timestamp.
+
+Non-goals:
+
+- No closed enum for mode, effort, update fields, or end reason; future values must remain additive.
+- No turn lifecycle, completed content, session entity/list response, event bus, persistence
+  migration, engine wiring, transport, or CLI output change.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] all three constants exactly match their schema filenames and golden-envelope type values.
+- [x] started requires non-empty model, mode, effort, and cwd; missing, empty, null, and non-string
+  values fail closed.
+- [x] updated requires at least one field; known fields validate when present, unknown fields are
+  retained, and an unknown-only patch remains valid.
+- [x] ended requires a non-empty string reason without restricting its vocabulary.
+- [x] all three typed payloads decode their goldens, and every envelope round-trips byte-for-byte.
 - [x] the public package remains standard-library-only and disconnected from existing packages.
 - [x] focused tests, architecture gates, full repository gates, and the build log are green.
 

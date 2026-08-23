@@ -1142,3 +1142,55 @@ checks, and all release contracts unchanged.
 
 A6.2b2 resumes the session-lifecycle protocol contract as an independent schema, binding, golden,
 and validation slice. Publishing, the public tag, and the clean-machine rehearsal remain postponed.
+
+---
+
+## Architecture migration / A6.2b2 — session lifecycle
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 91 · **Host tests:** 406 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+This slice freezes the three session lifecycle names from the architecture and gives each one a
+minimal payload that does not duplicate envelope state. `session.started` projects the non-empty
+model, mode, effort, and working directory needed when attaching to a live session.
+`session.updated` is a non-empty patch whose known optional fields are model, mode, effort, and
+title. `session.ended` carries a non-empty reason.
+
+Session and turn IDs plus the event timestamp remain solely in the envelope. Mode, effort, and end
+reason are open strings rather than enums, so new product values do not require a protocol bump.
+An update containing only unknown future fields is valid and retained; present known fields still
+fail closed when empty, null, or the wrong JSON type.
+
+### TDD record
+
+**Red:** after adding the three schemas, compact golden frames, changelog entry, and invalid-field
+matrix, `go test ./protocol` failed to compile only because `EventSessionStarted`,
+`EventSessionUpdated`, `EventSessionEnded`, and their three payload types were undefined.
+
+**Green:** the constants now match `session.started`, `session.updated`, and `session.ended` exactly.
+Known-event validation enforces every required started field, non-empty update patches with valid
+known values, and a non-empty ended reason. All three typed goldens round-trip byte-for-byte, while
+unknown update fields remain in the raw envelope data.
+
+**Refactor:** optional fields on `SessionUpdatedData` use `omitempty`, and an explicit binding test
+proves a one-field Go value marshals to a schema-valid one-field patch. The update validator checks
+raw field presence separately from typed values, distinguishing an omitted field from a present
+empty or null value without rejecting additive unknown-only patches.
+
+### Verification
+
+```sh
+go test -count=1 ./protocol
+go vet ./protocol
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 406 tests, five compile
+targets, zero lint issues, a 6.21 MB binary, 4.5 ms cold-start p50, one root dependency, 48 site
+checks, nine mode-surface checks, 56 installer checks, and all release contracts unchanged.
+
+### Next checkpoint
+
+A6.2b3 fixes turn.started, turn.finished, and turn.cancelled as a separate lifecycle slice before
+completed content. Publishing, the public tag, and the clean-machine rehearsal remain postponed.
