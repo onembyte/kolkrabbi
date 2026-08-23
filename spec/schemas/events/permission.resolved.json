@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/events/permission.resolved.json",
+  "title": "permission.resolved payload",
+  "type": "object",
+  "required": ["id", "decision"],
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "decision": {"type": "string", "enum": ["allow", "allow_session", "deny"]},
+    "reason": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": true
+}

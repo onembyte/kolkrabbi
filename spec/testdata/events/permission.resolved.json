@@ -1,0 +1,1 @@
+{"seq":706,"ts":"2026-08-23T21:31:03Z","session":"s_01ARYZ6S41TSV4RRFFQ69G5FAV","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"permission.resolved","data":{"id":"perm_abc123","decision":"deny","reason":"no client attached before timeout"}}

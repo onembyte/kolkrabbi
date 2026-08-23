@@ -28,6 +28,8 @@ const (
 	EventToolFinished EventType = "tool.finished"
 	// EventPermissionRequested asks a client to decide one Kolkrabbi-run action.
 	EventPermissionRequested EventType = "permission.requested"
+	// EventPermissionResolved records the decision for one permission request.
+	EventPermissionResolved EventType = "permission.resolved"
 	// EventSessionStarted announces the initial live-session projection.
 	EventSessionStarted EventType = "session.started"
 	// EventSessionUpdated carries a non-empty patch to the live-session projection.
@@ -116,6 +118,33 @@ type PermissionRequestedData struct {
 	Tool   string `json:"tool"`
 	Detail string `json:"detail"`
 	Diff   string `json:"diff,omitempty"`
+}
+
+// PermissionDecision is the closed decision vocabulary for a permission
+// round-trip.
+type PermissionDecision string
+
+const (
+	// PermissionDecisionAllow approves only the correlated request.
+	PermissionDecisionAllow PermissionDecision = "allow"
+	// PermissionDecisionAllowSession approves with session-scoped retention.
+	PermissionDecisionAllowSession PermissionDecision = "allow_session"
+	// PermissionDecisionDeny rejects the correlated request.
+	PermissionDecisionDeny PermissionDecision = "deny"
+)
+
+func validPermissionDecision(decision PermissionDecision) bool {
+	return decision == PermissionDecisionAllow ||
+		decision == PermissionDecisionAllowSession ||
+		decision == PermissionDecisionDeny
+}
+
+// PermissionResolvedData is the payload of EventPermissionResolved. Reason is
+// optional and explains decisions such as a timeout-driven deny.
+type PermissionResolvedData struct {
+	ID       string             `json:"id"`
+	Decision PermissionDecision `json:"decision"`
+	Reason   string             `json:"reason,omitempty"`
 }
 
 // SessionStartedData is the payload of EventSessionStarted.
@@ -313,6 +342,26 @@ func validateEventData(event EventType, raw json.RawMessage) error {
 		}
 		if _, present := fields["diff"]; present && data.Diff == nil {
 			return fmt.Errorf("protocol: %s data.diff must be string-valued when present", event)
+		}
+		return nil
+	case EventPermissionResolved:
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		var data PermissionResolvedData
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		if data.ID == "" {
+			return fmt.Errorf("protocol: %s data.id must be non-empty", event)
+		}
+		if !validPermissionDecision(data.Decision) {
+			return fmt.Errorf("protocol: %s data.decision must be %q, %q, or %q", event,
+				PermissionDecisionAllow, PermissionDecisionAllowSession, PermissionDecisionDeny)
+		}
+		if _, present := fields["reason"]; present && data.Reason == "" {
+			return fmt.Errorf("protocol: %s data.reason must be non-empty and string-valued when present", event)
 		}
 		return nil
 	case EventSessionStarted:

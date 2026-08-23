@@ -1649,3 +1649,56 @@ p50, and all installer and release contracts green.
 The fully clean-machine trial still needs a machine with no prior Kolkrabbi state or Go toolchain,
 followed by the owner's real key and first model response. This local rehearsal does not claim that
 final box.
+
+---
+
+## Architecture migration / A6.2c3b — permission resolved
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 255 · **Host tests:** 570 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+This slice closes the protocol's permission vocabulary without wiring a permission queue or changing
+the CLI. `permission.resolved` correlates to one earlier request by its non-empty opaque `id` and
+records exactly one of `allow`, `allow_session`, or `deny`. An optional non-empty `reason` can explain
+facts such as an unattended timeout; those cases remain ordinary denies instead of expanding the
+decision enum.
+
+The resolution deliberately does not repeat the tool, detail, diff, or executor. The original
+request remains authoritative for presentation facts, the envelope owns the event timestamp, and
+cross-event correlation remains a later transport/runtime concern. Permanent approval rules also
+remain configuration rather than a fourth wire decision.
+
+### TDD record
+
+**Red:** after freezing the scope and adding the complete conformance matrix,
+`go test -count=1 ./protocol` failed to compile only because `EventPermissionResolved`,
+`PermissionResolvedData`, and the three decision constants were undefined.
+
+**Green:** the event constant, closed decision type, typed payload, schema, golden envelope,
+changelog entry, and known-event validator now agree. The validator rejects absent or malformed
+identity and decision fields, rejects unknown decisions, and distinguishes an omitted reason from
+empty, null, or wrongly typed reason data.
+
+**Refactor:** the validator reuses the public typed payload while a raw field map preserves the
+presence distinction needed by the optional reason. Tests also prove all three decisions, Unicode
+reason text, schema field order, omission of an absent reason, byte-stable golden round-trip,
+unknown-field retention, and the deliberate absence of tool and executor fields.
+
+### Verification
+
+```sh
+gofmt -d protocol/events.go protocol/permission_resolved_test.go
+go test -count=1 ./protocol
+go vet ./protocol
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 570 tests, five compile
+targets, zero lint issues, a 6.21 MB binary, 4.9 ms cold-start p50, one root dependency, 110 site
+checks, nine mode-surface checks, 56 installer checks, and all release contracts green.
+
+### Next checkpoint
+
+The owner's explicit auto-approve command is next, followed independently by a TTY-safe loading
+octopus. A6.2d orchestration and operational events remains queued after those product checkpoints.

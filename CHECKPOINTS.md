@@ -620,7 +620,7 @@ A6.2 is intentionally delivered as independently reviewable vocabulary slices:
   payload is already explicit in the architecture and provider contracts.
 - [x] **A6.2b lifecycle and completed content** — handshake, session, turn, and
   `message.completed` events after their payload fields are fixed.
-- [~] **A6.2c tools and decisions** — tool and permission events.
+- [x] **A6.2c tools and decisions** — tool and permission events.
 - [ ] **A6.2d orchestration and operations** — subagent, chapter, checkpoint, accounting, score,
   error, and log events, followed by a complete closed-vocabulary check.
 
@@ -638,7 +638,7 @@ permission state or outcome data:
 
 - [x] **A6.2c1 requested invocation** — `tool.requested` identity, raw arguments, and executor.
 - [x] **A6.2c2 execution lifecycle** — `tool.started`, `tool.output`, and `tool.finished`.
-- [~] **A6.2c3 permission decisions** — `permission.requested` and `permission.resolved`.
+- [x] **A6.2c3 permission decisions** — `permission.requested` and `permission.resolved`.
 
 A6.2c2 is split again because beginning execution, carrying output, and recording the terminal
 outcome have different required facts:
@@ -650,7 +650,7 @@ outcome have different required facts:
 A6.2c3 keeps the user-facing request separate from its later transport round-trip:
 
 - [x] **A6.2c3a permission requested** — request identity, tool, detail, and optional diff.
-- [ ] **A6.2c3b permission resolved** — request correlation and decision vocabulary.
+- [x] **A6.2c3b permission resolved** — request correlation and decision vocabulary.
 
 #### A6.1 envelope foundation acceptance
 
@@ -1004,6 +1004,46 @@ Acceptance checklist:
   diffs fail closed.
 - [x] the typed payload decodes the golden, marshals in schema field order, and the complete envelope
   round-trips byte-for-byte.
+- [x] an unknown payload field remains in the raw envelope after decode.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.2c3b permission resolved acceptance
+
+Scope:
+
+- Define `permission.resolved` as a public event name with one schema, typed payload, and compact
+  golden envelope.
+- Require the non-empty permission request `id` from `permission.requested` and a closed `decision`
+  vocabulary of `allow`, `allow_session`, or `deny`.
+- Allow an optional non-empty human-readable `reason`. Server timeouts and unattended subagent
+  defaults resolve as `deny` with a reason instead of inventing extra decision values.
+- Keep the event additive with unknown payload fields retained by the envelope.
+
+Non-goals:
+
+- No repeated tool, detail, diff, executor, policy rule, timeout, or expiration. The request remains
+  authoritative for presentation data, and the envelope owns resolution time.
+- No permanent `allow_always` decision; durable permission-rule editing is a separate configuration
+  action, while `allow_session` is the only remembered runtime decision in this vocabulary.
+- No cross-event ID check, serialized permission queue, timeout implementation, policy persistence,
+  decider, engine integration, HTTP endpoint, event bus, storage, transport, or CLI output change.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the event and decision constants exactly match the schema filename, golden type, and closed
+  decision vocabulary.
+- [x] the schema requires exactly non-empty `id` and enumerated `decision`, permits an optional
+  non-empty string `reason` and unknown fields, and defines no tool or executor.
+- [x] missing, empty, null, and non-string IDs fail closed.
+- [x] missing, empty, null, non-string, and unknown decisions fail closed, while all three defined
+  decisions decode successfully.
+- [x] omitted, non-empty, and Unicode reasons decode successfully, while empty, null, and non-string
+  reasons fail closed.
+- [x] the typed payload decodes the golden, marshals in schema field order, omits an absent reason,
+  and the complete envelope round-trips byte-for-byte.
 - [x] an unknown payload field remains in the raw envelope after decode.
 - [x] the public package remains standard-library-only and disconnected from existing packages.
 - [x] focused tests, architecture gates, full repository gates, and the build log are green.
