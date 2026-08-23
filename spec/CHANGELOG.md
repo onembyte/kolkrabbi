@@ -13,3 +13,4 @@ are allowed during version 0, but every change is recorded here.
 - Define the full-text `message.completed` snapshot payload.
 - Define `tool.requested` identity, raw JSON arguments, and execution ownership.
 - Define `tool.started` correlation and execution ownership.
+- Define `tool.output` correlation, possibly empty content, and execution ownership.

@@ -1447,3 +1447,55 @@ checks, nine mode-surface checks, 56 installer checks, and all release contracts
 
 A6.2c2b audits and freezes `tool.output` content semantics without deciding terminal success or
 failure. Publishing, the public tag, and the clean-machine rehearsal remain postponed.
+
+---
+
+## Architecture migration / A6.2c2b — tool execution output
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 195 · **Host tests:** 510 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+This slice freezes `tool.output` independently from terminal outcome. Its payload contains the
+non-empty tool-call correlation ID, one complete display-ready output string, and the executor
+inherited from the preceding tool lifecycle events. Output is required but may be empty: provider
+tools can legitimately finish without producing display text, and dropping that value would make
+their lifecycle unreplayable.
+
+The request event remains authoritative for name and arguments, while `tool.finished` will own
+success or failure. Streaming markers, stdout/stderr structure, truncation, MIME metadata, duration,
+cross-event consistency, provider translation, and engine instrumentation remain outside this
+checkpoint.
+
+### TDD record
+
+**Red:** after freezing the acceptance boundary and adding the conformance matrix,
+`go test -count=1 ./protocol` failed to compile only because `EventToolOutput` and
+`ToolOutputData` were undefined.
+
+**Green:** the new constant, typed payload, schema, golden frame, changelog entry, and known-event
+validator now agree. Validation rejects missing or malformed correlation IDs, missing/null/non-string
+output, and missing, wrongly typed, or unknown executors while accepting empty output and both
+defined ownership values.
+
+**Refactor:** the public payload keeps `Output` as an ordinary string, while the validator uses a
+private pointer-valued wire view to distinguish a valid empty string from a missing or null field.
+Tests also prove schema field order, byte-stable golden round-trip, Unicode output, unknown-field
+retention, and continued forward compatibility.
+
+### Verification
+
+```sh
+go test -count=1 ./protocol
+go vet ./protocol
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 510 tests, five compile
+targets, zero lint issues, a 6.21 MB binary, 4.6 ms cold-start p50, one root dependency, 93 site
+checks, nine mode-surface checks, 56 installer checks, and all release contracts unchanged.
+
+### Next checkpoint
+
+A6.2c2c audits and freezes `tool.finished` terminal outcome semantics without adding permission or
+engine wiring. Publishing, the public tag, and the clean-machine rehearsal remain postponed.

@@ -644,7 +644,7 @@ A6.2c2 is split again because beginning execution, carrying output, and recordin
 outcome have different required facts:
 
 - [x] **A6.2c2a execution started** — `tool.started` correlation and executor.
-- [ ] **A6.2c2b execution output** — `tool.output` correlation, content, and executor.
+- [x] **A6.2c2b execution output** — `tool.output` correlation, content, and executor.
 - [ ] **A6.2c2c execution finished** — `tool.finished` correlation, outcome, and executor.
 
 #### A6.1 envelope foundation acceptance
@@ -876,6 +876,45 @@ Acceptance checklist:
 - [x] the schema requires exactly non-empty `id` and `executor`, permits unknown fields, and restricts
   executor to `kolk` or `provider`.
 - [x] missing, empty, null, and non-string IDs fail closed.
+- [x] missing, empty, null, non-string, and unknown executors fail closed, while both defined values
+  decode successfully.
+- [x] the typed payload decodes the golden, marshals in schema field order, and the complete envelope
+  round-trips byte-for-byte.
+- [x] an unknown payload field remains in the raw envelope after decode.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.2c2b execution output acceptance
+
+Scope:
+
+- Define `tool.output` as a public event name with one schema, typed payload, and compact golden
+  envelope.
+- Require the non-empty tool-call `id` used by `tool.requested`, a required string-valued `output`,
+  and the same `executor` ownership value used across the tool lifecycle.
+- Preserve an empty output as valid data because a completed provider tool can legitimately produce
+  no display text.
+- Keep the event additive with unknown payload fields retained by the envelope.
+
+Non-goals:
+
+- No repeated tool name or arguments; `tool.requested` remains authoritative for the invocation.
+- No success/error state, finish reason, duration, stream/chunk marker, stdout/stderr split,
+  truncation marker, MIME type, encoding, or sequence number. `tool.finished` owns terminal outcome,
+  and the envelope owns ordering and event time.
+- No cross-event ID/executor consistency check, provider translation, tool runner instrumentation,
+  permission engine, event bus, persistence, transport, or CLI output change.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the constant exactly matches the schema filename and golden-envelope type value.
+- [x] the schema requires exactly non-empty `id`, string-valued `output`, and `executor`, permits
+  unknown fields, and restricts executor to `kolk` or `provider`.
+- [x] missing, empty, null, and non-string IDs fail closed.
+- [x] missing, null, and non-string output fail closed, while empty, non-empty, and Unicode output
+  decode successfully.
 - [x] missing, empty, null, non-string, and unknown executors fail closed, while both defined values
   decode successfully.
 - [x] the typed payload decodes the golden, marshals in schema field order, and the complete envelope
