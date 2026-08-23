@@ -128,4 +128,49 @@ func TestSlashHelpListsAllReleaseModes(t *testing.T) {
 	if !strings.Contains(out.String(), "agent = orchestrated") {
 		t.Fatalf("slash help does not explain agent mode: %q", out.String())
 	}
+	if !strings.Contains(out.String(), "/auto-approve [on|off]") {
+		t.Fatalf("slash help does not list the explicit auto-approve command: %q", out.String())
+	}
+}
+
+func TestSlashAutoApproveControlsTheLiveSession(t *testing.T) {
+	a, ag, out := replFixture(t, "")
+	ag.Yolo = false
+
+	for _, command := range []string{"/auto-approve", "/auto-approve on"} {
+		if a.slash(ag, command) {
+			t.Fatalf("%s must not exit the REPL", command)
+		}
+		if !ag.Yolo {
+			t.Fatalf("%s did not enable auto-approval", command)
+		}
+	}
+	if !strings.Contains(out.String(), "auto-approve: on — tool actions will run without confirmation") {
+		t.Fatalf("enabled state does not name the risk: %q", out.String())
+	}
+
+	if a.slash(ag, "/auto-approve off") {
+		t.Fatal("/auto-approve off must not exit the REPL")
+	}
+	if ag.Yolo {
+		t.Fatal("/auto-approve off did not disable auto-approval")
+	}
+	if !strings.Contains(out.String(), "auto-approve: off — tool actions will ask first") {
+		t.Fatalf("disabled state was not reported clearly: %q", out.String())
+	}
+}
+
+func TestSlashAutoApproveRejectsUnknownArgumentWithoutChangingState(t *testing.T) {
+	a, ag, out := replFixture(t, "")
+	ag.Yolo = false
+
+	if a.slash(ag, "/auto-approve forever") {
+		t.Fatal("invalid auto-approve argument must not exit the REPL")
+	}
+	if ag.Yolo {
+		t.Fatal("invalid auto-approve argument changed the current state")
+	}
+	if got := out.String(); !strings.Contains(got, "usage: /auto-approve [on|off]") {
+		t.Fatalf("invalid auto-approve argument did not print exact usage: %q", got)
+	}
 }

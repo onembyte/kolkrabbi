@@ -1702,3 +1702,53 @@ checks, nine mode-surface checks, 56 installer checks, and all release contracts
 
 The owner's explicit auto-approve command is next, followed independently by a TTY-safe loading
 octopus. A6.2d orchestration and operational events remains queued after those product checkpoints.
+
+---
+
+## Owner UX / U0.1 — explicit auto-approve command
+
+**Status:** done, 2026-08-23 · **Host tests:** 572 · **Mode-surface checks:** 11 ·
+**Dependencies:** unchanged · **User-visible change:** `/auto-approve [on|off]`
+
+The interactive session now has an explicit approval control. `/auto-approve` and
+`/auto-approve on` idempotently enable the same live state as `-y`; `/auto-approve off` disables it.
+The enabled response says that tool actions will run without confirmation, while the disabled
+response says they will ask first. Invalid values print the exact usage and leave the current state
+unchanged. `/yolo` remains the short compatibility toggle.
+
+The command is deliberately process-local. It writes no config, survives no restart, grants no
+permanent rule, and changes neither the tool set nor the engine's established confirmation logic.
+README and in-session help expose the descriptive command, while the existing launch flag remains
+available for single-shot use.
+
+### TDD record
+
+**Red:** `go test -count=1 ./internal/cli` failed only because help omitted the command,
+`/auto-approve` left `Agent.Yolo` disabled, and an invalid value fell through to the generic unknown
+command response. The public-surface check then failed only because README still named `/yolo`
+without the explicit form.
+
+**Green:** the slash-command branch implements no-argument/on/off behavior, reports both states,
+rejects unknown values without mutation, and is documented in both command surfaces.
+
+**Refactor:** one `setAutoApprove` helper owns state mutation and its paired safety message, removing
+duplicated output while leaving `/yolo` unchanged.
+
+### Verification
+
+```sh
+gofmt -d internal/cli/slash.go internal/cli/repl_test.go
+go test -count=1 ./internal/cli
+go vet ./internal/cli
+./scripts/test-v01-surface.sh
+make check
+```
+
+The complete gate passed with 572 tests, five compile targets, zero lint issues, a 6.21 MB binary,
+5.2 ms cold-start p50, one root dependency, 110 site checks, 11 mode-surface checks, 56 installer
+checks, and all release contracts green.
+
+### Next checkpoint
+
+U0.2 freezes and implements the verified `kolk update` and `/update` paths independently from the
+loading octopus in U0.3.

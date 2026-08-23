@@ -96,7 +96,9 @@ kolk models claude            # browse models with $/1M pricing
 ```
 
 In-session: `/mode`, `/effort`, `/model`, `/rate 1-5`, `/changes`, `/rewind`,
-`/new`, `/yolo`, `/help`. Ctrl+C interrupts the current turn only.
+`/new`, `/auto-approve [on|off]`, `/yolo`, `/help`. `/auto-approve` without an
+argument enables it for the current session; `/yolo` remains the quick toggle.
+Ctrl+C interrupts the current turn only.
 
 ## Sessions, checkpoints, project memory
 
@@ -133,7 +135,7 @@ kolk --base-url <url> -y "create the hello file"
 
 Chat mode carries no tools at all. Code mode and agent subagents use the same
 tool and confirmation gates; every side-effecting action requires approval
-unless `-y`/`/yolo` is active.
+unless `-y`, `/auto-approve on`, or `/yolo` is active.
 
 ## Architecture
 

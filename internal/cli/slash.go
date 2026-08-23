@@ -25,6 +25,7 @@ func (a *app) slash(ag *engine.Agent, line string) bool {
 /effort <quick|standard|deep|ultra>   select model tier and agent orchestration width
 /model <id>    override the base model for this session
 /rate <1-5>    rate the last turn (feeds the local dashboard)
+/auto-approve [on|off]   control tool confirmations for this session
 /yolo          toggle auto-approve of tool actions
 /new           start a fresh session (current one stays saved)
 /session       show current session id and file
@@ -115,6 +116,15 @@ func (a *app) slash(ag *engine.Agent, line string) bool {
 	case "/yolo":
 		ag.Yolo = !ag.Yolo
 		fmt.Fprintf(a.stdout, "yolo mode: %v\n", ag.Yolo)
+	case "/auto-approve":
+		switch arg {
+		case "", "on":
+			a.setAutoApprove(ag, true)
+		case "off":
+			a.setAutoApprove(ag, false)
+		default:
+			fmt.Fprintln(a.stdout, "usage: /auto-approve [on|off]")
+		}
 	case "/model":
 		if arg == "" {
 			fmt.Fprintln(a.stdout, "usage: /model <model-id>")
@@ -127,4 +137,13 @@ func (a *app) slash(ag *engine.Agent, line string) bool {
 		fmt.Fprintln(a.stdout, "unknown command, /help for a list")
 	}
 	return false
+}
+
+func (a *app) setAutoApprove(ag *engine.Agent, enabled bool) {
+	ag.Yolo = enabled
+	if enabled {
+		fmt.Fprintln(a.stdout, "auto-approve: on — tool actions will run without confirmation")
+		return
+	}
+	fmt.Fprintln(a.stdout, "auto-approve: off — tool actions will ask first")
 }

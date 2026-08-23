@@ -79,6 +79,40 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [!] **T0.5 clean-machine rehearsal** — waits for the postponed public cutover, then proves install,
   first run, key addition, and first model response
   from a machine with no Go toolchain or prior Kolkrabbi files.
+- [x] **U0.1 explicit auto-approve command** — add a discoverable, session-only
+  `/auto-approve [on|off]` control while preserving `-y` and `/yolo` compatibility.
+- [ ] **U0.2 verified self-update** — add `kolk update` and `/update`, resolving the latest GitHub
+  Release with platform checks, checksum verification, and atomic binary replacement.
+- [ ] **U0.3 loading octopus** — show a TTY-only animated octopus while Kolkrabbi is waiting,
+  without corrupting streamed replies, redirected output, or cancellation.
+
+### U0.1 explicit auto-approve command — active detail
+
+Scope:
+
+- Add `/auto-approve [on|off]` to the interactive command surface and `/help`.
+- With no argument or `on`, enable the same live `Agent.Yolo` state already used by `-y`; with
+  `off`, disable it.
+- Report the resulting state clearly and warn when tool actions will run without confirmation.
+- Keep `/yolo` as the existing compatibility toggle.
+
+Non-goals:
+
+- No persisted permission setting, config key, permanent rule, global toggle, environment variable,
+  or top-level command that changes future processes.
+- No change to which tools require approval, the hard safety boundary, non-interactive behavior,
+  permission protocol events, engine ownership, or provider-executed tools.
+- No self-update or loading animation in this checkpoint; U0.2 and U0.3 own those independently.
+
+Acceptance checklist:
+
+- [x] `/auto-approve` and `/auto-approve on` enable auto-approval idempotently; the output names the
+  risk plainly.
+- [x] `/auto-approve off` disables auto-approval and reports that tool actions will ask first.
+- [x] an unknown argument prints the exact usage, leaves the current state unchanged, and does not
+  exit the REPL.
+- [x] `/help` lists the explicit command, while `/yolo` retains its prior toggle behavior.
+- [x] focused CLI tests and every repository gate pass, and the build log records red/green/refactor.
 
 ### R0.1 v0.1 two-mode surface — verified detail
 
