@@ -620,7 +620,7 @@ A6.2 is intentionally delivered as independently reviewable vocabulary slices:
   payload is already explicit in the architecture and provider contracts.
 - [x] **A6.2b lifecycle and completed content** — handshake, session, turn, and
   `message.completed` events after their payload fields are fixed.
-- [ ] **A6.2c tools and decisions** — tool and permission events.
+- [~] **A6.2c tools and decisions** — tool and permission events.
 - [ ] **A6.2d orchestration and operations** — subagent, chapter, checkpoint, accounting, score,
   error, and log events, followed by a complete closed-vocabulary check.
 
@@ -632,6 +632,13 @@ with an already-settled one:
 - [x] **A6.2b2 session lifecycle** — started, updated, and ended payloads.
 - [x] **A6.2b3 turn lifecycle** — started, finished, and cancelled payloads.
 - [x] **A6.2b4 completed content** — the authoritative `message.completed` payload.
+
+A6.2c is split at the execution and decision boundaries so tool ownership cannot be confused with
+permission state or outcome data:
+
+- [x] **A6.2c1 requested invocation** — `tool.requested` identity, raw arguments, and executor.
+- [ ] **A6.2c2 execution lifecycle** — `tool.started`, `tool.output`, and `tool.finished`.
+- [ ] **A6.2c3 permission decisions** — `permission.requested` and `permission.resolved`.
 
 #### A6.1 envelope foundation acceptance
 
@@ -793,6 +800,45 @@ Acceptance checklist:
 - [x] missing, null, and non-string text fail closed, while empty, non-empty, and Unicode snapshots
   decode successfully.
 - [x] the typed payload decodes the golden and the complete envelope round-trips byte-for-byte.
+- [x] an unknown payload field remains in the raw envelope after decode.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.2c1 requested invocation acceptance
+
+Scope:
+
+- Define `tool.requested` as a public event name with one schema, typed payload, and compact golden
+  envelope.
+- Require a non-empty stable `id`, non-empty tool `name`, a non-empty `arguments` string containing
+  complete valid JSON text, and an `executor` fixed to `kolk` or `provider`.
+- Preserve argument bytes as a JSON-encoded string rather than parsing and reserializing them.
+- Make ownership explicit: `executor: "kolk"` is eligible for Kolkrabbi's permission path, while
+  `executor: "provider"` reports a tool the backend has already executed and therefore cannot be
+  preceded by a Kolkrabbi permission request.
+- Keep the event additive with unknown payload fields retained by the envelope.
+
+Non-goals:
+
+- No canonical rewrite of upstream call IDs; a non-empty provider ID remains the correlation key.
+- No `tool.delta`, `tool.started`, `tool.output`, `tool.finished`, `permission.requested`, or
+  `permission.resolved` payload decision.
+- No cross-event ordering, duplicate-ID tracking, tool-name registry, argument-schema validation,
+  provider translation, permission engine, event bus, persistence, transport, or CLI output change.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the constant exactly matches the schema filename and golden-envelope type value.
+- [x] the schema requires exactly `id`, `name`, `arguments`, and `executor`, permits unknown fields,
+  and restricts executor to `kolk` or `provider`.
+- [x] missing, empty, null, and non-string identity/argument fields fail closed; malformed JSON text
+  is also rejected.
+- [x] missing, empty, null, non-string, and unknown executors fail closed, while both defined values
+  decode successfully.
+- [x] the typed payload decodes the golden, marshals in schema field order, and the complete envelope
+  round-trips byte-for-byte without normalizing argument bytes.
 - [x] an unknown payload field remains in the raw envelope after decode.
 - [x] the public package remains standard-library-only and disconnected from existing packages.
 - [x] focused tests, architecture gates, full repository gates, and the build log are green.

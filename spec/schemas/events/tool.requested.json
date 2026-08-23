@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/events/tool.requested.json",
+  "title": "tool.requested payload",
+  "type": "object",
+  "required": ["id", "name", "arguments", "executor"],
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "name": {"type": "string", "minLength": 1},
+    "arguments": {"type": "string", "minLength": 1},
+    "executor": {"type": "string", "enum": ["kolk", "provider"]}
+  },
+  "additionalProperties": true
+}

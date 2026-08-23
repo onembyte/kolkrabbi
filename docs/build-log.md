@@ -1348,3 +1348,54 @@ checks, nine mode-surface checks, 56 installer checks, and all release contracts
 
 A6.2c begins with the smallest tool/decision event slice after auditing the architecture and current
 engine vocabulary. Publishing, the public tag, and the clean-machine rehearsal remain postponed.
+
+---
+
+## Architecture migration / A6.2c1 — requested tool invocation
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 162 · **Host tests:** 477 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+This slice freezes `tool.requested` independently from execution progress, outcomes, and permission
+decisions. Every request carries a non-empty stable call ID, non-empty tool name, complete valid JSON
+argument text, and an explicit executor. Call IDs remain provider-compatible correlation strings;
+the protocol does not rewrite them into a second identity system.
+
+The executor vocabulary follows the later hardened subscription decision: `kolk` means the call is
+eligible for Kolkrabbi's tool and permission boundary, while `provider` means the backend already
+executed it. The latter distinction prevents clients from presenting a false approval control after
+an external agent has already changed the working tree. `vendor` remains presentation terminology,
+not a third wire value.
+
+### TDD record
+
+**Red:** after adding the schema, compact golden frame, changelog entry, and invalid-value matrix,
+`go test -count=1 ./protocol` failed to compile only because `EventToolRequested`, `ToolExecutor`,
+its two values, and `ToolRequestedData` were undefined.
+
+**Green:** the constant, typed payload, executor values, and known-event validation now match the
+language-neutral artifacts. Validation rejects absent or malformed required fields, malformed JSON
+argument text, and unknown ownership while accepting both defined executors.
+
+**Refactor:** arguments remain a string and are checked with `json.Valid` without unmarshalling, so
+spacing and byte representation survive in the raw envelope. Tests also prove schema field order,
+byte-stable golden round-trip, Unicode arguments, and retention of an additive unknown field.
+
+### Verification
+
+```sh
+go test -count=1 ./protocol
+go vet ./protocol
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 477 tests, five compile
+targets, zero lint issues, a 6.21 MB binary, 4.5 ms cold-start p50, one root dependency, 93 site
+checks, nine mode-surface checks, 56 installer checks, and all release contracts unchanged.
+
+### Next checkpoint
+
+A6.2c2 audits and freezes `tool.started`, `tool.output`, and `tool.finished` as an independent
+execution-lifecycle slice. Permission events remain separate. Publishing, the public tag, and the
+clean-machine rehearsal remain postponed.

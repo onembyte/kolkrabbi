@@ -18,6 +18,8 @@ const (
 	EventMessageCompleted EventType = "message.completed"
 	// EventReasoningDelta carries display-ready reasoning text as it streams.
 	EventReasoningDelta EventType = "reasoning.delta"
+	// EventToolRequested announces one complete tool invocation.
+	EventToolRequested EventType = "tool.requested"
 	// EventSessionStarted announces the initial live-session projection.
 	EventSessionStarted EventType = "session.started"
 	// EventSessionUpdated carries a non-empty patch to the live-session projection.
@@ -52,6 +54,25 @@ type MessageCompletedData struct {
 // ReasoningDeltaData is the payload of EventReasoningDelta.
 type ReasoningDeltaData struct {
 	Text string `json:"text"`
+}
+
+// ToolExecutor identifies who executes a requested tool.
+type ToolExecutor string
+
+const (
+	// ToolExecutorKolk routes the invocation through Kolkrabbi's tool boundary.
+	ToolExecutorKolk ToolExecutor = "kolk"
+	// ToolExecutorProvider reports an invocation the backend already executed.
+	ToolExecutorProvider ToolExecutor = "provider"
+)
+
+// ToolRequestedData is the payload of EventToolRequested. Arguments retains
+// the provider's complete JSON text without normalization.
+type ToolRequestedData struct {
+	ID        string       `json:"id"`
+	Name      string       `json:"name"`
+	Arguments string       `json:"arguments"`
+	Executor  ToolExecutor `json:"executor"`
 }
 
 // SessionStartedData is the payload of EventSessionStarted.
@@ -147,6 +168,30 @@ func validateEventData(event EventType, raw json.RawMessage) error {
 			return fmt.Errorf("protocol: %s data: %w", event, err)
 		}
 		text = data.Text
+	case EventToolRequested:
+		var data ToolRequestedData
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		for _, field := range []struct {
+			name  string
+			value string
+		}{
+			{name: "id", value: data.ID},
+			{name: "name", value: data.Name},
+			{name: "arguments", value: data.Arguments},
+		} {
+			if field.value == "" {
+				return fmt.Errorf("protocol: %s data.%s must be non-empty", event, field.name)
+			}
+		}
+		if !json.Valid([]byte(data.Arguments)) {
+			return fmt.Errorf("protocol: %s data.arguments must contain valid JSON", event)
+		}
+		if data.Executor != ToolExecutorKolk && data.Executor != ToolExecutorProvider {
+			return fmt.Errorf("protocol: %s data.executor must be %q or %q", event, ToolExecutorKolk, ToolExecutorProvider)
+		}
+		return nil
 	case EventSessionStarted:
 		var data SessionStartedData
 		if err := json.Unmarshal(raw, &data); err != nil {

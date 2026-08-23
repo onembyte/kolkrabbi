@@ -1,0 +1,1 @@
+{"seq":701,"ts":"2026-08-23T20:18:03Z","session":"s_01ARYZ6S41TSV4RRFFQ69G5FAV","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"tool.requested","data":{"id":"call_abc123","name":"bash","arguments":"{\"command\":\"go test ./...\"}","executor":"kolk"}}

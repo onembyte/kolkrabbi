@@ -11,3 +11,4 @@ are allowed during version 0, but every change is recorded here.
 - Define started, updated, and ended session lifecycle payloads.
 - Define started, finished, and cancelled turn lifecycle payloads.
 - Define the full-text `message.completed` snapshot payload.
+- Define `tool.requested` identity, raw JSON arguments, and execution ownership.
