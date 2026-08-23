@@ -202,7 +202,8 @@ kolkrabbi/                                repo root · module github.com/onembyt
 │   ├── config/    config.go schema.go merge.go migrate.go doctor.go resolve.go
 │   ├── session/   session.go (own persisted Message type) · repair.go · testdata/v0-session.json
 │   ├── checkpoint/ checkpoint.go · git.go (later: shadow-git for bash-made changes)
-│   ├── stats/     stats.go — stats.jsonl raw log, a bus subscriber, implements engine.Recorder
+│   ├── stats/     stats.go — stats.jsonl raw log; a pure SINK + engine.Recorder. Does NOT import
+│   │              bus (L5 may not reach L2) — the composition root pumps events into it. See §5.1.
 │   │
 │   │   ══ L6 surfaces ══
 │   ├── cli/
@@ -417,7 +418,7 @@ instead, and GoReleaser is never asked to do them.
 | `session.go:51,64` tmp + `os.Rename` | `internal/atomicfile` | atomic on POSIX, fragile on Windows against an open target |
 | `internal/session/session_test.go` (3 tests) | unchanged + **new** `internal/session/testdata/v0-session.json` | on-disk-format regression fixture, committed *before* the type move |
 | `internal/checkpoint/*` (4 tests) | `internal/checkpoint/*` — verbatim | |
-| `internal/stats/stats.go` (`Record`, `Append`, `Load`, `Aggregate`, `Render`, `ModelRow`) | `internal/stats/stats.go` | gains a bus subscriber; implements `engine.Recorder`; **nothing renamed** |
+| `internal/stats/stats.go` (`Record`, `Append`, `Load`, `Aggregate`, `Render`, `ModelRow`) | `internal/stats/stats.go` | implements `engine.Recorder` and an `Ingest(Event)` sink; **does not subscribe to the bus itself** (§5.1); **nothing renamed** |
 | `internal/stats/stats_test.go` (3 tests) | unchanged, in place | |
 | `internal/config/config.go` | `internal/config/{config,schema,merge,migrate}.go` | |
 | `config.go:18` `dir()` | delegates to `internal/paths` | |
@@ -474,6 +475,28 @@ and any `bind/kolkmobile` transitive import reaching `internal/shell`, `internal
 `internal/provider/agentcli` or `internal/dash`. **There is no `//arch:allow` escape hatch** — a
 violation is fixed by editing `layers.go`, which is a reviewed data file, or by fixing the import.
 An escape hatch is a comment that gets typed at 1 a.m.; a data file is a decision.
+
+**§5.0 — the migration ratchet, APPROVED 2026-08-23.** The build session shipped a
+`knownViolations` list in `layers.go` (six entries: `os/exec` in `tools` and `os.UserHomeDir` in
+`cli`/`config`, both retired at step 5; `internal/engine` importing `session`/`checkpoint`/`stats`,
+retired at step 9). Each entry names the migration step that deletes it, and **`arch_test.go` fails
+both when a new violation appears and when a listed violation has been fixed but not removed from
+the list** — so the ratchet can only shrink and cannot rot into a permanent exemption. This does
+**not** contradict the no-escape-hatch rule above: that rule bans a *per-line comment* sprinkled at
+the violation site. A central, shrink-only, step-annotated data list is the opposite — it is one
+reviewed place that makes the debt countable and self-deleting. The alternative was a red build or
+a silent lie, and both are worse. **Condition:** `knownViolations` must be empty when step 9 lands;
+if an entry outlives its named step, that is a planning failure to surface, not a rule to relax.
+
+**§5.1 — L5 may NOT import L2, and `stats` is not a bus subscriber. RULING 2026-08-23.**
+§5's table (L5 → L0, L1, L3, L4) was correct; §2's tree and §10's prose were wrong to call `stats`
+a "bus subscriber". They are corrected above. The rule: **the composition root (L6 — `cli`,
+`serve`) owns the bus subscription and the cursor, and pumps events into L5 sinks that know nothing
+about the bus.** `stats` exposes `engine.Recorder` plus an `Ingest(Event)` sink; `dash/ingest` the
+same. Rationale: it keeps the L5→L2 edge closed so the engine's dependency story stays intact; it
+keeps `stats` testable with no bus at all; it keeps durability where it belongs, since the pump owns
+the cursor and the replay-after-crash logic; and it keeps disk I/O off the engine's synchronous turn
+path. This is settled before step 7 so the bus lands with the right shape the first time.
 
 **The `internal/` boundary: everything except `protocol/` is private, and that is deliberate.**
 Go's rule is checked against the **importer's import path prefix**, not the module (verified today:
@@ -938,7 +961,7 @@ files; neither changes an assertion.
 | 1 | ✅ **DONE 2026-08-22** — the identity commit (below): module path + all renames in one mechanical pass. Repo pushed to `onembyte/kolkrabbi`. | nothing user-visible (no published version, no installs); `go build .` at the root stops working — intentional, the binary is now `kolk` | 22 |
 | 2 | ◐ **PARTLY DONE 2026-08-22** — `.github/workflows/ci.yml` runs `{ubuntu, macos}` + a budgets job (20 MB binary / 30 ms cold start / test-count floor of 22); first run green at 6.25 MB and 2 ms. **Windows is deliberately deferred to step 13** rather than added red now — revisit if the `_windows.go` work slips. Budget checks live in the workflow; extract to `scripts/check-budgets.sh` when the other `scripts/check-*.sh` land at step 4. | Windows baseline is red by design | 22 unix / 17 windows |
 | 3 | ✅ **DONE 2026-08-22** (commit `dfafa41`, build session) — split `cmd/kolk/main.go` (606 L) into a table-driven `internal/cli/*` per the §4 table, leaving ~40 lines. The command table's argument grammar is filled in from `docs/plan/09-commands.md`. | nothing | 22 |
-| 4 | Guard rails: `internal/arch/{layers.go,arch_test.go}`, `internal/buildinfo`, `scripts/{check-purity,check-buildtags,test}.sh`, `Makefile`, `LICENSE`, `.goreleaser.yaml`. CI asserts `! grep -q '^replace' go.mod`. | nothing | 22 + 1 |
+| 4 | ✅ **DONE 2026-08-23** (commit `2fc984f`, build session) — guard rails: `internal/arch/{layers.go,arch_test.go}`, `internal/buildinfo`, `scripts/{check-purity,check-buildtags,test}.sh`, `Makefile`, `LICENSE`, `.goreleaser.yaml`. CI asserts `! grep -q '^replace' go.mod`. Enforcement is **AST-based, not grep** — it parses every `.go` file including those excluded by build constraints, so a `_windows.go` obeys the rules on a Mac and a rule name in a comment is not a false positive. Verified by deliberate mutation in four directions. Two rules added beyond §5: **no GOOS-suffixed file above L0** (making "the engine touches no OS" a build failure) and **no `context.Background()/TODO()` below `cmd/`** outside tests. Suite grew to 100 tests; the CI floor stays 22. | nothing | 100 |
 | 5 | **L0 platform extraction** — `paths` (from `main.go:32-40` + `config.dir()`), `shell` (from `tools.go:119`), `atomicfile` (from `session.go:51,64`), `lock`, `term`, `secret`. Real unix impls, honest Windows stubs. | nothing observable; `TestBash` still passes because `shell.Run` on unix is the same `bash -c` | 22 + new |
 | 6 | Add `spec/` + `protocol/` + `protocol/conform_test.go`. **Pure addition, nothing moves** — so the contract can be iterated on cheaply for a week before anything depends on it. | nothing | 22 + ~8 |
 | 7 | **`internal/bus` + the engine emits events.** ★ The one risky step, made safe: **retain `Options.Out`** as a convenience that attaches `cli/render.Plain` as a bus subscriber, and write `render.Plain` **byte-identical** to today's output (the ANSI consts and `footer()` move over verbatim). Result: **zero test edits** — `Out: &out` appears at exactly 2 sites and neither changes. `kolk -p --output stream-json` falls out for free. Only once green: add event-sequence assertions alongside the string ones, then delete the string ones. | nothing, if `render.Plain` is byte-identical. If it is not, you are debugging five e2e tests and a new event bus simultaneously — do not skip the byte-identity check. | 22 |
