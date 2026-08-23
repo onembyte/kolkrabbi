@@ -21,7 +21,7 @@ func (a *app) runDefault(ctx context.Context, args []string) error {
 		return err
 	}
 
-	ag, err := a.newAgent(o)
+	ag, err := a.newAgent(ctx, o)
 	if err != nil {
 		return err
 	}
@@ -37,8 +37,8 @@ func (a *app) runDefault(ctx context.Context, args []string) error {
 }
 
 // newAgent resolves config, key, session and model into a ready engine.
-func (a *app) newAgent(o *options) (*engine.Agent, error) {
-	d, err := a.resolve()
+func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
+	d, err := a.locate()
 	if err != nil {
 		return nil, err
 	}
@@ -47,14 +47,19 @@ func (a *app) newAgent(o *options) (*engine.Agent, error) {
 		return nil, err
 	}
 
-	// T0.3 replaces this temporary environment-only source with the manifest
-	// resolver and exact first-run screen. Config is deliberately not a key
-	// source anymore.
-	apiKey := os.Getenv("OPENROUTER_API_KEY")
-	if apiKey == "" {
-		return nil, guided("No OpenRouter API key found.",
-			"Set one with:   kolk key <API_KEY>",
-			"or:             export OPENROUTER_API_KEY=sk-or-v1-...")
+	apiKey, err := resolveOpenRouterCredential(ctx, d.CredentialsFile())
+	if err != nil {
+		return nil, err
+	}
+	if apiKey.IsZero() {
+		return nil, guidedAction("kolk needs an API key before it can use models.\n" +
+			"Add one:  kolk key <API_KEY>\n" +
+			"Then run: kolk")
+	}
+
+	d, err = a.resolve()
+	if err != nil {
+		return nil, err
 	}
 
 	sess, err := a.resolveSession(o)
@@ -75,7 +80,7 @@ func (a *app) newAgent(o *options) (*engine.Agent, error) {
 	}
 	sess.Model = model
 
-	client := provider.NewClient(apiKey)
+	client := provider.NewClient(apiKey.Reveal())
 	client.BaseURL = config.ResolveBaseURL(o.baseURL, cfg)
 
 	ckpt, err := checkpoint.Open(sess.CkptDir())

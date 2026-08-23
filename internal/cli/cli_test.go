@@ -119,23 +119,31 @@ func TestUnknownWordIsAPromptNotACommand(t *testing.T) {
 	}
 }
 
-func TestFirstRunWithoutAKeyExplainsWhatToType(t *testing.T) {
-	isolateHome(t)
-	a, _, errOut := newTestApp("")
+func TestFirstRunWithoutAKeyIsExactAndReadOnly(t *testing.T) {
+	d := isolateHome(t)
+	a, out, errOut := newTestApp("")
 
-	code := a.main(context.Background(), []string{"-p", "hello"})
-	if code != ExitError {
-		t.Fatalf("exit = %d, want %d", code, ExitError)
+	code := a.main(context.Background(), nil)
+	if code != ExitUsage {
+		t.Errorf("exit = %d, want %d", code, ExitUsage)
 	}
-	got := errOut.String()
-	if !strings.Contains(got, "kolk key <API_KEY>") {
-		t.Errorf("first-run failure must name the command that fixes it, got:\n%s", got)
+	const want = "kolk needs an API key before it can use models.\n" +
+		"Add one:  kolk key <API_KEY>\n" +
+		"Then run: kolk\n"
+	if got := errOut.String(); got != want {
+		t.Errorf("first-run guidance:\n%s\nwant exactly:\n%s", got, want)
 	}
-	if !strings.Contains(got, "OPENROUTER_API_KEY") {
-		t.Errorf("first-run failure must mention the env var, got:\n%s", got)
+	if got := out.String(); got != "" {
+		t.Errorf("first run wrote to stdout: %q", got)
 	}
-	if strings.Contains(got, "error: No OpenRouter") {
-		t.Errorf("guided errors print their own headline, not the error: prefix; got:\n%s", got)
+	for name, path := range map[string]string{
+		"config": d.Config,
+		"data":   d.Data,
+		"cache":  d.Cache,
+	} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Errorf("missing-key run created %s state at %s: %v", name, path, err)
+		}
 	}
 }
 

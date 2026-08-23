@@ -35,19 +35,25 @@ func (e *BudgetError) Error() string { return e.Msg }
 // what to type next, so that obligation is encoded in a type rather than left
 // to whoever writes the next error message.
 type GuidedError struct {
-	Msg  string
-	Hint []string
+	Msg            string
+	Hint           []string
+	ActionRequired bool
 }
 
 func (e *GuidedError) Error() string { return e.Msg }
 
 func guided(msg string, hint ...string) error { return &GuidedError{Msg: msg, Hint: hint} }
 
+func guidedAction(msg string, hint ...string) error {
+	return &GuidedError{Msg: msg, Hint: hint, ActionRequired: true}
+}
+
 // exitCode maps an error to the process exit code.
 func exitCode(err error) int {
 	var (
 		usage  *UsageError
 		budget *BudgetError
+		guided *GuidedError
 	)
 	switch {
 	case err == nil:
@@ -58,6 +64,8 @@ func exitCode(err error) int {
 		return ExitUsage
 	case errors.As(err, &budget):
 		return ExitBudget
+	case errors.As(err, &guided) && guided.ActionRequired:
+		return ExitUsage
 	default:
 		return ExitError
 	}

@@ -518,7 +518,7 @@ surface; the installer itself remains T0.4.
 
 ## W0.1 — static landing page and Cloudflare handoff
 
-**Status:** built, not deployed, 2026-08-23 · **Site contract:** 44/44 · **App tests:** 303 ·
+**Status:** deployed, 2026-08-23 · **Site contract:** 44/44 · **App tests:** 303 ·
 **Binary:** 6.21 MB · **Cold start p50:** 4.6 ms · `go vet` and lint clean
 
 `site/` is now a framework-free Cloudflare Pages output directory. Its original eight-arm pixel
@@ -568,7 +568,69 @@ The full gate passed: 303 app tests, architecture/purity/build-tag checks, five 
 lint issues, every budget, and 44 site checks. [`docs/cloudflare-pages.md`](cloudflare-pages.md)
 records the exact Pages values (`main`, `exit 0`, `site`) and the reversible dashboard cutover.
 
+The owner connected the Pages project to `main`, added the exact proxied `kolkrabbi` CNAME while
+leaving the wildcard TrueNAS route unchanged, and reported the custom domain **Active**. A direct
+public HTTPS check then returned HTTP 200 with the deployed octopus page, CSP, permissions policy,
+no-referrer policy, MIME-sniffing protection, and frame denial. The owner visually accepted the
+live page, closing the domain-root item in the owner-trial gate.
+
 ### Next checkpoint
 
 T0.3 resumes the executable owner flow: a bare `kolk` must read the credential manifest, print the
 exact three-line first-run guidance when absent, and start a computed-default session when present.
+
+---
+
+## Owner trial / T0.3 — first-run path
+
+**Status:** done, 2026-08-23 · **Tests:** 303 → 308 · **Binary:** 6.21 MB ·
+**Cold start p50:** 4.9 ms · **Root dependencies:** 1 · `go vet` and lint clean
+
+A bare `kolk` now checks `OPENROUTER_API_KEY` and then the locked
+`openrouter/default` file-manifest slot. No credential prints the owner's exact three-line next
+action and exits 2; a stored credential builds the ordinary provider client and enters the existing
+computed-default session without another setup step.
+
+### TDD record
+
+**Red A — first-run surface:** the exact-output test found all three prototype failures at once:
+exit 1 instead of action-required exit 2, old environment/config-oriented wording instead of the
+three promised lines, and creation of the data directory merely to discover that no key existed.
+
+**Green A:** path location is now a read-only operation separated from state preparation. The
+missing-key branch reads no config value beyond the optional settings file, writes no directory or
+file, and uses an action-required guided error whose renderer adds neither `error:` nor the generic
+help suffix.
+
+**Red B — manifest boundary:** the stored-key matrix did not compile because `newAgent` had no
+invocation context. A credential backend therefore could not honor cancellation. The matrix also
+specified environment precedence over a deliberately corrupt manifest, a named hard error for
+store corruption, computed defaults, and an offline streamed model turn.
+
+**Green B:** one resolver checks the non-empty environment override before constructing a store,
+then reads exactly `openrouter/default` under the caller's context. Only typed `ErrNotFound` becomes
+first run; every other error remains wrapped, scrubbed, and actionable. The resolved `secret.Secret`
+is revealed only at the existing provider-construction boundary.
+
+**Refactor and leak audit:** directory location and preparation have distinct names and effects;
+the default credential reference is local rather than mutable package state. The offline SSE
+fixture observed the stored bearer credential and `openrouter/auto`, returned a successful answer,
+and then scanned stdout, stderr, the session transcript, and every checkpoint file for the key.
+None contained it. Existing engine defaults produced `code` and `standard` without config.
+
+### Verification
+
+```sh
+go test ./internal/cli -run '^TestFirstRunWithoutAKeyIsExactAndReadOnly$' -count=1
+go test ./internal/cli -run '^(TestStoredCredentialBuildsComputedDefaultAgent|TestEnvironmentCredentialWinsWithoutReadingCorruptManifest|TestCorruptManifestIsNotReportedAsMissingCredential|TestCanceledCredentialReadStopsTheRun|TestStoredCredentialCompletesOfflineDefaultTurn)$' -count=1
+go test -race ./internal/cli -count=1
+make check
+```
+
+All gates passed: 308 host tests, architecture/purity/build-tag checks, all five compile targets,
+zero lint issues, a 6.21 MB binary, 4.9 ms cold-start p50, one root dependency, and 44 site checks.
+
+### Next checkpoint
+
+T0.4 owns the release boundary: versioned macOS/Linux archives, checksums, a reviewed installer,
+and the exact public `/install.sh` route. Nothing in T0.3 claims that URL is ready.

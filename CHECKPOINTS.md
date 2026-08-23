@@ -50,12 +50,12 @@ Then run: kolk
 - [ ] the script selects the correct signed/checksummed release for macOS or Linux and installs
   `kolk` on `PATH` without requiring Go or another runtime.
 - [ ] `kolk` from a clean shell launches the installed binary.
-- [ ] the domain root serves the reviewed purple retro-octopus landing page.
-- [ ] first launch without a key shows the short guidance above, never a stack trace or config-file
+- [x] the domain root serves the reviewed purple retro-octopus landing page.
+- [x] first launch without a key shows the short guidance above, never a stack trace or config-file
   instruction.
 - [x] `kolk key <API_KEY>` infers the supported provider, stores the key with safe permissions, and
   never echoes the full value.
-- [ ] the next `kolk` starts a working model session with computed defaults.
+- [x] the next `kolk` starts a working model session with computed defaults.
 - [ ] a clean-machine smoke test proves the entire flow end to end.
 
 When all eight boxes are green, stop and tell the owner that the app is ready to try, with the exact
@@ -68,12 +68,50 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **T0.2 key command** — `kolk key <API_KEY>` inference, verification, redaction, and recovery.
 - [x] **W0.1 landing site** — owner-requested static Omarchy-inspired page, original purple
   retro-octopus identity, and Cloudflare Pages deployment contract.
-- [~] **T0.3 first-run path** — `kolk` without a key prints the three-line guidance; with a key it
+- [x] **T0.3 first-run path** — `kolk` without a key prints the three-line guidance; with a key it
   enters a working session using computed defaults.
 - [ ] **T0.4 release and installer** — tagged macOS/Linux artifacts, checksums, install script, and
   the exact public URL.
 - [ ] **T0.5 clean-machine rehearsal** — install, first run, key addition, and first model response
   from a machine with no Go toolchain or prior Kolkrabbi files.
+
+### T0.3 first-run path — active detail
+
+Scope:
+
+- Resolve the default `openrouter/default` credential for `kolk` and prompt invocations, with
+  `OPENROUTER_API_KEY` preserving its documented precedence over the file manifest.
+- Print the owner's exact three-line next action when neither source has a credential.
+- Feed the resolved secret into the provider client and retain the existing computed model, mode,
+  effort, and session defaults.
+- Prove a stored key can complete one model turn against an offline OpenAI-compatible fixture.
+
+Non-goals:
+
+- No `KOLK_API_KEY`, provider picker, profiles, keychain, helper, DPAPI, `doctor`, source trace, or
+  shadowing warning; those belong to the full item-5 credential-chain migration.
+- No keyless local-provider resolution or subscription backend.
+- No live provider request, installer, archive, checksum, signing, or clean-machine claim.
+- No modes/config architecture migration beyond preserving the defaults already in production.
+
+Acceptance checklist:
+
+- [x] bare `kolk` with no environment or stored key exits 2 and prints exactly:
+  `kolk needs an API key before it can use models.`, `Add one:  kolk key <API_KEY>`, and
+  `Then run: kolk`—with no stack trace, generic error prefix, help suffix, or config instruction.
+- [x] a missing key creates no config, data, cache, session, checkpoint, or credential file.
+- [x] `openrouter/default` from the file store reaches the provider client without appearing in
+  stdout, stderr, a session, or an error.
+- [x] a non-empty `OPENROUTER_API_KEY` wins and completes resolution without reading even a corrupt
+  credential manifest.
+- [x] corrupt, unavailable, cancelled, or otherwise failed credential reads remain hard errors and
+  never masquerade as the first-run screen.
+- [x] zero-value runtime options compute `openrouter/auto`, `code`, and `standard`; existing flag,
+  session, and config model precedence does not change.
+- [x] an offline SSE fixture observes the stored bearer credential and computed default model, and
+  the single-shot command exits 0 with the fixture response.
+- [x] focused tests pass independently, then the full repository/platform gates pass.
+- [x] build log records red, green, refactor, exact verification commands, and measured budgets.
 
 ## Active group — architecture migration step 5: L0 platform boundary
 
