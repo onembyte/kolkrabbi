@@ -59,6 +59,28 @@ func TestWidth(t *testing.T) {
 	}
 }
 
+func TestCanAnimateRequiresTwoRealTerminals(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		stdinTTY  bool
+		stdoutTTY bool
+		term      string
+		want      bool
+	}{
+		{name: "interactive", stdinTTY: true, stdoutTTY: true, term: "xterm-256color", want: true},
+		{name: "piped input", stdinTTY: false, stdoutTTY: true, term: "xterm-256color"},
+		{name: "redirected output", stdinTTY: true, stdoutTTY: false, term: "xterm-256color"},
+		{name: "dumb terminal", stdinTTY: true, stdoutTTY: true, term: "dumb"},
+		{name: "case-insensitive dumb terminal", stdinTTY: true, stdoutTTY: true, term: "DUMB"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := canAnimateFor(tc.stdinTTY, tc.stdoutTTY, tc.term); got != tc.want {
+				t.Fatalf("canAnimateFor = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 // A regular file and a nil handle are the two things that must never be
 // mistaken for a terminal: `kolk key > file` and `kolk key | cat` both depend
 // on it.

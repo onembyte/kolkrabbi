@@ -2182,3 +2182,42 @@ installer checks, 24 release checks, 41 release-workflow checks, and 30 release-
 
 U0.3b supplies the fake-clock-tested, TTY-only purple octopus renderer and wires it only into
 interactive sessions. Redirected and single-shot output remain outside that renderer by contract.
+
+## Owner UX / U0.3b — TTY loading octopus
+
+U0.3b turns the verified activity lifecycle into the owner's requested loading status without
+changing scripted output. A 120 ms grace prevents fast model responses from flashing a frame; slow
+calls show a compact purple Braille spinner, octopus, and the engine-owned phase label.
+
+**Red:** deterministic CLI tests required the animation clock, renderer, activation dependencies,
+and terminal capability predicate. The focused compile failed only on those deliberately absent
+types, fields, and functions.
+
+**Green:** the renderer uses one context-owned goroutine and one stoppable timer at a time. It saves
+the cursor once, restores and erases to the line end for every frame, and restores once more while
+joining on stop. This preserves the existing `assistant` prefix and guarantees cleanup before the
+first token, tool line, error, or prompt. Frames advance every 120 ms; `NO_COLOR` and
+`KOLK_NO_COLOR` remove magenta without removing status.
+
+**Refactor:** cursor animation activates only for an interactive REPL when both stdin and stdout are
+supported terminals and `TERM` is not `dumb`. Single-shot prompts, pipes, redirects, test buffers,
+and unsupported targets never construct the renderer. The fake clock drives grace, frame order,
+fast-stop, rendered-cancel, idempotent-stop, and no-colour tests without sleeps.
+
+### Verification
+
+```sh
+go test ./internal/term ./internal/cli
+go test -race ./internal/cli ./internal/engine
+make check
+```
+
+The complete gate passed with 710 tests, five compile targets, zero lint issues, a 6.34 MB binary,
+4.4 ms cold-start p50, one root dependency, 110 site checks, 13 mode/update-surface checks, 56
+installer checks, 24 release checks, 41 release-workflow checks, and 30 release-verifier checks.
+
+### Next checkpoint
+
+U0.4 can now reuse the phase-labelled activity seam and octopus frames inside its persistent status
+region. Its multiline composer, resize behavior, shortcuts, themes, and fallback remain a separate
+terminal-architecture checkpoint.

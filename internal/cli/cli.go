@@ -18,8 +18,10 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/selfupdate"
+	"github.com/onembyte/kolkrabbi/internal/term"
 )
 
 // defaultModel is OpenRouter's auto-router: the zero-config answer to "which
@@ -51,12 +53,18 @@ type app struct {
 	setCredential    setCredentialFunc
 	update           func(context.Context) (selfupdate.Result, error)
 	now              func() time.Time
+	canAnimate       func() bool
+	newActivity      func(io.Writer) engine.ActivityIndicator
 }
 
 func newApp() *app {
 	a := &app{stdout: os.Stdout, stderr: os.Stderr, in: bufio.NewReader(os.Stdin)}
 	a.initKeyDependencies()
 	a.update = selfupdate.Update
+	a.canAnimate = term.CanAnimate
+	a.newActivity = func(out io.Writer) engine.ActivityIndicator {
+		return newOctopusActivity(out, term.Color())
+	}
 	return a
 }
 

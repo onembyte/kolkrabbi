@@ -33,6 +33,18 @@ func IsStdinTerminal() bool { return IsTerminal(os.Stdin) }
 // file or another program.
 func IsStdoutTerminal() bool { return IsTerminal(os.Stdout) }
 
+// CanAnimate reports whether cursor-addressed status output is safe for the
+// current process. Both sides must be terminals: a person watching redirected
+// input is still running a script, and a person typing into redirected output
+// expects a clean log. TERM=dumb explicitly has no cursor-control contract.
+func CanAnimate() bool {
+	return canAnimateFor(IsStdinTerminal(), IsStdoutTerminal(), os.Getenv("TERM"))
+}
+
+func canAnimateFor(stdinTTY, stdoutTTY bool, termName string) bool {
+	return stdinTTY && stdoutTTY && !strings.EqualFold(strings.TrimSpace(termName), "dumb")
+}
+
 // Color reports whether coloured output is wanted on stdout.
 //
 // The precedence, most specific first, follows the conventions people already

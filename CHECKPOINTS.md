@@ -97,11 +97,11 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   replace it atomically with the verified binary at mode `0755`.
 - [x] **U0.2d update command surfaces** — wire the shared updater into keyless `kolk update` and
   non-fatal in-session `/update` with exact help and restart guidance.
-- [ ] **U0.3 loading octopus** — show a TTY-only animated octopus while Kolkrabbi is waiting,
+- [x] **U0.3 loading octopus** — show a TTY-only animated octopus while Kolkrabbi is waiting,
   without corrupting streamed replies, redirected output, or cancellation.
 - [x] **U0.3a provider-wait lifecycle** — expose one context-owned, exactly-once activity seam around
   every logical engine model call without changing terminal output.
-- [ ] **U0.3b TTY octopus renderer** — implement the purple animated status against U0.3a with a fake
+- [x] **U0.3b TTY octopus renderer** — implement the purple animated status against U0.3a with a fake
   clock and strict terminal-only activation.
 - [ ] **U0.4 persistent terminal UI** — add a Codex-style persistent multiline input area, live
   activity/tool status, visible model/mode/effort/session state, and robust terminal interaction.
@@ -418,7 +418,7 @@ Acceptance checklist:
 - [x] focused updater/CLI tests, race-sensitive tests where applicable, architecture and full
   repository gates pass; the build log records red/green/refactor.
 
-### U0.3 loading octopus — active detail
+### U0.3 loading octopus — verified detail
 
 Implementation leaves (U0.3a–U0.3b) close independently in that order. The engine lifecycle must be
 green and byte-stable before terminal detection, animation timing, or cursor control is introduced.
@@ -452,13 +452,18 @@ Acceptance checklist:
 - [x] a nil indicator preserves existing output byte-for-byte; focused engine tests, race coverage,
   and every repository gate pass with red/green/refactor recorded.
 
-#### U0.3b TTY octopus renderer — planned acceptance
+#### U0.3b TTY octopus renderer — verified acceptance
 
 Scope:
 
 - Show a small Kolkrabbi octopus animation only while an interactive terminal is waiting for the
   first provider output, and erase it before streamed content, approval prompts, errors, or the next
   input prompt render.
+- Wait 120 ms before the first frame to avoid flicker on fast responses, then animate a purple
+  Braille spinner beside `🐙` and U0.3a's phase on one saved cursor position every 120 ms.
+- Define interactive animation as both stdin and stdout being supported terminals with `TERM` other
+  than `dumb`; never enable it for single-shot prompts. Honor `NO_COLOR`/`KOLK_NO_COLOR` without
+  disabling the non-colour status.
 - Give cancellation ownership to the turn context, stop and join the animation before returning,
   and keep exactly one renderer writing each terminal region at a time.
 - Preserve a deterministic single-line status seam that U0.4 can adopt as its activity indicator.
@@ -472,11 +477,14 @@ Non-goals:
 
 Acceptance checklist:
 
-- [ ] interactive waiting shows octopus frames and removes them before every response path.
-- [ ] cancellation and fast responses leave no goroutine, partial escape sequence, stale frame, or
+- [x] a fake clock proves the 120 ms grace, deterministic frame order, phase text, purple/no-colour
+  rendering, and cursor restoration before streamed output.
+- [x] interactive waiting shows octopus frames and removes them before every response path.
+- [x] cancellation and fast responses leave no goroutine, partial escape sequence, stale frame, or
   duplicated prompt behind.
-- [ ] non-terminal output remains byte-stable and contains no animation or cursor-control bytes.
-- [ ] focused renderer tests include a fake clock/terminal and race coverage; all repository gates
+- [x] redirected stdin/stdout, `TERM=dumb`, and single-shot output remain byte-stable and contain no
+  animation or cursor-control bytes.
+- [x] focused renderer tests include a fake clock/terminal and race coverage; all repository gates
   pass and the build log records red/green/refactor.
 
 ### U0.4 persistent terminal UI — planned detail

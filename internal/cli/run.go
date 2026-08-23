@@ -25,6 +25,7 @@ func (a *app) runDefault(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	a.attachInteractiveActivity(ag, o.prompt == "")
 
 	if o.prompt != "" {
 		// Single-shot: Ctrl+C aborts the run, so the signal context is the
@@ -34,6 +35,13 @@ func (a *app) runDefault(ctx context.Context, args []string) error {
 		return ag.RunTurn(tctx, o.prompt)
 	}
 	return a.repl(ctx, ag)
+}
+
+func (a *app) attachInteractiveActivity(ag *engine.Agent, repl bool) {
+	if !repl || a.canAnimate == nil || !a.canAnimate() || a.newActivity == nil {
+		return
+	}
+	ag.Activity = a.newActivity(a.stdout)
 }
 
 // newAgent resolves config, key, session and model into a ready engine.

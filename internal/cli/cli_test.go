@@ -23,6 +23,7 @@ func newTestApp(stdin string) (*app, *bytes.Buffer, *bytes.Buffer) {
 	a.stdout = &out
 	a.stderr = &errOut
 	a.in = bufio.NewReader(strings.NewReader(stdin))
+	a.canAnimate = func() bool { return false }
 	return a, &out, &errOut
 }
 
