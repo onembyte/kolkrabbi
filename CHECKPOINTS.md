@@ -99,6 +99,10 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   non-fatal in-session `/update` with exact help and restart guidance.
 - [ ] **U0.3 loading octopus** — show a TTY-only animated octopus while Kolkrabbi is waiting,
   without corrupting streamed replies, redirected output, or cancellation.
+- [x] **U0.3a provider-wait lifecycle** — expose one context-owned, exactly-once activity seam around
+  every logical engine model call without changing terminal output.
+- [ ] **U0.3b TTY octopus renderer** — implement the purple animated status against U0.3a with a fake
+  clock and strict terminal-only activation.
 - [ ] **U0.4 persistent terminal UI** — add a Codex-style persistent multiline input area, live
   activity/tool status, visible model/mode/effort/session state, and robust terminal interaction.
 
@@ -414,7 +418,41 @@ Acceptance checklist:
 - [x] focused updater/CLI tests, race-sensitive tests where applicable, architecture and full
   repository gates pass; the build log records red/green/refactor.
 
-### U0.3 loading octopus — planned detail
+### U0.3 loading octopus — active detail
+
+Implementation leaves (U0.3a–U0.3b) close independently in that order. The engine lifecycle must be
+green and byte-stable before terminal detection, animation timing, or cursor control is introduced.
+
+#### U0.3a provider-wait lifecycle — verified acceptance
+
+Scope:
+
+- Add an optional engine activity interface whose `Start` receives the active turn context and one
+  deterministic phase label, and whose returned stop function is owned by the caller.
+- Start once around each logical model call, spanning U0.1e's internal retries, and stop exactly once
+  before the first visible content token or before returning a tool-only response or any error.
+- Label ordinary chat/code calls as `thinking`, agent planning as `planning`, subagent calls as
+  `working`, and final synthesis as `synthesizing`.
+
+Non-goals:
+
+- No goroutine, timer, frame, colour, terminal detection, cursor control, CLI wiring, or output byte
+  change. U0.3b owns every visual and concurrency detail.
+- No provider, retry, model, tool, permission, session, stats, prompt, or orchestration behavior
+  change.
+
+Acceptance checklist:
+
+- [x] visible content is preceded by exactly one activity stop, while tool-only and error paths stop
+  before returning to tool handling or the REPL.
+- [x] planner, subagent, synthesis, and ordinary calls expose the frozen phase labels through the
+  same seam.
+- [x] one logical call that retries a `429` starts and stops activity only once.
+- [x] a cancelled context reaches the indicator and still produces one stop with no leaked activity.
+- [x] a nil indicator preserves existing output byte-for-byte; focused engine tests, race coverage,
+  and every repository gate pass with red/green/refactor recorded.
+
+#### U0.3b TTY octopus renderer — planned acceptance
 
 Scope:
 

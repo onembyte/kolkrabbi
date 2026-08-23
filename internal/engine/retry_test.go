@@ -25,6 +25,8 @@ func TestRateLimitRetriesIdenticalCodeRequestThenSucceeds(t *testing.T) {
 	defer srv.Close()
 
 	ag, out, sdir, statsDir := newTestAgent(t, srv, ModeCode)
+	activityLog := &activityEvents{}
+	ag.Activity = &recordingActivity{events: activityLog}
 	var waits []time.Duration
 	ag.RetryWait = func(_ context.Context, delay time.Duration) error {
 		waits = append(waits, delay)
@@ -38,6 +40,9 @@ func TestRateLimitRetriesIdenticalCodeRequestThenSucceeds(t *testing.T) {
 	}
 	if len(waits) != 1 || waits[0] != time.Second {
 		t.Fatalf("retry waits = %v, want [1s]", waits)
+	}
+	if eventCount(activityLog.snapshot(), "start:thinking") != 1 || eventCount(activityLog.snapshot(), "stop:thinking") != 1 {
+		t.Fatalf("retry split one logical activity: %#v", activityLog.snapshot())
 	}
 	if !strings.Contains(out.String(), "continued successfully") {
 		t.Fatalf("successful retry output missing: %q", out.String())

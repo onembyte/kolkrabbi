@@ -2145,3 +2145,40 @@ installer checks, 24 release checks, 41 release-workflow checks, and 30 release-
 
 U0.3 now adds the TTY-only loading octopus using this single provider-wait boundary. U0.4 remains
 the separate persistent composer and status-layout checkpoint.
+
+## Owner UX / U0.3a — provider-wait lifecycle
+
+U0.3a isolates engine timing from terminal rendering. The engine now knows when one logical model
+call is active and when that activity must be gone, but it still owns no animation, cursor sequence,
+clock, goroutine, or terminal decision.
+
+**Red:** six focused engine tests described content, tool-only, provider-error, cancellation,
+orchestration-phase, and rate-limit-retry lifecycles. The package failed to compile only because the
+planned `Activity` option did not exist.
+
+**Green:** `ActivityIndicator.Start` receives the active context and deterministic `thinking`,
+`planning`, `working`, or `synthesizing` phase. One `sync.Once`-guarded stop spans the entire logical
+call, including U0.1e retries. It runs before the first visible token, or on return before tool
+handling and error presentation. Nil remains the default and writes no bytes.
+
+**Refactor:** all ordinary, planner, subagent, and synthesis paths use the existing shared
+`streamChat` boundary. Direct-call inspection still leaves only the provider invocation inside that
+boundary, so U0.3b needs only to supply a renderer. The indicator's stop contract explicitly permits
+joining its own work; this prevents a stale frame racing the next token or prompt.
+
+### Verification
+
+```sh
+go test ./internal/engine
+go test -race ./internal/engine
+make check
+```
+
+The complete gate passed with 698 tests, five compile targets, zero lint issues, a 6.32 MB binary,
+4.3 ms cold-start p50, one root dependency, 110 site checks, 13 mode/update-surface checks, 56
+installer checks, 24 release checks, 41 release-workflow checks, and 30 release-verifier checks.
+
+### Next checkpoint
+
+U0.3b supplies the fake-clock-tested, TTY-only purple octopus renderer and wires it only into
+interactive sessions. Redirected and single-shot output remain outside that renderer by contract.

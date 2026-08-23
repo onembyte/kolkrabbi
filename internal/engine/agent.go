@@ -58,6 +58,20 @@ const maxProjectMemory = 16 * 1024
 
 const emptyCompletionRecovery = "The previous response was empty. Continue the original user request now. Use tools when needed, and finish the requested concrete step or explain a specific blocker."
 
+const (
+	activityThinking     = "thinking"
+	activityPlanning     = "planning"
+	activityWorking      = "working"
+	activitySynthesizing = "synthesizing"
+)
+
+// ActivityIndicator observes the lifetime of one logical provider call. Start
+// must return promptly; its stop function may join any indicator-owned work so
+// the engine can guarantee that presentation is gone before output continues.
+type ActivityIndicator interface {
+	Start(context.Context, string) func()
+}
+
 // Options configures an Agent; zero values get sensible defaults.
 type Options struct {
 	Client   *provider.Client
@@ -73,6 +87,7 @@ type Options struct {
 	// RetryWait is the cancellable wait used between bounded provider retries.
 	// Nil selects the real timer; tests inject it to keep retry gates instant.
 	RetryWait func(context.Context, time.Duration) error
+	Activity  ActivityIndicator
 	// Tiers maps effort level -> model id. Missing tiers fall back to Model,
 	// so everything works zero-config and tiers are a pure optimization.
 	Tiers map[string]string
@@ -354,7 +369,7 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 
 	for {
 		fmt.Fprintf(a.Out, "%sassistant%s ", colorCyan, colorReset)
-		msg, meta, err := a.streamChat(ctx, model, requestMessages, toolset, func(tok string) {
+		msg, meta, err := a.streamChat(ctx, activityThinking, model, requestMessages, toolset, func(tok string) {
 			fmt.Fprint(a.Out, tok)
 		})
 		if err != nil {

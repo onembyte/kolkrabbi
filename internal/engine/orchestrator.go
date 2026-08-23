@@ -87,7 +87,7 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 		{Role: "user", Content: sb.String()},
 	}
 	fmt.Fprintf(a.Out, "%sassistant%s ", colorCyan, colorReset)
-	msg, meta, err := a.streamChat(ctx, model, synth, nil, func(tok string) {
+	msg, meta, err := a.streamChat(ctx, activitySynthesizing, model, synth, nil, func(tok string) {
 		fmt.Fprint(a.Out, tok)
 	})
 	if err != nil {
@@ -117,7 +117,7 @@ Request:
 		{Role: "system", Content: "You are a planning module. You output only strict JSON."},
 		{Role: "user", Content: prompt},
 	}
-	msg, meta, err := a.streamChat(ctx, model, msgs, nil, nil)
+	msg, meta, err := a.streamChat(ctx, activityPlanning, model, msgs, nil, nil)
 	if err != nil {
 		return nil, meta, err
 	}
@@ -171,7 +171,7 @@ Overall request: %s
 	}
 
 	for round := 0; round < maxSubagentRounds; round++ {
-		msg, meta, err := a.streamChat(ctx, model, msgs, tools.Definitions(), func(tok string) {
+		msg, meta, err := a.streamChat(ctx, activityWorking, model, msgs, tools.Definitions(), func(tok string) {
 			fmt.Fprint(a.Out, tok)
 		})
 		if err != nil {

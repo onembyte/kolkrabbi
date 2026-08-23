@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -32,9 +33,27 @@ func waitForRetry(ctx context.Context, delay time.Duration) error {
 // streamChat is the engine's single pre-stream retry boundary. HTTPError can
 // only be returned before a successful streaming response is handed to the
 // scanner, so this never replays output already shown to the user.
-func (a *Agent) streamChat(ctx context.Context, model string, messages []provider.Message, toolset []provider.Tool, onToken func(string)) (provider.Message, provider.Meta, error) {
+func (a *Agent) streamChat(ctx context.Context, phase, model string, messages []provider.Message, toolset []provider.Tool, onToken func(string)) (provider.Message, provider.Meta, error) {
+	stopActivity := func() {}
+	if a.Activity != nil {
+		if stop := a.Activity.Start(ctx, phase); stop != nil {
+			stopActivity = stop
+		}
+	}
+	var stopOnce sync.Once
+	stop := func() { stopOnce.Do(stopActivity) }
+	defer stop()
+
+	streamToken := onToken
+	if onToken != nil {
+		streamToken = func(token string) {
+			stop()
+			onToken(token)
+		}
+	}
+
 	for retry := 0; ; retry++ {
-		msg, meta, err := a.Client.StreamChat(ctx, model, messages, toolset, onToken)
+		msg, meta, err := a.Client.StreamChat(ctx, model, messages, toolset, streamToken)
 		if err == nil {
 			return msg, meta, nil
 		}
