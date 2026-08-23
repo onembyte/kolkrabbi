@@ -1835,3 +1835,58 @@ checks, and all release contracts green.
 U0.1d addresses the owner's observed empty-response stop and clarifies the process-local scope of
 auto-approval. U0.2 self-update, U0.3 loading state, and U0.4 persistent terminal UI remain isolated
 follow-on checkpoints.
+
+---
+
+## Owner UX / U0.1d — resilient agent completion
+
+**Status:** done, 2026-08-23 · **Host tests:** 584 · **Dependencies:** unchanged ·
+**User-visible changes:** bounded empty-response recovery and explicit auto-approve scope
+
+The owner's live session `20260823-183354-039e` established the failure precisely: after successful
+inspection tool calls, `stealth/ox-alpha` twice returned an assistant message with no text and no
+tool calls. The engine treated that wire-valid but semantically empty response as a final answer,
+printed only its footer, and returned to the input prompt. No tool-loop limit, cancellation, or
+permission denial stopped the task.
+
+Kolk now rejects that empty completion, makes one retry carrying a concise continuation instruction,
+and proceeds normally if the model returns text or tool calls. A second consecutive empty completion
+returns an actionable error suggesting `/model`, bounding latency and spend. Empty replies and the
+synthetic instruction never enter saved history, and valid tool calls are never repeated by the
+recovery mechanism. The code/agent system prompt also tells a project-building turn to move from
+relevant inspection through one concrete verified checkpoint or report evidence for a blocker.
+
+The same review confirmed that auto-approval had worked in the first process but the transcript then
+started a new plain `kolk` process. Persisting this dangerous setting remains intentionally out of
+scope. `/yolo` and `/auto-approve` now state “this process only” and point to `kolk --yolo` for a
+future launch; flag help describes the setting as applying to one run.
+
+### TDD record
+
+**Red:** the engine test failed because the empty-completion recovery marker did not exist, while
+the CLI test showed enabled auto-approve output without either process scope or `kolk --yolo`.
+
+**Green:** the loop now sends one copied, recovery-augmented request without mutating canonical
+history, accepts the next ordinary tool/text response, and fails after a second empty result. The
+prompt and both approval commands expose the new contracts.
+
+**Refactor:** one copy-on-append helper makes it structurally clear that recovery context is
+ephemeral. Tests prove continuation through a real file tool and final response, request count,
+clean persisted history, bounded repeated failure, prompt content, and both approval spellings.
+
+### Verification
+
+```sh
+gofmt -d internal/engine/agent.go internal/engine/agent_test.go internal/cli/slash.go internal/cli/flags.go internal/cli/repl_test.go
+go test -count=1 ./internal/engine ./internal/cli
+make check
+```
+
+The complete gate passed with 584 tests, five compile targets, zero lint issues, a 6.21 MB binary,
+5.1 ms cold-start p50, one root dependency, 110 site checks, 11 mode-surface checks, 56 installer
+checks, and all release contracts green.
+
+### Next checkpoint
+
+U0.2 implements the already-frozen verified self-update contract. U0.3 then supplies a TTY-safe
+loading octopus, and U0.4 builds the persistent terminal UI on that lifecycle seam.

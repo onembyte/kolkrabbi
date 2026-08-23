@@ -184,6 +184,9 @@ func TestSlashAutoApproveControlsTheLiveSession(t *testing.T) {
 	if !strings.Contains(out.String(), "auto-approve: on — tool actions will run without confirmation") {
 		t.Fatalf("enabled state does not name the risk: %q", out.String())
 	}
+	if !strings.Contains(out.String(), "this process only") || !strings.Contains(out.String(), "kolk --yolo") {
+		t.Fatalf("enabled state does not explain how auto-approve applies to later processes: %q", out.String())
+	}
 
 	if a.slash(context.Background(), ag, "/auto-approve off") {
 		t.Fatal("/auto-approve off must not exit the REPL")
@@ -208,6 +211,19 @@ func TestSlashAutoApproveRejectsUnknownArgumentWithoutChangingState(t *testing.T
 	}
 	if got := out.String(); !strings.Contains(got, "usage: /auto-approve [on|off]") {
 		t.Fatalf("invalid auto-approve argument did not print exact usage: %q", got)
+	}
+}
+
+func TestSlashYoloExplainsProcessScope(t *testing.T) {
+	a, ag, out := replFixture(t, "")
+	ag.Yolo = false
+
+	if a.slash(context.Background(), ag, "/yolo") {
+		t.Fatal("/yolo must not exit the REPL")
+	}
+	if !ag.Yolo || !strings.Contains(out.String(), "this process only") ||
+		!strings.Contains(out.String(), "kolk --yolo") {
+		t.Fatalf("/yolo did not enable or explain process scope: state %v, output %q", ag.Yolo, out.String())
 	}
 }
 

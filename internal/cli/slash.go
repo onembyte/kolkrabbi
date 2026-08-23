@@ -116,7 +116,11 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		fmt.Fprintln(a.stdout, "\033[2mnote: files only — the conversation history is unchanged.\033[0m")
 	case "/yolo":
 		ag.Yolo = !ag.Yolo
-		fmt.Fprintf(a.stdout, "yolo mode: %v\n", ag.Yolo)
+		if ag.Yolo {
+			fmt.Fprintln(a.stdout, "yolo mode: true — this process only; start another with `kolk --yolo`")
+		} else {
+			fmt.Fprintln(a.stdout, "yolo mode: false — tool actions will ask first")
+		}
 	case "/auto-approve":
 		switch arg {
 		case "", "on":
@@ -146,7 +150,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 func (a *app) setAutoApprove(ag *engine.Agent, enabled bool) {
 	ag.Yolo = enabled
 	if enabled {
-		fmt.Fprintln(a.stdout, "auto-approve: on — tool actions will run without confirmation")
+		fmt.Fprintln(a.stdout, "auto-approve: on — tool actions will run without confirmation; this process only; start another with `kolk --yolo`")
 		return
 	}
 	fmt.Fprintln(a.stdout, "auto-approve: off — tool actions will ask first")

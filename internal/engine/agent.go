@@ -55,6 +55,8 @@ var projectMemoryFiles = []string{"KOLKRABBI.md", "AGENTS.md"}
 
 const maxProjectMemory = 16 * 1024
 
+const emptyCompletionRecovery = "The previous response was empty. Continue the original user request now. Use tools when needed, and finish the requested concrete step or explain a specific blocker."
+
 // Options configures an Agent; zero values get sensible defaults.
 type Options struct {
 	Client   *provider.Client
@@ -163,6 +165,9 @@ func (a *Agent) systemPrompt(mode string) string {
 You have tools to read/write/edit files, list directories, and run shell commands. Use them proactively to accomplish what the user asks instead of just describing what you would do. Prefer small, verifiable steps: read before you edit, run tests/builds after changing code when reasonable.
 
 Be concise in your prose responses. Do not narrate every tool call at length; let the tool results speak for themselves and summarize only what matters.`, runtime.GOOS, cwd)
+		sys += `
+
+When asked to build or continue a project, inspect the relevant plan and checkpoint, select one concrete unfinished checkpoint, and carry it through implementation and verification. Do not stop after inspection: keep using tools until that checkpoint is complete, or state a concrete blocker and the evidence for it.`
 	}
 
 	for _, name := range projectMemoryFiles {
@@ -337,10 +342,12 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 
 	model := a.modelFor(a.Effort)
 	toolset := toolsFor(a.Mode)
+	requestMessages := a.Sess.Messages
+	emptyCompletions := 0
 
 	for {
 		fmt.Fprintf(a.Out, "%sassistant%s ", colorCyan, colorReset)
-		msg, meta, err := a.Client.StreamChat(ctx, model, a.Sess.Messages, toolset, func(tok string) {
+		msg, meta, err := a.Client.StreamChat(ctx, model, requestMessages, toolset, func(tok string) {
 			fmt.Fprint(a.Out, tok)
 		})
 		if err != nil {
@@ -349,6 +356,18 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 		}
 		fmt.Fprintln(a.Out)
 		a.record("main", meta, len(msg.ToolCalls))
+		if strings.TrimSpace(msg.Content) == "" && len(msg.ToolCalls) == 0 {
+			emptyCompletions++
+			if emptyCompletions >= 2 {
+				return fmt.Errorf("model returned two empty responses; try `/model` to select another model")
+			}
+			fmt.Fprintln(a.Out, colorDim+"  (empty model response; retrying once)"+colorReset)
+			requestMessages = appendMessage(a.Sess.Messages, provider.Message{
+				Role: "user", Content: emptyCompletionRecovery,
+			})
+			continue
+		}
+
 		a.Sess.Messages = append(a.Sess.Messages, msg)
 		a.save()
 
@@ -356,6 +375,7 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 			a.footer(meta)
 			return nil // final answer for this turn
 		}
+		emptyCompletions = 0
 
 		for _, tc := range msg.ToolCalls {
 			fmt.Fprintf(a.Out, "%s  → %s%s\n", colorDim, summarizeCall(tc), colorReset)
@@ -370,8 +390,15 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 			})
 		}
 		a.save()
+		requestMessages = a.Sess.Messages
 		// loop: send tool results back to the model for its next step
 	}
+}
+
+func appendMessage(messages []provider.Message, message provider.Message) []provider.Message {
+	copyOfMessages := make([]provider.Message, len(messages), len(messages)+1)
+	copy(copyOfMessages, messages)
+	return append(copyOfMessages, message)
 }
 
 // Rewind undoes the file changes of the most recent turn (files only; the

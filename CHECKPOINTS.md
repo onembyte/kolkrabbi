@@ -85,7 +85,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   at every interactive prompt.
 - [x] **U0.1c in-session model catalog** — make bare `/model` show the current selection and the
   available provider models while preserving `/model <id>` as the direct switch.
-- [ ] **U0.1d resilient agent completion** — recover once from an empty provider response, strengthen
+- [x] **U0.1d resilient agent completion** — recover once from an empty provider response, strengthen
   project-execution instructions, and make process-local auto-approve scope unmistakable.
 - [ ] **U0.2 verified self-update** — add `kolk update` and `/update`, resolving the latest GitHub
   Release with platform checks, checksum verification, and atomic binary replacement.
@@ -167,6 +167,41 @@ Acceptance checklist:
 - [x] `/help` describes the list-or-switch behavior and slash commands receive the REPL context.
 - [x] focused CLI tests and every repository gate pass; the build log records red/green/refactor.
 
+### U0.1d resilient agent completion — verified detail
+
+Scope:
+
+- Treat an assistant response with neither text nor tool calls as an invalid completion, retry once
+  with a concise instruction to continue the original request, then resume the ordinary tool loop.
+- If the retry is also empty, return a visible actionable error instead of silently ending or
+  spending without a bound.
+- Strengthen code/agent instructions so project-building requests move from relevant plan inspection
+  to one concrete verified checkpoint, stopping only when that step is complete or blocked.
+- Explain that `/yolo` and `/auto-approve` affect this process and that `kolk --yolo` enables the
+  setting when starting a later process.
+
+Non-goals:
+
+- No persisted auto-approve default, unattended background process, endless autonomous loop,
+  heuristic classification of whether prose is "complete", model fallback, routing, or TUI change.
+- No extra retry for transport errors, non-empty model answers, or tool failures; no synthetic
+  recovery message in saved session history.
+- No self-update, loading animation, or persistent input area; U0.2–U0.4 own those independently.
+
+Acceptance checklist:
+
+- [x] one empty provider completion triggers exactly one retry and can continue through tool calls
+  to a non-empty final answer.
+- [x] the retry includes a continuation instruction while saved history excludes the empty response
+  and synthetic instruction.
+- [x] two consecutive empty completions return a clear bounded error that suggests `/model`.
+- [x] the code/agent system prompt explicitly requires a concrete checkpoint or blocker after
+  inspection.
+- [x] enabling auto-approve names its process-local scope and the `kolk --yolo` launch form; existing
+  confirmation behavior and launch flag remain unchanged.
+- [x] focused engine/CLI tests and every repository gate pass; the build log records the live-session
+  diagnosis and red/green/refactor evidence.
+
 ### U0.2 verified self-update — planned detail
 
 Scope:
@@ -209,6 +244,70 @@ Acceptance checklist:
   continues the session after errors, and tells the user to restart after a replacement.
 - [ ] focused updater/CLI tests, race-sensitive tests where applicable, architecture and full
   repository gates pass; the build log records red/green/refactor.
+
+### U0.3 loading octopus — planned detail
+
+Scope:
+
+- Show a small Kolkrabbi octopus animation only while an interactive terminal is waiting for the
+  first provider output, and erase it before streamed content, approval prompts, errors, or the next
+  input prompt render.
+- Give cancellation ownership to the turn context, stop and join the animation before returning,
+  and keep exactly one renderer writing each terminal region at a time.
+- Preserve a deterministic single-line status seam that U0.4 can adopt as its activity indicator.
+
+Non-goals:
+
+- No animation in redirected/piped output, log files, tests without an explicit fake terminal, or
+  unsupported terminals; no full-screen layout, persistent editor, progress estimation, or network
+  thread mutation.
+- No agent retry, updater, model, session, tool, or permission behavior change.
+
+Acceptance checklist:
+
+- [ ] interactive waiting shows octopus frames and removes them before every response path.
+- [ ] cancellation and fast responses leave no goroutine, partial escape sequence, stale frame, or
+  duplicated prompt behind.
+- [ ] non-terminal output remains byte-stable and contains no animation or cursor-control bytes.
+- [ ] focused renderer tests include a fake clock/terminal and race coverage; all repository gates
+  pass and the build log records red/green/refactor.
+
+### U0.4 persistent terminal UI — planned detail
+
+Scope:
+
+- Replace the interactive single-line prompt with a persistent bottom composer that supports
+  multiline editing, cursor movement, history, paste, submit/newline shortcuts, and keeps the draft
+  visible while responses and tool activity update above it.
+- Keep a compact status row visible with the selected model, mode, effort, session, approval state,
+  and current lifecycle (`thinking`, tool name, streaming, interrupted, failed, or ready).
+- Reuse U0.3's octopus as the working indicator; render streamed Markdown, code, diffs, tool calls,
+  confirmations, and errors without moving or destroying the input draft.
+- Handle terminal resize, narrow layouts, Unicode width, scrollback, Ctrl+C turn cancellation,
+  Ctrl+D/`/exit`, `NO_COLOR`, and an accessible plain-terminal fallback.
+- Define visual tokens so the default purple Kolkrabbi theme and later selectable themes share one
+  renderer rather than embedding colors in engine output.
+
+Non-goals:
+
+- No imitation of Codex names, logos, proprietary output, or undisclosed behavior; “Codex-style”
+  means the interaction qualities above.
+- No engine/provider business logic inside the TUI, desktop/web client, daemon transport, mouse-only
+  control, mandatory full-screen alternate buffer, or loss of scripted/piped CLI compatibility.
+- No framework choice until PLAN item 11's spike measures binary size, cold start, platform support,
+  input correctness, and protocol boundaries against the existing budgets.
+
+Acceptance checklist:
+
+- [ ] the composer remains visible and retains its exact draft across response tokens, tool status,
+  confirmation overlays, resize, and cancellation.
+- [ ] the selected model is always visible; mode, effort, session, approval, and lifecycle states are
+  accurate after slash-command changes and errors.
+- [ ] keyboard behavior, multiline/paste handling, narrow/Unicode layouts, Markdown/diff rendering,
+  and approval focus have deterministic golden or model tests.
+- [ ] non-interactive commands and redirected input/output retain the existing plain CLI contract.
+- [ ] the chosen framework remains within reviewed dependency, binary-size, startup, Windows build,
+  race, and architecture budgets; the full repository gates pass.
 
 ### R0.1 v0.1 two-mode surface — verified detail
 

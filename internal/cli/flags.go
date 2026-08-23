@@ -45,7 +45,7 @@ var flagTable = []flagDef{
 		set: func(o *options, v string) { o.session = v }},
 	{long: "resume", short: "r", summary: "resume the most recent session",
 		set: func(o *options, _ string) { o.resume = true }},
-	{long: "yolo", short: "y", summary: "auto-approve every tool action",
+	{long: "yolo", short: "y", summary: "auto-approve every tool action for this run",
 		set: func(o *options, _ string) { o.yolo = true }},
 	{long: "base-url", arg: "<url>", summary: "any OpenAI-compatible endpoint (Ollama, LiteLLM, vLLM, mock)",
 		set: func(o *options, v string) { o.baseURL = v }},

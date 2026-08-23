@@ -178,6 +178,93 @@ func TestE2E_ChatModeHasNoTools(t *testing.T) {
 	}
 }
 
+func TestCodeModeRecoversFromOneEmptyCompletion(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "recovered.txt")
+	srv := enginetest.New(
+		enginetest.Step{},
+		enginetest.Step{ToolCalls: []provider.ToolCall{{
+			ID: "recovered_call",
+			Function: provider.FunctionCall{
+				Name:      "write_file",
+				Arguments: `{"path":"` + jsonEsc(target) + `","content":"continued\n"}`,
+			},
+		}}},
+		enginetest.Step{Text: "Completed the requested checkpoint."},
+	)
+	defer srv.Close()
+
+	ag, out, sdir, _ := newTestAgent(t, srv, ModeCode)
+	if err := ag.RunTurn(context.Background(), "continue building the project carefully"); err != nil {
+		t.Fatalf("RunTurn: %v", err)
+	}
+	if body, err := os.ReadFile(target); err != nil || string(body) != "continued\n" {
+		t.Fatalf("recovered turn did not execute its tool: body %q, err %v", body, err)
+	}
+	if len(srv.Requests) != 3 {
+		t.Fatalf("provider requests = %d, want empty + retry + final", len(srv.Requests))
+	}
+	if !requestContains(srv.Requests[1], emptyCompletionRecovery) {
+		t.Fatal("retry request omitted the empty-completion recovery instruction")
+	}
+	if requestContains(srv.Requests[2], emptyCompletionRecovery) {
+		t.Fatal("synthetic recovery instruction leaked into the ordinary tool-loop history")
+	}
+	loaded, err := session.Load(sdir, ag.Sess.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, msg := range loaded.Messages {
+		if strings.Contains(msg.Content, emptyCompletionRecovery) ||
+			(msg.Role == "assistant" && msg.Content == "" && len(msg.ToolCalls) == 0) {
+			t.Fatalf("saved history contains recovery-only message: %+v", msg)
+		}
+	}
+	if !strings.Contains(out.String(), "Completed the requested checkpoint.") {
+		t.Fatalf("recovered final answer was not shown: %q", out.String())
+	}
+}
+
+func TestCodeModeBoundsRepeatedEmptyCompletions(t *testing.T) {
+	srv := enginetest.New(enginetest.Step{}, enginetest.Step{})
+	defer srv.Close()
+
+	ag, _, sdir, _ := newTestAgent(t, srv, ModeCode)
+	err := ag.RunTurn(context.Background(), "continue the project")
+	if err == nil || !strings.Contains(err.Error(), "two empty responses") ||
+		!strings.Contains(err.Error(), "/model") {
+		t.Fatalf("repeated-empty error = %v", err)
+	}
+	if len(srv.Requests) != 2 {
+		t.Fatalf("provider requests = %d, want bounded 2", len(srv.Requests))
+	}
+	loaded, loadErr := session.Load(sdir, ag.Sess.ID)
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if len(loaded.Messages) != 2 || loaded.Messages[1].Role != "user" {
+		t.Fatalf("failed recovery polluted saved history: %+v", loaded.Messages)
+	}
+}
+
+func TestCodePromptRequiresAConcreteProjectStep(t *testing.T) {
+	ag := New(Options{Mode: ModeCode, Sess: session.New(t.TempDir(), "mock/model")})
+	prompt := ag.Sess.Messages[0].Content
+	for _, want := range []string{"Do not stop after inspection", "concrete", "checkpoint", "blocker"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("code prompt omitted %q: %q", want, prompt)
+		}
+	}
+}
+
+func requestContains(messages []provider.Message, text string) bool {
+	for _, msg := range messages {
+		if strings.Contains(msg.Content, text) {
+			return true
+		}
+	}
+	return false
+}
+
 // TestE2E_OrchestratedAgentMode drives the full agent-mode pipeline: plan ->
 // two subagents (one uses a tool) -> synthesis, with isolated contexts and a
 // compact main history.
