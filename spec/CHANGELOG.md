@@ -7,3 +7,4 @@ are allowed during version 0, but every change is recorded here.
 
 - Define the six-field event envelope and its first golden conformance frame.
 - Define the `message.delta` and `reasoning.delta` event names and their non-empty `text` payloads.
+- Define the `hello` handshake payload for protocol version, server identity, and capabilities.

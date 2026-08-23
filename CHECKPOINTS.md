@@ -533,11 +533,20 @@ A6.2 is intentionally delivered as independently reviewable vocabulary slices:
 
 - [x] **A6.2a streamed deltas** — `message.delta` and `reasoning.delta`, whose required `text`
   payload is already explicit in the architecture and provider contracts.
-- [ ] **A6.2b lifecycle and completed content** — handshake, session, turn, and
+- [~] **A6.2b lifecycle and completed content** — handshake, session, turn, and
   `message.completed` events after their payload fields are fixed.
 - [ ] **A6.2c tools and decisions** — tool and permission events.
 - [ ] **A6.2d orchestration and operations** — subagent, chapter, checkpoint, accounting, score,
   error, and log events, followed by a complete closed-vocabulary check.
+
+A6.2b is split at the four payload decisions so an unspecified lifecycle field cannot hitchhike
+with an already-settled one:
+
+- [x] **A6.2b1 hello handshake** — `{protocol, server, capabilities[]}` as specified by the
+  architecture and mobile handshake constraint.
+- [ ] **A6.2b2 session lifecycle** — started, updated, and ended payloads.
+- [ ] **A6.2b3 turn lifecycle** — started, finished, and cancelled payloads.
+- [ ] **A6.2b4 completed content** — the authoritative `message.completed` payload.
 
 #### A6.1 envelope foundation acceptance
 
@@ -569,6 +578,34 @@ Acceptance checklist:
   fail closed in offline table tests.
 - [x] `protocol` is registered as L1, imports only the standard library even from conformance tests,
   and no existing package depends on it yet.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.2b1 hello handshake acceptance
+
+Scope:
+
+- Define `hello` as a public event name and define its reusable payload for both an event frame and
+  the future `GET /v1/hello` response.
+- Require protocol version `0`, a non-empty server identity, and a present capability list; an empty
+  list is valid because a minimal server must be able to report no optional capabilities honestly.
+- Preserve unknown payload fields and allow capability names to grow without a protocol-version
+  change.
+
+Non-goals:
+
+- No session, turn, completed-message, mode projection, or platform-specific capability registry.
+- No HTTP endpoint, event bus, stream transport, engine integration, or CLI output change.
+- No installer, repository visibility, tag, release, Pages, or deployment mutation.
+
+Acceptance checklist:
+
+- [x] the `hello` constant exactly matches its schema filename and golden-envelope `type` value.
+- [x] the schema requires exactly the three baseline fields, fixes `protocol` to `0`, and permits
+  both an empty capability list and unknown fields.
+- [x] the typed payload decodes the golden handshake and the envelope round-trips byte-for-byte.
+- [x] missing fields, a mismatched protocol, an empty server, null/non-array capabilities, empty
+  capability names, and duplicate capability names fail closed.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
 - [x] focused tests, architecture gates, full repository gates, and the build log are green.
 
 #### A6.2a streamed deltas acceptance

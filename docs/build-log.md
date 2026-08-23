@@ -1037,3 +1037,54 @@ checks, seven v0.1 surface checks, 56 installer checks, and all release contract
 A6.2b fixes the handshake, session, turn, and completed-message payloads before adding their
 constants, schemas, bindings, and goldens. Publishing, the public tag, and the clean-machine
 rehearsal remain postponed by the owner's explicit sequencing decision.
+
+---
+
+## Architecture migration / A6.2b1 — hello handshake
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 50 · **Host tests:** 363 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+The first lifecycle slice freezes only the handshake fields already explicit in the architecture
+and mobile constraint: protocol version, server identity, and capability names. `hello` now has a
+public event constant, typed `HelloData`, versioned JSON Schema, and compact golden envelope. The
+same payload type can later back `GET /v1/hello` without making the HTTP endpoint a second contract.
+
+The capability list must be present but may be empty, allowing a minimal server to describe itself
+honestly. Capability names are non-empty and unique; unknown payload fields remain retained for
+version-0 forward compatibility. Platform-specific capability selection stays outside the protocol
+package and outside this checkpoint.
+
+### TDD record
+
+**Red:** with the schema, golden, and invalid-field matrix in place, `go test ./protocol` failed to
+compile only because `EventHello` and `HelloData` did not exist.
+
+**Green:** the string-backed event constant is `hello`; `HelloData` exposes `protocol`, `server`,
+and `capabilities` with the exact snake-case wire fields. Known-event validation requires protocol
+`0`, a non-empty server, and a non-null array of unique non-empty capability names. An empty array
+and unknown payload fields are accepted, while the complete golden frame round-trips byte-for-byte.
+
+**Refactor:** handshake validation remains inside the existing known-event dispatcher, so both
+`Encode` and `Decode` enforce the same contract. No existing package imports `protocol`, and the
+architecture dependency guard continues to prove that public conformance tests use only the
+standard library.
+
+### Verification
+
+```sh
+go test -count=1 ./protocol
+go vet ./protocol
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 363 tests, five compile
+targets, zero lint issues, a 6.21 MB binary, 5.1 ms cold-start p50, one root dependency, 46 site
+checks, seven v0.1 surface checks, 56 installer checks, and all release contracts unchanged.
+
+### Next checkpoint
+
+At the owner's direction, the preserved experimental agent implementation is restored through the
+public mode surfaces as its own TDD checkpoint before A6.2b2 resumes the session-lifecycle contract.
+Publishing, the public tag, and the clean-machine rehearsal remain postponed.

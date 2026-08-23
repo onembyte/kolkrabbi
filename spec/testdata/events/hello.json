@@ -1,0 +1,1 @@
+{"seq":1,"ts":"2026-08-23T18:30:12Z","session":"s_01ARYZ6S41TSV4RRFFQ69G5FAV","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"hello","data":{"protocol":"0","server":"kolk 0.1.0","capabilities":["shell:posix"]}}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/events/hello.json",
+  "title": "hello payload",
+  "type": "object",
+  "required": ["protocol", "server", "capabilities"],
+  "properties": {
+    "protocol": {"type": "string", "const": "0"},
+    "server": {"type": "string", "minLength": 1},
+    "capabilities": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": true
+}
