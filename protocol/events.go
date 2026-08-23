@@ -24,6 +24,8 @@ const (
 	EventToolStarted EventType = "tool.started"
 	// EventToolOutput carries the complete display-ready output of one invocation.
 	EventToolOutput EventType = "tool.output"
+	// EventToolFinished carries one invocation's terminal outcome.
+	EventToolFinished EventType = "tool.finished"
 	// EventSessionStarted announces the initial live-session projection.
 	EventSessionStarted EventType = "session.started"
 	// EventSessionUpdated carries a non-empty patch to the live-session projection.
@@ -94,6 +96,14 @@ type ToolStartedData struct {
 type ToolOutputData struct {
 	ID       string       `json:"id"`
 	Output   string       `json:"output"`
+	Executor ToolExecutor `json:"executor"`
+}
+
+// ToolFinishedData is the payload of EventToolFinished. OK reports whether
+// the invocation produced a valid tool result.
+type ToolFinishedData struct {
+	ID       string       `json:"id"`
+	OK       bool         `json:"ok"`
 	Executor ToolExecutor `json:"executor"`
 }
 
@@ -240,6 +250,25 @@ func validateEventData(event EventType, raw json.RawMessage) error {
 		}
 		if data.Output == nil {
 			return fmt.Errorf("protocol: %s data.output must be present and string-valued", event)
+		}
+		if !validToolExecutor(data.Executor) {
+			return fmt.Errorf("protocol: %s data.executor must be %q or %q", event, ToolExecutorKolk, ToolExecutorProvider)
+		}
+		return nil
+	case EventToolFinished:
+		var data struct {
+			ID       string       `json:"id"`
+			OK       *bool        `json:"ok"`
+			Executor ToolExecutor `json:"executor"`
+		}
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		if data.ID == "" {
+			return fmt.Errorf("protocol: %s data.id must be non-empty", event)
+		}
+		if data.OK == nil {
+			return fmt.Errorf("protocol: %s data.ok must be present and boolean-valued", event)
 		}
 		if !validToolExecutor(data.Executor) {
 			return fmt.Errorf("protocol: %s data.executor must be %q or %q", event, ToolExecutorKolk, ToolExecutorProvider)

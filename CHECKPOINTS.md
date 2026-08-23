@@ -637,7 +637,7 @@ A6.2c is split at the execution and decision boundaries so tool ownership cannot
 permission state or outcome data:
 
 - [x] **A6.2c1 requested invocation** — `tool.requested` identity, raw arguments, and executor.
-- [~] **A6.2c2 execution lifecycle** — `tool.started`, `tool.output`, and `tool.finished`.
+- [x] **A6.2c2 execution lifecycle** — `tool.started`, `tool.output`, and `tool.finished`.
 - [ ] **A6.2c3 permission decisions** — `permission.requested` and `permission.resolved`.
 
 A6.2c2 is split again because beginning execution, carrying output, and recording the terminal
@@ -645,7 +645,7 @@ outcome have different required facts:
 
 - [x] **A6.2c2a execution started** — `tool.started` correlation and executor.
 - [x] **A6.2c2b execution output** — `tool.output` correlation, content, and executor.
-- [ ] **A6.2c2c execution finished** — `tool.finished` correlation, outcome, and executor.
+- [x] **A6.2c2c execution finished** — `tool.finished` correlation, outcome, and executor.
 
 #### A6.1 envelope foundation acceptance
 
@@ -915,6 +915,46 @@ Acceptance checklist:
 - [x] missing, empty, null, and non-string IDs fail closed.
 - [x] missing, null, and non-string output fail closed, while empty, non-empty, and Unicode output
   decode successfully.
+- [x] missing, empty, null, non-string, and unknown executors fail closed, while both defined values
+  decode successfully.
+- [x] the typed payload decodes the golden, marshals in schema field order, and the complete envelope
+  round-trips byte-for-byte.
+- [x] an unknown payload field remains in the raw envelope after decode.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.2c2c execution finished acceptance
+
+Scope:
+
+- Define `tool.finished` as a public event name with one schema, typed payload, and compact golden
+  envelope.
+- Require the non-empty tool-call `id` used by `tool.requested`, a boolean `ok` terminal outcome,
+  and the same `executor` ownership value used across the tool lifecycle.
+- Define `ok` as whether the tool invocation produced a valid result. A subprocess non-zero exit may
+  remain successful tool execution when its failure is returned as output for the model to inspect;
+  provider `IsError` maps to `ok = !IsError`.
+- Keep the event additive with unknown payload fields retained by the envelope.
+
+Non-goals:
+
+- No repeated tool name, arguments, or output; preceding events remain authoritative for them.
+- No error prose, finish reason, duration, exit code, signal, retryability, permission state,
+  cancellation state, or timestamp. `tool.output` owns display text, while the envelope owns event
+  time.
+- No cross-event ID/executor consistency check, provider translation, tool runner instrumentation,
+  permission engine, event bus, persistence, transport, or CLI output change.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the constant exactly matches the schema filename and golden-envelope type value.
+- [x] the schema requires exactly non-empty `id`, boolean `ok`, and `executor`, permits unknown
+  fields, and restricts executor to `kolk` or `provider`.
+- [x] missing, empty, null, and non-string IDs fail closed.
+- [x] missing, null, and non-boolean outcomes fail closed, while both `true` and `false` decode
+  successfully.
 - [x] missing, empty, null, non-string, and unknown executors fail closed, while both defined values
   decode successfully.
 - [x] the typed payload decodes the golden, marshals in schema field order, and the complete envelope

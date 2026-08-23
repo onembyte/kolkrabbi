@@ -1499,3 +1499,56 @@ checks, nine mode-surface checks, 56 installer checks, and all release contracts
 
 A6.2c2c audits and freezes `tool.finished` terminal outcome semantics without adding permission or
 engine wiring. Publishing, the public tag, and the clean-machine rehearsal remain postponed.
+
+---
+
+## Architecture migration / A6.2c2c — tool execution finished
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 215 · **Host tests:** 530 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+This slice freezes `tool.finished` independently from permission and engine wiring. Its payload
+contains the non-empty tool-call correlation ID, one boolean `ok` outcome, and the executor inherited
+from the preceding tool lifecycle events. The wire name follows the existing `tool_ok` analytics
+vocabulary rather than exposing a provider-specific `is_error` field; provider outcomes map as
+`ok = !IsError`.
+
+`ok` reports whether the invocation produced a valid tool result. It does not reinterpret facts
+inside that result: for example, the existing shell runner deliberately returns a subprocess's
+non-zero exit as model-visible output when the tool machinery itself worked. Error prose remains in
+`tool.output`; duration, exit metadata, cancellation, cross-event consistency, translation, and
+instrumentation remain outside this checkpoint.
+
+### TDD record
+
+**Red:** after freezing the acceptance boundary and adding the conformance matrix,
+`go test -count=1 ./protocol` failed to compile only because `EventToolFinished` and
+`ToolFinishedData` were undefined.
+
+**Green:** the new constant, typed payload, schema, golden frame, changelog entry, and known-event
+validator now agree. Validation rejects missing or malformed correlation IDs, missing/null/non-boolean
+outcomes, and missing, wrongly typed, or unknown executors while accepting both boolean outcomes and
+both ownership values.
+
+**Refactor:** the public payload keeps `OK` as an ordinary boolean, while the validator uses a
+private pointer-valued wire view to distinguish a valid `false` from a missing or null field. Tests
+also prove schema field order, byte-stable golden round-trip, Unicode unknown-field retention, and
+continued forward compatibility.
+
+### Verification
+
+```sh
+go test -count=1 ./protocol
+go vet ./protocol
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 530 tests, five compile
+targets, zero lint issues, a 6.21 MB binary, 4.8 ms cold-start p50, one root dependency, 93 site
+checks, nine mode-surface checks, 56 installer checks, and all release contracts unchanged.
+
+### Next checkpoint
+
+A6.2c3 audits the permission request/resolution boundary after the tool execution vocabulary is
+complete. Publishing, the public tag, and the clean-machine rehearsal remain postponed.
