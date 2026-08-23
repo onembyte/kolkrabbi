@@ -638,7 +638,7 @@ permission state or outcome data:
 
 - [x] **A6.2c1 requested invocation** — `tool.requested` identity, raw arguments, and executor.
 - [x] **A6.2c2 execution lifecycle** — `tool.started`, `tool.output`, and `tool.finished`.
-- [ ] **A6.2c3 permission decisions** — `permission.requested` and `permission.resolved`.
+- [~] **A6.2c3 permission decisions** — `permission.requested` and `permission.resolved`.
 
 A6.2c2 is split again because beginning execution, carrying output, and recording the terminal
 outcome have different required facts:
@@ -646,6 +646,11 @@ outcome have different required facts:
 - [x] **A6.2c2a execution started** — `tool.started` correlation and executor.
 - [x] **A6.2c2b execution output** — `tool.output` correlation, content, and executor.
 - [x] **A6.2c2c execution finished** — `tool.finished` correlation, outcome, and executor.
+
+A6.2c3 keeps the user-facing request separate from its later transport round-trip:
+
+- [x] **A6.2c3a permission requested** — request identity, tool, detail, and optional diff.
+- [ ] **A6.2c3b permission resolved** — request correlation and decision vocabulary.
 
 #### A6.1 envelope foundation acceptance
 
@@ -957,6 +962,46 @@ Acceptance checklist:
   successfully.
 - [x] missing, empty, null, non-string, and unknown executors fail closed, while both defined values
   decode successfully.
+- [x] the typed payload decodes the golden, marshals in schema field order, and the complete envelope
+  round-trips byte-for-byte.
+- [x] an unknown payload field remains in the raw envelope after decode.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.2c3a permission requested acceptance
+
+Scope:
+
+- Define `permission.requested` as a public event name with one schema, typed payload, and compact
+  golden envelope.
+- Require a non-empty opaque permission request `id`, non-empty tool name, and non-empty
+  human-readable `detail` suitable for a terminal, desktop, or mobile approval surface.
+- Allow an optional string `diff`; omission means that the action has no separate diff preview,
+  while an explicitly empty string remains valid forward-compatible data.
+- Keep the event additive with unknown payload fields retained by the envelope.
+
+Non-goals:
+
+- No tool-call ID rewrite or cross-event correlation check; `id` identifies the permission
+  round-trip defined by `/v1/permissions/{id}`.
+- No `executor`: only `executor: "kolk"` tool requests are eligible for this event, while provider
+  tools have already executed and can never request Kolkrabbi approval.
+- No decision, allowed-choice list, timeout, expiration timestamp, policy-rule identity, risk score,
+  path, command, parsed arguments, or structured diff. `permission.resolved` owns the later decision,
+  and the envelope owns event time.
+- No permission queue, decider, engine integration, HTTP endpoint, event bus, persistence, transport,
+  or CLI output change.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the constant exactly matches the schema filename and golden-envelope type value.
+- [x] the schema requires exactly non-empty `id`, `tool`, and `detail`, permits optional
+  string-valued `diff` and unknown fields, and defines no executor.
+- [x] missing, empty, null, and non-string required fields fail closed.
+- [x] omitted, empty, non-empty, and Unicode diffs decode successfully, while null and non-string
+  diffs fail closed.
 - [x] the typed payload decodes the golden, marshals in schema field order, and the complete envelope
   round-trips byte-for-byte.
 - [x] an unknown payload field remains in the raw envelope after decode.

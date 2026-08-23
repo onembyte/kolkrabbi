@@ -15,3 +15,4 @@ are allowed during version 0, but every change is recorded here.
 - Define `tool.started` correlation and execution ownership.
 - Define `tool.output` correlation, possibly empty content, and execution ownership.
 - Define `tool.finished` correlation, boolean tool outcome, and execution ownership.
+- Define `permission.requested` identity, tool detail, and optional diff preview.

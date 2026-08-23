@@ -1,0 +1,1 @@
+{"seq":705,"ts":"2026-08-23T21:18:03Z","session":"s_01ARYZ6S41TSV4RRFFQ69G5FAV","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"permission.requested","data":{"id":"perm_abc123","tool":"edit_file","detail":"Edit README.md","diff":"- old\n+ new 🐙"}}

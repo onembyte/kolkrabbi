@@ -1552,3 +1552,53 @@ checks, nine mode-surface checks, 56 installer checks, and all release contracts
 
 A6.2c3 audits the permission request/resolution boundary after the tool execution vocabulary is
 complete. Publishing, the public tag, and the clean-machine rehearsal remain postponed.
+
+---
+
+## Architecture migration / A6.2c3a — permission requested
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 236 · **Host tests:** 551 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+This slice freezes the user-facing half of the permission round-trip independently from its later
+decision. `permission.requested` carries a non-empty opaque permission request ID, non-empty tool
+name, non-empty human-readable detail, and an optional string diff. Diff omission means there is no
+separate preview; an explicitly empty string remains valid wire data.
+
+The event deliberately has no executor because only Kolkrabbi-run tool calls can reach this approval
+boundary; provider-executed tools have already run. Decision choices, timeout policy, expiration,
+risk and rule metadata, structured arguments/diffs, cross-event correlation, the serialized queue,
+engine integration, and transport endpoints remain outside this checkpoint.
+
+### TDD record
+
+**Red:** after splitting request from resolution, freezing the acceptance boundary, and adding the
+conformance matrix, `go test -count=1 ./protocol` failed to compile only because
+`EventPermissionRequested` and `PermissionRequestedData` were undefined.
+
+**Green:** the new constant, typed payload, schema, golden frame, changelog entry, and known-event
+validator now agree. Validation rejects missing or malformed request identity, tool, and detail;
+accepts omitted, empty, non-empty, and Unicode diff text; and rejects null or wrongly typed diffs.
+
+**Refactor:** validation uses the raw field map plus a private pointer-valued diff view so omission
+stays distinct from an explicitly invalid null without changing the public payload. Tests also prove
+schema field order, byte-stable golden round-trip, unknown-field retention, the absence of an
+executor field, and continued forward compatibility.
+
+### Verification
+
+```sh
+go test -count=1 ./protocol
+go vet ./protocol
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 551 tests, five compile
+targets, zero lint issues, a 6.21 MB binary, 5.2 ms cold-start p50, one root dependency, 93 site
+checks, nine mode-surface checks, 56 installer checks, and all release contracts unchanged.
+
+### Next checkpoint
+
+A6.2c3b audits and freezes `permission.resolved` correlation and decision vocabulary independently.
+Publishing, the public tag, and the clean-machine rehearsal remain postponed.

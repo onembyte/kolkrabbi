@@ -26,6 +26,8 @@ const (
 	EventToolOutput EventType = "tool.output"
 	// EventToolFinished carries one invocation's terminal outcome.
 	EventToolFinished EventType = "tool.finished"
+	// EventPermissionRequested asks a client to decide one Kolkrabbi-run action.
+	EventPermissionRequested EventType = "permission.requested"
 	// EventSessionStarted announces the initial live-session projection.
 	EventSessionStarted EventType = "session.started"
 	// EventSessionUpdated carries a non-empty patch to the live-session projection.
@@ -105,6 +107,15 @@ type ToolFinishedData struct {
 	ID       string       `json:"id"`
 	OK       bool         `json:"ok"`
 	Executor ToolExecutor `json:"executor"`
+}
+
+// PermissionRequestedData is the payload of EventPermissionRequested. Diff is
+// omitted when the action has no separate diff preview.
+type PermissionRequestedData struct {
+	ID     string `json:"id"`
+	Tool   string `json:"tool"`
+	Detail string `json:"detail"`
+	Diff   string `json:"diff,omitempty"`
 }
 
 // SessionStartedData is the payload of EventSessionStarted.
@@ -272,6 +283,36 @@ func validateEventData(event EventType, raw json.RawMessage) error {
 		}
 		if !validToolExecutor(data.Executor) {
 			return fmt.Errorf("protocol: %s data.executor must be %q or %q", event, ToolExecutorKolk, ToolExecutorProvider)
+		}
+		return nil
+	case EventPermissionRequested:
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		var data struct {
+			ID     string  `json:"id"`
+			Tool   string  `json:"tool"`
+			Detail string  `json:"detail"`
+			Diff   *string `json:"diff"`
+		}
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		for _, field := range []struct {
+			name  string
+			value string
+		}{
+			{name: "id", value: data.ID},
+			{name: "tool", value: data.Tool},
+			{name: "detail", value: data.Detail},
+		} {
+			if field.value == "" {
+				return fmt.Errorf("protocol: %s data.%s must be non-empty", event, field.name)
+			}
+		}
+		if _, present := fields["diff"]; present && data.Diff == nil {
+			return fmt.Errorf("protocol: %s data.diff must be string-valued when present", event)
 		}
 		return nil
 	case EventSessionStarted:

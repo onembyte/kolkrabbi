@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/events/permission.requested.json",
+  "title": "permission.requested payload",
+  "type": "object",
+  "required": ["id", "tool", "detail"],
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "tool": {"type": "string", "minLength": 1},
+    "detail": {"type": "string", "minLength": 1},
+    "diff": {"type": "string"}
+  },
+  "additionalProperties": true
+}
