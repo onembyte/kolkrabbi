@@ -9,14 +9,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/shell"
 )
+
+// sh runs every command the bash tool is asked to run. It is a package-level
+// value rather than a parameter so that Execute's signature is unchanged —
+// the tool tests are the most valuable coverage in the repo and this refactor
+// has no business touching them.
+var sh = shell.New()
 
 // Confirm is called before any side-effecting action (bash, write, edit).
 // It should return true if the action is allowed to proceed.
@@ -114,13 +119,18 @@ func Execute(ctx context.Context, name, argsJSON string, confirm Confirm, pre Pr
 		if !confirm("Run shell command", fmt.Sprintf("%s\n  $ %s", a.Description, a.Command)) {
 			return "", fmt.Errorf("user declined to run this command")
 		}
-		cctx, cancel := context.WithTimeout(ctx, 120*time.Second)
-		defer cancel()
-		cmd := exec.CommandContext(cctx, "bash", "-c", a.Command)
-		out, err := cmd.CombinedOutput()
-		result := truncate(string(out))
+		res, err := sh.Run(ctx, shell.Cmd{Command: a.Command})
 		if err != nil {
-			return fmt.Sprintf("%s\n[exit error: %v]", result, err), nil
+			// Only a cancelled turn reaches here. Everything else — a non-zero
+			// exit, a timeout — is a result the model should see and react to,
+			// not an error that aborts the turn.
+			return "", err
+		}
+		result := truncate(res.Output)
+		if !res.OK() {
+			// The model sees the failure and reacts to it. A command that exits
+			// non-zero is a fact about the world, not a broken tool.
+			return fmt.Sprintf("%s\n[exit error: %s]", result, res.Failure), nil
 		}
 		if result == "" {
 			result = "(no output)"

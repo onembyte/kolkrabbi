@@ -74,6 +74,7 @@ var packageLayer = map[string]Layer{
 	// nowhere else. Most of these arrive at migration step 5.
 	"internal/buildinfo": L0Platform,
 	"internal/paths":     L0Platform,
+	"internal/shell":     L0Platform,
 
 	// L2 — the hinge. Arrives at step 7.
 
@@ -169,7 +170,6 @@ type violation struct {
 // violation — a fixed-but-still-listed entry fails the test — so this list can
 // only shrink, and the day it empties the ratchet closes for good.
 var knownViolations = []violation{
-	{Pkg: "internal/tools", Rule: "os/exec", Until: "step 5 — internal/shell owns process execution"},
 	// The engine still constructs its adapters instead of declaring ports.
 	// This is the single largest structural debt in the tree: it is what
 	// stands between here and a daemon, a desktop shell, or a deterministic
