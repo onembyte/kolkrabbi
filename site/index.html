@@ -69,6 +69,10 @@
             <div class="command-row">
               <code><span class="prompt" aria-hidden="true">$</span> <span id="install-command">curl -fsSL https://kolkrabbi.francomichetti.com/install.sh | bash</span></code>
               <button class="copy-button" type="button" data-copy-target="install-command" aria-describedby="copy-status">
+                <svg class="copy-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                  <rect x="2.5" y="2.5" width="8" height="8" rx="1"></rect>
+                  <rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect>
+                </svg>
                 <span class="copy-button-label">Copy</span>
               </button>
               <span class="copy-status" id="copy-status" role="status" aria-live="polite"></span>
@@ -78,10 +82,11 @@
             <span class="step-label">Run</span>
             <code><span class="prompt" aria-hidden="true">$</span> kolk</code>
             <samp>kolk needs an API key before it can use models.<br>Add one: &nbsp;kolk key &lt;API_KEY&gt;<br>Then run: kolk</samp>
+            <code class="key-command"><span class="prompt" aria-hidden="true">$</span> kolk key &lt;API_KEY&gt;</code>
           </li>
           <li>
             <span class="step-label">Use it</span>
-            <code><span class="prompt" aria-hidden="true">$</span> kolk key &lt;API_KEY&gt;<br><span class="prompt" aria-hidden="true">$</span> kolk</code>
+            <code class="use-command"><span class="prompt" aria-hidden="true">$</span> kolk</code>
           </li>
         </ol>
       </div>

@@ -1608,7 +1608,7 @@ Publishing, the public tag, and the clean-machine rehearsal remain postponed.
 ## Release cutover / R0.3 — public v0.1.0 and copyable install command
 
 **Status:** done, 2026-08-23 · **Release:** `v0.1.0` · **Release commit:** `e0b81a4` ·
-**Site checks:** 105 · **Public installer:** verified on Darwin/arm64
+**Site checks:** 110 · **Public installer:** verified on Darwin/arm64
 
 The first owner install exposed an operational gap rather than an installer parsing bug: with no
 public GitHub Release, GitHub sent `/releases/latest` to the releases index. The installer's strict
@@ -1633,8 +1633,11 @@ The CSP remains closed to inline and third-party scripts; only same-origin JavaS
 **Red:** the expanded site contract failed 12 checks for the absent controller, copy target, button,
 accessible status, responsive layout, styles, fallback, and same-origin CSP allowance.
 
-**Green:** the minimal HTML, CSS, local controller, and header policy passed all 105 site checks and
-`node --check site/app.js`.
+**Green:** the minimal HTML, CSS, local controller, and header policy passed all 105 initial site
+checks and `node --check site/app.js`. The owner-reviewed sequence then placed the API-key command in
+the Run row and reduced Use it to the single final `kolk`; three structural checks keep that ordering
+fixed. A decorative overlapping-squares icon was then added beside the stable text label with two
+accessibility/style checks, bringing the focused contract to 110 checks.
 
 **Refactor:** the exclusion helper now distinguishes a real match from an invalid regular expression;
 this removed a false-positive path discovered while checking the new script. The complete repository
