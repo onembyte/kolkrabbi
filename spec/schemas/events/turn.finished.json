@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/events/turn.finished.json",
+  "title": "turn.finished payload",
+  "type": "object",
+  "required": ["reason"],
+  "properties": {
+    "reason": {"type": "string", "minLength": 1},
+    "raw_reason": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": true
+}

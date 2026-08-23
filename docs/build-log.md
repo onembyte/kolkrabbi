@@ -1194,3 +1194,55 @@ checks, nine mode-surface checks, 56 installer checks, and all release contracts
 
 A6.2b3 fixes turn.started, turn.finished, and turn.cancelled as a separate lifecycle slice before
 completed content. Publishing, the public tag, and the clean-machine rehearsal remain postponed.
+
+---
+
+## Architecture migration / A6.2b3 — turn lifecycle
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 126 · **Host tests:** 441 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+This slice freezes the three turn lifecycle names from the architecture and gives each one a
+minimal payload that does not duplicate envelope state. `turn.started` preserves the non-empty
+input, requested model, mode, and effort needed for replay and newly attached clients.
+`turn.finished` records a normalized open-ended reason and can preserve one optional provider
+`raw_reason`. `turn.cancelled` records its own open-ended reason.
+
+Session and turn IDs plus the event timestamp remain solely in the envelope. Completed or partial
+content, usage, errors, duration, response metadata, persistence, transport, and engine wiring stay
+outside this checkpoint.
+
+### TDD record
+
+**Red:** after adding the three schemas, compact golden frames, changelog entry, and invalid-field
+matrix, `go test -count=1 ./protocol` failed to compile only because `EventTurnStarted`,
+`EventTurnFinished`, `EventTurnCancelled`, and their three payload types were undefined.
+
+**Green:** the constants now match `turn.started`, `turn.finished`, and `turn.cancelled` exactly.
+Known-event validation requires every started projection field and both lifecycle reasons while
+allowing future reason vocabulary. Typed payloads decode every golden, and each complete envelope
+round-trips byte-for-byte.
+
+**Refactor:** `TurnFinishedData.RawReason` uses `omitempty`, while validation separately checks raw
+field presence. This distinguishes an omitted provider reason from a present empty, null, or
+wrongly typed value without rejecting additive unknown fields.
+
+### Verification
+
+```sh
+go test -count=1 ./protocol
+go vet ./protocol
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 441 tests, five compile
+targets, zero lint issues, a 6.21 MB binary, 4.5 ms cold-start p50, one root dependency, 48 site
+checks, nine mode-surface checks, 56 installer checks, and all release contracts unchanged.
+
+### Next checkpoint
+
+A separate website checkpoint adds a capabilities navbar page with honest available/planned
+status, subscription and API-key options, cap-aware continuity policy, theme plans, and accessible
+English/Spanish explainer-video slots. Publishing, the public tag, and the clean-machine rehearsal
+remain postponed.

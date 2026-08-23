@@ -584,7 +584,7 @@ with an already-settled one:
 - [x] **A6.2b1 hello handshake** — `{protocol, server, capabilities[]}` as specified by the
   architecture and mobile handshake constraint.
 - [x] **A6.2b2 session lifecycle** — started, updated, and ended payloads.
-- [ ] **A6.2b3 turn lifecycle** — started, finished, and cancelled payloads.
+- [x] **A6.2b3 turn lifecycle** — started, finished, and cancelled payloads.
 - [ ] **A6.2b4 completed content** — the authoritative `message.completed` payload.
 
 #### A6.1 envelope foundation acceptance
@@ -677,6 +677,40 @@ Acceptance checklist:
 - [x] updated requires at least one field; known fields validate when present, unknown fields are
   retained, and an unknown-only patch remains valid.
 - [x] ended requires a non-empty string reason without restricting its vocabulary.
+- [x] all three typed payloads decode their goldens, and every envelope round-trips byte-for-byte.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.2b3 turn lifecycle acceptance
+
+Scope:
+
+- Define `turn.started`, `turn.finished`, and `turn.cancelled` as public event names with one schema,
+  typed payload, and compact golden envelope each.
+- Require `turn.started` to carry the non-empty user input and requested model, mode, and effort so
+  replay and newly attached clients can reconstruct what initiated the turn.
+- Require `turn.finished` to carry a non-empty normalized reason and allow one optional non-empty
+  `raw_reason` for the provider's original open-ended finish value.
+- Require `turn.cancelled` to carry a non-empty open-ended reason. The envelope remains the only
+  source of session ID, turn ID, and event timestamp.
+
+Non-goals:
+
+- No closed enum for finish or cancellation reasons; adapters may add values without a protocol
+  bump.
+- No completed or partial assistant content, usage, error details, duration, response metadata,
+  event bus, engine wiring, transport, persistence, or CLI output change.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] all three constants exactly match their schema filenames and golden-envelope type values.
+- [x] started requires non-empty input, model, mode, and effort; missing, empty, null, and non-string
+  values fail closed.
+- [x] finished requires a non-empty reason, validates `raw_reason` only when present, retains unknown
+  fields, and accepts future reason values.
+- [x] cancelled requires a non-empty reason and accepts future reason values.
 - [x] all three typed payloads decode their goldens, and every envelope round-trips byte-for-byte.
 - [x] the public package remains standard-library-only and disconnected from existing packages.
 - [x] focused tests, architecture gates, full repository gates, and the build log are green.

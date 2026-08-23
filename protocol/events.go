@@ -22,6 +22,12 @@ const (
 	EventSessionUpdated EventType = "session.updated"
 	// EventSessionEnded announces why a live session ended.
 	EventSessionEnded EventType = "session.ended"
+	// EventTurnStarted records the request projection used to begin a turn.
+	EventTurnStarted EventType = "turn.started"
+	// EventTurnFinished records why a turn completed.
+	EventTurnFinished EventType = "turn.finished"
+	// EventTurnCancelled records why a turn was cancelled.
+	EventTurnCancelled EventType = "turn.cancelled"
 )
 
 // HelloData is the payload of EventHello and the future /v1/hello response.
@@ -60,6 +66,26 @@ type SessionUpdatedData struct {
 
 // SessionEndedData is the payload of EventSessionEnded.
 type SessionEndedData struct {
+	Reason string `json:"reason"`
+}
+
+// TurnStartedData is the payload of EventTurnStarted.
+type TurnStartedData struct {
+	Input  string `json:"input"`
+	Model  string `json:"model"`
+	Mode   string `json:"mode"`
+	Effort string `json:"effort"`
+}
+
+// TurnFinishedData is the payload of EventTurnFinished. RawReason preserves an
+// optional provider-specific finish reason without restricting future values.
+type TurnFinishedData struct {
+	Reason    string `json:"reason"`
+	RawReason string `json:"raw_reason,omitempty"`
+}
+
+// TurnCancelledData is the payload of EventTurnCancelled.
+type TurnCancelledData struct {
 	Reason string `json:"reason"`
 }
 
@@ -150,6 +176,50 @@ func validateEventData(event EventType, raw json.RawMessage) error {
 		return nil
 	case EventSessionEnded:
 		var data SessionEndedData
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		if data.Reason == "" {
+			return fmt.Errorf("protocol: %s data.reason must be non-empty", event)
+		}
+		return nil
+	case EventTurnStarted:
+		var data TurnStartedData
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		for _, field := range []struct {
+			name  string
+			value string
+		}{
+			{name: "input", value: data.Input},
+			{name: "model", value: data.Model},
+			{name: "mode", value: data.Mode},
+			{name: "effort", value: data.Effort},
+		} {
+			if field.value == "" {
+				return fmt.Errorf("protocol: %s data.%s must be non-empty", event, field.name)
+			}
+		}
+		return nil
+	case EventTurnFinished:
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		var data TurnFinishedData
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		if data.Reason == "" {
+			return fmt.Errorf("protocol: %s data.reason must be non-empty", event)
+		}
+		if _, present := fields["raw_reason"]; present && data.RawReason == "" {
+			return fmt.Errorf("protocol: %s data.raw_reason must be non-empty when present", event)
+		}
+		return nil
+	case EventTurnCancelled:
+		var data TurnCancelledData
 		if err := json.Unmarshal(raw, &data); err != nil {
 			return fmt.Errorf("protocol: %s data: %w", event, err)
 		}

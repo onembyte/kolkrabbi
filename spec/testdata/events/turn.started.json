@@ -1,0 +1,1 @@
+{"seq":600,"ts":"2026-08-23T19:45:00Z","session":"s_01ARYZ6S41TSV4RRFFQ69G5FAV","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"turn.started","data":{"input":"fix the failing protocol test","model":"openrouter/auto","mode":"code","effort":"standard"}}
