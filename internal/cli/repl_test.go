@@ -105,3 +105,27 @@ func TestSlashUnknownCommandDoesNotExit(t *testing.T) {
 		t.Errorf("an unknown slash command should point at /help, got %q", out.String())
 	}
 }
+
+func TestSlashModeRejectsUnreleasedAgentMode(t *testing.T) {
+	a, ag, out := replFixture(t, "")
+	if a.slash(ag, "/mode agent") {
+		t.Fatal("a rejected mode must not exit the REPL")
+	}
+	if ag.Mode != engine.ModeCode {
+		t.Fatalf("mode = %q after rejection, want %q", ag.Mode, engine.ModeCode)
+	}
+	if !strings.Contains(out.String(), `unknown mode "agent" (chat|code)`) {
+		t.Fatalf("rejection did not name the two released modes: %q", out.String())
+	}
+}
+
+func TestSlashHelpListsOnlyReleaseModes(t *testing.T) {
+	a, ag, out := replFixture(t, "")
+	a.slash(ag, "/help")
+	if !strings.Contains(out.String(), "/mode <chat|code>") {
+		t.Fatalf("slash help does not list the two released modes: %q", out.String())
+	}
+	if strings.Contains(strings.ToLower(out.String()), "agent") {
+		t.Fatalf("slash help advertises an unreleased mode: %q", out.String())
+	}
+}

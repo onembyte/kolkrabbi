@@ -690,3 +690,63 @@ https://goreleaser.com/customization/package/checksum/.
 
 T0.4b builds and attacks the installer entirely offline. No tag, GitHub Release, public visibility,
 or `/install.sh` production claim is made by T0.4a.
+
+---
+
+## Owner trial / R0.1 — v0.1 chat and code surface
+
+**Status:** done, 2026-08-23 · **Host tests:** 308 → 313 · **Site contract:** 46 ·
+**Surface contract:** 7 · **Binary:** 6.21 MB · **Cold start p50:** 4.4 ms
+
+The first working deploy now exposes exactly `chat` and `code`. Plain `kolk` computes `code` as its
+default, `--mode chat` selects tool-free conversation, and both the command line and REPL reject
+the experimental `agent` value as a usage error. Help, README, and landing-page claims describe the
+same two-mode release.
+
+### TDD record
+
+**Red:** the engine registry test reported `[chat code agent]`; the REPL changed its active mode to
+`agent`; slash help advertised `<chat|code|agent>`; the site failed both its required two-mode copy
+and unreleased-mode exclusion; and the new public-surface contract failed 6/7 checks across the
+README and CLI help sources. The focused CLI rerun used its localhost fixture and independently
+confirmed both REPL failures.
+
+**Green:** the release registry now contains only `chat` and `code`, and the flag parser validates
+against it before runtime setup. The REPL delegates to the same registry. Mode and effort help copy,
+the README, metadata, hero, and capability card now make the code-default two-mode boundary
+explicit. One small static contract is enforced by both `make check` and CI so those surfaces cannot
+silently re-advertise a future mode.
+
+**Preserved future work:** `ModeAgent`, `runOrchestrated`, and their scripted end-to-end tests remain
+inside `internal/engine`. Direct internal fixtures can still exercise them, but no v0.1 flag, slash
+command, help entry, README example, or website claim can select them. The code-mode tool-loop test
+and both dormant orchestration tests passed independently after the boundary changed.
+
+### Verification
+
+```sh
+go test ./internal/cli -run '^TestStoredCredentialBuildsComputedDefaultAgent$' -count=1
+go test ./internal/engine -run '^TestE2E_ToolLoopWithPersistenceAndRewind$' -count=1
+go test ./internal/engine -run '^TestE2E_(OrchestratedAgentMode|OrchestratorFallsBackOnSingleTask)$' -count=1
+./scripts/test.sh
+make fmt-check
+make vet
+make arch
+make purity
+make buildtags
+make platforms
+make lint
+make budgets
+make site
+make surface
+make release-check
+```
+
+All gates passed independently: 313 offline tests, five compile targets, zero lint issues, a 6.21
+MB binary, 4.4 ms cold-start p50, one root dependency, 46 site checks, seven v0.1 surface checks,
+and 24 release-artifact checks.
+
+### Next checkpoint
+
+T0.4b resumes the paused installer harness. It must remain fully offline until platform mapping,
+version selection, checksum failure safety, archive validation, and atomic installation are green.

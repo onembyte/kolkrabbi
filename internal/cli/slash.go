@@ -21,8 +21,8 @@ func (a *app) slash(ag *engine.Agent, line string) bool {
 	case "/exit", "/quit":
 		return true
 	case "/help":
-		fmt.Fprint(a.stdout, `/mode <chat|code|agent>   switch mode (agent = orchestrated)
-/effort <quick|standard|deep|ultra>   scale model tier + orchestration depth
+		fmt.Fprint(a.stdout, `/mode <chat|code>   switch mode (code is the default)
+/effort <quick|standard|deep|ultra>   select the configured model tier
 /model <id>    override the base model for this session
 /rate <1-5>    rate the last turn (feeds the local dashboard)
 /yolo          toggle auto-approve of tool actions
@@ -34,7 +34,7 @@ func (a *app) slash(ag *engine.Agent, line string) bool {
 `)
 	case "/mode":
 		if arg == "" {
-			fmt.Fprintf(a.stdout, "mode: %s (chat|code|agent)\n", ag.Mode)
+			fmt.Fprintf(a.stdout, "mode: %s (chat|code)\n", ag.Mode)
 			break
 		}
 		if err := ag.SetMode(arg); err != nil {

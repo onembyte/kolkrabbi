@@ -67,6 +67,9 @@ jobs:
       - name: static landing page
         run: make site
 
+      - name: v0.1 chat and code surface
+        run: make surface
+
       - name: release artifact contract
         run: make release-check
 

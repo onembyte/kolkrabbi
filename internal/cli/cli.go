@@ -162,7 +162,7 @@ func usageLine(name string) string {
 }
 
 func (a *app) printUsage() {
-	fmt.Fprint(a.stdout, `kolk — chat / code / agent in one CLI, any model, any provider
+	fmt.Fprint(a.stdout, `kolk — chat / code in one CLI, any model, any provider
 
 Usage:
   kolk                          interactive session (mode: code)
@@ -197,7 +197,6 @@ Env:
 
 Effort tiers map effort levels to models (quick→cheap, deep→frontier).
 Unset tiers fall back to the session model, so zero config always works.
-In agent mode, effort also scales orchestration width (2–6 subagent tasks).
 
 Project memory: KOLKRABBI.md or AGENTS.md in the working directory is added to
 the system prompt (like CLAUDE.md in Claude Code).

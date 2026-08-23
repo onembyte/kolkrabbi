@@ -1,9 +1,8 @@
-// Package agent ties the API client, tools, session persistence, file
-// checkpoints and local stats together, and implements the three modes:
+// Package engine ties the API client, tools, session persistence, file
+// checkpoints and local stats together, and implements the release modes:
 //
 //	chat  — plain conversation, no tools
 //	code  — the classic agentic coding loop (tools until a final answer)
-//	agent — orchestrated: plan → delegate to isolated subagents → synthesize
 package engine
 
 import (
@@ -34,12 +33,14 @@ const (
 
 // Modes and efforts.
 const (
-	ModeChat  = "chat"
-	ModeCode  = "code"
+	ModeChat = "chat"
+	ModeCode = "code"
+	// ModeAgent is experimental. It remains available to internal tests but is
+	// deliberately absent from Modes and every v0.1 user surface.
 	ModeAgent = "agent"
 )
 
-var Modes = []string{ModeChat, ModeCode, ModeAgent}
+var Modes = []string{ModeChat, ModeCode}
 
 const (
 	EffortQuick    = "quick"
@@ -60,7 +61,7 @@ const maxProjectMemory = 16 * 1024
 type Options struct {
 	Client   *provider.Client
 	Model    string // the session's base model
-	Mode     string // chat | code | agent (default code)
+	Mode     string // chat | code (default code)
 	Effort   string // quick | standard | deep | ultra (default standard)
 	Yolo     bool
 	Sess     *session.Session
@@ -121,7 +122,7 @@ func (a *Agent) SetMode(mode string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("unknown mode %q (chat|code|agent)", mode)
+	return fmt.Errorf("unknown mode %q (chat|code)", mode)
 }
 
 // SetEffort validates and sets the effort level.

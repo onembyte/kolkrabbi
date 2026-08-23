@@ -1,6 +1,10 @@
 package cli
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/onembyte/kolkrabbi/internal/engine"
+)
 
 // options are the settings one kolk run takes from its command line. Every
 // field is optional: an empty options must produce a working agent, because
@@ -31,9 +35,9 @@ type flagDef struct {
 var flagTable = []flagDef{
 	{long: "model", short: "m", arg: "<id>", summary: "use a specific model for this run",
 		set: func(o *options, v string) { o.model = v }},
-	{long: "mode", arg: "<chat|code|agent>", summary: "chat = no tools · code = tool loop · agent = orchestrated",
+	{long: "mode", arg: "<chat|code>", summary: "chat = no tools · code = tool loop (default)",
 		set: func(o *options, v string) { o.mode = v }},
-	{long: "effort", short: "e", arg: "<quick|standard|deep|ultra>", summary: "scale model tier and orchestration depth",
+	{long: "effort", short: "e", arg: "<quick|standard|deep|ultra>", summary: "select the configured model tier",
 		set: func(o *options, v string) { o.effort = v }},
 	{long: "print", short: "p", arg: "<prompt>", summary: "single-shot: run one turn, then exit",
 		set: func(o *options, v string) { o.prompt = v }},
@@ -117,5 +121,17 @@ func parseFlags(args []string) (*options, error) {
 	if o.prompt == "" && len(o.rest) > 0 {
 		o.prompt = strings.Join(o.rest, " ")
 	}
+	if o.mode != "" && !releaseMode(o.mode) {
+		return nil, usagef("unknown mode %q (chat|code)", o.mode)
+	}
 	return o, nil
+}
+
+func releaseMode(mode string) bool {
+	for _, candidate := range engine.Modes {
+		if mode == candidate {
+			return true
+		}
+	}
+	return false
 }

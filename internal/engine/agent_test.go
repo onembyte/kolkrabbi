@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -14,6 +15,21 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/session"
 	"github.com/onembyte/kolkrabbi/internal/stats"
 )
+
+func TestReleaseModesAreExactlyChatAndCode(t *testing.T) {
+	want := []string{ModeChat, ModeCode}
+	if !reflect.DeepEqual(Modes, want) {
+		t.Fatalf("release modes = %q, want %q", Modes, want)
+	}
+
+	ag := &Agent{Options: Options{Mode: ModeCode}}
+	if err := ag.SetMode(ModeAgent); err == nil {
+		t.Fatal("SetMode(agent) succeeded; the experimental mode must be unreachable in v0.1")
+	}
+	if ag.Mode != ModeCode {
+		t.Fatalf("rejected mode changed current mode to %q, want %q", ag.Mode, ModeCode)
+	}
+}
 
 func newTestAgent(t *testing.T, srv *enginetest.Server, mode string) (*Agent, *bytes.Buffer, string, string) {
 	t.Helper()

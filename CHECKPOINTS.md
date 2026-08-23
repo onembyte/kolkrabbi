@@ -70,12 +70,44 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   retro-octopus identity, and Cloudflare Pages deployment contract.
 - [x] **T0.3 first-run path** — `kolk` without a key prints the three-line guidance; with a key it
   enters a working session using computed defaults.
-- [~] **T0.4 release and installer** — tagged macOS/Linux artifacts, checksums, install script, and
+- [x] **R0.1 v0.1 two-mode surface** — ship only chat and code, with code as the default; keep the
+  experimental orchestrator unreachable until the later agentic phase.
+- [ ] **T0.4 release and installer** — tagged macOS/Linux artifacts, checksums, install script, and
   the exact public URL.
 - [ ] **T0.5 clean-machine rehearsal** — install, first run, key addition, and first model response
   from a machine with no Go toolchain or prior Kolkrabbi files.
 
-### T0.4 release and installer — active detail
+### R0.1 v0.1 two-mode surface — verified detail
+
+Scope:
+
+- Expose exactly `chat` and `code` through command-line flags, the REPL, help, the README, and the
+  landing page.
+- Keep `code` as the zero-configuration default so plain `kolk` starts the owner's first test in
+  code mode after credential setup.
+- Keep the existing experimental orchestration implementation and its offline tests intact, but
+  make it unreachable through every v0.1 user surface.
+
+Non-goals:
+
+- No installer, release workflow, tag, visibility, or public asset mutation in this checkpoint.
+- No deletion, redesign, expansion, or public documentation of the future agentic mode.
+- No model, provider, tool-loop, session, credential, or effort behavior change.
+
+Acceptance checklist:
+
+- [x] the public engine mode registry contains exactly `chat` and `code`, and rejects `agent`.
+- [x] `--mode chat` and `--mode code` parse; `--mode agent` is a usage error before runtime setup.
+- [x] `/mode agent` is rejected without changing the current mode, while `/help` lists only the
+  two release modes.
+- [x] CLI help, README, and landing-page v0.1 claims describe chat and code without advertising an
+  agent mode.
+- [x] zero-value engine options still select `code`, and focused code-mode behavior remains green.
+- [x] the dormant internal orchestration tests remain green, proving the future implementation was
+  preserved behind the release boundary.
+- [x] focused checks and the full repository gates pass, and the build log records red and green.
+
+### T0.4 release and installer — queued detail
 
 Scope:
 
@@ -103,7 +135,7 @@ Delivery slices:
 
 - [x] **T0.4a artifact contract** — deterministic four-target archive names, stamped build info,
   SHA-256 manifest, checksum signature config, and a snapshot content test.
-- [~] **T0.4b installer** — platform mapping, version discovery/pinning, download, verification,
+- [ ] **T0.4b installer** — platform mapping, version discovery/pinning, download, verification,
   safe extraction, PATH placement, atomic replacement, and offline failure matrix.
 - [ ] **T0.4c tag workflow** — tag-only Actions job, pinned tools, minimal permissions, config check,
   snapshot rehearsal, and no release from branches or pull requests.
