@@ -8,6 +8,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/secret"
 )
 
 func (a *app) runConfig(_ context.Context, args []string) error {
@@ -74,7 +75,7 @@ func (a *app) runConfig(_ context.Context, args []string) error {
 	case "show":
 		key := "(not set)"
 		if cfg.APIKey != "" {
-			key = maskKey(cfg.APIKey)
+			key = secret.Redact(cfg.APIKey)
 		}
 		fmt.Fprintf(a.stdout, "api_key:  %s\nmodel:    %s\nbase_url: %s\n",
 			key,
@@ -104,14 +105,4 @@ func validEffort(s string) bool {
 		}
 	}
 	return false
-}
-
-// maskKey shows just enough of a key to recognise it. It moves to
-// internal/secret at migration step 5, where it also starts running over
-// sessions, stats and logs rather than only this one screen.
-func maskKey(k string) string {
-	if len(k) <= 8 {
-		return "****"
-	}
-	return k[:6] + "…" + k[len(k)-4:]
 }

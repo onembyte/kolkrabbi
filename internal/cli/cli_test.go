@@ -208,19 +208,6 @@ func TestConfigRejectsAnUnknownEffortTier(t *testing.T) {
 	}
 }
 
-func TestMaskKey(t *testing.T) {
-	cases := map[string]string{
-		"":                     "****",
-		"short":                "****",
-		"sk-or-v1-abcdefghijk": "sk-or-…hijk",
-	}
-	for in, want := range cases {
-		if got := maskKey(in); got != want {
-			t.Errorf("maskKey(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
 func TestFormatPricing(t *testing.T) {
 	cases := []struct{ in, out, want string }{
 		{"0", "0", "free"},

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -116,4 +117,110 @@ func TestStreamChat_HTTPError(t *testing.T) {
 	if !strings.Contains(err.Error(), "401") {
 		t.Errorf("error = %v, want it to mention 401", err)
 	}
+}
+
+// The credential must reach the server and nothing else.
+//
+// Before secret.AuthTransport, StreamChat built the Authorization header on the
+// request it owned, so any error path or debug line that printed that request
+// with %+v published the key — http.Header is a plain map and cannot redact.
+func TestKeyNeverAppearsInAnythingPrintable(t *testing.T) {
+	const key = "sk-or-v1-0123456789abcdef0123456789abcdef"
+
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(key)
+	c.BaseURL = srv.URL
+
+	if _, err := c.ListModels(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got != "Bearer "+key {
+		t.Errorf("the server received %q; authentication did not arrive", got)
+	}
+
+	// The precise invariant: bypass the auth transport entirely and inspect
+	// the request this package actually built. If any code here sets the
+	// header itself, it shows up on the request the caller holds — and that is
+	// the request that lands in a log line or an error with %+v.
+	bare := NewClient(key)
+	bare.BaseURL = srv.URL
+	rec := &recordingTransport{}
+	bare.HTTPClient = &http.Client{Transport: rec}
+
+	_, _ = bare.ListModels(context.Background())
+	if h := rec.last.Header.Get("Authorization"); h != "" {
+		t.Errorf("ListModels put the credential on its own request: %q", h)
+	}
+	_, _, _ = bare.StreamChat(context.Background(), "m", []Message{{Role: "user", Content: "x"}}, nil, nil)
+	if h := rec.last.Header.Get("Authorization"); h != "" {
+		t.Errorf("StreamChat put the credential on its own request: %q", h)
+	}
+
+	// Every way someone might print the client while debugging a failed call.
+	for name, dump := range map[string]string{
+		"%v":         fmt.Sprintf("%v", c),
+		"%+v":        fmt.Sprintf("%+v", c),
+		"%#v":        fmt.Sprintf("%#v", c),
+		"transport":  fmt.Sprintf("%+v", c.HTTPClient.Transport),
+		"key":        fmt.Sprintf("%+v", c.Key()),
+		"httpclient": fmt.Sprintf("%+v", c.HTTPClient),
+	} {
+		if strings.Contains(dump, key) {
+			t.Errorf("printing the client with %s leaked the key:\n%s", name, dump)
+		}
+	}
+	if !c.HasKey() {
+		t.Error("HasKey() = false after NewClient with a key")
+	}
+}
+
+// A gateway that rejects a request will happily echo the Authorization header
+// it received straight back in the error body.
+func TestProviderErrorsAreScrubbed(t *testing.T) {
+	const key = "sk-or-v1-0123456789abcdef0123456789abcdef"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":{"message":"invalid key: ` + key + `"}}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(key)
+	c.BaseURL = srv.URL
+
+	_, err := c.ListModels(context.Background())
+	if err == nil {
+		t.Fatal("a 401 should be an error")
+	}
+	if strings.Contains(err.Error(), key) {
+		t.Errorf("the provider error echoed the key back: %v", err)
+	}
+
+	_, _, err = c.StreamChat(context.Background(), "m", []Message{{Role: "user", Content: "x"}}, nil, nil)
+	if err == nil {
+		t.Fatal("a 401 should be an error")
+	}
+	if strings.Contains(err.Error(), key) {
+		t.Errorf("the streaming error echoed the key back: %v", err)
+	}
+}
+
+// recordingTransport keeps the last request it was handed, unmodified.
+type recordingTransport struct{ last *http.Request }
+
+func (t *recordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	t.last = req
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(`{"data":[]}`)),
+		Request:    req,
+	}, nil
 }

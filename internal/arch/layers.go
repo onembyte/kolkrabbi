@@ -76,6 +76,7 @@ var packageLayer = map[string]Layer{
 	"internal/paths":      L0Platform,
 	"internal/shell":      L0Platform,
 	"internal/atomicfile": L0Platform,
+	"internal/secret":     L0Platform,
 
 	// L2 — the hinge. Arrives at step 7.
 
@@ -133,6 +134,15 @@ var osOwner = map[string]string{
 	"os.UserConfigDir": "internal/paths",
 	"os.UserCacheDir":  "internal/paths",
 }
+
+// authHeaders are request headers that carry a credential. Building one is
+// internal/secret's job and nobody else's: an http.Header is a plain map of
+// strings, so once a key is in one, no amount of care elsewhere can redact it
+// out of a %+v on the request.
+var authHeaders = []string{"Authorization", "X-Api-Key", "Api-Key", "Proxy-Authorization"}
+
+// authHeaderOwner is the one package permitted to set them.
+const authHeaderOwner = "internal/secret"
 
 // bannedFilenames are names that describe nothing. A file is named for the one
 // concept it holds; if no such name exists, the file is holding two.

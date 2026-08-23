@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/onembyte/kolkrabbi/internal/secret"
 )
 
 const DefaultBaseURL = "https://openrouter.ai/api/v1"
@@ -104,12 +106,18 @@ type streamChunk struct {
 }
 
 type Client struct {
-	APIKey     string
-	BaseURL    string
+	BaseURL string
+	// HTTPClient carries the credential in its Transport, not in any request
+	// this package builds. Replacing it wholesale removes authentication —
+	// which is what a test wants, and what nothing else should do.
 	HTTPClient *http.Client
 	// AppName/AppURL are sent as OpenRouter's attribution headers.
 	AppName string
 	AppURL  string
+
+	// auth holds the key. It is unexported so the only way to read it back is
+	// through a Secret, and it is never copied into a request here.
+	auth *secret.AuthTransport
 }
 
 func NewClient(apiKey string) *Client {
@@ -119,13 +127,45 @@ func NewClient(apiKey string) *Client {
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	tr.ResponseHeaderTimeout = 60 * time.Second
 	tr.TLSHandshakeTimeout = 15 * time.Second
+
+	// The Authorization header is attached inside secret.AuthTransport, on a
+	// clone of the request, so no request this package builds ever contains the
+	// key. That matters because %+v on an *http.Request prints Header, and
+	// http.Header is a plain map that cannot redact anything — a failing call
+	// logged with %+v was, until now, a published key.
+	auth := &secret.AuthTransport{
+		Token: secret.New(apiKey),
+		Base:  tr,
+	}
 	return &Client{
-		APIKey:     apiKey,
 		BaseURL:    DefaultBaseURL,
-		HTTPClient: &http.Client{Transport: tr},
+		HTTPClient: &http.Client{Transport: auth},
 		AppName:    "Kolkrabbi",
+		auth:       auth,
 	}
 }
+
+// Key returns the configured credential. It is a Secret, so printing it is
+// safe and using it requires calling Reveal.
+func (c *Client) Key() secret.Secret {
+	if c.auth == nil {
+		return secret.Secret{}
+	}
+	return c.auth.Token
+}
+
+// SetKey replaces the credential. It updates the transport rather than any
+// stored request, so the change applies to every subsequent call.
+func (c *Client) SetKey(key secret.Secret) {
+	if c.auth == nil {
+		c.auth = &secret.AuthTransport{Base: http.DefaultTransport}
+		c.HTTPClient = &http.Client{Transport: c.auth}
+	}
+	c.auth.Token = key
+}
+
+// HasKey reports whether a credential is configured.
+func (c *Client) HasKey() bool { return !c.Key().IsZero() }
 
 // StreamChat sends a chat completion request with streaming enabled. onToken
 // is called for every content delta as it arrives (for live terminal output).
@@ -133,7 +173,7 @@ func NewClient(apiKey string) *Client {
 // plus per-call usage/cost metadata when the server reports it.
 func (c *Client) StreamChat(ctx context.Context, model string, messages []Message, tools []Tool, onToken func(string)) (Message, Meta, error) {
 	meta := Meta{Model: model}
-	if c.APIKey == "" {
+	if !c.HasKey() {
 		return Message{}, meta, fmt.Errorf("no API key set (run: kolk config set-key <KEY>, or export OPENROUTER_API_KEY)")
 	}
 	reqBody := chatRequest{
@@ -156,7 +196,7 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []Messag
 		return Message{}, meta, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.APIKey)
+	// No Authorization here, deliberately: see NewClient. The transport adds it.
 	if c.AppURL != "" {
 		req.Header.Set("HTTP-Referer", c.AppURL)
 	}
@@ -173,7 +213,8 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []Messag
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		return Message{}, meta, fmt.Errorf("openrouter: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+		return Message{}, meta, secret.ScrubError(
+			fmt.Errorf("openrouter: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(b))))
 	}
 
 	var contentBuilder strings.Builder
@@ -274,9 +315,6 @@ func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	if c.APIKey != "" {
-		req.Header.Set("Authorization", "Bearer "+c.APIKey)
-	}
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -284,7 +322,8 @@ func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("openrouter: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+		return nil, secret.ScrubError(
+			fmt.Errorf("openrouter: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(b))))
 	}
 	var out struct {
 		Data []ModelInfo `json:"data"`

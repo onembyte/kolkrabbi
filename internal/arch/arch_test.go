@@ -430,6 +430,43 @@ func hasBuildConstraint(f goFile) bool {
 	return false
 }
 
+// A credential must only ever become a header inside internal/secret, on a
+// request clone that never escapes. This is the rule behind that: any other
+// package setting an auth header is putting the key on an object a caller
+// holds and may print.
+func TestOnlySecretBuildsAuthHeaders(t *testing.T) {
+	for _, f := range parseTree(t) {
+		if f.pkg == authHeaderOwner || f.isTest() {
+			continue
+		}
+		ast.Inspect(f.ast, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok || len(call.Args) == 0 {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || (sel.Sel.Name != "Set" && sel.Sel.Name != "Add") {
+				return true
+			}
+			lit, ok := call.Args[0].(*ast.BasicLit)
+			if !ok || lit.Kind != token.STRING {
+				return true
+			}
+			name, err := strconv.Unquote(lit.Value)
+			if err != nil {
+				return true
+			}
+			for _, h := range authHeaders {
+				if strings.EqualFold(name, h) {
+					t.Errorf("%s sets the %s header at %s; only %s may — a header is a plain map and cannot redact itself\n\tuse secret.AuthTransport",
+						f.rel, h, f.fset.Position(call.Pos()), authHeaderOwner)
+				}
+			}
+			return true
+		})
+	}
+}
+
 func TestNoBannedNames(t *testing.T) {
 	seenPkg := map[string]bool{}
 	for _, f := range parseTree(t) {
