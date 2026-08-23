@@ -637,8 +637,15 @@ A6.2c is split at the execution and decision boundaries so tool ownership cannot
 permission state or outcome data:
 
 - [x] **A6.2c1 requested invocation** — `tool.requested` identity, raw arguments, and executor.
-- [ ] **A6.2c2 execution lifecycle** — `tool.started`, `tool.output`, and `tool.finished`.
+- [~] **A6.2c2 execution lifecycle** — `tool.started`, `tool.output`, and `tool.finished`.
 - [ ] **A6.2c3 permission decisions** — `permission.requested` and `permission.resolved`.
+
+A6.2c2 is split again because beginning execution, carrying output, and recording the terminal
+outcome have different required facts:
+
+- [x] **A6.2c2a execution started** — `tool.started` correlation and executor.
+- [ ] **A6.2c2b execution output** — `tool.output` correlation, content, and executor.
+- [ ] **A6.2c2c execution finished** — `tool.finished` correlation, outcome, and executor.
 
 #### A6.1 envelope foundation acceptance
 
@@ -839,6 +846,40 @@ Acceptance checklist:
   decode successfully.
 - [x] the typed payload decodes the golden, marshals in schema field order, and the complete envelope
   round-trips byte-for-byte without normalizing argument bytes.
+- [x] an unknown payload field remains in the raw envelope after decode.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.2c2a execution started acceptance
+
+Scope:
+
+- Define `tool.started` as a public event name with one schema, typed payload, and compact golden
+  envelope.
+- Require the non-empty tool-call `id` used by `tool.requested` and repeat the same `executor`
+  ownership value so a lifecycle line never loses the `kolk` versus `provider` safety distinction.
+- Keep the event additive with unknown payload fields retained by the envelope.
+
+Non-goals:
+
+- No repeated tool name or arguments; `tool.requested` remains authoritative for the invocation.
+- No output, success/error state, duration, start timestamp, process ID, permission state, or progress
+  metadata. The envelope owns event time, and later execution events own output and outcome.
+- No cross-event ID/executor consistency check, provider translation, tool runner instrumentation,
+  permission engine, event bus, persistence, transport, or CLI output change.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the constant exactly matches the schema filename and golden-envelope type value.
+- [x] the schema requires exactly non-empty `id` and `executor`, permits unknown fields, and restricts
+  executor to `kolk` or `provider`.
+- [x] missing, empty, null, and non-string IDs fail closed.
+- [x] missing, empty, null, non-string, and unknown executors fail closed, while both defined values
+  decode successfully.
+- [x] the typed payload decodes the golden, marshals in schema field order, and the complete envelope
+  round-trips byte-for-byte.
 - [x] an unknown payload field remains in the raw envelope after decode.
 - [x] the public package remains standard-library-only and disconnected from existing packages.
 - [x] focused tests, architecture gates, full repository gates, and the build log are green.

@@ -1399,3 +1399,51 @@ checks, nine mode-surface checks, 56 installer checks, and all release contracts
 A6.2c2 audits and freezes `tool.started`, `tool.output`, and `tool.finished` as an independent
 execution-lifecycle slice. Permission events remain separate. Publishing, the public tag, and the
 clean-machine rehearsal remain postponed.
+
+---
+
+## Architecture migration / A6.2c2a — tool execution started
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 177 · **Host tests:** 492 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+This slice freezes `tool.started` independently from output and outcome. Its payload contains only
+the non-empty tool-call correlation ID and the executor inherited from `tool.requested`. Repeating
+ownership on every lifecycle line preserves the safety-critical distinction between a Kolkrabbi-run
+tool and work already delegated to a provider backend.
+
+The request event remains authoritative for name and arguments, while the envelope owns event time.
+Output, terminal status, duration, permission state, process identity, progress, cross-event
+consistency, and engine instrumentation remain outside this checkpoint.
+
+### TDD record
+
+**Red:** after adding the schema, compact golden frame, changelog entry, and invalid-value matrix,
+`go test -count=1 ./protocol` failed to compile only because `EventToolStarted` and
+`ToolStartedData` were undefined.
+
+**Green:** the new constant and typed payload now match the language-neutral artifacts. Known-event
+validation rejects missing or malformed correlation IDs and rejects missing, wrongly typed, or
+unknown executors while accepting both `kolk` and `provider`.
+
+**Refactor:** one `validToolExecutor` helper now enforces the same closed ownership vocabulary for
+both requested and started events. Tests also prove schema field order, byte-stable golden
+round-trip, Unicode unknown-field retention, and continued forward compatibility.
+
+### Verification
+
+```sh
+go test -count=1 ./protocol
+go vet ./protocol
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 492 tests, five compile
+targets, zero lint issues, a 6.21 MB binary, 4.4 ms cold-start p50, one root dependency, 93 site
+checks, nine mode-surface checks, 56 installer checks, and all release contracts unchanged.
+
+### Next checkpoint
+
+A6.2c2b audits and freezes `tool.output` content semantics without deciding terminal success or
+failure. Publishing, the public tag, and the clean-machine rehearsal remain postponed.

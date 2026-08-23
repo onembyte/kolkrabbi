@@ -20,6 +20,8 @@ const (
 	EventReasoningDelta EventType = "reasoning.delta"
 	// EventToolRequested announces one complete tool invocation.
 	EventToolRequested EventType = "tool.requested"
+	// EventToolStarted announces that one requested invocation began execution.
+	EventToolStarted EventType = "tool.started"
 	// EventSessionStarted announces the initial live-session projection.
 	EventSessionStarted EventType = "session.started"
 	// EventSessionUpdated carries a non-empty patch to the live-session projection.
@@ -66,6 +68,10 @@ const (
 	ToolExecutorProvider ToolExecutor = "provider"
 )
 
+func validToolExecutor(executor ToolExecutor) bool {
+	return executor == ToolExecutorKolk || executor == ToolExecutorProvider
+}
+
 // ToolRequestedData is the payload of EventToolRequested. Arguments retains
 // the provider's complete JSON text without normalization.
 type ToolRequestedData struct {
@@ -73,6 +79,12 @@ type ToolRequestedData struct {
 	Name      string       `json:"name"`
 	Arguments string       `json:"arguments"`
 	Executor  ToolExecutor `json:"executor"`
+}
+
+// ToolStartedData is the payload of EventToolStarted.
+type ToolStartedData struct {
+	ID       string       `json:"id"`
+	Executor ToolExecutor `json:"executor"`
 }
 
 // SessionStartedData is the payload of EventSessionStarted.
@@ -188,7 +200,19 @@ func validateEventData(event EventType, raw json.RawMessage) error {
 		if !json.Valid([]byte(data.Arguments)) {
 			return fmt.Errorf("protocol: %s data.arguments must contain valid JSON", event)
 		}
-		if data.Executor != ToolExecutorKolk && data.Executor != ToolExecutorProvider {
+		if !validToolExecutor(data.Executor) {
+			return fmt.Errorf("protocol: %s data.executor must be %q or %q", event, ToolExecutorKolk, ToolExecutorProvider)
+		}
+		return nil
+	case EventToolStarted:
+		var data ToolStartedData
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		if data.ID == "" {
+			return fmt.Errorf("protocol: %s data.id must be non-empty", event)
+		}
+		if !validToolExecutor(data.Executor) {
 			return fmt.Errorf("protocol: %s data.executor must be %q or %q", event, ToolExecutorKolk, ToolExecutorProvider)
 		}
 		return nil
