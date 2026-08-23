@@ -1,0 +1,62 @@
+package cli
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"os/signal"
+	"strings"
+
+	"github.com/onembyte/kolkrabbi/internal/engine"
+)
+
+// repl is the interactive loop. It returns nil on EOF (Ctrl+D) or /exit; a
+// failed turn is reported and the loop continues, because losing a session to
+// one transport hiccup is the wrong trade.
+func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
+	resumedNote := ""
+	if n := len(ag.Sess.Messages); n > 1 {
+		resumedNote = fmt.Sprintf("  (resumed, %d messages)", n-1)
+	}
+	fmt.Fprintf(a.stdout, "kolk — mode: %s · effort: %s · model: %s%s\nsession: %s%s\n",
+		ag.Mode, ag.Effort, ag.Model, yoloTag(ag.Yolo), ag.Sess.ID, resumedNote)
+	fmt.Fprintln(a.stdout, "Type your request, or /help for commands. Ctrl+C interrupts a turn, /exit quits.")
+
+	for {
+		fmt.Fprintf(a.stdout, "\n\033[1m%s>\033[0m ", ag.Mode)
+		line, err := a.in.ReadString('\n')
+		if err != nil {
+			return nil // EOF (Ctrl+D)
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		if strings.HasPrefix(line, "/") {
+			if a.slash(ag, line) {
+				return nil
+			}
+			continue
+		}
+
+		// Per-turn interrupt: Ctrl+C cancels this turn only, not the REPL.
+		tctx, stop := signal.NotifyContext(ctx, os.Interrupt)
+		err = ag.RunTurn(tctx, line)
+		stop()
+		switch {
+		case errors.Is(err, context.Canceled):
+			fmt.Fprintln(a.stdout, "\033[2m(interrupted)\033[0m")
+		case err != nil:
+			fmt.Fprintf(a.stderr, "\033[31merror:\033[0m %v\n", err)
+		}
+	}
+}
+
+func yoloTag(yolo bool) string {
+	if yolo {
+		return "  (yolo: auto-approving tool actions)"
+	}
+	return ""
+}
