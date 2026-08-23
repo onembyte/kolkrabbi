@@ -87,3 +87,6 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify every published release artifact
+        run: ./scripts/verify-release.sh "$GITHUB_REF_NAME"

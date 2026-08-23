@@ -139,8 +139,10 @@ Delivery slices:
   safe extraction, PATH placement, atomic replacement, and offline failure matrix.
 - [x] **T0.4c tag workflow** — tag-only Actions job, pinned tools, minimal permissions, config check,
   snapshot rehearsal, and no release from branches or pull requests.
-- [ ] **T0.4d public cutover** — explicit owner approval for private→public, `v0.1.0`, asset/signature
-  verification, Pages deployment, public shell syntax check, and handoff to T0.5.
+- [x] **T0.4d1 release verifier** — independently authenticate the published checksum bundle,
+  inspect all four assets, and execute the host build before any owner-test claim.
+- [ ] **T0.4d2 public cutover** — explicit owner approval for the artifact host, `v0.1.0`, live
+  asset/Pages verification, and handoff to T0.5.
 
 Release blocker recorded on 2026-08-23: GitHub reports `onembyte/kolkrabbi` as **private**. The
 pipeline and installer can be built and tested privately, but an unauthenticated public installer
@@ -177,6 +179,21 @@ cannot download its GitHub Release assets until the owner approves the repositor
 - [x] GoReleaser is fixed to the snapshot-tested v2.17.1 and publishes with `release --clean` using
   only the repository-scoped `GITHUB_TOKEN`.
 - [x] a fast workflow contract is enforced by `make check` and ordinary branch/PR CI.
+
+#### T0.4d1 release verifier acceptance
+
+- [x] a strict v-prefixed SemVer selects one immutable GitHub Release path and exact signer identity.
+- [x] `checksums.txt` and its Sigstore bundle download first; Cosign must authenticate the bundle,
+  release workflow, tag, and GitHub OIDC issuer before any archive download.
+- [x] the signed manifest contains exactly the four expected archive names and one lowercase
+  SHA-256 for each; unknown, missing, duplicate, or malformed rows fail closed.
+- [x] every archive matches its signed digest and contains exactly regular `kolk`, `README.md`, and
+  `LICENSE` members.
+- [x] the host archive executes and reports the requested version plus matching OS/architecture,
+  never an unstamped `dev` identity.
+- [x] signature, download, checksum, manifest, archive, and build-identity failures are covered
+  offline; the live release workflow runs the same verifier after publishing.
+- [x] the verifier contract is part of ordinary CI and the complete repository gate passes.
 
 ### T0.3 first-run path — detail
 

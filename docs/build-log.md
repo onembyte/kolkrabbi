@@ -875,3 +875,58 @@ T0.4d is now the only remaining cutover slice. An unauthenticated installer cann
 assets from the private repository. Changing visibility and pushing `v0.1.0` are intentionally
 blocked on explicit owner approval; keeping the source private instead requires a different public
 artifact origin and an installer contract change.
+
+---
+
+## Owner trial / T0.4d1 — signed public-release verifier
+
+**Status:** done, 2026-08-23 · **Verifier contract:** 30 · **Host tests:** 313 ·
+**ShellCheck:** clean · **actionlint:** v1.7.12
+
+`scripts/verify-release.sh` now provides one fail-closed verdict for a published tag. It validates
+strict v-prefixed SemVer before any network operation, downloads the checksum manifest and Sigstore
+bundle first, and asks Cosign to authenticate the exact tag-bound release workflow identity and
+GitHub Actions OIDC issuer. Only then does it accept and download the four expected Darwin/Linux ×
+amd64/arm64 archives.
+
+### TDD record
+
+**Red:** before the production script existed, the focused contract failed 12/14 checks. It named
+the absent Bash/fail-closed boundary, fixed release origin and bundle, exact OIDC issuer and workflow
+identity, Cosign verification, final execution sentinel, and post-publish workflow call. The
+black-box matrix correctly refused to run without an implementation.
+
+**Green:** the verifier now requires exactly one lowercase SHA-256 for every expected archive and
+rejects unknown, missing, duplicate, or malformed manifest rows. Each downloaded digest is checked
+against the authenticated manifest. Tar inspection then permits exactly one regular `kolk`,
+`README.md`, and `LICENSE`, with no link or extra path. Finally, the host archive is extracted into
+the private staging directory and its `kolk version` output must match the requested release and
+host OS/architecture rather than `dev`.
+
+**Adversarial refactor:** 30 offline checks prove invalid tags make no request, failed signatures
+stop before archive downloads, exactly four archives are fetched, tampered bytes fail, a fifth
+asset fails, duplicate/missing and malformed manifest rows fail, a missing download fails, an
+unexpected archive member fails, and an unstamped host build fails. The release workflow invokes
+this same script only after GoReleaser reports a successful publish. Ordinary CI and `make check`
+enforce the contract before any tag can reach that workflow.
+
+### Verification
+
+```sh
+bash -n scripts/verify-release.sh scripts/test-release-verifier.sh
+shellcheck -x scripts/verify-release.sh scripts/test-release-verifier.sh
+make release-check release-workflow-check release-verifier-check
+actionlint .github/workflows/ci.yml .github/workflows/release.yml
+make check
+```
+
+The complete gate passed with 313 Go tests, five compile targets, zero lint issues, a 6.21 MB
+binary, 4.9 ms cold-start p50, one root dependency, 46 site checks, seven two-mode checks, 56
+installer checks, 24 release checks, 41 workflow checks, and 30 release-verifier checks.
+
+### Remaining cutover boundary
+
+T0.4d2 remains intentionally separate. No repository visibility, tag, release, or public artifact
+setting changed in this checkpoint. The exact three-command owner trial is still unavailable until
+the owner authorizes either a public repository or a separate public release-artifact origin, after
+which `v0.1.0` can be published and verified live.
