@@ -25,25 +25,39 @@ builds:
       - -X github.com/onembyte/kolkrabbi/internal/buildinfo.version={{.Version}}
       - -X github.com/onembyte/kolkrabbi/internal/buildinfo.commit={{.FullCommit}}
       - -X github.com/onembyte/kolkrabbi/internal/buildinfo.date={{.Date}}
-    goos: [darwin, linux, windows]
+    goos: [darwin, linux]
     goarch: [amd64, arm64]
 
 archives:
   - id: kolk
     ids: [kolk]
+    name_template: "kolk_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     formats: [tar.gz]
-    format_overrides:
-      - goos: windows
-        formats: [zip]
     files:
       - README.md
       - LICENSE
 
 checksum:
   name_template: checksums.txt
+  algorithm: sha256
+
+# Sign the one SHA-256 manifest rather than each archive independently. The
+# bundle carries Cosign's keyless certificate and signature together; a user
+# can authenticate every archive by verifying this file once, then its digest.
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - --yes
+    artifacts: checksum
 
 snapshot:
-  version_template: "{{ incpatch .Version }}-dev"
+  # The historical prototype tag is `proto-0`, intentionally not SemVer.
+  # Snapshot validation must still work before the first v0.1.0 tag exists.
+  version_template: "0.1.0-dev.{{ .ShortCommit }}"
 
 changelog:
   use: github

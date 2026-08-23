@@ -70,12 +70,51 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   retro-octopus identity, and Cloudflare Pages deployment contract.
 - [x] **T0.3 first-run path** — `kolk` without a key prints the three-line guidance; with a key it
   enters a working session using computed defaults.
-- [ ] **T0.4 release and installer** — tagged macOS/Linux artifacts, checksums, install script, and
+- [~] **T0.4 release and installer** — tagged macOS/Linux artifacts, checksums, install script, and
   the exact public URL.
 - [ ] **T0.5 clean-machine rehearsal** — install, first run, key addition, and first model response
   from a machine with no Go toolchain or prior Kolkrabbi files.
 
-### T0.3 first-run path — active detail
+### T0.4 release and installer — active detail
+
+Scope:
+
+- Publish one versioned `kolk` archive for Darwin and Linux on amd64 and arm64, with cgo disabled,
+  build identity stamped, SHA-256 checksums, and a keyless Sigstore signature over the checksum
+  manifest.
+- Trigger releases only from a semantic `v*` tag through a minimal-permission GitHub Actions job.
+- Serve one reviewed `site/install.sh` that discovers the latest release, selects the exact target,
+  verifies its SHA-256 before extraction, and installs `kolk` into an explicit or usable PATH
+  directory.
+- Prove archive contents, installer behavior, failure safety, and the public URLs before declaring
+  the owner trial installable.
+
+Non-goals:
+
+- No Windows artifact while Windows locking remains an explicit runtime stub.
+- No Homebrew, Scoop, Winget, AUR, deb/rpm, auto-updater, desktop bundle, notarization, or package
+  manager receipt.
+- No installer execution with root privileges in tests and no live release mutation before every
+  offline contract and snapshot is green.
+- No claim that a checksum downloaded beside an archive replaces signature/provenance verification;
+  the release publishes the Sigstore bundle separately and the installer enforces SHA-256 integrity.
+
+Delivery slices:
+
+- [x] **T0.4a artifact contract** — deterministic four-target archive names, stamped build info,
+  SHA-256 manifest, checksum signature config, and a snapshot content test.
+- [~] **T0.4b installer** — platform mapping, version discovery/pinning, download, verification,
+  safe extraction, PATH placement, atomic replacement, and offline failure matrix.
+- [ ] **T0.4c tag workflow** — tag-only Actions job, pinned tools, minimal permissions, config check,
+  snapshot rehearsal, and no release from branches or pull requests.
+- [ ] **T0.4d public cutover** — explicit owner approval for private→public, `v0.1.0`, asset/signature
+  verification, Pages deployment, public shell syntax check, and handoff to T0.5.
+
+Release blocker recorded on 2026-08-23: GitHub reports `onembyte/kolkrabbi` as **private**. The
+pipeline and installer can be built and tested privately, but an unauthenticated public installer
+cannot download its GitHub Release assets until the owner approves the repository visibility change.
+
+### T0.3 first-run path — detail
 
 Scope:
 

@@ -638,3 +638,55 @@ zero lint issues, a 6.21 MB binary, 4.9 ms cold-start p50, one root dependency, 
 
 T0.4 owns the release boundary: versioned macOS/Linux archives, checksums, a reviewed installer,
 and the exact public `/install.sh` route. Nothing in T0.3 claims that URL is ready.
+
+---
+
+## Owner trial / T0.4a — release artifact contract
+
+**Status:** done, 2026-08-23 · **Host tests:** 308 · **Release contract:** 24 ·
+**Snapshot contract:** 21 · **GoReleaser:** v2.17.1 · **Targets:** 4
+
+The CLI release now has one deterministic archive for Darwin/Linux on amd64/arm64 and no Windows
+asset. Every build is cgo-free and trimpath-stamped with version, full commit, and release date.
+The archives contain `kolk`, README, and Apache-2.0 LICENSE; `checksums.txt` is explicitly SHA-256
+and the tag workflow will produce a Cosign v3 `.sigstore.json` bundle over that manifest.
+
+### TDD record
+
+**Red — static contract:** the first release test failed 8/21 checks. The prior skeleton included
+Windows and zip output, left archive names to defaults, relied on an implicit checksum algorithm,
+and contained no signing command, signature bundle, or checksum-artifact binding.
+
+**Green:** `.goreleaser.yaml` now names `kolk_{{ .Version }}_{{ .Os }}_{{ .Arch }}.tar.gz`, lists
+only the four supported targets, states SHA-256, and follows GoReleaser's current Cosign v3 bundle
+configuration for signing the checksum manifest once. A second red step required the fast static
+contract to be called by both `make check` and CI; it failed 2/24 before those entries were added.
+
+**Executable snapshot red:** GoReleaser's own validator accepted the YAML, but the first snapshot
+aborted before building. The historical `proto-0` tag is intentionally not SemVer, while the old
+snapshot template called `incpatch .Version`. Snapshot identity is now the explicit prerelease
+`0.1.0-dev.<short-commit>`; real tag releases still derive their version from the semantic tag.
+
+**Snapshot green:** the official GoReleaser v2.17.1 Darwin/arm64 validator was downloaded to a
+temporary directory and matched its official SHA-256. The repeatable snapshot script then built
+and inspected all four archives, rejected Windows/zip output, required the three archive members,
+matched all four SHA-256 values, and executed the host artifact. It reported
+`0.1.0-dev.3773c79` and `darwin/arm64` rather than `dev`.
+
+### Verification
+
+```sh
+./scripts/test-release.sh
+KOLK_GORELEASER_BIN=/path/to/goreleaser-v2.17.1 ./scripts/test-release-snapshot.sh
+make check
+```
+
+The complete gate remains green: 308 host tests, five compile targets, zero lint issues, 6.21 MB,
+4.3 ms cold-start p50, one dependency, 44 site checks, and 24 release checks. Primary configuration
+references: https://goreleaser.com/customization/sign/sign/ and
+https://goreleaser.com/customization/package/checksum/.
+
+### Next slice
+
+T0.4b builds and attacks the installer entirely offline. No tag, GitHub Release, public visibility,
+or `/install.sh` production claim is made by T0.4a.

@@ -47,7 +47,7 @@ fmt-check: ## fail if anything needs gofmt
 	@unformatted="$$(gofmt -l .)"; \
 	if [ -n "$$unformatted" ]; then echo "these files need gofmt:"; echo "$$unformatted"; exit 1; fi
 
-.PHONY: arch purity buildtags platforms budgets site
+.PHONY: arch purity buildtags platforms budgets site release-check
 arch: ## layering, dependency and naming rules
 	./scripts/check-arch.sh
 purity: ## the engine touches no OS
@@ -60,6 +60,8 @@ budgets: ## binary size, cold start, test floor, dependency count
 	./scripts/check-budgets.sh
 site: ## static landing-page content, safety and deployment contract
 	./scripts/test-site.sh
+release-check: ## static archive, checksum and signing contract
+	./scripts/test-release.sh
 
 .PHONY: lint
 lint: ## golangci-lint, if it is installed
@@ -73,7 +75,7 @@ lint: ## golangci-lint, if it is installed
 	fi
 
 .PHONY: check
-check: fmt-check vet test arch purity buildtags platforms lint budgets site ## everything CI runs
+check: fmt-check vet test arch purity buildtags platforms lint budgets site release-check ## everything CI runs
 
 .PHONY: workspace
 workspace: ## write a gitignored go.work so gopls sees every module
