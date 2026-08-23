@@ -31,14 +31,3 @@ func TestResolveBaseURL(t *testing.T) {
 		})
 	}
 }
-
-func TestResolveAPIKeyPrefersEnv(t *testing.T) {
-	t.Setenv("OPENROUTER_API_KEY", "env-key")
-	if got := ResolveAPIKey(&Config{APIKey: "cfg-key"}); got != "env-key" {
-		t.Errorf("ResolveAPIKey = %q, want env-key", got)
-	}
-	t.Setenv("OPENROUTER_API_KEY", "")
-	if got := ResolveAPIKey(&Config{APIKey: "cfg-key"}); got != "cfg-key" {
-		t.Errorf("ResolveAPIKey = %q, want cfg-key", got)
-	}
-}

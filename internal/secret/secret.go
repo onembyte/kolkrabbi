@@ -8,12 +8,12 @@
 //
 // So the defence is a type that cannot be printed by accident:
 //
-//	fmt.Println(key)          // sk-or-…f4a2
-//	fmt.Printf("%v", key)     // sk-or-…f4a2
-//	fmt.Printf("%+v", key)    // sk-or-…f4a2
-//	fmt.Printf("%#v", key)    // sk-or-…f4a2
-//	log.Printf("%s", cfg)     // sk-or-…f4a2  (nested in any struct)
-//	json.Marshal(key)         // "sk-or-…f4a2"
+//	fmt.Println(key)          // sk-or-v1-…f4a2
+//	fmt.Printf("%v", key)     // sk-or-v1-…f4a2
+//	fmt.Printf("%+v", key)    // sk-or-v1-…f4a2
+//	fmt.Printf("%#v", key)    // sk-or-v1-…f4a2
+//	log.Printf("%s", cfg)     // sk-or-v1-…f4a2  (nested in any struct)
+//	json.Marshal(key)         // "sk-or-v1-…f4a2"
 //	key.Reveal()              // sk-or-v1-abcdef…f4a2  — the only way, and it is greppable
 //
 // The one place this defence historically fails is HTTP. A Secret that redacts
@@ -28,6 +28,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/onembyte/kolkrabbi/internal/redact"
 )
 
 // Secret is an API key. Its zero value is "no key", which is a valid state:
@@ -97,15 +99,10 @@ func (s *Secret) UnmarshalJSON(b []byte) error {
 // nothing at all: with fewer than 12 characters there is no way to show both
 // ends without showing most of it.
 func Redact(key string) string {
-	key = strings.TrimSpace(key)
-	switch {
-	case key == "":
+	if strings.TrimSpace(key) == "" {
 		return "(none)"
-	case len(key) < 12:
-		return "****"
-	default:
-		return key[:6] + "…" + key[len(key)-4:]
 	}
+	return redact.Mask(key)
 }
 
 // keyPattern matches the key shapes kolk can plausibly encounter in text it

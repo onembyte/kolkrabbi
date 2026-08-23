@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/onembyte/kolkrabbi/internal/keystore"
 	"github.com/onembyte/kolkrabbi/internal/paths"
 )
 
@@ -16,7 +17,11 @@ import (
 // invocation can be run and asserted on in-process.
 func newTestApp(stdin string) (*app, *bytes.Buffer, *bytes.Buffer) {
 	var out, errOut bytes.Buffer
-	return &app{stdout: &out, stderr: &errOut, in: bufio.NewReader(strings.NewReader(stdin))}, &out, &errOut
+	a := newApp()
+	a.stdout = &out
+	a.stderr = &errOut
+	a.in = bufio.NewReader(strings.NewReader(stdin))
+	return a, &out, &errOut
 }
 
 // isolateHome points kolk at a temp directory so tests never read or write the
@@ -39,6 +44,7 @@ func isolateHome(t *testing.T) paths.Dirs {
 	t.Setenv(paths.EnvCacheDir, d.Cache)
 	t.Setenv("OPENROUTER_API_KEY", "")
 	t.Setenv("OPENROUTER_BASE_URL", "")
+	t.Setenv("CI", "")
 	return d
 }
 
@@ -122,7 +128,7 @@ func TestFirstRunWithoutAKeyExplainsWhatToType(t *testing.T) {
 		t.Fatalf("exit = %d, want %d", code, ExitError)
 	}
 	got := errOut.String()
-	if !strings.Contains(got, "kolk config set-key") {
+	if !strings.Contains(got, "kolk key <API_KEY>") {
 		t.Errorf("first-run failure must name the command that fixes it, got:\n%s", got)
 	}
 	if !strings.Contains(got, "OPENROUTER_API_KEY") {
@@ -172,14 +178,10 @@ func TestSessionsAndStatsRunOnAnEmptyMachine(t *testing.T) {
 	}
 }
 
-func TestConfigRoundTripsThroughDisk(t *testing.T) {
+func TestConfigSettingsRoundTripWithoutACredentialField(t *testing.T) {
 	isolateHome(t)
 
 	a, _, _ := newTestApp("")
-	if code := a.main(context.Background(), []string{"config", "set-key", "sk-or-v1-abcdef0123456789"}); code != ExitOK {
-		t.Fatalf("config set-key exit = %d", code)
-	}
-	a, _, _ = newTestApp("")
 	if code := a.main(context.Background(), []string{"config", "set-tier", "quick", "google/gemini-2.5-flash"}); code != ExitOK {
 		t.Fatalf("config set-tier exit = %d", code)
 	}
@@ -189,14 +191,81 @@ func TestConfigRoundTripsThroughDisk(t *testing.T) {
 		t.Fatalf("config show exit = %d", code)
 	}
 	got := out.String()
-	if strings.Contains(got, "sk-or-v1-abcdef0123456789") {
-		t.Errorf("config show leaked the whole key:\n%s", got)
-	}
-	if !strings.Contains(got, "sk-or-…6789") {
-		t.Errorf("config show did not mask the key recognisably:\n%s", got)
+	if strings.Contains(got, "api_key") {
+		t.Errorf("config show still exposes a credential setting:\n%s", got)
 	}
 	if !strings.Contains(got, "google/gemini-2.5-flash") {
 		t.Errorf("config show lost the saved tier:\n%s", got)
+	}
+}
+
+func TestConfigWriteEvacuatesALegacyKeyBeforeSaving(t *testing.T) {
+	d := isolateHome(t)
+	if err := os.MkdirAll(d.Config, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	legacy := `{"api_key":"` + cliKeyCanary + `","model":"old/model","base_url":"https://example.test"}`
+	if err := os.WriteFile(d.ConfigFile(), []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	a, _, errOut := newTestApp("")
+	if code := a.main(context.Background(), []string{"config", "set-model", "new/model"}); code != ExitOK {
+		t.Fatalf("config write exit = %d, stderr: %s", code, errOut)
+	}
+	if !strings.Contains(errOut.String(), "moved your saved API key") {
+		t.Errorf("migration notice missing: %s", errOut)
+	}
+	stored, err := keystore.NewFileStore(d.CredentialsFile()).Get(context.Background(), keystore.Ref{Provider: "openrouter"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Reveal() != cliKeyCanary {
+		t.Errorf("migrated credential = %v", stored)
+	}
+	body, err := os.ReadFile(d.ConfigFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(body), cliKeyCanary) || strings.Contains(string(body), "api_key") {
+		t.Errorf("config write retained the legacy credential: %s", body)
+	}
+	if !strings.Contains(string(body), "new/model") {
+		t.Errorf("config write lost the requested setting: %s", body)
+	}
+
+	a, _, errOut = newTestApp("")
+	if code := a.main(context.Background(), []string{"config", "set-base-url", "https://second.test"}); code != ExitOK {
+		t.Fatalf("second config write exit = %d, stderr: %s", code, errOut)
+	}
+	if strings.Contains(errOut.String(), "moved your saved API key") {
+		t.Errorf("idempotent migration printed twice: %s", errOut)
+	}
+}
+
+func TestInvalidConfigWriteDoesNotTriggerLegacyMigration(t *testing.T) {
+	d := isolateHome(t)
+	if err := os.MkdirAll(d.Config, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	legacy := `{"api_key":"` + cliKeyCanary + `","model":"old/model"}`
+	if err := os.WriteFile(d.ConfigFile(), []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	a, _, _ := newTestApp("")
+	if code := a.main(context.Background(), []string{"config", "set-tier", "medium", "some/model"}); code != ExitUsage {
+		t.Fatalf("invalid config write exit = %d, want %d", code, ExitUsage)
+	}
+	if _, err := os.Stat(d.CredentialsFile()); !os.IsNotExist(err) {
+		t.Errorf("invalid config write created a manifest: %v", err)
+	}
+	body, err := os.ReadFile(d.ConfigFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), cliKeyCanary) {
+		t.Error("invalid config write mutated the legacy config")
 	}
 }
 
@@ -267,22 +336,26 @@ func TestBadSubcommandPrintsTheGeneratedUsage(t *testing.T) {
 	}
 }
 
-// The directories are a decision with consequences: a key that lands in a
-// config directory someone symlinks into a dotfiles repo is a published key.
+// The directories are a decision with consequences: settings may be symlinked
+// into dotfiles, while a credential must remain in private state.
 func TestStateAndConfigAreSeparateOnDisk(t *testing.T) {
 	d := isolateHome(t)
 
 	a, _, _ := newTestApp("")
-	if code := a.main(context.Background(), []string{"config", "set-key", "sk-or-v1-locationtest0000"}); code != ExitOK {
-		t.Fatalf("config set-key exit = %d", code)
+	if code := a.main(context.Background(), []string{"config", "set-model", "openrouter/auto"}); code != ExitOK {
+		t.Fatalf("config set-model exit = %d", code)
 	}
 	if _, err := os.Stat(d.ConfigFile()); err != nil {
 		t.Errorf("config did not land in the config directory: %v", err)
 	}
 
-	a, _, _ = newTestApp("")
-	if code := a.main(context.Background(), []string{"sessions"}); code != ExitOK {
-		t.Fatalf("kolk sessions exit = %d", code)
+	const mistralKey = "0123456789abcdef0123456789abcdef"
+	a, _, _ = newTestApp(mistralKey + "\n")
+	if code := a.main(context.Background(), []string{"key", "mistral", "-"}); code != ExitOK {
+		t.Fatalf("kolk key exit = %d", code)
+	}
+	if _, err := os.Stat(d.CredentialsFile()); err != nil {
+		t.Errorf("credential did not land in the data directory: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(d.Data, ".gitignore")); err != nil {
 		t.Errorf("the data directory has no .gitignore: %v", err)

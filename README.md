@@ -77,7 +77,7 @@ token-based elsewhere.
 
 ```bash
 go build -ldflags="-s -w" -o kolk .      # Go 1.22+, no dependencies
-kolk config set-key sk-or-v1-...         # or export OPENROUTER_API_KEY=...
+kolk key sk-or-v1-...                    # or export OPENROUTER_API_KEY=...
 kolk
 ```
 

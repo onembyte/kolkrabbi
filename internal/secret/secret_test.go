@@ -6,9 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -95,10 +92,10 @@ func TestRedact(t *testing.T) {
 	cases := map[string]string{
 		"":                          "(none)",
 		"   ":                       "(none)",
-		"short":                     "****",
-		"eleven-chrs":               "****",
-		realKey:                     "sk-or-…cdef",
-		"sk-ant-api03-abcdef012345": "sk-ant…2345",
+		"short":                     "…",
+		"eleven-chrs":               "…",
+		realKey:                     "sk-or-v1-…cdef",
+		"sk-ant-api03-abcdef012345": "sk-ant-…2345",
 	}
 	for in, want := range cases {
 		if got := Redact(in); got != want {
@@ -230,146 +227,5 @@ func TestAuthTransportWithNoTokenSendsNoHeader(t *testing.T) {
 
 	if had {
 		t.Error("an empty token still sent an Authorization header")
-	}
-}
-
-// ── the file store ─────────────────────────────────────────────────────────
-
-func TestFileStoreRoundTrip(t *testing.T) {
-	s := NewFileStore(filepath.Join(t.TempDir(), "credentials.json"))
-
-	if _, err := s.Get("openrouter"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("Get on an empty store = %v, want ErrNotFound", err)
-	}
-
-	if err := s.Set("openrouter", New(realKey)); err != nil {
-		t.Fatal(err)
-	}
-	got, err := s.Get("openrouter")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Reveal() != realKey {
-		t.Errorf("Get returned %v, not the stored key", got)
-	}
-
-	// Provider names are case-insensitive, or `kolk key OpenRouter` and
-	// `kolk key openrouter` become two half-configured accounts.
-	if got, err = s.Get("OpenRouter"); err != nil || got.Reveal() != realKey {
-		t.Errorf("provider lookup is case-sensitive: %v %v", got, err)
-	}
-
-	names, err := s.Providers()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(names) != 1 || names[0] != "openrouter" {
-		t.Errorf("Providers() = %v", names)
-	}
-}
-
-func TestFileStoreIsPrivateOnDisk(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Unix permission bits")
-	}
-	p := filepath.Join(t.TempDir(), "sub", "credentials.json")
-	s := NewFileStore(p)
-	if err := s.Set("openrouter", New(realKey)); err != nil {
-		t.Fatal(err)
-	}
-
-	info, err := os.Stat(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.Mode().Perm() != 0o600 {
-		t.Errorf("credentials file mode = %o, want 600", info.Mode().Perm())
-	}
-	dir, err := os.Stat(filepath.Dir(p))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if dir.Mode().Perm() != 0o700 {
-		t.Errorf("credentials directory mode = %o, want 700", dir.Mode().Perm())
-	}
-}
-
-// A symlinked credentials file is either an accident or something pointed at
-// kolk deliberately; writing a key through it sends the key somewhere kolk did
-// not choose.
-func TestFileStoreRefusesASymlink(t *testing.T) {
-	dir := t.TempDir()
-	target := filepath.Join(dir, "elsewhere.json")
-	if err := os.WriteFile(target, []byte(`{"version":1,"keys":{}}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	link := filepath.Join(dir, "credentials.json")
-	if err := os.Symlink(target, link); err != nil {
-		t.Skipf("symlinks unavailable: %v", err)
-	}
-
-	s := NewFileStore(link)
-	if _, err := s.Get("openrouter"); err == nil || !strings.Contains(err.Error(), "symlink") {
-		t.Errorf("Get through a symlink = %v, want a refusal naming the symlink", err)
-	}
-	if err := s.Set("openrouter", New(realKey)); err == nil {
-		t.Error("Set wrote a key through a symlink")
-	}
-}
-
-func TestFileStoreDeleteIsIdempotent(t *testing.T) {
-	s := NewFileStore(filepath.Join(t.TempDir(), "credentials.json"))
-	// `kolk logout` must succeed on a machine that was never logged in.
-	if err := s.Delete("openrouter"); err != nil {
-		t.Errorf("Delete on an empty store: %v", err)
-	}
-	if err := s.Set("openrouter", New(realKey)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.Delete("openrouter"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.Get("openrouter"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("the key survived Delete: %v", err)
-	}
-}
-
-func TestFileStoreRefusesAnEmptyKey(t *testing.T) {
-	s := NewFileStore(filepath.Join(t.TempDir(), "credentials.json"))
-	if err := s.Set("openrouter", New("   ")); err == nil {
-		t.Error("Set stored an empty key; that is a logout wearing a disguise")
-	}
-}
-
-// A corrupt credentials file must be reported without its contents being
-// echoed: it is the one file whose contents must not reach a terminal.
-func TestFileStoreNeverQuotesItsContents(t *testing.T) {
-	p := filepath.Join(t.TempDir(), "credentials.json")
-	if err := os.WriteFile(p, []byte(`{"keys": {"openrouter": "`+realKey+`"`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	_, err := NewFileStore(p).Get("openrouter")
-	if err == nil {
-		t.Fatal("a truncated credentials file should be an error")
-	}
-	if strings.Contains(err.Error(), realKey) {
-		t.Errorf("the parse error quoted the file's contents: %v", err)
-	}
-	if !strings.Contains(err.Error(), "kolk key") {
-		t.Errorf("the error should say what to type to fix it: %v", err)
-	}
-}
-
-func TestFileStoreTreatsAnEmptyFileAsNoKeys(t *testing.T) {
-	p := filepath.Join(t.TempDir(), "credentials.json")
-	if err := os.WriteFile(p, []byte("\n  \n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	names, err := NewFileStore(p).Providers()
-	if err != nil {
-		t.Fatalf("an empty file should be an empty store, got %v", err)
-	}
-	if len(names) != 0 {
-		t.Errorf("Providers() = %v", names)
 	}
 }

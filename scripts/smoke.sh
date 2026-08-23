@@ -69,6 +69,14 @@ contains() {
   esac
 }
 
+# excludes <name> <needle> — asserts the previous check did not print a value.
+excludes() {
+  case "$LAST_OUT" in
+    *"$2"*) no "$1" "output unexpectedly contained: $2" ;;
+    *)      ok "$1" ;;
+  esac
+}
+
 # ── scratch: an isolated HOME, so your real config is untouchable ──────────
 SCRATCH="$(mktemp -d)"
 export HOME="$SCRATCH/home"
@@ -110,14 +118,15 @@ check "unknown help topic exits 2" 2 "$K" help nope
 
 head1 "first run with no key"
 OPENROUTER_API_KEY="" check "exits 1, not a panic" 1 "$K" -p "hello"
-contains "  names the command that fixes it" "kolk config set-key"
+contains "  names the command that fixes it" "kolk key <API_KEY>"
 contains "  names the env var"                "OPENROUTER_API_KEY"
 
-head1 "config round-trips"
-check "config set-key"   0 "$K" config set-key "sk-or-v1-smoketestsmoketest0000"
+head1 "config has no credentials"
+check "old set-key redirects" 2 "$K" config set-key "sk-or-v1-smoketestsmoketest0000"
+contains "  names the one key command" "kolk key <API_KEY>"
 check "config set-tier"  0 "$K" config set-tier quick "google/gemini-2.5-flash"
 check "config show"      0 "$K" config show
-contains "  masks the key"        "sk-or-…0000"
+excludes "  has no key setting"    "api_key"
 contains "  keeps the tier"       "google/gemini-2.5-flash"
 case "$LAST_OUT" in
   *"smoketestsmoketest"*) no "  never prints the whole key" "config show leaked it" ;;

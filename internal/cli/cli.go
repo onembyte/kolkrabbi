@@ -16,6 +16,7 @@ import (
 	"os"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/paths"
 )
@@ -40,10 +41,20 @@ type app struct {
 	// confirmations both read lines from it; two readers would each buffer and
 	// one would eat the other's input.
 	in *bufio.Reader
+
+	// Credential operations are narrow function seams rather than replaceable
+	// app services. Tests can prove the command refuses unsafe input before a
+	// network or filesystem effect; production still gets exactly one verifier
+	// and the one T0.1 store.
+	verifyOpenRouter verifyOpenRouterFunc
+	setCredential    setCredentialFunc
+	now              func() time.Time
 }
 
 func newApp() *app {
-	return &app{stdout: os.Stdout, stderr: os.Stderr, in: bufio.NewReader(os.Stdin)}
+	a := &app{stdout: os.Stdout, stderr: os.Stderr, in: bufio.NewReader(os.Stdin)}
+	a.initKeyDependencies()
+	return a
 }
 
 // Main runs one kolk invocation and returns the process exit code. It never
@@ -90,7 +101,9 @@ type command struct {
 
 func commandTable() []command {
 	return []command{
-		{"config", "[set-key <key> | set-model <id> | set-base-url <url> | set-tier <effort> <id> | show]",
+		{"key", "<api-key> | - | <provider> <api-key|->",
+			"add an API key for any supported provider", (*app).runKey},
+		{"config", "[set-model <id> | set-base-url <url> | set-tier <effort> <id> | show]",
 			"read and write saved settings", (*app).runConfig},
 		{"models", "[filter]", "list models with context size and $/1M pricing", (*app).runModels},
 		{"sessions", "[rm <id> | clear]", "list or delete saved sessions", (*app).runSessions},
@@ -179,7 +192,7 @@ Commands:
 Run 'kolk help <command>' for a command's arguments.
 
 Env:
-  OPENROUTER_API_KEY            overrides the saved config key
+  OPENROUTER_API_KEY            overrides the stored OpenRouter key
   OPENROUTER_BASE_URL           overrides the saved base URL
 
 Effort tiers map effort levels to models (quick→cheap, deep→frontier).

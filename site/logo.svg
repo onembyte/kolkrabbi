@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 456" role="img" aria-labelledby="logo-title logo-desc" shape-rendering="crispEdges">
+  <title id="logo-title">Kolkrabbi</title>
+  <desc id="logo-desc">A blocky retro purple octopus with eight curled arms</desc>
+  <g fill="#4c1d95" transform="translate(14 18)">
+    <path d="M168 24h224v24h48v32h32v48h24v144h-48v-72H112v72H64V128h24V80h32V48h48z"/>
+    <path d="M64 248h40v72H80v40H48v32H8v-40h32v-40h24zm56 0h40v112h-16v40H96v-40h24zm56 0h40v144h-40zm56 0h40v160h-40zm56 0h40v160h-40zm56 0h40v144h-40zm56 0h40v112h24v40h-48v-40h-16zm48 0h40v72h24v40h24v40h-40v-32h-32v-48h-16z"/>
+  </g>
+  <g fill="#8b5cf6">
+    <path d="M168 24h224v24h48v32h32v48h24v144h-48v-72H112v72H64V128h24V80h32V48h48z"/>
+    <path d="M64 248h40v72H80v40H48v32H8v-40h32v-40h24zm56 0h40v112h-16v40H96v-40h24zm56 0h40v144h-40zm56 0h40v160h-40zm56 0h40v160h-40zm56 0h40v144h-40zm56 0h40v112h24v40h-48v-40h-16zm48 0h40v72h24v40h24v40h-40v-32h-32v-48h-16z"/>
+  </g>
+  <path fill="#a78bfa" d="M168 48h224v24H168zM120 80h320v24H120zM96 112h64v112H96z"/>
+  <path fill="#09070d" d="M152 120h88v80h-88zm168 0h88v80h-88z"/>
+  <path fill="#f3edf8" d="M176 144h40v40h-40zm168 0h40v40h-40z"/>
+  <path fill="#09070d" d="M216 224h128v24h-128z"/>
+  <path fill="#d8b4fe" d="M192 80h176v16H192z"/>
+</svg>

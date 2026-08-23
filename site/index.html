@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Kolkrabbi is a local-first terminal for chat, code, and agent work across models.">
+  <meta name="theme-color" content="#09070d">
+  <meta name="color-scheme" content="dark">
+  <meta property="og:title" content="Kolkrabbi — any model, one terminal">
+  <meta property="og:description" content="Chat, code, and agent work without marrying one model.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://kolkrabbi.francomichetti.com/">
+  <title>Kolkrabbi — any model, one terminal</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+
+  <header class="site-header" aria-label="Primary navigation">
+    <a class="wordmark" href="/" aria-label="Kolkrabbi home">
+      <span class="wordmark-mark" aria-hidden="true">K</span>
+      <span>KOLKRABBI</span>
+    </a>
+    <nav aria-label="Project links">
+      <a href="#install">Install</a>
+      <a href="#principles">Principles</a>
+      <a href="https://github.com/onembyte/kolkrabbi">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="content">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Local-first model terminal</p>
+        <h1 id="hero-title">Your models.<br>Your terminal.<br><em>Your call.</em></h1>
+        <p class="lede">Chat, code, and agent work without marrying one model. One small binary,
+          computed defaults, and your sessions kept on your machine.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#install">See the three steps</a>
+          <a class="button button-quiet" href="https://github.com/onembyte/kolkrabbi">Read the source <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+
+      <div class="mascot" aria-label="Kolkrabbi, the retro purple octopus">
+        <div class="mascot-glow" aria-hidden="true"></div>
+        <img src="logo.svg" width="560" height="456" alt="A blocky purple pixel-art octopus">
+        <p><span aria-hidden="true">//</span> kolkrabbi <span aria-hidden="true">[old norse: octopus]</span></p>
+      </div>
+    </section>
+
+    <section class="install-section" id="install" aria-labelledby="install-title">
+      <div class="section-heading">
+        <p class="section-number">01 / START</p>
+        <h2 id="install-title">No setup ceremony.</h2>
+        <p>Install. Run. Add one key when Kolkrabbi asks for it.</p>
+      </div>
+
+      <div class="terminal" aria-label="Kolkrabbi installation and first-run commands">
+        <div class="terminal-bar">
+          <span class="terminal-lights" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>~/terminal</span>
+          <span class="release-badge">Installer ships with v0.1</span>
+        </div>
+        <ol class="steps">
+          <li>
+            <span class="step-label">Install</span>
+            <code><span class="prompt" aria-hidden="true">$</span> curl -fsSL https://kolkrabbi.francomichetti.com/install.sh | bash</code>
+          </li>
+          <li>
+            <span class="step-label">Run</span>
+            <code><span class="prompt" aria-hidden="true">$</span> kolk</code>
+            <samp>kolk needs an API key before it can use models.<br>Add one: &nbsp;kolk key &lt;API_KEY&gt;<br>Then run: kolk</samp>
+          </li>
+          <li>
+            <span class="step-label">Use it</span>
+            <code><span class="prompt" aria-hidden="true">$</span> kolk key &lt;API_KEY&gt;<br><span class="prompt" aria-hidden="true">$</span> kolk</code>
+          </li>
+        </ol>
+      </div>
+      <p class="release-note"><strong>Early build.</strong> The page is ready for review; the public installer turns on only after signed release artifacts and checksums pass the clean-machine rehearsal.</p>
+    </section>
+
+    <section class="capabilities" aria-labelledby="capabilities-title">
+      <div class="section-heading compact">
+        <p class="section-number">02 / THE POINT</p>
+        <h2 id="capabilities-title">Complexity, shipped off.</h2>
+      </div>
+      <div class="capability-grid">
+        <article>
+          <span aria-hidden="true">[ A ]</span>
+          <h3>Any model</h3>
+          <p>Start with a computed default. Choose another model only when you actually care.</p>
+        </article>
+        <article>
+          <span aria-hidden="true">[ L ]</span>
+          <h3>Local memory</h3>
+          <p>Sessions, checkpoints, ratings, and cost history stay local and inspectable.</p>
+        </article>
+        <article>
+          <span aria-hidden="true">[ 3 ]</span>
+          <h3>One surface</h3>
+          <p>Chat for thinking, code for building, agent for longer work. Same terminal, same history.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="principles" id="principles" aria-labelledby="principles-title">
+      <div class="principles-copy">
+        <p class="section-number">03 / OPINIONATED</p>
+        <h2 id="principles-title">The interface should disappear.</h2>
+      </div>
+      <ul>
+        <li><span>01</span> Zero-config is the product.</li>
+        <li><span>02</span> Every default is computed, not asked.</li>
+        <li><span>03</span> One install command. One key command.</li>
+        <li><span>04</span> Simple to type beats simple to explain.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <div>
+      <span class="footer-mark" aria-hidden="true">K</span>
+      <p><strong>Kolkrabbi</strong><br>Built carefully, one checkpoint at a time.</p>
+    </div>
+    <p class="footer-links">
+      <a href="https://github.com/onembyte/kolkrabbi">Source</a>
+      <a href="https://github.com/onembyte/kolkrabbi/blob/main/LICENSE">MIT License</a>
+    </p>
+  </footer>
+</body>
+</html>

@@ -47,10 +47,13 @@ func (a *app) newAgent(o *options) (*engine.Agent, error) {
 		return nil, err
 	}
 
-	apiKey := config.ResolveAPIKey(cfg)
+	// T0.3 replaces this temporary environment-only source with the manifest
+	// resolver and exact first-run screen. Config is deliberately not a key
+	// source anymore.
+	apiKey := os.Getenv("OPENROUTER_API_KEY")
 	if apiKey == "" {
 		return nil, guided("No OpenRouter API key found.",
-			"Set one with:   kolk config set-key sk-or-v1-...",
+			"Set one with:   kolk key <API_KEY>",
 			"or:             export OPENROUTER_API_KEY=sk-or-v1-...")
 	}
 

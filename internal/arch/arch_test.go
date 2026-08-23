@@ -296,6 +296,21 @@ func TestOSAccessHasOneOwner(t *testing.T) {
 	}
 }
 
+func TestPackagesHaveNoForbiddenImports(t *testing.T) {
+	for _, f := range parseTree(t) {
+		if f.isTest() {
+			continue
+		}
+		for _, imp := range imports(f) {
+			for _, forbidden := range forbiddenImports[f.pkg] {
+				if imp == forbidden {
+					t.Errorf("%s imports %s, which %s is forbidden to access", f.rel, imp, f.pkg)
+				}
+			}
+		}
+	}
+}
+
 // selectors finds every pkg.Name expression in a file for the given package
 // identifier. Working on the AST rather than the file text means a rule name
 // appearing in a comment or a string is not a false positive.

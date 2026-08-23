@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -20,7 +21,9 @@ func (a *app) runModels(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	client := provider.NewClient(config.ResolveAPIKey(cfg))
+	// T0.3 replaces this temporary environment-only source with the complete
+	// credential chain. Config itself must never regain a credential field.
+	client := provider.NewClient(os.Getenv("OPENROUTER_API_KEY"))
 	client.BaseURL = config.ResolveBaseURL("", cfg)
 
 	models, err := client.ListModels(ctx)

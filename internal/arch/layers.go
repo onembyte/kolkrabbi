@@ -76,7 +76,12 @@ var packageLayer = map[string]Layer{
 	"internal/paths":      L0Platform,
 	"internal/shell":      L0Platform,
 	"internal/atomicfile": L0Platform,
+	"internal/keystore":   L0Platform,
+	"internal/lock":       L0Platform,
+	"internal/redact":     L0Platform,
 	"internal/secret":     L0Platform,
+	"internal/term":       L0Platform,
+	"internal/xid":        L0Platform,
 
 	// L2 — the hinge. Arrives at step 7.
 
@@ -118,10 +123,9 @@ var commandPackages = map[string]bool{
 var thirdParty = map[string][]string{
 	// Arrive with their packages at later steps; listed now so the budget is
 	// a decision on the record rather than a surprise in a diff.
-	"internal/term":   {"golang.org/x/sys"},
-	"internal/secret": {"golang.org/x/sys"},
-	"internal/tui":    {"charm.land/"},
-	"internal/dash":   {"modernc.org/sqlite", "modernc.org/libc"},
+	"internal/term": {"golang.org/x/sys"},
+	"internal/tui":  {"charm.land/"},
+	"internal/dash": {"modernc.org/sqlite", "modernc.org/libc"},
 }
 
 // osOwner names the single package allowed to touch each piece of the OS.
@@ -133,6 +137,17 @@ var osOwner = map[string]string{
 	"os.UserHomeDir":   "internal/paths",
 	"os.UserConfigDir": "internal/paths",
 	"os.UserCacheDir":  "internal/paths",
+}
+
+// forbiddenImports records negative package capabilities that are more exact
+// than layer membership. secret values may be used by domain code, so secret
+// itself must remain unable to read the environment or filesystem.
+var forbiddenImports = map[string][]string{
+	"internal/secret": {"io/fs", "os", "os/exec", "path/filepath", "syscall"},
+	"internal/config": {
+		"github.com/onembyte/kolkrabbi/internal/keystore",
+		"github.com/onembyte/kolkrabbi/internal/secret",
+	},
 }
 
 // authHeaders are request headers that carry a credential. Building one is

@@ -8,13 +8,24 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/provider"
-	"github.com/onembyte/kolkrabbi/internal/secret"
 )
 
-func (a *app) runConfig(_ context.Context, args []string) error {
+func (a *app) runConfig(ctx context.Context, args []string) error {
+	// Keep the old spelling as a hard, side-effect-free redirect. Delegating
+	// would leave two supported key commands forever and would bypass the one
+	// provider-agnostic command's CI and shape guidance.
+	if len(args) > 0 && args[0] == "set-key" {
+		return usagef("`kolk config set-key` was replaced; use `kolk key <API_KEY>`")
+	}
+
 	d, err := a.resolve()
 	if err != nil {
 		return err
+	}
+	if configWriteCommand(args) {
+		if err := a.migrateLegacyCredential(ctx, d); err != nil {
+			return err
+		}
 	}
 	cfg, err := config.Load(d.ConfigFile())
 	if err != nil {
@@ -26,16 +37,6 @@ func (a *app) runConfig(_ context.Context, args []string) error {
 	}
 
 	switch args[0] {
-	case "set-key":
-		if len(args) < 2 {
-			return usagef("usage: kolk config set-key <key>")
-		}
-		cfg.APIKey = args[1]
-		if err := config.Save(d.ConfigFile(), cfg); err != nil {
-			return err
-		}
-		fmt.Fprintf(a.stdout, "API key saved to %s\n", d.ConfigFile())
-
 	case "set-model":
 		if len(args) < 2 {
 			return usagef("usage: kolk config set-model <model>")
@@ -73,12 +74,7 @@ func (a *app) runConfig(_ context.Context, args []string) error {
 		fmt.Fprintf(a.stdout, "tier %s → %s\n", args[1], args[2])
 
 	case "show":
-		key := "(not set)"
-		if cfg.APIKey != "" {
-			key = secret.Redact(cfg.APIKey)
-		}
-		fmt.Fprintf(a.stdout, "api_key:  %s\nmodel:    %s\nbase_url: %s\n",
-			key,
+		fmt.Fprintf(a.stdout, "model:    %s\nbase_url: %s\n",
 			orDefault(cfg.Model, defaultModel+" (default)"),
 			orDefault(cfg.BaseURL, provider.DefaultBaseURL+" (default)"))
 		if len(cfg.Tiers) == 0 {
@@ -96,6 +92,20 @@ func (a *app) runConfig(_ context.Context, args []string) error {
 		return usagef("%s", usageLine("config"))
 	}
 	return nil
+}
+
+func configWriteCommand(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	switch args[0] {
+	case "set-model", "set-base-url":
+		return len(args) >= 2
+	case "set-tier":
+		return len(args) >= 3 && validEffort(args[1])
+	default:
+		return false
+	}
 }
 
 func validEffort(s string) bool {

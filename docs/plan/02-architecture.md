@@ -40,10 +40,10 @@ go1.26.4 darwin/arm64):
 | Metric | Today | Why it decides the question |
 |---|---|---|
 | LOC | 3,399 | small enough that a rewrite is cheap, large enough that the shape is proven |
-| External deps | **0** | Rust/TS equivalents need a runtime or a crate tree on day one |
-| Binary | **6.1 MB** static | `curl \| sh` and `go install` both work with no runtime |
-| Cold start | **~10 ms** (fork+exec+run, 20 runs) | the budget in this item is 30 ms; Node/Bun start at 25–60 ms |
-| Tests | **22**, fully offline via the in-process scripted OpenRouter mock | streaming SSE + tool-call reassembly already covered |
+| External deps | **1** (`golang.org/x/sys`, isolated to `internal/term`) | no runtime dependency; the architecture allow-list prevents spread |
+| Binary | **6.14 MB** static | `curl \| sh` and `go install` both work with no runtime |
+| Cold start | **6.1 ms p50** (20 runs, 2026-08-23) | the budget in this item is 30 ms; Node/Bun start at 25–60 ms |
+| Tests | **272**, fully offline via the in-process scripted OpenRouter mock | streaming SSE + tool-call reassembly plus the L0 boundary are covered |
 | `go vet` | clean | — |
 
 Go wins on the four things this product actually needs: a single static cross-compiled binary,
@@ -56,7 +56,7 @@ TypeScript/Bun forfeits the single-binary and startup properties outright.
 
 | Layer | Packages | Allowed non-stdlib |
 |---|---|---|
-| L0 platform | `paths shell atomicfile lock term secret xid buildinfo` | `golang.org/x/sys` — **only** in `term` and `secret` `*_windows.go`/`*_unix.go` |
+| L0 platform | `paths shell atomicfile lock term redact secret keystore xid buildinfo` | `golang.org/x/sys` — **only** in `term` |
 | L1 contract | `protocol` (public) | **none, forever** |
 | L2 hinge | `bus` | **none** |
 | L3 domain | `provider` (+`openrouter`, `openaicompat`, `agentcli`), `tools`, `perm` | **none** |
@@ -65,8 +65,9 @@ TypeScript/Bun forfeits the single-binary and startup properties outright.
 | L6 surfaces | `cli` (+`render`), `tui`, `serve`, `dash` | `charm.land/*` in `tui` only · `modernc.org/sqlite` (+ pinned `modernc.org/libc`) in `dash` only |
 | nested modules | `desktop/` `bind/` `tools/` | anything — they are outside the CLI's `go.mod` by construction |
 
-So the honest claim is not "zero dependencies" but **"zero dependencies below the surface layer,
-mechanically verified"** — a claim that survives growth. `scripts/check-purity.sh` additionally
+So the honest claim is not "zero dependencies" but **"one explicitly allow-listed platform
+dependency, and no dependency can spread unnoticed"** — a claim that survives growth.
+`scripts/check-purity.sh` additionally
 asserts that no `*_windows.go` / `*_darwin.go` file and no `os/exec` import exists anywhere in
 L1–L5, so "the engine touches no OS" is a build failure rather than a code-review convention.
 That property is the load-bearing precondition for every constrained target on the roadmap.
@@ -155,8 +156,9 @@ kolkrabbi/                                repo root · module github.com/onembyt
 │   ├── atomicfile/ write_unix.go · write_windows.go
 │   ├── lock/      lock_unix.go (flock) · lock_windows.go (LockFileEx)
 │   ├── term/      term.go · vt_unix.go · vt_windows.go (ENABLE_VIRTUAL_TERMINAL_PROCESSING)
-│   ├── secret/    secret.go (Store iface + Redact) · keyring_darwin.go (/usr/bin/security, no cgo) ·
-│   │              keyring_windows.go (Credential Manager) · keyring_unix.go (Secret Service) · file.go (0600)
+│   ├── redact/    mask.go · shapes.go · keyshapes.json (safe shape facts; no credential type)
+│   ├── secret/    secret.go (non-printable value) · transport.go (authenticated request clone)
+│   ├── keystore/  keystore.go · manifest.go (0600, locked + atomic) · backend.go
 │   ├── xid/       monotonic sortable ids for sessions / turns / events
 │   ├── buildinfo/ Version · Commit · Date via -ldflags -X, with a debug.ReadBuildInfo() fallback
 │   │
@@ -392,7 +394,7 @@ instead, and GoReleaser is never asked to do them.
 | `main.go:459` `runStatsCmd` | `internal/cli/cmd_stats.go` | calls `stats.Aggregate`/`Render`, which stay put |
 | `main.go:482` `runSessionsCmd` | `internal/cli/cmd_sessions.go` | |
 | `main.go:520` `runModelsCmd`, `:542` `formatPricing` | `internal/cli/cmd_models.go` | |
-| `main.go:554` `maskKey` | `internal/secret/redact.go` | becomes `secret.Redact`, applied to sessions/stats/logs too |
+| `main.go:554` `maskKey` | `internal/redact/mask.go` | becomes `redact.Mask`; `secret.Redact` is a compatibility wrapper |
 | `main.go:474` `printJSON`, `:561` `orDefault`, `:603` `fatal` | `internal/cli/cli.go`, `internal/cli/exit.go` | |
 | `main.go:568` `printUsage` | `internal/cli/cli.go` — the command table | generates help + completions + `docs/reference/commands.md` |
 | `cmd/mockserver/main.go` | `cmd/kolk-mock/main.go` | `kolk-` prefix keeps `$PATH` clean |
@@ -440,7 +442,7 @@ so the ground truth never lags the tree.
 
 | Layer | Packages | May import |
 |---|---|---|
-| **L0 platform** | `paths shell atomicfile lock term secret xid buildinfo` | stdlib only (+`x/sys` in `term`/`secret` OS files) |
+| **L0 platform** | `paths shell atomicfile lock term redact secret keystore xid buildinfo` | stdlib only (+`x/sys` in `term`) |
 | **L1 contract** | `protocol` *(public)* | **stdlib only. Never `internal/…`.** |
 | **L2 hinge** | `bus` | L0, L1 |
 | **L3 domain** | `provider` (+`openrouter`, `openaicompat`, `agentcli`), `tools`, `perm` | L0, L1, L2 |
@@ -539,7 +541,7 @@ the honest number) and close it file by file:
 | atomic replace | `internal/atomicfile/write_windows.go` | `internal/session/session.go:51,64` |
 | file locking | `internal/lock/lock_windows.go` (`LockFileEx`) | — |
 | ANSI / VT enable | `internal/term/vt_windows.go` (`SetConsoleMode` + `ENABLE_VIRTUAL_TERMINAL_PROCESSING`) — no stdlib API exists, so this is where `golang.org/x/sys` enters, isolated so daemon/desktop/mobile never link it | — |
-| keychain | `internal/secret/keyring_windows.go` (Credential Manager) | — |
+| keychain | `internal/keystore/dpapi_windows.go` (planned step-13 DPAPI backend) | — |
 | daemon listener | `internal/serve/listen_windows.go` (named pipe instead of unix socket) | — |
 | agent-CLI binary discovery | `internal/shell/lookpath.go` (L0) — `agentcli/detect.go` stays pure and OS-free | — |
 
@@ -962,7 +964,7 @@ files; neither changes an assertion.
 | 2 | ◐ **PARTLY DONE 2026-08-22** — `.github/workflows/ci.yml` runs `{ubuntu, macos}` + a budgets job (20 MB binary / 30 ms cold start / test-count floor of 22); first run green at 6.25 MB and 2 ms. **Windows is deliberately deferred to step 13** rather than added red now — revisit if the `_windows.go` work slips. Budget checks live in the workflow; extract to `scripts/check-budgets.sh` when the other `scripts/check-*.sh` land at step 4. | Windows baseline is red by design | 22 unix / 17 windows |
 | 3 | ✅ **DONE 2026-08-22** (commit `dfafa41`, build session) — split `cmd/kolk/main.go` (606 L) into a table-driven `internal/cli/*` per the §4 table, leaving ~40 lines. The command table's argument grammar is filled in from `docs/plan/09-commands.md`. | nothing | 22 |
 | 4 | ✅ **DONE 2026-08-23** (commit `2fc984f`, build session) — guard rails: `internal/arch/{layers.go,arch_test.go}`, `internal/buildinfo`, `scripts/{check-purity,check-buildtags,test}.sh`, `Makefile`, `LICENSE`, `.goreleaser.yaml`. CI asserts `! grep -q '^replace' go.mod`. Enforcement is **AST-based, not grep** — it parses every `.go` file including those excluded by build constraints, so a `_windows.go` obeys the rules on a Mac and a rule name in a comment is not a false positive. Verified by deliberate mutation in four directions. Two rules added beyond §5: **no GOOS-suffixed file above L0** (making "the engine touches no OS" a build failure) and **no `context.Background()/TODO()` below `cmd/`** outside tests. Suite grew to 100 tests; the CI floor stays 22. | nothing | 100 |
-| 5 | **L0 platform extraction** — `paths` (from `main.go:32-40` + `config.dir()`), `shell` (from `tools.go:119`), `atomicfile` (from `session.go:51,64`), `lock`, `term`, `secret`. Real unix impls, honest Windows stubs. | nothing observable; `TestBash` still passes because `shell.Run` on unix is the same `bash -c` | 22 + new |
+| 5 | ✅ **DONE 2026-08-23** — L0 platform extraction: `paths`, `shell`, `atomicfile`, `lock`, `term`, `secret`, plus the reserved `xid` primitive. Real Darwin/Linux implementations, explicit Windows implementations or step-13 stubs. `make platforms` compiles the complete root module with `CGO_ENABLED=0` for darwin/{amd64,arm64}, linux/{amd64,arm64}, and advisory windows/amd64 on every CI run. Measured closure: 217 tests, 6.14 MB, 6.1 ms cold-start p50, one allow-listed dependency. | nothing observable; `TestBash` still passes because `shell.Run` on unix is the same shell path | 217 |
 | 6 | Add `spec/` + `protocol/` + `protocol/conform_test.go`. **Pure addition, nothing moves** — so the contract can be iterated on cheaply for a week before anything depends on it. | nothing | 22 + ~8 |
 | 7 | **`internal/bus` + the engine emits events.** ★ The one risky step, made safe: **retain `Options.Out`** as a convenience that attaches `cli/render.Plain` as a bus subscriber, and write `render.Plain` **byte-identical** to today's output (the ANSI consts and `footer()` move over verbatim). Result: **zero test edits** — `Out: &out` appears at exactly 2 sites and neither changes. `kolk -p --output stream-json` falls out for free. Only once green: add event-sequence assertions alongside the string ones, then delete the string ones. | nothing, if `render.Plain` is byte-identical. If it is not, you are debugging five e2e tests and a new event bus simultaneously — do not skip the byte-identity check. | 22 |
 | 8 | **`confirm()` → `engine.Decider`.** Delete the `bufio` stdin read at `agent.go:272`. `internal/cli/prompt.go` implements the TTY prompt; tests use auto-allow. `tools.Execute`'s signature is unchanged, so all 5 tool tests are untouched, and the e2e tests already run with `Yolo: true`. **This one refactor unblocks desktop, iPad and Android simultaneously** — which is why it comes before any of them exist. | nothing testable | 22 |

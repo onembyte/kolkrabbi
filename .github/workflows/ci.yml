@@ -61,6 +61,12 @@ jobs:
       - name: build tags (no silently-wrong build)
         run: make buildtags
 
+      - name: platform compile matrix (CGO disabled)
+        run: make platforms
+
+      - name: static landing page
+        run: make site
+
       # `go install <module>/cmd/x@version` hard-fails on a module with a
       # replace directive, which is exactly how kolk is meant to be installed.
       - name: no replace in the root go.mod

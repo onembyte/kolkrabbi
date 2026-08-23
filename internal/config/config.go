@@ -21,7 +21,6 @@ import (
 )
 
 type Config struct {
-	APIKey  string            `json:"api_key"`
 	Model   string            `json:"model"`
 	BaseURL string            `json:"base_url,omitempty"`
 	Tiers   map[string]string `json:"tiers,omitempty"` // effort level -> model id
@@ -47,9 +46,9 @@ func Load(file string) (*Config, error) {
 
 // Save writes a config file, creating its directory if needed.
 //
-// 0600 on the file and 0700 on the directory: the prototype stored the API key
-// here and existing installs still do, so this file has to be treated as
-// holding a secret whether or not it currently does.
+// 0600 on the file and 0700 on the directory keep user preferences private.
+// The prototype stored an API key here, but the Config schema no longer has a
+// field capable of writing one; keystore.MigrateLegacyConfig owns evacuation.
 func Save(file string, cfg *Config) error {
 	if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
 		return err
@@ -58,19 +57,7 @@ func Save(file string, cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	// Atomic: a config file truncated by a crash mid-write is a machine that
-	// has forgotten its API key, which reads to the user as kolk losing it.
+	// Atomic: a config file truncated by a crash mid-write silently forgets the
+	// user's model and endpoint choices.
 	return atomicfile.Write(file, append(b, '\n'), 0o600)
-}
-
-// ResolveAPIKey prefers the OPENROUTER_API_KEY env var over the saved config,
-// so a shell session or CI job can override it without touching disk.
-func ResolveAPIKey(cfg *Config) string {
-	if v := os.Getenv("OPENROUTER_API_KEY"); v != "" {
-		return v
-	}
-	if cfg == nil {
-		return ""
-	}
-	return cfg.APIKey
 }
