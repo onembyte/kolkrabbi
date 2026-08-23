@@ -72,7 +72,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   enters a working session using computed defaults.
 - [x] **R0.1 v0.1 two-mode surface** — ship only chat and code, with code as the default; keep the
   experimental orchestrator unreachable until the later agentic phase.
-- [ ] **T0.4 release and installer** — tagged macOS/Linux artifacts, checksums, install script, and
+- [~] **T0.4 release and installer** — tagged macOS/Linux artifacts, checksums, install script, and
   the exact public URL.
 - [ ] **T0.5 clean-machine rehearsal** — install, first run, key addition, and first model response
   from a machine with no Go toolchain or prior Kolkrabbi files.
@@ -107,7 +107,7 @@ Acceptance checklist:
   preserved behind the release boundary.
 - [x] focused checks and the full repository gates pass, and the build log records red and green.
 
-### T0.4 release and installer — queued detail
+### T0.4 release and installer — active detail
 
 Scope:
 
@@ -135,7 +135,7 @@ Delivery slices:
 
 - [x] **T0.4a artifact contract** — deterministic four-target archive names, stamped build info,
   SHA-256 manifest, checksum signature config, and a snapshot content test.
-- [ ] **T0.4b installer** — platform mapping, version discovery/pinning, download, verification,
+- [x] **T0.4b installer** — platform mapping, version discovery/pinning, download, verification,
   safe extraction, PATH placement, atomic replacement, and offline failure matrix.
 - [ ] **T0.4c tag workflow** — tag-only Actions job, pinned tools, minimal permissions, config check,
   snapshot rehearsal, and no release from branches or pull requests.
@@ -145,6 +145,25 @@ Delivery slices:
 Release blocker recorded on 2026-08-23: GitHub reports `onembyte/kolkrabbi` as **private**. The
 pipeline and installer can be built and tested privately, but an unauthenticated public installer
 cannot download its GitHub Release assets until the owner approves the repository visibility change.
+
+#### T0.4b installer acceptance
+
+- [x] the script is inert until its final `main "$@"` line, and a truncated stdin stream performs
+  no network request or install side effect.
+- [x] Darwin/Linux and amd64/arm64 map to the four GoReleaser archive names; every other OS or
+  architecture fails before download.
+- [x] a pinned `KOLK_VERSION=v0.1.0` and GitHub's latest-release redirect resolve to the same strict
+  semantic-version path, while unsafe version text fails before download.
+- [x] `KOLK_INSTALL_DIR` requires an absolute path; without it, the installer chooses an existing
+  writable directory on `PATH` and prefers the user's conventional bin directories.
+- [x] the archive and `checksums.txt` download over HTTPS with failure/retry limits, and the exact
+  archive SHA-256 must match a single manifest entry before extraction.
+- [x] extraction accepts exactly one regular `kolk`, `README.md`, and `LICENSE`; links, missing
+  entries, and unexpected paths cannot write the destination.
+- [x] a same-directory temporary file becomes mode `0755` and atomically replaces `kolk`; checksum
+  or archive failures preserve an existing binary and cleanup all staging paths.
+- [x] Bash 3.2 syntax, ShellCheck, 56 offline matrix checks, adjacent site/release contracts, and the
+  full repository gate pass.
 
 ### T0.3 first-run path — detail
 

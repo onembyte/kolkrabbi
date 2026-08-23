@@ -70,6 +70,9 @@ jobs:
       - name: v0.1 chat and code surface
         run: make surface
 
+      - name: offline installer safety matrix
+        run: make installer
+
       - name: release artifact contract
         run: make release-check
 

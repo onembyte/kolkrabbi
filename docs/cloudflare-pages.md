@@ -5,7 +5,7 @@ repository does not contain a Cloudflare token and CI does not mutate DNS.
 
 ## Current live state
 
-Observed on 2026-08-23:
+Initially observed on 2026-08-23, before the owner completed the cutover:
 
 - `kolkrabbi.francomichetti.com` already resolves through Cloudflare.
 - `/` returns `302` to `/login`, then a cached Next.js HTML page.
@@ -14,10 +14,16 @@ Observed on 2026-08-23:
   existing Kolkrabbi application or an exact `kolkrabbi` binding.
 - The wildcard ultimately serves the owner's TrueNAS multitenant origin.
 
+The owner then connected the Pages project to `main`, created the exact `kolkrabbi` CNAME through
+the custom-domain flow, and reported the hostname **Active**. A direct HTTPS check returned the
+reviewed octopus page with HTTP 200 and its security headers. The wildcard and TrueNAS origin remain
+the fallback for other, unclaimed subdomains.
+
 The wildcard multitenant fallback must remain unchanged. Cloudflare gives an exact DNS record
 precedence over a wildcard record, so the cutover adds an exact `kolkrabbi` Pages binding and does
-not move or replace the personal site. Do not advertise or run the public install command until
-T0.4 publishes `/install.sh` and the clean-machine rehearsal passes.
+not move or replace the personal site. Do not advertise or run the public install command until the
+release assets exist and the clean-machine rehearsal passes. T0.4b may deploy the reviewed script
+before then, but it fails closed when no public release can be downloaded.
 
 The intended request split is:
 
@@ -85,7 +91,7 @@ competing Transform Rule or Cache Rule for `/install.sh`; it is deliberately `te
 
 ## Verification after cutover
 
-Before T0.4, `/install.sh` should remain a plain 404. After T0.4, verify without executing it:
+Once the T0.4b script deploys, verify it without executing it:
 
 ```sh
 curl -fsSI https://kolkrabbi.francomichetti.com/
@@ -94,8 +100,9 @@ curl -fsSL https://kolkrabbi.francomichetti.com/install.sh | sh -n
 ```
 
 The first response must carry the CSP and security headers. The installer must be HTTP 200,
-`Content-Type: text/plain`, `Cache-Control: no-store`, pass `sh -n`, and only then enter the clean
-machine install rehearsal.
+`Content-Type: text/plain`, `Cache-Control: no-store`, and pass `sh -n`. Those checks prove Pages
+delivery only; the command remains unavailable for owner testing until a signed public release and
+the clean-machine rehearsal also pass.
 
 Primary references: [Cloudflare Pages static HTML](https://developers.cloudflare.com/pages/framework-guides/deploy-anything/),
 [custom domains](https://developers.cloudflare.com/pages/configuration/custom-domains/), and

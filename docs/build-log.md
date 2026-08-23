@@ -750,3 +750,65 @@ and 24 release-artifact checks.
 
 T0.4b resumes the paused installer harness. It must remain fully offline until platform mapping,
 version selection, checksum failure safety, archive validation, and atomic installation are green.
+
+---
+
+## Owner trial / T0.4b — offline installer
+
+**Status:** done, 2026-08-23 · **Installer contract:** 56 · **Host tests:** 313 ·
+**Site contract:** 46 · **Release contract:** 24 · **Bash:** 3.2 · ShellCheck clean
+
+`site/install.sh` is now a runtime-free installer for the four CLI release targets. It discovers or
+pins a semantic version, downloads the matching GoReleaser archive and SHA-256 manifest, validates
+the archive before extracting, and atomically places a mode-`0755` `kolk` in an explicit or writable
+PATH directory. It never invokes sudo and needs only standard macOS/Linux tools.
+
+### TDD record
+
+**Harness audit before Red:** the paused truncation test redirected a shortened script into stdin
+while still passing the full installer filename to Bash, so it would have tested the wrong program.
+That harness was corrected first. Default PATH placement, successful replacement, installed mode,
+and Makefile/CI enforcement were also added before production code.
+
+**Red:** with no `site/install.sh`, the focused target failed 13/15 checks: missing script, shell
+contract, release origin, version and destination controls, checksum tools, private staging, and
+final execution sentinel. It stopped before the black-box matrix, so no fake download could hide
+the missing implementation.
+
+**Green:** a definition-only Bash 3.2 script now waits until its final `main "$@"`. Platform and
+pinned-version validation happen before downloads. Latest discovery accepts only GitHub's expected
+`releases/tag/v<semver>` redirect. Downloads require HTTPS/TLS, bounded connection/retry behavior,
+and the selected archive's single lowercase SHA-256 entry. The install file is staged in the target
+directory and renamed only after every check.
+
+**Adversarial refactor:** the matrix covers Darwin/Linux on both architectures, latest and pinned
+versions, a conventional user PATH directory, an existing-binary upgrade, unsupported OS, unsafe
+version, relative destination, tampered and missing hashes, an unexpected member, a symlink member,
+and a genuinely truncated stdin stream. Every failure leaves the destination untouched; every run
+removes its private staging directory. The local fixture PATH excludes Homebrew coreutils, proving
+stock macOS uses `shasum`; Linux CI exercises `sha256sum`. Signal handling converges on the same EXIT
+cleanup path. ShellCheck reports no issue.
+
+### Verification
+
+```sh
+bash -n site/install.sh
+bash -n scripts/test-installer.sh
+shellcheck --shell=bash --severity=style site/install.sh scripts/test-installer.sh
+make installer
+make site
+make surface
+make release-check
+make check
+```
+
+The complete gate passed: 313 offline Go tests, five compile targets, zero lint issues, a 6.21 MB
+binary, 4.6 ms cold-start p50, one root dependency, 46 site checks, seven two-mode checks, 56
+installer checks, and 24 release checks.
+
+### Not ready for owner testing yet
+
+The script contract is green, but the exact three-command flow is not. No tag-only release workflow
+or public `v0.1.0` assets exist, and the GitHub repository is still private. T0.4c builds the release
+workflow; T0.4d requires explicit owner approval before any visibility change or public tag, and
+T0.5 performs the clean-machine rehearsal.
