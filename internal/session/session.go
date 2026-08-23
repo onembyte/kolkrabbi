@@ -131,8 +131,10 @@ func Delete(dir, id string) error {
 	if err := os.Remove(filepath.Join(dir, id+".json")); err != nil {
 		return err
 	}
-	os.RemoveAll(filepath.Join(dir, id+".ckpt"))
-	return nil
+	// RemoveAll is nil for a path that does not exist, so this only reports a
+	// checkpoint directory that really could not be removed — which matters,
+	// because a stale .ckpt outlives the session it belonged to.
+	return os.RemoveAll(filepath.Join(dir, id+".ckpt"))
 }
 
 // Clear removes all sessions and checkpoints in dir.

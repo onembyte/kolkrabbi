@@ -140,7 +140,9 @@ func (s *Store) RewindLastTurn() ([]string, error) {
 			}
 		}
 		if e.Backup != "" {
-			os.Remove(filepath.Join(s.dir, e.Backup))
+			// Best effort: the file is already restored, so a backup that
+			// cannot be deleted is litter, not a failed rewind.
+			_ = os.Remove(filepath.Join(s.dir, e.Backup))
 		}
 		restored = append(restored, e.Path)
 	}

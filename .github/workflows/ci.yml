@@ -25,32 +25,73 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: go vet
-        run: go vet ./...
-
       - name: gofmt
-        run: |
-          unformatted="$(gofmt -l .)"
-          if [ -n "$unformatted" ]; then
-            echo "these files need gofmt:"; echo "$unformatted"; exit 1
-          fi
+        run: make fmt-check
+
+      - name: go vet
+        run: make vet
 
       - name: build (CGO_ENABLED=0 — the cgo rule, §1)
         env:
           CGO_ENABLED: "0"
         run: go build ./cmd/...
 
-      - name: test
-        run: go test ./...
+      # scripts/test.sh, not `go test ./...`: a nested module's tests are
+      # invisible to a bare ./..., which prints ok and exits 0.
+      - name: test (every module)
+        run: make test
 
-      - name: test-count floor
-        shell: bash
+  guardrails:
+    name: guard rails
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Named gates, so a failure says which rule broke rather than "tests failed".
+      - name: architecture (layering, dependencies, naming)
+        run: make arch
+
+      - name: purity (the engine touches no OS)
+        run: make purity
+
+      - name: build tags (no silently-wrong build)
+        run: make buildtags
+
+      # `go install <module>/cmd/x@version` hard-fails on a module with a
+      # replace directive, which is exactly how kolk is meant to be installed.
+      - name: no replace in the root go.mod
         run: |
-          count="$(go test ./... -v 2>/dev/null | grep -c '^=== RUN' || true)"
-          echo "tests run: $count"
-          if [ "$count" -lt 22 ]; then
-            echo "::error::test count fell below the floor of 22 (got $count)"; exit 1
+          if grep -qE '^replace' go.mod; then
+            echo "::error::go.mod has a replace directive; go install @latest refuses it"; exit 1
           fi
+
+      - name: go.mod is tidy
+        run: |
+          cp go.mod go.mod.bak
+          [ -f go.sum ] && cp go.sum go.sum.bak || true
+          go mod tidy
+          if ! diff -q go.mod go.mod.bak >/dev/null; then
+            echo "::error::go.mod is not tidy — run go mod tidy"; diff go.mod.bak go.mod || true; exit 1
+          fi
+          mv go.mod.bak go.mod
+          [ -f go.sum.bak ] && mv go.sum.bak go.sum || true
+
+  lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
 
   budgets:
     name: budgets
@@ -62,23 +103,7 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: binary size + cold start
-        env:
-          CGO_ENABLED: "0"
-        shell: bash
-        run: |
-          go build -ldflags="-s -w" -o /tmp/kolk ./cmd/kolk
-          size=$(stat -c %s /tmp/kolk)
-          echo "binary: $size bytes"
-          # budget: 20 MB (docs/plan/02-architecture.md §11)
-          if [ "$size" -gt 20971520 ]; then
-            echo "::error::binary exceeds the 20 MB budget ($size bytes)"; exit 1
-          fi
-          start=$(date +%s%N)
-          for _ in $(seq 20); do /tmp/kolk help >/dev/null; done
-          end=$(date +%s%N)
-          avg=$(( (end - start) / 20 / 1000000 ))
-          echo "cold start: ${avg} ms (budget 30 ms)"
-          if [ "$avg" -gt 30 ]; then
-            echo "::error::cold start ${avg} ms exceeds the 30 ms budget"; exit 1
-          fi
+      # Binary size, cold start, the test-count floor and the dependency count.
+      # These fail, never warn (docs/plan/02-architecture.md §11).
+      - name: budgets
+        run: make budgets

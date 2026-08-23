@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -48,18 +49,21 @@ func Main(ctx context.Context, args []string) int {
 func (a *app) main(ctx context.Context, args []string) int {
 	err := a.dispatch(ctx, args)
 	code := exitCode(err)
-	switch e := err.(type) {
-	case nil:
-	case *GuidedError:
-		fmt.Fprintf(a.stderr, "%s\n", e.Msg)
-		for _, h := range e.Hint {
+
+	var guided *GuidedError
+	switch {
+	case err == nil:
+	// errors.As, not a type switch: a GuidedError wrapped on its way up still
+	// has to print the commands that fix it, or the guidance is lost exactly
+	// when the failure got complicated enough to need it.
+	case errors.As(err, &guided):
+		fmt.Fprintf(a.stderr, "%s\n", guided.Msg)
+		for _, h := range guided.Hint {
 			fmt.Fprintf(a.stderr, "  %s\n", h)
 		}
+	case code == ExitInterrupt:
+		fmt.Fprintln(a.stderr, "(interrupted)")
 	default:
-		if code == ExitInterrupt {
-			fmt.Fprintln(a.stderr, "(interrupted)")
-			break
-		}
 		fmt.Fprintf(a.stderr, "error: %v\n", err)
 		if code == ExitUsage {
 			fmt.Fprintln(a.stderr, "run `kolk help` for usage.")
@@ -85,6 +89,7 @@ func commandTable() []command {
 		{"models", "[filter]", "list models with context size and $/1M pricing", (*app).runModels},
 		{"sessions", "[rm <id> | clear]", "list or delete saved sessions", (*app).runSessions},
 		{"stats", "[--json]", "100% local usage and rating dashboard", (*app).runStats},
+		{"version", "[--json]", "print the running build", (*app).runVersion},
 		{"help", "", "show this help", (*app).runHelp},
 	}
 }
@@ -151,7 +156,7 @@ Commands:
 	for _, c := range commandTable() {
 		fmt.Fprintf(w, "  %s\t%s\n", c.name, c.summary)
 	}
-	w.Flush()
+	_ = w.Flush() // a failed write to a terminal is not actionable
 
 	fmt.Fprint(a.stdout, "\nFlags:\n")
 	w = tabwriter.NewWriter(a.stdout, 0, 0, 2, ' ', 0)
@@ -162,7 +167,7 @@ Commands:
 		}
 		fmt.Fprintf(w, "  %s\t%s\n", strings.TrimSpace(name+" "+f.arg), f.summary)
 	}
-	w.Flush()
+	_ = w.Flush() // a failed write to a terminal is not actionable
 
 	fmt.Fprint(a.stdout, `
 Run 'kolk help <command>' for a command's arguments.

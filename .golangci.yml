@@ -1,0 +1,39 @@
+# The linters worth failing a build over. Style opinions that a human would
+# disagree with are left out: a lint nobody agrees with is a lint everyone
+# learns to silence.
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck      # an ignored error is the most common real bug in Go
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - bodyclose     # a leaked response body in a streaming client is a slow death
+    - rowserrcheck
+    - nilerr
+    - errorlint     # %w and errors.Is/As, which the exit-code table depends on
+
+  settings:
+    errcheck:
+      # Writing to a terminal. Every one of these is a print, and no program
+      # has ever usefully handled a failed Fprintf to stdout.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [errcheck]
+
+formatters:
+  enable:
+    - gofmt
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

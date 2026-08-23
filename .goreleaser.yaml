@@ -1,0 +1,60 @@
+# GoReleaser stays on the OSS tier, deliberately: monorepo mode, the prebuilt
+# importer, .app/.dmg/.msi bundling and native bundle notarization are all Pro.
+# This file ships the CLI only. Desktop bundles go through their own workflow on
+# native runners, and GoReleaser is never asked to do them.
+version: 2
+
+project_name: kolk
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: kolk
+    main: ./cmd/kolk
+    binary: kolk
+    # The cgo rule: every binary this repo ships is cgo-free (§1). The two
+    # written-down exceptions both live outside the root module.
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/onembyte/kolkrabbi/internal/buildinfo.version={{.Version}}
+      - -X github.com/onembyte/kolkrabbi/internal/buildinfo.commit={{.FullCommit}}
+      - -X github.com/onembyte/kolkrabbi/internal/buildinfo.date={{.Date}}
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+
+archives:
+  - id: kolk
+    ids: [kolk]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-dev"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^plan:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  draft: false
+  prerelease: auto

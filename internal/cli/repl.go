@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -26,16 +27,23 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 	for {
 		fmt.Fprintf(a.stdout, "\n\033[1m%s>\033[0m ", ag.Mode)
 		line, err := a.in.ReadString('\n')
-		if err != nil {
-			return nil // EOF (Ctrl+D)
+		// ReadString returns the final line AND io.EOF together when input ends
+		// without a trailing newline, so returning on err would silently drop
+		// the last command of any piped script.
+		eof := errors.Is(err, io.EOF)
+		if err != nil && !eof {
+			return fmt.Errorf("reading input: %w", err)
 		}
 		line = strings.TrimSpace(line)
 		if line == "" {
+			if eof {
+				return nil
+			}
 			continue
 		}
 
 		if strings.HasPrefix(line, "/") {
-			if a.slash(ag, line) {
+			if a.slash(ag, line) || eof {
 				return nil
 			}
 			continue
@@ -50,6 +58,9 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 			fmt.Fprintln(a.stdout, "\033[2m(interrupted)\033[0m")
 		case err != nil:
 			fmt.Fprintf(a.stderr, "\033[31merror:\033[0m %v\n", err)
+		}
+		if eof {
+			return nil
 		}
 	}
 }

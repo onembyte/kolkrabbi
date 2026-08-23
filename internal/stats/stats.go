@@ -56,9 +56,15 @@ func Append(dir string, r Record) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	_, err = f.Write(append(b, '\n'))
-	return err
+	// Not a deferred Close: this is the write path for the file every cost
+	// number is later read from, and a Close error is how a short write on a
+	// full or networked disk reports itself.
+	_, werr := f.Write(append(b, '\n'))
+	cerr := f.Close()
+	if werr != nil {
+		return werr
+	}
+	return cerr
 }
 
 // Load reads all records; corrupt lines are skipped, a missing file is empty.
@@ -70,7 +76,7 @@ func Load(dir string) ([]Record, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }() // read path: nothing to lose on close
 
 	var out []Record
 	sc := bufio.NewScanner(f)
