@@ -72,9 +72,10 @@ var mayImport = map[Layer][]Layer{
 var packageLayer = map[string]Layer{
 	// L0 — platform. Everything that knows what an OS is lives here and
 	// nowhere else. Most of these arrive at migration step 5.
-	"internal/buildinfo": L0Platform,
-	"internal/paths":     L0Platform,
-	"internal/shell":     L0Platform,
+	"internal/buildinfo":  L0Platform,
+	"internal/paths":      L0Platform,
+	"internal/shell":      L0Platform,
+	"internal/atomicfile": L0Platform,
 
 	// L2 — the hinge. Arrives at step 7.
 

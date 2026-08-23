@@ -21,6 +21,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/onembyte/kolkrabbi/internal/atomicfile"
 )
 
 // app is the single directory name every platform appends. One constant, so a
@@ -124,7 +126,7 @@ func (d Dirs) EnsureData() error {
 	if _, err := os.Lstat(p); err == nil {
 		return nil // already there; never overwrite what the user may have edited
 	}
-	return os.WriteFile(p, []byte(gitignore), 0o600)
+	return atomicfile.Write(p, []byte(gitignore), 0o600)
 }
 
 const gitignore = `# kolk keeps state here. None of it belongs in a repository.

@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/onembyte/kolkrabbi/internal/atomicfile"
 )
 
 type Entry struct {
@@ -63,11 +65,9 @@ func (s *Store) saveManifest() error {
 	if err != nil {
 		return err
 	}
-	tmp := s.manifestPath() + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, s.manifestPath())
+	// The manifest is the index of every backup: lose it half-written and the
+	// backups on disk become unreachable, which is the same as losing them.
+	return atomicfile.Write(s.manifestPath(), b, 0o600)
 }
 
 // BeginTurn marks the start of a new user turn; subsequent Records belong to it.

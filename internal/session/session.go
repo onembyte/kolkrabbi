@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/onembyte/kolkrabbi/internal/atomicfile"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 )
 
@@ -47,7 +48,13 @@ func (s *Session) path() string { return filepath.Join(s.dir, s.ID+".json") }
 // CkptDir is where this session's file checkpoints are stored.
 func (s *Session) CkptDir() string { return filepath.Join(s.dir, s.ID+".ckpt") }
 
-// Save writes the session atomically (tmp file + rename).
+// Save writes the session atomically and durably.
+//
+// A transcript is the one thing here a person cannot reconstruct, so this goes
+// through internal/atomicfile rather than a hand-rolled tmp-and-rename: that
+// buys an fsync (a rename is atomic against other processes but not against
+// power loss) and a unique temp name (a REPL in one terminal and `kolk -p` in
+// another used to write the same "x.json.tmp" and shred each other).
 func (s *Session) Save() error {
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
 		return err
@@ -57,11 +64,7 @@ func (s *Session) Save() error {
 	if err != nil {
 		return err
 	}
-	tmp := s.path() + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, s.path())
+	return atomicfile.Write(s.path(), b, 0o600)
 }
 
 // SetTitleFromInput sets a human-readable title from the first user message.

@@ -16,6 +16,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/onembyte/kolkrabbi/internal/atomicfile"
 )
 
 type Config struct {
@@ -56,7 +58,9 @@ func Save(file string, cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(file, append(b, '\n'), 0o600)
+	// Atomic: a config file truncated by a crash mid-write is a machine that
+	// has forgotten its API key, which reads to the user as kolk losing it.
+	return atomicfile.Write(file, append(b, '\n'), 0o600)
 }
 
 // ResolveAPIKey prefers the OPENROUTER_API_KEY env var over the saved config,
