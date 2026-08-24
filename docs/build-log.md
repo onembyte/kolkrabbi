@@ -3549,3 +3549,67 @@ release, workflow, and verifier contracts green.
 U0.4b adds the raw terminal boundary and editor event model behind strict TTY/fallback gating. It
 must keep engine/provider policy out of `internal/tui`, preserve every non-interactive byte, and
 remain within the two-module dependency gate before the existing REPL is switched over.
+
+---
+
+## Terminal UI / U0.4b–d — persistent runtime, slash discovery, and v1.1.2 candidate
+
+**Status:** release candidate, 2026-08-24 · **Release target:** `v1.1.2` · **Tests:** 1,269 ·
+**Snapshot checks:** 21 · **Platforms:** 5 · **Dependencies:** 2 · **Binary:** 6.22 MB ·
+**Cold start:** 4.5 ms p50
+
+This cut replaces the interactive line reader with a normal-screen terminal runtime while leaving
+redirected and `TERM=dumb` invocations on the byte-compatible plain REPL. Transcript, ephemeral
+octopus/tool work, status, slash suggestions, approval, and the multiline composer have separate
+storage. Streamed output and tool activity can repaint while type-ahead remains in the fixed
+composer; raw mode, bracketed paste, and cursor visibility are restored exactly once on every exit.
+
+### TDD record
+
+**Red:** runtime tests first failed on the absent event loop, renderer, raw terminal boundary, and
+engine decision port. Editor tests then failed on fragmented UTF-8/escape/paste sequences and
+multiline cursor/history behavior. Slash tests failed before recent-first prefix filtering and
+keyboard selection existed. Live rehearsal found one further red case: successful turns were
+marked interrupted because lifecycle was inspected after cleanup canceled the child context.
+
+**Green:** `internal/term` owns `x/term` raw mode and size probes; `internal/tui` owns a bounded,
+control-sanitized screen model, editor, decoder, controller, renderer, and concurrent runtime. `/`
+shows recent commands, filters as letters arrive, selects with Up/Down, and completes with Tab or
+an explicitly selected Enter. Empty-composer Up restores the last exact multiline message. One
+Ctrl+C clears only the composer without canceling work; a second consecutive Ctrl+C exits. Tool
+approvals have an isolated input overlay, and YOLO bypasses the engine decision port as before.
+
+**Refactor:** slash help and discovery share one CLI-owned catalog. Visible model output now uses
+`kolk-<mode>` rather than leaking the OpenAI `assistant` role. Tool calls become payload-safe logs
+such as `Reading file — PLAN.md`, with a replaceable octopus work row while the action runs. ANSI
+and cursor controls from provider/tool text are removed before rendering, transcript retention is
+bounded to a valid UTF-8 tail, and engine/provider policy remains outside `internal/tui`.
+
+### Verification
+
+```sh
+GOCACHE=/private/tmp/kolkrabbi-go-cache go test -race \
+  ./internal/cli ./internal/engine ./internal/term ./internal/tui -count=1
+GOCACHE=/private/tmp/kolkrabbi-go-cache \
+  GOLANGCI_LINT_CACHE=/private/tmp/kolkrabbi-lint-cache make check
+KOLK_GORELEASER_BIN=/private/tmp/kolk-goreleaser.olLZpM/goreleaser \
+  GOCACHE=/private/tmp/kolkrabbi-go-cache ./scripts/test-release-snapshot.sh
+```
+
+The full gate passed 1,269 tests, Darwin/Linux amd64/arm64 plus advisory Windows/amd64, zero lint
+issues, two root modules, a 6.22 MB stripped binary, 4.5 ms cold-start p50, 110 site checks, 13
+surface checks, 72 installer checks, 29 spec checks, 24 release checks, 41 workflow checks, and 30
+verifier checks. GoReleaser v2.17.1 produced exactly four `1.1.2-dev.e2ce552` archives; all 21
+archive, checksum, member, and host-identity checks passed.
+
+An isolated pseudo-terminal rehearsal used the offline `cmd/kolk-mock` server. It verified `/`
+filtering, keyboard selection, mode/status updates, Up history, composer-only first Ctrl+C,
+double-Ctrl+C exit, `kolk-code` responses, `Writing file — hello-from-mock.txt`, ephemeral tool
+activity, a fixed composer during streaming, and a final `ready` lifecycle with no API call or cost.
+
+### Next checkpoint
+
+Commit and push only the reviewed U0.4/A8 decision-port/release files, wait for ordinary branch CI,
+then create immutable tag `v1.1.2`. The release workflow must rerun the full gate, publish exactly
+the signed six-asset release, and pass public updater plus installer upgrade rehearsals before
+U0.4d closes.

@@ -106,8 +106,43 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   every logical engine model call without changing terminal output.
 - [x] **U0.3b TTY octopus renderer** — implement the purple animated status against U0.3a with a fake
   clock and strict terminal-only activation.
-- [ ] **U0.4 persistent terminal UI** — add a Codex-style persistent multiline input area, live
+- [x] **U0.3c terminal-compatible octopus hotfix** — keep every animation frame in one saved
+  terminal region on Apple Terminal and publish the independently verified `v1.1.1` patch.
+- [~] **U0.4 persistent terminal UI** — add a Codex-style persistent multiline input area, live
   activity/tool status, visible model/mode/effort/session state, and robust terminal interaction.
+
+### U0.3c terminal-compatible octopus hotfix — active detail
+
+Scope:
+
+- Reproduce the reported frame flood using Apple Terminal-compatible cursor semantics while
+  preserving the already-rendered `assistant ` prefix.
+- Replace the unsupported cursor save/restore pair with one supported by Apple Terminal, xterm,
+  iTerm2, and the Linux console; keep cleanup exact and idempotent.
+- Publish the fix as SemVer `v1.1.1`, rehearse an upgrade from `v1.1.0`, and make every current
+  release-facing surface name the exact patch.
+
+Non-goals:
+
+- No persistent composer, alternate-screen UI, input editor, status bar, layout framework, or tool
+  transcript redesign; U0.4 owns that larger Codex-style terminal surface.
+- No spinner wording, frame cadence, color, activity lifecycle, provider behavior, or approval
+  policy change.
+- No staging or mutation of the active A7.2 scanner work or the owner's unrelated files.
+
+Acceptance checklist:
+
+- [x] a compatibility test reproduces the old repeated-frame line and fails only because the SCO
+  `CSI s/u` cursor pair is ignored.
+- [x] two rendered frames plus cleanup leave exactly the pre-existing `assistant ` prefix under
+  Apple Terminal-compatible semantics, and the renderer emits no `CSI s/u` pair.
+- [x] the release, installer, verifier, and website fixtures name `v1.1.1`; the installer proves a
+  `v1.1.0 → v1.1.1` verified replacement and an equal-version no-download path.
+- [x] focused CLI/race tests, every repository gate, and a four-platform GoReleaser snapshot pass.
+- [x] only reviewed hotfix files are committed and pushed; tag `v1.1.1`, signed assets, latest
+  discovery, and the public updater/install path are independently verified.
+- [x] the build log records red, green, rehearsal, commit/tag, public verification, and owner
+  handoff evidence.
 
 ### R1.1 v1.1.0 installer-upgrade release — active detail
 
@@ -560,6 +595,17 @@ Acceptance checklist:
 
 ### U0.4 persistent terminal UI — planned detail
 
+Delivery leaves (only one active at a time):
+
+- [x] **U0.4a pure screen model** — separate transcript, activity, status, suggestions, and draft;
+  prove output updates cannot mutate or displace the composer.
+- [x] **U0.4b terminal runtime and composer** — add raw terminal input, multiline editing, resize,
+  streamed-output routing, cancellation, and the plain-terminal fallback.
+- [x] **U0.4c slash discovery** — show recent commands after `/`, filter live by the typed prefix,
+  navigate/select suggestions, and keep the command catalog single-sourced.
+- [~] **U0.4d status and release** — connect model/mode/effort/session/approval/lifecycle state,
+  complete accessibility/platform/budget gates, and publish the first solid TUI cut as `v1.1.2`.
+
 Scope:
 
 - Replace the interactive single-line prompt with a persistent bottom composer that supports
@@ -583,16 +629,25 @@ Non-goals:
 - No framework choice until PLAN item 11's spike measures binary size, cold start, platform support,
   input correctness, and protocol boundaries against the existing budgets.
 
+Spike decision (2026-08-24):
+
+- Bubble Tea v2.0.9 plus Bubbles v2.2.0 cross-compiles and stays below the binary-size budget, but
+  expands the root graph to 18 modules and therefore fails the enforced two-module supply-chain
+  budget before production integration.
+- Use the official `golang.org/x/term` v0.45.0 primitive behind `internal/term`: together with the
+  existing `x/sys` it keeps exactly two modules, cross-compiles on Windows, and leaves the screen
+  model in `internal/tui` dependency-free. Do not weaken the dependency budget.
+
 Acceptance checklist:
 
-- [ ] the composer remains visible and retains its exact draft across response tokens, tool status,
-  confirmation overlays, resize, and cancellation.
-- [ ] the selected model is always visible; mode, effort, session, approval, and lifecycle states are
+- [x] the composer remains visible and retains its exact draft across response tokens, tool status,
+  confirmation overlays, and resize; one Ctrl+C deliberately clears only that draft.
+- [x] the selected model is always visible; mode, effort, session, approval, and lifecycle states are
   accurate after slash-command changes and errors.
 - [ ] keyboard behavior, multiline/paste handling, narrow/Unicode layouts, Markdown/diff rendering,
   and approval focus have deterministic golden or model tests.
-- [ ] non-interactive commands and redirected input/output retain the existing plain CLI contract.
-- [ ] the chosen framework remains within reviewed dependency, binary-size, startup, Windows build,
+- [x] non-interactive commands and redirected input/output retain the existing plain CLI contract.
+- [x] the chosen framework remains within reviewed dependency, binary-size, startup, Windows build,
   race, and architecture budgets; the full repository gates pass.
 
 ### R0.1 v0.1 two-mode surface — verified detail

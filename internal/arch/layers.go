@@ -129,7 +129,7 @@ var commandPackages = map[string]bool{
 var thirdParty = map[string][]string{
 	// Arrive with their packages at later steps; listed now so the budget is
 	// a decision on the record rather than a surprise in a diff.
-	"internal/term": {"golang.org/x/sys"},
+	"internal/term": {"golang.org/x/sys", "golang.org/x/term"},
 	"internal/dash": {"modernc.org/sqlite", "modernc.org/libc"},
 }
 

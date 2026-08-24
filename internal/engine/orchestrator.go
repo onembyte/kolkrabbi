@@ -86,7 +86,7 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 		{Role: "system", Content: "You are the orchestrator's synthesis step. You produce the final user-facing answer from completed subagent work."},
 		{Role: "user", Content: sb.String()},
 	}
-	fmt.Fprintf(a.Out, "%sassistant%s ", colorCyan, colorReset)
+	fmt.Fprintf(a.Out, "%s%s%s ", colorCyan, a.responseLabel(), colorReset)
 	msg, meta, err := a.streamChat(ctx, activitySynthesizing, model, synth, nil, func(tok string) {
 		fmt.Fprint(a.Out, tok)
 	})
@@ -186,8 +186,7 @@ Overall request: %s
 			return strings.TrimSpace(msg.Content), nil
 		}
 		for _, tc := range msg.ToolCalls {
-			fmt.Fprintf(a.Out, "%s  → %s%s\n", colorDim, summarizeCall(tc), colorReset)
-			result, err := tools.Execute(ctx, tc.Function.Name, tc.Function.Arguments, a.confirm, a.preWrite)
+			result, err := a.executeTool(ctx, tc)
 			if err != nil {
 				result = "Error: " + err.Error()
 			}

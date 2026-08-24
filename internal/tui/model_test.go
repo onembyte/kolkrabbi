@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestScreenRegionsKeepTranscriptActivityAndDraftIndependent(t *testing.T) {
@@ -116,6 +117,34 @@ func TestViewWrapsWideAndCombiningCharactersByTerminalCells(t *testing.T) {
 	}
 	if got := m.Snapshot().Draft; got != "🐙abcde\ne\u0301e\u0301e\u0301e\u0301e\u0301e\u0301e\u0301" {
 		t.Fatalf("Unicode wrapping mutated draft: %q", got)
+	}
+}
+
+func TestScreenStripsTerminalControlSequencesFromUntrustedRegions(t *testing.T) {
+	m := New(Status{Model: "model\x1b[2J", Mode: "code\nspoof", Lifecycle: "ready"})
+	m.AppendTranscript("\x1b[31massistant\x1b[0m\r\x1b[2J safe\n")
+	m.SetActivity("🐙 thinking…\x1b[H\nspoof")
+	m.SetDraft("keep\x1b[2Jthis")
+
+	got := m.Snapshot()
+	if got.Transcript != "assistant safe\n" {
+		t.Fatalf("sanitized transcript = %q", got.Transcript)
+	}
+	view := m.View(60, 12)
+	if strings.ContainsAny(view, "\x1b\r") || strings.Contains(view, "\nspoof") {
+		t.Fatalf("untrusted region retained terminal controls: %q", view)
+	}
+	for _, want := range []string{"assistant safe", "🐙 thinking… spoof", "model · code spoof", "keepthis"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("sanitized view omitted %q: %q", want, view)
+		}
+	}
+}
+
+func TestTranscriptBufferRetainsOnlyAValidUTF8Tail(t *testing.T) {
+	got := appendTranscriptBounded([]byte("first\nsecond\n"), "🐙tail", 10)
+	if !utf8.ValidString(string(got)) || string(got) != "d\n🐙tail" {
+		t.Fatalf("bounded transcript = %q", string(got))
 	}
 }
 

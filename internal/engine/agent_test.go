@@ -39,6 +39,41 @@ func TestReleaseModesAreExactlyChatCodeAndAgent(t *testing.T) {
 	}
 }
 
+func TestVisibleResponseLabelUsesTheActiveKolkMode(t *testing.T) {
+	for _, mode := range Modes {
+		ag := New(Options{Mode: mode, Sess: session.New(t.TempDir(), "mock/model")})
+		if got, want := ag.responseLabel(), "kolk-"+mode; got != want {
+			t.Fatalf("response label in %s mode = %q, want %q", mode, got, want)
+		}
+	}
+}
+
+func TestToolCallDescriptionsAreReadableAndNeverExposeRawPayloads(t *testing.T) {
+	tests := []struct {
+		name string
+		call provider.ToolCall
+		want string
+	}{
+		{"bash", provider.ToolCall{Function: provider.FunctionCall{Name: "bash", Arguments: `{"command":"go test ./...","description":"Run focused tests"}`}}, "Running command — Run focused tests"},
+		{"read", provider.ToolCall{Function: provider.FunctionCall{Name: "read_file", Arguments: `{"path":"PLAN.md"}`}}, "Reading file — PLAN.md"},
+		{"write", provider.ToolCall{Function: provider.FunctionCall{Name: "write_file", Arguments: `{"path":"internal/new.go","content":"secret body"}`}}, "Writing file — internal/new.go"},
+		{"edit", provider.ToolCall{Function: provider.FunctionCall{Name: "edit_file", Arguments: `{"path":"README.md","old_str":"old","new_str":"new"}`}}, "Editing file — README.md"},
+		{"list", provider.ToolCall{Function: provider.FunctionCall{Name: "list_dir", Arguments: `{}`}}, "Listing directory — ."},
+		{"malformed", provider.ToolCall{Function: provider.FunctionCall{Name: "write_file", Arguments: `{"content":"must not leak"`}}, "Using tool — write_file"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := describeToolCall(test.call)
+			if got != test.want {
+				t.Fatalf("description = %q, want %q", got, test.want)
+			}
+			if strings.Contains(got, "secret body") || strings.Contains(got, "must not leak") || strings.Contains(got, `{"`) {
+				t.Fatalf("description exposed raw tool arguments: %q", got)
+			}
+		})
+	}
+}
+
 func newTestAgent(t *testing.T, srv *enginetest.Server, mode string) (*Agent, *bytes.Buffer, string, string) {
 	t.Helper()
 	client := provider.NewClient("test-key")
@@ -94,6 +129,9 @@ func TestE2E_ToolLoopWithPersistenceAndRewind(t *testing.T) {
 	// 2. streamed output + cost footer reached the writer
 	if !strings.Contains(out.String(), "Creating the file now.") || !strings.Contains(out.String(), "Done — hello.txt is created.") {
 		t.Errorf("streamed output missing content:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "Writing file — "+target) || strings.Contains(out.String(), "write_file({") {
+		t.Errorf("tool activity was not descriptive and payload-safe:\n%s", out.String())
 	}
 	if !strings.Contains(out.String(), "$0.0020") {
 		t.Errorf("footer missing cost:\n%s", out.String())

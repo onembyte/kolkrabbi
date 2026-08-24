@@ -32,7 +32,7 @@ contains "$CLI/cli.go" 'kolk — chat / code / agent in one CLI' "top-level help
 contains "$CLI/cli.go" 'In agent mode, effort also scales orchestration width.' "top-level help does not explain agent effort"
 contains "$CLI/slash.go" '/auto-approve [on|off]' "in-session help does not list explicit auto-approval"
 contains "$CLI/cli.go" '{"update", "", "install the latest verified release"' "top-level update command is missing"
-contains "$CLI/slash.go" '/update        install the latest verified release' "in-session update command is missing"
+contains "$CLI/slash.go" '{"update", "", "install the latest verified release"}' "in-session update command is missing"
 contains "$ROOT/internal/engine/agent.go" 'var Modes = []string{ModeChat, ModeCode, ModeAgent}' "engine registry does not expose exactly three modes"
 
 if [ "$failures" -ne 0 ]; then

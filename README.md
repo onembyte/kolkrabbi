@@ -98,7 +98,9 @@ kolk models claude            # browse models with $/1M pricing
 In-session: `/mode`, `/effort`, `/model`, `/rate 1-5`, `/changes`, `/rewind`,
 `/new`, `/auto-approve [on|off]`, `/yolo`, `/help`. `/auto-approve` without an
 argument enables it for the current session; `/yolo` remains the quick toggle.
-Ctrl+C interrupts the current turn only.
+In the interactive TUI, ↑ reloads the last message; one Ctrl+C clears only the
+composer, while a second consecutive Ctrl+C exits. Single-shot Ctrl+C still
+aborts that run.
 
 ## Sessions, checkpoints, project memory
 

@@ -95,11 +95,9 @@ const DefaultWidth = 80
 
 // Width reports the usable column count.
 //
-// It reads COLUMNS, which shells export and CI systems set, rather than
-// performing a TIOCGWINSZ ioctl: the ioctl needs golang.org/x/sys, and this
-// package exists partly to keep the root module's dependency graph empty.
-// When the TUI lands it will need live resize events anyway, and that is the
-// point at which the dependency earns its place.
+// It reads COLUMNS, which shells export and CI systems set. Interactive TUI
+// callers use Size for a live ioctl; Width remains the deterministic fallback
+// for pipes, CI, and terminals whose size probe fails.
 func Width() int { return widthFor(os.Getenv) }
 
 func widthFor(getenv func(string) string) int {

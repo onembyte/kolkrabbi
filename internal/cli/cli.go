@@ -45,6 +45,11 @@ type app struct {
 	// confirmations both read lines from it; two readers would each buffer and
 	// one would eat the other's input.
 	in *bufio.Reader
+	// terminalInput/output are retained separately from the interface streams:
+	// raw mode and live size probes require real file descriptors. Tests and
+	// redirected invocations leave them nil and use the byte-identical REPL.
+	terminalInput  *os.File
+	terminalOutput *os.File
 
 	// Credential operations are narrow function seams rather than replaceable
 	// app services. Tests can prove the command refuses unsafe input before a
@@ -57,10 +62,15 @@ type app struct {
 	now              func() time.Time
 	canAnimate       func() bool
 	newActivity      func(io.Writer) engine.ActivityIndicator
+	enterRaw         func(*os.File) (func() error, error)
+	terminalSize     func(*os.File) (int, int)
 }
 
 func newApp() *app {
-	a := &app{stdout: os.Stdout, stderr: os.Stderr, in: bufio.NewReader(os.Stdin)}
+	a := &app{
+		stdout: os.Stdout, stderr: os.Stderr, in: bufio.NewReader(os.Stdin),
+		terminalInput: os.Stdin, terminalOutput: os.Stdout,
+	}
 	a.initKeyDependencies()
 	a.update = selfupdate.Update
 	a.currentVersion = func() string { return buildinfo.Get().Version }
@@ -68,6 +78,8 @@ func newApp() *app {
 	a.newActivity = func(out io.Writer) engine.ActivityIndicator {
 		return newOctopusActivity(out, term.Color())
 	}
+	a.enterRaw = term.EnterRaw
+	a.terminalSize = term.Size
 	return a
 }
 

@@ -9,7 +9,56 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/checkpoint"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/session"
+	"github.com/onembyte/kolkrabbi/internal/tui"
 )
+
+type slashCommand struct {
+	name    string
+	args    string
+	summary string
+}
+
+var slashCommandTable = []slashCommand{
+	{"mode", "<chat|code|agent>", "switch mode (agent = orchestrated; code is default)"},
+	{"effort", "<quick|standard|deep|ultra>", "select model tier and orchestration width"},
+	{"model", "[id]", "list available models or switch this session"},
+	{"update", "", "install the latest verified release"},
+	{"rate", "<1-5>", "rate the last turn for local stats"},
+	{"auto-approve", "[on|off]", "control tool confirmations for this session"},
+	{"yolo", "", "toggle auto-approval for this session"},
+	{"new", "", "start a fresh saved session"},
+	{"clear", "", "alias for /new"},
+	{"session", "", "show the current session id and file"},
+	{"changes", "", "list files modified by this session"},
+	{"rewind", "", "undo the last turn's file changes"},
+	{"help", "", "show all slash commands"},
+	{"exit", "", "quit Kolkrabbi"},
+	{"quit", "", "alias for /exit"},
+}
+
+func slashSuggestions() []tui.CommandSpec {
+	commands := make([]tui.CommandSpec, 0, len(slashCommandTable))
+	for _, command := range slashCommandTable {
+		usage := "/" + command.name
+		if command.args != "" {
+			usage += " " + command.args
+		}
+		commands = append(commands, tui.CommandSpec{
+			Name: command.name, Usage: usage, Summary: command.summary,
+		})
+	}
+	return commands
+}
+
+func printSlashHelp(out interface{ Write([]byte) (int, error) }) {
+	for _, command := range slashCommandTable {
+		usage := "/" + command.name
+		if command.args != "" {
+			usage += " " + command.args
+		}
+		_, _ = fmt.Fprintf(out, "%-42s %s\n", usage, command.summary)
+	}
+}
 
 // slash handles a /command typed in the REPL. It returns true when the REPL
 // should exit.
@@ -22,19 +71,8 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 	case "/exit", "/quit":
 		return true
 	case "/help":
-		fmt.Fprint(a.stdout, `/mode <chat|code|agent>   switch mode (agent = orchestrated; code is the default)
-/effort <quick|standard|deep|ultra>   select model tier and agent orchestration width
-/model [id]    list available models or switch this session
-/update        install the latest verified release
-/rate <1-5>    rate the last turn (feeds the local dashboard)
-/auto-approve [on|off]   control tool confirmations for this session
-/yolo          toggle auto-approve of tool actions
-/new           start a fresh session (current one stays saved)
-/session       show current session id and file
-/changes       list files this session has modified
-/rewind        undo the last turn's file changes (repeatable, files only)
-/exit          quit
-`)
+		printSlashHelp(a.stdout)
+		fmt.Fprintln(a.stdout, "\nKeys: ↑ last message · Shift+Enter newline · Ctrl+C clear input (twice exits)")
 	case "/mode":
 		if arg == "" {
 			fmt.Fprintf(a.stdout, "mode: %s (chat|code|agent)\n", ag.Mode)

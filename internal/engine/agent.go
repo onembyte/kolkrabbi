@@ -10,12 +10,14 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"runtime"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/onembyte/kolkrabbi/internal/checkpoint"
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -72,6 +74,13 @@ type ActivityIndicator interface {
 	Start(context.Context, string) func()
 }
 
+// WorkIndicator presents one local tool action independently from provider
+// waiting. Surfaces may render it ephemerally; the engine still writes one
+// durable, human-readable activity line to Out.
+type WorkIndicator interface {
+	StartWork(context.Context, string) func()
+}
+
 // Options configures an Agent; zero values get sensible defaults.
 type Options struct {
 	Client   *provider.Client
@@ -88,6 +97,8 @@ type Options struct {
 	// Nil selects the real timer; tests inject it to keep retry gates instant.
 	RetryWait func(context.Context, time.Duration) error
 	Activity  ActivityIndicator
+	Work      WorkIndicator
+	Decider   Decider
 	// Tiers maps effort level -> model id. Missing tiers fall back to Model,
 	// so everything works zero-config and tiers are a pure optimization.
 	Tiers map[string]string
@@ -295,9 +306,12 @@ func newTurnID() string {
 	return hex.EncodeToString(b)
 }
 
-func (a *Agent) confirm(action, detail string) bool {
+func (a *Agent) confirm(ctx context.Context, action, detail string) bool {
 	if a.Yolo {
 		return true
+	}
+	if a.Decider != nil {
+		return a.Decider.Confirm(ctx, Confirmation{Action: action, Detail: detail})
 	}
 	if a.In == nil {
 		return false // no way to ask -> safe default
@@ -312,6 +326,12 @@ func (a *Agent) confirm(action, detail string) bool {
 	return ok
 }
 
+func (a *Agent) confirmer(ctx context.Context) tools.Confirm {
+	return func(action, detail string) bool {
+		return a.confirm(ctx, action, detail)
+	}
+}
+
 // preWrite is the checkpoint hook handed to tools.Execute.
 func (a *Agent) preWrite(tool, path string) error {
 	if a.Ckpt == nil {
@@ -320,12 +340,74 @@ func (a *Agent) preWrite(tool, path string) error {
 	return a.Ckpt.Record(tool, path)
 }
 
-func summarizeCall(tc provider.ToolCall) string {
-	args := tc.Function.Arguments
-	if len(args) > 120 {
-		args = args[:120] + "…"
+func (a *Agent) responseLabel() string { return "kolk-" + a.Mode }
+
+func describeToolCall(tc provider.ToolCall) string {
+	var args struct {
+		Command     string `json:"command"`
+		Description string `json:"description"`
+		Path        string `json:"path"`
 	}
-	return fmt.Sprintf("%s(%s)", tc.Function.Name, args)
+	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+		return "Using tool — " + compactToolText(tc.Function.Name)
+	}
+	path := compactToolText(args.Path)
+	switch tc.Function.Name {
+	case "bash":
+		detail := compactToolText(args.Description)
+		if detail == "" {
+			detail = compactToolText(args.Command)
+		}
+		if detail != "" {
+			return "Running command — " + detail
+		}
+	case "read_file":
+		if path != "" {
+			return "Reading file — " + path
+		}
+	case "write_file":
+		if path != "" {
+			return "Writing file — " + path
+		}
+	case "edit_file":
+		if path != "" {
+			return "Editing file — " + path
+		}
+	case "list_dir":
+		if path == "" {
+			path = "."
+		}
+		return "Listing directory — " + path
+	}
+	return "Using tool — " + compactToolText(tc.Function.Name)
+}
+
+func compactToolText(value string) string {
+	value = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, value)
+	value = strings.Join(strings.Fields(value), " ")
+	runes := []rune(value)
+	if len(runes) > 120 {
+		value = string(runes[:120]) + "…"
+	}
+	return value
+}
+
+func (a *Agent) executeTool(ctx context.Context, tc provider.ToolCall) (string, error) {
+	description := describeToolCall(tc)
+	fmt.Fprintf(a.Out, "%s  → %s%s\n", colorDim, description, colorReset)
+	stopWork := func() {}
+	if a.Work != nil {
+		if stop := a.Work.StartWork(ctx, description); stop != nil {
+			stopWork = stop
+		}
+	}
+	defer stopWork()
+	return tools.Execute(ctx, tc.Function.Name, tc.Function.Arguments, a.confirmer(ctx), a.preWrite)
 }
 
 func (a *Agent) footer(meta provider.Meta) {
@@ -368,7 +450,7 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 	emptyCompletions := 0
 
 	for {
-		fmt.Fprintf(a.Out, "%sassistant%s ", colorCyan, colorReset)
+		fmt.Fprintf(a.Out, "%s%s%s ", colorCyan, a.responseLabel(), colorReset)
 		msg, meta, err := a.streamChat(ctx, activityThinking, model, requestMessages, toolset, func(tok string) {
 			fmt.Fprint(a.Out, tok)
 		})
@@ -400,8 +482,7 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 		emptyCompletions = 0
 
 		for _, tc := range msg.ToolCalls {
-			fmt.Fprintf(a.Out, "%s  → %s%s\n", colorDim, summarizeCall(tc), colorReset)
-			result, err := tools.Execute(ctx, tc.Function.Name, tc.Function.Arguments, a.confirm, a.preWrite)
+			result, err := a.executeTool(ctx, tc)
 			if err != nil {
 				result = "Error: " + err.Error()
 			}

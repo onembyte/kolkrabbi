@@ -172,6 +172,9 @@ func TestSlashHelpListsAllReleaseModes(t *testing.T) {
 	if !strings.Contains(out.String(), "/update") {
 		t.Fatalf("slash help does not list the update command: %q", out.String())
 	}
+	if !strings.Contains(out.String(), "↑ last message") || !strings.Contains(out.String(), "twice exits") {
+		t.Fatalf("slash help does not explain TUI history/interrupt keys: %q", out.String())
+	}
 }
 
 func TestSlashAutoApproveControlsTheLiveSession(t *testing.T) {

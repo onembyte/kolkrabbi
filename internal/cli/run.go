@@ -25,7 +25,6 @@ func (a *app) runDefault(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	a.attachInteractiveActivity(ag, o.prompt == "")
 
 	if o.prompt != "" {
 		// Single-shot: Ctrl+C aborts the run, so the signal context is the
@@ -34,6 +33,10 @@ func (a *app) runDefault(ctx context.Context, args []string) error {
 		defer stop()
 		return ag.RunTurn(tctx, o.prompt)
 	}
+	if a.canUseTUI() {
+		return a.tuiRepl(ctx, ag)
+	}
+	a.attachInteractiveActivity(ag, true)
 	return a.repl(ctx, ag)
 }
 
