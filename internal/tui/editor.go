@@ -319,10 +319,8 @@ func (d *Decoder) Feed(chunk []byte) []Key {
 
 		kind := KeyKind(0)
 		switch d.pending[0] {
-		case '\r':
+		case '\r', '\n':
 			kind = KeyEnter
-		case '\n':
-			kind = KeyNewline
 		case 0x03:
 			kind = KeyInterrupt
 		case 0x04:

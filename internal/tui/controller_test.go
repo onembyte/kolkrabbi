@@ -102,12 +102,41 @@ func TestControllerViewKeepsTheVirtualCursorInsideTheDraftAcrossOutput(t *testin
 	controller.AppendTranscript("assistant token")
 
 	view := controller.View(40, 10)
-	if want := "│ abc▌d"; !strings.Contains(view, want) {
+	if want := "> abc▌d"; !strings.Contains(view, want) {
 		t.Fatalf("view omitted cursor-bearing draft %q:\n%s", want, view)
 	}
 	controller.AppendTranscript(" stream")
-	if view = controller.View(40, 10); !strings.Contains(view, "│ abc▌d") {
+	if view = controller.View(40, 10); !strings.Contains(view, "> abc▌d") {
 		t.Fatalf("stream repaint moved the draft cursor:\n%s", view)
+	}
+}
+
+func TestControllerRenderViewUsesPurpleOnlyForTerminalChrome(t *testing.T) {
+	controller := NewController(Status{
+		Model: "openrouter/free", Mode: "code", Effort: "ultra",
+		SessionName: "purple TUI", Folder: "~/kolkrabbi", Lifecycle: "ready",
+	}, 1024)
+	controller.AppendTranscript("assistant stays plain")
+	controller.HandleKey(Key{Kind: KeyText, Text: "user input stays plain"})
+
+	plain := controller.View(100, 12)
+	styled := controller.RenderView(100, 12)
+	if strings.Contains(plain, "\x1b[") {
+		t.Fatalf("pure view contains terminal styling: %q", plain)
+	}
+	for _, color := range []string{"\x1b[38;5;141m", "\x1b[38;5;103m"} {
+		if !strings.Contains(styled, color) {
+			t.Fatalf("styled view omitted purple palette color %q: %q", color, styled)
+		}
+	}
+	if got := sanitizeTerminalText(styled); got != plain {
+		t.Fatalf("styling changed visible text:\nplain:  %q\nstyled: %q\nstripped:%q", plain, styled, got)
+	}
+	for _, plainRegion := range []string{"assistant stays plain", "> user input stays plain"} {
+		if strings.Contains(styled, "\x1b[38;5;141m"+plainRegion) ||
+			strings.Contains(styled, "\x1b[38;5;103m"+plainRegion) {
+			t.Fatalf("content region %q inherited chrome color: %q", plainRegion, styled)
+		}
 	}
 }
 
@@ -118,13 +147,36 @@ func TestControllerViewSeparatesApprovalFromTheMainComposer(t *testing.T) {
 	controller.HandleKey(Key{Kind: KeyText, Text: "y"})
 
 	view := controller.View(50, 12)
-	for _, want := range []string{"│ next draft▌", "? Run shell command", "go test ./...", "Allow? [y/N]: y▌"} {
+	for _, want := range []string{"> next draft▌", "Run shell command", "go test ./...", "Allow? [y/N]: y▌"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("approval view omitted %q:\n%s", want, view)
 		}
 	}
-	if strings.Index(view, "│ next draft▌") >= strings.Index(view, "? Run shell command") {
+	if strings.Index(view, "> next draft▌") >= strings.Index(view, "Run shell command") {
 		t.Fatalf("approval was not a separate focused region:\n%s", view)
+	}
+}
+
+func TestControllerApprovalUsesTextOnlyHorizontalRules(t *testing.T) {
+	controller := NewController(Status{Mode: "code", Lifecycle: "working"}, 1024)
+	controller.RequestApproval(Approval{Action: "Run shell command", Detail: "go test ./..."})
+
+	view := controller.View(50, 12)
+	for _, want := range []string{
+		horizontalRule("approval", 50),
+		"Run shell command",
+		"go test ./...",
+		"Allow? [y/N]: ▌",
+		strings.Repeat("─", 50),
+	} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("approval omitted %q:\n%s", want, view)
+		}
+	}
+	for _, decorative := range []string{"╭", "╰", "│", "❯", "✦", "⚡", "▸", "⏵", "🐙"} {
+		if strings.Contains(view, decorative) {
+			t.Fatalf("approval contains decorative token %q:\n%s", decorative, view)
+		}
 	}
 }
 
@@ -140,7 +192,7 @@ func TestControllerShowsRecentAndLiveFilteredSlashCommands(t *testing.T) {
 	controller.HandleKey(Key{Kind: KeyText, Text: "/"})
 
 	view := controller.View(60, 12)
-	assertOrdered(t, view, "/model [id]", "/update", "/mode <name>", "╭─ kolk-code")
+	assertOrdered(t, view, "/model [id]", "/update", "/mode <name>", "kolk-code")
 	controller.HandleKey(Key{Kind: KeyText, Text: "mo"})
 	view = controller.View(60, 12)
 	if !strings.Contains(view, "/model [id]") || !strings.Contains(view, "/mode <name>") ||
@@ -160,7 +212,7 @@ func TestControllerNavigatesAndCompletesAFilteredSlashCommand(t *testing.T) {
 	controller.HandleKey(Key{Kind: KeyDown})
 	controller.HandleKey(Key{Kind: KeyDown})
 	view := controller.View(60, 12)
-	if !strings.Contains(view, "› /model [id]") {
+	if !strings.Contains(view, "> /model [id]") {
 		t.Fatalf("second filtered command was not selected:\n%s", view)
 	}
 

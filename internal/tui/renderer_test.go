@@ -15,11 +15,23 @@ func TestRendererReplacesOnlyItsPreviousOwnedRows(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := "assistant first\n╭─ kolk-code\n│ draft\n╰─" +
+	want := "assistant first\r\n╭─ kolk-code\r\n│ draft\r\n╰─" +
 		"\r\x1b[3A\x1b[J" +
-		"assistant second\n╭─ kolk-code\n│ draft\n╰─"
+		"assistant second\r\n╭─ kolk-code\r\n│ draft\r\n╰─"
 	if got := out.String(); got != want {
 		t.Fatalf("rendered bytes:\n got %q\nwant %q", got, want)
+	}
+}
+
+func TestRendererUsesCarriageReturnLineFeedForRawTerminalRows(t *testing.T) {
+	var out bytes.Buffer
+	renderer := NewRenderer(&out)
+	if err := renderer.Render("top\nmiddle\nbottom"); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := out.String(), "top\r\nmiddle\r\nbottom"; got != want {
+		t.Fatalf("raw-terminal frame = %q, want %q", got, want)
 	}
 }
 
@@ -43,7 +55,7 @@ func TestRendererStartAndCloseOwnBracketedPasteAndCursorState(t *testing.T) {
 	}
 
 	want := "\x1b[?2004h\x1b[?25l" +
-		"╭─ kolk-code\n│ draft\n╰─" +
+		"╭─ kolk-code\r\n│ draft\r\n╰─" +
 		"\r\x1b[2A\x1b[J\x1b[?25h\x1b[?2004l"
 	if got := out.String(); got != want {
 		t.Fatalf("lifecycle bytes:\n got %q\nwant %q", got, want)

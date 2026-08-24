@@ -24,7 +24,7 @@ func TestMarkdownRendersHeadingsListsAndQuotes(t *testing.T) {
 		"  │ quoted note",
 		"text after",
 	}
-	if len(lines) < len(want) || !strings.HasSuffix(lines[len(lines)-1], "╰─") {
+	if len(lines) < len(want)+4 || lines[len(lines)-2] != strings.Repeat("─", 40) {
 		t.Fatalf("composer missing from view:\n%s", strings.Join(lines, "\n"))
 	}
 	got := lines[:len(want)]

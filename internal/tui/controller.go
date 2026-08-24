@@ -181,10 +181,23 @@ func (c *Controller) Approval() *Approval {
 // Snapshot returns the independent screen regions.
 func (c *Controller) Snapshot() Snapshot { return c.screen.Snapshot() }
 
-// View renders the underlying screen. U0.4b's renderer adds the approval
-// overlay without changing the main model.
+// View renders the underlying screen without terminal styling. Golden tests
+// and non-terminal adapters use this stable text representation.
 func (c *Controller) View(width, height int) string {
+	return c.renderView(width, height, false)
+}
+
+// RenderView adds the purple terminal palette to UI chrome while preserving
+// the exact visible text returned by View.
+func (c *Controller) RenderView(width, height int) string {
+	return c.renderView(width, height, true)
+}
+
+func (c *Controller) renderView(width, height int, styled bool) string {
 	if c.approval == nil {
+		if styled {
+			return c.screen.renderView(width, height, c.editor.Cursor())
+		}
 		return c.screen.view(width, height, c.editor.Cursor())
 	}
 	overlay := c.approvalLines(width)
@@ -193,6 +206,20 @@ func (c *Controller) View(width, height int) string {
 		baseHeight = max(0, height-len(overlay))
 	}
 	base := c.screen.view(width, baseHeight, c.editor.Cursor())
+	if styled {
+		base = c.screen.renderView(width, baseHeight, c.editor.Cursor())
+		rows := make([]viewRow, len(overlay))
+		for index, line := range overlay {
+			style := styleNone
+			if index == 0 || index == len(overlay)-1 {
+				style = stylePurple
+			} else if index == 1 || index == len(overlay)-2 {
+				style = stylePurpleMuted
+			}
+			rows[index] = viewRow{text: line, style: style}
+		}
+		overlay = strings.Split(joinViewRows(rows, true), "\n")
+	}
 	if base == "" {
 		return strings.Join(overlay, "\n")
 	}
@@ -201,11 +228,11 @@ func (c *Controller) View(width, height int) string {
 
 func (c *Controller) approvalLines(width int) []string {
 	return []string{
-		clipLine("╭─ approval", width),
-		clipLine("? "+sanitizeTerminalLine(c.approval.Action), width),
+		horizontalRule("approval", width),
+		clipLine(sanitizeTerminalLine(c.approval.Action), width),
 		clipLine(sanitizeTerminalLine(c.approval.Detail), width),
 		clipLine(sanitizeTerminalLine(fmt.Sprintf("Allow? [y/N]: %s▌", c.approval.Input)), width),
-		clipLine("╰─", width),
+		strings.Repeat("─", max(0, width)),
 	}
 }
 

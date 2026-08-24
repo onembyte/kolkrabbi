@@ -4,7 +4,6 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -16,12 +15,14 @@ const maxTranscriptBytes = 4 * 1024 * 1024
 // Values are already user-facing labels; the model never resolves product
 // policy or reaches into the engine.
 type Status struct {
-	Model     string
-	Mode      string
-	Effort    string
-	Session   string
-	Approval  string
-	Lifecycle string
+	Model       string
+	Mode        string
+	Effort      string
+	Session     string
+	SessionName string
+	Folder      string
+	Approval    string
+	Lifecycle   string
 }
 
 // Snapshot is an immutable copy of the screen regions. Tests and future
@@ -93,37 +94,74 @@ func (m *Model) Snapshot() Snapshot {
 }
 
 // View renders the logical region order. Transcript rows yield space first;
-// activity and compact status yield next; the composer is always the final
-// region. Visual wrapping never changes the stored draft.
+// activity and suggestions yield next; the framed composer and its compact
+// status footer remain persistent. Visual wrapping never changes the draft.
 func (m *Model) View(width, height int) string {
 	return m.view(width, height, -1)
 }
 
 func (m *Model) view(width, height, cursor int) string {
+	return joinViewRows(m.viewRows(width, height, cursor), false)
+}
+
+func (m *Model) renderView(width, height, cursor int) string {
+	return joinViewRows(m.viewRows(width, height, cursor), true)
+}
+
+type rowStyle uint8
+
+const (
+	styleNone rowStyle = iota
+	stylePurple
+	stylePurpleMuted
+)
+
+const (
+	purpleANSI      = "\x1b[38;5;141m"
+	purpleMutedANSI = "\x1b[38;5;103m"
+	resetANSI       = "\x1b[0m"
+)
+
+type viewRow struct {
+	text  string
+	style rowStyle
+}
+
+func (m *Model) viewRows(width, height, cursor int) []viewRow {
 	if width < 4 {
 		width = 4
 	}
 
-	composer := m.composerLines(width, cursor)
-	activity := []string{}
+	composerText := m.composerLines(width, cursor)
+	composer := make([]viewRow, len(composerText))
+	for index, line := range composerText {
+		style := styleNone
+		if index == 0 || index == len(composerText)-1 {
+			style = stylePurple
+		}
+		composer[index] = viewRow{text: line, style: style}
+	}
+	activity := []viewRow{}
 	if m.activity != "" {
-		activity = []string{clipLine(m.activity, width)}
+		activity = []viewRow{{text: clipLine(m.activity, width), style: stylePurple}}
 	}
-	statusLine := []string{}
-	if status := formatStatus(m.status); status != "" {
-		statusLine = []string{clipLine(status, width)}
+	statusLine := []viewRow{}
+	for _, status := range formatStatus(m.status) {
+		statusLine = append(statusLine, viewRow{text: clipLine(status, width), style: stylePurpleMuted})
 	}
-	suggestions := make([]string, 0, len(m.suggestions))
+	suggestions := make([]viewRow, 0, len(m.suggestions))
 	for index, suggestion := range m.suggestions {
 		marker := "  "
+		style := stylePurpleMuted
 		if index == m.selected {
-			marker = "› "
+			marker = "> "
+			style = stylePurple
 		}
 		line := marker + sanitizeTerminalLine(suggestion.Usage)
 		if suggestion.Summary != "" {
 			line += "  " + sanitizeTerminalLine(suggestion.Summary)
 		}
-		suggestions = append(suggestions, clipLine(line, width))
+		suggestions = append(suggestions, viewRow{text: clipLine(line, width), style: style})
 	}
 
 	// An exceptionally short terminal keeps the input tail and its closing
@@ -144,23 +182,47 @@ func (m *Model) view(width, height, cursor int) string {
 		}
 	}
 
-	transcript := renderMarkdown(string(m.transcript), width)
+	transcriptText := renderMarkdown(string(m.transcript), width)
 	if height > 0 {
 		available := height - len(activity) - len(statusLine) - len(suggestions) - len(composer)
 		if available <= 0 {
-			transcript = nil
-		} else if len(transcript) > available {
-			transcript = transcript[len(transcript)-available:]
+			transcriptText = nil
+		} else if len(transcriptText) > available {
+			transcriptText = transcriptText[len(transcriptText)-available:]
 		}
 	}
 
-	lines := make([]string, 0, len(transcript)+len(activity)+len(statusLine)+len(suggestions)+len(composer))
-	lines = append(lines, transcript...)
-	lines = append(lines, activity...)
-	lines = append(lines, statusLine...)
-	lines = append(lines, suggestions...)
-	lines = append(lines, composer...)
-	return strings.Join(lines, "\n")
+	rows := make([]viewRow, 0, len(transcriptText)+len(activity)+len(statusLine)+len(suggestions)+len(composer))
+	for _, line := range transcriptText {
+		rows = append(rows, viewRow{text: line})
+	}
+	rows = append(rows, activity...)
+	rows = append(rows, suggestions...)
+	rows = append(rows, composer...)
+	rows = append(rows, statusLine...)
+	return rows
+}
+
+func joinViewRows(rows []viewRow, styled bool) string {
+	var output strings.Builder
+	for index, row := range rows {
+		if index > 0 {
+			output.WriteByte('\n')
+		}
+		if !styled || row.style == styleNone || row.text == "" {
+			output.WriteString(row.text)
+			continue
+		}
+		switch row.style {
+		case stylePurple:
+			output.WriteString(purpleANSI)
+		case stylePurpleMuted:
+			output.WriteString(purpleMutedANSI)
+		}
+		output.WriteString(row.text)
+		output.WriteString(resetANSI)
+	}
+	return output.String()
 }
 
 func (m *Model) composerLines(width, cursor int) []string {
@@ -168,7 +230,10 @@ func (m *Model) composerLines(width, cursor int) []string {
 	if m.status.Mode != "" {
 		prompt += "-" + sanitizeTerminalLine(m.status.Mode)
 	}
-	lines := []string{clipLine(fmt.Sprintf("╭─ %s", prompt), width)}
+	if folder := sanitizeTerminalLine(m.status.Folder); folder != "" {
+		prompt += " · " + folder
+	}
+	lines := []string{horizontalRule(prompt, width)}
 	contentWidth := max(1, width-2)
 	draft := m.draft
 	if cursor >= 0 {
@@ -180,12 +245,30 @@ func (m *Model) composerLines(width, cursor int) []string {
 		draft = string(runes)
 	}
 	draft = sanitizeTerminalText(draft)
+	first := true
 	for _, line := range strings.Split(draft, "\n") {
 		for _, wrapped := range wrapLine(line, contentWidth) {
-			lines = append(lines, "│ "+wrapped)
+			prefix := "  "
+			if first {
+				prefix = "> "
+				first = false
+			}
+			lines = append(lines, prefix+wrapped)
 		}
 	}
-	return append(lines, clipLine("╰─", width))
+	return append(lines, strings.Repeat("─", width))
+}
+
+func horizontalRule(label string, width int) string {
+	if width < 5 {
+		return strings.Repeat("─", max(0, width))
+	}
+	label = clipLine(sanitizeTerminalLine(label), width-4)
+	title := " " + label + " "
+	remaining := width - cellWidth(title)
+	left := max(1, remaining/2)
+	right := max(1, remaining-left)
+	return strings.Repeat("─", left) + title + strings.Repeat("─", right)
 }
 
 func wrapLine(line string, width int) []string {
@@ -254,23 +337,38 @@ func isWideRune(r rune) bool {
 		(r >= 0x20000 && r <= 0x3fffd))
 }
 
-func formatStatus(status Status) string {
-	values := []string{
-		status.Model,
-		status.Mode,
-		status.Effort,
-		status.Session,
-		status.Approval,
-		status.Lifecycle,
+func formatStatus(status Status) []string {
+	sessionLabel := status.SessionName
+	if sessionLabel == "" {
+		sessionLabel = status.Session
 	}
-	visible := values[:0]
-	for _, value := range values {
-		value = sanitizeTerminalLine(value)
-		if value != "" {
-			visible = append(visible, value)
+	type statusField struct {
+		label string
+		value string
+	}
+	groups := [][]statusField{
+		{{label: "session", value: sessionLabel}, {label: "model", value: status.Model}},
+		{
+			{label: "effort", value: status.Effort},
+			{label: "folder", value: status.Folder},
+			{label: "approval", value: status.Approval},
+			{label: "state", value: status.Lifecycle},
+		},
+	}
+	lines := make([]string, 0, len(groups))
+	for _, fields := range groups {
+		visible := make([]string, 0, len(fields))
+		for _, field := range fields {
+			value := sanitizeTerminalLine(field.value)
+			if value != "" {
+				visible = append(visible, field.label+" "+value)
+			}
+		}
+		if len(visible) > 0 {
+			lines = append(lines, strings.Join(visible, " · "))
 		}
 	}
-	return strings.Join(visible, " · ")
+	return lines
 }
 
 func appendTranscriptBounded(transcript []byte, chunk string, limit int) []byte {

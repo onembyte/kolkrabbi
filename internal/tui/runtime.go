@@ -367,7 +367,7 @@ func (r *Runtime) renderLocked() {
 	if height <= 0 {
 		height = defaultHeight
 	}
-	r.renderErr = r.renderer.Render(r.controller.View(width, height))
+	r.renderErr = r.renderer.Render(r.controller.RenderView(width, height))
 }
 
 type emptyReader struct{}

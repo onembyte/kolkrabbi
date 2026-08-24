@@ -46,7 +46,11 @@ func (r *Renderer) Render(view string) error {
 		}
 	}
 	if view != "" {
-		if _, err := io.WriteString(r.out, view); err != nil {
+		// Raw terminal mode disables the output post-processing that normally
+		// turns LF into CRLF. Emit both explicitly so every repainted row starts
+		// in column zero instead of staircasing across the screen.
+		frame := strings.ReplaceAll(view, "\n", "\r\n")
+		if _, err := io.WriteString(r.out, frame); err != nil {
 			return err
 		}
 		r.rows = strings.Count(view, "\n") + 1

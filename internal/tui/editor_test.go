@@ -86,6 +86,21 @@ func TestDecoderRecognizesTabAsACompletionKey(t *testing.T) {
 	}
 }
 
+func TestDecoderTreatsBareCarriageReturnAndLineFeedAsEnter(t *testing.T) {
+	for name, input := range map[string][]byte{
+		"carriage return": {'\r'},
+		"line feed":       {'\n'},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := NewDecoder().Feed(input)
+			want := []Key{{Kind: KeyEnter}}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("decoded Enter = %#v, want %#v", got, want)
+			}
+		})
+	}
+}
+
 func TestEditorCapsOnePasteWithoutSplittingUTF8(t *testing.T) {
 	editor := NewEditor(3)
 	result := editor.Update(Key{Kind: KeyPaste, Text: "🐙abc"})

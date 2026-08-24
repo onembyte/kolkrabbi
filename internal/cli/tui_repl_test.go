@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -53,7 +54,7 @@ func TestTUIReplOwnsAndRestoresOneInteractiveTerminal(t *testing.T) {
 	}
 	got := output.String()
 	for _, want := range []string{
-		"\x1b[?2004h", "\x1b[?25l", "kolk-code", "mock/model", "↑ recalls history",
+		"\x1b[?2004h", "\x1b[?25l", "kolk-code", "mock/model", "Up arrow recalls history",
 		"twice exits", "\x1b[?25h", "\x1b[?2004l",
 	} {
 		if !strings.Contains(got, want) {
@@ -62,6 +63,23 @@ func TestTUIReplOwnsAndRestoresOneInteractiveTerminal(t *testing.T) {
 	}
 	if a.stdout != &output || a.stderr != &output {
 		t.Fatal("TUI did not restore app output streams")
+	}
+	if strings.Contains(got, "kolk — mode:") || strings.Contains(got, "session: ") {
+		t.Fatalf("persistent metadata was duplicated in startup transcript: %q", got)
+	}
+}
+
+func TestTUIWelcomeIsPlainAndReportsAResumedSessionWithoutDuplicateMetadata(t *testing.T) {
+	got := tuiWelcome(8)
+	for _, want := range []string{"Type a request or /help.", "Up arrow recalls history", "Resumed with 7 messages."} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("welcome omitted %q: %q", want, got)
+		}
+	}
+	for _, duplicate := range []string{"model:", "mode:", "effort:", "session:"} {
+		if strings.Contains(got, duplicate) {
+			t.Fatalf("welcome duplicated persistent %s metadata: %q", duplicate, got)
+		}
 	}
 }
 
@@ -79,5 +97,41 @@ func TestTUIEligibilityRequiresRealTerminalFilesAndRawMode(t *testing.T) {
 	a.canAnimate = func() bool { return false }
 	if a.canUseTUI() {
 		t.Fatal("TERM-dumb or redirected app selected the TUI")
+	}
+}
+
+func TestTUIStatusUsesSessionTitleEffortModelAndWorkingFolder(t *testing.T) {
+	sess := session.New(t.TempDir(), "base/model")
+	sess.Title = "continue the purple TUI"
+	ag := engine.New(engine.Options{
+		Model: "base/model", Mode: engine.ModeCode, Effort: engine.EffortUltra,
+		Sess: sess, Out: io.Discard,
+		Tiers: map[string]string{engine.EffortUltra: "frontier/ultra-model"},
+	})
+
+	got := tuiStatus(ag, "working", "~/kolkrabbi")
+	if got.Session != sess.ID || got.SessionName != sess.Title || got.Folder != "~/kolkrabbi" ||
+		got.Model != "frontier/ultra-model" || got.Effort != engine.EffortUltra ||
+		got.Mode != engine.ModeCode || got.Lifecycle != "working" {
+		t.Fatalf("TUI status did not reflect the live agent: %#v", got)
+	}
+}
+
+func TestCompactWorkingFolderUsesAStableHomeRelativeLabel(t *testing.T) {
+	tests := map[string]struct {
+		cwd  string
+		home string
+		want string
+	}{
+		"project": {cwd: "/Users/franco/kolkrabbi", home: "/Users/franco", want: "~/kolkrabbi"},
+		"home":    {cwd: "/Users/franco", home: "/Users/franco", want: "~"},
+		"outside": {cwd: "/srv/kolkrabbi", home: "/Users/franco", want: "/srv/kolkrabbi"},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			if got := compactWorkingFolder(test.cwd, test.home); got != test.want {
+				t.Fatalf("compactWorkingFolder(%q, %q) = %q, want %q", test.cwd, test.home, got, test.want)
+			}
+		})
 	}
 }

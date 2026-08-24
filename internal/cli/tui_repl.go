@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/engine"
@@ -26,6 +28,7 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 	}
 
 	originalStdout, originalStderr := a.stdout, a.stderr
+	folder := workingFolderLabel()
 	var screen *tui.Runtime
 	screen = tui.NewRuntime(tui.RuntimeOptions{
 		Input: a.terminalInput, Output: originalStdout,
@@ -37,18 +40,19 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 			_, height := a.terminalSize(a.terminalOutput)
 			return height
 		},
-		Status:   tuiStatus(ag, "ready"),
+		Status:   tuiStatus(ag, "ready", folder),
 		Commands: slashSuggestions(),
 		Turn: func(turnContext context.Context, prompt string) error {
 			if strings.HasPrefix(strings.TrimSpace(prompt), "/") {
 				shouldExit := a.slash(turnContext, ag, strings.TrimSpace(prompt))
-				screen.SetStatus(tuiStatus(ag, "ready"))
+				screen.SetStatus(tuiStatus(ag, "ready", folder))
 				if shouldExit {
 					return tui.ErrExit
 				}
 				return nil
 			}
 			err := ag.RunTurn(turnContext, prompt)
+			screen.SetStatus(tuiStatus(ag, "working", folder))
 			if err != nil && !errors.Is(err, context.Canceled) {
 				_, _ = fmt.Fprintf(screen, "\nerror: %v\n", err)
 			}
@@ -56,14 +60,7 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 		},
 	})
 
-	resumedNote := ""
-	if n := len(ag.Sess.Messages); n > 1 {
-		resumedNote = fmt.Sprintf("  (resumed, %d messages)", n-1)
-	}
-	screen.Controller().AppendTranscript(fmt.Sprintf(
-		"kolk — mode: %s · effort: %s · model: %s%s\nsession: %s%s\nType your request, or /help for commands. ↑ recalls history; Ctrl+C clears input, twice exits.\n",
-		ag.Mode, ag.Effort, ag.Model, yoloTag(ag.Yolo), ag.Sess.ID, resumedNote,
-	))
+	screen.Controller().AppendTranscript(tuiWelcome(len(ag.Sess.Messages)))
 
 	a.stdout, a.stderr = screen, screen
 	ag.Out = screen
@@ -76,7 +73,16 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 	return errors.Join(runErr, restoreErr)
 }
 
-func tuiStatus(ag *engine.Agent, lifecycle string) tui.Status {
+func tuiWelcome(messageCount int) string {
+	var welcome strings.Builder
+	welcome.WriteString("Type a request or /help. Up arrow recalls history; Ctrl+C clears input, twice exits.\n")
+	if messageCount > 1 {
+		_, _ = fmt.Fprintf(&welcome, "Resumed with %d messages.\n", messageCount-1)
+	}
+	return welcome.String()
+}
+
+func tuiStatus(ag *engine.Agent, lifecycle, folder string) tui.Status {
 	approval := "ask"
 	if ag.Yolo {
 		approval = "auto"
@@ -86,9 +92,34 @@ func tuiStatus(ag *engine.Agent, lifecycle string) tui.Status {
 		model = tier
 	}
 	return tui.Status{
-		Model: model, Mode: ag.Mode, Effort: ag.Effort, Session: ag.Sess.ID,
+		Model: model, Mode: ag.Mode, Effort: ag.Effort,
+		Session: ag.Sess.ID, SessionName: ag.Sess.Title, Folder: folder,
 		Approval: approval, Lifecycle: lifecycle,
 	}
+}
+
+func workingFolderLabel() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "unknown"
+	}
+	home, _ := os.UserHomeDir()
+	return compactWorkingFolder(cwd, home)
+}
+
+func compactWorkingFolder(cwd, home string) string {
+	cwd = filepath.Clean(cwd)
+	if home == "" {
+		return cwd
+	}
+	relative, err := filepath.Rel(filepath.Clean(home), cwd)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return cwd
+	}
+	if relative == "." {
+		return "~"
+	}
+	return filepath.Join("~", relative)
 }
 
 type tuiDecider struct{ runtime *tui.Runtime }
