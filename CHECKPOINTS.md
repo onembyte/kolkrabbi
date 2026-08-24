@@ -110,7 +110,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   terminal region on Apple Terminal and publish the independently verified `v1.1.1` patch.
 - [~] **U0.4 persistent terminal UI** — add a Codex-style persistent multiline input area, live
   activity/tool status, visible model/mode/effort/session state, and robust terminal interaction.
-- [~] **U0.4e spinner-only free-default patch** — remove loader decoration, dynamically prefer a
+- [x] **U0.4e spinner-only free-default patch** — remove loader decoration, dynamically prefer a
   free coding model, retire the stale documented free preset, and publish the verified `v1.1.3`.
 
 ### U0.4e spinner-only free-default patch — active detail
@@ -143,7 +143,7 @@ Acceptance checklist:
 - [x] pure and local-HTTP tests prove free-before-paid ordering, coding/tool preference, catalog
   query filters, bounded free-router fallback, explicit override precedence, and visible paid use.
 - [x] the exact former all-free preset migrates in memory while mixed/custom tier maps remain exact.
-- [ ] full repository gates, four-platform snapshot, live pseudo-terminal rehearsal, branch CI,
+- [x] full repository gates, four-platform snapshot, live pseudo-terminal rehearsal, branch CI,
   signed `v1.1.3` release, public updater, and fresh installer all pass with evidence recorded.
 
 ### U0.3c terminal-compatible octopus hotfix — active detail

@@ -3700,3 +3700,20 @@ no model cost.
 Push only the U0.4e files, require ordinary branch CI to pass, then create immutable tag `v1.1.3`.
 The release workflow, public `v1.1.2 → v1.1.3` updater rehearsal, second no-op update, and fresh
 public installer must pass before U0.4e closes.
+
+### Publication evidence
+
+Commit `80213d1` reached `main`; branch CI run `32693114586` completed successfully with Linux,
+macOS, lint, budgets, platform compilation, architecture, installer, site, protocol, release,
+workflow, signature, and module-tidiness jobs green. The tag preflight accepted `v1.1.3`, then
+annotated tag `v1.1.3` started release run `32693216415`. Its verify job reran the complete gate and
+rehearsed all four archives. Its publish job uploaded and independently verified four archives,
+`checksums.txt`, and `checksums.txt.sigstore.json`; the public release is neither draft nor
+prerelease.
+
+The live website installer was exercised only inside `/private/tmp/kolk-v113-public.k5Qxvv`.
+A pinned `v1.1.2` install reported commit `ceb8c6b`; `kolk update` printed the current version,
+checked the latest release, and replaced it with `v1.1.3`; `kolk version` then reported commit
+`80213d1`; and a second update reported `Kolk is up to date (1.1.3)`. A separate unpinned invocation
+of the public installer selected and installed `v1.1.3`. No developer binary, API key, config,
+session, or PATH entry changed during this rehearsal. U0.4e is complete.
