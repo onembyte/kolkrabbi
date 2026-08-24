@@ -3267,8 +3267,9 @@ pulling forward A8 permissions, A10 session migration, or A11 serving surfaces.
 
 ## Release candidate / R1.1 — v1.1.0 installer-upgrade cut
 
-**Status:** pre-publication gates green, 2026-08-23 · **Requested label:** `v1.1` ·
-**Strict tag:** `v1.1.0` · **Host tests:** 1,167 · **Snapshot checks:** 21
+**Status:** done, 2026-08-23 · **Requested label:** `v1.1` · **Release:** `v1.1.0` ·
+**Release commit:** `638d12f` · **Workflow:** `32684499294` · **Host tests:** 1,167 ·
+**Snapshot checks:** 21
 
 The requested two-component label is normalized to the repository's mandatory three-part SemVer
 tag. The binary has no independent hardcoded product version: GoReleaser stamps the immutable tag,
@@ -3311,8 +3312,45 @@ MB binary, 4.4 ms cold-start p50, one root dependency, 110 site checks, 13 mode-
 installer checks, 29 spec-guard checks, 24 release checks, 41 workflow checks, and 30 verifier
 checks.
 
-### Publication hold
+### Publication and live verification
 
-The candidate is ready to commit. The immutable tag, workflow result, signed public assets, latest
-redirect, live installer upgrade, and installed identity are deliberately not claimed until each is
-observed after publication.
+Candidate commit `638d12f` passed ordinary branch CI run `32684376303` before the annotated tag was
+created. Tag `v1.1.0` peels to the exact 40-character candidate commit and release workflow run
+`32684499294` completed both jobs successfully: the verify job reran the full repository gate and
+four-archive rehearsal; the publish job keyless-signed the checksum manifest and then ran the
+independent public verifier.
+
+The public release is neither draft nor prerelease and contains exactly six assets: four versioned
+Darwin/Linux amd64/arm64 archives, `checksums.txt`, and `checksums.txt.sigstore.json`. GitHub's
+`/releases/latest` redirect resolves to `/releases/tag/v1.1.0`. The deployed installer SHA-256
+`4016316b2025f2bf57365738c79d6fd9cce91d3a1e2f6816f52ebdcd0f05b740` is byte-identical to the
+reviewed source.
+
+The live installer was then exercised in an isolated temporary destination, not against the
+owner's normal PATH:
+
+```text
+Downloading kolk v0.1.0 for darwin_arm64...
+Installed kolk v0.1.0 to <temporary>/bin/kolk
+
+Current version: 0.1.0
+Updating kolk 0.1.0 → 1.1.0
+Downloading kolk v1.1.0 for darwin_arm64...
+Updated kolk 0.1.0 → 1.1.0 at <temporary>/bin/kolk
+```
+
+The upgraded executable reports `kolk 1.1.0`, commit
+`638d12fd4d473ca75da0f0afa60481574d12fe71`, Darwin/arm64. A second installer run reports
+`Kolk is up to date (1.1.0)`, and the shipped binary's own update command reports:
+
+```text
+Current version: 1.1.0
+Checking for updates to latest version...
+Kolk is up to date (1.1.0)
+```
+
+### Next checkpoint
+
+R1.1 is closed and ready for the owner's real PATH test. Resume the dependency-ready A7 event-bus
+migration one reversible TDD slice at a time; the still-open T0.5 clean-machine rehearsal remains a
+separate environment proof.

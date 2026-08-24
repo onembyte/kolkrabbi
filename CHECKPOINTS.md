@@ -46,8 +46,8 @@ Add one:  kolk key <API_KEY>
 Then run: kolk
 ```
 
-- [ ] the exact install URL returns a reviewed script over HTTPS.
-- [ ] the script selects the correct signed/checksummed release for macOS or Linux and installs
+- [x] the exact install URL returns a reviewed script over HTTPS.
+- [x] the script selects the correct signed/checksummed release for macOS or Linux and installs
   `kolk` on `PATH` without requiring Go or another runtime.
 - [ ] `kolk` from a clean shell launches the installed binary.
 - [x] the domain root serves the reviewed purple retro-octopus landing page.
@@ -74,12 +74,12 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   experimental orchestrator unreachable until the later agentic phase.
 - [x] **R0.2 agentic surface restoration** — at the owner's direction, expose the preserved
   sequential agent orchestrator as the third mode while keeping code as the default.
-- [!] **T0.4 release and installer** — local implementation is complete; the public cutover is
-  postponed at the owner's request while the remaining project is built.
-- [!] **T0.5 clean-machine rehearsal** — waits for the postponed public cutover, then proves install,
+- [x] **T0.4 release and installer** — the public release, signed assets, no-store website installer,
+  and independent live verifier are green.
+- [ ] **T0.5 clean-machine rehearsal** — the public cutover is complete; this still must prove install,
   first run, key addition, and first model response
   from a machine with no Go toolchain or prior Kolkrabbi files.
-- [~] **R1.1 v1.1.0 installer-upgrade release** — publish the owner-requested three-part SemVer
+- [x] **R1.1 v1.1.0 installer-upgrade release** — publish the owner-requested three-part SemVer
   release, verify all signed assets and latest-version discovery, then exercise the public installer
   over an existing v0.1.0 installation.
 - [x] **U0.1 explicit auto-approve command** — add a discoverable, session-only
@@ -139,13 +139,13 @@ Acceptance checklist:
 - [x] the strict tag guard accepts `v1.1.0` and rejects abbreviated `v1.1`.
 - [x] GoReleaser validates and builds exactly four stamped snapshot archives with matching SHA-256
   rows; all focused and complete repository gates pass before publication.
-- [ ] only the reviewed release-candidate files are committed and pushed to `main`; unrelated dirty
+- [x] only the reviewed release-candidate files are committed and pushed to `main`; unrelated dirty
   files remain untouched.
-- [ ] tag `v1.1.0` points to that exact commit, its release workflow succeeds, and the signed public
+- [x] tag `v1.1.0` points to that exact commit, its release workflow succeeds, and the signed public
   manifest plus four archives pass the independent verifier.
-- [ ] GitHub's latest redirect and the live no-store installer resolve v1.1.0; a real existing
+- [x] GitHub's latest redirect and the live no-store installer resolve v1.1.0; a real existing
   v0.1.0 installation upgrades and reports the new version.
-- [ ] the build log records red, green, rehearsal, commit/tag, workflow, assets, and live handoff.
+- [x] the build log records red, green, rehearsal, commit/tag, workflow, assets, and live handoff.
 
 ### U0.1 explicit auto-approve command — active detail
 
@@ -696,7 +696,7 @@ Delivery slices:
   snapshot rehearsal, and no release from branches or pull requests.
 - [x] **T0.4d1 release verifier** — independently authenticate the published checksum bundle,
   inspect all four assets, and execute the host build before any owner-test claim.
-- [ ] **T0.4d2 public cutover** — explicit owner approval for the artifact host, `v0.1.0`, live
+- [x] **T0.4d2 public cutover** — explicit owner approval for the artifact host, `v0.1.0`, live
   asset/Pages verification, and handoff to T0.5.
 
 Release blocker recorded on 2026-08-23: GitHub reports `onembyte/kolkrabbi` as **private**. The
