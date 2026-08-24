@@ -112,6 +112,34 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   activity/tool status, visible model/mode/effort/session state, and robust terminal interaction.
 - [x] **U0.4e spinner-only free-default patch** — remove loader decoration, dynamically prefer a
   free coding model, retire the stale documented free preset, and publish the verified `v1.1.3`.
+- [~] **U0.4f bounded background-output hotfix** — prevent a successful shell whose intentional
+  background process retains stdout from freezing the agent turn; prepare `v1.1.4`.
+
+### U0.4f bounded background-output hotfix — active detail
+
+Scope:
+
+- Bound only the output-pipe drain after the direct shell process has exited. Keep the existing
+  per-command timeout and process-group cancellation semantics unchanged while allowing deliberate
+  `nohup ... &` work to continue.
+- Preserve foreground output and successful exit status, then add one model-visible note explaining
+  that capture detached because a background process may still be running.
+- Advance the release fixtures together to strict SemVer `v1.1.4` and rehearse the real archives
+  before publication.
+
+Non-goals:
+
+- No shorter foreground-command timeout, background job manager, daemon registry, automatic retry,
+  forced teardown of a successful detached service, TUI redesign, or model-routing change.
+- No mutation of the independently owned Markdown renderer or planning drafts in the shared tree.
+
+Acceptance checklist:
+
+- [x] the exact `cd ... && nohup ... &` compound-list regression fails before the fix and returns
+  promptly after it, with foreground output, success status, and a descriptive detachment note.
+- [x] focused race tests, the isolated 1,321-test full gate, five platform targets, budgets, and all
+  installer/site/spec/release/workflow/verifier contracts pass; four real snapshot archives pass.
+- [ ] branch CI, signed `v1.1.4` release, public updater, no-op updater, and fresh installer pass.
 
 ### U0.4e spinner-only free-default patch — active detail
 

@@ -26,6 +26,13 @@ import (
 // for more.
 const DefaultTimeout = 120 * time.Second
 
+// outputDrainTimeout bounds the gap after the direct shell exits but a
+// background descendant still owns stdout or stderr. The command timeout can
+// no longer help at that point: os/exec has observed a successful exit and is
+// waiting only for pipe EOF. A short grace period preserves ordinary buffered
+// output without letting an intentional `nohup ... &` freeze an agent turn.
+const outputDrainTimeout = 500 * time.Millisecond
+
 // Cmd is one command to run. Command is a shell command line, not an argv:
 // models write shell, and pretending otherwise means reimplementing a parser
 // that is already installed on the machine.
@@ -87,12 +94,27 @@ func (s *platformShell) Run(ctx context.Context, c Cmd) (Result, error) {
 		// a broken machine, not a failed command, so it aborts.
 		return Result{ExitCode: -1, Failure: err.Error()}, err
 	}
+	cmd.WaitDelay = outputDrainTimeout
 
 	out, runErr := cmd.CombinedOutput()
 	res := Result{Output: string(out), ExitCode: exitCodeOf(runErr)}
 
 	switch {
 	case runErr == nil:
+		return res, nil
+
+	// The direct shell succeeded, but an intentional background descendant
+	// retained its output descriptor. Close only Kolk's capture pipe and keep
+	// the command successful: retrying it could start the service twice.
+	case errors.Is(runErr, exec.ErrWaitDelay):
+		res.ExitCode = 0
+		if res.Output != "" && !strings.HasSuffix(res.Output, "\n") {
+			res.Output += "\n"
+		}
+		res.Output += fmt.Sprintf(
+			"[background process kept command output open; capture detached after %s and it may still be running]\n",
+			outputDrainTimeout,
+		)
 		return res, nil
 
 	// A cancelled turn is not a failed command, and the caller has to be able

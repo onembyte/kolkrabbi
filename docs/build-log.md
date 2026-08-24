@@ -3780,3 +3780,49 @@ The adjacent ox-alpha session independently verified the scanner working tree tw
 focused race/fuzz coverage, platform compilation, lint, budgets, and complete repository gates were
 green with no implementation edits. A7.2a closes here. A7.2b is the next security leaf and owns only
 JSON string preservation; it must not be mixed with the requested TUI status/composer checkpoint.
+
+---
+
+## Terminal UI / U0.4f — bounded background-output hotfix
+
+**Status:** release candidate, 2026-08-24 · **Release target:** `v1.1.4` · **Clean tests:** 1,321 ·
+**Platforms:** 5 · **Dependencies:** 2 · **Binary:** 6.24 MB · **Cold start:** 9.7 ms p50
+
+A live Kolk session froze after running a local mock-server rehearsal shaped as
+`cd ... && nohup go run ... &`, followed by foreground checks. Process and descriptor inspection
+proved that the direct shell had exited but its orphaned background compound-list wrapper still
+owned Kolk's `CombinedOutput` pipe. Because `os/exec` had already observed the direct child's exit,
+the ordinary 120-second command context no longer bounded the pipe-copy wait.
+
+### TDD record
+
+**Red:** `TestSuccessfulBackgroundListCannotFreezeOutputCapture` reproduces the same compound-list
+grammar with a three-second background process. Before the fix, the foreground completed in roughly
+50 ms but `Run` returned after 3.02 seconds, failing the two-second bound.
+
+**Green:** every shell command now gets a 500 ms post-exit `WaitDelay`. When the direct child exits
+successfully but a descendant retains stdout/stderr, Kolk closes only its capture side, keeps the
+result successful, preserves captured foreground output, and appends a durable note that the
+background process may still be running. The regression returns in 0.56 seconds.
+
+**Refactor:** foreground timeouts, cancellation, Unix process-group teardown, non-zero exit
+classification, and intentional background-process lifetime remain unchanged. The detachment case
+is handled at the one `internal/shell` execution chokepoint and is visible to every bash tool caller.
+
+### Verification
+
+```sh
+GOCACHE=/private/tmp/kolkrabbi-go-cache go test ./internal/shell \
+  -run '^TestSuccessfulBackgroundListCannotFreezeOutputCapture$' -count=1 -v
+GOCACHE=/private/tmp/kolkrabbi-go-cache go test -race ./internal/shell -count=1
+GOCACHE=/private/tmp/kolkrabbi-go-cache \
+  GOLANGCI_LINT_CACHE=/private/tmp/kolkrabbi-lint-cache make check
+KOLK_GORELEASER_BIN=/private/tmp/kolk-goreleaser.olLZpM/goreleaser \
+  GOCACHE=/private/tmp/kolkrabbi-go-cache ./scripts/test-release-snapshot.sh
+```
+
+A fresh Git export containing only the committed base and U0.4f candidate passed 1,321 tests,
+architecture/purity/build-tag checks, Darwin and Linux amd64/arm64 plus advisory Windows/amd64,
+zero lint issues, budgets, and all site, surface, installer, protocol, specification, release,
+workflow, and verifier contracts. GoReleaser v2.17.1 produced four `1.1.4-dev` archives and all 21
+snapshot checks passed. Release publication remains intentionally pending branch CI.

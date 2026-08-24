@@ -66,6 +66,37 @@ func TestTimeoutKillsTheWholeProcessGroup(t *testing.T) {
 	t.Errorf("grandchild %d survived the timeout; the process group was not killed", pid)
 }
 
+// A successful shell can exit while an intentional background list still
+// owns stdout. CombinedOutput otherwise waits for that last writer forever:
+// the command timeout no longer helps after the direct child has exited.
+// This is the exact shape used by local mock-server rehearsals.
+func TestSuccessfulBackgroundListCannotFreezeOutputCapture(t *testing.T) {
+	dir := t.TempDir()
+	script := fmt.Sprintf(
+		"cd %q && nohup sleep 3 > background.log 2>&1 & sleep 0.05; echo foreground-finished",
+		dir,
+	)
+
+	start := time.Now()
+	res, err := New().Run(context.Background(), Cmd{Command: script, Timeout: 5 * time.Second})
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if elapsed > 2*time.Second {
+		t.Fatalf("successful foreground command waited %s for a background output writer", elapsed)
+	}
+	if !res.OK() || res.TimedOut {
+		t.Fatalf("background detachment became a command failure: %+v", res)
+	}
+	if !strings.Contains(res.Output, "foreground-finished") {
+		t.Fatalf("foreground output was lost: %q", res.Output)
+	}
+	if !strings.Contains(res.Output, "background process kept command output open") {
+		t.Fatalf("the model was not told why output capture detached: %q", res.Output)
+	}
+}
+
 func readPID(t *testing.T, path string) int {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
