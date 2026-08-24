@@ -79,6 +79,9 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [!] **T0.5 clean-machine rehearsal** — waits for the postponed public cutover, then proves install,
   first run, key addition, and first model response
   from a machine with no Go toolchain or prior Kolkrabbi files.
+- [~] **R1.1 v1.1.0 installer-upgrade release** — publish the owner-requested three-part SemVer
+  release, verify all signed assets and latest-version discovery, then exercise the public installer
+  over an existing v0.1.0 installation.
 - [x] **U0.1 explicit auto-approve command** — add a discoverable, session-only
   `/auto-approve [on|off]` control while preserving `-y` and `/yolo` compatibility.
 - [x] **U0.1b mode-prefixed prompt** — identify Kolkrabbi and the active mode as `kolk-<mode>`
@@ -105,6 +108,44 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   clock and strict terminal-only activation.
 - [ ] **U0.4 persistent terminal UI** — add a Codex-style persistent multiline input area, live
   activity/tool status, visible model/mode/effort/session state, and robust terminal interaction.
+
+### R1.1 v1.1.0 installer-upgrade release — active detail
+
+Scope:
+
+- Interpret the requested `v1.1` as the repository's required three-part SemVer tag `v1.1.0`.
+- Update current release-candidate surfaces and fixtures while preserving historical v0.1 records
+  and protocol version `0`.
+- Rehearse all four Darwin/Linux amd64/arm64 archives, push one tested release-candidate commit and
+  immutable tag, then authenticate and inspect the public assets.
+- Prove the live website installer discovers `v1.1.0`, upgrades an existing public `v0.1.0`
+  executable through the checksum-verified path, and leaves `kolk version` reporting `v1.1.0`.
+
+Non-goals:
+
+- No protocol-version bump, Windows artifact, package-manager distribution, desktop bundle,
+  notarization, updater algorithm change, forced installation path change, or historical-document
+  rewrite.
+- No tag before offline release rehearsal and the complete repository gate pass.
+- No staging or mutation of the owner's unrelated lock file, README work, build directory, or plan
+  drafts.
+
+Acceptance checklist:
+
+- [x] current website/release-candidate assertions name v1.1/v1.1.0 and fail only on the old current
+  labels before production changes.
+- [x] installer and public-verifier matrices rehearse v1.1.0, including an upgrade from v0.1.0 and
+  a no-download equal-version check.
+- [x] the strict tag guard accepts `v1.1.0` and rejects abbreviated `v1.1`.
+- [x] GoReleaser validates and builds exactly four stamped snapshot archives with matching SHA-256
+  rows; all focused and complete repository gates pass before publication.
+- [ ] only the reviewed release-candidate files are committed and pushed to `main`; unrelated dirty
+  files remain untouched.
+- [ ] tag `v1.1.0` points to that exact commit, its release workflow succeeds, and the signed public
+  manifest plus four archives pass the independent verifier.
+- [ ] GitHub's latest redirect and the live no-store installer resolve v1.1.0; a real existing
+  v0.1.0 installation upgrades and reports the new version.
+- [ ] the build log records red, green, rehearsal, commit/tag, workflow, assets, and live handoff.
 
 ### U0.1 explicit auto-approve command — active detail
 

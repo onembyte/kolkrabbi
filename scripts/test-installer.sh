@@ -58,7 +58,7 @@ HOME_DIR="$WORK/home"
 STAGE_ROOT="$WORK/stage"
 mkdir -p "$RELEASES" "$FAKEBIN" "$HOME_DIR" "$STAGE_ROOT"
 
-VERSION=0.1.0
+VERSION=1.1.0
 for target in darwin_amd64 darwin_arm64 linux_amd64 linux_arm64; do
   payload="$WORK/payload-$target"
   mkdir -p "$payload"
@@ -179,14 +179,15 @@ write_versioned_kolk() {
 }
 
 older_dir="$WORK/install-older"
-write_versioned_kolk "$older_dir/kolk" 0.0.9
+older_version=0.1.0
+write_versioned_kolk "$older_dir/kolk" "$older_version"
 older_log="$WORK/curl-older.log"
 if run_installer Darwin arm64 "$older_dir" "$older_log" "$RELEASES" env -u KOLK_VERSION >"$WORK/out-older" 2>"$WORK/err-older"; then
   pass
 else
   fail "older-version upgrade failed: $(<"$WORK/err-older")"
 fi
-for text in 'Current version: 0.0.9' 'Updating kolk 0.0.9 → 0.1.0'; do
+for text in "Current version: $older_version" "Updating kolk $older_version → $VERSION"; do
   if grep -Fq "$text" "$WORK/out-older"; then pass; else fail "older-version output omitted: $text"; fi
 done
 if grep -Fq '/checksums.txt' "$older_log" && grep -Fq "kolk_${VERSION}_darwin_arm64.tar.gz" "$older_log"; then
@@ -215,7 +216,8 @@ fi
 if [ "$current_before" = "$current_after" ]; then pass; else fail "current binary was unnecessarily replaced"; fi
 
 newer_dir="$WORK/install-newer"
-write_versioned_kolk "$newer_dir/kolk" 0.10.0
+newer_version=2.0.0
+write_versioned_kolk "$newer_dir/kolk" "$newer_version"
 newer_before="$(shasum -a 256 "$newer_dir/kolk" | awk '{print $1}')"
 newer_log="$WORK/curl-newer.log"
 if run_installer Darwin arm64 "$newer_dir" "$newer_log" "$RELEASES" env -u KOLK_VERSION >"$WORK/out-newer" 2>"$WORK/err-newer"; then
@@ -224,7 +226,7 @@ else
   fail "newer-version check failed: $(<"$WORK/err-newer")"
 fi
 newer_after="$(shasum -a 256 "$newer_dir/kolk" | awk '{print $1}')"
-if grep -Fq "Installed kolk 0.10.0 is newer than latest release 0.1.0" "$WORK/out-newer"; then
+if grep -Fq "Installed kolk $newer_version is newer than latest release $VERSION" "$WORK/out-newer"; then
   pass
 else
   fail "newer local version did not name both versions"

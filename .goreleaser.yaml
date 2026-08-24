@@ -56,8 +56,8 @@ signs:
 
 snapshot:
   # The historical prototype tag is `proto-0`, intentionally not SemVer.
-  # Snapshot validation must still work before the first v0.1.0 tag exists.
-  version_template: "0.1.0-dev.{{ .ShortCommit }}"
+  # Keep untagged release rehearsals on the current public release line.
+  version_template: "1.1.0-dev.{{ .ShortCommit }}"
 
 changelog:
   use: github

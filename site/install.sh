@@ -90,7 +90,7 @@ resolve_version() {
   requested="${KOLK_VERSION:-}"
   if [ -n "$requested" ]; then
     requested="${requested#v}"
-    valid_version "$requested" || die "invalid KOLK_VERSION: use a semantic version such as v0.1.0"
+    valid_version "$requested" || die "invalid KOLK_VERSION: use a semantic version such as v1.1.0"
     printf '%s\n' "$requested"
     return
   fi

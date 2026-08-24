@@ -6,7 +6,7 @@ tag="${1:-${GITHUB_REF_NAME:-}}"
 pattern='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?(\+([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?$'
 
 if [[ ! "$tag" =~ $pattern ]]; then
-  printf 'release tag must be v-prefixed SemVer (example: v0.1.0); got %q\n' "$tag" >&2
+  printf 'release tag must be v-prefixed SemVer (example: v1.1.0); got %q\n' "$tag" >&2
   exit 2
 fi
 

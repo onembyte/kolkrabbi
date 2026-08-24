@@ -3262,3 +3262,57 @@ release-workflow checks, and 30 release-verifier checks.
 The A6.4 transport cut is closed. A6 remains open only for explicitly dependency-gated additions;
 the next migration step is A7's internal event bus and byte-identical plain renderer, without
 pulling forward A8 permissions, A10 session migration, or A11 serving surfaces.
+
+---
+
+## Release candidate / R1.1 — v1.1.0 installer-upgrade cut
+
+**Status:** pre-publication gates green, 2026-08-23 · **Requested label:** `v1.1` ·
+**Strict tag:** `v1.1.0` · **Host tests:** 1,167 · **Snapshot checks:** 21
+
+The requested two-component label is normalized to the repository's mandatory three-part SemVer
+tag. The binary has no independent hardcoded product version: GoReleaser stamps the immutable tag,
+while protocol version remains `0`. Current surfaces now use the v1.1 release line without
+rewriting historical v0.1 records.
+
+### TDD record
+
+**Red:** site and release-contract assertions changed first. The site matrix failed exactly because
+the live badge still named v0.1, and the release matrix failed exactly because the snapshot identity
+still used `0.1.0-dev`. The v1.1.0 installer, workflow, tag, and verifier fixture changes were
+already green against their version-independent implementations.
+
+**Green:** the website badge now names v1.1, untagged rehearsals stamp `1.1.0-dev.<commit>`, and
+user-facing invalid-tag/version examples show v1.1.0. The installer matrix explicitly upgrades a
+v0.1.0 binary to v1.1.0, skips downloads for an equal version, and leaves a v2.0.0 binary untouched.
+
+**Refactor:** target release fixtures use named older/newer variables instead of repeating version
+literals. Historical plan, protocol, and v0.1 release evidence remain unchanged.
+
+### Pre-publication verification
+
+```sh
+./scripts/test-site.sh
+./scripts/test-installer.sh
+./scripts/test-release.sh
+./scripts/test-release-workflow.sh
+./scripts/test-release-verifier.sh
+./scripts/check-release-tag.sh v1.1.0
+GOCACHE=/private/tmp/kolkrabbi-go-cache \
+  KOLK_GORELEASER_BIN=/private/tmp/kolk-goreleaser.2QHQK8/goreleaser \
+  ./scripts/test-release-snapshot.sh
+make check
+```
+
+The pinned GoReleaser v2.17.1 archive matched its official SHA-256 manifest. The snapshot produced
+four `1.1.0-dev.8aa5533` archives and passed 21 archive, checksum, and host-identity checks. The
+complete unrestricted gate passed with 1,167 tests, five compile targets, zero lint issues, a 6.34
+MB binary, 4.4 ms cold-start p50, one root dependency, 110 site checks, 13 mode-surface checks, 72
+installer checks, 29 spec-guard checks, 24 release checks, 41 workflow checks, and 30 verifier
+checks.
+
+### Publication hold
+
+The candidate is ready to commit. The immutable tag, workflow result, signed public assets, latest
+redirect, live installer upgrade, and installed identity are deliberately not claimed until each is
+observed after publication.

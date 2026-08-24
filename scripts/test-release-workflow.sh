@@ -66,7 +66,7 @@ fi
 
 if [ -f "$TAG_CHECK" ]; then
   if bash -n "$TAG_CHECK"; then pass; else fail "release-tag checker fails bash -n"; fi
-  for tag in v0.1.0 v1.2.3 v1.2.3-rc.1 v1.2.3+build.5; do
+  for tag in v1.1.0 v1.2.3 v1.2.3-rc.1 v1.2.3+build.5; do
     if "$TAG_CHECK" "$tag" >/dev/null 2>&1; then pass; else fail "valid tag $tag was rejected"; fi
   done
   for tag in 0.1.0 v01.2.3 v1.02.3 v1.2 v1.2.3/evil v1.2.3- v1.2.3-01 proto-0; do
