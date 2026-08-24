@@ -144,7 +144,7 @@ func (m *Model) view(width, height, cursor int) string {
 		}
 	}
 
-	transcript := wrapText(string(m.transcript), width)
+	transcript := renderMarkdown(string(m.transcript), width)
 	if height > 0 {
 		available := height - len(activity) - len(statusLine) - len(suggestions) - len(composer)
 		if available <= 0 {
@@ -186,21 +186,6 @@ func (m *Model) composerLines(width, cursor int) []string {
 		}
 	}
 	return append(lines, clipLine("╰─", width))
-}
-
-func wrapText(text string, width int) []string {
-	if text == "" {
-		return nil
-	}
-	logical := strings.Split(text, "\n")
-	if logical[len(logical)-1] == "" {
-		logical = logical[:len(logical)-1]
-	}
-	var lines []string
-	for _, line := range logical {
-		lines = append(lines, wrapLine(line, width)...)
-	}
-	return lines
 }
 
 func wrapLine(line string, width int) []string {

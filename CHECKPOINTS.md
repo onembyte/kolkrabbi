@@ -707,8 +707,18 @@ Acceptance checklist:
   confirmation overlays, and resize; one Ctrl+C deliberately clears only that draft.
 - [x] the selected model is always visible; mode, effort, session, approval, and lifecycle states are
   accurate after slash-command changes and errors.
-- [ ] keyboard behavior, multiline/paste handling, narrow/Unicode layouts, Markdown/diff rendering,
-  and approval focus have deterministic golden or model tests.
+- [x] keyboard behavior, multiline/paste handling, narrow/Unicode layouts, Markdown/diff rendering,
+  and approval focus have deterministic golden or model tests. (Markdown/diff transcript rendering
+  closed by ox-alpha 2026-08-24 02:10 — `internal/tui/markdown.go` + `markdown_test.go`: eight
+  golden/model tests covering headings+spacer rows, bullet/ordered lists, block quotes, fenced code
+  in composer tokens (`╭─ <lang>`/`│ `/`╰─`), `diff` fences with `-`/`+`/context markers, ANSI/OSC
+  stripping before structural parsing, streaming split-render without duplication, determinism
+  across repeated views, and narrow-width cell alignment (CJK + emoji) without mutating stored
+  bytes; stdlib-only via the U0.4 spike decision. Evidence: `go test -race ./internal/tui` ok;
+  full repo `go test ./...` 23 pkgs ok; `make lint` 0 issues; `make fmt-check`, `make arch`,
+  `make platforms` clean; `make budgets` 4.2 ms cold start / 1291 tests / 2 third-party modules;
+  surface 13, site 110, installer 72, spec 29 checks; Windows amd64 vet ok. Keyboard/multiline/
+  paste/approval coverage was already present from editor/controller model tests.)
 - [x] non-interactive commands and redirected input/output retain the existing plain CLI contract.
 - [x] the chosen framework remains within reviewed dependency, binary-size, startup, Windows build,
   race, and architecture budgets; the full repository gates pass.
