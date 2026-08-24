@@ -20,17 +20,17 @@ const (
 	colorReset     = "\x1b[0m"
 )
 
-var octopusFrames = [...]string{
-	"⠋ 🐙",
-	"⠙ 🐙",
-	"⠹ 🐙",
-	"⠸ 🐙",
-	"⠼ 🐙",
-	"⠴ 🐙",
-	"⠦ 🐙",
-	"⠧ 🐙",
-	"⠇ 🐙",
-	"⠏ 🐙",
+var spinnerFrames = [...]string{
+	"⠋",
+	"⠙",
+	"⠹",
+	"⠸",
+	"⠼",
+	"⠴",
+	"⠦",
+	"⠧",
+	"⠇",
+	"⠏",
 }
 
 type animationTimer interface {
@@ -70,10 +70,10 @@ func newOctopusActivity(out io.Writer, color bool) *octopusActivity {
 	}
 }
 
-func (a *octopusActivity) Start(ctx context.Context, phase string) func() {
+func (a *octopusActivity) Start(ctx context.Context, _ string) func() {
 	renderCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
-	go a.render(renderCtx, phase, done)
+	go a.render(renderCtx, done)
 
 	var once sync.Once
 	return func() {
@@ -84,7 +84,7 @@ func (a *octopusActivity) Start(ctx context.Context, phase string) func() {
 	}
 }
 
-func (a *octopusActivity) render(ctx context.Context, phase string, done chan<- struct{}) {
+func (a *octopusActivity) render(ctx context.Context, done chan<- struct{}) {
 	defer close(done)
 	rendered := false
 	defer func() {
@@ -109,19 +109,19 @@ func (a *octopusActivity) render(ctx context.Context, phase string, done chan<- 
 		if rendered {
 			prefix = cursorRestore + eraseToLineEnd
 		}
-		if _, err := io.WriteString(a.out, prefix+a.frame(frame, phase)); err != nil {
+		if _, err := io.WriteString(a.out, prefix+a.frame(frame)); err != nil {
 			return
 		}
 		rendered = true
-		frame = (frame + 1) % len(octopusFrames)
+		frame = (frame + 1) % len(spinnerFrames)
 		delay = a.interval
 	}
 }
 
-func (a *octopusActivity) frame(index int, phase string) string {
-	icon := octopusFrames[index]
+func (a *octopusActivity) frame(index int) string {
+	icon := spinnerFrames[index]
 	if a.color {
 		icon = brightMagenta + icon + colorReset
 	}
-	return icon + " " + phase + "…"
+	return icon
 }

@@ -57,6 +57,12 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	if err != nil {
 		return nil, err
 	}
+	if retireLegacyFreeConfig(cfg) {
+		fmt.Fprintf(a.stderr,
+			"warning: %s is no longer guaranteed free; replacing the old free preset with live free-model discovery\n",
+			legacyFreePreset,
+		)
+	}
 
 	apiKey, err := resolveOpenRouterCredential(ctx, d.CredentialsFile())
 	if err != nil {
@@ -77,8 +83,12 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	if err != nil {
 		return nil, err
 	}
+	client := provider.NewClient(apiKey.Reveal())
+	client.BaseURL = config.ResolveBaseURL(o.baseURL, cfg)
 
-	// Model precedence: -m flag > the resumed session's model > config > default.
+	// Model precedence: -m flag > the resumed session's model > config > the
+	// live zero-cost coding choice. Explicit user choices never cause a catalog
+	// request and a resumed session never changes models behind the user's back.
 	model := o.model
 	if model == "" {
 		model = sess.Model
@@ -87,12 +97,19 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		model = cfg.Model
 	}
 	if model == "" {
-		model = defaultModel
+		choice := defaultModelChoice{Model: defaultModel, Free: true}
+		if a.chooseDefault != nil {
+			choice = a.chooseDefault(ctx, client)
+		}
+		model = choice.Model
+		if model == "" {
+			model = defaultModel
+		}
+		if choice.Warning != "" {
+			fmt.Fprintf(a.stderr, "warning: %s\n", choice.Warning)
+		}
 	}
 	sess.Model = model
-
-	client := provider.NewClient(apiKey.Reveal())
-	client.BaseURL = config.ResolveBaseURL(o.baseURL, cfg)
 
 	ckpt, err := checkpoint.Open(sess.CkptDir())
 	if err != nil {

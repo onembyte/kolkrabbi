@@ -3630,3 +3630,73 @@ reported `Kolk is up to date (1.1.2)`. A separate unpinned invocation of the exa
 command selected and installed `v1.1.2`. No developer binary, key, config, session, or PATH entry was
 changed during the rehearsal. U0.4d is complete; Markdown/diff rendering remains an independent
 open acceptance item under U0.4.
+
+---
+
+## Terminal UI / U0.4e — spinner-only free default and v1.1.3 candidate
+
+**Status:** release candidate, 2026-08-24 · **Release target:** `v1.1.3` · **Clean-tree tests:**
+1,021 · **Snapshot checks:** 21 · **Platforms:** 5 · **Dependencies:** 2 · **Binary:** 6.45 MB ·
+**Cold start:** 4.5 ms p50
+
+This patch removes every user-visible octopus and phase label from loading. Plain and persistent
+terminal paths now show only the animated Braille spinner, while descriptive file and command work
+remains durable transcript output. The persistent runtime owns exactly one cancellable activity
+generation, so a stale or repeated stop cannot erase a newer spinner.
+
+New sessions without an explicit model now query OpenRouter's intelligence-ranked, tool-capable,
+text model catalog within a five-second deadline. Selection makes zero cost the first invariant,
+then prefers coding suitability and catalog intelligence order. Only documented `:free` variants
+and `openrouter/free` are trusted as guaranteed free; a temporary catalog price of zero is not.
+The former all-tier `stealth/ox-alpha` preset is retired in memory because observed billing proved
+that alias unsafe, while mixed tier maps, saved custom models, resumed models, and `--model` remain
+exact user choices. Catalog failure falls back to `openrouter/free`; a provider with no free usable
+model gets its cheapest candidate only after a visible charges-may-apply warning.
+
+### TDD record
+
+**Red:** fake-clock tests first failed on decorated `🐙 thinking…`/tool activity and the absence of
+an interactive animation lifecycle. Catalog-policy tests then failed on the old paid-capable
+`openrouter/auto` default, absent ranking filters, unsafe inference from zero-valued pricing, and
+the stale documented preset overriding discovery.
+
+**Green:** both activity implementations now emit only `⠋` through `⠏`; generation IDs, context
+cancellation, and idempotent cleanup protect overlapping persistent activity. Provider decoding now
+includes tool support and all relevant price components. Pure selection tests cover free-before-paid,
+coding/tool preference, explicit-free trust, legacy exclusion, and cheapest-paid fallback; local
+HTTP tests cover the exact ranked query, response decoding, outage behavior, precedence, migration,
+and pre-turn warnings.
+
+**Refactor:** catalog policy lives in the CLI, HTTP mechanics remain in the provider client, and the
+engine still receives one resolved model. Spinner clocks are replaceable test seams. Release-facing
+fixtures advance together from `v1.1.2` to `v1.1.3`.
+
+### Verification
+
+```sh
+GOCACHE=/private/tmp/kolkrabbi-go-cache go test -race \
+  ./internal/cli ./internal/provider ./internal/tui -count=1
+GOCACHE=/private/tmp/kolkrabbi-go-cache \
+  GOLANGCI_LINT_CACHE=/private/tmp/kolkrabbi-lint-cache make check
+KOLK_GORELEASER_BIN=/private/tmp/kolk-goreleaser.olLZpM/goreleaser \
+  GOCACHE=/private/tmp/kolkrabbi-go-cache ./scripts/test-release-snapshot.sh
+```
+
+The focused race gate passed. A fresh Git export containing only this checkpoint then passed the
+complete 1,021-test gate, Darwin/Linux amd64/arm64 plus advisory Windows/amd64 compilation, zero
+lint issues, two root modules, the 6.45 MB size and 4.5 ms cold-start budgets, and all site,
+surface, installer, specification, release, workflow, and verifier contracts. GoReleaser v2.17.1
+produced exactly four `1.1.3-dev` archives and passed all 21 snapshot checks.
+
+An isolated pseudo-terminal rehearsal against `cmd/kolk-mock` showed one animated spinner cell with
+no octopus, `thinking` label, or phase text; durable `Writing file — hello-from-mock.txt` output;
+successful tool execution; final `ready`; composer-only first Ctrl+C; and double-Ctrl+C exit. A
+separate real-catalog startup used the installed key only to list models, selected
+`cohere/north-mini-code:free`, and exited before any inference request, so that rehearsal incurred
+no model cost.
+
+### Next checkpoint
+
+Push only the U0.4e files, require ordinary branch CI to pass, then create immutable tag `v1.1.3`.
+The release workflow, public `v1.1.2 → v1.1.3` updater rehearsal, second no-op update, and fresh
+public installer must pass before U0.4e closes.

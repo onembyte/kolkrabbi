@@ -81,6 +81,19 @@ kolk
 
 That's the whole setup. Everything else is optional.
 
+### Start free automatically
+
+For every new session without an explicit model, kolk asks OpenRouter's live catalog
+for zero-cost, tool-capable models and prefers the strongest coding-oriented option.
+If the catalog is unavailable, it uses OpenRouter's guaranteed zero-cost
+`openrouter/free` router. A saved model, `--model`, or a genuinely custom effort-tier
+map still wins because those are explicit user choices.
+
+Earlier builds documented an all-tier `stealth/ox-alpha` preset as free. That model is
+no longer guaranteed to cost zero, so kolk recognizes that exact old preset and uses
+live free-model discovery instead. `kolk models` lists current models with context size
+and $/1M pricing when you want to make a deliberate override.
+
 ## Usage
 
 ```bash

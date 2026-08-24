@@ -21,14 +21,16 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/buildinfo"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/paths"
+	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/selfupdate"
 	"github.com/onembyte/kolkrabbi/internal/term"
 )
 
-// defaultModel is OpenRouter's auto-router: the zero-config answer to "which
-// model?", so a brand-new user never has to pick one. Override with -m or
+// defaultModel is OpenRouter's guaranteed zero-cost router. Startup normally
+// picks a stronger free coding model from the live catalog; this remains the
+// safe answer when the catalog is empty or unavailable. Override with -m or
 // `kolk config set-model`.
-const defaultModel = "openrouter/auto"
+const defaultModel = "openrouter/free"
 
 // app is one CLI process. Commands write through its streams rather than to
 // os.Stdout directly, so the whole surface can be exercised in-process by a
@@ -62,6 +64,7 @@ type app struct {
 	now              func() time.Time
 	canAnimate       func() bool
 	newActivity      func(io.Writer) engine.ActivityIndicator
+	chooseDefault    func(context.Context, *provider.Client) defaultModelChoice
 	enterRaw         func(*os.File) (func() error, error)
 	terminalSize     func(*os.File) (int, int)
 }
@@ -78,6 +81,7 @@ func newApp() *app {
 	a.newActivity = func(out io.Writer) engine.ActivityIndicator {
 		return newOctopusActivity(out, term.Color())
 	}
+	a.chooseDefault = discoverDefaultModel
 	a.enterRaw = term.EnterRaw
 	a.terminalSize = term.Size
 	return a

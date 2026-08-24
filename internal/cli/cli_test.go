@@ -12,6 +12,7 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/keystore"
 	"github.com/onembyte/kolkrabbi/internal/paths"
+	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/selfupdate"
 )
 
@@ -20,6 +21,9 @@ import (
 func newTestApp(stdin string) (*app, *bytes.Buffer, *bytes.Buffer) {
 	var out, errOut bytes.Buffer
 	a := newApp()
+	a.chooseDefault = func(context.Context, *provider.Client) defaultModelChoice {
+		return defaultModelChoice{Model: defaultModel, Free: true}
+	}
 	a.stdout = &out
 	a.stderr = &errOut
 	a.in = bufio.NewReader(strings.NewReader(stdin))

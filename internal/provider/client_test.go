@@ -213,6 +213,32 @@ func TestKeyNeverAppearsInAnythingPrintable(t *testing.T) {
 	}
 }
 
+func TestListModelsRankedRequestsIntelligenceAndToolFiltering(t *testing.T) {
+	var rawQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rawQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"data":[{"id":"free/code","name":"Free Code","description":"coding","supported_parameters":["tools"],"pricing":{"prompt":"0","completion":"0","request":"0","internal_reasoning":"0"},"context_length":200000}]}`)
+	}))
+	defer srv.Close()
+
+	client := NewClient("test-key")
+	client.BaseURL = srv.URL
+	models, err := client.ListModelsRanked(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(rawQuery, "sort=intelligence-high-to-low") ||
+		!strings.Contains(rawQuery, "supported_parameters=tools") ||
+		!strings.Contains(rawQuery, "output_modalities=text") {
+		t.Fatalf("ranked models query = %q", rawQuery)
+	}
+	if len(models) != 1 || models[0].ID != "free/code" || models[0].Pricing.Request != "0" ||
+		models[0].Pricing.InternalReasoning != "0" || len(models[0].SupportedParameters) != 1 {
+		t.Fatalf("ranked models = %#v", models)
+	}
+}
+
 // A gateway that rejects a request will happily echo the Authorization header
 // it received straight back in the error body.
 func TestProviderErrorsAreScrubbed(t *testing.T) {

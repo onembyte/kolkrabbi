@@ -86,7 +86,7 @@ func (c *Controller) HandleKey(key Key) Effect {
 		}
 		c.clearSuggestions()
 		c.busy = true
-		c.setLifecycle("thinking")
+		c.setLifecycle("working")
 		effect.Submit = result.Submitted
 	}
 	return effect

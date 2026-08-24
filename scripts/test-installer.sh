@@ -58,7 +58,7 @@ HOME_DIR="$WORK/home"
 STAGE_ROOT="$WORK/stage"
 mkdir -p "$RELEASES" "$FAKEBIN" "$HOME_DIR" "$STAGE_ROOT"
 
-VERSION=1.1.2
+VERSION=1.1.3
 for target in darwin_amd64 darwin_arm64 linux_amd64 linux_arm64; do
   payload="$WORK/payload-$target"
   mkdir -p "$payload"
@@ -179,7 +179,7 @@ write_versioned_kolk() {
 }
 
 older_dir="$WORK/install-older"
-older_version=1.1.1
+older_version=1.1.2
 write_versioned_kolk "$older_dir/kolk" "$older_version"
 older_log="$WORK/curl-older.log"
 if run_installer Darwin arm64 "$older_dir" "$older_log" "$RELEASES" env -u KOLK_VERSION >"$WORK/out-older" 2>"$WORK/err-older"; then

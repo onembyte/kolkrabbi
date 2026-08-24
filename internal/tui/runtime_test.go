@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -121,14 +122,69 @@ func TestRuntimeApprovalBlocksTheTurnWithoutConsumingMainDraft(t *testing.T) {
 
 func TestRuntimeToolWorkUsesOnlyTheEphemeralActivityRegion(t *testing.T) {
 	runtime := NewRuntime(RuntimeOptions{Output: io.Discard, Status: Status{Mode: "code", Lifecycle: "thinking"}})
+	clock := newFakeSpinnerClock()
+	runtime.spinClock = clock
 	stop := runtime.StartWork(context.Background(), "Reading file — PLAN.md")
 	got := runtime.Snapshot()
-	if got.Activity != "🐙 Reading file — PLAN.md…" || got.Transcript != "" || got.Status.Lifecycle != "working" {
+	if got.Activity != "⠋" || got.Transcript != "" || got.Status.Lifecycle != "working" {
 		t.Fatalf("tool activity regions = %#v", got)
 	}
+	if strings.Contains(got.Activity, "🐙") || strings.Contains(got.Activity, "thinking") ||
+		strings.Contains(got.Activity, "Reading file") {
+		t.Fatalf("spinner leaked an icon or activity label: %q", got.Activity)
+	}
+	timer := nextSpinnerTimer(t, clock, spinnerInterval)
+	timer.fire()
+	waitForActivity(t, runtime, "⠙")
 	stop()
 	if got := runtime.Snapshot(); got.Activity != "" || got.Transcript != "" {
 		t.Fatalf("stopped tool activity leaked into transcript: %#v", got)
+	}
+}
+
+type fakeSpinnerTimer struct {
+	delay time.Duration
+	c     chan time.Time
+}
+
+func (t *fakeSpinnerTimer) C() <-chan time.Time { return t.c }
+func (t *fakeSpinnerTimer) Stop()               {}
+func (t *fakeSpinnerTimer) fire()               { t.c <- time.Time{} }
+
+type fakeSpinnerClock struct{ created chan *fakeSpinnerTimer }
+
+func newFakeSpinnerClock() *fakeSpinnerClock {
+	return &fakeSpinnerClock{created: make(chan *fakeSpinnerTimer, 4)}
+}
+
+func (c *fakeSpinnerClock) NewTimer(delay time.Duration) spinnerTimer {
+	timer := &fakeSpinnerTimer{delay: delay, c: make(chan time.Time, 1)}
+	c.created <- timer
+	return timer
+}
+
+func nextSpinnerTimer(t *testing.T, clock *fakeSpinnerClock, want time.Duration) *fakeSpinnerTimer {
+	t.Helper()
+	select {
+	case timer := <-clock.created:
+		if timer.delay != want {
+			t.Fatalf("spinner delay = %v, want %v", timer.delay, want)
+		}
+		return timer
+	case <-time.After(time.Second):
+		t.Fatal("spinner did not request its next timer")
+		return nil
+	}
+}
+
+func waitForActivity(t *testing.T, runtime *Runtime, want string) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for runtime.Snapshot().Activity != want {
+		if time.Now().After(deadline) {
+			t.Fatalf("activity = %q, want %q", runtime.Snapshot().Activity, want)
+		}
+		time.Sleep(time.Millisecond)
 	}
 }
 

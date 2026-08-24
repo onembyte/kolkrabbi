@@ -18,15 +18,15 @@ func TestControllerKeepsNextDraftWhileTheCurrentTurnStreams(t *testing.T) {
 
 	controller.AppendTranscript("assistant streaming ")
 	controller.HandleKey(Key{Kind: KeyText, Text: "next draft"})
-	controller.SetActivity("🐙 thinking…")
+	controller.SetActivity("⠋")
 	controller.AppendTranscript("tokens\n")
 
 	got := controller.Snapshot()
 	if got.Draft != "next draft" || got.Transcript != "assistant streaming tokens\n" {
 		t.Fatalf("streaming mixed screen regions: %#v", got)
 	}
-	if got.Status.Lifecycle != "thinking" {
-		t.Fatalf("lifecycle = %q, want thinking", got.Status.Lifecycle)
+	if got.Status.Lifecycle != "working" {
+		t.Fatalf("lifecycle = %q, want working", got.Status.Lifecycle)
 	}
 
 	controller.FinishTurn("ready")

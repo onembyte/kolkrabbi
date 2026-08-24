@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -303,14 +304,37 @@ type ModelInfo struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Pricing     struct {
-		Prompt     string `json:"prompt"`
-		Completion string `json:"completion"`
+		Prompt            string `json:"prompt"`
+		Completion        string `json:"completion"`
+		Request           string `json:"request"`
+		InternalReasoning string `json:"internal_reasoning"`
 	} `json:"pricing"`
-	ContextLength int `json:"context_length"`
+	ContextLength       int      `json:"context_length"`
+	SupportedParameters []string `json:"supported_parameters"`
 }
 
 func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/models", nil)
+	return c.listModels(ctx, nil)
+}
+
+// ListModelsRanked asks OpenRouter to place the strongest generally capable
+// tool models first. Callers still verify pricing and coding suitability;
+// server order is only the final quality tie-breaker.
+func (c *Client) ListModelsRanked(ctx context.Context) ([]ModelInfo, error) {
+	query := url.Values{
+		"output_modalities":    {"text"},
+		"sort":                 {"intelligence-high-to-low"},
+		"supported_parameters": {"tools"},
+	}
+	return c.listModels(ctx, query)
+}
+
+func (c *Client) listModels(ctx context.Context, query url.Values) ([]ModelInfo, error) {
+	endpoint := c.BaseURL + "/models"
+	if len(query) > 0 {
+		endpoint += "?" + query.Encode()
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}

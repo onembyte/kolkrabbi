@@ -110,6 +110,41 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   terminal region on Apple Terminal and publish the independently verified `v1.1.1` patch.
 - [~] **U0.4 persistent terminal UI** — add a Codex-style persistent multiline input area, live
   activity/tool status, visible model/mode/effort/session state, and robust terminal interaction.
+- [~] **U0.4e spinner-only free-default patch** — remove loader decoration, dynamically prefer a
+  free coding model, retire the stale documented free preset, and publish the verified `v1.1.3`.
+
+### U0.4e spinner-only free-default patch — active detail
+
+Scope:
+
+- Render only the animated Braille spinner in both persistent and plain-terminal activity regions;
+  keep descriptive file/command work in the durable transcript and never repeat phase labels.
+- For a new session with no explicit model, query the live model catalog in intelligence order,
+  prefer zero-cost tool-capable coding models, and bound discovery so startup cannot hang.
+- Keep `openrouter/free` as the zero-cost catalog-outage fallback. If another provider truly lists
+  no free model, select its cheapest usable coding model only with a visible pre-turn warning.
+- Recognize the exact old all-tier `stealth/ox-alpha` preset documented by earlier builds and replace
+  it in memory with live free discovery because that model is no longer guaranteed to cost zero.
+- Advance every release-facing fixture to `v1.1.3`, rehearse `v1.1.2 → v1.1.3`, and verify the
+  signed public installer/updater path before closing the leaf.
+
+Non-goals:
+
+- No mutation of genuinely custom model/tier configuration, resumed-session model, or explicit
+  `--model`; no background model switch during a turn and no claim that free capacity is unlimited.
+- No removal of durable tool descriptions, status metadata, retry policy, cost accounting, model
+  catalog command, or user-controlled paid/frontier routing.
+- No staging or mutation of the independently owned Markdown/diff or A7.2 work.
+
+Acceptance checklist:
+
+- [x] fake-clock tests prove spinner frame order and exact cleanup with no octopus, phase, tool, or
+  `thinking…` text in either interactive renderer; focused race tests pass.
+- [x] pure and local-HTTP tests prove free-before-paid ordering, coding/tool preference, catalog
+  query filters, bounded free-router fallback, explicit override precedence, and visible paid use.
+- [x] the exact former all-free preset migrates in memory while mixed/custom tier maps remain exact.
+- [ ] full repository gates, four-platform snapshot, live pseudo-terminal rehearsal, branch CI,
+  signed `v1.1.3` release, public updater, and fresh installer all pass with evidence recorded.
 
 ### U0.3c terminal-compatible octopus hotfix — active detail
 

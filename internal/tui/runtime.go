@@ -42,10 +42,12 @@ type Runtime struct {
 	width      func() int
 	height     func() int
 	turn       func(context.Context, string) error
+	spinClock  spinnerClock
 
 	baseContext context.Context
 	activeID    uint64
 	activeStop  context.CancelFunc
+	activityID  uint64
 	turns       sync.WaitGroup
 	approval    chan Decision
 	quit        chan struct{}
@@ -74,7 +76,8 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 		input: options.Input, controller: controller,
 		renderer: NewRenderer(options.Output), decoder: NewDecoder(),
 		width: options.Width, height: options.Height, turn: options.Turn,
-		quit: make(chan struct{}),
+		spinClock: realSpinnerClock{},
+		quit:      make(chan struct{}),
 	}
 }
 
@@ -187,31 +190,74 @@ func (r *Runtime) Write(p []byte) (int, error) {
 }
 
 // Start implements the engine activity port. Loading is one replaceable
-// octopus row, never transcript output, so repeated phases cannot flood the
+// spinner cell, never transcript output, so repeated phases cannot flood the
 // terminal or move the user's draft.
-func (r *Runtime) Start(_ context.Context, phase string) func() {
-	return r.startActivity(phase)
+func (r *Runtime) Start(ctx context.Context, _ string) func() {
+	return r.startActivity(ctx)
 }
 
 // StartWork implements the engine's local-tool activity port.
-func (r *Runtime) StartWork(_ context.Context, description string) func() {
-	return r.startActivity(description)
+func (r *Runtime) StartWork(ctx context.Context, _ string) func() {
+	return r.startActivity(ctx)
 }
 
-func (r *Runtime) startActivity(description string) func() {
+func (r *Runtime) startActivity(ctx context.Context) func() {
+	activityContext, cancel := context.WithCancel(ctx)
 	r.mu.Lock()
-	r.controller.SetActivity("🐙 " + description + "…")
+	if r.spinClock == nil {
+		r.spinClock = realSpinnerClock{}
+	}
+	r.activityID++
+	id := r.activityID
+	r.controller.SetActivity(spinnerFrames[0])
 	r.renderLocked()
 	r.mu.Unlock()
+
+	done := make(chan struct{})
+	go r.animateActivity(activityContext, id, done)
 	var once sync.Once
 	return func() {
 		once.Do(func() {
-			r.mu.Lock()
-			r.controller.SetActivity("")
-			r.renderLocked()
-			r.mu.Unlock()
+			cancel()
+			<-done
 		})
 	}
+}
+
+func (r *Runtime) animateActivity(ctx context.Context, id uint64, done chan<- struct{}) {
+	defer close(done)
+	defer r.clearActivity(id)
+	frame := 1
+	for {
+		timer := r.spinClock.NewTimer(spinnerInterval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C():
+			timer.Stop()
+		}
+
+		r.mu.Lock()
+		if r.activityID != id {
+			r.mu.Unlock()
+			return
+		}
+		r.controller.SetActivity(spinnerFrames[frame])
+		r.renderLocked()
+		r.mu.Unlock()
+		frame = (frame + 1) % len(spinnerFrames)
+	}
+}
+
+func (r *Runtime) clearActivity(id uint64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.activityID != id {
+		return
+	}
+	r.controller.SetActivity("")
+	r.renderLocked()
 }
 
 // Confirm displays a focused approval overlay and blocks only the calling
