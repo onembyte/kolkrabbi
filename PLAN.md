@@ -163,7 +163,8 @@ backend only.
 
 ## B. Core UX
 
-### [ ] 6. The three modes — chat / code / agent
+### [x] 6. The modes — chat / code — **hardened → [`docs/plan/06-modes.md`](docs/plan/06-modes.md)**
+**Decision:** a mode is a record, not a code path, and there are two visible ones: `chat` reads (`read_file` `list_dir` + item 13's grep/glob; **no network, no bash** — the printed guarantee is "changes nothing on your machine and sends nothing off it"), `code` writes and is the default everywhere. **`agent` does not survive as a mode** — orchestration becomes a `delegate` tool inside code, width owned by item 7's effort dial; `/agent` keeps working through v0.3 as a self-translating deprecation and stats aliases the historical value. Modes are pure data resolved once per turn by two pure functions; hidden rows (`task`, `title`, reserved `plan`) are what stop items 8/10/14/15 from each hardcoding another prompt. Reach is enforced by omitting the schema, never by prompt instruction. Per-mode model maps and effort overrides ship as hooks with unset values (no config on day one); sticky per-mode models are rejected outright.
 **Scope:** exact semantics of each mode, switching by prompt, per-mode defaults.
 **Today:** `/mode chat|code|agent`; chat = no tools; code = tool loop; agent = orchestrated. System prompt per mode; project memory appended.
 **Decide:**
@@ -318,7 +319,8 @@ backend only.
 **Hardened when:** schema DDL, signal list, v1 views (top 5), dashboard delivery decision, migration from `stats.jsonl`.
 **Inputs:** `docs/research/dashboard.md`
 
-### [ ] 18. Config system
+### [x] 18. Config system — **hardened → [`docs/plan/18-config.md`](docs/plan/18-config.md)**
+**Decision:** a closed, typed key registry in `internal/config` resolved through five links (flag > env > project > user > computed default) where every default is computed and no key is required. The file is `paths.Config()/config.json`: flat depth-one JSONC (comments + trailing commas), read via a blanking pass + stdlib, written by a byte-splice that never reserializes so `kolk config set` cannot eat a comment; no dependency added. Eight string keys in v0.1; credentials are never settings (arch rule S5 extended). Project config ships the ratchet boundary first (`Kind`/`ProjectOK`/`Tighter`, can only tighten), loader deferred to v0.2 behind item 13's `permission.rules`. Prototype migration: sessions/stats move (`paths.Migrate`), key evacuates (`keystore.MigrateLegacyConfig`), nested `tiers` flatten through an alias table with the quick→low vocabulary rename — idempotent, crash-safe, no write-back under old names.
 **Scope:** formats, locations, precedence, UX.
 **Today:** `~/.config/kolk/config.json` {api_key, model, base_url, tiers}; env overrides; `kolk config set-* | show`.
 **Decide:**

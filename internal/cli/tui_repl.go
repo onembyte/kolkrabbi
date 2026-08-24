@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/engine"
+	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/tui"
 )
 
@@ -103,7 +104,7 @@ func workingFolderLabel() string {
 	if err != nil {
 		return "unknown"
 	}
-	home, _ := os.UserHomeDir()
+	home, _ := paths.UserHomeDir()
 	return compactWorkingFolder(cwd, home)
 }
 

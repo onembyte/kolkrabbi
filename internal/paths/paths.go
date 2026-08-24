@@ -44,6 +44,10 @@ type Dirs struct {
 	Cache  string // anything kolk can rebuild from the network
 }
 
+// UserHomeDir is the platform-owned home-directory seam for callers that
+// need a display path without duplicating OS discovery outside this package.
+func UserHomeDir() (string, error) { return os.UserHomeDir() }
+
 // Resolve computes the directories for the current user and environment.
 //
 // It fails only when there is no home directory AND no override, which on a
@@ -51,7 +55,7 @@ type Dirs struct {
 // than papered over with a relative path that would scatter state into
 // whatever directory kolk happened to be run from.
 func Resolve() (Dirs, error) {
-	home, homeErr := os.UserHomeDir()
+	home, homeErr := UserHomeDir()
 	d := resolve(os.Getenv, home)
 
 	if d.Config == "" || d.Data == "" || d.Cache == "" {

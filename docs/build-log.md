@@ -3841,3 +3841,52 @@ with v1.1.4 commit `70ab704`; a second update reported `Kolk is up to date (1.1.
 unpinned install selected v1.1.4. The Cloudflare homepage advertises v1.1.4 and live `install.sh`
 returns HTTP 200 with `Cache-Control: no-store`. No developer binary, key, config, session, or PATH
 entry changed during the rehearsal. U0.4f closes here.
+
+---
+
+## Terminal UI / U0.4g — persistent purple composer and raw-row fix
+
+**Status:** release candidate, 2026-08-24 · **Target:** `v1.1.5` · **Focused race:** green ·
+**PTY:** green · **Platforms:** 5 · **Dependencies:** 2
+
+The owner reported that v1.1.4 opened with every line shifted farther right and then repeated the
+startup banner while text was typed. A raw-terminal inspection showed that the renderer emitted LF
+without CR after terminal output post-processing had been disabled. Cursor-up cleanup therefore
+started from the wrong column and missed the rows it owned.
+
+### TDD record
+
+**Red:** the first real PTY rehearsal exposed a separate submission fault: Apple Terminal could
+deliver ordinary Enter as bare LF, but the decoder classified LF as a multiline key. The focused
+decoder regression passed for CR and failed for LF. After that fix, a renderer regression proved
+that a three-row frame still emitted `top\nmiddle\nbottom` rather than the raw-mode-safe
+`top\r\nmiddle\r\nbottom`. The full architecture gate then caught a direct `os.UserHomeDir` call
+outside the one platform owner.
+
+**Green:** bare CR and LF now submit; the existing explicit Shift+Enter escape sequences still add
+newlines. The renderer converts logical LF boundaries to CRLF only at the terminal-write boundary,
+preserving pure model output and owned-row counts. Home-directory discovery is exposed through
+`internal/paths`, keeping the working-folder label compact without weakening the OS-owner rule.
+
+**Refactor:** the boxed composer is replaced by two full-width text rules. Session name and current
+model occupy the first footer row; effort, working folder, approval, and lifecycle occupy the second.
+Purple ANSI is applied only by the terminal render path to rules, spinner, suggestions, and status;
+the pure view, transcript, Markdown/diffs, and typed draft remain unstyled. The duplicated startup
+mode/model/session banner is removed because those values now persist in the footer.
+
+### Candidate verification
+
+Focused race tests pass after the final path-owner refactor across TUI, paths, architecture, and the
+affected CLI surface. A fresh isolated mock server, config, data directory, work directory,
+binary, and `expect` PTY session submitted `create the hello file`, wrote
+`hello-from-mock.txt`, streamed descriptive tool activity and the final response, changed the footer
+from the session ID to `create the hello file`, and exited on the second Ctrl+C. Its capture contains
+CRLF row boundaries and no old box, octopus, `thinking` label, or duplicated startup banner.
+
+The release contracts were advanced test-first: release and site contracts failed against 1.1.4,
+then passed at 1.1.5 (release 24, site 110, installer 72, verifier 30). Architecture, purity,
+build-tag, five-platform, lint, budget, site, surface, installer, spec, release, workflow, and
+verifier gates are green; binary size is 6.27 MB, cold start is 4.4 ms p50, and the dependency count
+remains two. The full test target cannot yet be re-run in this sandbox because its local `httptest`
+listeners require an unavailable escalation approval. No tag or public-release claim is made until
+that clean gate, snapshot, CI, signed assets, updater, and installer rehearsal pass.

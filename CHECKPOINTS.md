@@ -114,6 +114,43 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   free coding model, retire the stale documented free preset, and publish the verified `v1.1.3`.
 - [x] **U0.4f bounded background-output hotfix** — prevent a successful shell whose intentional
   background process retains stdout from freezing the agent turn; publish verified `v1.1.4`.
+- [~] **U0.4g persistent purple composer** — replace the boxed prototype with a stable text-only
+  purple TUI, fix raw-terminal row displacement, and prepare the verified `v1.1.5` patch.
+
+### U0.4g persistent purple composer — active detail
+
+Scope:
+
+- Keep transcript, activity, slash suggestions, and the editable draft as independent screen
+  regions. Anchor the composer between two full-width horizontal rules and keep session name,
+  current model, effort, and working folder visible beneath it.
+- Apply a purple palette only to terminal chrome and ephemeral status. Keep user input, assistant
+  text, tool output, Markdown, and diffs readable without inherited color or decorative icons.
+- Treat bare CR and LF as Enter while retaining the explicit Shift+Enter escape sequences for
+  multiline input. Emit CRLF for each raw-terminal frame row so repaints always start at column zero.
+- Remove duplicated startup metadata now owned by the persistent footer and advance release-facing
+  fixtures together to strict SemVer `v1.1.5`.
+
+Non-goals:
+
+- No alternate screen, mouse-only interaction, engine/provider policy, automatic model switching,
+  theme selector, daemon protocol, or desktop/web client.
+- No octopus or repeated `thinking` label; the existing one-cell Braille spinner remains the sole
+  animated activity indicator.
+- No mutation of the independently owned plan/config drafts or verification notes in the shared
+  working tree.
+
+Acceptance checklist:
+
+- [x] pure model/controller tests prove the text-only frame, purple-only chrome, persistent draft,
+  two-line metadata footer, session-title refresh, slash discovery, and independent approval input.
+- [x] decoder and renderer regressions fail before their fixes and pass after them for bare-LF Enter
+  submission and raw-mode CRLF rows; architecture ownership passes through `internal/paths`.
+- [x] a fresh real-PTY mock rehearsal submits a code turn, writes the expected file, streams tool and
+  final output above the composer, updates the session title, and exits on the second Ctrl+C without
+  boxed chrome, octopus, `thinking` text, duplicated startup metadata, or displaced rows.
+- [ ] the complete clean repository/race gate, four release archives, branch CI, signed `v1.1.5`
+  assets, public updater/no-op updater, and fresh installer pass before publication is declared.
 
 ### U0.4f bounded background-output hotfix — active detail
 
@@ -1389,8 +1426,16 @@ Acceptance checklist:
   malformed/non-object input.
 - [ ] publishing any shipped canary yields only scrubbed replay/live/return copies; failed scrub or
   post-scrub protocol validation consumes no sequence and notifies no subscriber.
-- [ ] focused/fuzz/race tests, import bans, architecture/purity/platform gates, and the full
-  repository suite pass with red/green/refactor evidence recorded.
+- [x] focused/fuzz/race tests, import bans, architecture/purity/platform gates, and the full
+  repository suite pass with red/green/refactor evidence recorded. (Independent verification by
+  ox-alpha 2026-08-24 02:53–03:05, per the AGENTS.md handoff — verifier did not write this code:
+  `go test -race ./internal/redact ./internal/secret ./internal/arch -count=1` all ok;
+  `FuzzScrubPreservesValidUTF8AndIdempotence` 21 s PASS, 84,820 execs, 13 new interesting inputs,
+  zero crashers (no `testdata/fuzz` corpus); `BenchmarkScrub12KiB` 82,600 ns/op, 148.77 MB/s,
+  **0 B/op, 0 allocs/op** on Apple M3; full `make check` exit 0 — 142 package-ok lines, 1,329
+  tests across all modules, lint clean, budgets 4.7 ms cold start / 2 third-party modules;
+  surface 13 / site 110 / installer 72 / spec 29 / release 24 / workflow 41 / verifier 30 checks
+  all green; repo-wide `go vet ./...` clean. No failures found; nothing edited in codex's files.)
 
 ### A6 protocol contract — active detail
 
@@ -2622,7 +2667,7 @@ checkpoint is expanded. Status here mirrors [`PLAN.md`](PLAN.md); PLAN remains a
 - [x] 3 provider layer
 - [x] 4 subscription backends
 - [x] 5 authentication, keys, and secrets
-- [ ] 6 modes (draft exists; review and PLAN update still required)
+- [x] 6 modes — hardened; doc complete, code claims verified against the tree (ox-alpha review 2026-08-24)
 - [ ] 7 effort dial
 - [ ] 8 model selection and routing
 - [ ] 9 command surface
@@ -2634,9 +2679,60 @@ checkpoint is expanded. Status here mirrors [`PLAN.md`](PLAN.md); PLAN remains a
 - [ ] 15 code-mode specifics
 - [ ] 16 extensibility
 - [ ] 17 local dashboard
-- [ ] 18 config system (draft exists; review and PLAN update still required)
+- [x] 18 config system — hardened; truncated draft completed by ox-alpha (§5 migration, §6 UX, §7 ship list, rationale sections) 2026-08-24
 - [ ] 19 desktop and iPad path
 - [ ] 20 distribution, updates, and CI
 - [ ] 21 quality, testing, and security
 - [ ] 22 onboarding and docs
 - [ ] 23 roadmap, phasing, and non-goals
+
+### Independent verification log (ox-alpha)
+
+- 2026-08-24 00:25–00:35 — A7.2a work-in-progress state, verified by ox-alpha while codex owns
+  the leaf: `go test -race ./internal/redact/... ./internal/bus/...` ok; 20 s fuzz on
+  `FuzzScrubPreservesValidUTF8AndIdempotence` PASS (673k execs, no crashers); `make vet`,
+  `make fmt-check`, `make buildtags`, `make platforms`, `make lint` clean; `make test`
+  1222 tests green across all modules; `make budgets` (6.11 MB binary, 4.5 ms cold start,
+  1222-test floor); `make spec` 29 checks; site 110 / surface 13 / installer 72 checks;
+  release-check + workflow-check + verifier-check exit 0. No failures found; nothing edited
+  in `internal/redact/*`.
+- 2026-08-24 01:25–01:30 — second independent pass by ox-alpha over codex's expanded working tree
+  (A7.2a redact scanner + A8 decision-port seam `internal/engine/decider.go` + U0.4a/b TUI work with
+  the spike-approved `golang.org/x/term` behind `internal/term`): full `make check` exit 0 —
+  1256 tests, lint 0 issues, budgets (2 third-party modules, at the enforced limit, not over),
+  surface 13 / installer 72 / site 110 / spec 29 / release 24 / workflow 41 checks, Windows
+  cross-build exit 0, `-race` clean on tui/cli/engine. Nothing edited outside docs; no failures.
+- 2026-08-24 01:40 — item 18 closed by ox-alpha: `docs/plan/18-config.md` was truncated mid-Spec
+  (ended at §4.9 while citing a §5 migration table, §7.3, §8/§8.6). Wrote the missing sections —
+  §5 MIGRATION (three ordered migrations mapped to the live `paths.Migrate` and
+  `keystore.MigrateLegacyConfig`, alias table with quick→low rename, crash-safe flattening,
+  version field rejected), §6 UX SURFACE (verb grammar, aliases to today's `set-*`, no wizard),
+  §7 SHIP LIST (7-step v0.1 order, named CI tests, gates incl. S5 extension), §7.4 cross-doc
+  amendment, Rationale / Alternatives rejected / Risks & open questions / Sources. All claims
+  verified against the tree (paths.go:82 symlink promise, cmd_config verbs, keystore fixture).
+  PLAN.md item 18 → [x]; queue updated.
+- 2026-08-24 02:10 — U0.4d Markdown/diff leaf closed by ox-alpha: implemented the missing
+  deterministic transcript rendering as `internal/tui/markdown.go` (stdlib-only, composer token
+  grammar) behind the existing `model.go` view seam, replacing the plain `wrapText` call; removed
+  now-dead `wrapText`. Eight golden/model tests added (`markdown_test.go`). TDD record: red on all
+  eight first (fence-consumption, spacer-row, and indent bugs found by the tests), green after
+  three implementation fixes + two test-fixture corrections. Gates at 02:05–02:12: focused +
+  `-race` tui/cli/engine ok; repo-wide `go test ./...` 23 pkgs ok (1291 root-module tests);
+  `make lint` 0 issues; fmt-check, arch, platforms, budgets clean; surface/site/installer/spec
+  script checks pass. Coordination: codex landed the spinner leaf (`internal/tui/spinner.go`,
+  runtime wiring, cli default-model work) mid-leaf at 01:54–02:04; their files untouched, no
+  overlap with this leaf's edits.
+- 2026-08-24 02:53–03:05 — A7.2a independent verification by ox-alpha (verifier did not write the
+  code), per codex's 02:38 handoff: race tests on redact/secret/arch all ok; 21 s fuzz PASS
+  (84,820 execs, zero crashers); BenchmarkScrub12KiB 82.6 µs/op, 148.77 MB/s, 0 allocs/op; full
+  `make check` exit 0 with 1,329 tests across all modules and every script contract green
+  (surface 13 / site 110 / installer 72 / spec 29 / release 24 / workflow 41 / verifier 30);
+  repo-wide vet clean. Also independently verified the published `v1.1.3` release while U0.4e was
+  closing: workflow run 32693216415 verify+publish both success (142 test lines in CI logs, cosign
+  keyless signature verified at publish), six assets live, fresh-download checksum OK,
+  isolated `/tmp` rehearsal proved public `v1.1.2 → v1.1.3` update, second-run no-op update, and a
+  fresh installer run into an overridden dir whose binary is byte-identical (sha256 match) to the
+  updater's result; offline `cmd/kolk-mock` PTY rehearsal via expect confirmed one-cell braille
+  spinner, no octopus/phase text, durable transcript, cost footer, composer-only first Ctrl+C, and
+  double-Ctrl+C exit on v1.1.3. Evidence recorded under the U0.4e acceptance box by codex; these
+  runs were ox-alpha's independent pass. No failures found.
