@@ -171,6 +171,95 @@ else
 fi
 if [ -x "$default_bin/kolk" ]; then pass; else fail "installer did not choose the writable user PATH directory"; fi
 
+write_versioned_kolk() {
+  local path="$1" version="$2"
+  mkdir -p "${path%/*}"
+  printf '#!/usr/bin/env bash\nprintf "kolk %s test existing\\n"\n' "$version" >"$path"
+  chmod 0755 "$path"
+}
+
+older_dir="$WORK/install-older"
+write_versioned_kolk "$older_dir/kolk" 0.0.9
+older_log="$WORK/curl-older.log"
+if run_installer Darwin arm64 "$older_dir" "$older_log" "$RELEASES" env -u KOLK_VERSION >"$WORK/out-older" 2>"$WORK/err-older"; then
+  pass
+else
+  fail "older-version upgrade failed: $(<"$WORK/err-older")"
+fi
+for text in 'Current version: 0.0.9' 'Updating kolk 0.0.9 → 0.1.0'; do
+  if grep -Fq "$text" "$WORK/out-older"; then pass; else fail "older-version output omitted: $text"; fi
+done
+if grep -Fq '/checksums.txt' "$older_log" && grep -Fq "kolk_${VERSION}_darwin_arm64.tar.gz" "$older_log"; then
+  pass
+else
+  fail "older-version upgrade did not download both verified assets"
+fi
+if "$older_dir/kolk" | grep -Fq "kolk $VERSION test darwin_arm64"; then pass; else fail "older binary was not upgraded"; fi
+
+current_dir="$WORK/install-current"
+write_versioned_kolk "$current_dir/kolk" "$VERSION"
+current_before="$(shasum -a 256 "$current_dir/kolk" | awk '{print $1}')"
+current_log="$WORK/curl-current.log"
+if run_installer Darwin arm64 "$current_dir" "$current_log" "$RELEASES" env -u KOLK_VERSION >"$WORK/out-current" 2>"$WORK/err-current"; then
+  pass
+else
+  fail "current-version check failed: $(<"$WORK/err-current")"
+fi
+current_after="$(shasum -a 256 "$current_dir/kolk" | awk '{print $1}')"
+if grep -Fq "Kolk is up to date ($VERSION)" "$WORK/out-current"; then pass; else fail "current version was not reported up to date"; fi
+if [ "$(wc -l <"$current_log" | tr -d ' ')" = 1 ] && grep -Fq '/releases/latest' "$current_log"; then
+  pass
+else
+  fail "current version requested an artifact: $(<"$current_log")"
+fi
+if [ "$current_before" = "$current_after" ]; then pass; else fail "current binary was unnecessarily replaced"; fi
+
+newer_dir="$WORK/install-newer"
+write_versioned_kolk "$newer_dir/kolk" 0.10.0
+newer_before="$(shasum -a 256 "$newer_dir/kolk" | awk '{print $1}')"
+newer_log="$WORK/curl-newer.log"
+if run_installer Darwin arm64 "$newer_dir" "$newer_log" "$RELEASES" env -u KOLK_VERSION >"$WORK/out-newer" 2>"$WORK/err-newer"; then
+  pass
+else
+  fail "newer-version check failed: $(<"$WORK/err-newer")"
+fi
+newer_after="$(shasum -a 256 "$newer_dir/kolk" | awk '{print $1}')"
+if grep -Fq "Installed kolk 0.10.0 is newer than latest release 0.1.0" "$WORK/out-newer"; then
+  pass
+else
+  fail "newer local version did not name both versions"
+fi
+if [ "$(wc -l <"$newer_log" | tr -d ' ')" = 1 ] && [ "$newer_before" = "$newer_after" ]; then
+  pass
+else
+  fail "newer local version was downloaded over or mutated"
+fi
+
+wide_dir="$WORK/install-wide-version"
+write_versioned_kolk "$wide_dir/kolk" 0.9.10
+wide_log="$WORK/curl-wide-version.log"
+if run_installer Darwin arm64 "$wide_dir" "$wide_log" "$RELEASES" env \
+  FAKE_LATEST_URL='https://github.com/onembyte/kolkrabbi/releases/tag/v0.10.0' >"$WORK/out-wide" 2>"$WORK/err-wide"; then
+  fail "wide-component fixture unexpectedly installed absent 0.10.0 assets"
+else
+  pass
+fi
+if grep -Fq 'Updating kolk 0.9.10 → 0.10.0' "$WORK/out-wide"; then pass; else fail "version comparison treated 0.9.10 as newer than 0.10.0"; fi
+
+pinned_dir="$WORK/install-pinned-existing"
+write_versioned_kolk "$pinned_dir/kolk" 9.0.0
+pinned_log="$WORK/curl-pinned-existing.log"
+if run_installer Darwin arm64 "$pinned_dir" "$pinned_log" "$RELEASES" env KOLK_VERSION="v$VERSION" >"$WORK/out-pinned-existing" 2>"$WORK/err-pinned-existing"; then
+  pass
+else
+  fail "explicit pinned reinstall failed: $(<"$WORK/err-pinned-existing")"
+fi
+if grep -Fq '/checksums.txt' "$pinned_log" && "$pinned_dir/kolk" | grep -Fq "kolk $VERSION test darwin_arm64"; then
+  pass
+else
+  fail "explicit pinned version did not override a newer existing binary"
+fi
+
 replace_dir="$WORK/install-replace"
 mkdir -p "$replace_dir"
 printf 'old binary\n' >"$replace_dir/kolk"

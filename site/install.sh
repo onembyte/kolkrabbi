@@ -39,6 +39,52 @@ valid_version() {
   [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?(\+[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]
 }
 
+valid_stable_version() {
+  [[ "$1" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+}
+
+compare_decimal() {
+  local left="$1" right="$2"
+  if [ "${#left}" -lt "${#right}" ]; then
+    printf '%s\n' -1
+  elif [ "${#left}" -gt "${#right}" ]; then
+    printf '%s\n' 1
+  elif [ "$left" = "$right" ]; then
+    printf '%s\n' 0
+  elif [[ "$left" < "$right" ]]; then
+    printf '%s\n' -1
+  else
+    printf '%s\n' 1
+  fi
+}
+
+compare_stable_versions() {
+  local left_major left_minor left_patch right_major right_minor right_patch comparison
+  IFS=. read -r left_major left_minor left_patch <<<"$1"
+  IFS=. read -r right_major right_minor right_patch <<<"$2"
+  for comparison in \
+    "$(compare_decimal "$left_major" "$right_major")" \
+    "$(compare_decimal "$left_minor" "$right_minor")" \
+    "$(compare_decimal "$left_patch" "$right_patch")"; do
+    if [ "$comparison" != 0 ]; then
+      printf '%s\n' "$comparison"
+      return
+    fi
+  done
+  printf '%s\n' 0
+}
+
+installed_version() {
+  local binary="$1" output program version rest
+  [ -f "$binary" ] && [ -x "$binary" ] || return 1
+  output="$("$binary" version 2>/dev/null)" || return 1
+  read -r program version rest <<<"$output"
+  [ "$program" = kolk ] || return 1
+  version="${version#v}"
+  valid_stable_version "$version" || return 1
+  printf '%s\n' "$version"
+}
+
 resolve_version() {
   local requested latest
   requested="${KOLK_VERSION:-}"
@@ -109,6 +155,15 @@ choose_install_dir() {
   die "no writable directory is on PATH; add ~/.local/bin to PATH or set KOLK_INSTALL_DIR"
 }
 
+print_run_hint() {
+  local install_dir="$1"
+  if ! path_contains "$install_dir"; then
+    printf 'Add %s to PATH before running kolk.\n' "$install_dir"
+  else
+    printf 'Run: kolk\n'
+  fi
+}
+
 download() {
   local url="$1" output="$2"
   curl -fsSL --proto '=https' --tlsv1.2 --retry 3 --retry-delay 1 \
@@ -172,6 +227,7 @@ cleanup() {
 
 main() {
   local target version install_dir archive_name download_base archive manifest extract_dir
+  local current_version comparison pinned
   stage_dir=""
   install_temp=""
   trap cleanup EXIT
@@ -185,10 +241,41 @@ main() {
   done
 
   target="$(detect_target)"
+
+  pinned=0
+  if [ -n "${KOLK_VERSION:-}" ]; then
+    pinned=1
+  fi
   version="$(resolve_version)"
   install_dir="$(choose_install_dir)"
   mkdir -p "$install_dir" || die "could not create install directory: $install_dir"
   [ -d "$install_dir" ] && [ -w "$install_dir" ] || die "install directory is not writable: $install_dir"
+
+  current_version=""
+  if current_version="$(installed_version "$install_dir/kolk")"; then
+    printf 'Current version: %s\n' "$current_version"
+    if [ "$pinned" -eq 0 ] && valid_stable_version "$version"; then
+      comparison="$(compare_stable_versions "$current_version" "$version")"
+      case "$comparison" in
+        0)
+          printf 'Kolk is up to date (%s)\n' "$current_version"
+          print_run_hint "$install_dir"
+          return
+          ;;
+        1)
+          printf 'Installed kolk %s is newer than latest release %s; leaving it unchanged.\n' \
+            "$current_version" "$version"
+          print_run_hint "$install_dir"
+          return
+          ;;
+        -1)
+          printf 'Updating kolk %s → %s\n' "$current_version" "$version"
+          ;;
+      esac
+    else
+      printf 'Installing requested kolk %s over %s\n' "$version" "$current_version"
+    fi
+  fi
 
   archive_name="kolk_${version}_${target}.tar.gz"
   download_base="$KOLK_RELEASES/download/v$version"
@@ -213,12 +300,12 @@ main() {
   mv -f "$install_temp" "$install_dir/kolk"
   install_temp=""
 
-  printf 'Installed kolk v%s to %s/kolk\n' "$version" "$install_dir"
-  if ! path_contains "$install_dir"; then
-    printf 'Add %s to PATH before running kolk.\n' "$install_dir"
+  if [ -n "$current_version" ]; then
+    printf 'Updated kolk %s → %s at %s/kolk\n' "$current_version" "$version" "$install_dir"
   else
-    printf 'Run: kolk\n'
+    printf 'Installed kolk v%s to %s/kolk\n' "$version" "$install_dir"
   fi
+  print_run_hint "$install_dir"
 }
 
 main "$@"
