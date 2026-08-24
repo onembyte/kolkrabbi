@@ -87,7 +87,8 @@ var packageLayer = map[string]Layer{
 	"internal/term":       L0Platform,
 	"internal/xid":        L0Platform,
 
-	// L2 — the hinge. Arrives at step 7.
+	// L2 — the event journal and fan-out hinge.
+	"internal/bus": L2Hinge,
 
 	// L3 — domain.
 	"internal/provider": L3Domain,

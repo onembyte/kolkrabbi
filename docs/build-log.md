@@ -3354,3 +3354,60 @@ Kolk is up to date (1.1.0)
 R1.1 is closed and ready for the owner's real PATH test. Resume the dependency-ready A7 event-bus
 migration one reversible TDD slice at a time; the still-open T0.5 clean-machine rehearsal remains a
 separate environment proof.
+
+---
+
+## Architecture migration / A7.1 — bounded in-memory event journal
+
+**Status:** done, 2026-08-24 · **Tests:** 1,175 · **Platforms:** 5 · **Lint:** 0 ·
+**Binary:** 6.34 MB · **Cold start:** 4.6 ms p50
+
+This leaf introduces the L2 `internal/bus` hinge without connecting it to the legacy engine or
+changing one terminal byte. One journal owns one canonical protocol session, assigns contiguous
+positive envelope sequences and nondecreasing UTC timestamps, validates complete envelopes through
+the public protocol binding, and retains a count/byte-bounded replay window. `Subscribe(afterSeq)`
+atomically returns the retained snapshot after a Last-Event-ID-style cursor and attaches a bounded
+live channel; a full channel disconnects only that reader and leaves replay recovery available.
+
+### TDD record
+
+**Red:** `internal/bus/bus_test.go` was added before the package implementation. The focused test
+failed at compile time only on the deliberately absent `Options`, `Bus`, `Event`, `Subscription`,
+and cursor/backpressure errors. The first green attempt then exposed one test fixture with a
+25-character rather than canonical 26-character ULID body; the fixture was corrected without
+weakening runtime ID validation.
+
+**Green:** `bus.go` now serializes concurrent publication under one mutex, computes retention from
+the exact LF-terminated NDJSON frame size, rejects an individually unreplayable event before taking
+its sequence, and snapshots replay while registering live delivery under the same lock. Count and
+byte eviction, expired/ahead cursors, slow-reader isolation and resume, invalid clocks/payloads,
+idempotent close, and concurrent ordering pass offline.
+
+**Refactor:** payload bytes are cloned on input, retention, subscriber fan-out, replay access, and
+the returned published envelope. The journal owns no goroutine, and `internal/arch` now registers it
+at L2 with imports limited to the L0 typed-ID primitive and L1 protocol contract.
+
+### Verification
+
+```sh
+GOCACHE=/private/tmp/kolkrabbi-go-cache go test ./internal/bus
+GOCACHE=/private/tmp/kolkrabbi-go-cache go test -race ./internal/bus
+GOCACHE=/private/tmp/kolkrabbi-go-cache go test ./internal/arch
+GOCACHE=/private/tmp/kolkrabbi-go-cache go vet ./internal/bus
+GOCACHE=/private/tmp/kolkrabbi-go-cache \
+  GOLANGCI_LINT_CACHE=/private/tmp/kolkrabbi-lint-cache \
+  golangci-lint run ./internal/bus/... ./internal/arch/...
+GOCACHE=/private/tmp/kolkrabbi-go-cache \
+  GOLANGCI_LINT_CACHE=/private/tmp/kolkrabbi-lint-cache make check
+```
+
+The full gate passed with 1,175 tests, Darwin/Linux amd64/arm64 plus advisory Windows/amd64,
+zero lint issues, one root dependency, 110 site checks, 13 mode/update-surface checks, 72 installer
+checks, 29 spec-guard checks, 24 release checks, 41 release-workflow checks, and 30 release-verifier
+checks. The binary and startup budgets remain unchanged at 6.34 MB and 4.6 ms p50.
+
+### Next checkpoint
+
+A7.2 must implement the security plan's `bus.Publish` scrub chokepoint before the journal gains a
+spill file or any engine, renderer, or transport consumer. The current package is an isolated,
+in-memory seam and therefore creates no new persisted or user-visible secret surface.

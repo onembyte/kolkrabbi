@@ -1138,7 +1138,7 @@ and T0.5 therefore stay blocked without being treated as failed, and the additiv
 proceed without changing repository visibility, tags, releases, or deployments.
 
 - [~] **A6 protocol contract** — add `spec/`, public `protocol/`, and golden conformance tests.
-- [ ] **A7 event bus** — emit events while preserving today's plain output byte-for-byte.
+- [~] **A7 event bus** — emit events while preserving today's plain output byte-for-byte.
 - [ ] **A8 decision port** — move interactive approval out of the engine.
 - [ ] **A9 engine ports** — inject stores/recorders/clock and isolate orchestration.
 - [ ] **A10 session format cut** — freeze a v0 fixture before changing persisted messages.
@@ -1148,6 +1148,67 @@ proceed without changing repository visibility, tags, releases, or deployments.
 - [ ] **A14 additive product leaves** — TUI, external agent adapters, and saga, separately.
 - [ ] **A15 generated client proof** — nested tools module and TypeScript protocol client.
 - [ ] **A16 platform clients** — desktop and mobile directories without root-module rewrites.
+
+### A7 event bus — active detail
+
+Delivery slices (only one active at a time):
+
+- [x] **A7.1 bounded in-memory journal** — assign ordered envelopes, retain a bounded replay
+  window, and fan out to bounded live subscribers without a goroutine.
+- [ ] **A7.2 publish scrub chokepoint** — scrub every event string field without corrupting its
+  typed payload, then prove shipped credential shapes cannot cross the journal boundary.
+- [ ] **A7.3 durable event log** — spill exact NDJSON frames and replay one cursor across disk and
+  memory before attaching live.
+- [ ] **A7.4 byte-stable plain renderer** — move current engine formatting behind an event
+  subscriber while retaining `Options.Out` and exact output bytes.
+- [ ] **A7.5 engine event projection** — emit canonical lifecycle, content, tool, permission,
+  accounting, and diagnostic events alongside the still-green plain renderer.
+- [ ] **A7.6 stream-json surface** — expose the same retained envelopes through the one-shot CLI
+  without inventing a second framing path.
+
+#### A7.1 bounded in-memory journal — active acceptance
+
+Scope:
+
+- Construct one journal for one canonical protocol session ID. `Publish` accepts a canonical turn
+  ID, event type, and object payload; the journal assigns a contiguous positive sequence and a
+  nondecreasing UTC timestamp, validates the complete envelope through `protocol`, then appends it.
+- Bound the retained window by both event count and exact LF-terminated NDJSON bytes, with defaults
+  of 10,000 events and 8 MiB. Reject one event that cannot fit rather than publishing an
+  unreplayable sequence or silently violating the configured bound.
+- `Subscribe(afterSeq)` snapshots every retained envelope after the last-seen cursor and then
+  attaches one bounded live channel atomically. A full live channel closes only that subscriber
+  with a discoverable slow-subscriber error; the journal and other subscribers continue, and the
+  dropped subscriber can recover from its last consumed sequence.
+- Defensively copy payload bytes at every journal/subscriber boundary so one consumer cannot mutate
+  retained history, another subscriber's event, or the value returned by `Publish`.
+
+Non-goals:
+
+- No filesystem, spill file, durable retention, pruning policy, resume transport, SSE/NDJSON
+  writer, HTTP route, CLI flag, renderer, engine event, session-format migration, or output change.
+- No credential-pattern scanner or scrub mutation yet. A7.2 must close before any disk, engine,
+  renderer, or transport consumer is connected to this in-memory seam.
+- No delta coalescing/drop diagnostic yet. A7.1 disconnects any slow live subscriber uniformly and
+  preserves every published event in the current replay window; A7.3 owns durable catch-up and the
+  final backpressure policy.
+- No protocol/schema/catalog change, event-payload constructor, provider translation, event ID, or
+  alteration of the legacy persisted session ID.
+
+Acceptance checklist:
+
+- [x] concurrent publishers receive one contiguous sequence and subscribers observe the same order
+  with nondecreasing timestamps.
+- [x] count and exact-byte limits evict only the oldest complete envelopes; retained cursors replay
+  strictly after the requested sequence, while expired and ahead cursors return distinct errors.
+- [x] subscribe's replay snapshot and live registration are atomic, multiple subscribers are
+  isolated, close is idempotent, and a full subscriber cannot block publication or another reader.
+- [x] a dropped subscriber reports the slow-consumer cause and can resubscribe from its last
+  consumed sequence without an event gap while that cursor remains retained.
+- [x] invalid session/turn IDs, invalid event payloads, zero/backward clock values, impossible
+  limits, and oversized single events fail without consuming a sequence or notifying subscribers.
+- [x] payload ownership tests, focused race tests, architecture/purity/platform gates, and the full
+  repository suite pass with red/green/refactor evidence recorded.
 
 ### A6 protocol contract — active detail
 
