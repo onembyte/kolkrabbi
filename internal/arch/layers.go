@@ -105,6 +105,7 @@ var packageLayer = map[string]Layer{
 
 	// L6 — surfaces. The only layer allowed to wire concrete types together.
 	"internal/cli": L6Surface,
+	"internal/tui": L6Surface,
 
 	// Test kit — fakes, fixtures and the rules themselves.
 	"internal/enginetest": LTestKit,
@@ -129,7 +130,6 @@ var thirdParty = map[string][]string{
 	// Arrive with their packages at later steps; listed now so the budget is
 	// a decision on the record rather than a surprise in a diff.
 	"internal/term": {"golang.org/x/sys"},
-	"internal/tui":  {"charm.land/"},
 	"internal/dash": {"modernc.org/sqlite", "modernc.org/libc"},
 }
 

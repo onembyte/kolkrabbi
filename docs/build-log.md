@@ -3494,3 +3494,58 @@ installed `v1.1.1` directly.
 Start U0.4 as separate terminal checkpoints: first the transcript/composer boundary, then recent
 and prefix-filtered slash commands, and finally the visible status surface. The persistent UI was
 intentionally not mixed into this cursor hotfix.
+
+---
+
+## Terminal UI / U0.4a — pure persistent-screen model
+
+**Status:** done, 2026-08-24 · **Tests:** 1,227 · **Platforms:** 5 · **Dependencies:** 1 ·
+**Binary:** 6.11 MB · **Cold start:** 4.4 ms p50
+
+This leaf creates a dependency-free L6 screen model before terminal I/O exists. Transcript output,
+ephemeral activity, compact status, and the exact input draft are independent regions. A bounded
+view gives transcript rows up first and preserves the composer as the final region; narrow visual
+wrapping never normalizes or changes the draft that will eventually be submitted.
+
+### Framework spike
+
+The official current releases were measured in temporary modules: Bubble Tea v2.0.9 and Bubbles
+v2.2.0 cross-compile to Windows and stay under the binary-size budget, but the textarea prototype
+expands the root graph to 18 modules. That fails the repository's hard two-module supply-chain
+budget before production integration. The selected primitive is instead official
+`golang.org/x/term` v0.45.0 behind `internal/term`; with the existing `x/sys` it keeps exactly two
+modules, cross-compiles to Windows, and its standalone stripped prototype is 1.66 MB. U0.4a itself
+adds no dependency; U0.4b owns the reviewed module addition.
+
+### TDD record
+
+**Red:** the first test failed only on the missing model API. It then proved transcript and activity
+updates could not preserve a multiline draft because no region boundary existed. Two later red
+cases showed unbounded transcript rows pushing the composer away and rune-count wrapping treating
+`🐙` and combining accents as ordinary one-cell code points.
+
+**Green:** `internal/tui.Model` now snapshots the four regions independently, retains only the
+newest transcript rows that fit, keeps the composer at the bottom, wraps emoji/CJK as two cells and
+combining/format code points as zero cells, and leaves stored draft bytes unchanged across status,
+activity, output, width, and height changes.
+
+### Verification
+
+```sh
+GOCACHE=/private/tmp/kolkrabbi-go-cache go test ./internal/tui -count=1
+GOCACHE=/private/tmp/kolkrabbi-go-cache go test -race ./internal/tui -count=1
+GOCACHE=/private/tmp/kolkrabbi-go-cache go vet ./internal/tui
+GOCACHE=/private/tmp/kolkrabbi-go-cache go test ./internal/arch -count=1
+GOCACHE=/private/tmp/kolkrabbi-go-cache \
+  GOLANGCI_LINT_CACHE=/private/tmp/kolkrabbi-lint-cache make check
+```
+
+The complete gate passed with 1,227 tests, five compile targets, zero lint issues, one root
+dependency, a 6.11 MB binary, 4.4 ms cold-start p50, and all existing site, installer, protocol,
+release, workflow, and verifier contracts green.
+
+### Next checkpoint
+
+U0.4b adds the raw terminal boundary and editor event model behind strict TTY/fallback gating. It
+must keep engine/provider policy out of `internal/tui`, preserve every non-interactive byte, and
+remain within the two-module dependency gate before the existing REPL is switched over.
