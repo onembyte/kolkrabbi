@@ -112,8 +112,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   activity/tool status, visible model/mode/effort/session state, and robust terminal interaction.
 - [x] **U0.4e spinner-only free-default patch** — remove loader decoration, dynamically prefer a
   free coding model, retire the stale documented free preset, and publish the verified `v1.1.3`.
-- [~] **U0.4f bounded background-output hotfix** — prevent a successful shell whose intentional
-  background process retains stdout from freezing the agent turn; prepare `v1.1.4`.
+- [x] **U0.4f bounded background-output hotfix** — prevent a successful shell whose intentional
+  background process retains stdout from freezing the agent turn; publish verified `v1.1.4`.
 
 ### U0.4f bounded background-output hotfix — active detail
 
@@ -139,7 +139,7 @@ Acceptance checklist:
   promptly after it, with foreground output, success status, and a descriptive detachment note.
 - [x] focused race tests, the isolated 1,321-test full gate, five platform targets, budgets, and all
   installer/site/spec/release/workflow/verifier contracts pass; four real snapshot archives pass.
-- [ ] branch CI, signed `v1.1.4` release, public updater, no-op updater, and fresh installer pass.
+- [x] branch CI, signed `v1.1.4` release, public updater, no-op updater, and fresh installer pass.
 
 ### U0.4e spinner-only free-default patch — active detail
 

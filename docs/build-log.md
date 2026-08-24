@@ -3785,7 +3785,7 @@ JSON string preservation; it must not be mixed with the requested TUI status/com
 
 ## Terminal UI / U0.4f — bounded background-output hotfix
 
-**Status:** release candidate, 2026-08-24 · **Release target:** `v1.1.4` · **Clean tests:** 1,321 ·
+**Status:** complete, 2026-08-24 · **Release:** `v1.1.4` · **Clean tests:** 1,321 ·
 **Platforms:** 5 · **Dependencies:** 2 · **Binary:** 6.24 MB · **Cold start:** 9.7 ms p50
 
 A live Kolk session froze after running a local mock-server rehearsal shaped as
@@ -3825,4 +3825,19 @@ A fresh Git export containing only the committed base and U0.4f candidate passed
 architecture/purity/build-tag checks, Darwin and Linux amd64/arm64 plus advisory Windows/amd64,
 zero lint issues, budgets, and all site, surface, installer, protocol, specification, release,
 workflow, and verifier contracts. GoReleaser v2.17.1 produced four `1.1.4-dev` archives and all 21
-snapshot checks passed. Release publication remains intentionally pending branch CI.
+snapshot checks passed.
+
+### Publication evidence
+
+Commits `1700653` and `70ab704` reached `main`; branch CI run `32695380700` passed Ubuntu and
+macOS tests, lint, budgets, architecture, platform compilation, site, installer, protocol, release,
+workflow, verifier, and module checks. Annotated tag `v1.1.4` triggered release run `32695492111`;
+its verify job reran the full gate and all four archives, then its publish job uploaded and
+independently verified the signed release artifacts.
+
+The live installer was exercised only inside `/private/tmp/kolk-v114-public.3gBrlT`. A pinned
+v1.1.3 install reported commit `80213d1`; `kolk update` printed the current version and replaced it
+with v1.1.4 commit `70ab704`; a second update reported `Kolk is up to date (1.1.4)`; and a fresh
+unpinned install selected v1.1.4. The Cloudflare homepage advertises v1.1.4 and live `install.sh`
+returns HTTP 200 with `Cache-Control: no-store`. No developer binary, key, config, session, or PATH
+entry changed during the rehearsal. U0.4f closes here.
