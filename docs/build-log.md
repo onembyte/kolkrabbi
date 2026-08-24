@@ -3416,8 +3416,8 @@ in-memory seam and therefore creates no new persisted or user-visible secret sur
 
 ## Terminal hotfix / U0.3c — Apple Terminal-compatible octopus
 
-**Status:** release candidate, 2026-08-24 · **Target:** `v1.1.1` · **Tests:** 1,222 ·
-**Snapshot checks:** 21 · **Platforms:** 5
+**Status:** published, 2026-08-24 · **Release:** `v1.1.1` · **Commit:** `0f0c87e` ·
+**Workflow:** `32686977213` · **Tests:** 1,222 · **Snapshot checks:** 21 · **Platforms:** 5
 
 The reported terminal captured every `🐙 thinking…` frame instead of replacing one activity
 region. The renderer was emitting SCO `CSI s/u` cursor save/restore sequences, which Apple Terminal
@@ -3466,8 +3466,31 @@ release-verifier checks. GoReleaser v2.17.1 produced exactly four
 `1.1.1-dev.ab345b8` Darwin/Linux amd64/arm64 archives; all 21 archive, checksum, and host-identity
 checks passed.
 
+### Publication and live verification
+
+Candidate commit `0f0c87e` passed ordinary branch CI run `32686840649` before the annotated tag was
+created. Tag `v1.1.1` peels to exact commit
+`0f0c87e7e77f04d729dd6ce60bd17a99bbb4ef83`; release workflow `32686977213` reran the complete gate,
+rehearsed all four archives, keyless-signed the checksum manifest, published the release, and passed
+the independent public verifier.
+
+The release is neither draft nor prerelease and contains exactly six assets: the four versioned
+Darwin/Linux amd64/arm64 archives, `checksums.txt`, and `checksums.txt.sigstore.json`. A live public
+test installed `v1.1.0` into an isolated temporary directory and exercised the binary's own updater:
+
+```text
+Current version: 1.1.0
+Checking for updates to latest version...
+Kolk updated successfully (1.1.0 → 1.1.1)
+kolk 1.1.1 (0f0c87e7e77f04d729dd6ce60bd17a99bbb4ef83, 2026-08-24T03:38:08Z) go1.25.0 darwin/arm64
+```
+
+A second update reported `Kolk is up to date (1.1.1)`. The exact unpinned public installer URL was
+also run into a separate isolated directory and discovered, downloaded, checksum-verified, and
+installed `v1.1.1` directly.
+
 ### Next checkpoint
 
-Publish and independently verify `v1.1.1`, then start U0.4 as separate terminal checkpoints: first
-the transcript/composer boundary, then recent and prefix-filtered slash commands, and finally the
-visible status surface. The persistent UI is intentionally not mixed into this cursor hotfix.
+Start U0.4 as separate terminal checkpoints: first the transcript/composer boundary, then recent
+and prefix-filtered slash commands, and finally the visible status surface. The persistent UI was
+intentionally not mixed into this cursor hotfix.
