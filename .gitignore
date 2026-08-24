@@ -13,3 +13,25 @@
 
 # dashboard SPA build inputs
 /web/dash/node_modules
+
+# Builds
+dist/
+build/
+bin/
+obj/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Temporary/cache
+.cache/
+tmp/
+
+# IDE
+.vscode/
+.idea/
