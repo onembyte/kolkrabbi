@@ -10,11 +10,14 @@ import (
 const (
 	octopusGrace    = 120 * time.Millisecond
 	octopusInterval = 120 * time.Millisecond
-	cursorSave      = "\x1b[s"
-	cursorRestore   = "\x1b[u"
-	eraseToLineEnd  = "\x1b[K"
-	brightMagenta   = "\x1b[95m"
-	colorReset      = "\x1b[0m"
+	// DEC save/restore is supported by Apple Terminal, xterm, iTerm2, and the
+	// Linux console. CSI s/u is an SCO extension that some terminals ignore;
+	// ignored restores append every animation frame until the line wraps.
+	cursorSave     = "\x1b7"
+	cursorRestore  = "\x1b8"
+	eraseToLineEnd = "\x1b[K"
+	brightMagenta  = "\x1b[95m"
+	colorReset     = "\x1b[0m"
 )
 
 var octopusFrames = [...]string{

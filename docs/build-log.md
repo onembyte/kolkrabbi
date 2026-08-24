@@ -3411,3 +3411,63 @@ checks. The binary and startup budgets remain unchanged at 6.34 MB and 4.6 ms p5
 A7.2 must implement the security plan's `bus.Publish` scrub chokepoint before the journal gains a
 spill file or any engine, renderer, or transport consumer. The current package is an isolated,
 in-memory seam and therefore creates no new persisted or user-visible secret surface.
+
+---
+
+## Terminal hotfix / U0.3c — Apple Terminal-compatible octopus
+
+**Status:** release candidate, 2026-08-24 · **Target:** `v1.1.1` · **Tests:** 1,222 ·
+**Snapshot checks:** 21 · **Platforms:** 5
+
+The reported terminal captured every `🐙 thinking…` frame instead of replacing one activity
+region. The renderer was emitting SCO `CSI s/u` cursor save/restore sequences, which Apple Terminal
+may ignore. Because the engine writes `assistant ` before starting activity, clearing and repainting
+the entire line would also destroy valid transcript output. The narrow fix uses the older, broadly
+supported DEC save/restore pair and keeps erase-to-end cleanup scoped after that prefix.
+
+### TDD record
+
+**Red:** a compatibility model that deliberately ignores `CSI s/u` reproduced the screenshot: two
+frames accumulated after `assistant ` and cleanup could not return the line to the prefix. Exact
+byte assertions also failed while the renderer still emitted the unsupported pair.
+
+**Green:** the renderer now emits DEC `ESC 7` / `ESC 8`. Two frames followed by an idempotent stop
+leave exactly `assistant ` under Apple Terminal-compatible semantics. Fast replies, cancellation,
+TTY gating, no-color output, and the engine-owned activity lifecycle retain their prior behavior.
+
+**Release-version red/green:** candidate assertions were moved to `1.1.1` first. The release matrix
+failed only on the old `1.1.0-dev` snapshot identity and the site matrix failed only on the old
+badge. The production candidate and badge then moved to `1.1.1`; the installer matrix independently
+proves a checksum-verified `1.1.0 → 1.1.1` replacement and an equal-version no-download result.
+
+### Pre-publication verification
+
+```sh
+GOCACHE=/private/tmp/kolkrabbi-go-cache \
+  go test ./internal/cli -run 'Test(Octopus|AttachInteractiveActivity)' -count=1
+GOCACHE=/private/tmp/kolkrabbi-go-cache \
+  go test -race ./internal/cli -run 'Test(Octopus|AttachInteractiveActivity)' -count=1
+./scripts/test-release.sh
+./scripts/test-site.sh
+./scripts/test-installer.sh
+./scripts/test-release-verifier.sh
+./scripts/check-release-tag.sh v1.1.1
+GOCACHE=/private/tmp/kolkrabbi-go-cache \
+  GOLANGCI_LINT_CACHE=/private/tmp/kolkrabbi-lint-cache make check
+GOCACHE=/private/tmp/kolkrabbi-go-cache \
+  KOLK_GORELEASER_BIN=/private/tmp/kolk-goreleaser.2QHQK8/goreleaser \
+  ./scripts/test-release-snapshot.sh
+```
+
+The complete gate passed with 1,222 tests, five compile targets, zero lint issues, one root
+dependency, a 6.11 MB binary, 4.6 ms cold-start p50, 110 site checks, 13 mode/update-surface checks,
+72 installer checks, 29 spec-guard checks, 24 release checks, 41 release-workflow checks, and 30
+release-verifier checks. GoReleaser v2.17.1 produced exactly four
+`1.1.1-dev.ab345b8` Darwin/Linux amd64/arm64 archives; all 21 archive, checksum, and host-identity
+checks passed.
+
+### Next checkpoint
+
+Publish and independently verify `v1.1.1`, then start U0.4 as separate terminal checkpoints: first
+the transcript/composer boundary, then recent and prefix-filtered slash commands, and finally the
+visible status surface. The persistent UI is intentionally not mixed into this cursor hotfix.
