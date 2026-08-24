@@ -603,7 +603,7 @@ Delivery leaves (only one active at a time):
   streamed-output routing, cancellation, and the plain-terminal fallback.
 - [x] **U0.4c slash discovery** — show recent commands after `/`, filter live by the typed prefix,
   navigate/select suggestions, and keep the command catalog single-sourced.
-- [~] **U0.4d status and release** — connect model/mode/effort/session/approval/lifecycle state,
+- [x] **U0.4d status and release** — connect model/mode/effort/session/approval/lifecycle state,
   complete accessibility/platform/budget gates, and publish the first solid TUI cut as `v1.1.2`.
 
 Scope:

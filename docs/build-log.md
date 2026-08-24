@@ -3613,3 +3613,20 @@ Commit and push only the reviewed U0.4/A8 decision-port/release files, wait for 
 then create immutable tag `v1.1.2`. The release workflow must rerun the full gate, publish exactly
 the signed six-asset release, and pass public updater plus installer upgrade rehearsals before
 U0.4d closes.
+
+### Publication evidence
+
+Commit `ceb8c6b` reached `main`; branch CI run `32691049361` completed successfully with Linux,
+macOS, lint, budgets, platform compilation, installer, site, protocol, release, workflow, signature,
+and module-tidiness jobs green. The tag preflight accepted `v1.1.2`, then annotated tag `v1.1.2`
+started release run `32691207514`. Its verify job reran the complete gate and rehearsed all four
+archives; its publish job uploaded and independently verified four archives, `checksums.txt`, and
+the Sigstore bundle. The public release is neither draft nor prerelease.
+
+The public website installer was then exercised only inside
+`/private/tmp/kolk-v112-public.XMWui6`: a pinned `v1.1.1` install reported its exact version, `kolk
+update` replaced it with `v1.1.2`, `kolk version` reported commit `ceb8c6b`, and a second update
+reported `Kolk is up to date (1.1.2)`. A separate unpinned invocation of the exact public install
+command selected and installed `v1.1.2`. No developer binary, key, config, session, or PATH entry was
+changed during the rehearsal. U0.4d is complete; Markdown/diff rendering remains an independent
+open acceptance item under U0.4.
