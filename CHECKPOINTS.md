@@ -1300,6 +1300,60 @@ Acceptance checklist:
 - [x] payload ownership tests, focused race tests, architecture/purity/platform gates, and the full
   repository suite pass with red/green/refactor evidence recorded.
 
+#### A7.2 publish scrub chokepoint — active acceptance
+
+Delivery leaves (only one active at a time):
+
+- [x] **A7.2a pure durable scanner** — move arbitrary-text scrubbing into `internal/redact`, derive
+  shipped patterns from the embedded shape table, and support process-known literals.
+- [ ] **A7.2b JSON string preservation** — scrub decoded JSON strings, including escaped forms,
+  while retaining all untouched outer bytes and returning valid JSON.
+- [ ] **A7.2c bus splice boundary** — scrub before retention/fan-out, validate the result, forbid
+  bus imports of credential types, and inject every shipped canary through event string fields.
+
+Scope:
+
+- Make `internal/redact` the stdlib-only owner of durable scrubbing. `internal/secret` may register
+  a resolved literal and delegate text scrubbing, but `internal/bus` must be mechanically forbidden
+  from importing `internal/secret` or `internal/keystore`.
+- Match exact registered literals first, then every shipped infer/deny prefix with its declared
+  minimum length and alphabet, Bearer tokens, recognized JWTs/private-key blocks, and finally the
+  durable keyword assignment rule. Shape and keyword matching suppress documented placeholders;
+  exact registered literals never do.
+- Replace a match with one stable, idempotent, process-salted sentinel that retains only a safe
+  shape label and short within-process correlation fingerprint, never a reusable prefix/tail mask.
+- Decode and scrub every JSON string token in event data, including keys, nested objects/arrays,
+  and secrets assembled through JSON escapes. Preserve every untouched byte and re-encode only a
+  changed string token before the bus validates and publishes the envelope.
+
+Non-goals:
+
+- No streaming `redact.Writer`, tool-boundary path carve-out, write-back sentinel refusal,
+  `/redact off`, terminal-control sanitizer, debug log, renderer, engine, session, stats, transport,
+  or filesystem integration. Their owners consume this primitive in later independent leaves.
+- No mutation of user input or files, no entropy heuristic, no generic base64/SHA/UUID redaction,
+  and no protocol event/catalog/schema change. A future `message.redacted` notification remains
+  dependency-gated; A7.2 only guarantees that the original secret cannot cross the bus.
+- No plaintext, mask, full hash, stable cross-process fingerprint, provider credential type, or
+  keystore metadata may appear in a sentinel or bus API.
+
+Acceptance checklist:
+
+- [x] every embedded infer/deny prefix, Bearer token, recognized JWT/private-key block, durable
+  keyword assignment, and registered shape-less literal is removed without matching the committed
+  false-positive/placeholder corpus.
+- [x] sentinels are stable within one process, different literals correlate differently, reveal no
+  usable secret fragment, and `Scrub(Scrub(text)) == Scrub(text)`.
+- [x] valid UTF-8 remains valid, malformed input never panics, and a scanner benchmark records the
+  whole-frame cost without introducing a regular-expression hot path.
+- [ ] JSON scrubbing catches plain and escaped canaries at every nesting position, retains numeric,
+  boolean, null, whitespace, key order, and untouched string bytes exactly, and fails closed on
+  malformed/non-object input.
+- [ ] publishing any shipped canary yields only scrubbed replay/live/return copies; failed scrub or
+  post-scrub protocol validation consumes no sequence and notifies no subscriber.
+- [ ] focused/fuzz/race tests, import bans, architecture/purity/platform gates, and the full
+  repository suite pass with red/green/refactor evidence recorded.
+
 ### A6 protocol contract — active detail
 
 Delivery slices:

@@ -39,18 +39,21 @@ type shapeTable struct {
 }
 
 type inferRule struct {
-	Prefix      string `json:"prefix"`
-	Provider    string `json:"provider"`
-	MaskPrefix  string `json:"mask_prefix"`
-	ExactLength int    `json:"exact_length,omitempty"`
-	MinSuffix   int    `json:"min_suffix,omitempty"`
-	Alphabet    string `json:"alphabet,omitempty"`
+	Prefix         string `json:"prefix"`
+	Provider       string `json:"provider"`
+	MaskPrefix     string `json:"mask_prefix"`
+	ExactLength    int    `json:"exact_length,omitempty"`
+	MinSuffix      int    `json:"min_suffix,omitempty"`
+	ScrubMinSuffix int    `json:"scrub_min_suffix,omitempty"`
+	Alphabet       string `json:"alphabet,omitempty"`
 }
 
 type denyRule struct {
-	Prefix   string `json:"prefix,omitempty"`
-	Contains string `json:"contains,omitempty"`
-	Kind     Denial `json:"kind"`
+	Prefix    string `json:"prefix,omitempty"`
+	Contains  string `json:"contains,omitempty"`
+	Kind      Denial `json:"kind"`
+	MinSuffix int    `json:"min_suffix,omitempty"`
+	Alphabet  string `json:"alphabet,omitempty"`
 }
 
 var keyShapes = mustLoadShapes()
@@ -68,6 +71,9 @@ func mustLoadShapes() shapeTable {
 		if rule.Prefix == "" || rule.Provider == "" || seen[rule.Prefix] {
 			panic("redact: embedded inference rule is empty or duplicated")
 		}
+		if rule.ExactLength == 0 && rule.MinSuffix <= 0 || rule.ScrubMinSuffix < 0 {
+			panic("redact: embedded inference rule has no positive length bound")
+		}
 		if rule.Alphabet != "" && rule.Alphabet != "alnum" && rule.Alphabet != "key" {
 			panic("redact: embedded inference rule has an unknown alphabet")
 		}
@@ -76,6 +82,12 @@ func mustLoadShapes() shapeTable {
 	for _, rule := range table.Deny {
 		if (rule.Prefix == "") == (rule.Contains == "") || rule.Kind == DenyNone {
 			panic("redact: embedded denial rule must have one matcher and a kind")
+		}
+		if rule.Alphabet != "" && rule.Alphabet != "alnum" && rule.Alphabet != "key" {
+			panic("redact: embedded denial rule has an unknown alphabet")
+		}
+		if rule.Prefix != "" && rule.MinSuffix <= 0 {
+			panic("redact: embedded prefix denial has no positive length bound")
 		}
 	}
 	return table

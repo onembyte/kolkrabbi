@@ -1,0 +1,28 @@
+# Placeholders and ordinary high-entropy strings that durable scrubbing must preserve.
+OPENAI_API_KEY=sk-proj-EXAMPLE0000000000000000
+OPENROUTER_API_KEY=sk-or-v1-XXXXXXXXXXXXXXXXXXXXXXXX
+ANTHROPIC_API_KEY=sk-ant-api03-YOUR_KEY_HERE
+GROQ_API_KEY=gsk_CHANGEME0000000000000000
+GOOGLE_API_KEY=AIzaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+token = $GITHUB_TOKEN
+token = ${GITHUB_TOKEN}
+api_key = <API_KEY>
+password = ""
+credential: YOUR_CREDENTIAL_HERE
+secret=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+0123456789abcdef0123456789abcdef01234567
+550e8400-e29b-41d4-a716-446655440000
+SGVsbG8sIHdvcmxkISBUaGlzIGlzIG5vdCBhIHNlY3JldC4=
+eyJub3QiOiJhbGdvcml0aG0ifQ.YWJj.ZGVm
+func TestBearerParser(t *testing.T) {}
+git commit -m 'fix bearer token handling'
+the password field is intentionally empty
+docs mention api_key=YOUR_VALUE_HERE as an example
+const tokenName = "access_token"
+sk-not-a-key.txt
+sk-short
+ghp_EXAMPLE00000000000000000000000000
+AKIAEXAMPLE000000000
+xoxb-EXAMPLE000000000000000000000
+-----BEGIN CERTIFICATE-----
+-----END CERTIFICATE-----

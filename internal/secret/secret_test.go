@@ -78,6 +78,15 @@ func TestRevealIsTheOnlyWayOut(t *testing.T) {
 	}
 }
 
+func TestNewRegistersAShapeLessLiteralForDurableScrubbing(t *testing.T) {
+	value := "mistral-C4nary-7pQ9vX2"
+	_ = New(value)
+	output := Scrub("provider response repeated " + value)
+	if strings.Contains(output, value) || !strings.Contains(output, "[redacted credential #") {
+		t.Fatalf("New did not register the exact literal: %s", output)
+	}
+}
+
 func TestZeroSecretIsAValidState(t *testing.T) {
 	var s Secret
 	if !s.IsZero() {

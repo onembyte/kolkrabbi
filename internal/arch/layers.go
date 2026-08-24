@@ -148,11 +148,23 @@ var osOwner = map[string]string{
 // than layer membership. secret values may be used by domain code, so secret
 // itself must remain unable to read the environment or filesystem.
 var forbiddenImports = map[string][]string{
+	"internal/bus": {
+		"github.com/onembyte/kolkrabbi/internal/keystore",
+		"github.com/onembyte/kolkrabbi/internal/secret",
+	},
+	"internal/redact": {"regexp"},
 	"internal/secret": {"io/fs", "os", "os/exec", "path/filepath", "syscall"},
 	"internal/config": {
 		"github.com/onembyte/kolkrabbi/internal/keystore",
 		"github.com/onembyte/kolkrabbi/internal/secret",
 	},
+}
+
+// stdlibOnlyPackages are pure primitives whose usefulness depends on every
+// layer being able to import them without pulling another Kolkrabbi package
+// back in. This is stricter than the ordinary same-layer import allowance.
+var stdlibOnlyPackages = map[string]bool{
+	"internal/redact": true,
 }
 
 // authHeaders are request headers that carry a credential. Building one is

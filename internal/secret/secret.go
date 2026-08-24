@@ -26,7 +26,6 @@ package secret
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/redact"
@@ -41,7 +40,11 @@ type Secret struct {
 // New wraps a raw key. Surrounding whitespace is trimmed, because the single
 // most common way to enter one is pasting, and a trailing newline from a
 // heredoc or a copied line produces a 401 with no explanation.
-func New(raw string) Secret { return Secret{v: strings.TrimSpace(raw)} }
+func New(raw string) Secret {
+	value := strings.TrimSpace(raw)
+	redact.Register(value)
+	return Secret{v: value}
+}
 
 // Reveal returns the real key. It is deliberately the only way to get it, and
 // deliberately named so that `grep -rn Reveal` is a complete audit of every
@@ -105,25 +108,6 @@ func Redact(key string) string {
 	return redact.Mask(key)
 }
 
-// keyPattern matches the key shapes kolk can plausibly encounter in text it
-// writes to disk or sends over the bus.
-//
-// It is deliberately a little greedy. A false positive redacts something
-// harmless in a log; a false negative publishes a key. The asymmetry is not
-// close, so the patterns err toward matching.
-var keyPattern = regexp.MustCompile(strings.Join([]string{
-	`sk-or-v1-[A-Za-z0-9_\-]{16,}`,        // OpenRouter
-	`sk-ant-[A-Za-z0-9_\-]{16,}`,          // Anthropic
-	`sk-proj-[A-Za-z0-9_\-]{16,}`,         // OpenAI project keys
-	`sk-[A-Za-z0-9]{20,}`,                 // OpenAI and the many things that copied it
-	`gsk_[A-Za-z0-9]{20,}`,                // Groq
-	`AIza[A-Za-z0-9_\-]{30,}`,             // Google
-	`xai-[A-Za-z0-9]{20,}`,                // xAI
-	`r8_[A-Za-z0-9]{20,}`,                 // Replicate
-	`gh[pousr]_[A-Za-z0-9]{30,}`,          // GitHub
-	`(?i)bearer\s+[A-Za-z0-9_\-\.=]{20,}`, // any Authorization header that got into text
-}, "|"))
-
 // Scrub replaces every key-shaped substring in arbitrary text.
 //
 // This runs over anything kolk persists or transmits that a model or a shell
@@ -131,14 +115,7 @@ var keyPattern = regexp.MustCompile(strings.Join([]string{
 // messages, bus events. `echo $OPENROUTER_API_KEY` is a command a model will
 // eventually run, and its output goes straight into a transcript.
 func Scrub(text string) string {
-	return keyPattern.ReplaceAllStringFunc(text, func(match string) string {
-		// A bearer header keeps its scheme so the line still reads sensibly.
-		if lower := strings.ToLower(match); strings.HasPrefix(lower, "bearer") {
-			token := strings.TrimSpace(match[len("bearer"):])
-			return match[:len("bearer")] + " " + Redact(token)
-		}
-		return Redact(match)
-	})
+	return redact.Scrub(text)
 }
 
 // ScrubError wraps an error so its message is scrubbed when printed. Provider

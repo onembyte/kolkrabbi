@@ -3717,3 +3717,66 @@ checked the latest release, and replaced it with `v1.1.3`; `kolk version` then r
 `80213d1`; and a second update reported `Kolk is up to date (1.1.3)`. A separate unpinned invocation
 of the public installer selected and installed `v1.1.3`. No developer binary, API key, config,
 session, or PATH entry changed during this rehearsal. U0.4e is complete.
+
+---
+
+## Architecture migration / A7.2a — pure durable secret scanner
+
+**Status:** complete, 2026-08-24 · **Shared-tree tests:** 1,296 · **Final clean-patch tests:** 1,320 ·
+**Platforms:** 5 · **Dependencies:** 2 · **Binary:** 6.24–6.26 MB · **Cold start:** 4.9–5.1 ms p50
+
+This leaf moves arbitrary-text credential scrubbing out of `internal/secret` and into the pure,
+standard-library-only `internal/redact` package. The embedded key-shape table now supplies explicit
+minimum suffix and alphabet facts for every inference and denial prefix. Durable scrubbing applies
+exact process-known literals first, then shaped credentials, Bearer tokens, recognized JWTs and
+private-key blocks, and finally keyword assignments. Placeholders and a committed false-positive
+corpus remain byte-exact unless an exact registered literal matches them.
+
+Matches become stable, idempotent, process-salted HMAC sentinels with a safe label and short
+correlation fingerprint. They retain no reusable credential prefix or suffix. `secret.New`
+registers its trimmed value at construction, so every credential decoded by the existing file store
+is known before a provider request. The random salt now fails closed instead of silently accepting
+an unseeded cross-process fingerprint. Architecture tests enforce that `internal/redact` remains
+stdlib-only and regexp-free and that `internal/bus` cannot import credential-owning packages.
+
+### TDD record
+
+**Red:** the scanner contract tests initially had no `redact.Scrub` or registration API, while
+`secret.Scrub` owned a regular-expression alternation with no durable keyword, JWT, private-key,
+placeholder, exact-literal, or process-salted-sentinel semantics. Shape-table boundary tests also
+required length/alphabet facts that the embedded rows did not contain.
+
+**Green:** a first-byte-gated scanner now proves every embedded infer/deny shape, durable-only
+pattern, exact literal, sentinel correlation, placeholder exception, minimum-length/alphabet
+boundary, malformed UTF-8 case, and private-key surrounding bytes. Construction wiring is covered
+from `secret.New`, and concurrent registration/scrubbing is exercised directly under the race
+detector.
+
+**Refactor:** pattern construction derives from the single embedded table; labels are sanitized;
+known literal buckets are longest-first; text without a match returns unchanged with no allocation;
+and provider/bus layers receive no scanner policy or credential type.
+
+### Verification
+
+```sh
+GOCACHE=/private/tmp/kolkrabbi-go-cache go test -race \
+  ./internal/redact ./internal/secret ./internal/arch -count=1
+GOCACHE=/private/tmp/kolkrabbi-go-cache go test ./internal/redact \
+  -run '^$' -fuzz '^FuzzScrubPreservesValidUTF8AndIdempotence$' -fuzztime=10s
+GOCACHE=/private/tmp/kolkrabbi-go-cache go test ./internal/redact \
+  -run '^$' -bench BenchmarkScrub12KiB -benchmem -count=5
+GOCACHE=/private/tmp/kolkrabbi-go-cache \
+  GOLANGCI_LINT_CACHE=/private/tmp/kolkrabbi-lint-cache make check
+```
+
+The focused race gate passed. The bounded fuzz campaign completed 580,934 executions with no
+crasher, invalid-UTF-8 regression, or idempotence failure. Five benchmark samples measured
+154.75–157.80 MB/s for 12 KiB with zero allocations. The shared tree passed 1,296 tests; a fresh
+HEAD export containing the final A7.2a files independently excluded concurrent TUI work and passed
+1,320 tests, all five compile targets, zero lint issues, budgets, and every site, installer,
+protocol, release, workflow, and verifier contract.
+
+The adjacent ox-alpha session independently verified the scanner working tree twice before closure:
+focused race/fuzz coverage, platform compilation, lint, budgets, and complete repository gates were
+green with no implementation edits. A7.2a closes here. A7.2b is the next security leaf and owns only
+JSON string preservation; it must not be mixed with the requested TUI status/composer checkpoint.

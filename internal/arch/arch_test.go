@@ -311,6 +311,19 @@ func TestPackagesHaveNoForbiddenImports(t *testing.T) {
 	}
 }
 
+func TestStdlibOnlyPackagesStayIndependent(t *testing.T) {
+	for _, f := range parseTree(t) {
+		if f.isTest() || !stdlibOnlyPackages[f.pkg] {
+			continue
+		}
+		for _, imp := range imports(f) {
+			if !isStdlib(imp) {
+				t.Errorf("%s imports %s; %s is a standard-library-only package", f.rel, imp, f.pkg)
+			}
+		}
+	}
+}
+
 // selectors finds every pkg.Name expression in a file for the given package
 // identifier. Working on the AST rather than the file text means a rule name
 // appearing in a comment or a string is not a false positive.
