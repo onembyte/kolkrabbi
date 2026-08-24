@@ -96,9 +96,13 @@ func TestHelpFlagsAreEquivalent(t *testing.T) {
 func TestTopLevelUpdateNeedsNoKeyOrState(t *testing.T) {
 	d := isolateHome(t)
 	a, out, errOut := newTestApp("")
+	a.currentVersion = func() string { return "1.0.0" }
 	calls := 0
 	a.update = func(context.Context) (selfupdate.Result, error) {
 		calls++
+		if got := out.String(); got != "Current version: 1.0.0\nChecking for updates to latest version...\n" {
+			t.Fatalf("pre-update output = %q", got)
+		}
 		return selfupdate.Result{
 			Current: "1.0.0", Latest: "1.2.3", Updated: true, Path: "/usr/local/bin/kolk",
 		}, nil
@@ -110,7 +114,12 @@ func TestTopLevelUpdateNeedsNoKeyOrState(t *testing.T) {
 	if calls != 1 {
 		t.Fatalf("updater calls = %d, want 1", calls)
 	}
-	for _, want := range []string{"updated kolk 1.0.0 → 1.2.3", "/usr/local/bin/kolk"} {
+	for _, want := range []string{
+		"Current version: 1.0.0",
+		"Checking for updates to latest version...",
+		"Kolk updated successfully (1.0.0 → 1.2.3)",
+		"Installed to: /usr/local/bin/kolk",
+	} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("update output omitted %q: %q", want, out.String())
 		}
@@ -140,19 +149,35 @@ func TestTopLevelUpdateRejectsArgumentsBeforeCallingUpdater(t *testing.T) {
 func TestTopLevelUpdateReportsUnchangedFailureAndWarning(t *testing.T) {
 	t.Run("unchanged", func(t *testing.T) {
 		a, out, _ := newTestApp("")
+		a.currentVersion = func() string { return "1.2.3" }
 		a.update = func(context.Context) (selfupdate.Result, error) {
 			return selfupdate.Result{Current: "1.2.3", Latest: "1.2.3"}, nil
 		}
 		if code := a.main(context.Background(), []string{"update"}); code != ExitOK {
 			t.Fatalf("exit = %d", code)
 		}
-		if !strings.Contains(out.String(), "kolk 1.2.3 is already current") {
-			t.Fatalf("unchanged output = %q", out.String())
+		if got, want := out.String(), "Current version: 1.2.3\nChecking for updates to latest version...\nKolk is up to date (1.2.3)\n"; got != want {
+			t.Fatalf("unchanged output = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("newer than release", func(t *testing.T) {
+		a, out, _ := newTestApp("")
+		a.currentVersion = func() string { return "2.0.0" }
+		a.update = func(context.Context) (selfupdate.Result, error) {
+			return selfupdate.Result{Current: "2.0.0", Latest: "1.2.3"}, nil
+		}
+		if code := a.main(context.Background(), []string{"update"}); code != ExitOK {
+			t.Fatalf("exit = %d", code)
+		}
+		if got := out.String(); !strings.Contains(got, "Kolk is newer than the latest release (current 2.0.0; latest 1.2.3)") {
+			t.Fatalf("newer-build output = %q", got)
 		}
 	})
 
 	t.Run("failure", func(t *testing.T) {
-		a, _, errOut := newTestApp("")
+		a, out, errOut := newTestApp("")
+		a.currentVersion = func() string { return "1.2.3" }
 		a.update = func(context.Context) (selfupdate.Result, error) {
 			return selfupdate.Result{}, errors.New("release unavailable")
 		}
@@ -162,10 +187,14 @@ func TestTopLevelUpdateReportsUnchangedFailureAndWarning(t *testing.T) {
 		if !strings.Contains(errOut.String(), "release unavailable") {
 			t.Fatalf("failure stderr = %q", errOut.String())
 		}
+		if got, want := out.String(), "Current version: 1.2.3\nChecking for updates to latest version...\n"; got != want {
+			t.Fatalf("failure progress = %q, want %q", got, want)
+		}
 	})
 
 	t.Run("durability warning", func(t *testing.T) {
 		a, out, errOut := newTestApp("")
+		a.currentVersion = func() string { return "1.0.0" }
 		a.update = func(context.Context) (selfupdate.Result, error) {
 			return selfupdate.Result{
 				Current: "1.0.0", Latest: "1.2.3", Updated: true,
@@ -175,7 +204,7 @@ func TestTopLevelUpdateReportsUnchangedFailureAndWarning(t *testing.T) {
 		if code := a.main(context.Background(), []string{"update"}); code != ExitOK {
 			t.Fatalf("exit = %d", code)
 		}
-		if !strings.Contains(out.String(), "updated kolk") || !strings.Contains(errOut.String(), "warning: directory sync refused") {
+		if !strings.Contains(out.String(), "Kolk updated successfully") || !strings.Contains(errOut.String(), "warning: directory sync refused") {
 			t.Fatalf("stdout %q, stderr %q", out.String(), errOut.String())
 		}
 	})

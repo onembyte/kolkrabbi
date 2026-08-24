@@ -234,9 +234,13 @@ func TestSlashYoloExplainsProcessScope(t *testing.T) {
 
 func TestSlashUpdateReportsRestartAndKeepsSessionAlive(t *testing.T) {
 	a, ag, out := replFixture(t, "")
+	a.currentVersion = func() string { return "1.0.0" }
 	calls := 0
 	a.update = func(context.Context) (selfupdate.Result, error) {
 		calls++
+		if got := out.String(); got != "Current version: 1.0.0\nChecking for updates to latest version...\n" {
+			t.Fatalf("pre-update output = %q", got)
+		}
 		return selfupdate.Result{
 			Current: "1.0.0", Latest: "1.2.3", Updated: true, Path: "/usr/local/bin/kolk",
 		}, nil
@@ -244,20 +248,30 @@ func TestSlashUpdateReportsRestartAndKeepsSessionAlive(t *testing.T) {
 	if a.slash(context.Background(), ag, "/update") {
 		t.Fatal("/update must not exit the REPL")
 	}
-	if calls != 1 || !strings.Contains(out.String(), "restart kolk to use 1.2.3") {
+	for _, want := range []string{
+		"Kolk updated successfully (1.0.0 → 1.2.3)",
+		"Installed to: /usr/local/bin/kolk",
+		"Restart kolk to use 1.2.3",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("calls = %d, output omitted %q: %q", calls, want, out.String())
+		}
+	}
+	if calls != 1 {
 		t.Fatalf("calls = %d, output = %q", calls, out.String())
 	}
 }
 
 func TestSlashUpdateUnchangedDoesNotRequestRestart(t *testing.T) {
 	a, ag, out := replFixture(t, "")
+	a.currentVersion = func() string { return "1.2.3" }
 	a.update = func(context.Context) (selfupdate.Result, error) {
 		return selfupdate.Result{Current: "1.2.3", Latest: "1.2.3"}, nil
 	}
 	if a.slash(context.Background(), ag, "/update") {
 		t.Fatal("unchanged /update must not exit the REPL")
 	}
-	if !strings.Contains(out.String(), "already current") || strings.Contains(out.String(), "restart") {
+	if !strings.Contains(out.String(), "Kolk is up to date (1.2.3)") || strings.Contains(strings.ToLower(out.String()), "restart") {
 		t.Fatalf("unchanged output = %q", out.String())
 	}
 }
@@ -265,6 +279,7 @@ func TestSlashUpdateUnchangedDoesNotRequestRestart(t *testing.T) {
 func TestSlashUpdateFailureAndArgumentsKeepSessionAlive(t *testing.T) {
 	t.Run("failure", func(t *testing.T) {
 		a, ag, out := replFixture(t, "")
+		a.currentVersion = func() string { return "1.2.3" }
 		a.update = func(context.Context) (selfupdate.Result, error) {
 			return selfupdate.Result{}, errors.New("network unavailable")
 		}
@@ -273,6 +288,11 @@ func TestSlashUpdateFailureAndArgumentsKeepSessionAlive(t *testing.T) {
 		}
 		if !strings.Contains(out.String(), "update failed: network unavailable") {
 			t.Fatalf("failure output = %q", out.String())
+		}
+		for _, want := range []string{"Current version: 1.2.3", "Checking for updates to latest version..."} {
+			if !strings.Contains(out.String(), want) {
+				t.Fatalf("failure output omitted %q: %q", want, out.String())
+			}
 		}
 	})
 

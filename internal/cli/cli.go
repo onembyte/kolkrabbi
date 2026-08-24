@@ -18,6 +18,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/onembyte/kolkrabbi/internal/buildinfo"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/selfupdate"
@@ -52,6 +53,7 @@ type app struct {
 	verifyOpenRouter verifyOpenRouterFunc
 	setCredential    setCredentialFunc
 	update           func(context.Context) (selfupdate.Result, error)
+	currentVersion   func() string
 	now              func() time.Time
 	canAnimate       func() bool
 	newActivity      func(io.Writer) engine.ActivityIndicator
@@ -61,6 +63,7 @@ func newApp() *app {
 	a := &app{stdout: os.Stdout, stderr: os.Stderr, in: bufio.NewReader(os.Stdin)}
 	a.initKeyDependencies()
 	a.update = selfupdate.Update
+	a.currentVersion = func() string { return buildinfo.Get().Version }
 	a.canAnimate = term.CanAnimate
 	a.newActivity = func(out io.Writer) engine.ActivityIndicator {
 		return newOctopusActivity(out, term.Color())
