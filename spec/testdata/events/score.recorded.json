@@ -1,0 +1,1 @@
+{"seq":901,"ts":"2026-08-23T22:30:03Z","session":"s_01ARYZ6S41TSV4RRFFQ69G5FAV","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"score.recorded","data":{"id":"score_rating_01","target_kind":"turn","target_id":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","name":"rating","data_type":"numeric","value":5,"source":"human","explanation":"helpful and correct"}}

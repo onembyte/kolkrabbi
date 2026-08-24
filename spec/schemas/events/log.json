@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/events/log.json",
+  "title": "log payload",
+  "type": "object",
+  "required": ["level", "code"],
+  "properties": {
+    "level": {"type": "string", "enum": ["debug", "info", "warn"]},
+    "code": {
+      "type": "string",
+      "enum": [
+        "tools_dropped",
+        "tools_unverified",
+        "model_ignored",
+        "model_rotated",
+        "effort_clamped",
+        "effort_unsupported",
+        "cache_unsupported",
+        "history_truncated",
+        "history_lost",
+        "fallback_ignored",
+        "usage_unavailable",
+        "cost_unavailable",
+        "param_dropped",
+        "tool_call_truncated",
+        "tool_id_rewritten",
+        "deltas_dropped"
+      ]
+    },
+    "field": {"type": "string", "minLength": 1},
+    "was": {"type": "string", "minLength": 1},
+    "became": {"type": "string", "minLength": 1},
+    "message": {"type": "string", "minLength": 1}
+  },
+  "dependentRequired": {
+    "was": ["field"],
+    "became": ["field"]
+  },
+  "additionalProperties": true
+}

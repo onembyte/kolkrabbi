@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/entities/usage.json",
+  "title": "usage entity",
+  "type": "object",
+  "required": ["model", "provider_name", "request_model", "cost_source", "measurement", "attempt", "role", "effort"],
+  "properties": {
+    "model": {"type": "string", "minLength": 1},
+    "provider_name": {"type": "string", "minLength": 1},
+    "request_model": {"type": "string", "minLength": 1},
+    "response_model": {"type": "string", "minLength": 1},
+    "input_tokens": {"type": "integer", "minimum": 0},
+    "cache_read_tokens": {"type": "integer", "minimum": 0},
+    "cache_write_tokens": {"type": "integer", "minimum": 0},
+    "output_tokens": {"type": "integer", "minimum": 0},
+    "reasoning_tokens": {"type": "integer", "minimum": 0},
+    "cost_usd": {"type": "number", "minimum": 0},
+    "cost_source": {"type": "string", "enum": ["unknown", "reported", "header", "followup", "price_table", "vendor_estimate", "free"]},
+    "measurement": {"type": "string", "enum": ["unknown", "metered", "estimated", "local"]},
+    "ttft_ms": {"type": "integer", "minimum": 0},
+    "finish_reason": {"type": "string", "minLength": 1},
+    "error_type": {"type": "string", "minLength": 1},
+    "gen_id": {"type": "string", "minLength": 1},
+    "attempt": {"type": "integer", "minimum": 1},
+    "role": {"type": "string", "minLength": 1},
+    "effort": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": true
+}

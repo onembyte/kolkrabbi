@@ -1,0 +1,36 @@
+id: 1
+event: session.started
+data: {"seq":1,"ts":"2026-08-23T23:41:00.001Z","session":"s_01ARYZ6S41TSV4RRFFQ69G5FAV","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"session.started","data":{"model":"openrouter/auto","mode":"code","effort":"standard","cwd":"/work/kolkrabbi"}}
+
+id: 2
+event: turn.started
+data: {"seq":2,"ts":"2026-08-23T23:41:00.002Z","session":"s_01ARYZ6S41TSV4RRFFQ69G5FAV","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"turn.started","data":{"input":"delete the generated file","model":"openrouter/auto","mode":"code","effort":"standard"}}
+
+id: 3
+event: tool.requested
+data: {"seq":3,"ts":"2026-08-23T23:41:00.003Z","session":"s_01ARYZ6S41TSV4RRFFQ69G5FAV","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"tool.requested","data":{"id":"call_delete_1","name":"bash","arguments":"{\"command\":\"rm generated.txt\"}","executor":"kolk"}}
+
+id: 4
+event: permission.requested
+data: {"seq":4,"ts":"2026-08-23T23:41:00.004Z","session":"s_01ARYZ6S41TSV4RRFFQ69G5FAV","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"permission.requested","data":{"id":"perm_delete_1","tool":"bash","detail":"Delete generated.txt"}}
+
+id: 5
+event: permission.resolved
+data: {"seq":5,"ts":"2026-08-23T23:41:00.005Z","session":"s_01ARYZ6S41TSV4RRFFQ69G5FAV","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"permission.resolved","data":{"id":"perm_delete_1","decision":"deny","reason":"user denied the action"}}
+
+id: 6
+event: tool.finished
+data: {"seq":6,"ts":"2026-08-23T23:41:00.006Z","session":"s_01ARYZ6S41TSV4RRFFQ69G5FAV","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"tool.finished","data":{"id":"call_delete_1","ok":false,"executor":"kolk"}}
+
+id: 7
+event: message.completed
+data: {"seq":7,"ts":"2026-08-23T23:41:00.007Z","session":"s_01ARYZ6S41TSV4RRFFQ69G5FAV","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"message.completed","data":{"text":"I left generated.txt unchanged."}}
+
+id: 8
+event: usage.reported
+data: {"seq":8,"ts":"2026-08-23T23:41:00.008Z","session":"s_01ARYZ6S41TSV4RRFFQ69G5FAV","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"usage.reported","data":{"model":"anthropic/claude-sonnet-4","provider_name":"OpenRouter","request_model":"openrouter/auto","response_model":"anthropic/claude-sonnet-4","input_tokens":160,"output_tokens":18,"cost_usd":0.0014,"cost_source":"reported","measurement":"metered","ttft_ms":280,"finish_reason":"stop","gen_id":"gen_permission_1","attempt":1,"role":"main","effort":"standard"}}
+
+id: 9
+event: turn.finished
+data: {"seq":9,"ts":"2026-08-23T23:41:00.009Z","session":"s_01ARYZ6S41TSV4RRFFQ69G5FAV","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"turn.finished","data":{"reason":"stop","raw_reason":"end_turn"}}
+

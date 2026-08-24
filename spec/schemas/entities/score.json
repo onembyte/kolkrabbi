@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/entities/score.json",
+  "title": "score entity",
+  "type": "object",
+  "required": ["id", "target_kind", "target_id", "name", "data_type", "value", "source"],
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "target_kind": {"type": "string", "enum": ["session", "turn", "span"]},
+    "target_id": {"type": "string", "minLength": 1},
+    "name": {"type": "string", "minLength": 1},
+    "data_type": {"type": "string", "enum": ["numeric", "categorical", "boolean", "text"]},
+    "value": {
+      "oneOf": [
+        {"type": "number"},
+        {"type": "string", "minLength": 1},
+        {"type": "boolean"}
+      ]
+    },
+    "source": {"type": "string", "enum": ["human", "judge", "implicit"]},
+    "judge_model": {"type": "string", "minLength": 1},
+    "explanation": {"type": "string", "minLength": 1}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"data_type": {"const": "numeric"}}},
+      "then": {"properties": {"value": {"type": "number"}}}
+    },
+    {
+      "if": {"properties": {"data_type": {"const": "categorical"}}},
+      "then": {"properties": {"value": {"type": "string", "minLength": 1}}}
+    },
+    {
+      "if": {"properties": {"data_type": {"const": "boolean"}}},
+      "then": {"properties": {"value": {"type": "boolean"}}}
+    },
+    {
+      "if": {"properties": {"data_type": {"const": "text"}}},
+      "then": {"properties": {"value": {"type": "string", "minLength": 1}}}
+    },
+    {
+      "if": {"properties": {"source": {"const": "judge"}}},
+      "then": {"required": ["judge_model"]},
+      "else": {"not": {"required": ["judge_model"]}}
+    }
+  ],
+  "additionalProperties": true
+}

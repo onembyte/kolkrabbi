@@ -2221,3 +2221,1044 @@ installer checks, 24 release checks, 41 release-workflow checks, and 30 release-
 U0.4 can now reuse the phase-labelled activity seam and octopus frames inside its persistent status
 region. Its multiline composer, resize behavior, shortcuts, themes, and fallback remain a separate
 terminal-architecture checkpoint.
+
+---
+
+## Architecture migration / A6.2d1 — subagent lifecycle
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 307 · **Host tests:** 568 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+This slice gives parallel subagent work an explicit parent/child correlation contract before an
+event bus or persistent TUI exists. Both lifecycle frames are emitted on the parent turn. A
+canonical `k_` task ID identifies the delegated unit, while `child_turn` identifies the turn whose
+deltas, tools, completed message, usage, and diagnostics belong to that unit.
+
+`subagent.started` owns the display task, resolved mode, and 1-based index/total coordinates needed
+for stable panes. `subagent.finished` repeats only the correlation and mode, then records an explicit
+boolean outcome. It deliberately does not duplicate model output or error text: the child turn's
+`message.completed` and the diagnostic `error` event remain authoritative for those facts.
+
+### TDD record
+
+**Red:** after freezing the parent/child boundary and adding both schemas, goldens, and the complete
+conformance matrix, `go test ./protocol` failed to compile only because `EventSubagentStarted`,
+`EventSubagentFinished`, `SubagentStartedData`, and `SubagentFinishedData` were undefined.
+
+**Green:** the two constants, typed payloads, and known-event validators now match the schema and
+golden names. Validation rejects missing and malformed task/turn correlation, empty modes and task
+labels, zero, fractional, or inverted presentation coordinates, and absent, null, or non-boolean
+outcomes. Both `ok: true` and `ok: false` remain valid terminal states.
+
+**Refactor:** shared correlation validation keeps canonical ID and mode rules identical across the
+two frames. Tests prove schema field exactness, typed field order, byte-stable golden round trips,
+Unicode task text, additive unknown-field retention, and the deliberate absence of result and error
+fields. No existing package imports `protocol`, and the public package still has no third-party
+dependency.
+
+### Verification
+
+```sh
+go test ./protocol
+go test -race ./protocol
+go test ./internal/arch
+go vet ./protocol
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 568 tests, five compile
+targets, zero lint issues, a 6.34 MB binary, 4.7 ms cold-start p50, one root dependency, 110 site
+checks, 13 mode/update-surface checks, 56 installer checks, 24 release checks, 41 release-workflow
+checks, and 30 release-verifier checks.
+
+### Next checkpoint
+
+A6.2d2 cannot freeze chapter identity before saga item 10 settles its state model. A6.2d4a proceeds
+independently because the hardened provider plan already fixes its accounting fields and nullability.
+
+---
+
+## Architecture migration / A6.2d4a — usage reported
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 416 · **Host tests:** 677 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+This slice freezes `usage.reported` as one accounting row for one model within one physical
+provider attempt. The event envelope remains authoritative for session, turn, and report time;
+the payload identifies the model/provider/request, attempt, call role, effort, measurement class,
+and cost provenance needed by replay, stats, and the future dashboard.
+
+Optional token, latency, and cost values use presence rather than sentinels. Omitted means unknown,
+while a pointer to zero means measured zero. Cost adds a stronger invariant: `unknown` omits
+`cost_usd`, `free` carries an explicit zero, and reported, header, follow-up, price-table, or vendor
+estimate sources carry an explicit non-negative value. This prevents missing prices from being
+ranked as free models.
+
+### TDD record
+
+**Red:** after freezing the schema, golden frame, provider mapping table, and validation matrix,
+`go test ./protocol` failed to compile only because `EventUsageReported`, `UsageReportedData`,
+`UsageCostSource`, `UsageMeasurement`, and their constants were undefined.
+
+**Green:** the typed payload and validator now implement the frozen field set. Required identity and
+attempt context fail closed; optional counters distinguish omission from zero; optional strings
+validate only when present; cost-source and measurement vocabularies are closed; and the cost
+presence/source relationship is enforced.
+
+**Refactor:** pointer-valued numeric fields retain unknown-versus-zero semantics through JSON. A
+shared optional-integer validator keeps all token and TTFT rules identical. The language-neutral
+mapping names every source field and records which context remains in the envelope. Tests also prove
+schema field exactness, typed field order, byte-stable golden round trip, all vocabulary members,
+unknown-field retention, and the deliberate absence of unsafe derived totals and raw provider data.
+
+### Verification
+
+```sh
+go test ./protocol
+go test -race ./protocol
+go test ./internal/arch
+go vet ./protocol
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 677 tests, five compile
+targets, zero lint issues, a 6.34 MB binary, 4.8 ms cold-start p50, one root dependency, 110 site
+checks, 13 mode/update-surface checks, 56 installer checks, 24 release checks, 41 release-workflow
+checks, and 30 release-verifier checks.
+
+### Next checkpoint
+
+A6.2d4b now freezes `score.recorded` independently. Saga chapter events remain deferred until item
+10 fixes their state and identity semantics; the event bus and persistent TUI still remain behind
+the complete A6 contract.
+
+---
+
+## Architecture migration / A6.2d4b — score recorded
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 476 · **Host tests:** 737 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+This slice freezes `score.recorded` as one typed evaluation of a session, turn, or span. It supports
+numeric, categorical, boolean, and text primitives without imposing one universal scale. The event
+therefore represents today's 1–5 human `/rate`, future judge verdicts, and implicit signals such as
+tool success without coercing them into misleading numbers.
+
+Target and provenance rules are explicit. Session and turn targets use canonical IDs; span IDs stay
+opaque until A6.3 freezes the span entity. Human, judge, and implicit sources are closed vocabulary.
+A judge score must name its model, while non-judge scores may not carry a judge model. The envelope
+owns creation time, and optional explanation text works for every source.
+
+### TDD record
+
+**Red:** after freezing the schema, golden frame, and full target/value/source matrix,
+`go test ./protocol` failed to compile only because `EventScoreRecorded`, `ScoreRecordedData`, and
+the target, data-type, and source vocabularies were undefined.
+
+**Green:** the public types and known-event validator now enforce score identity, canonical
+session/turn targets, the declared native JSON primitive, source provenance, judge-model ownership,
+and optional explanation presence. All four value types and all three sources decode, while null,
+object, array, mismatched, empty, and unknown values fail closed.
+
+**Refactor:** `json.RawMessage` retains the decoded score primitive without an untyped `any` field or
+lossy string conversion. Small closed-vocabulary helpers keep the switch exhaustive. Tests prove
+schema property exactness and conditional clauses, typed field order, byte-stable golden round trip,
+both boolean values, negative/fractional numeric scores, unknown-field retention, and the intentional
+absence of scale, threshold, scorer prompt, and aggregation policy.
+
+### Verification
+
+```sh
+go test ./protocol
+go test -race ./protocol
+go test ./internal/arch
+go vet ./protocol
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 737 tests, five compile
+targets, zero lint issues, a 6.34 MB binary, 5.0 ms cold-start p50, one root dependency, 110 site
+checks, 13 mode/update-surface checks, 56 installer checks, 24 release checks, 41 release-workflow
+checks, and 30 release-verifier checks.
+
+### Next checkpoint
+
+A6.2d3 can now freeze `checkpoint.created` from the already-shipped checkpoint subsystem. Saga
+chapter events remain deferred until item 10 is hardened, and A6.2d5 diagnostics/closure follows
+after checkpoints.
+
+---
+
+## Architecture migration / A6.2d3 — checkpoint created
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 503 · **Host tests:** 764 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+This slice freezes `checkpoint.created` as one durable pre-write snapshot entry. The payload carries
+an opaque checkpoint ID, open-ended creation reason, tool, path, and explicit prior-existence state.
+The envelope owns session, turn, and creation time, so replaying clients can place the snapshot
+without protocol data duplicating the checkpoint manifest.
+
+Backup filenames, content, checksums, modes, refusal metadata, and store paths remain private. That
+keeps secrets and internal storage layout off the client contract. Runtime integration will publish
+only after the checkpoint store has durably recorded the entry and before the corresponding write;
+this slice defines that boundary without changing the existing store or CLI.
+
+### TDD record
+
+**Red:** after freezing the scope and adding the schema, golden frame, and conformance matrix,
+`go test ./protocol` failed to compile only because `EventCheckpointCreated` and
+`CheckpointCreatedData` were undefined.
+
+**Green:** the event constant, typed payload, and known-event validator now require all snapshot
+context and distinguish the required boolean from its false zero value. Missing, null, empty, and
+wrongly typed fields fail closed, while existing-file and new-file entries both decode.
+
+**Refactor:** the public payload excludes every storage implementation detail. Tests prove future
+reason/tool names, Unicode paths, typed field order, byte-stable golden round trip, schema field
+exactness, unknown-field retention, and the deliberate absence of backup and envelope metadata.
+
+### Verification
+
+```sh
+go test ./protocol
+go test -race ./protocol
+go test ./internal/arch
+go vet ./protocol
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 764 tests, five compile
+targets, zero lint issues, a 6.34 MB binary, 4.8 ms cold-start p50, one root dependency, 110 site
+checks, 13 mode/update-surface checks, 56 installer checks, 24 release checks, 41 release-workflow
+checks, and 30 release-verifier checks.
+
+### Next checkpoint
+
+A6.2d5 now freezes diagnostic `error` and `log` events, then proves the shipped vocabulary is closed.
+Saga chapter lifecycle remains intentionally open until PLAN item 10 fixes its state machine.
+
+---
+
+## Architecture migration / A6.2d5a — log diagnostics
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 552 · **Host tests:** 813 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+This slice freezes `log` as the structured non-error diagnostic channel. It carries a closed debug,
+info, or warn level; one of the hardened provider-warning codes or the core `deltas_dropped` code;
+and optional field, before/after, and message context. Field transitions must name their field, so a
+client never guesses what was projected, dropped, or changed.
+
+The bus backpressure design now uses the same payload: `deltas_dropped` names the condition,
+`field` names the affected delta family, and `message` reports the count. This resolves the older
+one-off `{dropped:N}` sketch without adding renderer-private data. Failures remain excluded because
+A6.3 owns the stable error entity, status mapping, retryability, and remedy.
+
+### TDD record
+
+**Red:** after freezing the schema, golden frame, codes, levels, and conformance matrix,
+`go test ./protocol` failed to compile only because `EventLog`, `LogData`, `LogLevel`, `LogCode`, and
+their constants were undefined.
+
+**Green:** the event constant, public vocabularies, typed payload, and known-event validator now
+agree. All three levels and 16 codes decode. Missing, null, wrongly typed, empty, or unknown
+vocabulary/context values fail closed, and before/after transitions require an owning field.
+
+**Refactor:** exhaustive helpers keep the machine vocabulary visible in one place. Tests prove the
+schema's exact six fields, dependent requirements, typed field order, byte-stable golden round trip,
+minimal code-only diagnostics, backpressure rendering shape, and unknown-field retention. The
+architecture and provider plans now describe that same wire payload.
+
+### Verification
+
+```sh
+go test ./protocol
+go test -race ./protocol
+go test ./internal/arch
+go vet ./protocol
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 813 tests, five compile
+targets, zero lint issues, a 6.34 MB binary, 5.0 ms cold-start p50, one root dependency, 110 site
+checks, 13 mode/update-surface checks, 56 installer checks, 24 release checks, 41 release-workflow
+checks, and 30 release-verifier checks.
+
+### Next checkpoint
+
+A6.3 must now freeze the shared error entity and its error-code/status/exit/retryability mapping.
+Only then can A6.2d5b add the `error` event and A6.2d5c prove the final vocabulary closure. Saga
+chapter events remain separately gated on PLAN item 10.
+
+---
+
+## Architecture migration / A6.3a — error entity and mapping
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 574 · **Host tests:** 835 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+This slice freezes the shared public error entity before any event or transport can invent a
+different failure shape. The wire carries one closed code, safe display text, and optional positive
+retry delay and remedy. HTTP status, shell exit, and default retryability are derived from the code
+and are therefore absent from the entity itself.
+
+The 28-code table covers current command/setup failures, every failure kind in the hardened
+provider plan, and an expired replay cursor. It intentionally distinguishes a bad client argument
+(`invalid_argument`, HTTP 400, exit 2) from a malformed upstream request generated by Kolkrabbi
+(`invalid_request`, HTTP 500, exit 1). Temporary endpoint rate limiting remains retryable while an
+account-wide exhausted quota does not invite an immediate retry or useless peer-model rotation.
+
+### TDD record
+
+**Red:** the schema, golden entity, Markdown mapping, and exhaustive conformance tests were added
+first. `go test ./protocol` failed to compile only because `ErrorCode`, `Error`, their policy
+methods, and the entity validator did not exist.
+
+**Green:** `protocol/errors.go` now defines the closed constants, one policy lookup, the typed safe
+error, and raw-JSON validation that distinguishes omitted optional values from explicit null.
+Every code agrees across schema, documentation, constants, and lookup behavior. Unknown
+programmatic codes map to HTTP 500 / exit 1 and disable retry, so construction failures fail closed.
+
+**Refactor:** the architecture's cursor-expiry sketch now names the canonical `code` field. The
+public HTTP column is explicitly Kolkrabbi's response rather than a copied provider status; this is
+why an invalid upstream request caused by Kolkrabbi surfaces as HTTP 500 instead of blaming the
+client with 400.
+
+### Verification
+
+```sh
+go test ./protocol -count=1
+go test -race ./protocol -count=1
+go vet ./protocol
+go test ./internal/arch -count=1
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 835 tests, five compile
+targets, zero lint issues, a 6.34 MB binary, 4.8 ms cold-start p50, one root dependency, 110 site
+checks, 13 mode/update-surface checks, 56 installer checks, 24 release checks, 41 release-workflow
+checks, and 30 release-verifier checks. The Go module-cache stat write warning remains the known
+sandbox-only diagnostic; the budget script and full gate exited zero.
+
+### Next checkpoint
+
+A6.2d5b can now reuse this entity verbatim as the terminal `error` event payload. A6.2d5c will then
+prove vocabulary closure. Saga chapter events remain deferred until PLAN item 10 freezes their
+state machine; A6.3b shared entities and A6.3c commands remain separate later slices.
+
+---
+
+## Architecture migration / A6.2d5b — error event
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 610 · **Host tests:** 871 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+The terminal `error` event now wraps the A6.3a error entity without copying its fields or policy.
+Its JSON Schema contains a relative reference to `schemas/entities/error.json`; the Go event
+decoder calls the same entity validator. The event envelope remains the only source of session,
+turn, sequence, and time context.
+
+### TDD record
+
+**Red:** the event schema, golden envelope, shared-entity equality proof, all-code matrix, malformed
+entity matrix, and additive-field test were added first. `go test ./protocol` failed only because
+`EventError` was undefined.
+
+**Green:** the event constant and one validator branch now exist. Every one of the 28 shared codes
+decodes through an event; malformed code, message, retry delay, or remedy fails through the shared
+validator rather than an event-specific copy.
+
+**Refactor:** the golden event's `data` bytes are asserted equal to the standalone golden entity,
+and the event schema is asserted to have only dialect, id, title, and `$ref`. This makes duplication
+a test failure at both the schema and fixture layers.
+
+### Verification
+
+```sh
+go test ./protocol -count=1
+go test -race ./protocol -count=1
+go vet ./protocol
+go test ./internal/arch -count=1
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 871 tests, five compile
+targets, zero lint issues, a 6.34 MB binary, 4.9 ms cold-start p50, one root dependency, 110 site
+checks, 13 mode/update-surface checks, 56 installer checks, 24 release checks, 41 release-workflow
+checks, and 30 release-verifier checks. The known sandbox-only Go module-cache stat warning did not
+affect the successful budget or full-gate exit.
+
+### Next checkpoint
+
+A6.2d5c now proves the shipped event vocabulary is closed: every public event constant must own
+exactly one event schema and exactly one golden envelope, with no orphan contract files. Saga
+chapter lifecycle stays outside that proof until its still-open subsystem freezes the events.
+
+---
+
+## Architecture migration / A6.2d5c — event vocabulary closure
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 635 · **Host tests:** 896 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+Protocol version 0 now publishes an ordered catalog of its 23 shipped event types, and one
+conformance test proves that catalog is closed across every representation. The test parses
+`events.go` with Go's standard-library AST, discovers all exported `Event…` constants, and compares
+their wire literals to the catalog, schema filenames, canonical schema IDs, golden filenames, and
+the types decoded from those goldens.
+
+### TDD record
+
+**Red:** the AST/filesystem/schema/golden closure test and unknown-event compatibility proof were
+added first. `go test ./protocol` failed only because `KnownEventTypes` did not exist.
+
+**Green:** `KnownEventTypes` now returns the 23 events in architectural order and protects its
+internal catalog with a defensive copy. All six representations agree exactly; no orphan or missing
+event contract exists.
+
+**Refactor:** closure does not weaken forward compatibility. The catalog enumerates what this
+binding ships, while a syntactically valid future event still decodes and retains its data. Saga
+chapter constants remain absent rather than being published before their state machine is frozen.
+
+### Verification
+
+```sh
+go test ./protocol -count=1
+go test -race ./protocol -count=1
+go vet ./protocol
+go test ./internal/arch -count=1
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 896 tests, five compile
+targets, zero lint issues, a 6.34 MB binary, 4.9 ms cold-start p50, one root dependency, 110 site
+checks, 13 mode/update-surface checks, 56 installer checks, 24 release checks, 41 release-workflow
+checks, and 30 release-verifier checks. The familiar sandbox-only Go module-cache stat warning was
+non-fatal; every gate exited zero.
+
+### Next checkpoint
+
+A6.2 now has one intentionally unresolved event family: A6.2d2 saga chapters. That remains gated on
+PLAN item 10's state machine. Work can continue independently with A6.3b by freezing only the
+shared entities whose owners are already stable, leaving chapter and span identities deferred.
+
+---
+
+## Architecture migration / A6.3b1 — usage entity
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 636 · **Host tests:** 897 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+The previously frozen `usage.reported` row is now a shared entity rather than an event-private
+shape. `schemas/entities/usage.json` owns the 19 fields, `Usage` is the one Go struct, and
+`UsageReportedData` is an alias. The event schema references the entity and the event decoder calls
+the entity validator.
+
+### TDD record
+
+**Red:** the entity schema, compact entity golden, schema-reference assertion, typed entity test,
+alias identity proof, and byte-equality check were added first. `go test ./protocol` failed only
+because `Usage` and `validateUsageEntity` did not exist.
+
+**Green:** usage vocabularies, struct, and validation moved intact into `protocol/entity.go`.
+Existing event tests still cover every required/optional field, unknown versus zero measurement,
+cost provenance invariant, and additive unknown field through the shared validator.
+
+**Refactor:** `usage.reported` now has a four-key schema whose only payload definition is a relative
+reference to the entity. The entity golden is byte-identical to the event golden's data. The first
+full gate found one redundant test type annotation through staticcheck; the alias proof was replaced
+with a stronger runtime type-identity assertion, then the complete gate was rerun successfully.
+
+### Verification
+
+```sh
+go test ./protocol -count=1
+go test -race ./protocol -count=1
+go vet ./protocol
+go test ./internal/arch -count=1
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make lint
+make check
+```
+
+The final dependency filter printed nothing. The complete rerun passed with 897 tests, five compile
+targets, zero lint issues, a 6.34 MB binary, 4.7 ms cold-start p50, one root dependency, 110 site
+checks, 13 mode/update-surface checks, 56 installer checks, 24 release checks, 41 release-workflow
+checks, and 30 release-verifier checks. The known sandbox-only module-cache warning remained
+non-fatal.
+
+### Next checkpoint
+
+A6.3b2 applies the same no-duplication pattern to the already-frozen `score.recorded` evaluation.
+Session, model, permission, chapter, and span entities remain correctly deferred to their owners.
+
+---
+
+## Architecture migration / A6.3b2 — score entity
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 637 · **Host tests:** 898 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+The typed `score.recorded` evaluation is now a shared entity. `schemas/entities/score.json` owns the
+nine fields and five conditional clauses, `Score` is the one public struct, and
+`ScoreRecordedData` is an alias. Event schema and decoder both reuse the entity contract.
+
+### TDD record
+
+**Red:** the entity schema, compact entity golden, event-reference assertion, typed entity test,
+alias identity proof, and byte-equality check landed first. `go test ./protocol` failed only because
+`Score` and `validateScoreEntity` did not exist.
+
+**Green:** score vocabularies, struct, and validation moved intact into `protocol/entity.go`.
+Existing event tests still cover canonical session/turn targets, opaque spans, all four native JSON
+value types, human/judge/implicit provenance, judge-model ownership, optional explanation, and
+additive unknown fields through the shared validator.
+
+**Refactor:** `score.recorded` now defines no entity fields; its four-key schema references
+`entities/score.json`. The entity golden is byte-identical to event data, and `json.RawMessage`
+continues to retain the decoded primitive without normalization.
+
+### Verification
+
+```sh
+go test ./protocol -count=1
+go test -race ./protocol -count=1
+go vet ./protocol
+go test ./internal/arch -count=1
+make lint
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 898 tests, five compile
+targets, zero lint issues, a 6.34 MB binary, 4.9 ms cold-start p50, one root dependency, 110 site
+checks, 13 mode/update-surface checks, 56 installer checks, 24 release checks, 41 release-workflow
+checks, and 30 release-verifier checks. The known sandbox-only module-cache warning remained
+non-fatal.
+
+### Next checkpoint
+
+The two owner-stable shared entities are complete. A6.3b3-b6 remain dependency-gated rather than
+guessed. The next independent A6 work is A6.3c command bodies whose target/event contracts are
+already stable: turn creation/cancellation and permission resolution can be split and frozen one at
+a time, while session fork/list remains deferred with the session entity.
+
+---
+
+## Architecture migration / A6.3c1 — permission resolve command
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 651 · **Host tests:** 912 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+The first client-to-server command is now frozen. `permission.resolve` carries one non-empty opaque
+pending request ID and one of the existing `allow`, `allow_session`, or `deny` decisions. It does
+not accept a resolution reason: timeout and policy explanations are server-owned facts emitted on
+the later `permission.resolved` event.
+
+### TDD record
+
+**Red:** command schema, compact golden body, typed round trip, all-decision matrix, malformed-field
+matrix, forbidden-field schema checks, and additive-field validation landed first. The protocol
+tests failed only because the command constant, type, binding, and validator did not exist.
+
+**Green:** `protocol/command.go` now defines the command vocabulary and the two-field public
+binding, reusing `PermissionDecision` rather than copying its enum. Missing, null, empty, wrongly
+typed, and unknown correlation/decision values fail closed.
+
+**Refactor:** the command remains transport-neutral. It does not yet decide how an HTTP path or
+stdio command frame carries the name, how already-resolved conflicts surface, or how A8 stores and
+expires pending requests.
+
+### Verification
+
+```sh
+go test ./protocol -count=1
+go test -race ./protocol -count=1
+go vet ./protocol
+go test ./internal/arch -count=1
+make lint
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 912 tests, five compile
+targets, zero lint issues, a 6.34 MB binary, 5.1 ms cold-start p50, one root dependency, 110 site
+checks, 13 mode/update-surface checks, 56 installer checks, 24 release checks, 41 release-workflow
+checks, and 30 release-verifier checks. The sandbox-only module-cache warning remained non-fatal.
+
+### Next checkpoint
+
+A6.3c2 can freeze `turn.cancel` as one canonical turn ID. Like permission resolution, it is forced
+by mobile/native bindings and does not require the still-deferred session entity or turn-creation
+semantics.
+
+---
+
+## Architecture migration / A6.3c2 — turn cancel command
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 661 · **Host tests:** 922 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+`turn.cancel` is now a transport-neutral command carrying one canonical `turn_id`. It gives HTTP,
+stdio, desktop, and mobile callers the value boundary they need without leaking a Go context or
+accepting a client-authored cancellation reason.
+
+### TDD record
+
+**Red:** command schema, golden body, typed round trip, canonical-ID matrix, forbidden-field checks,
+and additive-field validation landed first. The protocol tests failed only because the command
+constant, binding, and validator did not exist.
+
+**Green:** the command now validates through the same canonical typed-ID primitive as event
+envelopes. Missing, null, empty, numeric, lowercase, short, session-prefixed, and task-prefixed IDs
+fail; the canonical turn golden succeeds.
+
+**Refactor:** cancellation reason, live-turn lookup, idempotency/conflict behavior, HTTP routing,
+and `context.CancelFunc` ownership remain server/runtime work. The public command does not guess any
+of those decisions.
+
+### Verification
+
+```sh
+go test ./protocol -count=1
+go test -race ./protocol -count=1
+go vet ./protocol
+go test ./internal/arch -count=1
+make lint
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 922 tests, five compile
+targets, zero lint issues, a 6.34 MB binary, 4.8 ms cold-start p50, one root dependency, 110 site
+checks, 13 mode/update-surface checks, 56 installer checks, 24 release checks, 41 release-workflow
+checks, and 30 release-verifier checks. The sandbox-only module-cache warning remained non-fatal.
+
+### Next checkpoint
+
+The two dependency-free commands are complete. Before leaving A6.3c at its explicit A10 blockers,
+one closure test should prove exported command constants, the shipped-command catalog, command
+schemas, IDs, and goldens are the same set with no placeholder for deferred commands.
+
+---
+
+## Architecture migration / A6.3c5 — command vocabulary closure
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 664 · **Host tests:** 925 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+Protocol version 0 now publishes an ordered catalog of the two commands it actually ships:
+`turn.cancel` and `permission.resolve`. A standard-library AST and filesystem conformance test
+proves the exported constants, catalog values, schema filenames, canonical schema IDs, golden
+filenames, JSON-object shape, and command validators agree exactly.
+
+### TDD record
+
+**Red:** the closure test landed first and failed only because `KnownCommandTypes` did not exist.
+
+**Green:** the public catalog now returns commands in architectural order through a defensive copy.
+Both goldens validate, and no missing or orphan contract file exists.
+
+**Refactor:** `turn.create`, `session.fork`, and `session.list` remain absent rather than being
+published with guessed session semantics. Adding any exported `Command…` constant or contract file
+without completing its entire cross-representation set now fails the closure test.
+
+### Verification
+
+```sh
+go test ./protocol -count=1
+go test -race ./protocol -count=1
+go vet ./protocol
+go test ./internal/arch -count=1
+make lint
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 925 tests, five compile
+targets, zero lint issues, a 6.34 MB binary, 5.0 ms cold-start p50, one root dependency, 110 site
+checks, 13 mode/update-surface checks, 56 installer checks, 24 release checks, 41 release-workflow
+checks, and 30 release-verifier checks. The sandbox-only module-cache warning remained non-fatal.
+
+### Next checkpoint
+
+A6.3 is now explicitly parked at real subsystem dependencies instead of vague TODOs. A6.4 transport
+closure can proceed independently on framing rules and conformance streams using the shipped event
+and command catalogs; OpenAPI endpoint completion must still omit deferred session/turn-create
+surfaces until A10 settles them.
+
+---
+
+## Architecture migration / A6.4a — single-event framing
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 668 · **Host tests:** 929 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+`spec/stdio.md` now freezes exact event bytes for NDJSON and SSE. NDJSON is the validated compact
+envelope plus one LF. SSE is decimal `id`, exact wire `event`, and one `data` line whose bytes equal
+the NDJSON line after removing only its LF, followed by one blank line. Heartbeat is exactly the
+non-event comment `: ping\n\n`.
+
+### TDD record
+
+**Red:** byte-exact NDJSON/SSE identity, Unicode/escaped-newline physical-line behavior, invalid
+envelope rejection, heartbeat exactness, and heartbeat storage isolation tests landed first. They
+failed only because the three framing functions did not exist.
+
+**Green:** `EncodeNDJSON` and `EncodeSSE` both wrap the existing validated `Encode`; there is no
+second JSON serializer. `EncodeSSE` derives its decimal ID and event name from the same envelope.
+`SSEHeartbeat` returns fresh bytes on each call.
+
+**Refactor:** one test initially assumed the existing message-delta golden used sequence 1; it
+actually uses 412. Correcting the expected fixture value demonstrated that the encoder correctly
+uses the envelope rather than a constant. All focused gates were rerun after that test correction.
+
+### Verification
+
+```sh
+go test ./protocol -count=1
+go test -race ./protocol -count=1
+go vet ./protocol
+go test ./internal/arch -count=1
+make lint
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 929 tests, five compile
+targets, zero lint issues, a 6.34 MB binary, 5.0 ms cold-start p50, one root dependency, 110 site
+checks, 13 mode/update-surface checks, 56 installer checks, 24 release checks, 41 release-workflow
+checks, and 30 release-verifier checks. The sandbox-only module-cache warning remained non-fatal.
+
+### Next checkpoint
+
+A6.4b can now define a bounded streaming decoder and multi-event fixtures against this fixed
+grammar. It must handle NDJSON and Kolkrabbi's SSE blocks without silently accepting mismatched SSE
+`id`/`event` metadata or unbounded lines.
+
+---
+
+## Architecture migration / A6.4b1 — bounded decoder grammar
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 700 · **Host tests:** 961 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+The public protocol reader now decodes exact NDJSON or Kolkrabbi SSE through a callback without
+collecting a stream. Envelope JSON is capped at 1 MiB in both transports. Complete LF termination,
+SSE field order, canonical ID spelling, ID/sequence equality, event/type equality, and the exact
+heartbeat block are checked before delivery.
+
+### TDD record
+
+**Red:** the normative reader rules and 32 focused checks landed first. The focused build failed
+only on the absent `StreamFormat`, stream constants, size limit, stable overflow error, and
+`DecodeStream` API.
+
+**Green:** a small `bufio.Reader.ReadSlice` loop now accumulates only up to an explicit caller-owned
+line bound, avoiding both Scanner's implicit 64 KiB ceiling and unbounded `ReadString` behavior.
+NDJSON and SSE share the existing validated `Decode`; SSE comments are ignored only when they are
+the exact heartbeat block.
+
+**Refactor:** the callback-stop test deliberately asserts one delivery and original error identity,
+not unread bytes in the underlying reader: a conforming buffered reader may prefetch while still
+performing no later parse or callback. The 1 MiB limit was tested at the exact byte boundary and one
+byte beyond in both transports.
+
+### Verification
+
+```sh
+go test ./protocol -run 'TestDecode(NDJSON|SSE|Stream)' -count=1
+go test ./protocol -count=1
+go test -race ./protocol -count=1
+go vet ./protocol
+go test ./internal/arch -count=1
+make lint
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+make check
+```
+
+The dependency filter printed nothing. The complete gate passed with 961 tests, five compile
+targets, zero lint issues, a 6.34 MB binary, 4.7 ms cold-start p50, one root dependency, 110 site
+checks, 13 mode/update-surface checks, 56 installer checks, 24 release checks, 41 release-workflow
+checks, and 30 release-verifier checks. The sandbox-only module-cache warning remained non-fatal.
+
+### Next checkpoint
+
+A6.4b2 remains responsible for canonical whole-turn fixtures and cross-format fixture conformance.
+The separately requested user-facing checkpoint now takes priority: make `kolk update` narrate its
+current-version/check/update result and make the installer detect and upgrade an older installation.
+
+---
+
+## Update UX / U0.2e — narrated update progress
+
+**Status:** done, 2026-08-23 · **Host tests:** 1,156 · **Dependencies:** unchanged ·
+**User-visible changes:** `kolk update` and `/update` now narrate version checks
+
+Both update surfaces print the running build version and the latest-release check before invoking
+the existing updater. Equal versions say Kolk is up to date; a newer local build names both values;
+successful replacement names the current-to-latest transition and installed path. Only an active
+session asks for a restart.
+
+### TDD record
+
+**Red:** exact output and ordering assertions landed first. They failed at compile time only because
+the app had no injectable current-version seam.
+
+**Green:** `newApp` now reads the existing stamped `buildinfo` through one tiny function seam.
+`applyUpdate` writes the two progress lines before calling the updater, while final rendering remains
+shared by top-level and slash commands.
+
+**Refactor:** the unchanged renderer distinguishes an equal latest release from a deliberately newer
+local stable build, avoiding the false claim that an older release number is the running version.
+No discovery, comparison, artifact, checksum, archive, or executable-replacement code changed.
+
+### Verification
+
+```sh
+go test ./internal/cli -run 'Test(TopLevelUpdate|SlashUpdate)' -count=1
+go test ./internal/cli -count=1
+go test -race ./internal/cli -run 'Test(TopLevelUpdate|SlashUpdate)' -count=1
+go vet ./internal/cli
+go test ./internal/arch -count=1
+make lint
+make check
+```
+
+The focused test initially needed an unrestricted rerun solely because the managed sandbox refused
+the existing local `httptest` listener. Assertions were green outside that network sandbox. The
+complete gate passed with 1,156 enumerated tests, five compile targets, zero lint issues, a 6.34 MB
+binary, 4.9 ms cold-start p50, one root dependency, 110 site checks, 13 mode/update-surface checks,
+56 installer checks, 24 release checks, 41 release-workflow checks, and 30 release-verifier checks.
+
+### Next checkpoint
+
+T0.4b2 adds existing-version awareness to the website installer through its offline black-box
+matrix. Explicit `KOLK_VERSION` remains a force/pinning path; only ordinary latest installation may
+skip or avoid a downgrade.
+
+---
+
+## Installer / T0.4b2 — existing-install version awareness
+
+**Status:** done, 2026-08-23 · **Installer checks:** 72 · **Host tests:** 1,156 ·
+**Dependencies:** unchanged · **User-visible changes:** idempotent install/upgrade reporting
+
+The website installer now asks an existing executable target for `kolk version` after resolving the
+latest release and destination. An ordinary install upgrades older versions, returns before asset
+downloads when equal, and refuses to replace a newer stable build. Explicit `KOLK_VERSION` still
+forces the requested verified install.
+
+### TDD record
+
+**Red:** sixteen black-box assertions landed first across older, equal, newer, differing component
+width, and explicit-pinning cases. The previous installer failed eight: it always downloaded and
+replaced and had no version-aware output.
+
+**Green:** stable installed identities are parsed from the existing keyless `kolk version` command.
+A Bash-3.2-compatible comparator compares decimal component length and then equal-width digits, so
+it neither overflows shell integers nor orders `0.10.0` below `0.9.10`. Equal/newer early returns
+reuse one PATH guidance function; older versions continue through the existing checksum, archive,
+and atomic replacement path.
+
+**Refactor:** unreadable, malformed, non-stable, or failing existing executables do not become trust
+signals and therefore cannot suppress a verified install. Pinned installs deliberately bypass the
+skip/no-downgrade branch, retaining their reproducible exact-version meaning.
+
+### Verification
+
+```sh
+bash -n site/install.sh
+shellcheck site/install.sh scripts/test-installer.sh
+./scripts/test-installer.sh
+./scripts/test-site.sh
+./scripts/test-v01-surface.sh
+./scripts/test-release.sh
+./scripts/test-release-workflow.sh
+./scripts/test-release-verifier.sh
+git diff --check -- site/install.sh scripts/test-installer.sh
+make check
+```
+
+The complete gate passed with 1,156 enumerated tests, five compile targets, zero lint issues, a
+6.34 MB binary, 4.9 ms cold-start p50, one root dependency, 110 site checks, 13 mode/update-surface
+checks, 72 installer checks, 24 release checks, 41 release-workflow checks, and 30 release-verifier
+checks. Bash syntax and ShellCheck were clean.
+
+### Next checkpoint
+
+Resume A6.4b2 with canonical whole-turn NDJSON/SSE fixture pairs and decoder conformance. Keep the
+fixture slice independent of the future event bus, daemon, and HTTP server.
+
+---
+
+## Architecture migration / A6.4b2a — owner-stable turn streams
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 707 · **Host tests:** 1,163 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+The language-neutral conformance suite now carries exact NDJSON/SSE twins for a simple code turn, a
+denied Kolkrabbi-owned tool, and one parent/child agent fanout. Every stream is a contiguous
+session-log sequence with monotonic timestamps, canonical transport bytes, one usage row per model
+attempt, and an explicit final turn event.
+
+### TDD record
+
+**Red:** inventory, cross-format equality, canonical byte regeneration, lifecycle ordering,
+permission correlation, agent turn scoping, and streamed-delta/final-message assertions landed
+first. All three tests failed only because `spec/testdata/streams/` did not exist.
+
+**Green:** three `.ndjson` sources and three exact `.sse` twins satisfy both strict decoders. Code
+deltas concatenate to the authoritative completed message. The denied tool correlates request,
+permission decision, and unsuccessful finish without a false start. Agent child lifecycle and usage
+use the child turn; parent orchestration and final accounting return to the parent.
+
+**Refactor:** canonical regeneration caught `.010Z`, which RFC3339Nano correctly renders as `.01Z`,
+and strict SSE decoding caught one missing final blank-line LF. The fixtures were corrected rather
+than weakening either rule. `saga-chapter` and `resume-after-drop` remain absent at explicit event
+state and cursor/replay blockers.
+
+### Verification
+
+```sh
+go test ./protocol -run 'Test(WholeTurn|CodeTurnFixture|PermissionDeniedFixture|AgentFanoutFixture)' -count=1
+go test ./protocol -count=1
+go test -race ./protocol -count=1
+go vet ./protocol
+go test ./internal/arch -count=1
+make lint
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+git diff --check -- spec/testdata/streams protocol/stream_fixture_test.go
+make check
+```
+
+The dependency filter printed nothing. The post-documentation complete gate passed with 1,163
+tests, five compile targets, zero lint issues, a 6.34 MB binary, 5.0 ms cold-start p50, one root
+dependency, 110 site
+checks, 13 mode/update-surface checks, 72 installer checks, 24 release checks, 41 release-workflow
+checks, and 30 release-verifier checks.
+
+### Next checkpoint
+
+A6.4c may now define only the OpenAPI endpoints supported by already-shipped commands and entities.
+Session listing/detail and turn creation remain excluded until A10 owns their session format and
+request semantics.
+
+---
+
+## Architecture migration / A6.4c — minimal OpenAPI shape
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 710 · **Host tests:** 1,166 ·
+**Dependencies:** standard library only · **User-visible changes:** none
+
+The first OpenAPI 3.1 contract publishes only the three routes whose input and output ownership is
+already stable: hello, turn cancellation, and permission resolution. It uses JSON syntax, which is
+valid YAML 1.2, so the standard-library-only protocol suite can parse the document without adding a
+YAML dependency.
+
+### TDD record
+
+**Red:** exact path/method inventory, auth inheritance, response reuse, schema derivation,
+command-catalog closure, deferred-path exclusion, and external-reference checks landed first. All
+three focused tests failed only because `spec/kolk.openapi.yaml` did not exist.
+
+**Green:** hello references the shipped payload and explicitly opts out of the global HTTP bearer
+scheme. Cancellation derives its one canonical path ID from `turn.cancel` and has no duplicate JSON
+body. Permission resolution derives its opaque path ID and decision-only body from
+`permission.resolve`. Both mutations return an empty 204 and route every other response through the
+shared safe error entity.
+
+**Refactor:** the architecture wording now makes the hello exception consistent and distinguishes
+the future target surface from each authoritative owner-stable cut. Session creation/list/detail,
+SSE replay, models, stats, dashboard, and every secret-management path remain absent rather than
+guessing contracts owned by later migration steps.
+
+### Verification
+
+```sh
+go test ./protocol -run 'TestOpenAPI' -count=1
+go test ./protocol -count=1
+go test -race ./protocol -count=1
+go vet ./protocol
+go test ./internal/arch -count=1
+make lint
+go list -deps -f '{{if and (not .Standard) (ne .ImportPath "github.com/onembyte/kolkrabbi/protocol")}}{{.ImportPath}}{{end}}' ./protocol
+git diff --check -- CHECKPOINTS.md docs/plan/02-architecture.md protocol/openapi_test.go spec/kolk.openapi.yaml spec/CHANGELOG.md
+make check
+```
+
+The dependency filter printed nothing. The complete unrestricted gate passed with 1,166 tests,
+five compile targets, zero lint issues, a 6.34 MB binary, 4.8 ms cold-start p50, one root
+dependency, 110 site checks, 13 mode/update-surface checks, 72 installer checks, 24 release checks,
+41 release-workflow checks, and 30 release-verifier checks.
+
+### Next checkpoint
+
+A6.4d adds the spec-change changelog guard and a whole-contract inventory, then runs the complete
+A6 closure gate. It must not pull forward the dependency-blocked saga, session, replay, or server
+work.
+
+---
+
+## Architecture migration / A6.4d — spec guard and owner-stable transport closure
+
+**Status:** done, 2026-08-23 · **Protocol checks:** 711 · **Host tests:** 1,167 ·
+**Spec-guard checks:** 29 · **Dependencies:** standard library only · **User-visible changes:** none
+
+The owner-stable transport cut now has an exhaustive recursive `spec/` inventory and a committed
+tree-to-tree changelog guard. A path-filtered read-only workflow compares the GitHub event base to
+the checked-out head with full history, while ordinary CI and `make check` independently exercise
+the guard implementation and its offline black-box matrix.
+
+### TDD record
+
+**Red:** the contract inventory and sixteen enforcement/workflow assertions landed first. The
+inventory passed against the already-closed contract tree; all sixteen guard assertions failed
+because no guard script, named Make target, CI step, or spec workflow existed.
+
+**Green:** the Git guard validates explicit base/head treeish values, reads only committed trees,
+requires a blob at `spec/CHANGELOG.md`, and distinguishes no contract change, documented change,
+undocumented change, and invalid comparison failures. Its matrix covers modification, addition,
+deletion, changelog-only changes, a missing changelog, an invalid base, and ignored dirty worktree
+noise. The workflow uses pinned checkout/setup actions, read-only contents permission, full history,
+and event-specific base selection including the empty tree for a repository's first push.
+
+**Refactor:** ShellCheck caught one intentional literal containing GitHub environment-variable
+syntax in the workflow test; the assertion now constructs the dollar sign explicitly with no
+suppression. The recursive inventory derives events, commands, and stream pairs from their existing
+catalogs and keeps only the currently owner-stable entities and foreign fixtures explicit.
+
+### Verification
+
+```sh
+go test ./protocol -run 'Test(SpecContractInventoryIsClosed|OpenAPI|EventVocabulary|CommandVocabulary|WholeTurn)' -count=1
+bash scripts/test-spec-change.sh
+bash -n scripts/check-spec-change.sh scripts/test-spec-change.sh
+shellcheck scripts/check-spec-change.sh scripts/test-spec-change.sh
+make spec
+go test -race ./protocol -count=1
+go vet ./protocol
+go test ./internal/arch -count=1
+git diff --check -- .github/workflows/ci.yml .github/workflows/spec.yml CHECKPOINTS.md Makefile protocol/contract_inventory_test.go scripts/check-spec-change.sh scripts/test-spec-change.sh
+make check
+```
+
+The complete unrestricted gate passed with 1,167 tests, five compile targets, zero lint issues, a
+6.34 MB binary, 4.8 ms cold-start p50, one root dependency, 110 site checks, 13
+mode/update-surface checks, 72 installer checks, 29 spec-guard checks, 24 release checks, 41
+release-workflow checks, and 30 release-verifier checks.
+
+### Next checkpoint
+
+The A6.4 transport cut is closed. A6 remains open only for explicitly dependency-gated additions;
+the next migration step is A7's internal event bus and byte-identical plain renderer, without
+pulling forward A8 permissions, A10 session migration, or A11 serving surfaces.

@@ -47,7 +47,7 @@ fmt-check: ## fail if anything needs gofmt
 	@unformatted="$$(gofmt -l .)"; \
 	if [ -n "$$unformatted" ]; then echo "these files need gofmt:"; echo "$$unformatted"; exit 1; fi
 
-.PHONY: arch purity buildtags platforms budgets site surface installer release-check release-workflow-check release-verifier-check
+.PHONY: arch purity buildtags platforms budgets site surface installer spec release-check release-workflow-check release-verifier-check
 arch: ## layering, dependency and naming rules
 	./scripts/check-arch.sh
 purity: ## the engine touches no OS
@@ -64,6 +64,9 @@ surface: ## exposes chat, code and agent, with code as the default
 	./scripts/test-v01-surface.sh
 installer: ## offline installer platform, integrity, extraction and replacement matrix
 	./scripts/test-installer.sh
+spec: ## language-neutral protocol contract and changelog guard tests
+	$(GO) test ./protocol
+	./scripts/test-spec-change.sh
 release-check: ## static archive, checksum and signing contract
 	./scripts/test-release.sh
 release-workflow-check: ## immutable tag-only release workflow and SemVer guard
@@ -83,7 +86,7 @@ lint: ## golangci-lint, if it is installed
 	fi
 
 .PHONY: check
-check: fmt-check vet test arch purity buildtags platforms lint budgets site surface installer release-check release-workflow-check release-verifier-check ## everything CI runs
+check: fmt-check vet test arch purity buildtags platforms lint budgets site surface installer spec release-check release-workflow-check release-verifier-check ## everything CI runs
 
 .PHONY: workspace
 workspace: ## write a gitignored go.work so gopls sees every module

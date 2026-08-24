@@ -1,0 +1,1 @@
+{"code":"rate_limited","message":"provider capacity is temporarily limited","retry_after_ms":4000,"remedy":"retry later or select another model with /model"}

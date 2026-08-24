@@ -1,0 +1,1 @@
+{"seq":951,"ts":"2026-08-23T22:50:04Z","session":"s_01ARYZ6S41TSV4RRFFQ69G5FAV","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"error","data":{"code":"rate_limited","message":"provider capacity is temporarily limited","retry_after_ms":4000,"remedy":"retry later or select another model with /model"}}

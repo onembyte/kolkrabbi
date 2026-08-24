@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/entities/error.json",
+  "title": "error entity",
+  "type": "object",
+  "required": ["code", "message"],
+  "properties": {
+    "code": {
+      "type": "string",
+      "enum": [
+        "unknown",
+        "invalid_argument",
+        "credential_required",
+        "cancelled",
+        "stalled",
+        "authentication_failed",
+        "permission_denied",
+        "credits_exhausted",
+        "rate_limited",
+        "quota_exhausted",
+        "provider_overloaded",
+        "provider_unavailable",
+        "timeout",
+        "transport",
+        "context_overflow",
+        "output_limit",
+        "truncated",
+        "model_not_found",
+        "no_endpoints",
+        "invalid_request",
+        "moderation",
+        "refusal",
+        "tools_unsupported",
+        "budget_exhausted",
+        "backend_missing",
+        "backend_login_required",
+        "server_error",
+        "cursor_expired"
+      ]
+    },
+    "message": {"type": "string", "minLength": 1},
+    "retry_after_ms": {"type": "integer", "minimum": 1},
+    "remedy": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": true
+}

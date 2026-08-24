@@ -73,6 +73,9 @@ jobs:
       - name: offline installer safety matrix
         run: make installer
 
+      - name: language-neutral protocol contract
+        run: make spec
+
       - name: release artifact contract
         run: make release-check
 

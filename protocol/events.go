@@ -30,6 +30,20 @@ const (
 	EventPermissionRequested EventType = "permission.requested"
 	// EventPermissionResolved records the decision for one permission request.
 	EventPermissionResolved EventType = "permission.resolved"
+	// EventSubagentStarted announces one child turn owned by a parent turn.
+	EventSubagentStarted EventType = "subagent.started"
+	// EventSubagentFinished records one child turn's terminal outcome.
+	EventSubagentFinished EventType = "subagent.finished"
+	// EventUsageReported carries one model row for one physical attempt.
+	EventUsageReported EventType = "usage.reported"
+	// EventScoreRecorded carries one typed evaluation of a protocol target.
+	EventScoreRecorded EventType = "score.recorded"
+	// EventCheckpointCreated announces one durable pre-write snapshot entry.
+	EventCheckpointCreated EventType = "checkpoint.created"
+	// EventError carries one terminal failure using the shared error entity.
+	EventError EventType = "error"
+	// EventLog carries one structured non-error diagnostic.
+	EventLog EventType = "log"
 	// EventSessionStarted announces the initial live-session projection.
 	EventSessionStarted EventType = "session.started"
 	// EventSessionUpdated carries a non-empty patch to the live-session projection.
@@ -43,6 +57,38 @@ const (
 	// EventTurnCancelled records why a turn was cancelled.
 	EventTurnCancelled EventType = "turn.cancelled"
 )
+
+var knownEventTypes = []EventType{
+	EventHello,
+	EventMessageDelta,
+	EventMessageCompleted,
+	EventReasoningDelta,
+	EventToolRequested,
+	EventToolStarted,
+	EventToolOutput,
+	EventToolFinished,
+	EventPermissionRequested,
+	EventPermissionResolved,
+	EventSubagentStarted,
+	EventSubagentFinished,
+	EventUsageReported,
+	EventScoreRecorded,
+	EventCheckpointCreated,
+	EventError,
+	EventLog,
+	EventSessionStarted,
+	EventSessionUpdated,
+	EventSessionEnded,
+	EventTurnStarted,
+	EventTurnFinished,
+	EventTurnCancelled,
+}
+
+// KnownEventTypes returns the ordered event vocabulary shipped by this
+// protocol binding. The returned slice is a copy and may be modified freely.
+func KnownEventTypes() []EventType {
+	return append([]EventType(nil), knownEventTypes...)
+}
 
 // HelloData is the payload of EventHello and the future /v1/hello response.
 type HelloData struct {
@@ -145,6 +191,95 @@ type PermissionResolvedData struct {
 	ID       string             `json:"id"`
 	Decision PermissionDecision `json:"decision"`
 	Reason   string             `json:"reason,omitempty"`
+}
+
+// SubagentStartedData correlates a parent turn with one child task and turn.
+// Index and Total are 1-based presentation coordinates, not scheduler state.
+type SubagentStartedData struct {
+	ID        string `json:"id"`
+	ChildTurn string `json:"child_turn"`
+	Task      string `json:"task"`
+	Mode      string `json:"mode"`
+	Index     int    `json:"index"`
+	Total     int    `json:"total"`
+}
+
+// SubagentFinishedData records the outcome of one correlated child turn. The
+// child turn's completed message and diagnostics own result and error text.
+type SubagentFinishedData struct {
+	ID        string `json:"id"`
+	ChildTurn string `json:"child_turn"`
+	Mode      string `json:"mode"`
+	OK        bool   `json:"ok"`
+}
+
+// CheckpointCreatedData identifies one durable pre-write snapshot without
+// exposing backup storage details or file content.
+type CheckpointCreatedData struct {
+	ID      string `json:"id"`
+	Reason  string `json:"reason"`
+	Tool    string `json:"tool"`
+	Path    string `json:"path"`
+	Existed bool   `json:"existed"`
+}
+
+// LogLevel is the closed severity vocabulary for non-error diagnostics.
+type LogLevel string
+
+const (
+	LogLevelDebug LogLevel = "debug"
+	LogLevelInfo  LogLevel = "info"
+	LogLevelWarn  LogLevel = "warn"
+)
+
+func validLogLevel(level LogLevel) bool {
+	return level == LogLevelDebug || level == LogLevelInfo || level == LogLevelWarn
+}
+
+// LogCode is the closed machine-readable diagnostic vocabulary.
+type LogCode string
+
+const (
+	LogCodeToolsDropped      LogCode = "tools_dropped"
+	LogCodeToolsUnverified   LogCode = "tools_unverified"
+	LogCodeModelIgnored      LogCode = "model_ignored"
+	LogCodeModelRotated      LogCode = "model_rotated"
+	LogCodeEffortClamped     LogCode = "effort_clamped"
+	LogCodeEffortUnsupported LogCode = "effort_unsupported"
+	LogCodeCacheUnsupported  LogCode = "cache_unsupported"
+	LogCodeHistoryTruncated  LogCode = "history_truncated"
+	LogCodeHistoryLost       LogCode = "history_lost"
+	LogCodeFallbackIgnored   LogCode = "fallback_ignored"
+	LogCodeUsageUnavailable  LogCode = "usage_unavailable"
+	LogCodeCostUnavailable   LogCode = "cost_unavailable"
+	LogCodeParamDropped      LogCode = "param_dropped"
+	LogCodeToolCallTruncated LogCode = "tool_call_truncated"
+	LogCodeToolIDRewritten   LogCode = "tool_id_rewritten"
+	LogCodeDeltasDropped     LogCode = "deltas_dropped"
+)
+
+func validLogCode(code LogCode) bool {
+	switch code {
+	case LogCodeToolsDropped, LogCodeToolsUnverified, LogCodeModelIgnored, LogCodeModelRotated,
+		LogCodeEffortClamped, LogCodeEffortUnsupported, LogCodeCacheUnsupported,
+		LogCodeHistoryTruncated, LogCodeHistoryLost, LogCodeFallbackIgnored,
+		LogCodeUsageUnavailable, LogCodeCostUnavailable, LogCodeParamDropped,
+		LogCodeToolCallTruncated, LogCodeToolIDRewritten, LogCodeDeltasDropped:
+		return true
+	default:
+		return false
+	}
+}
+
+// LogData is one structured non-error diagnostic. Was and Became describe a
+// transition only when Field names the affected request or runtime field.
+type LogData struct {
+	Level   LogLevel `json:"level"`
+	Code    LogCode  `json:"code"`
+	Field   string   `json:"field,omitempty"`
+	Was     string   `json:"was,omitempty"`
+	Became  string   `json:"became,omitempty"`
+	Message string   `json:"message,omitempty"`
 }
 
 // SessionStartedData is the payload of EventSessionStarted.
@@ -364,6 +499,123 @@ func validateEventData(event EventType, raw json.RawMessage) error {
 			return fmt.Errorf("protocol: %s data.reason must be non-empty and string-valued when present", event)
 		}
 		return nil
+	case EventSubagentStarted:
+		var data SubagentStartedData
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		if err := validateSubagentCorrelation(event, data.ID, data.ChildTurn, data.Mode); err != nil {
+			return err
+		}
+		if data.Task == "" {
+			return fmt.Errorf("protocol: %s data.task must be non-empty", event)
+		}
+		if data.Index < 1 {
+			return fmt.Errorf("protocol: %s data.index must be at least 1", event)
+		}
+		if data.Total < 1 {
+			return fmt.Errorf("protocol: %s data.total must be at least 1", event)
+		}
+		if data.Index > data.Total {
+			return fmt.Errorf("protocol: %s data.index must not exceed data.total", event)
+		}
+		return nil
+	case EventSubagentFinished:
+		var data struct {
+			ID        string `json:"id"`
+			ChildTurn string `json:"child_turn"`
+			Mode      string `json:"mode"`
+			OK        *bool  `json:"ok"`
+		}
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		if err := validateSubagentCorrelation(event, data.ID, data.ChildTurn, data.Mode); err != nil {
+			return err
+		}
+		if data.OK == nil {
+			return fmt.Errorf("protocol: %s data.ok must be present and boolean-valued", event)
+		}
+		return nil
+	case EventUsageReported:
+		if err := validateUsageEntity(raw); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		return nil
+	case EventScoreRecorded:
+		if err := validateScoreEntity(raw); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		return nil
+	case EventCheckpointCreated:
+		var data struct {
+			ID      string `json:"id"`
+			Reason  string `json:"reason"`
+			Tool    string `json:"tool"`
+			Path    string `json:"path"`
+			Existed *bool  `json:"existed"`
+		}
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		for _, field := range []struct {
+			name  string
+			value string
+		}{
+			{name: "id", value: data.ID},
+			{name: "reason", value: data.Reason},
+			{name: "tool", value: data.Tool},
+			{name: "path", value: data.Path},
+		} {
+			if field.value == "" {
+				return fmt.Errorf("protocol: %s data.%s must be non-empty", event, field.name)
+			}
+		}
+		if data.Existed == nil {
+			return fmt.Errorf("protocol: %s data.existed must be present and boolean-valued", event)
+		}
+		return nil
+	case EventError:
+		if err := validateErrorEntity(raw); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		return nil
+	case EventLog:
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		var data LogData
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		if !validLogLevel(data.Level) {
+			return fmt.Errorf("protocol: %s data.level is not defined", event)
+		}
+		if !validLogCode(data.Code) {
+			return fmt.Errorf("protocol: %s data.code is not defined", event)
+		}
+		for _, field := range []struct {
+			name  string
+			value string
+		}{
+			{name: "field", value: data.Field},
+			{name: "was", value: data.Was},
+			{name: "became", value: data.Became},
+			{name: "message", value: data.Message},
+		} {
+			if _, present := fields[field.name]; present && field.value == "" {
+				return fmt.Errorf("protocol: %s data.%s must be non-empty and string-valued when present", event, field.name)
+			}
+		}
+		_, fieldPresent := fields["field"]
+		if _, present := fields["was"]; present && !fieldPresent {
+			return fmt.Errorf("protocol: %s data.was requires data.field", event)
+		}
+		if _, present := fields["became"]; present && !fieldPresent {
+			return fmt.Errorf("protocol: %s data.became requires data.field", event)
+		}
+		return nil
 	case EventSessionStarted:
 		var data SessionStartedData
 		if err := json.Unmarshal(raw, &data); err != nil {
@@ -467,6 +719,19 @@ func validateEventData(event EventType, raw json.RawMessage) error {
 	}
 	if text == "" {
 		return fmt.Errorf("protocol: %s data.text must be non-empty", event)
+	}
+	return nil
+}
+
+func validateSubagentCorrelation(event EventType, id, childTurn, mode string) error {
+	if !validID(id, 'k') {
+		return fmt.Errorf("protocol: %s data.id must be a canonical k_ ULID", event)
+	}
+	if !validID(childTurn, 't') {
+		return fmt.Errorf("protocol: %s data.child_turn must be a canonical t_ ULID", event)
+	}
+	if mode == "" {
+		return fmt.Errorf("protocol: %s data.mode must be non-empty", event)
 	}
 	return nil
 }

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/events/subagent.started.json",
+  "title": "subagent.started payload",
+  "type": "object",
+  "required": ["id", "child_turn", "task", "mode", "index", "total"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^k_[0-7][0-9A-HJKMNP-TV-Z]{25}$"},
+    "child_turn": {"type": "string", "pattern": "^t_[0-7][0-9A-HJKMNP-TV-Z]{25}$"},
+    "task": {"type": "string", "minLength": 1},
+    "mode": {"type": "string", "minLength": 1},
+    "index": {"type": "integer", "minimum": 1},
+    "total": {"type": "integer", "minimum": 1}
+  },
+  "additionalProperties": true
+}

@@ -2701,8 +2701,9 @@ so the engine has something to publish into:
    channel.
 3. **`tool.requested` gains `executed_by: "kolk" | "provider"`**, so one tool lifecycle serves every
    backend and a client never needs to know which adapter it is attached to.
-4. **`log`'s payload is declared**: `{level, code, field, was, became, message}` with `code` from the
-   closed `Warn*` list — no free-form JSON on the one event type nobody thought to close.
+4. **`log`'s payload is declared**: `{level, code, field, was, became, message}` with provider codes
+   from the closed `Warn*` list and core `deltas_dropped` reserved for bus backpressure — no
+   free-form JSON on the one event type nobody thought to close.
 
 ---
 

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/events/checkpoint.created.json",
+  "title": "checkpoint.created payload",
+  "type": "object",
+  "required": ["id", "reason", "tool", "path", "existed"],
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "reason": {"type": "string", "minLength": 1},
+    "tool": {"type": "string", "minLength": 1},
+    "path": {"type": "string", "minLength": 1},
+    "existed": {"type": "boolean"}
+  },
+  "additionalProperties": true
+}

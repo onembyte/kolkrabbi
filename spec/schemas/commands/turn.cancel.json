@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/commands/turn.cancel.json",
+  "title": "turn.cancel command",
+  "type": "object",
+  "required": ["turn_id"],
+  "properties": {
+    "turn_id": {"type": "string", "pattern": "^t_[0-7][0-9A-HJKMNP-TV-Z]{25}$"}
+  },
+  "additionalProperties": true
+}

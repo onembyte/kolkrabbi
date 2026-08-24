@@ -377,6 +377,36 @@ Acceptance checklist:
 - [x] focused CLI tests and every repository gate pass; command/static-surface tests and build log
   record red/green/refactor.
 
+#### U0.2e narrated update progress — verified acceptance
+
+Scope:
+
+- Make both `kolk update` and in-session `/update` print the running version before beginning the
+  network check, followed by an explicit latest-release check line.
+- End unchanged checks with `Kolk is up to date (<version>)`; end replacements with the normalized
+  current→latest transition and installed path, retaining in-session restart guidance.
+- Use one injected running-version seam in CLI tests so the pre-network line is deterministic and
+  production still reads the stamped build identity.
+
+Non-goals:
+
+- No updater algorithm, release discovery, artifact verification, replacement, retry, progress bar,
+  animation, background check, startup check, package-manager integration, or automatic relaunch.
+- No installer behavior in this leaf; T0.4b2 owns existing-install detection independently.
+
+Acceptance checklist:
+
+- [x] both command surfaces print `Current version:` before invoking the updater and then
+  `Checking for updates to latest version...`.
+- [x] unchanged equal-version output is exactly recognizable as `Kolk is up to date (<version>)`;
+  a newer local build names both versions, and neither path asks
+  for a restart.
+- [x] updated output names current→latest and the installed path; only the in-session form asks for
+  a restart.
+- [x] updater errors retain the already-printed current/check context and preserve existing top-level
+  exit and non-fatal REPL behavior.
+- [x] focused CLI tests and every repository gate pass; build log records red/green/refactor.
+
 Scope:
 
 - Add `kolk update` outside a session and `/update` inside a session; both call one updater and need
@@ -650,6 +680,39 @@ cannot download its GitHub Release assets until the owner approves the repositor
   or archive failures preserve an existing binary and cleanup all staging paths.
 - [x] Bash 3.2 syntax, ShellCheck, 56 offline matrix checks, adjacent site/release contracts, and the
   full repository gate pass.
+
+#### T0.4b2 existing-install version awareness — verified acceptance
+
+Scope:
+
+- After resolving the requested/latest release and destination, ask an executable existing target
+  for its stable `kolk version` identity before downloading release assets.
+- For an unpinned install, skip manifest/archive downloads when the installed version equals the
+  latest release, upgrade when it is older, and leave a newer local build untouched.
+- Preserve explicit `KOLK_VERSION` as an intentional exact reinstall/pinning override and preserve
+  the current verified atomic replacement path for upgrades.
+
+Non-goals:
+
+- No background/startup update, package-manager receipt, privilege escalation, alternate install
+  path, prerelease ordering, Windows, rollback, auto-run after update, or updater-Go-code change.
+- No trust in unrecognized version output: failure to obtain one stable version falls back to the
+  existing verified reinstall path rather than skipping installation.
+
+Acceptance checklist:
+
+- [x] an older unpinned installation reports current→latest, downloads verified assets, and replaces
+  the binary with the latest executable.
+- [x] an equal unpinned installation reports up to date and performs only latest-version discovery,
+  with no checksum/archive request or target mutation.
+- [x] a newer unpinned installation names current/latest, performs no artifact request, and remains
+  byte-identical.
+- [x] malformed or failing existing version output cannot suppress installation; an explicit pinned
+  version still installs even when an existing stable version compares equal or newer.
+- [x] the numeric three-component comparison is Bash-3.2-compatible and handles component widths
+  without shell-integer overflow or lexical `0.10` mistakes.
+- [x] installer syntax, focused offline matrix, adjacent release/site checks, and every repository
+  gate pass; build log records red/green/refactor.
 
 #### T0.4c tag workflow acceptance
 
@@ -1055,8 +1118,25 @@ Delivery slices:
   per shipped event without connecting the engine yet.
 - [ ] **A6.3 commands, entities, and errors** — client commands, shared entities, stable error
   mapping, and their conformance fixtures.
-- [ ] **A6.4 transport contract closure** — NDJSON/SSE framing rules, stream fixtures, OpenAPI
+- [x] **A6.4 transport contract closure** — NDJSON/SSE framing rules, stream fixtures, OpenAPI
   shape, spec-change CI guard, and the complete A6 gate.
+
+A6.4 is split so byte framing lands before any daemon route or long-lived reader:
+
+- [x] **A6.4a single-event framing** — normative stdio/SSE rules plus byte-identical NDJSON and SSE
+  encoders and the heartbeat comment.
+- [x] **A6.4b stream decoding and fixtures** — bounded NDJSON/SSE decoding and complete multi-event
+  conformance streams after the single-frame grammar is fixed.
+  - [x] **A6.4b1 bounded decoder grammar** — callback streaming, exact transport syntax, metadata
+    integrity, heartbeat filtering, and a hard frame limit.
+  - [x] **A6.4b2 whole-turn fixtures** — canonical NDJSON/SSE multi-event streams and cross-format
+    conformance after the reader grammar is green.
+    - [x] **A6.4b2a owner-stable turn streams** — code, permission-denied, and agent-fanout fixture
+      pairs; saga and resume fixtures stay dependency-gated.
+- [x] **A6.4c OpenAPI shape** — only endpoints whose commands/entities are shipped, with deferred
+  A10-owned surfaces excluded honestly.
+- [x] **A6.4d spec-change guard and A6 closure** — changelog enforcement, whole-contract inventory,
+  and the complete migration gate.
 
 A6.2 is intentionally delivered as independently reviewable vocabulary slices:
 
@@ -1067,6 +1147,66 @@ A6.2 is intentionally delivered as independently reviewable vocabulary slices:
 - [x] **A6.2c tools and decisions** — tool and permission events.
 - [ ] **A6.2d orchestration and operations** — subagent, chapter, checkpoint, accounting, score,
   error, and log events, followed by a complete closed-vocabulary check.
+
+A6.2d is split by lifecycle owner and durability requirement:
+
+- [x] **A6.2d1 subagent lifecycle** — parent/child turn correlation, task identity, resolved mode,
+  ordinal presentation, and terminal outcome.
+- [ ] **A6.2d2 saga chapter lifecycle** — chapter identity, sequence, goal, and terminal outcome.
+- [x] **A6.2d3 checkpoints** — durable checkpoint identity and the reason it was created.
+- [x] **A6.2d4 accounting and score** — usage and score payloads with explicit unknown-value
+  semantics.
+- [x] **A6.2d5 diagnostics and closure** — stable error and log payloads plus a test proving every
+  shipped event name has exactly one schema and golden frame.
+
+A6.2d4 separates machine accounting from human or automated evaluation:
+
+- [x] **A6.2d4a usage reported** — one model-attempt accounting row, nullable measurements,
+  provenance, comparability class, and attempt context.
+- [x] **A6.2d4b score recorded** — target identity, scorer identity, typed value, and source.
+
+A6.2d5 separates ordinary diagnostics from the shared error entity and the final catalog proof:
+
+- [x] **A6.2d5a log diagnostics** — level, closed code, optional field transition, and message.
+- [x] **A6.2d5b error event** — scheduled with A6.3's stable error entity so transport and event
+  failures cannot diverge.
+- [x] **A6.2d5c vocabulary closure** — prove every shipped event constant has exactly one schema and
+  golden frame after the error event exists.
+
+A6.3 is split so the error event can reuse one public entity instead of inventing transport-only
+failure semantics:
+
+- [x] **A6.3a error entity and mapping** — one closed error-code vocabulary, safe display fields,
+  and one authoritative code-to-HTTP-status, shell-exit, and default-retryability table.
+- [ ] **A6.3b shared entities** — session, model, usage, permission, score, chapter, and span shapes
+  after each owning subsystem has frozen its identity and persistence semantics.
+- [ ] **A6.3c client commands** — imperative command bodies and correlation for turn, permission,
+  and session operations after their target entities are stable.
+
+A6.3c is split at each mutation boundary:
+
+- [x] **A6.3c1 permission resolve** — correlate one pending request with one closed decision; the
+  server owns timeout/reason enrichment on the resolved event.
+- [x] **A6.3c2 turn cancel** — cancel one canonical turn ID without transporting a Go context.
+- [ ] **A6.3c3 turn create** — deferred until A10 freezes whether creation resumes an existing
+  canonical session or creates a new one and which session projection is accepted.
+- [ ] **A6.3c4 session fork/list** — deferred with the A6.3b4 session entity and A10 format cut.
+- [x] **A6.3c5 command vocabulary closure** — prove every shipped command constant has exactly one
+  schema and golden body without publishing placeholders for deferred commands.
+
+A6.3b follows the owning subsystem instead of publishing speculative aggregate objects:
+
+- [x] **A6.3b1 usage entity** — extract the already-frozen `usage.reported` row into one shared
+  entity and make the event reference it.
+- [x] **A6.3b2 score entity** — extract the already-frozen typed evaluation after usage proves the
+  entity-reference pattern.
+- [ ] **A6.3b3 permission entity** — deferred until A8 freezes pending-decision state and expiry.
+- [ ] **A6.3b4 session entity** — deferred until A10 replaces legacy IDs/messages and freezes the
+  on-disk migration fixture.
+- [ ] **A6.3b5 model entity** — deferred until the hardened provider catalog owns capabilities and
+  price provenance instead of today's provider-specific partial row.
+- [ ] **A6.3b6 chapter and span entities** — deferred with PLAN item 10's saga state machine and
+  tracing identity.
 
 A6.2b is split at the four payload decisions so an unspecified lifecycle field cannot hitchhike
 with an already-settled one:
@@ -1491,6 +1631,674 @@ Acceptance checklist:
 - [x] an unknown payload field remains in the raw envelope after decode.
 - [x] the public package remains standard-library-only and disconnected from existing packages.
 - [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.2d1 subagent lifecycle acceptance
+
+Scope:
+
+- Define `subagent.started` and `subagent.finished` as public event names with one schema, typed
+  payload, and compact golden envelope each.
+- Emit both lifecycle frames on the parent turn. Require a canonical `k_` task `id` and canonical
+  `child_turn` so a client can associate the child turn's deltas, tools, completed message, usage,
+  and diagnostics with the correct parallel subagent.
+- Require `subagent.started` to carry the non-empty task description, non-empty resolved `mode`,
+  and 1-based `index` and `total`; the index may not exceed the total.
+- Require `subagent.finished` to repeat task identity, child-turn identity, and resolved mode, and
+  to carry a required boolean `ok` terminal outcome.
+- Keep both events additive with unknown payload fields retained by the envelope.
+
+Non-goals:
+
+- No model, effort, provider, timing, token, cost, output, summary, error text, tool state, or
+  permission state. The child `turn.started`, `message.completed`, `usage.reported`, `error`, tool,
+  and permission events own those facts.
+- No nested subagent tree, background task, retry attempt, scheduling priority, concurrency limit,
+  or cross-event state machine. Item 14 owns orchestration policy; this slice only makes its
+  lifecycle representable.
+- No event bus, engine/orchestrator integration, parallel execution, renderer, persistence,
+  transport, or CLI output change.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] both constants exactly match their schema filenames and golden-envelope type values.
+- [x] both schemas require canonical task and child-turn IDs plus a non-empty mode, permit unknown
+  fields, and encode no child result or error detail.
+- [x] started requires a non-empty task and integer index/total values of at least one, with index
+  no greater than total.
+- [x] finished requires an explicitly present boolean `ok`; missing, null, and non-boolean values
+  fail closed while both outcomes decode.
+- [x] both typed payloads decode their goldens, marshal in schema field order, and each complete
+  envelope round-trips byte-for-byte.
+- [x] unknown payload fields remain in raw envelopes after decode.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.2d4a usage reported acceptance
+
+Scope:
+
+- Define `usage.reported` as a public event name with one schema, typed payload, compact golden
+  envelope, and a language-neutral mapping from the hardened provider accounting fields.
+- Represent one accounting row for one model within one physical attempt. Require non-empty
+  `model`, `provider_name`, and `request_model`, plus the positive `attempt`, non-empty open-ended
+  `role` and `effort`, closed `cost_source`, and closed `measurement` vocabularies.
+- Allow optional non-empty `response_model`, `finish_reason`, `error_type`, and `gen_id` strings.
+- Allow optional non-negative integer `input_tokens`, `cache_read_tokens`, `cache_write_tokens`,
+  `output_tokens`, `reasoning_tokens`, and `ttft_ms` values, and optional non-negative numeric
+  `cost_usd`. Omission means unknown; an explicit zero remains measured zero.
+- Preserve the cost distinction: `unknown` requires an omitted cost, `free` requires an explicit
+  zero cost, and every other source requires an explicit cost.
+- Keep the event additive with unknown payload fields retained by the envelope.
+
+Non-goals:
+
+- No aggregate `total_tokens`; unknown component counts make a derived total potentially false.
+- No raw provider usage, prompt or response content, rotated-model list, pricing snapshot, currency,
+  budget, rate-limit state, tool count, rating, score, or session/turn IDs duplicated in data.
+- No requirement that response model, finish reason, error type, generation ID, token counts, cost,
+  or TTFT be known on every attempt.
+- No provider-to-protocol adapter, event bus, stats migration, dashboard ingestion, persistence,
+  transport, footer, or CLI output change.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the constant exactly matches its schema filename and golden-envelope type value.
+- [x] schema, typed payload, mapping table, and validator expose exactly the frozen known fields and
+  retain additive unknown fields.
+- [x] all required identity, provenance, attempt, role, and effort fields reject absent, null,
+  empty, malformed, or out-of-range values.
+- [x] token and latency fields distinguish omitted from zero and reject null, negative,
+  fractional, and non-numeric values.
+- [x] cost distinguishes omitted from zero, rejects null, negative, and non-numeric values, and
+  obeys the `unknown` / `free` / measured-source relationship.
+- [x] optional response, finish, error, and generation strings reject empty, null, and non-string
+  values when present.
+- [x] every defined cost source and measurement value decodes, while unknown vocabulary values fail
+  closed.
+- [x] the typed payload decodes the golden, marshals in schema field order, and the complete
+  envelope round-trips byte-for-byte.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.2d3 checkpoint created acceptance
+
+Scope:
+
+- Define `checkpoint.created` as a public event name with one schema, typed payload, and compact
+  golden envelope.
+- Represent one durable pre-write snapshot entry. Require a non-empty opaque `id`, non-empty
+  open-ended `reason`, non-empty tool and path strings, and an explicitly present boolean
+  `existed` describing the pre-write file state.
+- Emit the future runtime event only after the checkpoint store has durably recorded the entry and
+  before the corresponding write. The envelope remains the source of turn identity and event time.
+- Keep the event additive with unknown payload fields retained by the envelope.
+
+Non-goals:
+
+- No backup filename, snapshot bytes, checksum, file mode, secret/refusal metadata, store directory,
+  manifest sequence, internal turn number, or repeated session/turn/time fields.
+- No turn-level checkpoint aggregate, `checkpoint.updated`, rewind event, conversation rewind,
+  bash-made change tracking, shadow Git, diff, or redo state.
+- No checkpoint-store format change, ID generation, engine port, event bus, integration, persistence,
+  transport, renderer, `/changes`, `/rewind`, or CLI output change.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the constant exactly matches its schema filename and golden-envelope type value.
+- [x] the schema requires exactly ID, reason, tool, path, and existed as its known fields, permits
+  unknown fields, and carries no backup or envelope metadata.
+- [x] missing, empty, null, and non-string identity, reason, tool, or path values fail closed;
+  future non-empty reason/tool values remain valid.
+- [x] `existed` must be explicitly present and boolean-valued; both true and false decode.
+- [x] the typed payload decodes the golden, marshals in schema field order, and the complete
+  envelope round-trips byte-for-byte.
+- [x] unknown payload fields remain in the raw envelope after decode.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.2d5a log diagnostics acceptance
+
+Scope:
+
+- Define `log` as a public event name with one schema, typed payload, and compact golden envelope.
+- Require a closed `level` of `debug`, `info`, or `warn` and one closed diagnostic `code` covering
+  the hardened provider warnings plus `deltas_dropped` for bus backpressure.
+- Allow optional non-empty `field`, `was`, `became`, and `message` strings. Require `field` whenever
+  `was` or `became` is present so a client never guesses what changed.
+- Represent dropped-delta count inside the message while the field identifies the affected delta
+  family; do not add an incompatible private renderer payload.
+- Keep the event additive with unknown payload fields retained by the envelope.
+
+Non-goals:
+
+- No `error` log level, stack trace, provider exception object, retry policy, HTTP status, exit code,
+  or user remedy. The A6.3 error entity and `error` event own failures.
+- No arbitrary unregistered code, structured metadata bag, source file/line, logger name, span ID,
+  repeated event time, or secret-bearing raw value.
+- No provider translation, bus backpressure implementation, redaction, persistence, transport,
+  renderer, debug file, or CLI output change.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the constant exactly matches its schema filename and golden-envelope type value.
+- [x] the schema requires exactly level and code, exposes only the six frozen known fields, permits
+  unknown fields, and defines no error-only metadata.
+- [x] all three levels and every defined code decode; missing, null, non-string, and unknown values
+  fail closed.
+- [x] optional field/transition/message strings reject empty, null, and non-string values when
+  present, and transitions require a field.
+- [x] the typed payload decodes the golden, marshals in schema field order, and the complete
+  envelope round-trips byte-for-byte.
+- [x] unknown payload fields remain in the raw envelope after decode.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.2d4b score recorded acceptance
+
+Scope:
+
+- Define `score.recorded` as a public event name with one schema, typed payload, and compact golden
+  envelope.
+- Require a non-empty opaque score `id`, a closed `target_kind` of `session`, `turn`, or `span`,
+  the target `id`, a non-empty scorer `name`, a closed `data_type`, one value matching that type,
+  and a closed `source` of `human`, `judge`, or `implicit`.
+- Validate session and turn targets as canonical IDs. Keep span targets non-empty and opaque until
+  A6.3 freezes the shared span entity and identifier vocabulary.
+- Support numeric, categorical, boolean, and text values as their native JSON primitive. Require
+  categorical and text strings to be non-empty.
+- Require a non-empty `judge_model` only for judge-sourced scores and forbid it for other sources.
+  Allow an optional non-empty human-readable `explanation` for every source.
+- Keep the event additive with unknown payload fields retained by the envelope.
+
+Non-goals:
+
+- No universal scale, min/max, pass threshold, choice map, sampling rate, scorer prompt, expected
+  answer, model output, rating aggregation, or score replacement policy. Scorer configuration owns
+  those facts.
+- No score timestamp duplicated in data; the envelope owns creation time.
+- No canonical span ID decision, scorer registry, judge execution, implicit-signal collector,
+  `/rate` migration, event bus, stats/dashboard ingestion, persistence, transport, or CLI change.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the constant exactly matches its schema filename and golden-envelope type value.
+- [x] schema and typed payload expose exactly the frozen fields, encode the primitive value union,
+  permit unknown fields, and duplicate no envelope field.
+- [x] score identity, target kind/identity, and scorer name reject missing, null, empty, malformed,
+  or unknown values.
+- [x] all four data types accept only their matching JSON primitive; null, object, array, and
+  mismatched values fail closed, and categorical/text strings must be non-empty.
+- [x] all three source values decode; unknown sources fail closed; judge model is required only for
+  judge scores and optional explanation validates when present.
+- [x] the typed payload decodes the golden, retains the decoded value primitive, marshals in schema
+  field order, and the complete golden envelope round-trips byte-for-byte.
+- [x] unknown payload fields remain in the raw envelope after decode.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.3a error entity and mapping acceptance
+
+Scope:
+
+- Define one public error entity with a closed machine-readable `code`, a required safe display
+  `message`, an optional positive `retry_after_ms`, and an optional non-empty user-facing `remedy`.
+- Define one exhaustive table mapping every code to the Kolkrabbi HTTP response status, shell exit
+  code, and default retryability. HTTP status describes Kolkrabbi's transport response, not the raw
+  status returned by an upstream model provider.
+- Define retryability as a safe default before content is committed. The future decision policy may
+  still refuse a replay after content, cancellation, an exhausted attempt budget, or a long delay.
+- Keep client mistakes (`invalid_argument`, exit 2) distinct from an invalid upstream request
+  caused by Kolkrabbi (`invalid_request`, exit 1 and HTTP 500).
+- Cover current CLI failures, every hardened provider failure kind, and `cursor_expired` for event
+  replay outside the retained window.
+
+Non-goals:
+
+- No provider raw body, provider error code, stack trace, secret-bearing metadata, arbitrary detail
+  map, model rotation list, cooldown state, partial output, or retry-policy attempt counters.
+- No duplicate HTTP status, exit code, or retryable boolean on the wire; all three derive from the
+  stable code table.
+- No provider error translation, CLI exit refactor, HTTP handler, event emission, bus, persistence,
+  renderer, automatic retry, or model switch in this slice.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the language-neutral schema and compact golden entity expose only the four frozen fields,
+  require code/message, permit additive unknown fields, and contain no private provider data.
+- [x] all 28 codes have exactly one HTTP/exit/retryability row, and schema, Markdown table, Go
+  constants, and Go lookup behavior agree exhaustively.
+- [x] missing, null, empty, wrongly typed, or unknown code/message values fail closed.
+- [x] optional retry delay accepts only positive integer milliseconds; optional remedy accepts only
+  a non-empty string; both reject explicit null.
+- [x] typed JSON preserves field order, implements a safe Go error string, and derives policy only
+  from the code while invalid programmatic codes fail closed.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.2d5b error event acceptance
+
+Scope:
+
+- Define `error` as a public event name whose data is exactly the A6.3a shared error entity.
+- Make the event schema reference the entity schema and make the Go event decoder call the same
+  entity validator, so transport and event failures cannot drift.
+- Keep envelope session, turn, sequence, and timestamp as the only event context.
+
+Non-goals:
+
+- No second error vocabulary, copied policy columns, severity, stack trace, provider raw body,
+  source location, attempt state, partial content, automatic retry, rotation, or rendering decision.
+- No event ordering or exactly-once rule; A7 owns bus delivery and A8/A9 own terminal orchestration.
+- No provider translation, CLI exit refactor, HTTP response, persistence, transport, or UI change.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the `error` constant exactly matches its schema filename and golden-envelope type value.
+- [x] the event schema references the one shared error schema instead of restating any entity field.
+- [x] the event accepts every defined code and rejects malformed entity data through the shared
+  validator.
+- [x] the golden event data is byte-identical to the golden entity, decodes into the public error
+  type, and the complete envelope round-trips byte-for-byte.
+- [x] unknown entity fields remain in the raw envelope after decode.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.2d5c event vocabulary closure acceptance
+
+Scope:
+
+- Define one ordered public catalog of every event shipped by protocol version 0.
+- Parse the Go declarations in conformance tests and prove every exported `Event…` constant is an
+  explicit `EventType` string literal represented exactly once in the catalog.
+- Prove the catalog, event-schema filenames, schema IDs, golden-envelope filenames, and decoded
+  golden types are the same set with no missing or orphan contract file.
+
+Non-goals:
+
+- No saga chapter event placeholders; an event is not shipped until its owning state machine is
+  frozen and its constant, schema, fixture, payload, and validator land together.
+- No rejection of syntactically valid future event names. Unknown events remain forward-compatible
+  even though the current shipped catalog is closed and enumerable.
+- No stream ordering, cross-event lifecycle validation, bus, persistence, transport, provider,
+  engine, CLI, or UI behavior.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the public catalog contains exactly the 23 currently shipped event types in architectural
+  order and returns a defensive copy.
+- [x] AST-derived exported event constants and catalog values match exactly with no duplicate name
+  or wire value.
+- [x] schema and golden directories each contain exactly one file per catalog value and no orphan.
+- [x] every schema is valid JSON with the canonical versioned ID, and every golden decodes to the
+  event type named by its filename.
+- [x] a syntactically valid unknown event still decodes, preserving forward compatibility.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.3b1 usage entity acceptance
+
+Scope:
+
+- Promote the already-frozen per-model, per-physical-attempt accounting row into
+  `schemas/entities/usage.json` and a public `Usage` Go type.
+- Preserve `UsageReportedData` as an alias of that shared type and make `usage.reported` reference
+  the entity schema and call the entity validator.
+- Add a compact entity golden whose bytes are exactly the data bytes in the existing event golden.
+
+Non-goals:
+
+- No aggregate session/model usage response, new fields, changed unknown/zero semantics, cost
+  calculation, provider translation, recorder migration, database, dashboard, or export behavior.
+- No schema duplication between entity and event and no second Go struct for the same row.
+- No event bus, engine integration, persistence, transport, CLI, or UI change.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the entity schema owns the exact 19-field accounting contract and the event schema contains
+  only a reference to it.
+- [x] `Usage` is the sole Go struct while `UsageReportedData` remains a source-compatible alias.
+- [x] entity and event use the same validator and preserve all prior presence, cost-source, and
+  measurement invariants.
+- [x] entity golden bytes exactly equal event golden data and typed JSON field order remains stable.
+- [x] unknown entity fields remain forward-compatible.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.3b2 score entity acceptance
+
+Scope:
+
+- Promote the already-frozen typed evaluation into `schemas/entities/score.json` and a public
+  `Score` Go type.
+- Preserve `ScoreRecordedData` as an alias of that shared type and make `score.recorded` reference
+  the entity schema and call the entity validator.
+- Add a compact entity golden whose bytes are exactly the data bytes in the existing event golden.
+
+Non-goals:
+
+- No new score fields, score scale, aggregation, replacement policy, scorer configuration, judge
+  execution, implicit-signal collection, canonical span identity, or stats migration.
+- No schema duplication between entity and event and no second Go struct for the same evaluation.
+- No event bus, engine integration, persistence, transport, CLI, or UI change.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the entity schema owns the exact nine-field evaluation contract and its five conditional
+  clauses; the event schema contains only a reference to it.
+- [x] `Score` is the sole Go struct while `ScoreRecordedData` remains a source-compatible alias.
+- [x] entity and event use the same validator and preserve target, value-type, source, judge-model,
+  and explanation invariants.
+- [x] entity golden bytes exactly equal event golden data and typed JSON/RawMessage behavior stays
+  stable.
+- [x] unknown entity fields remain forward-compatible.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.3c1 permission resolve command acceptance
+
+Scope:
+
+- Define `permission.resolve` as a client-to-server command name with a language-neutral schema,
+  compact golden body, and public Go binding.
+- Require one non-empty opaque pending-permission `id` and one existing closed decision of `allow`,
+  `allow_session`, or `deny`.
+- Permit additive unknown fields for protocol evolution while keeping the two known fields exact.
+
+Non-goals:
+
+- No client-supplied resolution `reason`; server timeout/policy context belongs on the emitted
+  `permission.resolved` event.
+- No pending-permission entity, ID format, expiry, conflict/already-resolved response, decision
+  storage, timeout policy, HTTP path, stdio wrapper, event emission, or engine decision port.
+- No second decision enum and no import from private engine/agent packages.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] command constant, schema filename, schema ID, and golden filename agree on
+  `permission.resolve`.
+- [x] schema and Go binding expose exactly `id` then `decision`, require both, permit additive
+  unknown fields, and define no reason/tool/detail/expiry fields.
+- [x] all three existing decisions validate; missing, null, empty, wrongly typed, or unknown ID or
+  decision values fail closed.
+- [x] typed JSON preserves field order and the golden body round-trips byte-for-byte.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.3c2 turn cancel command acceptance
+
+Scope:
+
+- Define `turn.cancel` as a client-to-server command name with a language-neutral schema, compact
+  golden body, and public Go binding.
+- Require exactly one canonical `turn_id`, allowing every transport and native binding to cancel by
+  value without carrying a Go `context.Context`.
+- Permit additive unknown fields for protocol evolution while keeping the known target exact.
+
+Non-goals:
+
+- No client-supplied cancellation reason; the server emits the factual reason on `turn.cancelled`.
+- No session ID, cancellation result body, idempotency/conflict policy, turn registry, context
+  lookup, HTTP path, stdio wrapper, event emission, or engine integration.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] command constant, schema filename, schema ID, and golden filename agree on `turn.cancel`.
+- [x] schema and Go binding expose exactly one required `turn_id`, permit additive unknown fields,
+  and define no session/reason/runtime fields.
+- [x] canonical turn IDs validate; missing, null, empty, wrongly typed, or noncanonical values fail
+  closed, including session/task IDs with otherwise valid ULID bodies.
+- [x] typed JSON preserves field order and the golden body round-trips byte-for-byte.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.3c5 command vocabulary closure acceptance
+
+Scope:
+
+- Define one ordered public catalog of commands actually shipped by protocol version 0.
+- Parse Go declarations in conformance tests and prove every exported `Command…` constant is an
+  explicit `CommandType` string literal represented exactly once in the catalog.
+- Prove catalog values, command-schema filenames, canonical schema IDs, golden-body filenames, and
+  validators are the same set with no missing or orphan contract file.
+
+Non-goals:
+
+- No `turn.create`, `session.fork`, or `session.list` placeholder before their A10-owned session
+  semantics are stable.
+- No command envelope, transport dispatch, HTTP route, stdio framing, authentication, or handler.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the public catalog contains exactly `turn.cancel` and `permission.resolve` in architectural
+  order and returns a defensive copy.
+- [x] AST-derived exported command constants and catalog values match exactly with no duplicate
+  name or wire value.
+- [x] schema and golden directories each contain exactly one file per catalog value and no orphan.
+- [x] every schema has the canonical versioned ID; every golden is one valid JSON object accepted by
+  its command validator.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.4a single-event framing acceptance
+
+Scope:
+
+- Define normative event framing in `spec/stdio.md` for stdout NDJSON, child stdio NDJSON, and HTTP
+  SSE without defining command-direction framing prematurely.
+- Add public encoders for one validated NDJSON event line and one validated SSE event block.
+- Require SSE `id` to be the decimal envelope sequence, `event` to be the exact event type, and
+  `data` to be the exact compact envelope bytes used by NDJSON.
+- Define the SSE heartbeat as the exact comment block `: ping\n\n`; timing remains server policy.
+
+Non-goals:
+
+- No stream reader, multi-line SSE input, retry field/value, Last-Event-ID handling, heartbeat
+  scheduler, HTTP flush, content type, event replay, bus, daemon, CLI flag, or command stdio wrapper.
+- No normalization, pretty printing, CRLF, multiline data field, blank NDJSON line, or trailing
+  whitespace.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the framing document gives exact byte grammars and states the NDJSON/SSE data identity rule.
+- [x] NDJSON encoding is exactly `Encode(envelope)` plus one LF; SSE encoding is exactly decimal
+  id, wire event, identical data, and one terminating blank line.
+- [x] Unicode and escaped embedded newlines remain one physical NDJSON/data line with no CR bytes.
+- [x] invalid envelopes fail before emitting either transport form.
+- [x] heartbeat bytes are exact and returned through defensive storage.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.4b1 bounded decoder grammar acceptance
+
+Scope:
+
+- Add one callback-based public stream decoder with explicit NDJSON and SSE formats; it retains no
+  event collection and stops immediately when the callback returns an error.
+- Bound each decoded envelope JSON frame to 1 MiB without relying on `bufio.Scanner`'s implicit
+  64 KiB ceiling or an unbounded `ReadString` allocation.
+- Accept only complete LF-terminated NDJSON lines and complete Kolkrabbi SSE blocks. Ignore only
+  the exact `: ping\n\n` heartbeat block.
+- Verify canonical SSE `id` and `event` metadata against the decoded envelope before delivery.
+
+Non-goals:
+
+- No whole-turn conformance fixture, sequence-contiguity policy, event collection, replay cursor,
+  `retry` field, `Last-Event-ID`, reconnect, HTTP response, flush, bus, daemon, or CLI integration.
+- No general-purpose WHATWG SSE parser: CRLF, multiline `data`, reordered fields, unknown comments,
+  extension fields, and unterminated final lines/blocks are outside Kolkrabbi's exact wire grammar.
+- No command-direction stream, provider-vendor stream, installer publication, release tag,
+  deployment, or clean-machine rehearsal.
+
+Acceptance checklist:
+
+- [x] NDJSON and SSE streams deliver validated envelopes in order without accumulating a result
+  slice; empty streams succeed.
+- [x] only LF-terminated frames/blocks are accepted; blank NDJSON lines, CR bytes, transport
+  whitespace, partial EOF frames, malformed envelopes, and malformed SSE structure fail closed.
+- [x] exact heartbeat blocks are ignored; other comments and malformed heartbeats fail closed.
+- [x] SSE IDs are canonical unsigned decimal and equal envelope sequence; SSE event names equal the
+  envelope type before the callback runs.
+- [x] frames of exactly 1 MiB are accepted in both transports and a one-byte-larger frame returns a
+  stable size-limit error without invoking its callback.
+- [x] callback errors stop reading immediately and are returned without losing identity.
+- [x] the public package remains standard-library-only and disconnected from existing packages.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.4b2a owner-stable turn streams acceptance
+
+Scope:
+
+- Add canonical `code-turn`, `permission-denied`, and `agent-fanout` NDJSON fixtures under
+  `spec/testdata/streams/`, each with an exact SSE twin derived from the same envelope bytes.
+- Require each fixture to be one session log with contiguous positive sequence numbers, monotonic
+  timestamps, complete LF/block termination, validated event payloads, and an explicit terminal
+  `turn.finished`.
+- Freeze semantic ordering for a simple streamed answer, a denied Kolkrabbi-owned tool, and one
+  parent/child agent turn with correlated task/turn identities and per-attempt usage rows.
+
+Dependency blockers:
+
+- `saga-chapter` remains absent until A6.2d2/PLAN item 10 owns chapter state and terminal outcomes.
+- `resume-after-drop` remains absent until A7/A11 own retained-log cursors, replay, and
+  `cursor_expired`; a static fixture must not guess those semantics first.
+
+Non-goals:
+
+- No event producer, sequence allocator, clock, bus, engine integration, CLI stream flag, server,
+  HTTP response, heartbeat insertion, cursor/replay, command stream, or fixture generator.
+- No claim that all future stream scenarios ship; only owner-stable scenarios may enter the exact
+  fixture inventory.
+
+Acceptance checklist:
+
+- [x] the stream directory contains exactly three `.ndjson`/`.sse` basename pairs and no orphan or
+  deferred placeholder.
+- [x] every NDJSON byte stream equals concatenated `EncodeNDJSON` output; every SSE stream equals
+  concatenated `EncodeSSE` output over the same decoded envelopes.
+- [x] both decoders return byte-identical ordered envelopes with sequence 1..N, one session,
+  monotonic timestamps, and the declared event-type sequence.
+- [x] code-turn completes streamed reasoning/text plus authoritative message and one usage row before
+  terminal turn completion.
+- [x] permission-denied correlates one Kolkrabbi tool request, deny decision, and unsuccessful finish
+  without a false `tool.started` event.
+- [x] agent-fanout correlates task and child-turn identities, scopes child events to the child turn,
+  returns to the parent for subagent completion, and accounts for child and parent attempts.
+- [x] the public package remains standard-library-only; focused, race, architecture, lint, and full
+  repository gates pass with the result recorded.
+
+#### A6.4c minimal OpenAPI shape acceptance
+
+Scope:
+
+- Publish one OpenAPI 3.1 document for only `GET /v1/hello`,
+  `POST /v1/turns/{id}/cancel`, and `POST /v1/permissions/{id}`.
+- Reuse the shipped hello and error schemas by reference. Derive REST path identifiers and the
+  permission-decision body exactly from the corresponding shipped command schemas, without making
+  clients send the same identifier twice.
+- Make the operation-to-command relationship machine-readable and use the shared error entity for
+  every non-success response.
+- Require bearer authentication globally, with `GET /v1/hello` as the one explicit unauthenticated
+  protocol-shape check.
+
+Dependency blockers:
+
+- `POST /v1/turns`, session list/detail, and session event replay remain absent until A10 freezes
+  session creation and persisted projections and A7/A11 own retained-log cursor semantics.
+- Model, stats, and dashboard paths remain absent until their provider catalog and persistence
+  owners publish stable entities.
+
+Non-goals:
+
+- No HTTP server, handler, router, bearer-token implementation, event bus, SSE response, cursor,
+  replay, generated client, request dispatch, engine integration, or CLI behavior change.
+- No duplicate HTTP-only command schema and no speculative response body or conflict/idempotency
+  policy for either mutation.
+- No credential, key, login, or auth-management route; bearer is only a security scheme.
+- No installer publication, release tag, repository-visibility change, deployment, or clean-machine
+  rehearsal.
+
+Acceptance checklist:
+
+- [x] the document is valid OpenAPI 3.1 using JSON Schema 2020-12 and declares exactly the three
+  owner-stable paths and methods.
+- [x] hello returns the shipped hello schema, explicitly opts out of global bearer auth, and all
+  mutations inherit the one HTTP bearer scheme.
+- [x] turn cancellation has one canonical path ID and no request body; permission resolution has
+  one non-empty opaque path ID and a body containing exactly the shipped decision vocabulary.
+- [x] the two mutation operations map exactly once to the two-command catalog and return 204 on
+  success with no invented response body.
+- [x] every operation routes its default failure through the shipped shared error entity; external
+  schema references resolve inside `spec/` and do not duplicate their source contracts.
+- [x] no deferred or secret-management path appears, and no dependency or runtime package is added.
+- [x] focused tests, architecture gates, full repository gates, and the build log are green.
+
+#### A6.4d spec-change guard and owner-stable A6 closure acceptance
+
+Scope:
+
+- Add one exhaustive recursive inventory of every regular file currently owned by `spec/`, deriving
+  event and command entries from their shipped catalogs and rejecting orphan, missing, hidden, or
+  irregular contract artifacts.
+- Add one offline Git tree-to-tree guard: if any committed `spec/` path changes, the same comparison
+  must change the still-present `spec/CHANGELOG.md`.
+- Run the inventory and black-box guard matrix through a named Make target, ordinary CI, and a
+  read-only path-filtered spec workflow with full Git history.
+- Close the owner-stable A6 transport cut while leaving explicitly dependency-blocked vocabulary,
+  entity, command, saga, session, cursor, server, and generated-client work open under its owners.
+
+Non-goals:
+
+- No third-party YAML/OpenAPI linter, schema generator, generated client, protocol-version bump,
+  semantic-version policy, automatic changelog editing, or enforcement based on uncommitted files.
+- No requirement that every `protocol/` implementation-only edit change the language-neutral spec;
+  conformance and inventory tests remain the shape-drift guard in that direction.
+- No event bus, engine integration, persistence migration, HTTP/stdio server, installer publication,
+  release tag, repository-visibility change, deployment, or clean-machine rehearsal.
+
+Acceptance checklist:
+
+- [x] the recursive inventory equals the exact expected regular-file set and is generated from the
+  event/command catalogs plus the explicit entity, stream, foreign-fixture, and top-level sets.
+- [x] the Git guard accepts no-spec and changelog-accompanied diffs, rejects added/modified/deleted
+  spec changes without the changelog, rejects a missing changelog and invalid treeish, and ignores
+  uncommitted working-tree noise.
+- [x] the guard handles an explicit base and head without network access or mutation and emits a
+  concise reason for pass or failure.
+- [x] `.github/workflows/spec.yml` is path-filtered, fetches full history, uses pinned read-only
+  actions, runs the named spec gate, and compares the event base to the checked-out head.
+- [x] ordinary CI and `make check` also run the named gate so workflow-filter edits cannot bypass it.
+- [x] protocol version remains `0`, no runtime/dependency surface changes, and all dependency-gated
+  contracts remain absent.
+- [x] focused black-box, protocol, architecture, lint, workflow, and full repository gates pass with
+  the final owner-stable A6 result recorded.
 
 #### A6.2a streamed deltas acceptance
 

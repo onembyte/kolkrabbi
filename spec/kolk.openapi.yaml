@@ -1,0 +1,143 @@
+{
+  "openapi": "3.1.0",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "info": {
+    "title": "Kolkrabbi Protocol",
+    "version": "0"
+  },
+  "x-kolk-protocol": "0",
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/v1/hello": {
+      "get": {
+        "operationId": "getHello",
+        "x-kolk-event": "hello",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Protocol version, server identity, and optional capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Hello"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/turns/{id}/cancel": {
+      "post": {
+        "operationId": "cancelTurn",
+        "x-kolk-command": "turn.cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^t_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Cancellation accepted"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v1/permissions/{id}": {
+      "post": {
+        "operationId": "resolvePermission",
+        "x-kolk-command": "permission.resolve",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PermissionDecisionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Permission decision accepted"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "Hello": {
+        "$ref": "./schemas/events/hello.json"
+      },
+      "Error": {
+        "$ref": "./schemas/entities/error.json"
+      },
+      "PermissionDecisionInput": {
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "allow_session",
+              "deny"
+            ]
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "responses": {
+      "ErrorResponse": {
+        "description": "A safe protocol error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}

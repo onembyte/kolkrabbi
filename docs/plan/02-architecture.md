@@ -675,7 +675,8 @@ of it useful regardless:
    `tailscale serve` cannot proxy to it.
 2. `kolk dash` serves on the **same mux** as `serve`, so one `tailscale serve` line covers the SPA
    and `/v1`.
-3. Bearer-token auth from day one, including on loopback.
+3. Bearer-token auth from day one, including on loopback, for every route except the deliberately
+   unauthenticated `GET /v1/hello` protocol-shape check.
 4. `web/dash` is responsive at 1024 pt — **it is the first mobile client**, months before any native
    one, and building it responsive now saves a rewrite.
 5. `kolk -p --output stream-json` emits *literally the protocol frames*, so the CLI, the SSE stream
@@ -735,7 +736,8 @@ every 15 s), never events, and `spec/stdio.md` says so, so no client tries to pa
 **Commands** (client→server) are `<noun>.<verb>` imperative: `turn.create`, `turn.cancel`,
 `permission.resolve`, `session.fork`, `session.list`.
 
-**REST surface** (the shape; `spec/kolk.openapi.yaml` is authoritative):
+**REST surface** (the target shape; the owner-stable subset in `spec/kolk.openapi.yaml` is
+authoritative at each checkpoint):
 
 ```
 GET  /v1/hello                              handshake, unauthenticated shape check only
@@ -747,6 +749,11 @@ GET  /v1/sessions   GET /v1/sessions/{id}
 GET  /v1/models     GET /v1/stats/*         /dash/*  (same mux)
 ```
 
+During protocol version 0, routes enter the OpenAPI document only after their commands, entities,
+and lifecycle semantics are frozen. The first owner-stable cut therefore contains only hello,
+turn cancellation, and permission resolution; turn creation, event replay, sessions, models,
+stats, and dashboard routes remain absent until their owning migration steps land.
+
 **The five things mobile forces into v1, none of them retrofittable:**
 
 1. **Resumable log with monotonic ids.** iOS gives a backgrounded app *five seconds*
@@ -755,7 +762,7 @@ GET  /v1/models     GET /v1/stats/*         /dash/*  (same mux)
    `retry:`. Getting this from the SSE spec for free is another argument for SSE. **The log lives in
    `internal/bus`, below the transport** — so `--output stream-json`, the Tauri stdio sidecar and a
    Wails in-process link get replay through the *same* code path as SSE. A cursor older than the
-   retained window returns `error{type:"cursor_expired"}` and the client re-fetches session state.
+   retained window returns `error{code:"cursor_expired"}` and the client re-fetches session state.
 2. **Heartbeats.** `: ping` every 15 s; `URLSession.timeoutIntervalForRequest` is an *inactivity*
    timeout (default 60 s) and mobile NAT drops idle flows.
 3. **Session multiplexing and reattach.** Open the app, list sessions, reattach to the saga already
@@ -766,8 +773,9 @@ GET  /v1/models     GET /v1/stats/*         /dash/*  (same mux)
    needs it anyway — which is why it lands early (migration step 7).
 5. **Cancellation by id.** No `context.Context` crosses HTTP, a pipe, or a JNI bridge.
 
-**Auth.** Bearer token, **always, including on loopback** — "it's on 127.0.0.1 so it's fine" stops
-being true the moment Tailscale is involved. Token is generated on first `kolk serve` into
+**Auth.** Bearer token on every route except the unauthenticated hello shape check, **including on
+loopback** — "it's on 127.0.0.1 so it's fine" stops being true the moment Tailscale is involved.
+Token is generated on first `kolk serve` into
 `$config/token` (0600), compared in constant time, and binding to anything other than `127.0.0.1`
 **refuses to start** without one. The token is a `secret.Redact` target everywhere.
 
@@ -902,7 +910,8 @@ bounded channel (default cap 256). `Publish` never blocks:
   keeps the event in the log; the subscriber catches up by cursor.
 - **`*.delta` events may be coalesced and, at the limit, dropped.** Consecutive `message.delta`
   frames merge; if the buffer still fills, the oldest deltas are dropped and a
-  `log{level:"warn", dropped:N}` frame is emitted so the client knows its render is lossy. A tablet
+  `log{level:"warn", code:"deltas_dropped", field:"message.delta", message:"N delta frames dropped"}`
+  frame is emitted so the client knows its render is lossy. A tablet
   on a bad link must never be able to stall the engine.
 - **Durable subscribers (`stats`, `dash/ingest`) read from the log by cursor, not from the live
   channel**, so a slow SQLite write can never apply backpressure to a token stream.
@@ -970,7 +979,7 @@ files; neither changes an assertion.
 | 8 | **`confirm()` → `engine.Decider`.** Delete the `bufio` stdin read at `agent.go:272`. `internal/cli/prompt.go` implements the TTY prompt; tests use auto-allow. `tools.Execute`'s signature is unchanged, so all 5 tool tests are untouched, and the e2e tests already run with `Yolo: true`. **This one refactor unblocks desktop, iPad and Android simultaneously** — which is why it comes before any of them exist. | nothing testable | 22 |
 | 9 | `engine.Port` interfaces + `internal/enginetest/fakes.go` (incl. `Clock`); `engine` stops importing `session`/`checkpoint`/`stats` concretely; `internal/cli` does the wiring; lift `orchestrator.go` into `internal/orchestrator` behind `engine.Runner`. | nothing | 22 |
 | 10 | ⚠ **Amended by item 3 (`docs/plan/03-provider-layer.md` §11): this step MUST land BEFORE the reasoning round-trip work**, not after. Reasoning bytes are persisted on the assistant message, so the format cut has to exist first or a half-signed thinking block gets written in the old shape and bricks the session on disk. **The on-disk format cut.** Commit `internal/session/testdata/v0-session.json` (a real session captured from the prototype) **and** a load test **in the same commit** as introducing `session.Message` with frozen JSON tags + conversion at the store boundary. `session.Session.Messages` stops being `[]provider.Message`. | this is the one place a silent data regression is possible — the fixture is the whole defence | 22 + 1 |
-| 11 | **`internal/serve` + `kolk serve` + `cmd/kolkd`.** `sse.go` (`id:`/`retry:`/`Last-Event-ID`/`: ping`), `auth.go` (bearer, required off-loopback), `stdio.go`, `permission.go`. `serve/conform_test.go` replays `spec/testdata/streams/*.ndjson` through **both** stdout NDJSON and SSE and requires byte-identical frames. **★ The interim iPad story ships here** — `--addr` must bind beyond `127.0.0.1` or `tailscale serve` cannot proxy. | nothing; purely additive | 22 + new |
+| 11 | **`internal/serve` + `kolk serve` + `cmd/kolkd`.** `sse.go` (`id:`/`retry:`/`Last-Event-ID`/`: ping`), `auth.go` (bearer on every route except hello; non-loopback refuses a missing token), `stdio.go`, `permission.go`. `serve/conform_test.go` replays `spec/testdata/streams/*.ndjson` through **both** stdout NDJSON and SSE and requires byte-identical frames. **★ The interim iPad story ships here** — `--addr` must bind beyond `127.0.0.1` or `tailscale serve` cannot proxy. | nothing; purely additive | 22 + new |
 | 12 | `web/dash` + `internal/dash`. First third-party dependency (`modernc.org/sqlite`). `//go:embed all:dist`; commit the sentinel `dist/index.html`; `ingest.go` imports the existing `stats.jsonl` so no recorded data is lost. **Record the size and startup numbers in this PR.** | budgets move — measure, do not discover | 22 + new |
 | 13 | **Windows.** Fill in every `_windows.go` twin. `windows-latest` goes from advisory to required; `windows` joins the goreleaser goos list. | expect breakage here, in CI, on purpose | 22 on all three |
 | 14 | `internal/tui` (Bubble Tea) as renderer #2 behind the seam step 7 established; `internal/provider/agentcli` + `internal/mockagent` + `spec/testdata/foreign/`; `internal/saga`. All additive leaves. | none | — |
