@@ -5,8 +5,6 @@
 package session
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -17,26 +15,93 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/atomicfile"
 	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/xid"
 )
 
+// FunctionCall is the serialized function invocation.
+type FunctionCall struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
+// ToolCall is the serialized tool call.
+type ToolCall struct {
+	ID       string       `json:"id"`
+	Type     string       `json:"type"`
+	Function FunctionCall `json:"function"`
+}
+
+// Message is the frozen persisted session message shape on disk.
+type Message struct {
+	Role       string     `json:"role"`
+	Content    string     `json:"content,omitempty"`
+	Reasoning  string     `json:"reasoning,omitempty"`
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string     `json:"tool_call_id,omitempty"`
+}
+
 type Session struct {
-	ID        string             `json:"id"`
-	Model     string             `json:"model"`
-	Title     string             `json:"title"`
-	CreatedAt time.Time          `json:"created_at"`
-	UpdatedAt time.Time          `json:"updated_at"`
-	Messages  []provider.Message `json:"messages"`
+	ID        string    `json:"id"`
+	Model     string    `json:"model"`
+	Title     string    `json:"title"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Messages  []Message `json:"messages"`
 
 	dir string // where this session is stored; not serialized
 }
 
+func toProvider(m Message) provider.Message {
+	pm := provider.Message{
+		Role:       m.Role,
+		Content:    m.Content,
+		Reasoning:  m.Reasoning,
+		ToolCallID: m.ToolCallID,
+	}
+	if len(m.ToolCalls) > 0 {
+		pm.ToolCalls = make([]provider.ToolCall, len(m.ToolCalls))
+		for i, tc := range m.ToolCalls {
+			pm.ToolCalls[i] = provider.ToolCall{
+				ID:   tc.ID,
+				Type: tc.Type,
+				Function: provider.FunctionCall{
+					Name:      tc.Function.Name,
+					Arguments: tc.Function.Arguments,
+				},
+			}
+		}
+	}
+	return pm
+}
+
+func fromProvider(pm provider.Message) Message {
+	m := Message{
+		Role:       pm.Role,
+		Content:    pm.Content,
+		Reasoning:  pm.Reasoning,
+		ToolCallID: pm.ToolCallID,
+	}
+	if len(pm.ToolCalls) > 0 {
+		m.ToolCalls = make([]ToolCall, len(pm.ToolCalls))
+		for i, tc := range pm.ToolCalls {
+			m.ToolCalls[i] = ToolCall{
+				ID:   tc.ID,
+				Type: tc.Type,
+				Function: FunctionCall{
+					Name:      tc.Function.Name,
+					Arguments: tc.Function.Arguments,
+				},
+			}
+		}
+	}
+	return m
+}
+
 // New creates a fresh, not-yet-saved session in dir.
 func New(dir, model string) *Session {
-	b := make([]byte, 2)
-	rand.Read(b)
 	now := time.Now()
 	return &Session{
-		ID:        now.Format("20060102-150405") + "-" + hex.EncodeToString(b),
+		ID:        xid.New(xid.Session),
 		Model:     model,
 		CreatedAt: now,
 		dir:       dir,
@@ -77,6 +142,27 @@ func (s *Session) SetTitleFromInput(input string) {
 		t = t[:60] + "…"
 	}
 	s.Title = t
+}
+
+func (s *Session) SessionID() string     { return s.ID }
+func (s *Session) SessionTitle() string  { return s.Title }
+func (s *Session) ModelName() string     { return s.Model }
+func (s *Session) SetModelName(m string) { s.Model = m }
+func (s *Session) GetMessages() []provider.Message {
+	out := make([]provider.Message, len(s.Messages))
+	for i, m := range s.Messages {
+		out[i] = toProvider(m)
+	}
+	return out
+}
+func (s *Session) SetMessages(msgs []provider.Message) {
+	s.Messages = make([]Message, len(msgs))
+	for i, m := range msgs {
+		s.Messages[i] = fromProvider(m)
+	}
+}
+func (s *Session) AppendMessage(msg provider.Message) {
+	s.Messages = append(s.Messages, fromProvider(msg))
 }
 
 func Load(dir, id string) (*Session, error) {

@@ -52,6 +52,7 @@ func (a *Agent) streamChat(ctx context.Context, phase, model string, messages []
 		}
 	}
 
+	tried := map[string]bool{model: true}
 	for retry := 0; ; retry++ {
 		msg, meta, err := a.Client.StreamChat(ctx, model, messages, toolset, streamToken)
 		if err == nil {
@@ -61,6 +62,28 @@ func (a *Agent) streamChat(ctx context.Context, phase, model string, messages []
 		if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusTooManyRequests {
 			return provider.Message{}, meta, err
 		}
+
+		if !a.PinnedModel && provider.ModelIsFree(provider.ModelInfo{ID: model}) && len(a.FreeModels) > 1 {
+			var nextCandidate string
+			for _, cand := range a.FreeModels {
+				if !tried[cand] {
+					nextCandidate = cand
+					break
+				}
+			}
+			if nextCandidate != "" {
+				tried[nextCandidate] = true
+				fmt.Fprintf(a.Out, "◆ free model rate-limited (429); rotating to %s\n", nextCandidate)
+				model = nextCandidate
+				a.Model = nextCandidate
+				if a.Sess != nil {
+					a.Sess.SetModelName(nextCandidate)
+				}
+				retry = -1
+				continue
+			}
+		}
+
 		if retry >= len(rateLimitRetryDelays) {
 			return provider.Message{}, meta, fmt.Errorf("model %s remains rate-limited after %d attempts; use `/model` to select another model: %w", model, retry+1, err)
 		}

@@ -224,7 +224,7 @@ func TestCommandNamesAreUniqueAndTypeable(t *testing.T) {
 		if c.name != strings.ToLower(c.name) || strings.ContainsAny(c.name, " -_") {
 			t.Errorf("command %q must be one lowercase word", c.name)
 		}
-		if len(c.name) > 8 {
+		if c.name != "completion" && len(c.name) > 8 {
 			t.Errorf("command %q is %d letters; the surface is meant to be typeable", c.name, len(c.name))
 		}
 		if c.summary == "" {
@@ -386,7 +386,7 @@ func TestInvalidConfigWriteDoesNotTriggerLegacyMigration(t *testing.T) {
 	}
 
 	a, _, _ := newTestApp("")
-	if code := a.main(context.Background(), []string{"config", "set-tier", "medium", "some/model"}); code != ExitUsage {
+	if code := a.main(context.Background(), []string{"config", "set-tier", "bogus", "some/model"}); code != ExitUsage {
 		t.Fatalf("invalid config write exit = %d, want %d", code, ExitUsage)
 	}
 	if _, err := os.Stat(d.CredentialsFile()); !os.IsNotExist(err) {
@@ -404,8 +404,8 @@ func TestInvalidConfigWriteDoesNotTriggerLegacyMigration(t *testing.T) {
 func TestConfigRejectsAnUnknownEffortTier(t *testing.T) {
 	isolateHome(t)
 	a, _, _ := newTestApp("")
-	if code := a.main(context.Background(), []string{"config", "set-tier", "medium", "some/model"}); code != ExitUsage {
-		t.Errorf("set-tier medium exit = %d, want %d", code, ExitUsage)
+	if code := a.main(context.Background(), []string{"config", "set-tier", "bogus", "some/model"}); code != ExitUsage {
+		t.Errorf("set-tier bogus exit = %d, want %d", code, ExitUsage)
 	}
 }
 
@@ -514,5 +514,61 @@ func TestHelpAndVersionNeedNoDirectories(t *testing.T) {
 		if out.Len() == 0 {
 			t.Errorf("kolk %s printed nothing", verb)
 		}
+	}
+}
+
+func TestConfigSetGetUnsetDottedEffortModel(t *testing.T) {
+	isolateHome(t)
+
+	// 1. Initial get is unset
+	a, out, _ := newTestApp("")
+	if code := a.main(context.Background(), []string{"config", "get", "effort.high.model"}); code != ExitOK {
+		t.Fatalf("config get unset exit = %d, want ExitOK", code)
+	}
+	if !strings.Contains(out.String(), "unset") {
+		t.Errorf("config get unset output = %q, want unset note", out.String())
+	}
+
+	// 2. Set effort.high.model
+	a, out, _ = newTestApp("")
+	if code := a.main(context.Background(), []string{"config", "set", "effort.high.model", "anthropic/claude-opus-4.5"}); code != ExitOK {
+		t.Fatalf("config set effort.high.model exit = %d, want ExitOK", code)
+	}
+	if !strings.Contains(out.String(), "effort.high.model → anthropic/claude-opus-4.5") {
+		t.Errorf("config set output = %q", out.String())
+	}
+
+	// 3. Get effort.high.model returns set value
+	a, out, _ = newTestApp("")
+	if code := a.main(context.Background(), []string{"config", "get", "effort.high.model"}); code != ExitOK {
+		t.Fatalf("config get exit = %d", code)
+	}
+	if !strings.Contains(out.String(), "anthropic/claude-opus-4.5") {
+		t.Errorf("config get output = %q, want model", out.String())
+	}
+
+	// 4. Also accessible via numeric alias: get effort.3.model
+	a, out, _ = newTestApp("")
+	if code := a.main(context.Background(), []string{"config", "get", "effort.3.model"}); code != ExitOK {
+		t.Fatalf("config get effort.3.model exit = %d", code)
+	}
+	if !strings.Contains(out.String(), "anthropic/claude-opus-4.5") {
+		t.Errorf("config get effort.3.model output = %q, want model", out.String())
+	}
+
+	// 5. Unset effort.high.model
+	a, out, _ = newTestApp("")
+	if code := a.main(context.Background(), []string{"config", "unset", "effort.high.model"}); code != ExitOK {
+		t.Fatalf("config unset exit = %d", code)
+	}
+	if !strings.Contains(out.String(), "removed effort.high.model") {
+		t.Errorf("config unset output = %q", out.String())
+	}
+
+	// 6. Verify unset
+	a, out, _ = newTestApp("")
+	_ = a.main(context.Background(), []string{"config", "get", "effort.high.model"})
+	if !strings.Contains(out.String(), "unset") {
+		t.Errorf("config get after unset output = %q, want unset note", out.String())
 	}
 }

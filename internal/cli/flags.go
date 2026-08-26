@@ -4,21 +4,23 @@ import (
 	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/engine"
+	"github.com/onembyte/kolkrabbi/internal/provider"
 )
 
 // options are the settings one kolk run takes from its command line. Every
 // field is optional: an empty options must produce a working agent, because
 // `kolk` with no arguments is the product's front door.
 type options struct {
-	model   string
-	mode    string
-	effort  string
-	session string
-	baseURL string
-	prompt  string
-	yolo    bool
-	resume  bool
-	rest    []string // positional words, joined into the prompt
+	model        string
+	mode         string
+	effort       string
+	session      string
+	baseURL      string
+	prompt       string
+	yolo         bool
+	resume       bool
+	outputFormat string
+	rest         []string // positional words, joined into the prompt
 }
 
 // flagDef is one command-line flag. The table below is the single source for
@@ -34,13 +36,15 @@ type flagDef struct {
 
 var flagTable = []flagDef{
 	{long: "model", short: "m", arg: "<id>", summary: "use a specific model for this run",
-		set: func(o *options, v string) { o.model = v }},
+		set: func(o *options, v string) { o.model = provider.ResolveModelAlias(v) }},
 	{long: "mode", arg: "<chat|code|agent>", summary: "chat = no tools · code = tool loop (default) · agent = orchestrated",
 		set: func(o *options, v string) { o.mode = v }},
-	{long: "effort", short: "e", arg: "<quick|standard|deep|ultra>", summary: "select model tier and agent orchestration width",
+	{long: "effort", short: "e", arg: "<low|medium|high|max>", summary: "select model tier and agent orchestration width",
 		set: func(o *options, v string) { o.effort = v }},
 	{long: "print", short: "p", arg: "<prompt>", summary: "single-shot: run one turn, then exit",
 		set: func(o *options, v string) { o.prompt = v }},
+	{long: "output-format", arg: "<text|stream-json>", summary: "output format for single-shot runs (default text)",
+		set: func(o *options, v string) { o.outputFormat = v }},
 	{long: "session", short: "s", arg: "<id>", summary: "resume a specific session",
 		set: func(o *options, v string) { o.session = v }},
 	{long: "resume", short: "r", summary: "resume the most recent session",

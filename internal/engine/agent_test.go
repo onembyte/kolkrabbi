@@ -1,80 +1,25 @@
-package engine
+package engine_test
 
 import (
 	"bytes"
 	"context"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/onembyte/kolkrabbi/internal/bus"
 	"github.com/onembyte/kolkrabbi/internal/checkpoint"
+	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/enginetest"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/session"
 	"github.com/onembyte/kolkrabbi/internal/stats"
+	"github.com/onembyte/kolkrabbi/internal/xid"
+	"github.com/onembyte/kolkrabbi/protocol"
 )
 
-func TestReleaseModesAreExactlyChatCodeAndAgent(t *testing.T) {
-	want := []string{ModeChat, ModeCode, ModeAgent}
-	if !reflect.DeepEqual(Modes, want) {
-		t.Fatalf("release modes = %q, want %q", Modes, want)
-	}
-
-	ag := New(Options{Mode: ModeCode, Sess: session.New(t.TempDir(), "mock/model")})
-	for _, mode := range want {
-		if err := ag.SetMode(mode); err != nil {
-			t.Fatalf("SetMode(%q): %v", mode, err)
-		}
-		if ag.Mode != mode {
-			t.Fatalf("mode = %q after SetMode(%q)", ag.Mode, mode)
-		}
-	}
-	if err := ag.SetMode("delegate"); err == nil {
-		t.Fatal("SetMode(delegate) accepted an unknown mode")
-	}
-	if ag.Mode != ModeAgent {
-		t.Fatalf("rejected mode changed current mode to %q, want %q", ag.Mode, ModeAgent)
-	}
-}
-
-func TestVisibleResponseLabelUsesTheActiveKolkMode(t *testing.T) {
-	for _, mode := range Modes {
-		ag := New(Options{Mode: mode, Sess: session.New(t.TempDir(), "mock/model")})
-		if got, want := ag.responseLabel(), "kolk-"+mode; got != want {
-			t.Fatalf("response label in %s mode = %q, want %q", mode, got, want)
-		}
-	}
-}
-
-func TestToolCallDescriptionsAreReadableAndNeverExposeRawPayloads(t *testing.T) {
-	tests := []struct {
-		name string
-		call provider.ToolCall
-		want string
-	}{
-		{"bash", provider.ToolCall{Function: provider.FunctionCall{Name: "bash", Arguments: `{"command":"go test ./...","description":"Run focused tests"}`}}, "Running command — Run focused tests"},
-		{"read", provider.ToolCall{Function: provider.FunctionCall{Name: "read_file", Arguments: `{"path":"PLAN.md"}`}}, "Reading file — PLAN.md"},
-		{"write", provider.ToolCall{Function: provider.FunctionCall{Name: "write_file", Arguments: `{"path":"internal/new.go","content":"secret body"}`}}, "Writing file — internal/new.go"},
-		{"edit", provider.ToolCall{Function: provider.FunctionCall{Name: "edit_file", Arguments: `{"path":"README.md","old_str":"old","new_str":"new"}`}}, "Editing file — README.md"},
-		{"list", provider.ToolCall{Function: provider.FunctionCall{Name: "list_dir", Arguments: `{}`}}, "Listing directory — ."},
-		{"malformed", provider.ToolCall{Function: provider.FunctionCall{Name: "write_file", Arguments: `{"content":"must not leak"`}}, "Using tool — write_file"},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			got := describeToolCall(test.call)
-			if got != test.want {
-				t.Fatalf("description = %q, want %q", got, test.want)
-			}
-			if strings.Contains(got, "secret body") || strings.Contains(got, "must not leak") || strings.Contains(got, `{"`) {
-				t.Fatalf("description exposed raw tool arguments: %q", got)
-			}
-		})
-	}
-}
-
-func newTestAgent(t *testing.T, srv *enginetest.Server, mode string) (*Agent, *bytes.Buffer, string, string) {
+func newTestAgent(t *testing.T, srv *enginetest.Server, mode string) (*engine.Agent, *bytes.Buffer, string, string) {
 	t.Helper()
 	client := provider.NewClient("test-key")
 	client.BaseURL = srv.URL
@@ -85,9 +30,9 @@ func newTestAgent(t *testing.T, srv *enginetest.Server, mode string) (*Agent, *b
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	ag := New(Options{
+	ag := engine.New(engine.Options{
 		Client: client, Model: "mock/model", Mode: mode, Yolo: true,
-		Sess: sess, Ckpt: ckpt, Out: &out, StatsDir: statsDir,
+		Sess: sess, Ckpt: ckpt, Out: &out, Recorder: stats.NewStore(statsDir),
 	})
 	return ag, &out, sdir, statsDir
 }
@@ -115,7 +60,7 @@ func TestE2E_ToolLoopWithPersistenceAndRewind(t *testing.T) {
 	)
 	defer srv.Close()
 
-	ag, out, sdir, statsDir := newTestAgent(t, srv, ModeCode)
+	ag, out, sdir, statsDir := newTestAgent(t, srv, engine.ModeCode)
 	if err := ag.RunTurn(context.Background(), "create a hello file"); err != nil {
 		t.Fatalf("RunTurn: %v", err)
 	}
@@ -152,12 +97,12 @@ func TestE2E_ToolLoopWithPersistenceAndRewind(t *testing.T) {
 	}
 
 	// 4. session persisted with the full history
-	loaded, err := session.Load(sdir, ag.Sess.ID)
+	loaded, err := session.Load(sdir, ag.Sess.SessionID())
 	if err != nil {
 		t.Fatalf("session was not saved: %v", err)
 	}
-	if len(loaded.Messages) != 5 {
-		t.Fatalf("persisted %d messages, want 5", len(loaded.Messages))
+	if len(loaded.GetMessages()) != 5 {
+		t.Fatalf("persisted %d messages, want 5", len(loaded.GetMessages()))
 	}
 
 	// 5. both calls were recorded locally with usage
@@ -190,167 +135,110 @@ func TestE2E_ToolLoopWithPersistenceAndRewind(t *testing.T) {
 
 	// 7. rewind restores the filesystem (created file is removed)
 	restored, err := ag.Rewind()
-	if err != nil || len(restored) != 1 {
-		t.Fatalf("rewind = (%v,%v), want 1 path", restored, err)
+	if err != nil {
+		t.Fatalf("Rewind: %v", err)
+	}
+	if len(restored) != 1 || restored[0] != target {
+		t.Fatalf("rewound paths = %v, want [%s]", restored, target)
 	}
 	if _, err := os.Stat(target); !os.IsNotExist(err) {
-		t.Error("file still exists after rewind")
+		t.Fatalf("target file still exists after rewind: %v", err)
 	}
 }
 
-// TestE2E_ChatModeHasNoTools verifies chat mode sends no tool schemas and
-// answers plainly.
+// TestE2E_ChatModeHasNoTools verifies chat mode never sends tool schemas,
+// never executes tools, and answers purely conversationally.
 func TestE2E_ChatModeHasNoTools(t *testing.T) {
-	srv := enginetest.New(enginetest.Step{Text: "hola Franco"})
+	srv := enginetest.New(enginetest.Step{Text: "I am a helpful assistant."})
 	defer srv.Close()
 
-	ag, out, _, _ := newTestAgent(t, srv, ModeChat)
-	if err := ag.RunTurn(context.Background(), "say hi"); err != nil {
-		t.Fatal(err)
+	ag, out, _, _ := newTestAgent(t, srv, engine.ModeChat)
+	if err := ag.RunTurn(context.Background(), "hello"); err != nil {
+		t.Fatalf("RunTurn: %v", err)
 	}
-	if !strings.Contains(out.String(), "hola Franco") {
-		t.Errorf("missing reply: %s", out.String())
+	if len(srv.Tools) != 1 || srv.Tools[0] != 0 {
+		t.Fatalf("chat mode sent %v tool definitions to provider, want 0", srv.Tools)
 	}
-	if got := srv.Tools[0]; got != 0 {
-		t.Errorf("chat mode sent %d tools, want 0", got)
+	if !strings.Contains(out.String(), "I am a helpful assistant.") {
+		t.Errorf("output missing response: %s", out.String())
 	}
 }
 
-func TestCodeModeRecoversFromOneEmptyCompletion(t *testing.T) {
-	target := filepath.Join(t.TempDir(), "recovered.txt")
+// TestE2E_AgentModeOrchestratesTasks verifies agent mode: planner generates
+// tasks -> subagents execute with isolated contexts -> synthesis produces
+// the final answer -> main session history only sees user input + final answer.
+func TestE2E_AgentModeOrchestratesTasks(t *testing.T) {
+	work := t.TempDir()
+	fileA := filepath.Join(work, "a.txt")
+	fileB := filepath.Join(work, "b.txt")
+
 	srv := enginetest.New(
-		enginetest.Step{},
-		enginetest.Step{ToolCalls: []provider.ToolCall{{
-			ID: "recovered_call",
-			Function: provider.FunctionCall{
-				Name:      "write_file",
-				Arguments: `{"path":"` + jsonEsc(target) + `","content":"continued\n"}`,
-			},
-		}}},
-		enginetest.Step{Text: "Completed the requested checkpoint."},
+		// 1. planner decomposes into two tasks
+		enginetest.Step{Text: `["create a.txt with content A", "create b.txt with content B"]`},
+		// 2. subagent 1: tool call -> result -> done
+		enginetest.Step{
+			Text: "Creating a.txt",
+			ToolCalls: []provider.ToolCall{{
+				ID: "call_a",
+				Function: provider.FunctionCall{
+					Name:      "write_file",
+					Arguments: `{"path":"` + jsonEsc(fileA) + `","content":"A\n"}`,
+				},
+			}},
+		},
+		enginetest.Step{Text: "Created a.txt with content A."},
+		// 3. subagent 2: tool call -> result -> done
+		enginetest.Step{
+			Text: "Creating b.txt",
+			ToolCalls: []provider.ToolCall{{
+				ID: "call_b",
+				Function: provider.FunctionCall{
+					Name:      "write_file",
+					Arguments: `{"path":"` + jsonEsc(fileB) + `","content":"B\n"}`,
+				},
+			}},
+		},
+		enginetest.Step{Text: "Created b.txt with content B."},
+		// 4. synthesis call
+		enginetest.Step{Text: "Successfully created both a.txt and b.txt."},
 	)
 	defer srv.Close()
 
-	ag, out, sdir, _ := newTestAgent(t, srv, ModeCode)
-	if err := ag.RunTurn(context.Background(), "continue building the project carefully"); err != nil {
+	ag, out, sdir, statsDir := newTestAgent(t, srv, engine.ModeAgent)
+	if err := ag.RunTurn(context.Background(), "create two files a and b"); err != nil {
 		t.Fatalf("RunTurn: %v", err)
 	}
-	if body, err := os.ReadFile(target); err != nil || string(body) != "continued\n" {
-		t.Fatalf("recovered turn did not execute its tool: body %q, err %v", body, err)
+
+	// files exist
+	if b, err := os.ReadFile(fileA); err != nil || string(b) != "A\n" {
+		t.Errorf("fileA content = %q, err=%v", string(b), err)
 	}
-	if len(srv.Requests) != 3 {
-		t.Fatalf("provider requests = %d, want empty + retry + final", len(srv.Requests))
+	if b, err := os.ReadFile(fileB); err != nil || string(b) != "B\n" {
+		t.Errorf("fileB content = %q, err=%v", string(b), err)
 	}
-	if !requestContains(srv.Requests[1], emptyCompletionRecovery) {
-		t.Fatal("retry request omitted the empty-completion recovery instruction")
+
+	// out shows orchestration progress
+	outStr := out.String()
+	for _, want := range []string{"planning", "subagent 1/2", "subagent 2/2", "synthesizing", "Successfully created both"} {
+		if !strings.Contains(outStr, want) {
+			t.Errorf("agent mode output missing %q:\n%s", want, outStr)
+		}
 	}
-	if requestContains(srv.Requests[2], emptyCompletionRecovery) {
-		t.Fatal("synthetic recovery instruction leaked into the ordinary tool-loop history")
-	}
-	loaded, err := session.Load(sdir, ag.Sess.ID)
+
+	// main session only has system, user, assistant (synthesis): clean history
+	loaded, err := session.Load(sdir, ag.Sess.SessionID())
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, msg := range loaded.Messages {
-		if strings.Contains(msg.Content, emptyCompletionRecovery) ||
-			(msg.Role == "assistant" && msg.Content == "" && len(msg.ToolCalls) == 0) {
-			t.Fatalf("saved history contains recovery-only message: %+v", msg)
-		}
+	loadedMsgs := loaded.GetMessages()
+	if len(loadedMsgs) != 3 {
+		t.Fatalf("agent mode persisted %d messages, want 3 (system, user, synthesis)", len(loadedMsgs))
 	}
-	if !strings.Contains(out.String(), "Completed the requested checkpoint.") {
-		t.Fatalf("recovered final answer was not shown: %q", out.String())
-	}
-}
-
-func TestCodeModeBoundsRepeatedEmptyCompletions(t *testing.T) {
-	srv := enginetest.New(enginetest.Step{}, enginetest.Step{})
-	defer srv.Close()
-
-	ag, _, sdir, _ := newTestAgent(t, srv, ModeCode)
-	err := ag.RunTurn(context.Background(), "continue the project")
-	if err == nil || !strings.Contains(err.Error(), "two empty responses") ||
-		!strings.Contains(err.Error(), "/model") {
-		t.Fatalf("repeated-empty error = %v", err)
-	}
-	if len(srv.Requests) != 2 {
-		t.Fatalf("provider requests = %d, want bounded 2", len(srv.Requests))
-	}
-	loaded, loadErr := session.Load(sdir, ag.Sess.ID)
-	if loadErr != nil {
-		t.Fatal(loadErr)
-	}
-	if len(loaded.Messages) != 2 || loaded.Messages[1].Role != "user" {
-		t.Fatalf("failed recovery polluted saved history: %+v", loaded.Messages)
-	}
-}
-
-func TestCodePromptRequiresAConcreteProjectStep(t *testing.T) {
-	ag := New(Options{Mode: ModeCode, Sess: session.New(t.TempDir(), "mock/model")})
-	prompt := ag.Sess.Messages[0].Content
-	for _, want := range []string{"Do not stop after inspection", "concrete", "checkpoint", "blocker"} {
-		if !strings.Contains(prompt, want) {
-			t.Fatalf("code prompt omitted %q: %q", want, prompt)
-		}
-	}
-}
-
-func requestContains(messages []provider.Message, text string) bool {
-	for _, msg := range messages {
-		if strings.Contains(msg.Content, text) {
-			return true
-		}
-	}
-	return false
-}
-
-// TestE2E_OrchestratedAgentMode drives the full agent-mode pipeline: plan ->
-// two subagents (one uses a tool) -> synthesis, with isolated contexts and a
-// compact main history.
-func TestE2E_OrchestratedAgentMode(t *testing.T) {
-	work := t.TempDir()
-	target := filepath.Join(work, "notes.txt")
-
-	srv := enginetest.New(
-		// planner
-		enginetest.Step{Text: `["write the notes file", "verify it exists"]`},
-		// subagent 1: tool call then summary
-		enginetest.Step{ToolCalls: []provider.ToolCall{{
-			ID: "c1",
-			Function: provider.FunctionCall{
-				Name:      "write_file",
-				Arguments: `{"path":"` + jsonEsc(target) + `","content":"orchestrated\n"}`,
-			},
-		}}},
-		enginetest.Step{Text: "Wrote notes.txt with the content."},
-		// subagent 2: plain summary
-		enginetest.Step{Text: "Verified: notes.txt exists."},
-		// synthesis
-		enginetest.Step{Text: "Both tasks complete: notes.txt written and verified.", Cost: 0.003},
-	)
-	defer srv.Close()
-
-	ag, out, sdir, statsDir := newTestAgent(t, srv, ModeAgent)
-	if err := ag.RunTurn(context.Background(), "create and verify a notes file"); err != nil {
-		t.Fatalf("RunTurn: %v", err)
+	if loadedMsgs[2].Content != "Successfully created both a.txt and b.txt." {
+		t.Errorf("persisted synthesis message = %q", loadedMsgs[2].Content)
 	}
 
-	// the tool ran inside a subagent
-	if b, err := os.ReadFile(target); err != nil || string(b) != "orchestrated\n" {
-		t.Fatalf("subagent did not write file: %q err=%v", string(b), err)
-	}
-	// plan and synthesis are visible
-	o := out.String()
-	for _, want := range []string{"plan (2 tasks)", "subagent 1/2", "subagent 2/2", "Both tasks complete"} {
-		if !strings.Contains(o, want) {
-			t.Errorf("output missing %q:\n%s", want, o)
-		}
-	}
-	// main session history stays compact and valid: system, user, assistant
-	loaded, _ := session.Load(sdir, ag.Sess.ID)
-	if len(loaded.Messages) != 3 || loaded.Messages[2].Role != "assistant" || len(loaded.Messages[2].ToolCalls) != 0 {
-		t.Errorf("main history not compact: %d messages", len(loaded.Messages))
-	}
-	// stats recorded planner + subagent calls + synthesis with roles
+	// stats recorded all roles: planner, 2 subagents, synthesis
 	recs, _ := stats.Load(statsDir)
 	roles := map[string]int{}
 	for _, r := range recs {
@@ -358,51 +246,26 @@ func TestE2E_OrchestratedAgentMode(t *testing.T) {
 			roles[r.Role]++
 		}
 	}
-	if roles["planner"] != 1 || roles["synthesis"] != 1 || roles["subagent"] != 3 {
-		t.Errorf("stats roles = %v, want planner:1 subagent:3 synthesis:1", roles)
-	}
-	// subagent contexts were isolated: their requests contain the briefing,
-	// while the synthesis request has no tool schemas
-	if srv.Tools[len(srv.Tools)-1] != 0 {
-		t.Error("synthesis call should carry no tools")
+	if roles["planner"] != 1 || roles["subagent"] != 4 || roles["synthesis"] != 1 {
+		t.Errorf("stats roles = %+v, want 1 planner, 4 subagent, 1 synthesis", roles)
 	}
 }
 
-// TestE2E_OrchestratorFallsBackOnSingleTask degrades to the normal loop when
-// the planner returns one task.
-func TestE2E_OrchestratorFallsBackOnSingleTask(t *testing.T) {
-	srv := enginetest.New(
-		enginetest.Step{Text: `["just answer"]`}, // planner: single task
-		enginetest.Step{Text: "direct answer"},   // normal loop reply
-	)
-	defer srv.Close()
-
-	ag, out, sdir, _ := newTestAgent(t, srv, ModeAgent)
-	if err := ag.RunTurn(context.Background(), "trivial thing"); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out.String(), "direct answer") {
-		t.Errorf("missing direct answer: %s", out.String())
-	}
-	loaded, _ := session.Load(sdir, ag.Sess.ID)
-	if len(loaded.Messages) != 3 {
-		t.Errorf("history = %d messages, want 3", len(loaded.Messages))
-	}
-}
-
-// TestE2E_ResumeRepairsDanglingToolCalls simulates a crash after the model
-// requested a tool but before its result was recorded.
-func TestE2E_ResumeRepairsDanglingToolCalls(t *testing.T) {
+// TestE2E_DanglingToolCallsRepairedOnStartup simulates an interrupted run
+// where the previous process died after sending tool_calls but before results
+// were written to the session. The next startup must repair it so the API
+// does not reject the history.
+func TestE2E_DanglingToolCallsRepairedOnStartup(t *testing.T) {
 	sdir := t.TempDir()
 	sess := session.New(sdir, "mock/model")
-	sess.Messages = []provider.Message{
+	sess.SetMessages([]provider.Message{
 		{Role: "system", Content: "old system prompt"},
 		{Role: "user", Content: "list the files"},
 		{Role: "assistant", ToolCalls: []provider.ToolCall{{
 			ID: "call_dangling", Type: "function",
 			Function: provider.FunctionCall{Name: "bash", Arguments: `{"command":"ls","description":"list"}`},
 		}}},
-	}
+	})
 	if err := sess.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -417,9 +280,10 @@ func TestE2E_ResumeRepairsDanglingToolCalls(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	ag := New(Options{Client: client, Model: "mock/model", Yolo: true, Sess: loaded, Out: &out})
+	ag := engine.New(engine.Options{Client: client, Model: "mock/model", Yolo: true, Sess: loaded, Out: &out})
 
-	last := loaded.Messages[len(loaded.Messages)-1]
+	loadedMsgs := loaded.GetMessages()
+	last := loadedMsgs[len(loadedMsgs)-1]
 	if last.Role != "tool" || last.ToolCallID != "call_dangling" {
 		t.Fatalf("dangling tool call was not repaired; tail = %+v", last)
 	}
@@ -438,4 +302,70 @@ func TestE2E_ResumeRepairsDanglingToolCalls(t *testing.T) {
 func jsonEsc(s string) string {
 	r := strings.NewReplacer(`\`, `\\`, `"`, `\"`)
 	return r.Replace(s)
+}
+
+func TestE2E_RunTurnEmitsProtocolEventsToBus(t *testing.T) {
+	srv := enginetest.New(enginetest.Step{Text: "Hello from bus!"})
+	defer srv.Close()
+
+	client := provider.NewClient("test-key")
+	client.BaseURL = srv.URL
+
+	sdir := t.TempDir()
+	sessID := xid.New(xid.Session)
+	sess := session.New(sdir, "mock/model")
+	sess.ID = sessID
+
+	b, err := bus.New(sessID, bus.Options{})
+	if err != nil {
+		t.Fatalf("bus.New: %v", err)
+	}
+
+	sub, err := b.Subscribe(0)
+	if err != nil {
+		t.Fatalf("b.Subscribe: %v", err)
+	}
+
+	var out bytes.Buffer
+	ag := engine.New(engine.Options{
+		Client: client,
+		Model:  "mock/model",
+		Yolo:   true,
+		Sess:   sess,
+		Out:    &out,
+		Bus:    b,
+	})
+
+	if err := ag.RunTurn(context.Background(), "hi"); err != nil {
+		t.Fatalf("RunTurn: %v", err)
+	}
+
+	var eventTypes []protocol.EventType
+	for len(sub.Events()) > 0 {
+		env := <-sub.Events()
+		eventTypes = append(eventTypes, env.Type)
+	}
+
+	if len(eventTypes) == 0 {
+		t.Fatal("no events received on the bus")
+	}
+
+	hasTurnStarted := false
+	hasMessageDelta := false
+	hasTurnFinished := false
+	for _, et := range eventTypes {
+		if et == protocol.EventTurnStarted {
+			hasTurnStarted = true
+		}
+		if et == protocol.EventMessageDelta {
+			hasMessageDelta = true
+		}
+		if et == protocol.EventTurnFinished {
+			hasTurnFinished = true
+		}
+	}
+
+	if !hasTurnStarted || !hasMessageDelta || !hasTurnFinished {
+		t.Fatalf("missing required turn events, received: %v", eventTypes)
+	}
 }

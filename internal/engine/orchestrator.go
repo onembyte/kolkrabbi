@@ -12,17 +12,25 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/tools"
 )
 
-// maxTasksFor maps effort to orchestration width.
+// MaxTasksForEffort maps effort to orchestration width.
+func MaxTasksForEffort(effort string) int {
+	return maxTasksFor(effort)
+}
+
 func maxTasksFor(effort string) int {
-	switch effort {
-	case EffortQuick:
-		return 2
-	case EffortDeep:
+	eff, ok := NormalizeEffort(effort)
+	if !ok {
+		eff = EffortMedium
+	}
+	switch eff {
+	case EffortLow:
+		return 1
+	case EffortHigh:
 		return 4
-	case EffortUltra:
+	case EffortMax:
 		return 6
-	default:
-		return 3
+	default: // EffortMedium
+		return 2
 	}
 }
 
@@ -34,7 +42,7 @@ const maxSubagentRounds = 12 // tool-loop iterations per subagent, runaway guard
 // final answer. The main session only ever sees user input -> final answer,
 // so its history stays small and valid.
 func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
-	a.Sess.Messages = append(a.Sess.Messages, provider.Message{Role: "user", Content: userInput})
+	a.Sess.AppendMessage(provider.Message{Role: "user", Content: userInput})
 	a.save()
 
 	model := a.modelFor(a.Effort)
@@ -52,7 +60,10 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 		// not worth orchestrating: degrade gracefully to the normal loop,
 		// reusing the user message we already appended.
 		fmt.Fprintf(a.Out, "%s◆ single-step task, running directly%s\n", colorMag, colorReset)
-		a.Sess.Messages = a.Sess.Messages[:len(a.Sess.Messages)-1]
+		msgs := a.Sess.GetMessages()
+		if len(msgs) > 0 {
+			a.Sess.SetMessages(msgs[:len(msgs)-1])
+		}
 		a.save()
 		return a.runLoop(ctx, userInput)
 	}
@@ -98,7 +109,7 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 	a.record("synthesis", meta, 0)
 
 	// the main session only records the final answer: valid, compact history
-	a.Sess.Messages = append(a.Sess.Messages, provider.Message{Role: "assistant", Content: msg.Content})
+	a.Sess.AppendMessage(provider.Message{Role: "assistant", Content: msg.Content})
 	a.save()
 	a.footer(meta)
 	return nil
@@ -170,7 +181,8 @@ Overall request: %s
 		{Role: "user", Content: "Your task: " + tasks[idx]},
 	}
 
-	for round := 0; round < maxSubagentRounds; round++ {
+	maxRounds := MaxRoundsFor(ModeCode, a.Effort)
+	for round := 0; round < maxRounds; round++ {
 		msg, meta, err := a.streamChat(ctx, activityWorking, model, msgs, tools.Definitions(), func(tok string) {
 			fmt.Fprint(a.Out, tok)
 		})
@@ -193,7 +205,7 @@ Overall request: %s
 			msgs = append(msgs, provider.Message{Role: "tool", ToolCallID: tc.ID, Content: result})
 		}
 	}
-	return "", fmt.Errorf("exceeded %d tool rounds without finishing", maxSubagentRounds)
+	return "", fmt.Errorf("exceeded %d tool rounds without finishing", maxRounds)
 }
 
 func workingDir() string {

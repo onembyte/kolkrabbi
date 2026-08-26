@@ -1,16 +1,22 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 
+	"github.com/onembyte/kolkrabbi/internal/bus"
 	"github.com/onembyte/kolkrabbi/internal/checkpoint"
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/session"
+	"github.com/onembyte/kolkrabbi/internal/stats"
+	"github.com/onembyte/kolkrabbi/protocol"
 )
 
 // runDefault is `kolk` with no verb: build an agent, then either run one turn
@@ -26,11 +32,47 @@ func (a *app) runDefault(ctx context.Context, args []string) error {
 		return err
 	}
 
+	if a.isStdinPiped != nil && a.isStdinPiped() && a.in != nil {
+		piped, err := io.ReadAll(a.in)
+		if err == nil && len(bytes.TrimSpace(piped)) > 0 {
+			trimmed := string(bytes.TrimSpace(piped))
+			if o.prompt != "" {
+				o.prompt = o.prompt + "\n\n" + trimmed
+			} else {
+				o.prompt = trimmed
+			}
+		}
+	}
+
 	if o.prompt != "" {
 		// Single-shot: Ctrl+C aborts the run, so the signal context is the
 		// whole command's lifetime.
 		tctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 		defer stop()
+
+		if o.outputFormat == "stream-json" {
+			if ag.Bus != nil {
+				sub, err := ag.Bus.Subscribe(0)
+				if err == nil {
+					ag.Out = io.Discard
+					done := make(chan struct{})
+					go func() {
+						defer close(done)
+						for env := range sub.Events() {
+							frame, err := protocol.EncodeNDJSON(env)
+							if err == nil {
+								_, _ = a.stdout.Write(frame)
+							}
+						}
+					}()
+					turnErr := ag.RunTurn(tctx, o.prompt)
+					_ = ag.Bus.Close()
+					<-done
+					return turnErr
+				}
+			}
+		}
+
 		return ag.RunTurn(tctx, o.prompt)
 	}
 	if a.canUseTUI() {
@@ -118,18 +160,36 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		ckpt = nil
 	}
 
+	var eventBus *bus.Bus
+	if b, err := bus.New(sess.ID, bus.Options{
+		SpillPath: filepath.Join(d.Sessions(), sess.ID+".events.ndjson"),
+	}); err == nil {
+		eventBus = b
+	}
+
+	var freeModels []string
+	if models, err := client.ListModelsCached(ctx, d.CatalogFile(), provider.DefaultCatalogTTL, false); err == nil {
+		freeModels = provider.RankFreeModels(models)
+	}
+	if len(freeModels) == 0 {
+		freeModels = provider.RankFreeModels(provider.FallbackCatalogSeed())
+	}
+
 	return engine.New(engine.Options{
-		Client:   client,
-		Model:    model,
-		Mode:     o.mode,
-		Effort:   o.effort,
-		Yolo:     o.yolo,
-		Sess:     sess,
-		Ckpt:     ckpt,
-		In:       a.in,
-		Out:      a.stdout,
-		StatsDir: d.Data,
-		Tiers:    cfg.Tiers,
+		Client:      client,
+		Model:       model,
+		Mode:        o.mode,
+		Effort:      o.effort,
+		Yolo:        o.yolo,
+		Sess:        sess,
+		Ckpt:        ckpt,
+		In:          a.in,
+		Out:         a.stdout,
+		Recorder:    stats.NewStore(d.Data),
+		Tiers:       cfg.Tiers,
+		Bus:         eventBus,
+		PinnedModel: o.model != "",
+		FreeModels:  freeModels,
 	}), nil
 }
 

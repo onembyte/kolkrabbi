@@ -6,7 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/onembyte/kolkrabbi/internal/session"
+	"github.com/onembyte/kolkrabbi/internal/bus"
+	"github.com/onembyte/kolkrabbi/internal/enginetest"
+	"github.com/onembyte/kolkrabbi/internal/xid"
+	"github.com/onembyte/kolkrabbi/protocol"
 )
 
 type recordingDecider struct {
@@ -27,7 +30,7 @@ func TestDeciderOwnsInteractiveConfirmationAheadOfTheLegacyReader(t *testing.T) 
 	ctx := context.WithValue(context.Background(), deciderContextKey{}, "turn")
 	decider := &recordingDecider{allow: true}
 	ag := New(Options{
-		Sess:    session.New(t.TempDir(), "model"),
+		Sess:    enginetest.NewFakeSession("s_1", "model"),
 		In:      bufio.NewReader(strings.NewReader("n\n")),
 		Decider: decider,
 	})
@@ -46,7 +49,7 @@ func TestDeciderOwnsInteractiveConfirmationAheadOfTheLegacyReader(t *testing.T) 
 
 func TestYoloBypassesTheDecider(t *testing.T) {
 	decider := &recordingDecider{}
-	ag := New(Options{Sess: session.New(t.TempDir(), "model"), Yolo: true, Decider: decider})
+	ag := New(Options{Sess: enginetest.NewFakeSession("s_1", "model"), Yolo: true, Decider: decider})
 	if !ag.confirm(context.Background(), "write", "file") {
 		t.Fatal("yolo did not approve")
 	}
@@ -56,3 +59,104 @@ func TestYoloBypassesTheDecider(t *testing.T) {
 }
 
 type deciderContextKey struct{}
+
+func TestTerminalDeciderInteractive(t *testing.T) {
+	var out strings.Builder
+	in := bufio.NewReader(strings.NewReader("y\n"))
+	decider := NewTerminalDecider(in, &out)
+
+	c := Confirmation{Action: "Run command", Detail: "make check"}
+	if !decider.Confirm(context.Background(), c) {
+		t.Fatal("expected TerminalDecider to return true on 'y'")
+	}
+	if !strings.Contains(out.String(), "make check") {
+		t.Fatalf("expected output to contain detail: %s", out.String())
+	}
+
+	out.Reset()
+	inNo := bufio.NewReader(strings.NewReader("no\n"))
+	deciderNo := NewTerminalDecider(inNo, &out)
+	if deciderNo.Confirm(context.Background(), c) {
+		t.Fatal("expected TerminalDecider to return false on 'no'")
+	}
+}
+
+func TestEngineFailsClosedWithoutDecider(t *testing.T) {
+	ag := New(Options{Sess: enginetest.NewFakeSession("s_1", "model")})
+	if ag.confirm(context.Background(), "write", "secret.txt") {
+		t.Fatal("expected engine to fail closed when no Decider or In is configured")
+	}
+}
+
+func TestSessionDeciderCachesApproval(t *testing.T) {
+	underlying := &recordingDecider{allow: true}
+	sessionDecider := NewSessionDecider(underlying)
+
+	c := Confirmation{Action: "bash", Detail: "go test ./..."}
+
+	// Manually set rule to allow_session
+	sessionDecider.rules[c.Action+"::"+c.Detail] = protocol.PermissionDecisionAllowSession
+
+	if !sessionDecider.Confirm(context.Background(), c) {
+		t.Fatal("expected cached rule to allow action")
+	}
+
+	// Underlying decider should NOT have been consulted
+	if underlying.calls != 0 {
+		t.Fatalf("expected 0 calls to underlying decider, got %d", underlying.calls)
+	}
+}
+
+func TestTerminalDeciderAlwaysReturnsAllowSession(t *testing.T) {
+	var out strings.Builder
+	in := bufio.NewReader(strings.NewReader("a\n"))
+	decider := NewTerminalDecider(in, &out)
+
+	c := Confirmation{Action: "write_file", Detail: "main.go"}
+	decision := decider.Decide(context.Background(), c)
+	if decision != protocol.PermissionDecisionAllowSession {
+		t.Fatalf("decision = %q, want %q", decision, protocol.PermissionDecisionAllowSession)
+	}
+}
+
+func TestPermissionEventsEmittedOnBus(t *testing.T) {
+	sessID := xid.New(xid.Session)
+	sess := enginetest.NewFakeSession(sessID, "model")
+
+	b, err := bus.New(sessID, bus.Options{})
+	if err != nil {
+		t.Fatalf("bus.New: %v", err)
+	}
+
+	sub, err := b.Subscribe(0)
+	if err != nil {
+		t.Fatalf("Subscribe: %v", err)
+	}
+
+	decider := &recordingDecider{allow: true}
+	ag := New(Options{
+		Sess:    sess,
+		Decider: decider,
+		Bus:     b,
+	})
+
+	if !ag.confirm(context.Background(), "bash", "ls -la") {
+		t.Fatal("confirm failed")
+	}
+
+	var events []protocol.Envelope
+	for len(sub.Events()) > 0 {
+		events = append(events, <-sub.Events())
+	}
+
+	if len(events) != 2 {
+		t.Fatalf("received %d events, want 2 (requested, resolved)", len(events))
+	}
+
+	if events[0].Type != protocol.EventPermissionRequested {
+		t.Fatalf("event[0].Type = %q, want %q", events[0].Type, protocol.EventPermissionRequested)
+	}
+	if events[1].Type != protocol.EventPermissionResolved {
+		t.Fatalf("event[1].Type = %q, want %q", events[1].Type, protocol.EventPermissionResolved)
+	}
+}

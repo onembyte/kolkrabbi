@@ -102,10 +102,18 @@ func TestFlagTableIsWellFormed(t *testing.T) {
 	}
 }
 
-// A flag must never collide with a command name, or `kolk stats` becomes
-// ambiguous the day someone adds --stats.
+// A flag must never accidentally collide with a command name, unless it is an
+// intentional flag twin (model, mode, effort) defined in docs/plan/09-command-surface.md §1.2.
 func TestFlagsAndCommandsDoNotCollide(t *testing.T) {
+	twinFlags := map[string]bool{
+		"model":  true,
+		"mode":   true,
+		"effort": true,
+	}
 	for _, f := range flagTable {
+		if twinFlags[f.long] {
+			continue
+		}
 		if c := lookupCommand(f.long); c != nil {
 			t.Errorf("--%s collides with the %q command", f.long, c.name)
 		}

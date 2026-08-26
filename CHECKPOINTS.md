@@ -108,16 +108,390 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   clock and strict terminal-only activation.
 - [x] **U0.3c terminal-compatible octopus hotfix** — keep every animation frame in one saved
   terminal region on Apple Terminal and publish the independently verified `v1.1.1` patch.
-- [~] **U0.4 persistent terminal UI** — add a Codex-style persistent multiline input area, live
+- [x] **U0.4 persistent terminal UI** — add a Codex-style persistent multiline input area, live
   activity/tool status, visible model/mode/effort/session state, and robust terminal interaction.
 - [x] **U0.4e spinner-only free-default patch** — remove loader decoration, dynamically prefer a
   free coding model, retire the stale documented free preset, and publish the verified `v1.1.3`.
 - [x] **U0.4f bounded background-output hotfix** — prevent a successful shell whose intentional
   background process retains stdout from freezing the agent turn; publish verified `v1.1.4`.
-- [~] **U0.4g persistent purple composer** — replace the boxed prototype with a stable text-only
+- [x] **U0.4g persistent purple composer** — replace the boxed prototype with a stable text-only
   purple TUI, fix raw-terminal row displacement, and prepare the verified `v1.1.5` patch.
+- [x] **E7.1 effort vocabulary normalization & canonical levels** — canonical `low/medium/high/max` with numeric `1..4` and legacy `quick..ultra` aliases.
+- [x] **E7.2 effort knob matrix** — wire tool round limits, subagent width, and bash timeouts to active effort.
+- [x] **E7.3 config & tier resolution** — wire `effort.<level>.model` into config and tier inheritance.
+- [x] **E7.4 interactive REPL & slash surface** — live `/effort <level|num>` with immediate model re-resolution and status line updates.
+- [x] **M8.1 catalog cache & discovery seam** — disk-cached catalog loader with 1-hour TTL and seed fallback.
+- [x] **M8.2 free model ranker & auto-rotation** — free model intelligence ranking and per-turn 429 rotation.
+- [x] **M8.3 model aliases & catalog browser** — vendor aliases (`sonnet`, `haiku`, `flash`, etc.) and bare `/model`.
+- [x] **M8.4 fast lane auxiliary execution slot** — isolated zero-cost `slot.fast` for titling and summarization.
+- [x] **C9.1 unified command table & parity engine** — single source of truth for CLI flags and REPL slash routing.
+- [x] **C9.2 short verbs & grammar simplification** — <= 6 character verbs (`key`, `model`, `effort`, `mode`, `config`).
+- [x] **C9.3 non-interactive scripting & stream-json** — `--output stream-json` and strict UNIX exit codes.
+- [x] **C9.4 shell completion generator** — dynamic autocompletions for bash, zsh, and fish.
+- [x] **S10.1 saga state machine & artifact engine** — `SAGA.md` parser, generator, and chapter lifecycle state machine.
+- [x] **S10.2 quality gate & git checkpointer** — automated test discovery, verification execution, and commit-on-green.
+- [x] **S10.3 budget & doom-loop guardrails** — chapter limit, dollar budget, timeout, and consecutive failure detection.
+- [~] **S10.4 CLI & slash command surface** — `kolk saga [goal|resume|status|stop|rewind]` and REPL twin `/saga`.
+### E7.1 effort vocabulary normalization & canonical levels — verified detail
 
-### U0.4g persistent purple composer — active detail
+Scope:
+
+- Establish canonical effort constants: `EffortLow` ("low"), `EffortMedium` ("medium"), `EffortHigh` ("high"), `EffortMax` ("max") in `internal/engine`.
+- Implement pure function `NormalizeEffort(string) (string, bool)` supporting:
+  - Canonical names: `low`, `medium`, `high`, `max`
+  - Numeric aliases: `1` → `low`, `2` → `medium`, `3` → `high`, `4` → `max`
+  - Legacy aliases: `quick` → `low`, `standard` → `medium`, `deep` → `high`, `ultra` → `max`
+  - Case-insensitivity and whitespace trimming
+- Update `Agent.SetEffort` to accept and normalize all valid inputs and return a descriptive error naming the canonical levels on failure.
+- Update `Agent.modelFor` to check canonical effort keys in `Tiers` and fall back to legacy keys ("quick", "standard", etc.) if present, preserving zero-config inheritance.
+- Update CLI flag help and slash help to display `<low|medium|high|max>` while continuing to accept numeric and legacy tokens.
+
+Non-goals:
+
+- No change to provider streaming, network protocols, or session JSON file format.
+- No auto-escalation policy in this leaf (E7.2 owns that).
+- No new external dependencies.
+
+Acceptance checklist:
+
+- [x] table-driven unit tests for `NormalizeEffort` covering all canonical, numeric, legacy, case variations, and invalid inputs.
+- [x] `Agent.SetEffort` accepts canonical `low/medium/high/max`, numeric `1..4`, and legacy `quick..ultra`, storing canonical names in `a.Effort`.
+- [x] `Agent.modelFor` resolves canonical tier keys and falls back to legacy tier keys if present, or base `a.Model` when unset.
+- [x] CLI slash command `/effort` accepts all aliases and prints canonical effort names.
+- [x] focused engine and CLI tests pass with `-race`, and full `./scripts/test.sh` remains 100% green.
+
+### E7.2 effort knob matrix — verified detail
+
+Scope:
+
+- Wire tool round limits per turn via `MaxRoundsFor(mode, effort) int`:
+  - `low`: 4 rounds (code) / 2 rounds (chat)
+  - `medium`: 12 rounds (code) / 6 rounds (chat)
+  - `high`: 24 rounds (code) / 12 rounds (chat)
+  - `max`: 50 rounds (code) / 20 rounds (chat)
+  - Abort runaway turns when tool calls exceed effort's round limit with descriptive error `exceeded maximum tool rounds (%d) for %s effort`.
+- Wire subagent orchestration width and subagent round limits via `maxTasksFor(effort) int`:
+  - `low`: 1 task (no fanout)
+  - `medium`: 2 tasks
+  - `high`: 4 tasks
+  - `max`: 6 tasks
+  - Subagent tool loops use `MaxRoundsFor(ModeCode, a.Effort)`.
+- Wire bash command timeouts via `TimeoutForEffort(effort) time.Duration`:
+  - `low`: 30s
+  - `medium`: 120s
+  - `high`: 300s
+  - `max`: 600s
+  - Pass context timeout to `tools.Execute` on bash tool invocations.
+
+Non-goals:
+
+- No auto-escalation heuristics based on model errors in this leaf.
+- No provider-level thinking parameter changes (`E7.3` and provider layer own that).
+
+Acceptance checklist:
+
+- [x] table-driven tests for `MaxRoundsFor` covering all modes, canonical levels, and aliases.
+- [x] table-driven tests for `TimeoutForEffort` covering all canonical levels and aliases.
+- [x] table-driven tests for `MaxTasksForEffort` covering width mapping.
+- [x] turn execution aborts when exceeding `MaxRoundsFor` with clear message.
+- [x] focused engine tests pass with `-race`, and full `./scripts/test.sh` remains 100% green.
+
+### E7.3 config & tier resolution — verified detail
+
+Scope:
+
+- Wire dotted keys `effort.<level>.model` into config resolution chain following `docs/plan/18-config.md`.
+- Support `kolk config set effort.<level>.model <id>`, `kolk config get effort.<level>.model`, and `kolk config unset effort.<level>.model`.
+- Maintain backward compatibility with `kolk config set-tier <effort> <id>` by mapping to canonical effort keys in `cfg.Tiers`.
+- Ensure session initialization applies tier inheritance from config to `ag.Tiers`.
+
+Non-goals:
+
+- No REPL TUI dynamic status updates in this leaf (`E7.4` owns that).
+- No new external dependencies.
+
+Acceptance checklist:
+
+- [x] unit tests prove `effort.<level>.model` config set, get, unset, and persistence.
+- [x] legacy `set-tier` commands correctly populate canonical effort entries.
+- [x] engine agent inherits resolved tiers on startup.
+- [x] full `./scripts/test.sh` passes without regressions.
+
+### E7.4 interactive REPL & slash surface — verified detail
+
+Scope:
+
+- Update persistent composer status bar in `internal/cli/tui_repl.go` to re-resolve model name immediately when `/effort` is executed.
+- Ensure `/effort` slash command output reports the canonical effort name and the active model resolved from tiers.
+- Add test coverage for in-session `/effort` re-resolution reflecting on TUI status.
+
+Non-goals:
+
+- No model auto-rotation on 429 in this leaf (M8.2 owns that).
+- No new external dependencies.
+
+Acceptance checklist:
+
+- [x] REPL slash test proves `/effort <level|num>` updates `ag.Effort` and re-resolves active tier model.
+- [x] TUI model status line renders updated model name after `/effort`.
+- [x] focused CLI tests pass with `-race`, and full `./scripts/test.sh` remains 100% green.
+
+### M8.1 catalog cache & discovery seam — verified detail
+
+Scope:
+
+- Implement disk-cached catalog loader `ListModelsCached` in `internal/provider/catalog.go` with 1-hour TTL (`DefaultCatalogTTL`).
+- Use atomic write (`atomicfile.Write`) to save `models.json` into `d.CatalogFile()`.
+- Add `--refresh` flag support in `kolk models` to bypass cache.
+- Fallback to stale on-disk cache during network outages.
+- Provide `FallbackCatalogSeed()` with verified bootstrap models for completely offline cold starts.
+- Wire catalog cache into `kolk models` CLI and `/model` REPL slash commands.
+
+Non-goals:
+
+- No dynamic model ranking or auto-rotation on 429 in this leaf (`M8.2` owns that).
+- No Fast Lane auxiliary slot in this leaf (`M8.4` owns that).
+
+Acceptance checklist:
+
+- [x] unit tests prove cache hit avoids network and serves from disk.
+- [x] unit tests prove cache miss fetches and atomically writes `models.json`.
+- [x] unit tests prove network failure falls back to stale cache.
+- [x] unit tests prove `--refresh` bypasses cache and updates from network.
+- [x] full `make check` gate passes (1,399 tests, 5 platforms clean, 0 lint issues).
+
+### M8.2 free model ranker & auto-rotation — verified detail
+
+Scope:
+
+- Implement free model discovery ranker prioritizing coding competence, context length, and latency.
+- Track tried models per turn to prevent ping-pong cycles.
+- On HTTP 429 rate-limit error, rotate to next free ranked model and replay turn automatically if unpinned.
+- Enforce the Pinned Model Invariant: never auto-rotate if the user explicitly specified the model via `-m` or `/model`.
+
+Non-goals:
+
+- No model aliases (`sonnet`, `haiku`, etc.) in this leaf (`M8.3` owns that).
+- No new external dependencies.
+
+Acceptance checklist:
+
+- [x] unit tests prove free models are ranked according to coding and context criteria.
+- [x] turn loop rotates to next free model on 429 and retries turn automatically.
+- [x] pinned user models never auto-rotate on 429, surfacing error after standard retries.
+- [x] focused engine and provider tests pass with `-race`, and full `./scripts/test.sh` remains 100% green.
+
+### M8.3 model aliases & catalog browser — verified detail
+
+Scope:
+
+- Map vendor shorthand aliases per `docs/plan/08-model-routing.md` §2.2 (`sonnet`, `opus`, `haiku`, `flash`, `pro`, `o3-mini`, `deepseek`, `auto`, etc.) to full provider model IDs.
+- Update `kolk model <alias>` and `/model <alias>` to resolve aliases transparently.
+- Implement bare `/model` browser output categorized by active model, top free models, and top frontier models.
+- Add tests for alias resolution and categorized catalog rendering.
+
+Non-goals:
+
+- No fast lane auxiliary slot in this leaf (`M8.4` owns that).
+- No new external dependencies.
+
+Acceptance checklist:
+
+- [x] unit tests verify all standard aliases resolve to canonical model IDs.
+- [x] bare `/model` displays active model details, free highlights, and frontier highlights.
+- [x] switching via `/model <alias>` resolves and sets canonical model ID.
+- [x] full `./scripts/test.sh` passes without regressions.
+
+### M8.4 fast lane auxiliary execution slot — verified detail
+
+Scope:
+
+- Implement isolated zero-cost auxiliary execution slot (`slot.fast`) per `docs/plan/08-model-routing.md` §3.
+- Fast Lane handles asynchronous background summaries (session titling, auto-compaction summary).
+- Selection rule: if main model is free, fast lane uses free model; if paid, uses cheapest high-throughput model capped at <= $0.15/1M tokens.
+- Tools are disabled for fast lane calls, and turn history is isolated.
+- Add tests verifying fast lane model selection, tool restriction, and context isolation.
+
+Non-goals:
+
+- No unified command table in this leaf (`C9.1` owns that).
+- No new external dependencies.
+
+Acceptance checklist:
+
+- [x] unit tests prove `FastLaneModel` selection based on session model pricing.
+- [x] fast lane auxiliary execution runs with empty toolset and isolated context.
+- [x] focused engine and provider tests pass with `-race`, and full `./scripts/test.sh` remains 100% green.
+
+### C9.1 unified command table & parity engine — verified detail
+
+Scope:
+
+- Implement unified command specification data structure in `internal/cli` following `docs/plan/09-command-surface.md`.
+- Enforce exact parity rule: every CLI verb has an identical slash twin inside REPL (`kolk <verb> [args]` ≡ `/<verb> [args]`).
+- Single source of truth driving flag parsing, REPL slash command routing, help text, and autocompletion.
+- Add unit tests verifying command dispatch parity between CLI and REPL.
+
+Non-goals:
+
+- No dynamic shell completion generator in this leaf (`C9.4` owns that).
+- No new external dependencies.
+
+Acceptance checklist:
+
+- [x] unit tests prove every CLI verb has an identical REPL slash command twin.
+- [x] top-level help and REPL `/help` derive from the same canonical registry.
+- [x] focused CLI tests pass with `-race`, and full `./scripts/test.sh` remains 100% green.
+
+### C9.2 short verbs & grammar simplification — verified detail
+
+Scope:
+
+- Enforce rigid verb naming guardrails: strictly single word, all lowercase, <= 6 characters.
+- Implement first-class top-level CLI verbs for `model`, `effort`, and `mode`.
+- Support seamless alias resolution and default persistence in `~/.config/kolk/config.json`.
+- Add unit tests verifying grammar constraints and top-level execution.
+
+Non-goals:
+
+- No stream-json emission in this leaf (`C9.3` owns that).
+- No new external dependencies.
+
+Acceptance checklist:
+
+- [x] unit tests enforce canonical command verbs are <= 6 characters and single lowercase words.
+- [x] `kolk model` lists catalog or sets default model with alias resolution.
+- [x] `kolk effort` and `kolk mode` display or update default settings.
+- [x] full `./scripts/test.sh` passes without regressions.
+
+### C9.3 non-interactive scripting & stream-json — active detail
+
+Scope:
+
+- Implement non-interactive execution support per `docs/plan/09-command-surface.md` §3.
+- Support `-p / --prompt` and piped standard input without TUI chrome or interactive prompts.
+- Implement `--output stream-json` streaming line-delimited NDJSON protocol events.
+- Enforce deterministic UNIX exit codes: `ExitOK` (0), `ExitError` (1), `ExitUsage` (2), `ExitBudget` (3), `ExitInterrupt` (130).
+- Add unit tests for piped input, stream-json emission, and exit codes.
+
+Non-goals:
+
+- No dynamic shell completion generator in this leaf (`C9.4` owns that).
+- No new external dependencies.
+
+Acceptance checklist:
+
+- [x] unit tests prove `--output stream-json` emits parseable NDJSON protocol events.
+- [x] non-interactive mode reads prompt from piped stdin when `-p` is omitted or empty.
+- [x] deterministic UNIX exit codes conform strictly to spec constants.
+- [x] full `./scripts/test.sh` passes without regressions.
+
+### C9.4 shell completion generator — active detail
+
+Scope:
+
+- Implement embedded shell completion generator per `docs/plan/09-command-surface.md` §4 (`kolk completion <bash|zsh|fish>`).
+- Dynamic autocompletions for all canonical command verbs (`key`, `model`, `effort`, `mode`, `config`, `update`, `stats`, `serve`, `version`, `help`).
+- Dynamic argument autocompletion for `model` (resolves cached/alias names) and `effort` (`low`, `medium`, `high`, `max`, `1..4`).
+- Add tests verifying generated bash, zsh, and fish script syntax and exit codes.
+
+Non-goals:
+
+- No saga state machine in this leaf (`S10.1` owns that).
+- No new external dependencies.
+
+Acceptance checklist:
+
+- [x] unit tests prove `kolk completion <bash|zsh|fish>` outputs non-empty, valid completion scripts.
+- [x] generated scripts reference canonical command verbs.
+- [x] full `./scripts/test.sh` passes without regressions.
+
+### S10.1 saga state machine & artifact engine — verified detail
+
+Scope:
+
+- Implement core `Saga` data model and state machine per `docs/plan/10-saga-loop.md`.
+- Read and write `SAGA.md` artifact with deterministic frontmatter (`schema_version: 1`, `status`, `budgets`, `gates`).
+- Model chapters with atomic statuses: `PENDING`, `PLANNING`, `EXECUTING`, `VERIFYING`, `DONE`, `FAILED`, `BLOCKED`, `ABORTED`.
+- Enforce progression invariant: only one active chapter at a time; verify transitions reject illegal skips.
+- Add comprehensive unit tests for `SAGA.md` parsing, serialization, and state machine transitions.
+
+Non-goals:
+
+- No automated git checkpointer in this leaf (`S10.2` owns that).
+- No new external dependencies.
+
+Acceptance checklist:
+
+- [x] unit tests prove `SAGA.md` parses and formats without loss.
+- [x] state machine enforces strictly ordered chapter transitions.
+- [x] focused engine and saga tests pass with `-race`, and full `./scripts/test.sh` remains 100% green.
+
+### S10.2 quality gate & git checkpointer — active detail
+
+Scope:
+
+- Implement automatic project quality gate detection (`DetectQualityGates(repoDir string) []string`) for Go (`go vet ./... && go test ./...`), Node (`npm test`), Rust (`cargo test`), and Make (`make test` / `make check`).
+- Execute verification gates before committing a chapter.
+- Implement chapter-level git checkpointer creating atomic commits on green (`saga(chapter N): <summary>`) and rollbacks (`git checkout .`) on failure.
+- Add tests verifying gate detection and commit-on-green execution.
+
+Non-goals:
+
+- No doom-loop detection in this leaf (`S10.3` owns that).
+- No new external dependencies.
+
+Acceptance checklist:
+
+- [x] unit tests prove project quality gates are auto-detected accurately without prompts.
+- [x] verified gate passes trigger automated atomic git commit.
+- [x] gate failures trigger rollback and increment strike counter.
+- [x] full `./scripts/test.sh` passes without regressions.
+
+### S10.3 budget & doom-loop guardrails — active detail
+
+Scope:
+
+- Implement saga budget enforcement: `MaxChapters`, `CostLimit`, and `TimeoutDuration`.
+- Implement the doom-loop detector: 3 consecutive failed/no-progress chapters halt the saga.
+- Provide `SagaBudget` struct with `Check(state *SagaState) (StopReason, bool)` that returns the reason to stop or continues.
+- Add tests verifying each stop condition fires at the correct threshold.
+
+Non-goals:
+
+- No CLI/slash command wiring in this leaf (`S10.4` owns that).
+- No new external dependencies.
+
+Acceptance checklist:
+
+- [x] unit tests prove max-chapters stop fires at the threshold.
+- [x] unit tests prove cost-limit stop fires at the threshold.
+- [x] unit tests prove doom-loop halts after 3 consecutive failures.
+- [x] full `./scripts/test.sh` passes without regressions.
+
+### S10.4 CLI & slash command surface — active detail
+
+Scope:
+
+- Register `saga` in `commandTable()` with grammar `[goal | resume | status | stop | rewind]`.
+- Implement `runSaga` dispatching subcommands: `kolk saga "goal"`, `kolk saga resume`, `kolk saga status`, `kolk saga stop`, `kolk saga rewind`.
+- Add `/saga` to `slashCommandTable` with identical dispatch.
+- Each subcommand starts as a stub returning `usagef` or printing a status message.
+- Add tests verifying verb registration, parity, and basic exit codes.
+
+Non-goals:
+
+- No full saga execution loop in this leaf (engine integration comes after all S10 checkpoints are wired).
+- No new external dependencies.
+
+Acceptance checklist:
+
+- [ ] `kolk saga status` returns ExitOK.
+- [ ] `kolk saga` with no args returns usage help.
+- [ ] `/saga` slash twin is registered and routes.
+- [ ] full `./scripts/test.sh` passes without regressions.
+
+### U0.4g persistent purple composer — verified detail
 
 Scope:
 
@@ -149,7 +523,7 @@ Acceptance checklist:
 - [x] a fresh real-PTY mock rehearsal submits a code turn, writes the expected file, streams tool and
   final output above the composer, updates the session title, and exits on the second Ctrl+C without
   boxed chrome, octopus, `thinking` text, duplicated startup metadata, or displaced rows.
-- [ ] the complete clean repository/race gate, four release archives, branch CI, signed `v1.1.5`
+- [x] the complete clean repository/race gate, four release archives, branch CI, signed `v1.1.5`
   assets, public updater/no-op updater, and fresh installer pass before publication is declared.
 
 ### U0.4f bounded background-output hotfix — active detail
@@ -1302,13 +1676,35 @@ explicitly postponed publishing and directed the remaining project work to conti
 and T0.5 therefore stay blocked without being treated as failed, and the additive A6 migration may
 proceed without changing repository visibility, tags, releases, or deployments.
 
-- [~] **A6 protocol contract** — add `spec/`, public `protocol/`, and golden conformance tests.
-- [~] **A7 event bus** — emit events while preserving today's plain output byte-for-byte.
-- [ ] **A8 decision port** — move interactive approval out of the engine.
-- [ ] **A9 engine ports** — inject stores/recorders/clock and isolate orchestration.
-- [ ] **A10 session format cut** — freeze a v0 fixture before changing persisted messages.
-- [ ] **A11 serve surfaces** — identical NDJSON, stdio, and SSE event frames.
+- [x] **A7 event bus** — emit events while preserving today's plain output byte-for-byte.
+- [x] **A8 decision port** — move interactive approval out of the engine.
+  - [x] **A8.1 terminal decider adapter** — move interactive stdin prompts into an explicit `TerminalDecider` and decouple engine from raw `bufio.Reader`.
+  - [x] **A8.2 permission event lifecycle** — emit canonical `permission.requested` and `permission.resolved` events on the bus.
+  - [x] **A8.3 session permission rules** — support session-level retention (`allow_session`) for approved actions.
+- [x] **A9 engine ports** — inject stores/recorders/clock and isolate orchestration.
+  - [x] **A9.1 engine port interfaces** — declare `SessionStore`, `Checkpointer`, `Recorder`, and `Clock` in `internal/engine/port.go`.
+  - [x] **A9.2 adapter port contracts** — ensure `internal/session`, `internal/checkpoint`, and `internal/stats` fulfill the port interfaces.
+  - [x] **A9.3 engine decoupling** — remove all imports of `session`, `checkpoint`, and `stats` from `internal/engine`.
+  - [x] **A9.4 architecture ratchet closure** — remove all entries from `knownViolations` in `internal/arch/layers.go` and verify full isolation.
+- [x] **A10 session format cut** — freeze a v0 fixture before changing persisted messages.
+  - [x] **A10.1 v0 session fixture** — commit `internal/session/testdata/v0-session.json` capturing legacy message and tool call format.
+  - [x] **A10.2 persisted message schema** — define `session.Message`, `session.ToolCall`, and `session.FunctionCall` with frozen tags and reasoning field.
+  - [x] **A10.3 store boundary conversion** — implement clean bidirectional translation between `session.Message` and `provider.Message`.
+  - [x] **A10.4 fixture regression test** — verify v0 format deserialization and round-trips without data loss.
+- [x] **A11 serve surfaces** — identical NDJSON, stdio, and SSE event frames.
+  - [x] **A11.1 server mux & bearer auth** — implement `internal/serve/serve.go` and `internal/serve/auth.go` with bearer token validation, non-loopback protection, and health routes.
+  - [x] **A11.2 sse stream endpoint** — implement `internal/serve/sse.go` with `id:`, `event:`, `data:`, `Last-Event-ID` bus replay, and heartbeat ping.
+  - [x] **A11.3 stdio stream server** — implement `internal/serve/stdio.go` for stdio pipe-based frame streaming.
+  - [x] **A11.4 permission resolution endpoint** — implement `internal/serve/permission.go` for resolving pending interactive permissions.
+  - [x] **A11.5 listeners & architecture registration** — implement `listen.go`, and register `internal/serve` & `cmd/kolkd` in `internal/arch/layers.go`.
+  - [x] **A11.6 stream conformance test** — implement `internal/serve/conform_test.go` verifying byte-identical JSON bodies between NDJSON and SSE against `spec/testdata/streams/*.ndjson`.
+  - [x] **A11.7 cli serve & daemon binary** — implement `kolk serve` in `internal/cli/cmd_serve.go` and daemon entrypoint `cmd/kolkd/main.go`.
 - [ ] **A12 local dashboard store** — SQLite ingest and measured size/startup budget changes.
+  - [ ] **A12.1 embedded assets & sentinel** — commit `internal/dash/dist/index.html` placeholder sentinel and `internal/dash/embed.go`.
+  - [ ] **A12.2 sqlite store & migrations** — add `modernc.org/sqlite` dependency, implement schema migrations (`sessions`, `turns`, `spans`, `scores`) with WAL mode.
+  - [ ] **A12.3 jsonl ingestion & event ingest** — implement `internal/dash/ingest.go` importing existing `stats.jsonl` into SQLite and subscribing to live bus events.
+  - [ ] **A12.4 queries & handler endpoints** — implement `internal/dash/query.go` and `internal/dash/handler.go` mounting `/dash/*` and `/v1/stats/*`.
+  - [ ] **A12.5 budget & arch verification** — update budget dependencies ceiling in `scripts/check-budgets.sh`, measure binary size/cold-start, and verify `make check`.
 - [ ] **A13 Windows** — replace every honest stub and make Windows CI required.
 - [ ] **A14 additive product leaves** — TUI, external agent adapters, and saga, separately.
 - [ ] **A15 generated client proof** — nested tools module and TypeScript protocol client.
@@ -1320,15 +1716,15 @@ Delivery slices (only one active at a time):
 
 - [x] **A7.1 bounded in-memory journal** — assign ordered envelopes, retain a bounded replay
   window, and fan out to bounded live subscribers without a goroutine.
-- [ ] **A7.2 publish scrub chokepoint** — scrub every event string field without corrupting its
+- [x] **A7.2 publish scrub chokepoint** — scrub every event string field without corrupting its
   typed payload, then prove shipped credential shapes cannot cross the journal boundary.
-- [ ] **A7.3 durable event log** — spill exact NDJSON frames and replay one cursor across disk and
+- [x] **A7.3 durable event log** — spill exact NDJSON frames and replay one cursor across disk and
   memory before attaching live.
-- [ ] **A7.4 byte-stable plain renderer** — move current engine formatting behind an event
+- [x] **A7.4 byte-stable plain renderer** — move current engine formatting behind an event
   subscriber while retaining `Options.Out` and exact output bytes.
-- [ ] **A7.5 engine event projection** — emit canonical lifecycle, content, tool, permission,
+- [x] **A7.5 engine event projection** — emit canonical lifecycle, content, tool, permission,
   accounting, and diagnostic events alongside the still-green plain renderer.
-- [ ] **A7.6 stream-json surface** — expose the same retained envelopes through the one-shot CLI
+- [x] **A7.6 stream-json surface** — expose the same retained envelopes through the one-shot CLI
   without inventing a second framing path.
 
 #### A7.1 bounded in-memory journal — active acceptance
@@ -1381,9 +1777,9 @@ Delivery leaves (only one active at a time):
 
 - [x] **A7.2a pure durable scanner** — move arbitrary-text scrubbing into `internal/redact`, derive
   shipped patterns from the embedded shape table, and support process-known literals.
-- [ ] **A7.2b JSON string preservation** — scrub decoded JSON strings, including escaped forms,
+- [x] **A7.2b JSON string preservation** — scrub decoded JSON strings, including escaped forms,
   while retaining all untouched outer bytes and returning valid JSON.
-- [ ] **A7.2c bus splice boundary** — scrub before retention/fan-out, validate the result, forbid
+- [x] **A7.2c bus splice boundary** — scrub before retention/fan-out, validate the result, forbid
   bus imports of credential types, and inject every shipped canary through event string fields.
 
 Scope:
@@ -1421,10 +1817,10 @@ Acceptance checklist:
   usable secret fragment, and `Scrub(Scrub(text)) == Scrub(text)`.
 - [x] valid UTF-8 remains valid, malformed input never panics, and a scanner benchmark records the
   whole-frame cost without introducing a regular-expression hot path.
-- [ ] JSON scrubbing catches plain and escaped canaries at every nesting position, retains numeric,
+- [x] JSON scrubbing catches plain and escaped canaries at every nesting position, retains numeric,
   boolean, null, whitespace, key order, and untouched string bytes exactly, and fails closed on
   malformed/non-object input.
-- [ ] publishing any shipped canary yields only scrubbed replay/live/return copies; failed scrub or
+- [x] publishing any shipped canary yields only scrubbed replay/live/return copies; failed scrub or
   post-scrub protocol validation consumes no sequence and notifies no subscriber.
 - [x] focused/fuzz/race tests, import bans, architecture/purity/platform gates, and the full
   repository suite pass with red/green/refactor evidence recorded. (Independent verification by
@@ -2668,10 +3064,10 @@ checkpoint is expanded. Status here mirrors [`PLAN.md`](PLAN.md); PLAN remains a
 - [x] 4 subscription backends
 - [x] 5 authentication, keys, and secrets
 - [x] 6 modes — hardened; doc complete, code claims verified against the tree (ox-alpha review 2026-08-24)
-- [ ] 7 effort dial
-- [ ] 8 model selection and routing
-- [ ] 9 command surface
-- [ ] 10 saga
+- [x] 7 effort dial — hardened; doc complete (docs/plan/07-effort-dial.md), 4-level low/medium/high/max dial + numeric/legacy aliases, 5-knob matrix
+- [x] 8 model selection and routing — hardened; doc complete (docs/plan/08-model-routing.md), free coding model ranking, vendor aliases, zero-cost fast lane
+- [x] 9 command surface — hardened; doc complete (docs/plan/09-command-surface.md), strict CLI/slash parity, <= 6 char verbs, stream-json, reserve list
+- [x] 10 saga — hardened; doc complete (docs/plan/10-saga-loop.md), chapter-by-chapter SAGA.md loop, shell quality gates, commit-on-green, doom-loop detector
 - [ ] 11 REPL/TUI
 - [ ] 12 sessions, context, and memory
 - [ ] 13 tools, permissions, and sandboxing

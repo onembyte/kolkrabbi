@@ -21,7 +21,9 @@ import (
 )
 
 type Config struct {
-	Model   string            `json:"model"`
+	Model   string            `json:"model,omitempty"`
+	Effort  string            `json:"effort,omitempty"`
+	Mode    string            `json:"mode,omitempty"`
 	BaseURL string            `json:"base_url,omitempty"`
 	Tiers   map[string]string `json:"tiers,omitempty"` // effort level -> model id
 }

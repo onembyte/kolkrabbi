@@ -67,6 +67,7 @@ type app struct {
 	chooseDefault    func(context.Context, *provider.Client) defaultModelChoice
 	enterRaw         func(*os.File) (func() error, error)
 	terminalSize     func(*os.File) (int, int)
+	isStdinPiped     func() bool
 }
 
 func newApp() *app {
@@ -84,6 +85,13 @@ func newApp() *app {
 	a.chooseDefault = discoverDefaultModel
 	a.enterRaw = term.EnterRaw
 	a.terminalSize = term.Size
+	a.isStdinPiped = func() bool {
+		stat, err := os.Stdin.Stat()
+		if err != nil {
+			return false
+		}
+		return (stat.Mode() & os.ModeCharDevice) == 0
+	}
 	return a
 }
 
@@ -133,13 +141,19 @@ func commandTable() []command {
 	return []command{
 		{"key", "<api-key> | - | <provider> <api-key|->",
 			"add an API key for any supported provider", (*app).runKey},
-		{"config", "[set-model <id> | set-base-url <url> | set-tier <effort> <id> | show]",
+		{"model", "[id | alias]", "switch model or list available models", (*app).runModel},
+		{"effort", "[low|medium|high|max]", "set default effort level", (*app).runEffort},
+		{"mode", "[chat|code|agent]", "set default operational mode", (*app).runMode},
+		{"config", "[get <k> | set <k> <v> | unset <k> | set-tier <effort> <id> | show]",
 			"read and write saved settings", (*app).runConfig},
 		{"models", "[filter]", "list models with context size and $/1M pricing", (*app).runModels},
 		{"update", "", "install the latest verified release", (*app).runUpdate},
 		{"sessions", "[rm <id> | clear]", "list or delete saved sessions", (*app).runSessions},
 		{"stats", "[--json]", "100% local usage and rating dashboard", (*app).runStats},
+		{"serve", "[--addr <addr>] [--token <tok>] [--stdio]", "start headless event server or stdio bridge", (*app).runServe},
 		{"version", "[--json]", "print the running build", (*app).runVersion},
+		{"saga", "[goal | resume | status | stop | rewind]", "careful-progression autonomous loop", (*app).runSaga},
+		{"completion", "<bash|zsh|fish>", "generate shell completions", (*app).runCompletion},
 		{"help", "", "show this help", (*app).runHelp},
 	}
 }

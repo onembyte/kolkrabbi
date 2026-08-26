@@ -27,14 +27,24 @@ func (a *app) runModels(ctx context.Context, args []string) error {
 	client := provider.NewClient(os.Getenv("OPENROUTER_API_KEY"))
 	client.BaseURL = config.ResolveBaseURL("", cfg)
 
-	return a.printModelCatalog(ctx, client, strings.Join(args, " "))
+	forceRefresh := false
+	var filterArgs []string
+	for _, arg := range args {
+		if arg == "--refresh" {
+			forceRefresh = true
+		} else {
+			filterArgs = append(filterArgs, arg)
+		}
+	}
+
+	return a.printModelCatalog(ctx, client, d.CatalogFile(), forceRefresh, strings.Join(filterArgs, " "))
 }
 
-func (a *app) printModelCatalog(ctx context.Context, client *provider.Client, filter string) error {
+func (a *app) printModelCatalog(ctx context.Context, client *provider.Client, catalogFile string, forceRefresh bool, filter string) error {
 	if client == nil {
 		return fmt.Errorf("model provider is not configured")
 	}
-	models, err := client.ListModels(ctx)
+	models, err := client.ListModelsCached(ctx, catalogFile, provider.DefaultCatalogTTL, forceRefresh)
 	if err != nil {
 		return err
 	}
@@ -44,7 +54,14 @@ func (a *app) printModelCatalog(ctx context.Context, client *provider.Client, fi
 
 func renderModelCatalog(out io.Writer, models []provider.ModelInfo, filter string) {
 	filter = strings.ToLower(filter)
-	sort.Slice(models, func(i, j int) bool { return models[i].ID < models[j].ID })
+	sort.Slice(models, func(i, j int) bool {
+		iFree := provider.ModelIsFree(models[i])
+		jFree := provider.ModelIsFree(models[j])
+		if iFree != jFree {
+			return iFree
+		}
+		return models[i].ID < models[j].ID
+	})
 	for _, m := range models {
 		if filter != "" &&
 			!strings.Contains(strings.ToLower(m.ID), filter) &&

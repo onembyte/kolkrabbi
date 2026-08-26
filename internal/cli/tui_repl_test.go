@@ -135,3 +135,39 @@ func TestCompactWorkingFolderUsesAStableHomeRelativeLabel(t *testing.T) {
 		})
 	}
 }
+
+func TestTUIStatusReResolvesModelWhenEffortChanges(t *testing.T) {
+	sess := session.New(t.TempDir(), "base/model")
+	ag := engine.New(engine.Options{
+		Model: "base/model", Mode: engine.ModeCode, Effort: engine.EffortMedium,
+		Sess: sess, Out: io.Discard,
+		Tiers: map[string]string{
+			engine.EffortHigh: "frontier/high-model",
+			"quick":           "legacy/quick-model",
+		},
+	})
+
+	// 1. Initial medium effort inherits base model
+	status1 := tuiStatus(ag, "ready", "~/kolkrabbi")
+	if status1.Effort != engine.EffortMedium || status1.Model != "base/model" {
+		t.Fatalf("initial status = %#v, want effort medium and model base/model", status1)
+	}
+
+	// 2. Set effort to high via numeric alias "3"
+	if err := ag.SetEffort("3"); err != nil {
+		t.Fatal(err)
+	}
+	status2 := tuiStatus(ag, "ready", "~/kolkrabbi")
+	if status2.Effort != engine.EffortHigh || status2.Model != "frontier/high-model" {
+		t.Fatalf("status after /effort 3 = %#v, want effort high and model frontier/high-model", status2)
+	}
+
+	// 3. Set effort to low via legacy alias "quick"
+	if err := ag.SetEffort("quick"); err != nil {
+		t.Fatal(err)
+	}
+	status3 := tuiStatus(ag, "ready", "~/kolkrabbi")
+	if status3.Effort != engine.EffortLow || status3.Model != "legacy/quick-model" {
+		t.Fatalf("status after /effort quick = %#v, want effort low and model legacy/quick-model", status3)
+	}
+}

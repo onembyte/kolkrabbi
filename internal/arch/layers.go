@@ -104,8 +104,10 @@ var packageLayer = map[string]Layer{
 	"internal/stats":      L5Adapter,
 
 	// L6 — surfaces. The only layer allowed to wire concrete types together.
-	"internal/cli": L6Surface,
-	"internal/tui": L6Surface,
+	"internal/cli":   L6Surface,
+	"internal/tui":   L6Surface,
+	"internal/serve": L6Surface,
+	"internal/dash":  L6Surface,
 
 	// Test kit — fakes, fixtures and the rules themselves.
 	"internal/enginetest": LTestKit,
@@ -118,6 +120,7 @@ var packageLayer = map[string]Layer{
 var commandPackages = map[string]bool{
 	"cmd/kolk":      true,
 	"cmd/kolk-mock": true,
+	"cmd/kolkd":     true,
 }
 
 // thirdParty is the per-package allow-list of non-stdlib imports. A package not
@@ -212,15 +215,7 @@ type violation struct {
 // knownViolations is debt with a due date. Every entry must still be a real
 // violation — a fixed-but-still-listed entry fails the test — so this list can
 // only shrink, and the day it empties the ratchet closes for good.
-var knownViolations = []violation{
-	// The engine still constructs its adapters instead of declaring ports.
-	// This is the single largest structural debt in the tree: it is what
-	// stands between here and a daemon, a desktop shell, or a deterministic
-	// clock in a test.
-	{Pkg: "internal/engine", Rule: "internal/session", Until: "step 9 — engine.Port interfaces"},
-	{Pkg: "internal/engine", Rule: "internal/checkpoint", Until: "step 9 — engine.Port interfaces"},
-	{Pkg: "internal/engine", Rule: "internal/stats", Until: "step 9 — engine.Port interfaces"},
-}
+var knownViolations = []violation{}
 
 func isKnown(pkg, rule string) bool {
 	for _, v := range knownViolations {

@@ -1,9 +1,7 @@
 // Package bus owns Kolkrabbi's per-session ordered event journal.
 //
 // The journal is the hinge between engine producers and terminal, stdio, HTTP,
-// and durable consumers. This first implementation is deliberately in-memory:
-// disk spill and transport rendering attach in later migration leaves without
-// changing sequence or cursor semantics.
+// and durable consumers.
 package bus
 
 import (
@@ -11,11 +9,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/onembyte/kolkrabbi/internal/redact"
 	"github.com/onembyte/kolkrabbi/internal/xid"
 	"github.com/onembyte/kolkrabbi/protocol"
 )
@@ -53,13 +55,15 @@ var (
 	ErrSequenceExhausted = errors.New("bus: sequence exhausted")
 )
 
-// Options configures one in-memory session journal. Zero limits select the
+// Options configures one session journal. Zero limits select the
 // documented defaults; negative limits are invalid. Clock defaults to time.Now.
+// SpillPath enables persistent append-only NDJSON disk logging when non-empty.
 type Options struct {
 	MaxEvents        int
 	MaxBytes         int
 	SubscriberBuffer int
 	Clock            func() time.Time
+	SpillPath        string
 }
 
 // Event is the unsequenced input to Publish. The bus supplies the session,
@@ -86,6 +90,8 @@ type Bus struct {
 	maxBytes         int
 	subscriberBuffer int
 	clock            func() time.Time
+	spillPath        string
+	spillFile        *os.File
 
 	latest       uint64
 	lastTime     time.Time
@@ -107,7 +113,7 @@ type Subscription struct {
 	err    error
 }
 
-// New constructs an empty journal for one canonical protocol session ID.
+// New constructs a journal for one canonical protocol session ID.
 func New(session string, options Options) (*Bus, error) {
 	if !canonicalSessionID(session) {
 		return nil, fmt.Errorf("%w: %q", ErrInvalidSession, session)
@@ -128,21 +134,71 @@ func New(session string, options Options) (*Bus, error) {
 		options.Clock = time.Now
 	}
 
-	return &Bus{
+	b := &Bus{
 		session:          session,
 		maxEvents:        options.MaxEvents,
 		maxBytes:         options.MaxBytes,
 		subscriberBuffer: options.SubscriberBuffer,
 		clock:            options.Clock,
 		subscribers:      make(map[*Subscription]struct{}),
-	}, nil
+	}
+
+	if options.SpillPath != "" {
+		spillPath := filepath.Clean(options.SpillPath)
+		if err := os.MkdirAll(filepath.Dir(spillPath), 0700); err != nil {
+			return nil, err
+		}
+
+		if info, err := os.Stat(spillPath); err == nil && !info.IsDir() {
+			f, err := os.Open(spillPath)
+			if err != nil {
+				return nil, err
+			}
+			defer f.Close()
+
+			err = protocol.DecodeStream(f, protocol.StreamNDJSON, func(env protocol.Envelope) error {
+				if env.Session != session {
+					return fmt.Errorf("bus: spill session mismatch: %q != %q", env.Session, session)
+				}
+				b.latest = env.Seq
+				b.lastTime = env.Timestamp
+				frame, err := protocol.EncodeNDJSON(env)
+				if err != nil {
+					return err
+				}
+				b.retained = append(b.retained, retainedEvent{
+					envelope: cloneEnvelope(env),
+					bytes:    len(frame),
+				})
+				b.retainedSize += len(frame)
+				b.trim()
+				return nil
+			})
+			if err != nil && !errors.Is(err, io.EOF) {
+				return nil, fmt.Errorf("bus: recover spill file: %w", err)
+			}
+		}
+
+		sf, err := os.OpenFile(spillPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+		if err != nil {
+			return nil, err
+		}
+		b.spillPath = spillPath
+		b.spillFile = sf
+	}
+
+	return b, nil
 }
 
 // Publish validates, sequences, retains, and fans out one event atomically.
 // Any returned error leaves the sequence, replay window, and subscribers
 // unchanged.
 func (b *Bus) Publish(event Event) (protocol.Envelope, error) {
-	event.Data = bytes.Clone(event.Data)
+	scrubbed, err := redact.ScrubJSON(event.Data)
+	if err != nil {
+		return protocol.Envelope{}, fmt.Errorf("bus: scrub payload: %w", err)
+	}
+	event.Data = scrubbed
 	if err := b.validateEvent(event); err != nil {
 		return protocol.Envelope{}, err
 	}
@@ -171,6 +227,13 @@ func (b *Bus) Publish(event Event) (protocol.Envelope, error) {
 	}
 	if len(frame)-1 > protocol.MaxStreamFrameBytes || len(frame) > b.maxBytes {
 		return protocol.Envelope{}, fmt.Errorf("%w: %d bytes", ErrEventTooLarge, len(frame))
+	}
+
+	if b.spillFile != nil {
+		if _, err := b.spillFile.Write(frame); err != nil {
+			return protocol.Envelope{}, fmt.Errorf("bus: write spill: %w", err)
+		}
+		_ = b.spillFile.Sync()
 	}
 
 	b.latest = envelope.Seq
@@ -203,19 +266,40 @@ func (b *Bus) Subscribe(afterSeq uint64) (*Subscription, error) {
 	if afterSeq > b.latest {
 		return nil, fmt.Errorf("%w: cursor %d, latest %d", ErrCursorAhead, afterSeq, b.latest)
 	}
+
+	var replay []protocol.Envelope
+
 	if len(b.retained) > 0 {
 		oldest := b.retained[0].envelope.Seq
-		if afterSeq < oldest && oldest-afterSeq > 1 {
+		if afterSeq >= oldest-1 {
+			// In-memory replay is sufficient
+			for _, retained := range b.retained {
+				if retained.envelope.Seq > afterSeq {
+					replay = append(replay, cloneEnvelope(retained.envelope))
+				}
+			}
+		} else if b.spillPath != "" {
+			// Evicted from in-memory window; replay from on-disk spill log
+			var err error
+			replay, err = b.readSpillAfter(afterSeq)
+			if err != nil {
+				return nil, fmt.Errorf("bus: read spill replay: %w", err)
+			}
+		} else {
 			return nil, fmt.Errorf("%w: cursor %d, oldest %d", ErrCursorExpired, afterSeq, oldest)
+		}
+	} else if afterSeq < b.latest {
+		if b.spillPath != "" {
+			var err error
+			replay, err = b.readSpillAfter(afterSeq)
+			if err != nil {
+				return nil, fmt.Errorf("bus: read spill replay: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("%w: cursor %d", ErrCursorExpired, afterSeq)
 		}
 	}
 
-	replay := make([]protocol.Envelope, 0, len(b.retained))
-	for _, retained := range b.retained {
-		if retained.envelope.Seq > afterSeq {
-			replay = append(replay, cloneEnvelope(retained.envelope))
-		}
-	}
 	subscription := &Subscription{
 		bus:    b,
 		replay: replay,
@@ -223,6 +307,42 @@ func (b *Bus) Subscribe(afterSeq uint64) (*Subscription, error) {
 	}
 	b.subscribers[subscription] = struct{}{}
 	return subscription, nil
+}
+
+func (b *Bus) readSpillAfter(afterSeq uint64) ([]protocol.Envelope, error) {
+	f, err := os.Open(b.spillPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var envelopes []protocol.Envelope
+	err = protocol.DecodeStream(f, protocol.StreamNDJSON, func(env protocol.Envelope) error {
+		if env.Seq > afterSeq {
+			envelopes = append(envelopes, cloneEnvelope(env))
+		}
+		return nil
+	})
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, err
+	}
+	return envelopes, nil
+}
+
+// Close closes the journal, all active subscriptions, and the spill file if open.
+func (b *Bus) Close() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for sub := range b.subscribers {
+		delete(b.subscribers, sub)
+		sub.finish(nil)
+	}
+	if b.spillFile != nil {
+		err := b.spillFile.Close()
+		b.spillFile = nil
+		return err
+	}
+	return nil
 }
 
 // Replay returns a defensive copy of the retained snapshot captured by

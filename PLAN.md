@@ -131,8 +131,8 @@ offline e2e testing via `internal/enginetest`.
 **Hardened when:** interface spec + OpenRouter adapter spec + error/retry matrix + model-catalog cache design; test plan against `mockrouter`.
 **Inputs:** `docs/research/openrouter.md`
 
-### [x] 4. Subscription backends — **hardened → [`docs/plan/04-subscription-backends.md`](docs/plan/04-subscription-backends.md)**
-**Decision:** spawn the user's own unmodified, self-logged-in `claude` as a first-class `provider.Chat` (`internal/provider/agentcli`, registry key `claude`, label **"Claude Agent"**) — kolk never sees, stores or proxies a credential, and that is enforced by code shape + a CI source denylist, not a promise. `ExecutesOwnTools:true` / `HistoryOwned:true` / `IdempotentConnect:false` / `ModelSelection:ModelAliasOnly` — item 3's interface needed **no** change. In this mode kolk is a frontend and recorder: the vendor runs its own tools, so kolk's permissions/path jail/checkpoints do **not** gate them and the UI says so per tool line. Tokens are exact; **cost is not a charge** — `total_cost_usd` is a deterministic function of tokens at list prices (verified against both fixtures), so it is labelled `API-equiv.`, never pooled with metered rows, and `rate_limit_event.utilization` becomes the real cost series. Codex ships v0.4 on the same bones; **Gemini never spawns** (Google names account suspension) — API key only.
+### [x] 4. Subscription & external agent backends — **hardened → [`docs/plan/04-subscription-backends.md`](docs/plan/04-subscription-backends.md)**
+**Decision:** spawn the user's own unmodified, self-logged-in `claude`, `codex`, or `antigravity` (`agy`) CLI binaries as first-class `provider.Chat` backends (`internal/provider/agentcli`, registry keys `claude` ["Claude Agent"], `codex` ["Codex Agent"], `antigravity` / `agy` ["Antigravity Agent"]) — kolk never sees, stores or proxies a credential, and that is enforced by code shape + a CI source denylist, not a promise. `ExecutesOwnTools:true` / `HistoryOwned:true` / `IdempotentConnect:false` / `ModelSelection:ModelAliasOnly` — item 3's interface needed **no** change. In this mode kolk is a frontend and recorder: the vendor runs its own tools, so kolk's permissions/path jail/checkpoints do **not** gate them and the UI says so per tool line. Tokens are exact; **cost is not a charge** — `total_cost_usd` is a deterministic function of tokens at list prices (verified against both fixtures), so it is labelled `API-equiv.`, never pooled with metered rows, and `rate_limit_event.utilization` becomes the real cost series. `kolk login <claude|codex|antigravity>` invokes native CLI auth via a clean terminal handover (no pipes). Codex and Antigravity ship on identical bones; **Gemini never spawns** (Google names account suspension) — API key only.
 **Scope:** "instead of an Anthropic API key, use my Claude Max plan". Must be done in the shape the vendor permits.
 **Today:** nothing.
 **Answered by research** (`docs/research/subscription-auth.md`, vendor docs quoted, 2026-08-22):
@@ -176,7 +176,8 @@ backend only.
 **Hardened when:** a spec table (mode × tools × defaults × prompt × switching), and the "modes as policy" architecture decision.
 **Inputs:** `docs/research/ecosystem.md`
 
-### [ ] 7. The effort dial — fully configurable, including inside code mode
+### [x] 7. The effort dial — fully configurable, including inside code mode — **hardened → [`docs/plan/07-effort-dial.md`](docs/plan/07-effort-dial.md)**
+**Decision:** four levels `low/medium/high/max` (numeric aliases `1..4`, legacy `quick..ultra` aliases preserved), governing model tier, provider reasoning effort, tool rounds (4/12/24/50 in code, 2/6/12/20 in chat), subagent width (1/2/4/6), and verification depth. Live `/effort` re-resolves model and updates persistent footer immediately in any mode. Zero-config tier inheritance from session model.
 **Scope:** what "effort" means in kolk and how the user tunes it.
 **Today:** `quick/standard/deep/ultra` → optional model tier map (`config set-tier`) + subagent count in agent mode. Unset tiers fall back to the session model.
 **Decide:**
@@ -189,7 +190,8 @@ backend only.
 **Hardened when:** effort matrix (level × mode × knob) + config schema + UX transcript examples.
 **Inputs:** `docs/research/openrouter.md` (reasoning param), `docs/research/ecosystem.md`
 
-### [ ] 8. Model selection, routing, the fast lane, and free-model defaults
+### [x] 8. Model selection, routing, the fast lane, and free-model defaults — **hardened → [`docs/plan/08-model-routing.md`](docs/plan/08-model-routing.md)**
+**Decision:** zero-config startup automatically selects highest-ranked free coding model from live OpenRouter catalog with fallback to `openrouter/free`; curated vendor aliases (`sonnet`, `haiku`, `flash`, `deepseek`, `o3-mini`, `free`); dedicated zero-cost Fast Lane (`slot.fast`) for background bookkeeping; 429 auto-rotation across free pool; pinned user models are never auto-switched.
 **Scope:** picking models by hand and automatically; tiny-task fast models; the fresh-install catalog.
 **Today:** `-m`/`/model <id>`, `kolk models [filter]` (ctx + $/1M), default `openrouter/auto`. Live `/models` today: 422 models, 23 free (`:free`), almost all with tools + reasoning; routers `openrouter/auto`, `openrouter/free`.
 **Decide:**
@@ -202,7 +204,8 @@ backend only.
 **Hardened when:** selection UX spec, default-catalog algorithm (with today's live list as fixture), fast-lane policy, rate-limit strategy.
 **Inputs:** `docs/research/openrouter.md`, `docs/research/orcli.md`
 
-### [ ] 9. Command surface — few, obvious, typeable
+### [x] 9. Command surface — few, obvious, typeable — **hardened → [`docs/plan/09-command-surface.md`](docs/plan/09-command-surface.md)**
+**Decision:** strict parity between CLI verbs and slash commands (`kolk <verb> [args]` ≡ `/<verb> [args]`); rigid guardrails: single-word, lowercase, ≤ 6 letters (`key`, `model`, `effort`, `mode`, `config`, `login`, `update`, `stats`, `dash`, `saga`, `doctor`, `help`, `exit`); deterministic UNIX exit codes (0, 1, 2, 3, 130); `--output stream-json` machine NDJSON; 10-item reserve list.
 **Scope:** the top-level commands and slash commands; what stays out; the reserve list.
 **Today:** top-level `config models sessions stats`; slash `/mode /effort /model /rate /yolo /new /session /changes /rewind /help /exit`; flags `-m --mode -e -y -r -s --base-url -p`.
 **Decide:**
@@ -215,7 +218,8 @@ backend only.
 **Hardened when:** a command table (verb, args, slash twin, flag, since-version) and the reserve list.
 **Inputs:** `docs/research/ecosystem.md`
 
-### [ ] 10. The careful-progression loop (working name: `saga`)
+### [x] 10. The careful-progression loop (working name: `saga`) — **hardened → [`docs/plan/10-saga-loop.md`](docs/plan/10-saga-loop.md)**
+**Decision:** `saga` engine advances longitudinal goals chapter by chapter; each chapter follows a 5-step loop (plan, bounded change, shell quality gates, commit on green, log); progress preserved in `SAGA.md`; stop conditions: criteria met, max chapters (15), max budget ($5.00), timeout (1h), 3-strike doom-loop detector; chapter-level `/rewind`.
 **Scope:** your favourite Claude Code `/loop`, redesigned as *careful progression, update by update*, with an easy-to-type name.
 **Today:** nothing.
 **Decide:**

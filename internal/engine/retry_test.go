@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/http"
@@ -11,11 +12,46 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/enginetest"
 	"github.com/onembyte/kolkrabbi/internal/provider"
-	"github.com/onembyte/kolkrabbi/internal/session"
-	"github.com/onembyte/kolkrabbi/internal/stats"
 )
 
 const upstreamRateLimitBody = `{"error":{"message":"Provider returned error","metadata":{"provider_name":"Stealth","limit_source":"upstream_provider_shared_pool","remedy_hint":"Retry shortly"}}}`
+
+type fakeRecorder struct {
+	Calls   []CallRecord
+	Ratings []struct {
+		Session string
+		Turn    string
+		Rating  int
+	}
+}
+
+func (r *fakeRecorder) RecordCall(c CallRecord) error {
+	r.Calls = append(r.Calls, c)
+	return nil
+}
+
+func (r *fakeRecorder) RecordRating(session, turn string, rating int) error {
+	r.Ratings = append(r.Ratings, struct {
+		Session string
+		Turn    string
+		Rating  int
+	}{Session: session, Turn: turn, Rating: rating})
+	return nil
+}
+
+func newTestAgentInternal(t *testing.T, srv *enginetest.Server, mode string) (*Agent, *bytes.Buffer, *enginetest.FakeSession, *fakeRecorder) {
+	t.Helper()
+	client := provider.NewClient("test-key")
+	client.BaseURL = srv.URL
+	sess := enginetest.NewFakeSession("s_test", "mock/model")
+	rec := &fakeRecorder{}
+	var out bytes.Buffer
+	ag := New(Options{
+		Client: client, Model: "mock/model", Mode: mode, Yolo: true,
+		Sess: sess, Out: &out, Recorder: rec,
+	})
+	return ag, &out, sess, rec
+}
 
 func TestRateLimitRetriesIdenticalCodeRequestThenSucceeds(t *testing.T) {
 	srv := enginetest.New(
@@ -24,7 +60,7 @@ func TestRateLimitRetriesIdenticalCodeRequestThenSucceeds(t *testing.T) {
 	)
 	defer srv.Close()
 
-	ag, out, sdir, statsDir := newTestAgent(t, srv, ModeCode)
+	ag, out, _, rec := newTestAgentInternal(t, srv, ModeCode)
 	activityLog := &activityEvents{}
 	ag.Activity = &recordingActivity{events: activityLog}
 	var waits []time.Duration
@@ -47,7 +83,7 @@ func TestRateLimitRetriesIdenticalCodeRequestThenSucceeds(t *testing.T) {
 	if !strings.Contains(out.String(), "continued successfully") {
 		t.Fatalf("successful retry output missing: %q", out.String())
 	}
-	assertSingleSavedAssistantAndCall(t, ag, sdir, statsDir)
+	assertSingleSavedAssistantAndCall(t, ag, rec)
 }
 
 func TestRateLimitRetryIsSharedByAgentPlanner(t *testing.T) {
@@ -57,7 +93,7 @@ func TestRateLimitRetryIsSharedByAgentPlanner(t *testing.T) {
 	)
 	defer srv.Close()
 
-	ag, _, _, _ := newTestAgent(t, srv, ModeAgent)
+	ag, _, _, _ := newTestAgentInternal(t, srv, ModeAgent)
 	ag.RetryWait = func(context.Context, time.Duration) error { return nil }
 	tasks, _, err := ag.plan(context.Background(), "mock/model", "continue", 3)
 	if err != nil || len(tasks) != 1 || tasks[0] != "one task" {
@@ -76,7 +112,7 @@ func TestRateLimitRetryExhaustionIsBoundedAndActionable(t *testing.T) {
 	srv := enginetest.New(steps...)
 	defer srv.Close()
 
-	ag, _, _, _ := newTestAgent(t, srv, ModeCode)
+	ag, _, _, _ := newTestAgentInternal(t, srv, ModeCode)
 	var waits []time.Duration
 	ag.RetryWait = func(_ context.Context, delay time.Duration) error {
 		waits = append(waits, delay)
@@ -99,7 +135,7 @@ func TestRateLimitRetryAfterHonorsOnlyBoundedServerDelay(t *testing.T) {
 			enginetest.Step{Text: "continued"},
 		)
 		defer srv.Close()
-		ag, _, _, _ := newTestAgent(t, srv, ModeCode)
+		ag, _, _, _ := newTestAgentInternal(t, srv, ModeCode)
 		var waited time.Duration
 		ag.RetryWait = func(_ context.Context, delay time.Duration) error { waited = delay; return nil }
 		if err := ag.RunTurn(context.Background(), "continue"); err != nil {
@@ -117,7 +153,7 @@ func TestRateLimitRetryAfterHonorsOnlyBoundedServerDelay(t *testing.T) {
 			ErrorBody:  upstreamRateLimitBody,
 		})
 		defer srv.Close()
-		ag, _, _, _ := newTestAgent(t, srv, ModeCode)
+		ag, _, _, _ := newTestAgentInternal(t, srv, ModeCode)
 		waited := false
 		ag.RetryWait = func(context.Context, time.Duration) error { waited = true; return nil }
 		err := ag.RunTurn(context.Background(), "continue")
@@ -134,7 +170,7 @@ func TestRateLimitRetryWaitIsCancellable(t *testing.T) {
 	srv := enginetest.New(enginetest.Step{StatusCode: http.StatusTooManyRequests, ErrorBody: upstreamRateLimitBody})
 	defer srv.Close()
 
-	ag, _, _, _ := newTestAgent(t, srv, ModeCode)
+	ag, _, _, _ := newTestAgentInternal(t, srv, ModeCode)
 	ctx, cancel := context.WithCancel(context.Background())
 	ag.RetryWait = func(waitCtx context.Context, _ time.Duration) error {
 		cancel()
@@ -158,7 +194,7 @@ func TestRateLimitDoesNotRetryOtherOrMidStreamErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			srv := enginetest.New(tc.step)
 			defer srv.Close()
-			ag, _, _, _ := newTestAgent(t, srv, ModeCode)
+			ag, _, _, _ := newTestAgentInternal(t, srv, ModeCode)
 			waited := false
 			ag.RetryWait = func(context.Context, time.Duration) error { waited = true; return nil }
 			if err := ag.RunTurn(context.Background(), "continue"); err == nil {
@@ -177,26 +213,13 @@ func messagesEqual(a, b []provider.Message) bool {
 
 func durationsEqual(a, b []time.Duration) bool { return reflect.DeepEqual(a, b) }
 
-func assertSingleSavedAssistantAndCall(t *testing.T, ag *Agent, sessionDir, statsDir string) {
+func assertSingleSavedAssistantAndCall(t *testing.T, ag *Agent, rec *fakeRecorder) {
 	t.Helper()
-	loaded, err := session.Load(sessionDir, ag.Sess.ID)
-	if err != nil {
-		t.Fatal(err)
+	msgs := ag.Sess.GetMessages()
+	if len(msgs) != 3 || msgs[2].Role != "assistant" {
+		t.Fatalf("saved retry history = %#v", msgs)
 	}
-	if len(loaded.Messages) != 3 || loaded.Messages[2].Role != "assistant" {
-		t.Fatalf("saved retry history = %#v", loaded.Messages)
-	}
-	records, err := stats.Load(statsDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	calls := 0
-	for _, record := range records {
-		if record.Kind == "call" {
-			calls++
-		}
-	}
-	if calls != 1 {
-		t.Fatalf("accounted provider calls = %d, want one successful call", calls)
+	if len(rec.Calls) != 1 {
+		t.Fatalf("accounted provider calls = %d, want one successful call", len(rec.Calls))
 	}
 }

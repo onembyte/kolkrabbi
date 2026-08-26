@@ -48,7 +48,7 @@ func TestReplRunsAFinalLineWithNoTrailingNewline(t *testing.T) {
 	if err := a.repl(context.Background(), ag); err != nil {
 		t.Fatalf("repl returned %v", err)
 	}
-	if !strings.Contains(out.String(), ag.Sess.ID) {
+	if !strings.Contains(out.String(), ag.Sess.SessionID()) {
 		t.Errorf("the last command was dropped; output was:\n%s", out.String())
 	}
 }
@@ -126,8 +126,8 @@ func TestReplRunsATurnAndSlashCommands(t *testing.T) {
 	if !strings.Contains(got, "yolo mode: false") {
 		t.Errorf("/yolo did not toggle off:\n%s", got)
 	}
-	if len(ag.Sess.Messages) < 3 {
-		t.Errorf("the turn did not reach the session: %d messages", len(ag.Sess.Messages))
+	if len(ag.Sess.GetMessages()) < 3 {
+		t.Errorf("the turn did not reach the session: %d messages", len(ag.Sess.GetMessages()))
 	}
 }
 
@@ -331,6 +331,7 @@ func TestSlashUpdateUsesActiveContext(t *testing.T) {
 }
 
 func TestSlashModelListsTheActiveProviderCatalog(t *testing.T) {
+	isolateHome(t)
 	var requests atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
@@ -383,8 +384,8 @@ func TestSlashModelDirectSwitchDoesNotFetchCatalog(t *testing.T) {
 	if a.slash(context.Background(), ag, "/model vendor/new") {
 		t.Fatal("/model <id> must not exit the REPL")
 	}
-	if ag.Model != "vendor/new" || ag.Sess.Model != "vendor/new" {
-		t.Fatalf("direct model switch = (%q, %q)", ag.Model, ag.Sess.Model)
+	if ag.Model != "vendor/new" || ag.Sess.ModelName() != "vendor/new" {
+		t.Fatalf("direct model switch = (%q, %q)", ag.Model, ag.Sess.ModelName())
 	}
 	if requests.Load() != 0 {
 		t.Fatalf("direct model switch made %d catalog requests", requests.Load())
@@ -395,6 +396,7 @@ func TestSlashModelDirectSwitchDoesNotFetchCatalog(t *testing.T) {
 }
 
 func TestSlashModelCatalogFailureKeepsTheSession(t *testing.T) {
+	isolateHome(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "catalog unavailable", http.StatusServiceUnavailable)
 	}))
@@ -409,11 +411,66 @@ func TestSlashModelCatalogFailureKeepsTheSession(t *testing.T) {
 	if a.slash(context.Background(), ag, "/model") {
 		t.Fatal("catalog failure must not exit the REPL")
 	}
-	if ag.Model != "current/model" || ag.Sess.Model != "current/model" {
+	if ag.Model != "current/model" || ag.Sess.ModelName() != "current/model" {
 		t.Fatal("catalog failure changed the current model")
 	}
 	if !strings.Contains(out.String(), "current model: current/model") ||
 		!strings.Contains(errOut.String(), "could not list models") {
 		t.Fatalf("catalog failure output = stdout %q, stderr %q", out.String(), errOut.String())
+	}
+}
+
+func TestSlashEffortSwitchesAndReportsActiveModel(t *testing.T) {
+	a, ag, out := replFixture(t, "")
+	ag.Tiers = map[string]string{
+		engine.EffortHigh: "frontier/high-model",
+	}
+
+	// 1. Bare /effort displays current effort
+	if a.slash(context.Background(), ag, "/effort") {
+		t.Fatal("/effort must not exit REPL")
+	}
+	if !strings.Contains(out.String(), "effort: medium (low|medium|high|max)") {
+		t.Errorf("bare /effort output = %q", out.String())
+	}
+
+	// 2. Set effort to high via numeric alias "3"
+	out.Reset()
+	if a.slash(context.Background(), ag, "/effort 3") {
+		t.Fatal("/effort 3 must not exit REPL")
+	}
+	if ag.Effort != engine.EffortHigh {
+		t.Errorf("ag.Effort = %q, want %q", ag.Effort, engine.EffortHigh)
+	}
+	if !strings.Contains(out.String(), "effort: high → frontier/high-model") {
+		t.Errorf("switch output = %q", out.String())
+	}
+}
+
+func TestSlashModelResolvesAliases(t *testing.T) {
+	a, ag, out := replFixture(t, "")
+
+	if a.slash(context.Background(), ag, "/model sonnet") {
+		t.Fatal("/model sonnet must not exit REPL")
+	}
+	if ag.Model != "anthropic/claude-3-7-sonnet" {
+		t.Errorf("ag.Model = %q, want anthropic/claude-3-7-sonnet", ag.Model)
+	}
+	if !ag.PinnedModel {
+		t.Error("explicit /model did not set ag.PinnedModel")
+	}
+	if !strings.Contains(out.String(), "model set to anthropic/claude-3-7-sonnet") {
+		t.Errorf("output = %q", out.String())
+	}
+
+	out.Reset()
+	if a.slash(context.Background(), ag, "/model flash") {
+		t.Fatal("/model flash must not exit REPL")
+	}
+	if ag.Model != "google/gemini-2.5-flash" {
+		t.Errorf("ag.Model = %q, want google/gemini-2.5-flash", ag.Model)
+	}
+	if !strings.Contains(out.String(), "model set to google/gemini-2.5-flash") {
+		t.Errorf("output = %q", out.String())
 	}
 }

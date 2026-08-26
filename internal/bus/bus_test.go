@@ -330,3 +330,78 @@ func assertSequences(t *testing.T, envelopes []protocol.Envelope, want ...uint64
 		}
 	}
 }
+
+func TestPublishScrubsCanaryCredentialsBeforeRetentionAndFanOut(t *testing.T) {
+	apiKey := "sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789"
+	b := mustBus(t, Options{Clock: fixedClock()})
+	sub := mustSubscribe(t, b, 0)
+
+	rawEvent := Event{
+		Turn: testTurn,
+		Type: protocol.EventMessageDelta,
+		Data: []byte(`{"text":"here is my key: ` + apiKey + `"}`),
+	}
+
+	published, err := b.Publish(rawEvent)
+	if err != nil {
+		t.Fatalf("Publish with canary failed: %v", err)
+	}
+
+	// 1. Returned envelope must not contain the raw secret
+	if strings.Contains(string(published.Data), apiKey) {
+		t.Fatalf("published envelope leaked raw secret: %s", string(published.Data))
+	}
+	if !strings.Contains(string(published.Data), "[redacted ") {
+		t.Fatalf("published envelope missing redaction sentinel: %s", string(published.Data))
+	}
+
+	// 2. Live subscriber receives the scrubbed envelope
+	live := <-sub.Events()
+	if strings.Contains(string(live.Data), apiKey) {
+		t.Fatalf("live subscriber leaked raw secret: %s", string(live.Data))
+	}
+
+	// 3. Replay subscriber receives the scrubbed envelope
+	replaySub := mustSubscribe(t, b, 0)
+	replayed := replaySub.Replay()
+	if len(replayed) != 1 {
+		t.Fatalf("replay count = %d, want 1", len(replayed))
+	}
+	if strings.Contains(string(replayed[0].Data), apiKey) {
+		t.Fatalf("replayed envelope leaked raw secret: %s", string(replayed[0].Data))
+	}
+}
+
+func TestPublishRejectsInvalidOrNonObjectData(t *testing.T) {
+	b := mustBus(t, Options{Clock: fixedClock()})
+	sub := mustSubscribe(t, b, 0)
+
+	invalidInputs := [][]byte{
+		[]byte(""),
+		[]byte("   "),
+		[]byte("42"),
+		[]byte("true"),
+		[]byte(`"string"`),
+		[]byte(`["array"]`),
+		[]byte(`{unclosed`),
+	}
+
+	for _, invalid := range invalidInputs {
+		_, err := b.Publish(Event{
+			Turn: testTurn,
+			Type: protocol.EventMessageDelta,
+			Data: invalid,
+		})
+		if err == nil {
+			t.Fatalf("Publish should fail on invalid data %q, but succeeded", string(invalid))
+		}
+	}
+
+	// Sequence must still be 0 and subscriber received nothing
+	if b.latest != 0 {
+		t.Fatalf("b.latest = %d, want 0 after rejected publishes", b.latest)
+	}
+	if len(sub.Events()) != 0 {
+		t.Fatal("subscriber should have received 0 events")
+	}
+}

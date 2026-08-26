@@ -8,6 +8,7 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/checkpoint"
 	"github.com/onembyte/kolkrabbi/internal/engine"
+	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/session"
 	"github.com/onembyte/kolkrabbi/internal/tui"
 )
@@ -19,10 +20,14 @@ type slashCommand struct {
 }
 
 var slashCommandTable = []slashCommand{
+	{"key", "<api-key> | - | <provider> <key>", "add an API key for any supported provider"},
 	{"mode", "<chat|code|agent>", "switch mode (agent = orchestrated; code is default)"},
-	{"effort", "<quick|standard|deep|ultra>", "select model tier and orchestration width"},
+	{"effort", "<low|medium|high|max>", "select model tier and orchestration width"},
 	{"model", "[id]", "list available models or switch this session"},
+	{"config", "[get <k> | set <k> <v> | unset <k> | show]", "read and write saved settings"},
 	{"update", "", "install the latest verified release"},
+	{"stats", "[--json]", "100% local usage and rating dashboard"},
+	{"version", "[--json]", "print the running build"},
 	{"rate", "<1-5>", "rate the last turn for local stats"},
 	{"auto-approve", "[on|off]", "control tool confirmations for this session"},
 	{"yolo", "", "toggle auto-approval for this session"},
@@ -30,6 +35,7 @@ var slashCommandTable = []slashCommand{
 	{"clear", "", "alias for /new"},
 	{"session", "", "show the current session id and file"},
 	{"changes", "", "list files modified by this session"},
+	{"saga", "[goal | resume | status | stop | rewind]", "careful-progression autonomous loop"},
 	{"rewind", "", "undo the last turn's file changes"},
 	{"help", "", "show all slash commands"},
 	{"exit", "", "quit Kolkrabbi"},
@@ -85,16 +91,13 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		}
 	case "/effort":
 		if arg == "" {
-			fmt.Fprintf(a.stdout, "effort: %s (quick|standard|deep|ultra)\n", ag.Effort)
+			fmt.Fprintf(a.stdout, "effort: %s (low|medium|high|max)\n", ag.Effort)
 			break
 		}
 		if err := ag.SetEffort(arg); err != nil {
 			fmt.Fprintln(a.stdout, err)
 		} else {
-			m := ag.Model
-			if t, ok := ag.Tiers[ag.Effort]; ok && t != "" {
-				m = t
-			}
+			m := ag.ModelForEffort(ag.Effort)
 			fmt.Fprintf(a.stdout, "effort: %s → %s\n", ag.Effort, m)
 		}
 	case "/rate":
@@ -120,13 +123,22 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		*ag = *engine.New(opts)
 		fmt.Fprintf(a.stdout, "new session: %s\n", sess.ID)
 	case "/session":
-		fmt.Fprintf(a.stdout, "id:    %s\nfile:  %s\n", ag.Sess.ID, a.dirs.Session(ag.Sess.ID))
+		sessID := ""
+		if ag.Sess != nil {
+			sessID = ag.Sess.SessionID()
+		}
+		fmt.Fprintf(a.stdout, "id:    %s\nfile:  %s\n", sessID, a.dirs.Session(sessID))
 	case "/changes":
 		if ag.Ckpt == nil {
 			fmt.Fprintln(a.stdout, "checkpointing is not enabled.")
 			break
 		}
-		ch := ag.Ckpt.Changes()
+		ck, ok := ag.Ckpt.(*checkpoint.Store)
+		if !ok {
+			fmt.Fprintln(a.stdout, "checkpoint store not available.")
+			break
+		}
+		ch := ck.Changes()
 		if len(ch) == 0 {
 			fmt.Fprintln(a.stdout, "no file changes recorded this session.")
 			break
@@ -172,13 +184,35 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 	case "/model":
 		if arg == "" {
 			fmt.Fprintf(a.stdout, "current model: %s\n", ag.Model)
-			if err := a.printModelCatalog(ctx, ag.Client, ""); err != nil {
+			d, _ := a.locate()
+			if err := a.printModelCatalog(ctx, ag.Client, d.CatalogFile(), false, ""); err != nil {
 				fmt.Fprintf(a.stderr, "could not list models: %v\n", err)
 			}
+			fmt.Fprintln(a.stdout, "\nswitch: /model <name|alias>")
 		} else {
-			ag.Model = arg
-			ag.Sess.Model = arg
-			fmt.Fprintf(a.stdout, "model set to %s\n", arg)
+			resolved := provider.ResolveModelAlias(arg)
+			ag.Model = resolved
+			ag.PinnedModel = true
+			if ag.Sess != nil {
+				ag.Sess.SetModelName(resolved)
+			}
+			fmt.Fprintf(a.stdout, "model set to %s\n", resolved)
+		}
+	case "/key":
+		if err := a.runKey(ctx, strings.Fields(arg)); err != nil {
+			fmt.Fprintf(a.stderr, "key error: %v\n", err)
+		}
+	case "/config":
+		if err := a.runConfig(ctx, strings.Fields(arg)); err != nil {
+			fmt.Fprintf(a.stderr, "config error: %v\n", err)
+		}
+	case "/stats":
+		if err := a.runStats(ctx, strings.Fields(arg)); err != nil {
+			fmt.Fprintf(a.stderr, "stats error: %v\n", err)
+		}
+	case "/version":
+		if err := a.runVersion(ctx, strings.Fields(arg)); err != nil {
+			fmt.Fprintf(a.stderr, "version error: %v\n", err)
 		}
 	case "/update":
 		if arg != "" {
@@ -187,6 +221,10 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		}
 		if err := a.applyUpdate(ctx, true); err != nil {
 			fmt.Fprintf(a.stderr, "update failed: %v\n", err)
+		}
+	case "/saga":
+		if err := a.runSaga(ctx, strings.Fields(arg)); err != nil {
+			fmt.Fprintf(a.stderr, "saga error: %v\n", err)
 		}
 	default:
 		fmt.Fprintln(a.stdout, "unknown command, /help for a list")

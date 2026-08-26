@@ -49,7 +49,7 @@ func TestActivityStopsBeforeFirstVisibleToken(t *testing.T) {
 	srv := enginetest.New(enginetest.Step{Text: "visible answer"})
 	defer srv.Close()
 
-	ag, _, _, _ := newTestAgent(t, srv, ModeCode)
+	ag, _, _, _ := newTestAgentInternal(t, srv, ModeCode)
 	events := &activityEvents{}
 	ag.Out = events
 	ag.Activity = &recordingActivity{events: events}
@@ -81,7 +81,7 @@ func TestActivityStopsBeforeToolHandlingAndErrors(t *testing.T) {
 			enginetest.Step{Text: "finished"},
 		)
 		defer srv.Close()
-		ag, _, _, _ := newTestAgent(t, srv, ModeCode)
+		ag, _, _, _ := newTestAgentInternal(t, srv, ModeCode)
 		events := &activityEvents{}
 		ag.Out = events
 		ag.Activity = &recordingActivity{events: events}
@@ -100,7 +100,7 @@ func TestActivityStopsBeforeToolHandlingAndErrors(t *testing.T) {
 	t.Run("provider error", func(t *testing.T) {
 		srv := enginetest.New(enginetest.Step{StatusCode: http.StatusServiceUnavailable, ErrorBody: `{"error":{"message":"unavailable"}}`})
 		defer srv.Close()
-		ag, _, _, _ := newTestAgent(t, srv, ModeCode)
+		ag, _, _, _ := newTestAgentInternal(t, srv, ModeCode)
 		events := &activityEvents{}
 		ag.Out = events
 		ag.Activity = &recordingActivity{events: events}
@@ -127,7 +127,7 @@ func TestAgentActivityPhasesAreDeterministic(t *testing.T) {
 	)
 	defer srv.Close()
 
-	ag, _, _, _ := newTestAgent(t, srv, ModeAgent)
+	ag, _, _, _ := newTestAgentInternal(t, srv, ModeAgent)
 	events := &activityEvents{}
 	ag.Out = events
 	ag.Activity = &recordingActivity{events: events}
@@ -149,7 +149,7 @@ func TestAgentActivityPhasesAreDeterministic(t *testing.T) {
 func TestCancelledContextReachesAndStopsActivity(t *testing.T) {
 	srv := enginetest.New(enginetest.Step{Text: "unused"})
 	defer srv.Close()
-	ag, _, _, _ := newTestAgent(t, srv, ModeCode)
+	ag, _, _, _ := newTestAgentInternal(t, srv, ModeCode)
 	events := &activityEvents{}
 	ag.Out = events
 	ag.Activity = &recordingActivity{events: events}

@@ -24,8 +24,7 @@ not a charge — a Max subscriber's marginal spend is zero. kolk labels it `API-
 with a metered row, and makes `rate_limit_event.utilization` (0.78 of the seven-day window in both
 fixtures) the primary cost series for this backend.
 
-**Codex ships second, at v0.4**, on identical bones and stronger policy evidence, gated only on
-committing `spec/testdata/foreign/codex-*.jsonl`. **Gemini never ships as a spawn backend** — Google
+**Codex and Antigravity ship on identical bones** (registry keys `codex` ["Codex Agent"] and `antigravity` / `agy` ["Antigravity Agent"]), spawning the user's self-authenticated local CLI (`codex` and `agy`/`antigravity`) via the same `agentcli` adapter without touching credentials. **Gemini never ships as a spawn backend** — Google
 names account suspension in the prohibition text and offers no carve-out; it is an API-key backend
 through the normal provider path, full stop.
 
@@ -1177,6 +1176,15 @@ says so when asked.
 ★ One correction to `docs/research/subscription-auth.md`: drop the weaker supporting claim that
 Gemini's docs route headless mode to API keys. The fetched page does not say it, and the prohibition
 alone is sufficient — defending an unsupported claim weakens a sound argument.
+
+#### 8.3 `antigravity` (`agy`) — permitted, first-class agent CLI backend
+
+Spawns the user's own unmodified, authenticated **Antigravity CLI** (`agy` / `antigravity` binary) under `internal/provider/agentcli` (registry key `antigravity`, alias `agy`, label **"Antigravity Agent"**).
+
+- **Authentication / Login:** `kolk login antigravity` (or `kolk login agy`) hands over the terminal to `agy login` or detects the active session without inspecting or storing tokens.
+- **Invocation & Streaming:** Runs `agy` in headless subprocess mode, translating the structured NDJSON output stream into canonical `provider.Event` envelopes.
+- **Invariants:** Identical strict rules apply — zero credential handling, no credential-file inspection, no impersonation, and process isolation in an allow-listed environment.
+- **Tiers & Quota:** Aligns effort levels to Antigravity model profiles and tracks API-equivalent token usage in the local stats log.
 
 ---
 

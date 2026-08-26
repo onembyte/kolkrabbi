@@ -61,7 +61,11 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 		},
 	})
 
-	screen.Controller().AppendTranscript(tuiWelcome(len(ag.Sess.Messages)))
+	msgCount := 0
+	if ag.Sess != nil {
+		msgCount = len(ag.Sess.GetMessages())
+	}
+	screen.Controller().AppendTranscript(tuiWelcome(msgCount))
 
 	a.stdout, a.stderr = screen, screen
 	ag.Out = screen
@@ -88,13 +92,15 @@ func tuiStatus(ag *engine.Agent, lifecycle, folder string) tui.Status {
 	if ag.Yolo {
 		approval = "auto"
 	}
-	model := ag.Model
-	if tier, ok := ag.Tiers[ag.Effort]; ok && tier != "" {
-		model = tier
+	model := ag.ModelForEffort(ag.Effort)
+	sessID, sessTitle := "", ""
+	if ag.Sess != nil {
+		sessID = ag.Sess.SessionID()
+		sessTitle = ag.Sess.SessionTitle()
 	}
 	return tui.Status{
 		Model: model, Mode: ag.Mode, Effort: ag.Effort,
-		Session: ag.Sess.ID, SessionName: ag.Sess.Title, Folder: folder,
+		Session: sessID, SessionName: sessTitle, Folder: folder,
 		Approval: approval, Lifecycle: lifecycle,
 	}
 }

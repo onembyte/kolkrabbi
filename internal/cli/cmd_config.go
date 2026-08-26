@@ -37,6 +37,113 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 	}
 
 	switch args[0] {
+	case "get":
+		if len(args) < 2 {
+			return usagef("usage: kolk config get <key>")
+		}
+		key := args[1]
+		switch {
+		case key == "model" || key == "model.default":
+			if cfg.Model != "" {
+				fmt.Fprintln(a.stdout, cfg.Model)
+			} else {
+				fmt.Fprintf(a.stdout, "(unset — inherits %s)\n", defaultModel)
+			}
+		case key == "base_url":
+			if cfg.BaseURL != "" {
+				fmt.Fprintln(a.stdout, cfg.BaseURL)
+			} else {
+				fmt.Fprintf(a.stdout, "(unset — inherits %s)\n", provider.DefaultBaseURL)
+			}
+		case strings.HasPrefix(key, "effort.") || strings.HasPrefix(key, "tier."):
+			canonical, err := parseEffortKey(key)
+			if err != nil {
+				return err
+			}
+			if m, ok := cfg.Tiers[canonical]; ok && m != "" {
+				fmt.Fprintln(a.stdout, m)
+			} else {
+				fmt.Fprintf(a.stdout, "(unset — inherits model %s)\n", orDefault(cfg.Model, defaultModel))
+			}
+		default:
+			return usagef("unknown config key %q", key)
+		}
+
+	case "set":
+		if len(args) < 3 {
+			return usagef("usage: kolk config set <key> <value>")
+		}
+		key := args[1]
+		val := strings.Join(args[2:], " ")
+		switch {
+		case key == "model" || key == "model.default":
+			cfg.Model = val
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "model → %s\n", val)
+		case key == "base_url":
+			cfg.BaseURL = strings.TrimRight(val, "/")
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "base_url → %s\n", cfg.BaseURL)
+		case strings.HasPrefix(key, "effort.") || strings.HasPrefix(key, "tier."):
+			canonical, err := parseEffortKey(key)
+			if err != nil {
+				return err
+			}
+			if cfg.Tiers == nil {
+				cfg.Tiers = map[string]string{}
+			}
+			cfg.Tiers[canonical] = val
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "effort.%s.model → %s\n", canonical, val)
+		default:
+			return usagef("unknown config key %q", key)
+		}
+
+	case "unset":
+		if len(args) < 2 {
+			return usagef("usage: kolk config unset <key>")
+		}
+		key := args[1]
+		switch {
+		case key == "model" || key == "model.default":
+			cfg.Model = ""
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintln(a.stdout, "removed model")
+		case key == "base_url":
+			cfg.BaseURL = ""
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintln(a.stdout, "removed base_url")
+		case strings.HasPrefix(key, "effort.") || strings.HasPrefix(key, "tier."):
+			canonical, err := parseEffortKey(key)
+			if err != nil {
+				return err
+			}
+			if cfg.Tiers != nil {
+				delete(cfg.Tiers, canonical)
+				for _, leg := range []string{"quick", "standard", "deep", "ultra"} {
+					if c, _ := engine.NormalizeEffort(leg); c == canonical {
+						delete(cfg.Tiers, leg)
+					}
+				}
+			}
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "removed effort.%s.model\n", canonical)
+		default:
+			return usagef("unknown config key %q", key)
+		}
+
 	case "set-model":
 		if len(args) < 2 {
 			return usagef("usage: kolk config set-model <model>")
@@ -59,19 +166,20 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 
 	case "set-tier":
 		if len(args) < 3 {
-			return usagef("usage: kolk config set-tier <quick|standard|deep|ultra> <model>")
+			return usagef("usage: kolk config set-tier <low|medium|high|max> <model>")
 		}
-		if !validEffort(args[1]) {
-			return usagef("unknown effort %q (quick|standard|deep|ultra)", args[1])
+		canonical, ok := engine.NormalizeEffort(args[1])
+		if !ok {
+			return usagef("unknown effort %q (low|medium|high|max)", args[1])
 		}
 		if cfg.Tiers == nil {
 			cfg.Tiers = map[string]string{}
 		}
-		cfg.Tiers[args[1]] = args[2]
+		cfg.Tiers[canonical] = args[2]
 		if err := config.Save(d.ConfigFile(), cfg); err != nil {
 			return err
 		}
-		fmt.Fprintf(a.stdout, "tier %s → %s\n", args[1], args[2])
+		fmt.Fprintf(a.stdout, "tier %s → %s\n", canonical, args[2])
 
 	case "show":
 		fmt.Fprintf(a.stdout, "model:    %s\nbase_url: %s\n",
@@ -82,9 +190,17 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 			break
 		}
 		fmt.Fprintln(a.stdout, "tiers:")
-		for _, e := range engine.Efforts {
+		for _, e := range engine.CanonicalEfforts {
 			if m, ok := cfg.Tiers[e]; ok {
 				fmt.Fprintf(a.stdout, "  %-9s %s\n", e, m)
+			}
+		}
+		for _, e := range []string{"quick", "standard", "deep", "ultra"} {
+			if m, ok := cfg.Tiers[e]; ok {
+				c, _ := engine.NormalizeEffort(e)
+				if _, canonicalSet := cfg.Tiers[c]; !canonicalSet {
+					fmt.Fprintf(a.stdout, "  %-9s %s\n", e, m)
+				}
 			}
 		}
 
@@ -103,16 +219,33 @@ func configWriteCommand(args []string) bool {
 		return len(args) >= 2
 	case "set-tier":
 		return len(args) >= 3 && validEffort(args[1])
+	case "set":
+		return len(args) >= 3
+	case "unset":
+		return len(args) >= 2
 	default:
 		return false
 	}
 }
 
-func validEffort(s string) bool {
-	for _, e := range engine.Efforts {
-		if e == s {
-			return true
-		}
+func parseEffortKey(key string) (string, error) {
+	parts := strings.Split(key, ".")
+	var level string
+	if len(parts) == 3 && parts[0] == "effort" && parts[2] == "model" {
+		level = parts[1]
+	} else if len(parts) == 2 && (parts[0] == "tier" || parts[0] == "effort") {
+		level = parts[1]
+	} else {
+		return "", usagef("invalid effort config key %q (expected effort.<level>.model)", key)
 	}
-	return false
+	canonical, ok := engine.NormalizeEffort(level)
+	if !ok {
+		return "", usagef("unknown effort %q (low|medium|high|max)", level)
+	}
+	return canonical, nil
+}
+
+func validEffort(s string) bool {
+	_, ok := engine.NormalizeEffort(s)
+	return ok
 }

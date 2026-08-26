@@ -18,9 +18,49 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/onembyte/kolkrabbi/internal/engine"
 )
 
 const fileName = "stats.jsonl"
+
+// Store implements engine.Recorder by writing to stats.jsonl in dir.
+type Store struct {
+	dir string
+}
+
+// NewStore constructs a Store writing to dir.
+func NewStore(dir string) *Store {
+	return &Store{dir: dir}
+}
+
+// RecordCall records a completed model attempt.
+func (s *Store) RecordCall(r engine.CallRecord) error {
+	return Append(s.dir, Record{
+		Kind:             "call",
+		Session:          r.Session,
+		Turn:             r.Turn,
+		Mode:             r.Mode,
+		Effort:           r.Effort,
+		Role:             r.Role,
+		Model:            r.Model,
+		PromptTokens:     r.PromptTokens,
+		CompletionTokens: r.CompletionTokens,
+		Cost:             r.Cost,
+		Ms:               r.Ms,
+		ToolCalls:        r.ToolCalls,
+	})
+}
+
+// RecordRating records a user rating for a turn.
+func (s *Store) RecordRating(session, turn string, rating int) error {
+	return Append(s.dir, Record{
+		Kind:    "rating",
+		Session: session,
+		Turn:    turn,
+		Rating:  rating,
+	})
+}
 
 // Record is one model call (a turn may contain several: tool loops,
 // orchestrator plan/subagents/synthesis).

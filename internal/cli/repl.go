@@ -17,11 +17,17 @@ import (
 // one transport hiccup is the wrong trade.
 func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 	resumedNote := ""
-	if n := len(ag.Sess.Messages); n > 1 {
-		resumedNote = fmt.Sprintf("  (resumed, %d messages)", n-1)
+	if ag.Sess != nil {
+		if n := len(ag.Sess.GetMessages()); n > 1 {
+			resumedNote = fmt.Sprintf("  (resumed, %d messages)", n-1)
+		}
+	}
+	sessID := ""
+	if ag.Sess != nil {
+		sessID = ag.Sess.SessionID()
 	}
 	fmt.Fprintf(a.stdout, "kolk — mode: %s · effort: %s · model: %s%s\nsession: %s%s\n",
-		ag.Mode, ag.Effort, ag.Model, yoloTag(ag.Yolo), ag.Sess.ID, resumedNote)
+		ag.Mode, ag.Effort, ag.Model, yoloTag(ag.Yolo), sessID, resumedNote)
 	fmt.Fprintln(a.stdout, "Type your request, or /help for commands. Ctrl+C interrupts a turn, /exit quits.")
 
 	for {

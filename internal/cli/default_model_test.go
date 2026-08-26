@@ -127,8 +127,8 @@ func TestNewAgentDiscoversOnlyWhenNoUserOrSessionModelExists(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if calls != 1 || agent.Model != "free/best-code" || agent.Sess.Model != "free/best-code" || errOut.Len() != 0 {
-			t.Fatalf("calls/model/session/stderr = %d/%q/%q/%q", calls, agent.Model, agent.Sess.Model, errOut.String())
+		if calls != 1 || agent.Model != "free/best-code" || agent.Sess.ModelName() != "free/best-code" || errOut.Len() != 0 {
+			t.Fatalf("calls/model/session/stderr = %d/%q/%q/%q", calls, agent.Model, agent.Sess.ModelName(), errOut.String())
 		}
 	})
 
