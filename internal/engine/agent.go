@@ -587,6 +587,27 @@ func (a *Agent) guard(ctx context.Context) tools.Guard {
 	}
 }
 
+// subagentGuard is the policy for work running without a person watching.
+//
+// A subagent has no terminal: prompting from one either deadlocks, or shows the
+// user a question they read as coming from the main session and answer about
+// the wrong work. So anything the tier would ask about is refused instead, and
+// the refusal says how to allow it — by choosing a tier, which is a decision
+// the user makes once and can review, rather than by answering a prompt nobody
+// saw.
+func (a *Agent) subagentGuard(ctx context.Context) tools.Guard {
+	main := a.guard(ctx)
+	return func(r tools.Request) bool {
+		verdict, reason := a.Permission.Judge(r)
+		if verdict != VerdictAsk {
+			return main(r)
+		}
+		fmt.Fprintf(a.Out, "%s✗ subagent refused: %s — subagents cannot ask; use /auto-approve or /full-auto to widen what they may do%s\n",
+			colorDim, reason, colorReset)
+		return false
+	}
+}
+
 // noteReachingOutside records, in the transcript, that Kolkrabbi went outside
 // the project without asking, and what for. In full-auto this line is the only
 // account of it anyone will have.
@@ -692,7 +713,18 @@ func compactToolText(value string) string {
 	return value
 }
 
+// executeTool runs one tool for the main session, where a person can answer.
 func (a *Agent) executeTool(ctx context.Context, tc provider.ToolCall) (string, error) {
+	return a.executeToolWith(ctx, tc, a.guard)
+}
+
+// executeSubagentTool runs one tool for an orchestrated subagent, where nobody
+// can.
+func (a *Agent) executeSubagentTool(ctx context.Context, tc provider.ToolCall) (string, error) {
+	return a.executeToolWith(ctx, tc, a.subagentGuard)
+}
+
+func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, guard func(context.Context) tools.Guard) (string, error) {
 	description := describeToolCall(tc)
 	fmt.Fprintf(a.Out, "%s  → %s%s\n", colorDim, description, colorReset)
 	stopWork := func() {}
@@ -710,7 +742,7 @@ func (a *Agent) executeTool(ctx context.Context, tc provider.ToolCall) (string, 
 	}
 	result, err := tools.Execute(toolCtx, tc.Function.Name, tc.Function.Arguments, tools.Options{
 		Root:     a.Root,
-		Guard:    a.guard(toolCtx),
+		Guard:    guard(toolCtx),
 		PreWrite: a.preWrite,
 	})
 	// One chokepoint for every tool. A result goes into the conversation, the

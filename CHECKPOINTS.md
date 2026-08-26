@@ -183,6 +183,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.1 path confinement** — file tools resolve against the project root, symlinks first, and reaching outside asks; in full-auto it proceeds and is logged with the reason.
 - [x] **E13.2 permission tiers** — `--yolo` is gone; `/ask`, `/auto-approve`, `/full-auto` and `/permissions` are the whole model, and no tier removes the floor.
 - [x] **E13.3 scrubbed tool output** — every tool result is scrubbed at one chokepoint, and the scrubber now catches vendor-less secrets.
+- [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **C12.7 fast-lane session naming** — a session earns a real name once enough has happened, without delaying the answer or overwriting a name a person chose.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
@@ -1757,6 +1758,32 @@ Acceptance checklist:
 
 Still open from the item 13 design, unchanged: permission *rules* with scopes, subagent auto-deny,
 binary detection and read ranges, and the OS sandbox matrix.
+
+### E13.4 subagent auto-deny — verified detail
+
+The last guard phase F depends on. Subagents called the same `executeTool` as the main session, so
+an action needing confirmation inside orchestrated work either deadlocked, or showed the user a
+question they would read as coming from the main session and answer about the wrong work. In a
+headless run with no decider it silently returned false, which is the same refusal without the
+explanation.
+
+`subagentGuard` turns anything its tier would *ask* about into a refusal, and says how to widen it:
+by choosing a tier, which the user decides once and can review, rather than by answering a prompt
+nobody saw. Everything else is unchanged — the tier still allows what it allows, and the floor still
+refuses what it refuses, inside a subagent exactly as outside one.
+
+The two guards are separate functions rather than a flag on the agent. A mutable "am I a subagent"
+field works only while subagents run one at a time, which is true today and is exactly the
+assumption phase F is about to break.
+
+Acceptance checklist:
+
+- [x] a subagent never reaches the decider, and an action that would need asking is refused.
+- [x] the refusal names the tiers that would allow it.
+- [x] a subagent still does what its tier allows, and still cannot do what its tier would ask about.
+- [x] the floor holds inside a subagent, in full-auto.
+- [x] a full-auto subagent runs edits and commands unattended, which is the point of the tier.
+- [x] full `make check` green.
 
 ### B12 Claude subscription backend — recorded detail
 

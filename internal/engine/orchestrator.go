@@ -196,7 +196,7 @@ Overall request: %s
 			return strings.TrimSpace(msg.Content), nil
 		}
 		for _, tc := range msg.ToolCalls {
-			result, err := a.executeTool(ctx, tc)
+			result, err := a.executeSubagentTool(ctx, tc)
 			if err != nil {
 				result = "Error: " + err.Error()
 			}
