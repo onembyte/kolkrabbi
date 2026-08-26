@@ -132,6 +132,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **S10.2 quality gate & git checkpointer** — automated test discovery, verification execution, and commit-on-green.
 - [x] **S10.3 budget & doom-loop guardrails** — chapter limit, dollar budget, timeout, and consecutive failure detection.
 - [x] **S10.4 CLI & slash command surface** — `kolk saga [goal|resume|status|stop|rewind]` and REPL twin `/saga`.
+- [x] **S10.5 saga artifact ownership & honest subcommands** — `SAGA.md` belongs to the project root, and `resume`/`stop`/`rewind` report the real saga instead of always denying one.
 - [x] **P11.1 provider plan registry & search** — static plan matrix with case-insensitive filtering behind `kolk plans` / `/plans`.
 - [x] **P11.2 credential-free connector manifest** — versioned `connectors.json` with atomic, locked upsert and no credential fields.
 - [x] **P11.3 plan model catalog** — `kolk pmodels` / `/pmodels` list provider, plan, connector, model, effort levels, and access status.
@@ -524,6 +525,46 @@ Verification 2026-08-26 04:55–05:05 (claude, independent of the code's author)
 stated non-goal still holds — `resume`, `stop`, and `rewind` are deliberate stubs and the engine's
 saga loop (`internal/engine/saga_*.go`, `internal/cli/saga_adapter.go`) is not yet driven from the CLI.
 That integration is the next S-series leaf, not part of S10.4.
+
+### S10.5 saga artifact ownership & honest subcommands — verified detail
+
+`saveSagaGoal` and `printSagaStatus` both resolved `SAGA.md` from `os.Getwd()`. Running
+`kolk saga fix all tests` from `internal/cli` on 2026-08-26 04:03 therefore wrote
+`internal/cli/SAGA.md` — the untracked file the previous session mistook for test output — and
+`kolk saga status` from any other directory reported `no active saga` while that saga existed.
+
+`resume`, `stop`, and `rewind` printed `no saga to resume` / `no running saga to stop` /
+`no saga chapters to rewind` unconditionally. S10.4 legitimately deferred the execution loop, but a
+stub that denies a saga which demonstrably exists is not a deferral, it is a wrong answer.
+
+Scope:
+
+- `sagaArtifactPath` walks up for `.git` and anchors the artifact at the project root; outside a
+  repository it honours an ancestor's existing `SAGA.md`, and otherwise uses the working directory.
+- `resume` and `rewind` read the artifact and report the real goal, status, chapter, and last
+  recorded chapter, and say plainly that the loop is not wired to them yet.
+- `stop` records `stopped` in the artifact and says where it stopped; a second `stop` is idempotent.
+- Multi-word goals join through `strings.Join` instead of an open-coded loop.
+
+Non-goals:
+
+- Still no saga execution loop behind `resume` — that remains the next S-series leaf. This leaf only
+  removes the false statements and puts the artifact where the project can find it.
+
+Acceptance checklist:
+
+- [x] red first: the goal was written into the nested directory, status from a sibling directory
+  reported `no active saga`, and `resume` denied a saga that had just been created.
+- [x] a goal set from `<root>/internal/cli` writes `<root>/SAGA.md` and leaves no artifact behind in
+  the nested directory.
+- [x] `status` from any subdirectory reads the project's artifact.
+- [x] `resume` and `rewind` name the real goal; `stop` records `stopped` and is idempotent.
+- [x] two pre-existing saga tests ran without an isolated working directory and wrote `SAGA.md` into
+  the repository running the suite; both now `t.Chdir(t.TempDir())`.
+- [x] real-binary rehearsal in a scratch repository: goal from `pkg/deep` landed at the root, status
+  and resume read it from the root, stop recorded `stopped`.
+- [x] `go test -race ./internal/cli` and full `make check` green.
+- [x] the orphaned `internal/cli/SAGA.md` is removed; a copy is kept in the session scratchpad.
 
 ### P11 provider plans & subscription connectors — recorded detail
 

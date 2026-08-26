@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/atomicfile"
@@ -21,24 +22,13 @@ func (a *app) runSaga(_ context.Context, args []string) error {
 	case "status":
 		return a.printSagaStatus()
 	case "resume":
-		fmt.Fprintln(a.stdout, "no saga to resume")
-		return nil
+		return a.resumeSaga()
 	case "stop":
-		fmt.Fprintln(a.stdout, "no running saga to stop")
-		return nil
+		return a.stopSaga()
 	case "rewind":
-		fmt.Fprintln(a.stdout, "no saga chapters to rewind")
-		return nil
+		return a.rewindSaga()
 	default:
-		// Treat any other argument as a goal string.
-		goal := args[0]
-		if len(args) > 1 {
-			// Join multi-word goals.
-			for _, a := range args[1:] {
-				goal += " " + a
-			}
-
-		}
+		goal := strings.Join(args, " ")
 		if err := a.saveSagaGoal(goal); err != nil {
 			return err
 		}
@@ -47,12 +37,119 @@ func (a *app) runSaga(_ context.Context, args []string) error {
 	}
 }
 
-func (a *app) saveSagaGoal(goal string) error {
-	dir, err := os.Getwd()
+// sagaArtifactPath resolves SAGA.md for the project the user is working on,
+// not for whichever directory they happen to be standing in. Running
+// `kolk saga` from a package directory used to leave a stray SAGA.md there and
+// hide the real one from `kolk saga status`.
+func sagaArtifactPath() (string, error) {
+	start, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("saga: resolve repository directory: %w", err)
+		return "", fmt.Errorf("saga: resolve working directory: %w", err)
 	}
-	path := filepath.Join(dir, "SAGA.md")
+	if root, ok := ancestorContaining(start, ".git"); ok {
+		return filepath.Join(root, "SAGA.md"), nil
+	}
+	// Not a repository: honour an artifact an ancestor already owns.
+	if root, ok := ancestorContaining(start, "SAGA.md"); ok {
+		return filepath.Join(root, "SAGA.md"), nil
+	}
+	return filepath.Join(start, "SAGA.md"), nil
+}
+
+func ancestorContaining(start, entry string) (string, bool) {
+	for dir := start; ; {
+		if _, err := os.Stat(filepath.Join(dir, entry)); err == nil {
+			return dir, true
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", false
+		}
+		dir = parent
+	}
+}
+
+// loadSaga reads the project's saga, reporting whether one exists at all so
+// each subcommand can answer honestly instead of assuming there is none.
+func (a *app) loadSaga() (*engine.SagaState, string, bool, error) {
+	path, err := sagaArtifactPath()
+	if err != nil {
+		return nil, "", false, err
+	}
+	body, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, path, false, nil
+	}
+	if err != nil {
+		return nil, path, false, fmt.Errorf("saga: read SAGA.md: %w", err)
+	}
+	state, parseErr := engine.ParseSagaMarkdown(string(body))
+	if parseErr != nil {
+		return nil, path, true, fmt.Errorf("saga: parse SAGA.md: %w", parseErr)
+	}
+	return state, path, true, nil
+}
+
+func (a *app) resumeSaga() error {
+	state, _, found, err := a.loadSaga()
+	if err != nil {
+		return err
+	}
+	if !found {
+		fmt.Fprintln(a.stdout, "no saga to resume")
+		return nil
+	}
+	fmt.Fprintf(a.stdout, "saga %q is %s at chapter %d of %d\n",
+		state.Goal, state.Status, state.ActiveChapter, state.MaxChapters)
+	fmt.Fprintln(a.stdout, "the saga loop is not wired to this command yet; `kolk saga status` shows the artifact")
+	return nil
+}
+
+func (a *app) rewindSaga() error {
+	state, _, found, err := a.loadSaga()
+	if err != nil {
+		return err
+	}
+	if !found || len(state.Chapters) == 0 {
+		fmt.Fprintln(a.stdout, "no saga chapters to rewind")
+		if found {
+			fmt.Fprintf(a.stdout, "saga %q has not recorded a chapter yet\n", state.Goal)
+		}
+		return nil
+	}
+	last := state.Chapters[len(state.Chapters)-1]
+	fmt.Fprintf(a.stdout, "saga %q would rewind chapter %d (%s, %s)\n",
+		state.Goal, last.Number, last.Title, last.Status)
+	fmt.Fprintln(a.stdout, "rewinding is not wired to this command yet")
+	return nil
+}
+
+func (a *app) stopSaga() error {
+	state, path, found, err := a.loadSaga()
+	if err != nil {
+		return err
+	}
+	if !found {
+		fmt.Fprintln(a.stdout, "no running saga to stop")
+		return nil
+	}
+	if state.Status == "stopped" {
+		fmt.Fprintf(a.stdout, "saga %q is already stopped\n", state.Goal)
+		return nil
+	}
+	state.Status = "stopped"
+	if err := atomicfile.Write(path, []byte(engine.FormatSagaMarkdown(state)), 0o600); err != nil {
+		return fmt.Errorf("saga: record the stop: %w", err)
+	}
+	fmt.Fprintf(a.stdout, "saga %q stopped at chapter %d\n", state.Goal, state.ActiveChapter)
+	return nil
+}
+
+func (a *app) saveSagaGoal(goal string) error {
+	path, err := sagaArtifactPath()
+	if err != nil {
+		return err
+	}
 	state := &engine.SagaState{
 		Goal:          goal,
 		Started:       time.Now(),
@@ -76,11 +173,11 @@ func (a *app) saveSagaGoal(goal string) error {
 }
 
 func (a *app) printSagaStatus() error {
-	dir, err := os.Getwd()
+	path, err := sagaArtifactPath()
 	if err != nil {
-		return fmt.Errorf("saga status: resolve repository directory: %w", err)
+		return err
 	}
-	body, err := os.ReadFile(filepath.Join(dir, "SAGA.md"))
+	body, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		fmt.Fprintln(a.stdout, "no active saga")
 		return nil
