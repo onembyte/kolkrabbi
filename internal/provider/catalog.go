@@ -24,11 +24,11 @@ type CatalogCache struct {
 // the machine is completely offline on first launch.
 func FallbackCatalogSeed() []ModelInfo {
 	return []ModelInfo{
-		{ID: "openrouter/auto", Name: "Auto Router", ContextLength: 128000},
+		{ID: "openrouter/auto", Name: "Auto Router", ContextLength: 128000, SupportedParameters: []string{"tools"}},
 		{ID: "openrouter/free", Name: "Free Router", ContextLength: 128000},
 		{ID: "anthropic/claude-3-7-sonnet", Name: "Claude 3.7 Sonnet", ContextLength: 200000},
 		{ID: "google/gemini-2.5-flash", Name: "Gemini 2.5 Flash", ContextLength: 1048576},
-		{ID: "meta-llama/llama-3.3-70b-instruct:free", Name: "Llama 3.3 70B (free)", ContextLength: 131072},
+		{ID: "meta-llama/llama-3.3-70b-instruct:free", Name: "Llama 3.3 70B (free)", ContextLength: 131072, SupportedParameters: []string{"tools"}},
 	}
 }
 

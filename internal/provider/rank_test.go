@@ -75,6 +75,12 @@ func TestRankFreeModelsAppliesCandidateGates(t *testing.T) {
 			}{Prompt: "0", Completion: "0"}},
 	}
 
+	func TestFallbackCatalogSeedContainsRankableFreeModel(t *testing.T) {
+		if ranked := provider.RankFreeModels(provider.FallbackCatalogSeed()); len(ranked) == 0 {
+			t.Fatal("fallback catalog seed must contain a rankable free model")
+		}
+	}
+
 	got := provider.RankFreeModels(models)
 	if len(got) != 1 || got[0] != "free/pricing-zero" {
 		t.Fatalf("ranked candidates = %#v, want only zero-cost tool-capable 32k model", got)
