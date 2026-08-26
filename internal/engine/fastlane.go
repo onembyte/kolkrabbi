@@ -46,7 +46,7 @@ func (a *Agent) FastLaneChat(ctx context.Context, systemPrompt, userPrompt strin
 		buf.WriteString(tok)
 	}
 
-	msg, _, err := a.Client.StreamChat(ctx, model, messages, nil, onToken)
+	msg, _, err := a.Backend.StreamChat(ctx, model, messages, nil, onToken)
 	if err != nil {
 		return "", err
 	}

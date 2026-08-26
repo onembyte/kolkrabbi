@@ -160,6 +160,7 @@ type WorkIndicator interface {
 // Options configures an Agent; zero values get sensible defaults.
 type Options struct {
 	Client   *provider.Client
+	Backend  ChatBackend
 	Model    string // the session's base model
 	Mode     string // chat | code | agent (default code)
 	Effort   string // quick | standard | deep | ultra (default standard)
@@ -184,6 +185,13 @@ type Options struct {
 	FreeModels  []string
 }
 
+// ChatBackend is the engine's provider seam. The existing OpenRouter client
+// remains the default, while provider-owned CLIs can implement the same turn
+// contract without changing orchestration.
+type ChatBackend interface {
+	StreamChat(context.Context, string, []provider.Message, []provider.Tool, func(string)) (provider.Message, provider.Meta, error)
+}
+
 type Agent struct {
 	Options
 	lastTurnID string
@@ -196,6 +204,9 @@ type Agent struct {
 // always current, and any dangling tool calls from an interrupted run are
 // repaired so the next API call is valid.
 func New(o Options) *Agent {
+	if o.Backend == nil {
+		o.Backend = o.Client
+	}
 	if o.Out == nil {
 		o.Out = os.Stdout
 	}

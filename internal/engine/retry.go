@@ -54,7 +54,7 @@ func (a *Agent) streamChat(ctx context.Context, phase, model string, messages []
 
 	tried := map[string]bool{model: true}
 	for retry := 0; ; retry++ {
-		msg, meta, err := a.Client.StreamChat(ctx, model, messages, toolset, streamToken)
+		msg, meta, err := a.Backend.StreamChat(ctx, model, messages, toolset, streamToken)
 		if err == nil {
 			return msg, meta, nil
 		}
