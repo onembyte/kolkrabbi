@@ -178,6 +178,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **D17.3 effort folding & recent sessions** — one effort level is one row whatever it was called when it was recorded, and sessions are listed with what each cost.
 - [x] **R1 session-safety review** — every command added this session was re-checked against the one rule the session's own bugs kept teaching: nothing may take the keyboard or block the turn.
 - [x] **R2 test isolation and stdin ownership** — the suite no longer writes into the developer's own Kolkrabbi state, and `/key -` no longer competes for the keyboard.
+- [x] **R3 rune-safe tool output** — the hottest truncation in the product no longer splits a UTF-8 rune, and the tests that missed it were vacuous by arithmetic.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
@@ -1583,6 +1584,40 @@ Acceptance checklist:
 Left for the owner, deliberately: the 543 synthetic records already in
 `~/.local/share/kolk/stats.jsonl`. Removing rows from a user's own data is their call, not a tidy-up
 to perform unasked.
+
+### R3 rune-safe tool output — verified detail
+
+The same byte-offset truncation fixed for memory in C12.5 existed in `internal/tools`, on a far
+hotter path: every file read and every command result larger than 12 000 bytes. A file containing an
+accented name, a smart quote or an emoji would put invalid UTF-8 into the tool result, which is then
+sent to the provider and saved into the session.
+
+Truncation now prefers a line boundary — half a line at the cut reads as though the file itself is
+broken — and falls back to trimming an incomplete trailing rune when no line boundary is near enough
+to be worth the loss.
+
+**The more useful finding is about the tests.** The first version of this leaf's tests passed
+immediately against the *unfixed* code, and the reason is arithmetic: `maxOutput` is 12 000, and the
+byte widths of every filler chosen — 2, 3 and 4 — divide 12 000 exactly, so the cut landed on a rune
+boundary by accident. The line-boundary test had the same flaw with 80-byte lines. Both proved
+nothing while looking green, which is worse than failing, because a green vacuous test is a claim
+that the behaviour is checked.
+
+The fix was to construct the fixtures so the boundary *cannot* be hit by accident: a one-to-three
+byte prefix before the multibyte filler, and a line length that does not divide the cap. Both then
+failed against the old code, as they should have from the start.
+
+That is the third time this session a test premise rather than the code was wrong, and the first
+time it produced false confidence rather than a false failure. It is recorded here because a suite
+whose green is unearned is the one failure mode none of the other checks can catch.
+
+Acceptance checklist:
+
+- [x] truncation stays valid UTF-8 for 2, 3 and 4-byte runes at four different cut offsets.
+- [x] the cut prefers a line boundary when one is close enough.
+- [x] short output is returned byte-identical.
+- [x] the amount dropped is reported from the actual cut, not from the cap.
+- [x] full `make check` green.
 
 ### B12 Claude subscription backend — recorded detail
 

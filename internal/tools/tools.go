@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/shell"
@@ -34,11 +35,40 @@ type PreWrite func(tool, path string) error
 
 const maxOutput = 12000 // chars; keeps huge command/file output from blowing up context
 
+// truncate caps tool output without corrupting it.
+//
+// Cutting at a byte offset can split a UTF-8 rune, and this is the hottest path
+// in the product: every file read and every command result larger than the cap
+// goes through it. A file containing an accented name, a smart quote or an
+// emoji would otherwise put invalid bytes into the conversation, which is then
+// sent to the provider and saved in the session.
 func truncate(s string) string {
 	if len(s) <= maxOutput {
 		return s
 	}
-	return s[:maxOutput] + fmt.Sprintf("\n... [truncated, %d more chars]", len(s)-maxOutput)
+	cut := s[:maxOutput]
+	// A line boundary is better than a rune boundary: half a line at the cut
+	// reads as though the file itself is broken. Only accept one that is not
+	// throwing away most of the output.
+	if index := strings.LastIndexByte(cut, '\n'); index > maxOutput/2 {
+		cut = cut[:index+1]
+	} else {
+		cut = trimPartialRune(cut)
+	}
+	return cut + fmt.Sprintf("\n... [truncated, %d more chars]", len(s)-len(cut))
+}
+
+// trimPartialRune drops an incomplete trailing rune, leaving a valid string. A
+// real U+FFFD in the content decodes with a size above one and is kept.
+func trimPartialRune(s string) string {
+	for len(s) > 0 {
+		r, size := utf8.DecodeLastRuneInString(s)
+		if r != utf8.RuneError || size > 1 {
+			return s
+		}
+		s = s[:len(s)-1]
+	}
+	return s
 }
 
 func schema(props string, required ...string) json.RawMessage {
