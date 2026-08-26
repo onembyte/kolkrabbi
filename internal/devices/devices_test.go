@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -188,4 +189,32 @@ func TestTheFileIsPrivate(t *testing.T) {
 	if perm := info.Mode().Perm(); perm != 0o600 {
 		t.Fatalf("mode = %v, want 0600", perm)
 	}
+}
+
+func TestTheStoreSurvivesConcurrentUse(t *testing.T) {
+	store, _ := Load(storeFile(t))
+	_, token, _ := store.Add("phone", TierRead)
+
+	// Every HTTP request authenticates, and authenticating writes a
+	// last-seen time. Two devices talking at once is the normal case for a
+	// server, not an edge one.
+	var wg sync.WaitGroup
+	for range 16 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			store.Authenticate(token)
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			store.List()
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _, _ = store.Add("another", TierRead)
+		}()
+	}
+	wg.Wait()
 }

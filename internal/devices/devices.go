@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/atomicfile"
@@ -50,7 +51,12 @@ type Device struct {
 }
 
 // Store is the set of paired devices.
+//
+// Safe for concurrent use: every HTTP request authenticates, and
+// authenticating writes a last-seen time, so two devices talking at once is
+// the normal case for a server rather than an edge one.
 type Store struct {
+	mu      sync.Mutex
 	devices []Device
 	// Now is the clock, replaceable so a test can assert on last-seen times
 	// without sleeping.
@@ -85,7 +91,9 @@ func (s *Store) Save(file string) error {
 	if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
 		return err
 	}
+	s.mu.Lock()
 	body, err := json.MarshalIndent(deviceFile{Devices: s.devices}, "", "  ")
+	s.mu.Unlock()
 	if err != nil {
 		return err
 	}
@@ -110,6 +118,8 @@ func (s *Store) Add(label string, tier Tier) (Device, string, error) {
 		return Device{}, "", fmt.Errorf("generating a device id: %w", err)
 	}
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	device := Device{
 		ID:      "dev_" + hex.EncodeToString(id),
 		Label:   label,
@@ -131,6 +141,8 @@ func (s *Store) Authenticate(token string) (Device, bool) {
 		return Device{}, false
 	}
 	want := hashToken(token)
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	for i := range s.devices {
 		// Constant time: the comparison is against a hash, but a length-and-
 		// prefix oracle over a set of devices is still an oracle.
@@ -144,6 +156,8 @@ func (s *Store) Authenticate(token string) (Device, bool) {
 
 // Revoke removes one device, reporting whether it was there.
 func (s *Store) Revoke(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	for i := range s.devices {
 		if s.devices[i].ID == id {
 			s.devices = append(s.devices[:i], s.devices[i+1:]...)
@@ -155,6 +169,8 @@ func (s *Store) Revoke(id string) bool {
 
 // List returns the paired devices, in the order they were paired.
 func (s *Store) List() []Device {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	out := make([]Device, len(s.devices))
 	copy(out, s.devices)
 	return out

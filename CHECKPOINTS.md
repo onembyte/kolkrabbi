@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **I26.6 read and steer tiers** — a device token means less than the operator's, and the store no longer races.
 - [x] **I26.5 reachability** — `kolk serve` says how to reach it and who else can, Tailscale first.
 - [x] **I26.4 pairing** — a six-digit code, armed briefly, single use, attempt-capped, on a route that does not exist the rest of the time.
 - [x] **I26.3 the device store** — one token per device, stored only as a hash, revocable one at a time.
@@ -1929,6 +1930,53 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### I26.6 read and steer tiers — verified detail
+
+Two kinds of caller now reach the server, and they are not equal.
+
+**The operator's `--token` is not tier-limited.** It is the secret the person running the server chose
+for themselves; tiering it would be Kolkrabbi restricting its own operator. A device token carries
+the tier it was paired at, and pairing always issues read.
+
+**Watching and acting are separated by route.** `/v1/events` answers any authenticated caller;
+`/v1/permissions/resolve` needs steer. The refusal says what to do about it — pair again, or promote
+the device from the machine running the session — because "forbidden" alone reads as a bug.
+
+**`steerRoutes` is named and ratcheted**, like `openRoutes` before it. Adding a write endpoint without
+listing it there would leave it answerable by any paired device, and that failure is silent: nothing
+breaks, the endpoint simply works for someone it should not. The test fails instead.
+
+**No token at all still means no tiers.** That path is only reachable on loopback, because I26.1
+refuses to serve anything else without one, so it is the local case — and a local session must not
+have to pair with itself.
+
+**A revoked device stops working immediately** on its next request, and using a device records
+last-seen through the HTTP path, not just the store's own tests.
+
+Two defects found while building this, neither of them the feature:
+
+**My test helper hung the suite.** `as()` issued a GET to `/v1/events`, which is a stream that never
+ends, so `make check` sat there until it was killed. The request now carries an already-cancelled
+context. Authentication happens before the handler either way, so a refusal is still observed exactly
+— the fix costs the test nothing.
+
+**`devices.Store` had a data race, and it was mine.** Every request authenticates, and authenticating
+writes a last-seen time, so two devices talking at once is the normal case for a server rather than
+an edge one. `Add`, `Revoke`, `List` and `Authenticate` all touched the slice unguarded. Proved with
+a sixteen-way race test before fixing it, which is the same shape as the `Recorder` contract F14.5
+turned up — concurrency arriving at a type written when nothing was concurrent.
+
+Acceptance checklist:
+
+- [x] a read device can watch and cannot act.
+- [x] a steer device can do both; the operator token is unrestricted.
+- [x] a revoked device stops working; an unknown token is 403 and a missing one 401.
+- [x] using a device over HTTP records last-seen.
+- [x] the steer-route set is exactly one, and adding to it fails a test.
+- [x] a loopback server with no token refuses nobody.
+- [x] `go test ./... -race` clean, including a sixteen-way concurrent store test.
+- [x] full `make check` green: 1,992 tests, 0 lint issues, every script contract.
 
 ### I26.5 reachability — verified detail
 

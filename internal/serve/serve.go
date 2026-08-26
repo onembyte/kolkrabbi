@@ -84,7 +84,7 @@ func Mux(opts Options) (http.Handler, error) {
 	pair := pairHandler(opts.Pairing, opts.Devices, opts.DeviceFile)
 	mux.Handle("/v1/pair", pair)
 
-	guarded := authMiddleware(opts.Token, openRoutes, mux)
+	guarded := authMiddleware(opts.Token, openRoutes, opts.Devices, mux)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Routed before auth rather than exempted inside it, so the exempt set
 		// stays exactly the two routes I26.2 ratcheted it to.
