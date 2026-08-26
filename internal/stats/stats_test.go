@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/onembyte/kolkrabbi/internal/engine"
 )
 
 func TestAppendLoadAggregate(t *testing.T) {
@@ -76,5 +78,46 @@ func TestRender(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("render missing %q:\n%s", want, out)
 		}
+	}
+}
+
+// The whole chain has to carry cache accounting, or the dashboard cannot tell a
+// cached turn from a full-price one on the same model.
+func TestRecordCallPersistsCacheTokens(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+	if err := store.RecordCall(engine.CallRecord{
+		Session: "s1", Turn: "t1", Model: "anthropic/claude", Role: "main",
+		PromptTokens: 120, CompletionTokens: 40,
+		CacheReadTokens: 90, CacheCreationTokens: 30, Cost: 0.004,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	body, err := os.ReadFile(filepath.Join(dir, fileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"cache_read_tokens":90`, `"cache_creation_tokens":30`} {
+		if !strings.Contains(string(body), want) {
+			t.Fatalf("record = %s, want %s", body, want)
+		}
+	}
+}
+
+func TestRecordCallOmitsCacheTokensWhenAProviderDoesNotReportThem(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+	if err := store.RecordCall(engine.CallRecord{
+		Session: "s1", Turn: "t1", Model: "vendor/plain", PromptTokens: 10, CompletionTokens: 2,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, fileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(body), "cache_read_tokens") {
+		t.Fatalf("record = %s, want no cache fields when none were reported", body)
 	}
 }

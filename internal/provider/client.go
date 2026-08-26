@@ -62,6 +62,11 @@ type Meta struct {
 	CompletionTokens int
 	Cost             float64 // USD; 0 if the server did not report it
 	Elapsed          time.Duration
+	// Cache accounting, when the provider reports it. A cached turn costs a
+	// fraction of an uncached one, so a cost chart that ignores these cannot
+	// explain why two turns on one model differ.
+	CacheReadTokens     int
+	CacheCreationTokens int
 }
 
 type chatRequest struct {
@@ -89,6 +94,11 @@ type wireUsage struct {
 	PromptTokens     int     `json:"prompt_tokens"`
 	CompletionTokens int     `json:"completion_tokens"`
 	Cost             float64 `json:"cost"`
+	// OpenAI-compatible cache accounting. Absent from most providers, so it is
+	// a pointer: a missing object and a reported zero mean different things.
+	PromptTokensDetails *struct {
+		CachedTokens int `json:"cached_tokens"`
+	} `json:"prompt_tokens_details"`
 }
 
 type streamChunk struct {
@@ -249,6 +259,9 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []Messag
 			meta.PromptTokens = chunk.Usage.PromptTokens
 			meta.CompletionTokens = chunk.Usage.CompletionTokens
 			meta.Cost = chunk.Usage.Cost
+			if chunk.Usage.PromptTokensDetails != nil {
+				meta.CacheReadTokens = chunk.Usage.PromptTokensDetails.CachedTokens
+			}
 		}
 		if len(chunk.Choices) == 0 {
 			continue // usage-only or keep-alive chunk

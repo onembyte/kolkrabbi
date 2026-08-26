@@ -37,18 +37,20 @@ func NewStore(dir string) *Store {
 // RecordCall records a completed model attempt.
 func (s *Store) RecordCall(r engine.CallRecord) error {
 	return Append(s.dir, Record{
-		Kind:             "call",
-		Session:          r.Session,
-		Turn:             r.Turn,
-		Mode:             r.Mode,
-		Effort:           r.Effort,
-		Role:             r.Role,
-		Model:            r.Model,
-		PromptTokens:     r.PromptTokens,
-		CompletionTokens: r.CompletionTokens,
-		Cost:             r.Cost,
-		Ms:               r.Ms,
-		ToolCalls:        r.ToolCalls,
+		Kind:                "call",
+		Session:             r.Session,
+		Turn:                r.Turn,
+		Mode:                r.Mode,
+		Effort:              r.Effort,
+		Role:                r.Role,
+		Model:               r.Model,
+		PromptTokens:        r.PromptTokens,
+		CompletionTokens:    r.CompletionTokens,
+		CacheReadTokens:     r.CacheReadTokens,
+		CacheCreationTokens: r.CacheCreationTokens,
+		Cost:                r.Cost,
+		Ms:                  r.Ms,
+		ToolCalls:           r.ToolCalls,
 	})
 }
 
@@ -75,10 +77,14 @@ type Record struct {
 	Model            string    `json:"model,omitempty"`
 	PromptTokens     int       `json:"prompt_tokens,omitempty"`
 	CompletionTokens int       `json:"completion_tokens,omitempty"`
-	Cost             float64   `json:"cost,omitempty"`
-	Ms               int64     `json:"ms,omitempty"`
-	ToolCalls        int       `json:"tool_calls,omitempty"`
-	Rating           int       `json:"rating,omitempty"` // 1-5, kind=rating
+	// Named for the OTel GenAI convention the dashboard will map onto, and
+	// omitted entirely when a provider does not report cache usage.
+	CacheReadTokens     int     `json:"cache_read_tokens,omitempty"`
+	CacheCreationTokens int     `json:"cache_creation_tokens,omitempty"`
+	Cost                float64 `json:"cost,omitempty"`
+	Ms                  int64   `json:"ms,omitempty"`
+	ToolCalls           int     `json:"tool_calls,omitempty"`
+	Rating              int     `json:"rating,omitempty"` // 1-5, kind=rating
 }
 
 func path(dir string) string { return filepath.Join(dir, fileName) }

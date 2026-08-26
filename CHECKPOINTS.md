@@ -153,7 +153,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [ ] **P11.7 proof of login** — verify the provider actually authenticated before a connector is marked enabled, instead of trusting a clean exit.
 - [ ] **B12.12 effort validation** — reject or downgrade an effort the selected plan does not advertise, rather than sending one the provider will reinterpret.
 - [ ] **B12.13 subscription-only first run** — decide, with the owner, whether a session whose provider is a subscription still requires an OpenRouter key. Product decision before code.
-- [ ] **B12.14 cache token accounting** — carry `cache_read_input_tokens` and `cache_creation_input_tokens` into `provider.Meta`; the wire shape already parses them and `Collect` drops them.
+- [x] **B12.14 cache token accounting** — cache tokens reach `provider.Meta`, the call record and `stats.jsonl`, from both the Claude adapter and OpenRouter, and are diffed per turn like the rest.
 - [x] **L13.1 managed local storage paths** — a Kolk-owned model directory under the data dir, never a host Ollama path.
 - [x] **L13.2 managed runtime spec & lifecycle** — validated `RuntimeSpec`, start-at-most-once, deterministic close.
 - [x] **L13.3 managed sidecar starter** — `shell.StartManagedProcess` keeps process execution inside the one owner package.
@@ -903,6 +903,41 @@ Acceptance checklist:
 - [x] two turns against cumulative frames report 100/10/$0.10 then 150/15/$0.20.
 - [x] a report smaller than the running total is taken at face value, never negative.
 - [x] the one-shot backend path is unchanged and its tests pass untouched.
+- [x] full `make check` green.
+
+### B12.14 cache token accounting — verified detail
+
+`agentcli` already parsed `cache_read_input_tokens` and `cache_creation_input_tokens` off the wire
+and `Collect` threw both away, so a turn served almost entirely from cache was recorded as if every
+prompt token had been paid for. On the OpenRouter side the same information arrives as
+`prompt_tokens_details.cached_tokens` and was never read at all. The dashboard this feeds exists to
+answer "which model earns its cost", and it could not distinguish a cache hit from a full-price call
+on the same model.
+
+Scope:
+
+- `provider.Meta` gains `CacheReadTokens` and `CacheCreationTokens`, carried through
+  `engine.CallRecord` into `stats.Record` as `cache_read_tokens` / `cache_creation_tokens`, both
+  `omitempty` so providers that report nothing add nothing to the log.
+- `Collect` fills them from the Claude usage event; the OpenRouter client fills the read count from
+  `prompt_tokens_details`, kept as a pointer so "absent" and "reported zero" stay distinguishable.
+- `chargeTurn` diffs them alongside cost and tokens: they are session-cumulative under the
+  persistent process exactly like the others.
+
+Non-goals:
+
+- No pricing model for cached tokens. Kolkrabbi records what the provider reports; interpreting the
+  discount belongs to item 17.
+
+Acceptance checklist:
+
+- [x] red first: `Collect` returned zero for both, and the OpenRouter stream ignored
+  `prompt_tokens_details`.
+- [x] a Claude turn carries both counts into `Meta`.
+- [x] a second session turn reports the cache-read delta (2500 total − 1000 charged = 1500) and zero
+  creation when that total did not move.
+- [x] an OpenRouter usage chunk reporting 90 cached of 120 prompt tokens records 90.
+- [x] `stats.jsonl` contains both fields when reported and neither when not.
 - [x] full `make check` green.
 
 ### L13 managed local models — active detail

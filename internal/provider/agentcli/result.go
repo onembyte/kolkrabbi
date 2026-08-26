@@ -33,6 +33,8 @@ func Collect(events []Event, elapsed time.Duration) (provider.Message, provider.
 			}
 			meta.PromptTokens = event.InputTokens
 			meta.CompletionTokens = event.OutputTokens
+			meta.CacheReadTokens = event.CacheRead
+			meta.CacheCreationTokens = event.CacheCreation
 			meta.Cost = event.CostUSD
 		case EventError:
 			return provider.Message{}, meta, &providerError{message: event.Error}

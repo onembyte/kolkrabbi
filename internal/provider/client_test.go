@@ -36,7 +36,7 @@ func mockSSEHandler(w http.ResponseWriter, r *http.Request) {
 			fl.Flush()
 		}
 	}
-	fmt.Fprint(w, `data: {"model":"any/model","choices":[],"usage":{"prompt_tokens":120,"completion_tokens":40,"cost":0.0042}}`+"\n\n")
+	fmt.Fprint(w, `data: {"model":"any/model","choices":[],"usage":{"prompt_tokens":120,"completion_tokens":40,"cost":0.0042,"prompt_tokens_details":{"cached_tokens":90}}}`+"\n\n")
 	fmt.Fprint(w, "data: [DONE]\n\n")
 }
 
@@ -74,6 +74,11 @@ func TestStreamChat_ToolCallAccumulation(t *testing.T) {
 	}
 	if meta.PromptTokens != 120 || meta.CompletionTokens != 40 || meta.Cost != 0.0042 {
 		t.Errorf("meta = %+v, want usage 120/40 cost 0.0042", meta)
+	}
+	// 90 of those 120 prompt tokens were served from cache and cost a fraction
+	// of the rest. A chart that cannot see that cannot explain the bill.
+	if meta.CacheReadTokens != 90 {
+		t.Errorf("cache read tokens = %d, want 90", meta.CacheReadTokens)
 	}
 	if meta.Elapsed <= 0 {
 		t.Error("meta.Elapsed not measured")

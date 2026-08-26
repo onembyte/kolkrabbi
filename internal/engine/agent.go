@@ -410,17 +410,19 @@ func (a *Agent) record(role string, meta provider.Meta, toolCalls int) {
 		return
 	}
 	err := a.Recorder.RecordCall(CallRecord{
-		Session:          a.Sess.SessionID(),
-		Turn:             a.lastTurnID,
-		Mode:             a.Mode,
-		Effort:           a.Effort,
-		Role:             role,
-		Model:            meta.Model,
-		PromptTokens:     meta.PromptTokens,
-		CompletionTokens: meta.CompletionTokens,
-		Cost:             meta.Cost,
-		Ms:               meta.Elapsed.Milliseconds(),
-		ToolCalls:        toolCalls,
+		Session:             a.Sess.SessionID(),
+		Turn:                a.lastTurnID,
+		Mode:                a.Mode,
+		Effort:              a.Effort,
+		Role:                role,
+		Model:               meta.Model,
+		PromptTokens:        meta.PromptTokens,
+		CompletionTokens:    meta.CompletionTokens,
+		CacheReadTokens:     meta.CacheReadTokens,
+		CacheCreationTokens: meta.CacheCreationTokens,
+		Cost:                meta.Cost,
+		Ms:                  meta.Elapsed.Milliseconds(),
+		ToolCalls:           toolCalls,
 	})
 	if err != nil && !a.statsWarn {
 		fmt.Fprintf(os.Stderr, "\nwarning: could not record stats: %v\n", err)

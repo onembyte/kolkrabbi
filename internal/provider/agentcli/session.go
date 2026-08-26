@@ -31,9 +31,11 @@ type ClaudeSession struct {
 	unusable bool
 	// The provider reports usage for the whole session, so the running totals
 	// already charged are kept to turn each report into one turn's own cost.
-	spentCost   float64
-	spentInput  int
-	spentOutput int
+	spentCost          float64
+	spentInput         int
+	spentOutput        int
+	spentCacheRead     int
+	spentCacheCreation int
 }
 
 // Unusable reports that the provider stream can no longer be trusted, so the
@@ -149,15 +151,20 @@ func explainEarlyExit(err error) error {
 // before it and grow a cost chart quadratically.
 func (s *ClaudeSession) chargeTurn(meta *provider.Meta) {
 	cost, input, output := meta.Cost, meta.PromptTokens, meta.CompletionTokens
-	if cost >= s.spentCost && input >= s.spentInput && output >= s.spentOutput {
+	cacheRead, cacheCreation := meta.CacheReadTokens, meta.CacheCreationTokens
+	if cost >= s.spentCost && input >= s.spentInput && output >= s.spentOutput &&
+		cacheRead >= s.spentCacheRead && cacheCreation >= s.spentCacheCreation {
 		meta.Cost = cost - s.spentCost
 		meta.PromptTokens = input - s.spentInput
 		meta.CompletionTokens = output - s.spentOutput
+		meta.CacheReadTokens = cacheRead - s.spentCacheRead
+		meta.CacheCreationTokens = cacheCreation - s.spentCacheCreation
 	}
 	// Anything smaller than the running total means the provider restarted its
 	// own accounting. Take the report at face value rather than charging a
 	// negative turn, and rebase on it either way.
 	s.spentCost, s.spentInput, s.spentOutput = cost, input, output
+	s.spentCacheRead, s.spentCacheCreation = cacheRead, cacheCreation
 }
 
 // abandonTurn resynchronizes the provider stream after a turn ends early.

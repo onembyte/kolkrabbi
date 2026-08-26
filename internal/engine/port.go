@@ -36,9 +36,12 @@ type CallRecord struct {
 	Model            string
 	PromptTokens     int
 	CompletionTokens int
-	Cost             float64
-	Ms               int64
-	ToolCalls        int
+	// Cache tokens, when the provider reports them.
+	CacheReadTokens     int
+	CacheCreationTokens int
+	Cost                float64
+	Ms                  int64
+	ToolCalls           int
 }
 
 // Recorder is the accounting port.

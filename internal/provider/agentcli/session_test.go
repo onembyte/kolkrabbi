@@ -239,3 +239,30 @@ func TestClaudeSessionRebasesWhenTheProviderResetsItsTotals(t *testing.T) {
 		t.Fatalf("rebased turn = %d tokens / %v cost, want the reported values", second.PromptTokens, second.Cost)
 	}
 }
+
+func TestClaudeSessionDiffsCacheTokensToo(t *testing.T) {
+	process := &fakeLineProcess{lines: [][]byte{
+		[]byte(`{"type":"result","result":"one","subtype":"success","usage":{"input_tokens":100,"output_tokens":10,"cache_read_input_tokens":1000,"cache_creation_input_tokens":200}}`),
+		[]byte(`{"type":"result","result":"two","subtype":"success","usage":{"input_tokens":150,"output_tokens":15,"cache_read_input_tokens":2500,"cache_creation_input_tokens":200}}`),
+	}}
+	session, err := newClaudeSession(context.Background(), "high", func(context.Context, string, []string) (lineProcess, error) {
+		return process, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := session.Turn(context.Background(), []provider.Message{{Role: "user", Content: "one"}}, "opus", nil); err != nil {
+		t.Fatal(err)
+	}
+	_, second, err := session.Turn(context.Background(), []provider.Message{{Role: "user", Content: "two"}}, "opus", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.CacheReadTokens != 1500 {
+		t.Fatalf("cache read = %d, want 1500 (2500 total minus the first turn)", second.CacheReadTokens)
+	}
+	if second.CacheCreationTokens != 0 {
+		t.Fatalf("cache creation = %d, want 0 (the total did not move)", second.CacheCreationTokens)
+	}
+}

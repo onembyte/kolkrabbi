@@ -29,3 +29,19 @@ func TestCollectReturnsTranslatedProviderError(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+func TestCollectCarriesCacheTokens(t *testing.T) {
+	_, meta, err := Collect([]Event{
+		{Kind: EventMessageCompleted, Text: "done"},
+		{Kind: EventUsage, Model: "opus", InputTokens: 100, OutputTokens: 10,
+			CacheRead: 4000, CacheCreation: 250, CostUSD: 0.02},
+	}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A cached turn costs a fraction of an uncached one. Dropping these makes
+	// every cache hit look like a full-price call.
+	if meta.CacheReadTokens != 4000 || meta.CacheCreationTokens != 250 {
+		t.Fatalf("cache tokens = %d read / %d created", meta.CacheReadTokens, meta.CacheCreationTokens)
+	}
+}
