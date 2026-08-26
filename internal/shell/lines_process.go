@@ -8,7 +8,12 @@ import (
 	"io"
 	"os/exec"
 	"sync"
+	"time"
 )
+
+// closeGrace is how long a provider process may take to exit after its stdin
+// closes before Kolkrabbi terminates it.
+const closeGrace = 5 * time.Second
 
 // LinesProcess is one long-lived child process with line-delimited stdin and
 // stdout. It is suitable for a provider session that accepts NDJSON requests.
@@ -16,8 +21,11 @@ type LinesProcess struct {
 	cmd   *exec.Cmd
 	stdin io.WriteCloser
 	lines chan []byte
-	done  chan error
-	once  sync.Once
+	// exited closes once the reader has finished and exitErr is final, so the
+	// terminal result can be observed any number of times from any caller.
+	exited  chan struct{}
+	exitErr error
+	once    sync.Once
 }
 
 // StartLinesProcess starts an executable without exposing its process details
@@ -45,13 +53,14 @@ func StartLinesProcess(ctx context.Context, executable string, args []string) (*
 		return nil, fmt.Errorf("starting %s: %w", executable, err)
 	}
 	process := &LinesProcess{
-		cmd: cmd, stdin: stdin, lines: make(chan []byte), done: make(chan error, 1),
+		cmd: cmd, stdin: stdin, lines: make(chan []byte), exited: make(chan struct{}),
 	}
 	go process.read(stdout, &stderr)
 	return process, nil
 }
 
 func (p *LinesProcess) read(stdout io.Reader, stderr *bytes.Buffer) {
+	defer close(p.exited)
 	defer close(p.lines)
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
@@ -68,7 +77,7 @@ func (p *LinesProcess) read(stdout io.Reader, stderr *bytes.Buffer) {
 			err = waitErr
 		}
 	}
-	p.done <- err
+	p.exitErr = err
 }
 
 // Send writes one line to the provider process.
@@ -89,7 +98,8 @@ func (p *LinesProcess) Next(ctx context.Context) ([]byte, error) {
 		if ok {
 			return line, nil
 		}
-		return nil, <-p.done
+		<-p.exited
+		return nil, p.exitErr
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -101,5 +111,17 @@ func (p *LinesProcess) Close() error {
 		return nil
 	}
 	p.once.Do(func() { _ = p.stdin.Close() })
-	return <-p.done
+	// A provider CLI is expected to exit once its stdin closes. If one does not,
+	// Kolkrabbi still owns the process and must not hang the session on exit.
+	timer := time.NewTimer(closeGrace)
+	defer timer.Stop()
+	select {
+	case <-p.exited:
+	case <-timer.C:
+		if p.cmd.Process != nil {
+			_ = p.cmd.Process.Kill()
+		}
+		<-p.exited
+	}
+	return p.exitErr
 }

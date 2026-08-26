@@ -80,3 +80,46 @@ func TestClaudeBackendReusesPersistentSession(t *testing.T) {
 		t.Fatalf("session starts = %d, want one process", starts)
 	}
 }
+
+// A persistent provider process must belong to the Kolkrabbi session, not to
+// whichever turn happened to start it. Binding it to a turn context means the
+// first Ctrl+C kills Claude for the rest of the session.
+func TestClaudeBackendSessionOutlivesOneTurnContext(t *testing.T) {
+	turn := func(text string) [][]byte {
+		return [][]byte{
+			[]byte(`{"type":"assistant","message":{"model":"opus","content":[{"type":"text","text":"` + text + `"}]}}`),
+			[]byte(`{"type":"result","result":"` + text + `","subtype":"success"}`),
+		}
+	}
+	process := &fakeLineProcess{lines: append(turn("one"), turn("two")...)}
+	starts := 0
+	var processContext context.Context
+	backend := &ClaudeBackend{start: func(ctx context.Context, _ string, _ []string) (lineProcess, error) {
+		starts++
+		processContext = ctx
+		return process, nil
+	}}
+
+	first, cancelFirst := context.WithCancel(context.Background())
+	if _, _, err := backend.StreamChat(first, "opus", []provider.Message{{Role: "user", Content: "hi"}}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	cancelFirst()
+
+	if processContext.Err() != nil {
+		t.Fatalf("the provider process died with its first turn: %v", processContext.Err())
+	}
+	if _, _, err := backend.StreamChat(context.Background(), "opus", []provider.Message{{Role: "user", Content: "again"}}, nil, nil); err != nil {
+		t.Fatalf("second turn after the first was cancelled: %v", err)
+	}
+	if starts != 1 {
+		t.Fatalf("started %d provider processes, want exactly one per session", starts)
+	}
+
+	if err := backend.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if processContext.Err() == nil {
+		t.Fatal("closing the backend must also release the process context")
+	}
+}

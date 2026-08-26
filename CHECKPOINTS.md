@@ -144,6 +144,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **B12.4 engine chat backend seam** — `engine.ChatBackend` with the OpenRouter client as the unchanged default.
 - [x] **B12.5 persistent Claude session** — one line-framed child process serves every turn of a Kolk session.
 - [x] **B12.6 backend lifecycle ownership** — the CLI session opens and closes the Claude backend exactly once.
+- [x] **B12.7 session-scoped process lifetime** — the persistent provider process belongs to the Kolkrabbi session, and a line process reports its exit repeatably instead of blocking.
 - [x] **L13.1 managed local storage paths** — a Kolk-owned model directory under the data dir, never a host Ollama path.
 - [x] **L13.2 managed runtime spec & lifecycle** — validated `RuntimeSpec`, start-at-most-once, deterministic close.
 - [x] **L13.3 managed sidecar starter** — `shell.StartManagedProcess` keeps process execution inside the one owner package.
@@ -643,11 +644,49 @@ Acceptance checklist:
   fixed in `9620f339`.
 - [x] the CLI session owns backend lifetime and closes it exactly once (`8278dba8`, `dbfaff5b`).
 - [ ] **open:** cancellation mid-turn, EOF without a result frame, malformed frames, and process
-  restart after a crash have no tests yet.
+  restart after a crash have no tests yet — B12.8 owns them.
 - [ ] **open:** `docs/plan/04-subscription-backends.md` still describes one process per turn. It
   contradicts the shipped session-scoped process and must be reconciled.
 - [ ] **open:** nothing yet connects a `/plogin`-enabled connector to backend selection for a new
   session, so the Claude backend is reachable only through `Options.Backend`.
+
+### B12.7 session-scoped process lifetime — verified detail
+
+Two defects, both of which turn the persistent Claude session into a session that dies quietly.
+
+`getSession` started the provider process with the *turn's* context. `exec.CommandContext` kills the
+child when that context is done, so the first Ctrl+C — or, in the fast lane, simply the first turn
+finishing — killed Claude for the rest of the Kolkrabbi session, and `b.session` stayed non-nil so
+nothing ever restarted it. That defeats the owner's explicit requirement that Claude stay alive for
+the whole session.
+
+`LinesProcess` sent its terminal error into a one-slot channel that only one caller could ever
+receive. A second `Next` after the child exited, or a second `Close`, blocked forever on an empty
+channel — a hung CLI with no output and no way back.
+
+Scope:
+
+- The session process is started on `context.WithCancel(context.WithoutCancel(ctx))`, so it is
+  scoped to the backend, and `Close` releases that context after closing the session.
+- `LinesProcess` records its exit once, closes an `exited` channel, and answers every later `Next`
+  and `Close` from the recorded result.
+- `Close` gives a provider process five seconds to exit after its stdin closes and then terminates
+  it, so a CLI that ignores EOF cannot hang session teardown.
+
+Non-goals:
+
+- No mid-turn resynchronization or restart-after-crash policy; B12.8 owns those.
+
+Acceptance checklist:
+
+- [x] red first: `TestClaudeBackendSessionOutlivesOneTurnContext` failed with `context canceled`,
+  and both `internal/shell` tests failed by blocking past a five-second guard.
+- [x] one cancelled turn leaves the process alive, the next turn reuses it, and exactly one process
+  is started per backend.
+- [x] `Close` releases the process context.
+- [x] repeated `Next` and repeated `Close` return the same terminal result promptly, for both a
+  clean exit and a failing child.
+- [x] `go test -race ./internal/shell` and the full `make check` are green.
 
 ### L13 managed local models — active detail
 

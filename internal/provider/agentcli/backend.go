@@ -19,6 +19,7 @@ type ClaudeBackend struct {
 	start   startLineProcess
 	mu      sync.Mutex
 	session *ClaudeSession
+	release context.CancelFunc
 }
 
 // NewClaudeBackend creates a backend that lazily owns one persistent provider
@@ -82,11 +83,17 @@ func (b *ClaudeBackend) getSession(ctx context.Context) (*ClaudeSession, error) 
 	if b.session != nil {
 		return b.session, nil
 	}
-	process, err := b.start(ctx, "claude", BuildClaudeSessionArgs(b.Effort))
+	// The process belongs to the Kolkrabbi session, not to the turn that first
+	// needed it. Inheriting the turn context would let one cancelled turn kill
+	// Claude for every later turn. Close is the only thing that ends it.
+	sessionContext, release := context.WithCancel(context.WithoutCancel(ctx))
+	process, err := b.start(sessionContext, "claude", BuildClaudeSessionArgs(b.Effort))
 	if err != nil {
+		release()
 		return nil, err
 	}
 	b.session = &ClaudeSession{process: process, effort: b.Effort}
+	b.release = release
 	return b.session, nil
 }
 
@@ -97,7 +104,12 @@ func (b *ClaudeBackend) Close() error {
 	if b.session == nil {
 		return nil
 	}
-	return b.session.Close()
+	err := b.session.Close()
+	if b.release != nil {
+		b.release()
+		b.release = nil
+	}
+	return err
 }
 
 func promptFromMessages(messages []provider.Message) (string, error) {
