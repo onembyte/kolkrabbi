@@ -415,7 +415,8 @@ backend only.
 **Hardened when:** tool catalog (schema + risk + confirm + checkpoint), permission-rule grammar, sandbox matrix per OS.
 **Inputs:** `docs/research/ecosystem.md`
 
-### [ ] 14. Agent mode — orchestration & per-task model routing ("Hermes-style, but multi-model")
+### [x] 14. Agent mode — orchestration & per-task model routing ("Hermes-style, but multi-model")
+**Hardened 2026-08-26** ([`docs/plan/14-orchestration-routing.md`](docs/plan/14-orchestration-routing.md)): a run must survive its own failures before it is worth routing or parallelising — today one failed subagent discards every result before it. Tasks become records carrying kind and dependencies; kinds route to named slots (orchestrator/worker/explore/fast) resolved through config → effort tiers → session model; cost is shown and optionally capped; concurrency is three at a time, spawn depth 1, and lands last because it multiplies every failure mode above it.
 **Scope:** planner → subagents → synthesis done well; different models for different tasks; what to borrow from Hermes Agent.
 **Today:** planner (strict-JSON task list) → sequential subagents (isolated contexts, ≤ 12 rounds) → synthesis; width by effort; main session only stores request → answer.
 **Decide:**
