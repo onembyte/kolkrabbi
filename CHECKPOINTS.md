@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **I26.5 reachability** — `kolk serve` says how to reach it and who else can, Tailscale first.
 - [x] **I26.4 pairing** — a six-digit code, armed briefly, single use, attempt-capped, on a route that does not exist the rest of the time.
 - [x] **I26.3 the device store** — one token per device, stored only as a hash, revocable one at a time.
 - [x] **I26.2 the protected surface, ratcheted** — every route needs the token except two that say nothing, and widening that set now fails a test.
@@ -1928,6 +1929,52 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### I26.5 reachability — verified detail
+
+The common failure with a bound port is not insecurity but confusion: someone binds every interface,
+sets a token, and still cannot work out which URL to open on their phone. `kolk serve` now answers
+that at startup.
+
+**The decision is a pure function over a struct, not over `net.Interface`.** Reachability is exactly
+the kind of thing that is only ever wrong on somebody else's laptop, so `Describe` takes a slice of a
+plain `Interface` type and every case — Tailscale, LAN, wildcard, IPv6, link-local noise — is a
+fixture. `LocalInterfaces` is the thin wrapper that touches the machine, and it is the only part with
+nothing asserted about it.
+
+**Tailscale is recognised two ways.** By the `100.64.0.0/10` range it assigns from, and by interface
+name — because the interface is not always `tailscale0`: it is `utun` on macOS and `ts0` on some
+setups. Either alone would miss real machines. Its address is printed first and marked, because it is
+the one that works from anywhere.
+
+**A specific bind advertises only itself.** Binding `192.168.1.5` and then listing the Tailscale
+address would send someone to a port that will not answer.
+
+**Link-local addresses are left out.** `169.254.x` and `fe80::` are not somewhere anyone types into a
+phone, and a list of six URLs where two work is worse than a list of one.
+
+**A wildcard bind with no usable address still says something**, because printing nothing after
+binding a port reads as a crash.
+
+**SSH is offered, not implemented.** `ssh -L <port>:127.0.0.1:<port> <host>` is the honest remote
+answer for a loopback bind and needs nothing from Kolkrabbi — which is the same reasoning that keeps
+a relay out of this item entirely.
+
+One papercut fixed while here, visible only by running the binary: `--pair` on a loopback bind told
+the user to pair a device against a port only that machine can reach. The failure would have looked
+like a broken pairing code rather than a binding choice. It now says so, and points at the tunnel.
+
+Acceptance checklist:
+
+- [x] loopback says only this machine can reach it, and offers the tunnel.
+- [x] a Tailscale address is found by range and by interface name, and comes first.
+- [x] a plain LAN bind warns in words that the network can reach it.
+- [x] binding one address advertises only that address.
+- [x] link-local addresses are excluded; IPv6 hosts are bracketed.
+- [x] a wildcard bind with no addresses still prints a note.
+- [x] pairing on an unreachable bind says how the device gets there.
+- [x] verified by running the binary, not only by test.
+- [x] full `make check` green: 1,983 tests, 0 lint issues, every script contract.
 
 ### I26.4 pairing — verified detail
 
