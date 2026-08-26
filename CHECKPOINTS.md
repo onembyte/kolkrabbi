@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **I26.1 the bind floor** — a wildcard address is not loopback, and the refusal happens before the socket opens.
 - [x] **X3 a long path is elided in the middle, not the end** — the filename is the part a person needs, and it was the part being cut.
 - [x] **X2 the reported path is the resolved path, on every platform** — a macOS-only break I shipped, and the Linux test that would have caught it.
 - [x] **X1 fixtures that do not look like live keys** — the scrubber's own test corpus was blocking every push; fixtures now match the repository's existing shorter shape.
@@ -1924,6 +1925,45 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### I26.1 the bind floor — verified detail
+
+Phase I opens with a security fix rather than a feature, because everything the phase wants is built
+on `kolk serve` and `kolk serve` had a hole.
+
+**`isLoopback("")` returned true, and an empty host means every interface.** `net.SplitHostPort(":8080")`
+yields an empty host, the check read that as loopback, and `Mux` therefore served `--addr :8080` with
+**no token at all**. On that server sit an SSE stream of the whole session and a permission-resolve
+endpoint — so anyone on the same network could watch the work and answer the prompts. Verified by
+probe before changing anything, and the same probe now exists as a test.
+
+The rule is now the safe direction of the ambiguity: **anything it cannot prove is loopback is not
+loopback.** An empty host, an unparseable address, `0.0.0.0`, `[::]` — all refused without a token.
+Guessing "probably local" about an address nobody can parse is the same mistake one step later.
+
+**The second bug was ordering.** `cmd_serve` called `serve.Listen` *before* `serve.New`, so the socket
+was opened and only then was the token checked. The deferred close made the window small; it was
+still binding before authorising. Reversed: the server is built, and only if that succeeds is the
+socket opened.
+
+**Loopback stays frictionless.** A local session must not have to invent a secret to talk to its own
+dashboard, and a test holds that line — the fix would be worthless if it made the common case
+annoying enough to work around with `--token hunter2`.
+
+The refusal now names the address and says both ways out, because "binding to non-loopback address
+requires a non-empty bearer token" reads as a bug in kolk rather than as a decision it made on the
+user's behalf.
+
+Acceptance checklist:
+
+- [x] `:8080`, `:0`, `0.0.0.0`, `[::]` and a LAN IP are all not loopback.
+- [x] `127.0.0.1`, `localhost`, `[::1]` still are.
+- [x] serving a wide-open address without a token is refused, naming the token.
+- [x] an unparseable address is refused rather than guessed at.
+- [x] loopback and an unset address still need no token.
+- [x] a wide-open address with a token is allowed.
+- [x] the refusal happens before the socket is opened.
+- [x] full `make check` green: 1,936 tests, 0 lint issues, every script contract.
 
 ### X3 a long path is elided in the middle, not the end — recorded detail
 

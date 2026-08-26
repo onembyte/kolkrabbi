@@ -27,8 +27,12 @@ func Mux(opts Options) (http.Handler, error) {
 		return nil, errors.New("event bus is required")
 	}
 
+	// An empty Addr means the handler is being built without being served —
+	// tests, and callers that mount it themselves. Anything that actually
+	// listens passes the address it will listen on, and cmd_serve builds the
+	// server before it opens the socket so this refusal happens first.
 	if opts.Addr != "" && !isLoopback(opts.Addr) && opts.Token == "" {
-		return nil, errors.New("binding to non-loopback address requires a non-empty bearer token")
+		return nil, fmt.Errorf("refusing to serve %s without a token: that address is reachable from other machines (use --token, or bind 127.0.0.1)", opts.Addr)
 	}
 
 	mux := http.NewServeMux()

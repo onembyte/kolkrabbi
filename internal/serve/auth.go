@@ -7,16 +7,28 @@ import (
 	"strings"
 )
 
-// isLoopback checks whether an address string is bound to loopback.
+// isLoopback reports whether an address reaches only this machine.
+//
+// Everything it cannot prove is loopback is treated as not loopback. An empty
+// host is the case that matters: ":8080" has no host, and no host means every
+// interface, so reading it as loopback is how an unauthenticated session ends
+// up on the office wifi. The same goes for an address nobody can parse —
+// guessing "probably local" about it is the same mistake one step later.
 func isLoopback(addr string) bool {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
+		// No port at all. A bare host is still worth judging; anything else
+		// is not loopback.
 		host = addr
 	}
-	if host == "" || host == "localhost" {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return false
+	}
+	if host == "localhost" {
 		return true
 	}
-	ip := net.ParseIP(host)
+	ip := net.ParseIP(strings.Trim(host, "[]"))
 	if ip == nil {
 		return false
 	}

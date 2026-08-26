@@ -37,12 +37,9 @@ func (a *app) runServe(ctx context.Context, args []string) error {
 		return serve.ServeStdio(ctx, os.Stdin, a.stdout, b)
 	}
 
-	l, err := serve.Listen(*addr)
-	if err != nil {
-		return fmt.Errorf("listen on %s: %w", *addr, err)
-	}
-	defer func() { _ = l.Close() }()
-
+	// Built before the socket is opened, so an address that would be reachable
+	// from other machines is refused rather than bound and then refused. The
+	// window between the two was small and it was the wrong way round.
 	srv, err := serve.New(serve.Options{
 		Bus:   b,
 		Token: *token,
@@ -51,6 +48,12 @@ func (a *app) runServe(ctx context.Context, args []string) error {
 	if err != nil {
 		return fmt.Errorf("starting server: %w", err)
 	}
+
+	l, err := serve.Listen(*addr)
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", *addr, err)
+	}
+	defer func() { _ = l.Close() }()
 
 	fmt.Fprintf(a.stdout, "kolk serving on %s\n", l.Addr().String())
 

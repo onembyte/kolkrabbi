@@ -186,6 +186,24 @@ engine phases: each of these is a surface over something the phases above decide
 doc before starting the next.
 ```
 
+### Phase I — reach · items 26–29
+
+Kolkrabbi is pinned to the terminal that started it. This phase unpins it, in the shape a two-module
+static binary can actually hold: a hardened bind-and-auth floor first, because `kolk serve` currently
+accepts `--addr :8080` — every interface — with no token, and everything else in this phase would be
+built on that. Then pairing, then a web client that can steer rather than only watch.
+
+Item 26 comes first and its first leaf is the security fix, not a feature. Items 27–29 are ordered by
+what they cost the core: many-sessions is mostly discovery, source control is mostly refusals, and
+workspace services is one cheap useful piece (port discovery) attached to two expensive ones.
+
+**Exit:** each item hardened into `docs/plan/`, then built in leaves.
+
+```
+/loop harden item 26 of PLAN.md, fixing the wildcard-bind hole as its first leaf, then items 27, 28
+and 29 in that order, one item per iteration, writing each doc before starting the next.
+```
+
 ### Phase H — ship it for real · T0.5, items 19–23
 
 The owner trial gate still has two open boxes, both of them the same missing evidence: nobody has
@@ -455,6 +473,83 @@ backend only.
 - Plugin boundary: keep the core small; plugins = MCP + markdown + hooks, no dynamic Go loading.
 **Hardened when:** which of the three ship in v0.x, the file formats, and the permission story for third-party tools.
 **Inputs:** `docs/research/ecosystem.md`
+
+## E. Reach — the machine is not the only place you are
+
+These four came from reading [t3code](https://github.com/pingdotgg/t3code) (2026-08-26), which is a
+different kind of product: an agent *control surface* that runs no inference and drives other
+people's CLIs — Claude Code, Codex, Cursor, Grok, OpenCode — from phone, web and desktop. It is
+~715k lines across 393 third-party packages. Kolkrabbi cannot and should not chase that shape: its
+whole advantage is being the agent, in one 7.9 MB static binary, under a two-module dependency gate.
+
+But the gap t3code exposes is real and it is not about features. **Kolkrabbi is pinned to the
+terminal that started it.** Everything below follows from taking that seriously, in versions that fit
+this project's constraints rather than copies of theirs.
+
+### [ ] 26. Remote access — steer a session from another device
+**Scope:** reach a running Kolkrabbi from a phone, a tablet, or another machine, safely.
+**Today:** `kolk serve` exists with an SSE event stream, a permission-resolve endpoint and bearer
+auth — and a hole: `isLoopback` treats an empty host as loopback, so `--addr :8080` binds every
+interface and is accepted with no token. `kolk dash` is loopback-only and read-only.
+**Decide:**
+- The bind/auth floor: what may be exposed without a token, what may never be, and how a wildcard
+  bind is refused rather than guessed at. This is a prerequisite, not a feature.
+- Pairing: how a phone learns the token without the user typing 64 characters — QR in the terminal,
+  short-lived pairing codes, per-device tokens that can be revoked separately.
+- Transport: Tailscale and SSH tunnels are the honest answer for a project that will not ship a
+  relay service. Decide whether Kolkrabbi *detects and advises* (`kolk serve --tailscale` printing
+  the right URL) or *integrates* (a module, and the budget cannot pay for one).
+- The client: a native mobile app is out — it is a second product with its own release train. A
+  server-rendered, installable web client over the existing `dash` is in scope. Decide how far it
+  goes: read a session, or steer one.
+- What "steer" means: answer a permission prompt, send a turn, interrupt, switch model. Each is a
+  write endpoint and each needs the permission story of item 13 to hold over a network.
+**Hardened when:** the bind/auth floor is specified, pairing chosen, transport decided, and the
+write-endpoint list fixed with what each may do.
+**Inputs:** item 13 (permissions), item 19 (platform strategy), `internal/serve`, `internal/dash`
+
+### [ ] 27. Many sessions, one view
+**Scope:** several Kolkrabbi sessions — and the provider CLIs it already drives — visible and
+steerable side by side.
+**Today:** one session per terminal. `kolk sessions` lists them; nothing shows two running at once.
+**Decide:**
+- Whether a supervising process owns the sessions or the dashboard discovers them from their files
+  and buses. Discovery keeps the core small and has no daemon to crash; ownership is what makes
+  "start a session from the phone" possible.
+- What a session card shows: last turn, context, cost, whether it is waiting on a permission prompt.
+  A view that cannot show *blocked* is not a control plane.
+- Whether the `agentcli` backends (Claude, and later others) appear as sessions here, which is
+  t3code's whole trick and is nearly free given the backend seam already exists.
+**Hardened when:** discovery-versus-ownership decided, the session card specified, and the
+concurrency story for two sessions editing one repository written down.
+
+### [ ] 28. Source control — branches, commits, pull requests
+**Scope:** the git work around a coding session, not inside it.
+**Today:** checkpoints, `/changes`, `/diff`, `/undo`. Nothing touches git.
+**Decide:**
+- What Kolkrabbi does itself versus what it asks the model to do with `bash`. A `/commit` that
+  drafts a message is useful; one that commits without a confirmation is a shell command wearing a
+  costume.
+- Branch-per-session: whether an agent run gets its own branch by default, and what happens to the
+  branch when the session ends.
+- Pull requests: `gh` is on most machines and is one exec away; Bitbucket and Azure DevOps are two
+  more APIs and two more auth stories. Decide whether anything beyond GitHub is in scope at all, and
+  say no in writing if not.
+**Hardened when:** the split between Kolkrabbi's own git actions and the model's is fixed, and the
+PR provider list is decided — including the refusals.
+
+### [ ] 29. Workspace services — what the code you just wrote is doing
+**Scope:** the running program, not the source.
+**Today:** nothing. A dev server started by the agent is a process nobody can see.
+**Decide:**
+- Port discovery: noticing that a task started something listening, and offering it. This is the
+  highest-value piece and the cheapest.
+- Whether Kolkrabbi supervises long-running processes (restart, logs, stop) or only reports them.
+  Supervision is a process manager, and that is a product.
+- Resource telemetry: what a session costs in CPU and memory. Interesting; not obviously actionable.
+  Decide whether it earns its place or is cut.
+**Hardened when:** port discovery specified, the supervise-or-report line drawn, and telemetry either
+justified or refused in writing.
 
 ## C. Data
 
