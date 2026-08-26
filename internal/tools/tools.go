@@ -5,6 +5,7 @@
 package tools
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -159,9 +160,11 @@ func Definitions() []provider.Tool {
 		}},
 		{Type: "function", Function: provider.FunctionDef{
 			Name:        "read_file",
-			Description: "Read a text file's contents from disk, with line numbers.",
+			Description: "Read a text file's contents from disk, with line numbers. Large files are truncated; use start_line and end_line to page through the rest instead of reaching for shell tools.",
 			Parameters: schema(`{
 				"path":{"type":"string","description":"Path to the file, absolute or relative to the working directory"},
+				"start_line":{"type":"integer","description":"First line to read, 1-based. Omit to start at the beginning"},
+				"end_line":{"type":"integer","description":"Last line to read, inclusive. Omit to read to the end"},
 				"purpose":{"type":"string","description":"One short phrase saying why this file is needed, shown to the user when the path is outside the project"}
 			}`, "path"),
 		}},
@@ -243,17 +246,19 @@ func Execute(ctx context.Context, name, argsJSON string, o Options) (string, err
 
 	case "read_file":
 		var a struct {
-			Path    string `json:"path"`
-			Purpose string `json:"purpose"`
+			Path      string `json:"path"`
+			Purpose   string `json:"purpose"`
+			StartLine int    `json:"start_line"`
+			EndLine   int    `json:"end_line"`
 		}
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", fmt.Errorf("bad arguments: %w", err)
 		}
 		request, err := o.fileRequest("read_file", a.Path, "")
-		request.Summary = a.Purpose
 		if err != nil {
 			return "", err
 		}
+		request.Summary = a.Purpose
 		if !o.allow(request) {
 			return "", fmt.Errorf("reading %s was not allowed", request.Display)
 		}
@@ -261,12 +266,12 @@ func Execute(ctx context.Context, name, argsJSON string, o Options) (string, err
 		if err != nil {
 			return "", err
 		}
-		lines := strings.Split(string(b), "\n")
-		var sb strings.Builder
-		for i, l := range lines {
-			fmt.Fprintf(&sb, "%5d\t%s\n", i+1, l)
+		if isBinary(b) {
+			// Sending a binary wastes the window and carries bytes no provider
+			// can represent. What the model can act on is that it exists.
+			return fmt.Sprintf("[binary file: %s, %d bytes — not shown]", request.Display, len(b)), nil
 		}
-		return truncate(sb.String()), nil
+		return renderLines(string(b), request.Display, a.StartLine, a.EndLine), nil
 
 	case "write_file":
 		var a struct {
@@ -377,4 +382,66 @@ func Execute(ctx context.Context, name, argsJSON string, o Options) (string, err
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
+}
+
+// binarySniffBytes is how much of a file decides whether it is text. A NUL in
+// the first few KiB is the same test `file` and git use, and it is the one
+// thing no text encoding produces.
+const binarySniffBytes = 8 << 10
+
+func isBinary(body []byte) bool {
+	head := body
+	if len(head) > binarySniffBytes {
+		head = head[:binarySniffBytes]
+	}
+	return bytes.IndexByte(head, 0) >= 0
+}
+
+// renderLines numbers a file, optionally narrowed to a range.
+//
+// Line numbers stay absolute even inside a range: an edit built from a
+// renumbered listing lands in the wrong place, and the model has no way to
+// know it happened.
+func renderLines(content, display string, start, end int) string {
+	lines := strings.Split(content, "\n")
+	// A trailing newline produces a final empty element that is not a line.
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	total := len(lines)
+
+	if start > 0 || end > 0 {
+		if start < 1 {
+			start = 1
+		}
+		if end < 1 || end > total {
+			end = total
+		}
+		if start > total {
+			return fmt.Sprintf("[%s has %d lines; requested %d-%d starts past the end]",
+				display, total, start, end)
+		}
+		return numbered(lines[start-1:end], start) +
+			fmt.Sprintf("[showing lines %d-%d of %d]\n", start, end, total)
+	}
+
+	rendered := numbered(lines, 1)
+	if len(rendered) <= maxOutput {
+		return rendered
+	}
+	// Truncation that does not say how to continue leaves the model guessing,
+	// and it usually guesses "run grep in bash", which is slower and needs a
+	// command confirmation for a read.
+	head := truncate(rendered)
+	shown := strings.Count(head, "\n")
+	return head + fmt.Sprintf("\n[%s has %d lines; showed about %d. Read more with start_line and end_line.]\n",
+		display, total, shown)
+}
+
+func numbered(lines []string, first int) string {
+	var b strings.Builder
+	for i, line := range lines {
+		fmt.Fprintf(&b, "%5d\t%s\n", first+i, line)
+	}
+	return b.String()
 }

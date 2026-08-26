@@ -184,6 +184,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.2 permission tiers** — `--yolo` is gone; `/ask`, `/auto-approve`, `/full-auto` and `/permissions` are the whole model, and no tier removes the floor.
 - [x] **E13.3 scrubbed tool output** — every tool result is scrubbed at one chokepoint, and the scrubber now catches vendor-less secrets.
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
+- [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **C12.7 fast-lane session naming** — a session earns a real name once enough has happened, without delaying the answer or overwriting a name a person chose.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
@@ -1783,6 +1784,37 @@ Acceptance checklist:
 - [x] a subagent still does what its tier allows, and still cannot do what its tier would ask about.
 - [x] the floor holds inside a subagent, in full-auto.
 - [x] a full-auto subagent runs edits and commands unattended, which is the point of the tier.
+- [x] full `make check` green.
+
+### E13.5 readable output — verified detail
+
+The tool-output half of item 13, and both halves are about what the model does *next* rather than
+about safety.
+
+**Binaries are described, not sent.** A NUL byte in the first 8 KiB is the same test `file` and git
+use, and it is the one thing no text encoding produces. Sending the bytes wastes the window and
+carries values no provider can represent; what the model can act on is that the file exists and how
+big it is.
+
+**A large file now says how to read the rest.** `read_file` takes `start_line` and `end_line`, and an
+unranged read of something too large returns the head, the real line count, and the two parameters.
+Truncation that does not say how to continue leaves the model guessing, and in practice it guesses
+"run grep in bash" — slower, less portable, and it needs a command confirmation for what is a read.
+
+Line numbers stay **absolute inside a range**. A renumbered listing produces edits that land in the
+wrong place, and neither the model nor the user has any way to notice.
+
+A range that starts past the end reports the file's real length rather than returning nothing, so
+the model can correct itself in one step instead of concluding the file is empty.
+
+Acceptance checklist:
+
+- [x] a requested range returns exactly those lines, numbered absolutely.
+- [x] a range beyond the end states the real length.
+- [x] an unranged large read shows the head, the line count and how to page.
+- [x] a small file is returned undecorated.
+- [x] a binary is named and sized, and none of its bytes reach the conversation.
+- [x] a UTF-8 file with emoji and accents is still treated as text.
 - [x] full `make check` green.
 
 ### B12 Claude subscription backend — recorded detail
