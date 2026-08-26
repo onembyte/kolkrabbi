@@ -10,6 +10,7 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/paths"
+	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/tui"
 )
 
@@ -28,6 +29,7 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 		return err
 	}
 
+	models := tuiModels(ctx, a, ag)
 	originalStdout, originalStderr := a.stdout, a.stderr
 	folder := workingFolderLabel()
 	var screen *tui.Runtime
@@ -43,6 +45,7 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 		},
 		Status:   tuiStatus(ag, "ready", folder),
 		Commands: slashSuggestions(),
+		Models:   models,
 		Turn: func(turnContext context.Context, prompt string) error {
 			if strings.HasPrefix(strings.TrimSpace(prompt), "/") {
 				shouldExit := a.slash(turnContext, ag, strings.TrimSpace(prompt))
@@ -76,6 +79,25 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 	a.stdout, a.stderr = originalStdout, originalStderr
 	restoreErr := restoreTerminal()
 	return errors.Join(runErr, restoreErr)
+}
+
+func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
+	if ag.Client == nil {
+		return nil
+	}
+	d, err := a.locate()
+	if err != nil {
+		return nil
+	}
+	models, err := ag.Client.ListModelsCached(ctx, d.CatalogFile(), provider.DefaultCatalogTTL, false)
+	if err != nil {
+		models = provider.FallbackCatalogSeed()
+	}
+	out := make([]tui.ModelSpec, 0, len(models))
+	for _, model := range models {
+		out = append(out, tui.ModelSpec{ID: model.ID, Name: model.Name})
+	}
+	return out
 }
 
 func tuiWelcome(messageCount int) string {

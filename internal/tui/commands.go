@@ -5,9 +5,16 @@ import "strings"
 // CommandSpec is the presentation subset of one slash command. Dispatch stays
 // in the CLI; the TUI only needs the canonical name, usage, and summary.
 type CommandSpec struct {
-	Name    string
-	Usage   string
-	Summary string
+	Name     string
+	Usage    string
+	Summary  string
+	Complete string
+}
+
+// ModelSpec is the presentation subset of one provider model.
+type ModelSpec struct {
+	ID   string
+	Name string
 }
 
 // CommandHistory retains bounded unique names in most-recent-first order.
@@ -86,6 +93,39 @@ func SuggestCommands(catalog []CommandSpec, draft string, recent []string, limit
 	}
 	if len(suggestions) == 0 {
 		return nil
+	}
+	return suggestions
+}
+
+// SuggestModels filters model choices while the /model argument is being
+// typed. Results use command-shaped presentation so the existing suggestion
+// menu and keyboard navigation remain unchanged.
+func SuggestModels(models []ModelSpec, draft string, limit int) []CommandSpec {
+	const prefix = "/model "
+	if !strings.HasPrefix(strings.ToLower(draft), prefix) {
+		return nil
+	}
+	if limit <= 0 {
+		limit = 8
+	}
+	filter := strings.ToLower(strings.TrimSpace(draft[len(prefix):]))
+	suggestions := make([]CommandSpec, 0, min(limit, len(models)))
+	for _, model := range models {
+		if model.ID == "" {
+			continue
+		}
+		if filter != "" &&
+			!strings.Contains(strings.ToLower(model.ID), filter) &&
+			!strings.Contains(strings.ToLower(model.Name), filter) {
+			continue
+		}
+		suggestions = append(suggestions, CommandSpec{
+			Name: model.ID, Usage: prefix + model.ID, Summary: model.Name,
+			Complete: prefix + model.ID,
+		})
+		if len(suggestions) == limit {
+			break
+		}
 	}
 	return suggestions
 }

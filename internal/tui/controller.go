@@ -42,6 +42,7 @@ type Controller struct {
 	approvalEditor  *Editor
 	beforeApproval  string
 	commands        []CommandSpec
+	models          []ModelSpec
 	commandHistory  *CommandHistory
 	suggestionLimit int
 	suggestions     []CommandSpec
@@ -121,6 +122,12 @@ func (c *Controller) SetCommands(commands []CommandSpec, recentLimit int) {
 	if c.commandHistory == nil {
 		c.commandHistory = NewCommandHistory(recentLimit)
 	}
+	c.updateSuggestions()
+}
+
+// SetModels installs the provider model catalog used for live /model filtering.
+func (c *Controller) SetModels(models []ModelSpec) {
+	c.models = append(c.models[:0], models...)
 	c.updateSuggestions()
 }
 
@@ -280,7 +287,10 @@ func (c *Controller) updateSuggestions() {
 	if c.commandHistory != nil {
 		recent = c.commandHistory.Recent()
 	}
-	c.suggestions = SuggestCommands(c.commands, c.editor.Draft(), recent, c.suggestionLimit)
+	c.suggestions = SuggestModels(c.models, c.editor.Draft(), c.suggestionLimit)
+	if len(c.suggestions) == 0 {
+		c.suggestions = SuggestCommands(c.commands, c.editor.Draft(), recent, c.suggestionLimit)
+	}
 	c.suggestionIndex = -1
 	c.screen.SetSuggestions(c.suggestions)
 }
@@ -318,7 +328,10 @@ func (c *Controller) handleSuggestionKey(key Key) (Effect, bool) {
 }
 
 func (c *Controller) completeSuggestion(command CommandSpec) {
-	completion := "/" + command.Name
+	completion := command.Complete
+	if completion == "" {
+		completion = "/" + command.Name
+	}
 	if strings.TrimSpace(command.Usage) != completion {
 		completion += " "
 	}

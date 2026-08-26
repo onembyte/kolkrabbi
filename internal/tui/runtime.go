@@ -27,6 +27,7 @@ type RuntimeOptions struct {
 	Height   func() int
 	Status   Status
 	Commands []CommandSpec
+	Models   []ModelSpec
 	Turn     func(context.Context, string) error
 }
 
@@ -72,6 +73,7 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 	}
 	controller := NewController(options.Status, defaultDraftSize)
 	controller.SetCommands(options.Commands, 8)
+	controller.SetModels(options.Models)
 	return &Runtime{
 		input: options.Input, controller: controller,
 		renderer: NewRenderer(options.Output), decoder: NewDecoder(),
