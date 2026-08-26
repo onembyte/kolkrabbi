@@ -148,6 +148,7 @@ func commandTable() []command {
 			"read and write saved settings", (*app).runConfig},
 		{"models", "[filter]", "list models with context size and $/1M pricing", (*app).runModels},
 		{"plans", "[filter]", "list provider plans and connector capabilities", (*app).runPlans},
+		{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors", (*app).runPlanModels},
 		{"update", "", "install the latest verified release", (*app).runUpdate},
 		{"sessions", "[rm <id> | clear]", "list or delete saved sessions", (*app).runSessions},
 		{"stats", "[--json]", "100% local usage and rating dashboard", (*app).runStats},
