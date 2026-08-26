@@ -92,3 +92,38 @@ func TestPinnedModelNeverAutoRotatesOn429(t *testing.T) {
 		t.Errorf("ag.Model changed from pinned model: %s", ag.Model)
 	}
 }
+
+func TestFreeModelRotationUsesEachCandidateOncePerTurn(t *testing.T) {
+	srv := enginetest.New(
+		enginetest.Step{StatusCode: http.StatusTooManyRequests, ErrorBody: `{"error":{"message":"Rate limited"}}`},
+		enginetest.Step{StatusCode: http.StatusTooManyRequests, ErrorBody: `{"error":{"message":"Rate limited"}}`},
+		enginetest.Step{StatusCode: http.StatusTooManyRequests, ErrorBody: `{"error":{"message":"Rate limited"}}`},
+		enginetest.Step{Text: "recovered after exhausting alternatives"},
+	)
+	defer srv.Close()
+
+	client := provider.NewClient("test-key")
+	client.BaseURL = srv.URL
+	var out bytes.Buffer
+	ag := engine.New(engine.Options{
+		Client:     client,
+		Model:      "one/free:free",
+		Mode:       engine.ModeChat,
+		Out:        &out,
+		Sess:       session.New(t.TempDir(), "one/free:free"),
+		FreeModels: []string{"one/free:free", "two/free:free", "three/free:free"},
+		RetryWait:  func(context.Context, time.Duration) error { return nil },
+	})
+
+	if err := ag.RunTurn(context.Background(), "hello"); err != nil {
+		t.Fatalf("Turn error = %v", err)
+	}
+	for _, model := range []string{"two/free:free", "three/free:free"} {
+		if strings.Count(out.String(), "rotating to "+model) != 1 {
+			t.Fatalf("expected one rotation to %s, output %q", model, out.String())
+		}
+	}
+	if ag.Model != "three/free:free" {
+		t.Fatalf("final model = %s, want three/free:free", ag.Model)
+	}
+}
