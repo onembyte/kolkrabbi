@@ -445,8 +445,11 @@ func (a *Agent) save() {
 	if a.Sess == nil {
 		return
 	}
+	// Through Out, not os.Stderr: in a session Out is the terminal renderer,
+	// which owns the screen, and anything printed around it lands outside the
+	// rows it manages and scribbles over the composer.
 	if err := a.Sess.Save(); err != nil && !a.saveWarned {
-		fmt.Fprintf(os.Stderr, "\nwarning: could not save session: %v\n", err)
+		fmt.Fprintf(a.Out, "\nwarning: could not save session: %v\n", err)
 		a.saveWarned = true
 	}
 }
@@ -472,7 +475,7 @@ func (a *Agent) record(role string, meta provider.Meta, toolCalls int) {
 		ToolCalls:           toolCalls,
 	})
 	if err != nil && !a.statsWarn {
-		fmt.Fprintf(os.Stderr, "\nwarning: could not record stats: %v\n", err)
+		fmt.Fprintf(a.Out, "\nwarning: could not record stats: %v\n", err)
 		a.statsWarn = true
 	}
 }

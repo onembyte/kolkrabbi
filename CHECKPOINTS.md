@@ -179,6 +179,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **R1 session-safety review** — every command added this session was re-checked against the one rule the session's own bugs kept teaching: nothing may take the keyboard or block the turn.
 - [x] **R2 test isolation and stdin ownership** — the suite no longer writes into the developer's own Kolkrabbi state, and `/key -` no longer competes for the keyboard.
 - [x] **R3 rune-safe tool output** — the hottest truncation in the product no longer splits a UTF-8 rune, and the tests that missed it were vacuous by arithmetic.
+- [x] **R4 warnings reach the screen that owns it** — engine warnings no longer bypass the terminal renderer, and a restore that could not be saved says so.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
@@ -1617,6 +1618,35 @@ Acceptance checklist:
 - [x] the cut prefers a line boundary when one is close enough.
 - [x] short output is returned byte-identical.
 - [x] the amount dropped is reported from the actual cut, not from the cap.
+- [x] full `make check` green.
+
+### R4 warnings reach the screen that owns it — verified detail
+
+The engine writes everything through `Options.Out`. Two warnings did not: a failed session save and
+a failed stats record went straight to `os.Stderr`.
+
+In a live session `Out` is the terminal renderer, which owns a set of screen rows and repaints them.
+Anything printed around it lands outside those rows, so the one moment a user most needs to read a
+message — their session could not be saved — is the moment the display gets scribbled over. Both now
+go through `Out`, like every other engine message.
+
+The consequence in `stream-json` mode is deliberate: `Out` is `io.Discard` there, so these warnings
+become invisible to a machine consumer, which is correct — the NDJSON stream is the interface, and
+interleaving prose into it would corrupt the very thing the caller is parsing.
+
+`RestoreCompaction` also discarded its save error, telling the user their conversation was back while
+it was not on disk: the next session would silently have been the compacted one. That is the quiet
+half-success this session keeps finding, and it now reports.
+
+Also checked and deliberately left alone: `Bus.Publish` results are discarded throughout. Events are
+observability, not correctness, and failing a turn because an event could not be published would be
+the tail wagging the dog.
+
+Acceptance checklist:
+
+- [x] a failed save warns through the configured writer, not around it.
+- [x] it warns once however many times the save fails, and keeps trying to save.
+- [x] a restore that cannot be persisted says so.
 - [x] full `make check` green.
 
 ### B12 Claude subscription backend — recorded detail

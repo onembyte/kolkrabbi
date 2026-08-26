@@ -318,7 +318,11 @@ func (a *Agent) RestoreCompaction() bool {
 	}
 	a.Sess.SetMessages(a.preCompact)
 	a.preCompact = nil
-	_ = a.Sess.Save()
+	// Reporting the conversation as restored while it is not on disk is a quiet
+	// half-success: the next session would silently be the compacted one.
+	if err := a.Sess.Save(); err != nil {
+		fmt.Fprintf(a.Out, "warning: could not save the restored conversation: %v\n", err)
+	}
 	return true
 }
 
