@@ -130,6 +130,7 @@ func TestCredentialsLiveInDataNotConfig(t *testing.T) {
 	}
 	for name, got := range map[string]string{
 		"sessions": d.Sessions(), "stats": d.StatsFile(), "credentials": d.CredentialsFile(),
+		"connectors": d.ConnectorsFile(),
 	} {
 		if strings.HasPrefix(got, d.Config) {
 			t.Errorf("%s = %q is under Config; it is state and belongs in Data", name, got)

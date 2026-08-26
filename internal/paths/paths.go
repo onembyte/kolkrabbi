@@ -107,6 +107,9 @@ func (d Dirs) StatsFile() string { return filepath.Join(d.Data, "stats.jsonl") }
 // %LocalAppData% and a %AppData% that roams to a domain profile server.
 func (d Dirs) CredentialsFile() string { return filepath.Join(d.Data, "credentials.json") }
 
+// ConnectorsFile stores only provider-owned connector metadata, never secrets.
+func (d Dirs) ConnectorsFile() string { return filepath.Join(d.Data, "connectors.json") }
+
 // CatalogFile is the cached model catalog: rebuildable, so it lives in Cache.
 func (d Dirs) CatalogFile() string { return filepath.Join(d.Cache, "models.json") }
 
@@ -135,6 +138,7 @@ func (d Dirs) EnsureData() error {
 
 const gitignore = `# kolk keeps state here. None of it belongs in a repository.
 credentials.json
+connectors.json
 sessions/
 stats.jsonl
 dash.db
