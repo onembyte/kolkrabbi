@@ -3227,7 +3227,7 @@ phase must close without leaving this file.
 | B managed local models | 25 | L13.4 ✓, L13.5a–c ✓, L13.5b3 ✓ | L13.5b4 needs the owner |
 | C sessions, context, memory | 12 | doc ✓, C12.1–C12.7 ✓ | complete |
 | D the local dashboard | 17 | doc ✓; A12.2/A12.5 superseded | building |
-| E tools, permissions, sandboxing | 13 | doc first, then leaves | queued — blocks F |
+| E tools, permissions, sandboxing | 13 | doc ✓, leaves next | building — blocks F |
 | F orchestration & per-task routing | 14 | doc first, then leaves | queued |
 | G the surface | 11, 15, 16 | doc per item | queued |
 | H ship it for real | T0.5, 19–23 | T0.5 then doc per item | queued |
@@ -4646,7 +4646,8 @@ checkpoint is expanded. Status here mirrors [`PLAN.md`](PLAN.md); PLAN remains a
 - [ ] 11 REPL/TUI
 - [x] 12 sessions, context, and memory — hardened; doc complete (docs/plan/12-sessions-context-memory.md),
   JSON storage kept, 75% compaction with tool output sacrificed first, overflow compacts and retries once
-- [ ] 13 tools, permissions, and sandboxing
+- [x] 13 tools, permissions, and sandboxing — hardened; doc complete (docs/plan/13-tools-permissions-sandboxing.md),
+  path jail, hardline blocklist under yolo, scrubbed tool output, subagent auto-deny; OS sandboxes deferred
 - [ ] 14 orchestration and per-task routing
 - [ ] 15 code-mode specifics
 - [ ] 16 extensibility

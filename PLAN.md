@@ -402,7 +402,8 @@ backend only.
 **Hardened when:** storage decision, compaction algorithm, memory precedence, session command spec.
 **Inputs:** `docs/research/dashboard.md`, `docs/research/ecosystem.md`
 
-### [ ] 13. Tools, permissions & sandboxing
+### [x] 13. Tools, permissions & sandboxing
+**Hardened 2026-08-26** ([`docs/plan/13-tools-permissions-sandboxing.md`](docs/plan/13-tools-permissions-sandboxing.md)): today there is no path jail, `--yolo` has no floor, and tool output is unscrubbed; v1 is a path jail, a blocklist that survives `--yolo`, scrubbed results and auto-deny in subagents, with OS sandboxes deferred because this CI cannot verify them.
 **Scope:** what the model can do to your machine and how that is controlled.
 **Today:** 5 tools; confirm on bash/write/edit; `-y` yolo; checkpoints on write/edit only; 120 s bash timeout; 12 k char output cap.
 **Decide:**
