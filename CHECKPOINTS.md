@@ -173,6 +173,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **C12.4 project-aware resume** — `kolk -r` resumes the work done in this directory, and says so when it reaches into another project.
 - [x] **C12.5 memory layers and `/remember`** — a user layer beneath the project file, capped at a line boundary, written only when the user says so.
 - [x] **C12.6 durable compaction archive** — the replaced conversation survives the process, and deleting a session deletes it too.
+- [x] **D17.1 resilient usage log** — one unreadable line costs one line, not a history, and incomplete totals say they are incomplete.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
@@ -1393,6 +1394,37 @@ Acceptance checklist:
 - [x] `go test -race ./internal/engine ./internal/cli ./internal/session` and full `make check` green.
 
 Item 12 is now built except fast-lane auto-titling, which is recorded as the one remaining piece.
+
+### D17.1 resilient usage log — verified detail
+
+The item 17 doc flagged this as a risk before any dashboard code was written, and the check found it
+real. `stats.Load` already skipped malformed JSON, but two things were wrong underneath that.
+
+- **An over-long line failed the entire load.** The scanner returned `bufio.ErrTooLong`, `Load`
+  returned the error, and every record the user had became unreadable. One interrupted append —
+  a power cut mid-write is the obvious case — could cost a year of history. Reading now discards
+  only the unreadable line and continues with the next.
+- **Skipping was silent.** A history quietly missing records produces totals that are wrong in a way
+  nobody can detect, which is worse than no totals: the number looks authoritative. `LoadCounted`
+  reports how many lines it could not read and `kolk stats` says the totals are incomplete when any
+  were.
+
+Blank lines are not counted as loss — they are formatting, not missing data, and inflating the
+warning would teach the user to ignore it.
+
+This lands before the dashboard deliberately. Every number the dashboard will draw comes through
+this loader, and a chart built on a silently truncated history is exactly the class of confidently
+wrong output that B12.11 already produced once.
+
+Acceptance checklist:
+
+- [x] a malformed line is skipped, the records either side load, and the skip is counted.
+- [x] a line too long to scan is skipped rather than failing the load, with the records on both
+  sides intact.
+- [x] blank lines are not counted as loss.
+- [x] a missing file is still not an error, and `Load`'s original signature still works.
+- [x] `kolk stats` declares incomplete totals, and stays silent when nothing was skipped.
+- [x] full `make check` green, lint 0 issues.
 
 ### B12 Claude subscription backend — recorded detail
 

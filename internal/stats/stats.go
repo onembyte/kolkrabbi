@@ -11,8 +11,11 @@ package stats
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -119,25 +122,90 @@ func Append(dir string, r Record) error {
 
 // Load reads all records; corrupt lines are skipped, a missing file is empty.
 func Load(dir string) ([]Record, error) {
+	records, _, err := LoadCounted(dir)
+	return records, err
+}
+
+// maxStatsLine bounds one record. Anything longer is a partial write or a
+// record that should never have been produced, and either way it is one line,
+// not a reason to lose a history.
+const maxStatsLine = 4 * 1024 * 1024
+
+// LoadCounted reads the usage log, reporting how many lines it could not
+// understand.
+//
+// An unreadable line is skipped rather than fatal — a single bad append, or a
+// write interrupted by a power cut, must not cost a user every record they
+// have. But it is counted and surfaced, because stats that quietly omit half a
+// history are worse than stats that admit they are incomplete.
+func LoadCounted(dir string) ([]Record, int, error) {
 	f, err := os.Open(path(dir))
 	if os.IsNotExist(err) {
-		return nil, nil
+		return nil, 0, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer func() { _ = f.Close() }() // read path: nothing to lose on close
 
 	var out []Record
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
-	for sc.Scan() {
-		var r Record
-		if json.Unmarshal(sc.Bytes(), &r) == nil && r.Kind != "" {
-			out = append(out, r)
+	skipped := 0
+	reader := bufio.NewReaderSize(f, 64*1024)
+	for {
+		line, err := readStatsLine(reader)
+		if len(line) > 0 || err == nil {
+			switch {
+			case len(bytes.TrimSpace(line)) == 0:
+				// Blank lines are formatting, not lost data.
+			default:
+				var r Record
+				if json.Unmarshal(line, &r) == nil && r.Kind != "" {
+					out = append(out, r)
+				} else {
+					skipped++
+				}
+			}
+		}
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return out, skipped, nil
+			}
+			if errors.Is(err, errLineTooLong) {
+				skipped++
+				continue
+			}
+			return out, skipped, err
 		}
 	}
-	return out, sc.Err()
+}
+
+var errLineTooLong = errors.New("stats line exceeds the maximum record size")
+
+// readStatsLine returns one line, discarding the remainder of any line too long
+// to be a record so that reading can continue with the next one.
+func readStatsLine(reader *bufio.Reader) ([]byte, error) {
+	var line []byte
+	for {
+		chunk, err := reader.ReadSlice('\n')
+		if len(line)+len(chunk) > maxStatsLine {
+			// Drain to the end of this line, then report it as one skip.
+			for errors.Is(err, bufio.ErrBufferFull) {
+				_, err = reader.ReadSlice('\n')
+			}
+			if errors.Is(err, io.EOF) {
+				return nil, io.EOF
+			}
+			return nil, errLineTooLong
+		}
+		line = append(line, chunk...)
+		if err == nil {
+			return bytes.TrimRight(line, "\r\n"), nil
+		}
+		if errors.Is(err, bufio.ErrBufferFull) {
+			continue
+		}
+		return bytes.TrimRight(line, "\r\n"), err
+	}
 }
 
 // ModelRow is one line of the dashboard: everything known about one model.

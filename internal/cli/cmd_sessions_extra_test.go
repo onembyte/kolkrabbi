@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 
@@ -223,5 +224,48 @@ func TestResumeSaysWhenItReachesIntoAnotherProject(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), elsewhere) {
 		t.Fatalf("output = %q, want the other project named", out.String())
+	}
+}
+
+func TestStatsSaysWhenItsTotalsAreIncomplete(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	if err := dirs.EnsureData(); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"kind":"call","turn":"t1","model":"vendor/model","prompt_tokens":10,"cost":0.5}` + "\n" +
+		"{not json\n"
+	if err := os.WriteFile(dirs.StatsFile(), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a, out, _ := newTestApp("")
+
+	if code := a.main(context.Background(), []string{"stats"}); code != ExitOK {
+		t.Fatal("a damaged line must not stop stats from reporting what it can")
+	}
+	got := out.String()
+	if !strings.Contains(got, "vendor/model") {
+		t.Fatalf("output = %q, want the readable record counted", got)
+	}
+	if !strings.Contains(got, "incomplete") {
+		t.Fatalf("output = %q, want the totals declared incomplete", got)
+	}
+}
+
+func TestStatsIsSilentWhenNothingWasSkipped(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	if err := dirs.EnsureData(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dirs.StatsFile(),
+		[]byte(`{"kind":"call","turn":"t1","model":"vendor/model","prompt_tokens":10,"cost":0.5}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a, out, _ := newTestApp("")
+
+	if code := a.main(context.Background(), []string{"stats"}); code != ExitOK {
+		t.Fatal("stats must succeed")
+	}
+	if strings.Contains(out.String(), "incomplete") {
+		t.Fatalf("output = %q, want no warning when nothing was lost", out.String())
 	}
 }
