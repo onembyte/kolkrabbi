@@ -158,7 +158,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **L13.1 managed local storage paths** — a Kolk-owned model directory under the data dir, never a host Ollama path.
 - [x] **L13.2 managed runtime spec & lifecycle** — validated `RuntimeSpec`, start-at-most-once, deterministic close.
 - [x] **L13.3 managed sidecar starter** — `shell.StartManagedProcess` keeps process execution inside the one owner package.
-- [ ] **L13.4 hardware probe & fit planner** — deterministic accelerator/RAM/disk snapshot, reserved headroom, refuse-on-no-fit.
+- [x] **L13.4a hardware snapshot & fit planner** — the documented probe-independent shape, reserved headroom, and a refusal that carries the numbers behind it.
+- [ ] **L13.4b platform probes** — read the shape from Linux device metadata and vendor utilities, failing closed to unknown.
 - [ ] **L13.5 `/localia` surface** — hardware status, storage usage, catalog, explicit pull approval, GPU and quantization selection.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
 
@@ -740,6 +741,47 @@ Acceptance checklist:
 - [x] three answered turns write one connector; three failed turns print the hint once.
 - [x] `newAgent` and `/model` both hand back a wrapped backend around `*agentcli.ClaudeBackend`.
 - [x] `go test -race ./internal/cli` and full `make check` green.
+
+### L13.4a hardware snapshot & fit planner — verified detail
+
+`docs/plan/25-managed-local-models.md` fixes the snapshot shape and the rules around it. This leaf
+implements both as pure code, so every rule is testable without a GPU, an Ollama install, or a
+probe.
+
+The shape's important property is that a byte count can be *unknown*. `Capacity{Bytes, Known}` keeps
+that distinct from zero: zero is a fact about the machine, unknown is the absence of one, and the
+contract says a missing probe must never authorize a pull. Every refusal carries the numbers it
+rested on, because "it does not fit" without them is not actionable.
+
+Decisions, each one a test:
+
+- **Unknown refuses.** Unknown free disk, unknown system RAM, or unknown available VRAM on the
+  chosen card all refuse rather than assume.
+- **Disk is checked before anything is downloaded**, using storage size, which is separate from
+  runtime need: file size alone never proves a model fits.
+- **`cpu` never swaps.** A model larger than RAM minus reserved headroom is refused. Swap would make
+  it "work" and then be unusably slow, which is a worse answer than no.
+- **`gpu` is a choice, not a hint.** An explicit GPU that cannot hold the model is refused, naming
+  the way out, instead of quietly running on the CPU and being mysteriously slow.
+- **`auto` may fall back, but says so.** It picks the largest single card that fits after headroom;
+  if none does, it plans the CPU and records the fallback in the plan, so a slower run is never
+  discovered at inference time.
+- **Cards are never pooled.** Two 8 GiB cards do not add up to 16 GiB unless the user opts in, which
+  is not yet a supported option.
+
+Non-goals:
+
+- No probing. Reading real accelerator, RAM and disk numbers is L13.4b, and it must return this same
+  shape.
+- No pull, no download, no sidecar interaction, no `/localia`.
+
+Acceptance checklist:
+
+- [x] eight tests cover GPU fit, CPU fallback with a reported fallback, refusal instead of swap,
+  explicit-GPU refusal, unknown capacity, disk shortfall, explicit GPU index, and no pooling.
+- [x] refusals name the sizes that caused them.
+- [x] the package still needs neither a GPU nor Ollama to test.
+- [x] full `make check` green.
 
 ### B12 Claude subscription backend — recorded detail
 
