@@ -169,6 +169,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **C12.2a compaction transform** — the pure shrink: tool output first, then the calls, then a summary, always leaving a conversation a provider will accept.
 - [x] **C12.2b compaction in the turn loop** — fires at a turn boundary, keeps the replaced conversation for undo, and says out loud what it gave up.
 - [x] **C12.2c overflow recovery and `/compact`** — a refusal for length is recovered once instead of losing the turn, and `/compact` / `/compact undo` put the control in the user's hands.
+- [x] **C12.3 session commands** — `sessions search|rename|fork|export`, with a mistyped id reported as the ordinary mistake it is.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
@@ -1255,6 +1256,37 @@ Acceptance checklist:
 Remaining in the item 12 design, not yet built: the durable pre-compaction file (undo is
 session-scoped today), `sessions search/rename/fork/export`, cwd-aware resume, fast-lane auto-titling,
 and the user-level memory layer.
+
+### C12.3 session commands — verified detail
+
+`kolk sessions` could list, delete and clear. It gained the four verbs the item 12 design named, each
+chosen because it matches how a session is actually remembered or reused.
+
+- **`search <text>`** matches titles *and message content*, because nobody remembers a session by its
+  ULID. A search with no matches says so and exits 0: finding nothing is an answer, not a failure.
+- **`rename <id> <title>`** replaces the auto-title, which is derived from the first thing typed and
+  is often the least descriptive sentence of the session.
+- **`fork <id>`** copies the history into a new session and prints the id to resume. The original is
+  never touched — forking exists precisely so an experiment cannot damage the history it started
+  from, and a test asserts the original is unchanged rather than merely that a fork appeared.
+- **`export <id> [--json]`** renders Markdown by default with tool bodies elided, since they are the
+  bulk of a coding session and the least readable part of it. `--json` is the stored record,
+  unaltered, for anything else that wants to read it.
+
+A real run caught the last defect: `sessions export nope` reported
+`open /tmp/.../sessions/nope.json: no such file or directory`. A mistyped id is an ordinary mistake,
+not a filesystem fault, and it now reads `no session "nope"; \`kolk sessions\` lists them`. The test
+asserts both halves — that the guidance is there, and that no internal path the user never typed
+appears in the message.
+
+Acceptance checklist:
+
+- [x] search matches content as well as titles, is case-insensitive, and reports no matches honestly.
+- [x] rename persists and confirms.
+- [x] fork carries the history, leaves the original byte-identical, and prints the id to resume with.
+- [x] Markdown export is readable and elides tool bodies; `--json` is the stored record.
+- [x] all three id-taking verbs reject an unknown id with guidance and without a path.
+- [x] full `make check` green.
 
 ### B12 Claude subscription backend — recorded detail
 

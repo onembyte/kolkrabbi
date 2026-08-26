@@ -1,0 +1,173 @@
+package cli
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/onembyte/kolkrabbi/internal/paths"
+	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/session"
+)
+
+func seedSessions(t *testing.T) (paths.Dirs, *session.Session) {
+	t.Helper()
+	dirs := isolateConnectorState(t)
+	if err := dirs.EnsureData(); err != nil {
+		t.Fatal(err)
+	}
+	first := session.New(dirs.Sessions(), "vendor/model")
+	first.Title = "add the parser"
+	first.SetMessages([]provider.Message{
+		{Role: "user", Content: "write a tokenizer for the config format"},
+		{Role: "assistant", Content: "done, see internal/config/token.go"},
+	})
+	if err := first.Save(); err != nil {
+		t.Fatal(err)
+	}
+	second := session.New(dirs.Sessions(), "vendor/model")
+	second.Title = "fix the flaky test"
+	second.SetMessages([]provider.Message{{Role: "user", Content: "why does the deploy hang"}})
+	if err := second.Save(); err != nil {
+		t.Fatal(err)
+	}
+	return dirs, first
+}
+
+func TestSessionsSearchMatchesTitleAndContent(t *testing.T) {
+	seedSessions(t)
+	a, out, errOut := newTestApp("")
+
+	if code := a.main(context.Background(), []string{"sessions", "search", "tokenizer"}); code != ExitOK {
+		t.Fatalf("search exit = %d, stderr = %q", code, errOut.String())
+	}
+	got := out.String()
+	if !strings.Contains(got, "add the parser") {
+		t.Fatalf("search output = %q, want the session whose message matched", got)
+	}
+	if strings.Contains(got, "fix the flaky test") {
+		t.Fatalf("search output = %q, want only matches", got)
+	}
+}
+
+func TestSessionsSearchIsCaseInsensitiveAndSaysWhenNothingMatches(t *testing.T) {
+	seedSessions(t)
+	a, out, _ := newTestApp("")
+	if code := a.main(context.Background(), []string{"sessions", "search", "FLAKY"}); code != ExitOK {
+		t.Fatal("search must succeed")
+	}
+	if !strings.Contains(out.String(), "fix the flaky test") {
+		t.Fatalf("output = %q, want a case-insensitive match", out.String())
+	}
+
+	a, out, _ = newTestApp("")
+	if code := a.main(context.Background(), []string{"sessions", "search", "nothing-like-this"}); code != ExitOK {
+		t.Fatal("a search with no matches is not a failure")
+	}
+	if !strings.Contains(out.String(), "no session matches") {
+		t.Fatalf("output = %q", out.String())
+	}
+}
+
+func TestSessionsRenameReplacesTheTitle(t *testing.T) {
+	dirs, first := seedSessions(t)
+	a, out, errOut := newTestApp("")
+
+	if code := a.main(context.Background(), []string{"sessions", "rename", first.ID, "config", "parser"}); code != ExitOK {
+		t.Fatalf("rename exit = %d, stderr = %q", code, errOut.String())
+	}
+	reloaded, err := session.Load(dirs.Sessions(), first.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Title != "config parser" {
+		t.Fatalf("title = %q", reloaded.Title)
+	}
+	if !strings.Contains(out.String(), "config parser") {
+		t.Fatalf("output = %q", out.String())
+	}
+}
+
+func TestSessionsForkLeavesTheOriginalUntouched(t *testing.T) {
+	dirs, first := seedSessions(t)
+	a, out, errOut := newTestApp("")
+
+	if code := a.main(context.Background(), []string{"sessions", "fork", first.ID}); code != ExitOK {
+		t.Fatalf("fork exit = %d, stderr = %q", code, errOut.String())
+	}
+
+	original, err := session.Load(dirs.Sessions(), first.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if original.Title != "add the parser" || len(original.GetMessages()) != 2 {
+		t.Fatalf("the original changed: %+v", original)
+	}
+
+	all, err := session.List(dirs.Sessions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fork *session.Session
+	for _, candidate := range all {
+		if candidate.ID != first.ID && strings.Contains(candidate.Title, "fork") {
+			fork = candidate
+		}
+	}
+	if fork == nil {
+		t.Fatalf("no fork was created among %d sessions", len(all))
+	}
+	if len(fork.Messages) != 2 {
+		t.Fatalf("fork carries %d messages, want the original's history", len(fork.Messages))
+	}
+	if !strings.Contains(out.String(), fork.ID) {
+		t.Fatalf("output = %q, want the new id so it can be resumed", out.String())
+	}
+}
+
+func TestSessionsExportRendersAReadableTranscript(t *testing.T) {
+	_, first := seedSessions(t)
+	a, out, errOut := newTestApp("")
+
+	if code := a.main(context.Background(), []string{"sessions", "export", first.ID}); code != ExitOK {
+		t.Fatalf("export exit = %d, stderr = %q", code, errOut.String())
+	}
+	got := out.String()
+	for _, want := range []string{"# add the parser", "write a tokenizer", "internal/config/token.go"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("export = %q, want %q", got, want)
+		}
+	}
+}
+
+func TestSessionsExportJSONIsTheStoredRecord(t *testing.T) {
+	_, first := seedSessions(t)
+	a, out, _ := newTestApp("")
+
+	if code := a.main(context.Background(), []string{"sessions", "export", first.ID, "--json"}); code != ExitOK {
+		t.Fatal("export --json must succeed")
+	}
+	if !strings.HasPrefix(strings.TrimSpace(out.String()), "{") {
+		t.Fatalf("export = %q, want json", out.String())
+	}
+	if !strings.Contains(out.String(), `"messages"`) {
+		t.Fatalf("export = %q", out.String())
+	}
+}
+
+func TestSessionsSubcommandsRejectAnUnknownID(t *testing.T) {
+	seedSessions(t)
+	for _, args := range [][]string{
+		{"sessions", "rename", "no-such-session", "title"},
+		{"sessions", "fork", "no-such-session"},
+		{"sessions", "export", "no-such-session"},
+	} {
+		a, _, errOut := newTestApp("")
+		if code := a.main(context.Background(), args); code == ExitOK {
+			t.Fatalf("%v succeeded against a session that does not exist", args)
+		}
+		if errOut.Len() == 0 {
+			t.Fatalf("%v failed silently", args)
+		}
+	}
+}

@@ -158,7 +158,7 @@ func commandTable() []command {
 		{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors", (*app).runPlanModels},
 		{"localia", "[models [filter] | plan <model> | pull [--yes] <model>]", "local hardware, model catalog, fit plans, and pulls", (*app).runLocalia},
 		{"update", "", "install the latest verified release", (*app).runUpdate},
-		{"sessions", "[rm <id> | clear]", "list or delete saved sessions", (*app).runSessions},
+		{"sessions", "[search <text> | rename <id> <title> | fork <id> | export <id> [--json] | rm <id> | clear]", "list, search, fork, export or delete saved sessions", (*app).runSessions},
 		{"stats", "[--json]", "100% local usage and rating dashboard", (*app).runStats},
 		{"serve", "[--addr <addr>] [--token <tok>] [--stdio]", "start headless event server or stdio bridge", (*app).runServe},
 		{"version", "[--json]", "print the running build", (*app).runVersion},
