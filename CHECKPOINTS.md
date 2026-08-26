@@ -148,6 +148,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **B12.7 session-scoped process lifetime** — the persistent provider process belongs to the Kolkrabbi session, and a line process reports its exit repeatably instead of blocking.
 - [x] **B12.8 interrupted-turn recovery** — an abandoned turn's frames never reach the next turn, an unrecoverable stream is replaced, and a provider that quits mid-turn says why.
 - [x] **B12.9 connector-to-backend selection** — an enabled connector actually chooses the provider that answers a turn, and an unusable plan model refuses with its reason.
+- [x] **B12.10 live provider switch** — `/model` onto or off a plan model moves the provider with it and releases the one it retires.
 - [x] **L13.1 managed local storage paths** — a Kolk-owned model directory under the data dir, never a host Ollama path.
 - [x] **L13.2 managed runtime spec & lifecycle** — validated `RuntimeSpec`, start-at-most-once, deterministic close.
 - [x] **L13.3 managed sidecar starter** — `shell.StartManagedProcess` keeps process execution inside the one owner package.
@@ -818,6 +819,43 @@ Acceptance checklist:
 Open UX note, not fixed here: `newAgent` still requires an OpenRouter key before anything else, so a
 user whose only provider is a Claude subscription cannot start a session without also holding an
 OpenRouter key. That gate predates this leaf and needs its own decision.
+
+### B12.10 live provider switch — verified detail
+
+`/model` set `ag.Model` and never touched `ag.Backend`. Two silent wrong-provider paths followed:
+a session that switched onto a plan model kept sending it to OpenRouter, and a session already on
+Claude that switched to an ordinary model kept answering from Claude while the status line named the
+other model. In practice `/model claude-opus` did not even switch — the reference matched no alias
+and contained no slash, so it fell through to a catalog search and printed
+`could not list models: openrouter: HTTP 400`.
+
+Scope:
+
+- `app.switchModel` resolves the reference, moves `ag.Backend` to the plan's provider or back to the
+  default client, pins the model, updates the session, and reports the plan it now runs on.
+- The retired backend is closed. Nothing else would release its child process for the rest of the
+  session.
+- `/model` consults the plan catalog before the alias and catalog paths, so a plan model the user
+  cannot use is a refusal with its reason instead of a provider error.
+
+Non-goals:
+
+- No validation of the active effort against the plan's advertised effort levels; that is its own
+  leaf.
+
+Acceptance checklist:
+
+- [x] red first: the backend stayed `*provider.Client` after `/model claude-opus`, and an unusable
+  plan model produced an OpenRouter HTTP 400 instead of a reason.
+- [x] switching onto a plan model moves the backend and names the plan.
+- [x] switching away restores the default client.
+- [x] a refused switch leaves model and backend untouched.
+- [x] the seven pre-existing `/model` tests still pass unchanged.
+- [x] `go test -race ./internal/cli` and full `make check` green, lint 0 issues.
+
+Refactor note: `engine.Options` is embedded in `Agent`, so `ag.Model` and `ag.Options.Model` are one
+field. The first draft assigned both, which staticcheck caught; `/new` inherits the provider through
+the same embedding.
 
 ### L13 managed local models — active detail
 

@@ -216,28 +216,90 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 // yet stops the session with the reason rather than quietly answering from a
 // different provider than the one they asked for.
 func (a *app) planBackend(model, effort string) (engine.ChatBackend, error) {
+	backend, _, err := a.planBackendFor(model, effort)
+	return backend, err
+}
+
+// planBackendFor reports the provider that must answer for one model. A nil
+// backend with a nil error means "an ordinary model, use the default client".
+func (a *app) planBackendFor(model, effort string) (engine.ChatBackend, provider.PlanModel, error) {
 	d, err := a.resolve()
 	if err != nil {
-		return nil, err
+		return nil, provider.PlanModel{}, err
 	}
 	manifest, err := provider.LoadConnectors(d.ConnectorsFile())
 	if err != nil {
-		return nil, err
+		return nil, provider.PlanModel{}, err
 	}
 	planModel, err := provider.ResolvePlanModel(model, manifest)
 	if errors.Is(err, provider.ErrNotAPlanModel) {
-		return nil, nil
+		return nil, provider.PlanModel{}, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, provider.PlanModel{}, err
 	}
 	switch planModel.Connector {
 	case "claude":
-		return agentcli.NewClaudeBackend(effort), nil
+		return agentcli.NewClaudeBackend(effort), planModel, nil
 	default:
-		return nil, fmt.Errorf("the %s connector is enabled but Kolkrabbi has no adapter for it yet, so %s cannot run a session",
+		return nil, provider.PlanModel{}, fmt.Errorf("the %s connector is enabled but Kolkrabbi has no adapter for it yet, so %s cannot run a session",
 			planModel.Connector, planModel.Model)
 	}
+}
+
+// namedPlanModel reports whether a reference names a subscription plan model,
+// and surfaces the reason when it names one the user cannot use.
+func (a *app) namedPlanModel(ref string) (bool, error) {
+	d, err := a.resolve()
+	if err != nil {
+		return false, err
+	}
+	manifest, err := provider.LoadConnectors(d.ConnectorsFile())
+	if err != nil {
+		return false, err
+	}
+	if _, err := provider.ResolvePlanModel(ref, manifest); err != nil {
+		if errors.Is(err, provider.ErrNotAPlanModel) {
+			return false, nil
+		}
+		return true, err
+	}
+	return true, nil
+}
+
+// switchModel points a live session at a model and, when that model belongs to
+// a subscription plan, at the provider that can actually answer it. Without
+// this the status line names one model while a different provider replies.
+func (a *app) switchModel(ag *engine.Agent, ref string) (string, error) {
+	backend, planModel, err := a.planBackendFor(ref, ag.Effort)
+	if err != nil {
+		return "", err
+	}
+
+	previous := ag.Backend
+	resolved, label := provider.ResolveModelAlias(ref), ""
+	if backend != nil {
+		resolved = planModel.Model
+		label = fmt.Sprintf(" (%s, via the %s CLI)", planModel.Plan, planModel.Connector)
+		ag.Backend = backend
+	} else if ag.Client != nil {
+		ag.Backend = ag.Client
+	}
+	// The retired provider owns a child process; nothing else will release it.
+	if previous != nil && previous != ag.Backend {
+		if closer, ok := previous.(io.Closer); ok {
+			_ = closer.Close()
+		}
+	}
+
+	// Options is embedded in Agent, so these are the session's own fields and a
+	// later /new inherits the provider it is running on.
+	ag.Model = resolved
+	ag.PinnedModel = true
+	if ag.Sess != nil {
+		ag.Sess.SetModelName(resolved)
+	}
+	return resolved + label, nil
 }
 
 // resolveSession picks the session this run continues: an explicit id, the most

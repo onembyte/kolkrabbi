@@ -192,14 +192,17 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 				fmt.Fprintf(a.stderr, "could not list models: %v\n", err)
 			}
 			fmt.Fprintln(a.stdout, "\nswitch: /model <name|alias>")
-		} else if strings.Contains(arg, "/") || provider.ResolveModelAlias(arg) != arg {
-			resolved := provider.ResolveModelAlias(arg)
-			ag.Model = resolved
-			ag.PinnedModel = true
-			if ag.Sess != nil {
-				ag.Sess.SetModelName(resolved)
+		} else if planModel, err := a.namedPlanModel(arg); err != nil {
+			// A plan model the user cannot use yet is a refusal with a reason,
+			// never a catalog search that ends in an OpenRouter error.
+			fmt.Fprintf(a.stdout, "%v\n", err)
+		} else if planModel || strings.Contains(arg, "/") || provider.ResolveModelAlias(arg) != arg {
+			label, err := a.switchModel(ag, arg)
+			if err != nil {
+				fmt.Fprintf(a.stdout, "%v\n", err)
+				break
 			}
-			fmt.Fprintf(a.stdout, "model set to %s\n", resolved)
+			fmt.Fprintf(a.stdout, "model set to %s\n", label)
 		} else {
 			d, _ := a.locate()
 			if err := a.printModelCatalog(ctx, ag.Client, d.CatalogFile(), false, arg); err != nil {
