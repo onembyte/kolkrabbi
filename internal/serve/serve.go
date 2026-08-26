@@ -10,6 +10,7 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/buildinfo"
 	"github.com/onembyte/kolkrabbi/internal/bus"
+	"github.com/onembyte/kolkrabbi/internal/devices"
 )
 
 // Options holds configuration for the HTTP server.
@@ -19,6 +20,13 @@ type Options struct {
 	Addr         string
 	PingInterval time.Duration
 	Resolver     PermissionResolver
+	// Devices holds the paired devices. Nil disables device auth and pairing.
+	Devices *devices.Store
+	// Pairing is the short window during which a new device may be added.
+	Pairing *devices.Pairing
+	// DeviceFile is where a newly paired device is persisted. Empty keeps it
+	// in memory, which only tests want.
+	DeviceFile string
 }
 
 // openRoutes answer without a credential.
@@ -71,7 +79,21 @@ func Mux(opts Options) (http.Handler, error) {
 	// Permission resolution
 	mux.Handle("/v1/permissions/resolve", permissionResolveHandler(opts.Resolver))
 
-	return authMiddleware(opts.Token, openRoutes, mux), nil
+	// Pairing. Not in openRoutes: it is exempt from auth because handing out
+	// the first credential is what it does, and it exists only while armed.
+	pair := pairHandler(opts.Pairing, opts.Devices, opts.DeviceFile)
+	mux.Handle("/v1/pair", pair)
+
+	guarded := authMiddleware(opts.Token, openRoutes, mux)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Routed before auth rather than exempted inside it, so the exempt set
+		// stays exactly the two routes I26.2 ratcheted it to.
+		if r.URL.Path == "/v1/pair" {
+			pair.ServeHTTP(w, r)
+			return
+		}
+		guarded.ServeHTTP(w, r)
+	}), nil
 }
 
 // Server is the HTTP server lifecycle wrapper.

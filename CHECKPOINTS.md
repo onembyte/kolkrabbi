@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **I26.4 pairing** — a six-digit code, armed briefly, single use, attempt-capped, on a route that does not exist the rest of the time.
 - [x] **I26.3 the device store** — one token per device, stored only as a hash, revocable one at a time.
 - [x] **I26.2 the protected surface, ratcheted** — every route needs the token except two that say nothing, and widening that set now fails a test.
 - [x] **I26.1 the bind floor** — a wildcard address is not loopback, and the refusal happens before the socket opens.
@@ -1927,6 +1928,54 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### I26.4 pairing — verified detail
+
+The state machine first, then the route, because the security properties are all in the former and
+the latter is plumbing.
+
+**The cap is what makes six digits safe, not the length.** Five guesses at one of a million, inside a
+two-minute window a person is watching, is a worse bet than any other way in. Without the cap the
+code would have to be long enough to resist guessing, and a code that long is one nobody types. The
+cap and the window are load-bearing together; either alone is weak.
+
+**Success disarms; a typo does not.** A code that keeps working is a shared secret with a short name,
+so one redemption closes the window. But a wrong code only counts against the cap — costing someone
+their pairing session over a mistyped digit would teach them to leave pairing armed, which is the
+thing this design exists to avoid. Re-arming resets the count, or one burst of guesses would lock
+pairing out until the session restarted.
+
+**Only one racer pairs.** Two phones scanning at once must not both get in; the redemption is under
+one lock and a test runs eight goroutines at it.
+
+**The route answers 404 when unarmed, not 401.** A 401 confirms the endpoint exists and is worth
+coming back to. An unarmed machine should not advertise that pairing is something it does. The same
+applies to an expired or exhausted window — both collapse to "there is nothing here".
+
+**It is routed before auth rather than exempted inside it.** Adding `/v1/pair` to `openRoutes` would
+have been the obvious move and would have widened the set I26.2 just ratcheted to exactly two. It is
+not open: it exists only while armed. Routing it ahead of the middleware says that in code, and the
+ratchet stays intact.
+
+**A new device is always read tier.** Promotion is a decision made at the machine running the
+session, never something a device can ask for over the network. The wrong-code response also does not
+say how many attempts remain — a counter is a hint about how hard to keep trying.
+
+Wired into `kolk serve --pair` rather than left as a seam nobody calls: it loads the device file,
+arms a window at startup, and prints the code, the expiry and the exact request to make.
+
+Acceptance checklist:
+
+- [x] nothing pairs until someone arms it; the code is six digits.
+- [x] the right code pairs once and only once.
+- [x] wrong codes leave it armed until the cap, then close it for good.
+- [x] the window expires; re-arming replaces the code and resets the count.
+- [x] exactly one of eight concurrent redemptions wins.
+- [x] the route 404s unarmed, expired and exhausted; 403s on a wrong code.
+- [x] a paired device is persisted and survives a restart.
+- [x] only POST pairs, and a non-JSON body is refused.
+- [x] `go test -race -count=5` clean on the state machine.
+- [x] full `make check` green: 1,970 tests, 0 lint issues, every script contract.
 
 ### I26.3 the device store — verified detail
 
