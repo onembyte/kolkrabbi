@@ -108,3 +108,51 @@ func TestPageShowsEffortAndMode(t *testing.T) {
 		}
 	}
 }
+
+func TestEffortBreakdownFoldsLegacyNames(t *testing.T) {
+	// Older records carry the pre-E7.1 spellings. quick/standard/deep/ultra and
+	// low/medium/high/max are the same four levels, and showing both spellings
+	// splits one level's spend across two rows that look like two levels.
+	records := []stats.Record{
+		{Kind: "call", Time: day(1), Turn: "t1", Model: "m", Effort: "standard", Cost: 1},
+		{Kind: "call", Time: day(1), Turn: "t2", Model: "m", Effort: "medium", Cost: 2},
+		{Kind: "call", Time: day(1), Turn: "t3", Model: "m", Effort: "ultra", Cost: 4},
+	}
+
+	page := Page(records, 0)
+
+	if strings.Contains(page, ">standard<") || strings.Contains(page, ">ultra<") {
+		t.Fatalf("legacy effort spellings were shown as separate levels: %q", page)
+	}
+	if !strings.Contains(page, ">medium<") || !strings.Contains(page, ">max<") {
+		t.Fatalf("canonical levels missing: %q", page)
+	}
+	// The two medium rows are one level and must be added together.
+	if !strings.Contains(page, "$3.00") {
+		t.Fatalf("legacy and canonical spend were not combined: %q", page)
+	}
+}
+
+func TestPageListsRecentSessions(t *testing.T) {
+	records := append(sampleRecords(),
+		stats.Record{Kind: "call", Time: day(3), Session: "sess-a", Turn: "t9",
+			Model: "vendor/big", Mode: "code", Cost: 0.75, PromptTokens: 900})
+
+	page := Page(records, 0)
+
+	if !strings.Contains(page, "sess-a") {
+		t.Fatalf("recent sessions are missing: %q", page)
+	}
+	if !strings.Contains(page, "$0.75") {
+		t.Fatalf("session cost is missing: %q", page)
+	}
+}
+
+func TestSessionsWithoutAnIDAreNotListed(t *testing.T) {
+	// Records from before sessions were tagged carry no id. A blank row in a
+	// session table is a row nobody can act on.
+	page := Page(sampleRecords(), 0)
+	if strings.Contains(page, "<h2>Recent sessions</h2>") {
+		t.Fatalf("an untagged history produced an empty session table: %q", page)
+	}
+}

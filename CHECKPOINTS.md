@@ -175,6 +175,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **C12.6 durable compaction archive** — the replaced conversation survives the process, and deleting a session deletes it too.
 - [x] **D17.1 resilient usage log** — one unreadable line costs one line, not a history, and incomplete totals say they are incomplete.
 - [x] **D17.2 `kolk dash`** — a loopback-only dashboard rendered entirely on the server, with no script, no assets and no network.
+- [x] **D17.3 effort folding & recent sessions** — one effort level is one row whatever it was called when it was recorded, and sessions are listed with what each cost.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
@@ -1477,6 +1478,37 @@ Acceptance checklist:
 - [x] the handler serves the page, sets CSP and no-store, 404s anything else, and works on a machine
   with no usage yet.
 - [x] real-binary rehearsal over HTTP against real data; full `make check` green, lint 0 issues.
+
+### D17.3 effort folding & recent sessions — verified detail
+
+Two things the first dashboard got wrong, one of them recorded as a known wart at the time.
+
+**One effort level was appearing as two rows.** E7.1 renamed `quick/standard/deep/ultra` to
+`low/medium/high/max`, and a usage log that spans that change contains both spellings for the same
+level. The breakdown split one level's spend across two rows that looked like two levels — a chart
+that misleads about the very question it exists to answer. Efforts are now folded through
+`engine.NormalizeEffort` before aggregating; on the development host's real log, `medium` and
+`standard` merged into one `$0.52` row and `ultra` became `max`.
+
+**Recent sessions** answers the drill-down question the item 17 doc named: what did each session
+cost, on which models, and when. Records written before sessions were tagged carry no id, and a row
+nobody can identify is a row nobody can act on, so they are omitted entirely rather than shown blank
+— a test asserts an untagged history produces no table at all rather than an empty one. The list is
+capped at twenty with a pointer to `kolk sessions`, since a dashboard that reproduces a full listing
+is just a worse listing.
+
+Worth recording: `internal/arch/layers.go` already forbids `modernc.org/sqlite` inside
+`internal/dash`. The architecture ratchet had reached the same conclusion as the item 17 measurement
+before the measurement was taken.
+
+Acceptance checklist:
+
+- [x] legacy and canonical spellings of one level combine into a single row with their spend added.
+- [x] canonical names are shown; legacy names are not.
+- [x] recent sessions list calls, tokens, cost, models and last use, newest first.
+- [x] sessions with no id produce no table rather than a blank row.
+- [x] real-binary rehearsal against the development host's own usage log.
+- [x] full `make check` green.
 
 ### B12 Claude subscription backend — recorded detail
 

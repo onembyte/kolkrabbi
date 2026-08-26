@@ -10,7 +10,9 @@ import (
 	"html"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/stats"
 )
 
@@ -40,6 +42,7 @@ func Page(records []stats.Record, skipped int) string {
 	writeLeaderboard(&b, rows)
 	writeSpendChart(&b, records)
 	writeBreakdown(&b, records)
+	writeSessions(&b, records)
 
 	b.WriteString("</body></html>")
 	return b.String()
@@ -134,7 +137,14 @@ func writeBreakdown(b *strings.Builder, records []stats.Record) {
 			continue
 		}
 		if record.Effort != "" {
-			byEffort[record.Effort] += record.Cost
+			// quick/standard/deep/ultra and low/medium/high/max are the same
+			// four levels. Showing both spellings splits one level's spend
+			// across two rows that look like two levels.
+			effort := record.Effort
+			if canonical, ok := engine.NormalizeEffort(effort); ok {
+				effort = canonical
+			}
+			byEffort[effort] += record.Cost
 		}
 		if record.Mode != "" {
 			byMode[record.Mode] += record.Cost
@@ -206,3 +216,72 @@ svg{width:100%;height:auto}
 .cols>div{flex:1 1 16rem}
 code{background:rgba(128,128,128,.15);padding:.1rem .3rem;border-radius:3px}
 `
+
+// sessionRow is one session's totals.
+type sessionRow struct {
+	ID     string
+	Calls  int
+	Tokens int
+	Cost   float64
+	Last   time.Time
+	Models map[string]bool
+}
+
+// writeSessions lists the most recent sessions and what each one cost.
+//
+// Records written before sessions were tagged carry no id, and a row nobody can
+// identify is a row nobody can act on, so they are left out entirely rather than
+// shown blank.
+func writeSessions(b *strings.Builder, records []stats.Record) {
+	bySession := map[string]*sessionRow{}
+	for _, record := range records {
+		if record.Kind != "call" || record.Session == "" {
+			continue
+		}
+		row, ok := bySession[record.Session]
+		if !ok {
+			row = &sessionRow{ID: record.Session, Models: map[string]bool{}}
+			bySession[record.Session] = row
+		}
+		row.Calls++
+		row.Tokens += record.PromptTokens + record.CompletionTokens
+		row.Cost += record.Cost
+		row.Models[record.Model] = true
+		if record.Time.After(row.Last) {
+			row.Last = record.Time
+		}
+	}
+	if len(bySession) == 0 {
+		return
+	}
+	rows := make([]*sessionRow, 0, len(bySession))
+	for _, row := range bySession {
+		rows = append(rows, row)
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Last.After(rows[j].Last) })
+	if len(rows) > maxSessionRows {
+		rows = rows[:maxSessionRows]
+	}
+
+	b.WriteString(`<section><h2>Recent sessions</h2>`)
+	b.WriteString(`<table><thead><tr><th>Session</th><th>Last used</th><th class="n">Calls</th>` +
+		`<th class="n">Tokens</th><th class="n">Cost</th><th>Models</th></tr></thead><tbody>`)
+	for _, row := range rows {
+		models := make([]string, 0, len(row.Models))
+		for model := range row.Models {
+			models = append(models, model)
+		}
+		sort.Strings(models)
+		fmt.Fprintf(b, `<tr><td>%s</td><td>%s</td><td class="n">%d</td><td class="n">%s</td>`+
+			`<td class="n">%s</td><td>%s</td></tr>`,
+			html.EscapeString(row.ID), row.Last.Local().Format("2006-01-02 15:04"),
+			row.Calls, count(row.Tokens), money(row.Cost),
+			html.EscapeString(strings.Join(models, ", ")))
+	}
+	b.WriteString(`</tbody></table>`)
+	b.WriteString(`<p class="sub">Resume one with <code>kolk -s &lt;id&gt;</code>, or read it with <code>kolk sessions export &lt;id&gt;</code>.</p></section>`)
+}
+
+// maxSessionRows keeps the page readable. The full list is what
+// `kolk sessions` is for.
+const maxSessionRows = 20
