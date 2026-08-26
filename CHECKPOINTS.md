@@ -151,7 +151,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **B12.10 live provider switch** — `/model` onto or off a plan model moves the provider with it and releases the one it retires.
 - [x] **B12.11 per-turn accounting** — a session turn records its own cost and tokens, not the provider's running totals, and no longer records zero.
 - [x] **P11.7a honest login state** — a clean provider exit records the connector as `unverified` and says what it does and does not prove.
-- [ ] **P11.7b verify on first use** — a connector that answers a turn becomes verified; one that fails to authenticate is demoted with a reason.
+- [x] **P11.7b verify on first use** — the first answered turn confirms the connector; a failed turn on an unverified one explains the likely cause once and changes nothing.
 - [ ] **B12.12 effort validation** — reject or downgrade an effort the selected plan does not advertise, rather than sending one the provider will reinterpret.
 - [ ] **B12.13 subscription-only first run** — decide, with the owner, whether a session whose provider is a subscription still requires an OpenRouter key. Product decision before code.
 - [x] **B12.14 cache token accounting** — cache tokens reach `provider.Meta`, the call record and `stats.jsonl`, from both the Claude adapter and OpenRouter, and are diffed per turn like the rest.
@@ -616,8 +616,8 @@ Acceptance checklist:
 - [x] commits `c08c9624`, `3bf6a0e0`, `7b7ca81c`, `bb8bc9a7`, `0ea44a52`, `339001fd`, `76e58243`,
   and `dd74907d` are on `origin/main` with green CI.
 - [x] **P11.6 closed 2026-08-26 05:20** — see its own detail box below.
-- [~] **P11.7:** a clean exit no longer claims a verified login (P11.7a). Confirming on first use is
-  P11.7b, still open.
+- [x] **P11.7 closed:** a clean exit no longer claims a verified login, and the first answered turn
+  confirms it.
 
 ### P11.6 terminal ownership around provider login — verified detail
 
@@ -698,6 +698,48 @@ signing into Claude Max marks Claude Free and Claude Pro `unverified`/`enabled` 
 binary is one CLI and the account behind it has one plan, so the status arguably describes the
 connector rather than the entitlement. Deciding which it should describe is a product question for
 item 24, not a fix to make silently.
+
+### P11.7b verify on first use — verified detail
+
+P11.7a made the unverified state honest; this closes it. `verifyingBackend` decorates a plan
+provider and confirms the connector the first time it actually answers — a turn the user wanted
+anyway, so verification costs nothing extra and no probe spends tokens.
+
+The deliberate asymmetry: **a failed turn does not demote the connector.** Concluding "that error
+means you are not signed in" requires matching provider error text, and a false positive would
+disable a connector that works — a worse failure than the one it prevents. Kolkrabbi instead says
+what it suspects, exactly once, and leaves the recorded state untouched:
+
+```
+claude has not answered successfully yet. If it is not signed in, run this in another terminal:
+  kolk plans login anthropic "Claude Max"
+```
+
+Scope:
+
+- `verifyingBackend` wraps the plan backend selected by `planBackendFor`, so both a new session and a
+  live `/model` switch get it.
+- Confirmation and the hint are each `sync.Once`: the manifest is not rewritten every turn, and a
+  failing connector does not repeat itself down the transcript.
+- Writing the confirmation is best effort. A session that works must never fail because a note about
+  it could not be written.
+- `Close` forwards to the wrapped provider, so the retired-backend release from B12.10 still works
+  through the decorator.
+
+Non-goals:
+
+- No demotion, and no provider error-text taxonomy. If a demotion path is ever wanted it needs a
+  typed signal from the provider, not a string match.
+
+Acceptance checklist:
+
+- [x] red first: `verifyingBackend` did not exist and an answered turn left the connector unverified.
+- [x] an answered turn records `verified: true`.
+- [x] a failed turn returns the underlying error, prints the login command, and leaves `enabled` and
+  `verified` exactly as they were.
+- [x] three answered turns write one connector; three failed turns print the hint once.
+- [x] `newAgent` and `/model` both hand back a wrapped backend around `*agentcli.ClaudeBackend`.
+- [x] `go test -race ./internal/cli` and full `make check` green.
 
 ### B12 Claude subscription backend — recorded detail
 

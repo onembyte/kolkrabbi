@@ -240,7 +240,9 @@ func (a *app) planBackendFor(model, effort string) (engine.ChatBackend, provider
 	}
 	switch planModel.Connector {
 	case "claude":
-		return agentcli.NewClaudeBackend(effort), planModel, nil
+		// Wrapped so the first answered turn confirms the connector the user
+		// signed into in another terminal.
+		return a.verifyingBackend(agentcli.NewClaudeBackend(effort), planModel), planModel, nil
 	default:
 		return nil, provider.PlanModel{}, fmt.Errorf("the %s connector is enabled but Kolkrabbi has no adapter for it yet, so %s cannot run a session",
 			planModel.Connector, planModel.Model)

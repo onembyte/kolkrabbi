@@ -30,8 +30,12 @@ func TestSessionUsesTheClaudeBackendForAnEnabledPlanModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := agent.Backend.(*agentcli.ClaudeBackend); !ok {
-		t.Fatalf("backend = %T, want the Claude provider CLI backend", agent.Backend)
+	wrapped, ok := agent.Backend.(*verifyingBackend)
+	if !ok {
+		t.Fatalf("backend = %T, want the verifying wrapper", agent.Backend)
+	}
+	if _, ok := wrapped.inner.(*agentcli.ClaudeBackend); !ok {
+		t.Fatalf("wrapped backend = %T, want the Claude provider CLI backend", wrapped.inner)
 	}
 }
 
@@ -57,7 +61,7 @@ func TestSessionKeepsTheDefaultBackendForAnOrdinaryModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := agent.Backend.(*agentcli.ClaudeBackend); ok {
+	if _, ok := agent.Backend.(*verifyingBackend); ok {
 		t.Fatal("an ordinary model must keep the default provider client")
 	}
 }
@@ -91,7 +95,7 @@ func TestSlashModelSwitchesOntoAndOffAPlanBackend(t *testing.T) {
 	if a.slash(context.Background(), ag, "/model claude-opus") {
 		t.Fatal("/model must not exit the session")
 	}
-	if _, ok := ag.Backend.(*agentcli.ClaudeBackend); !ok {
+	if _, ok := ag.Backend.(*verifyingBackend); !ok {
 		t.Fatalf("backend = %T after switching to a plan model", ag.Backend)
 	}
 	if ag.Model != "claude-opus" {
@@ -104,7 +108,7 @@ func TestSlashModelSwitchesOntoAndOffAPlanBackend(t *testing.T) {
 	if a.slash(context.Background(), ag, "/model vendor/ordinary-model") {
 		t.Fatal("/model must not exit the session")
 	}
-	if _, ok := ag.Backend.(*agentcli.ClaudeBackend); ok {
+	if _, ok := ag.Backend.(*verifyingBackend); ok {
 		t.Fatal("switching to an ordinary model left the plan provider answering")
 	}
 	if ag.Model != "vendor/ordinary-model" {
