@@ -26,3 +26,14 @@ AKIAEXAMPLE000000000
 xoxb-EXAMPLE000000000000000000000
 -----BEGIN CERTIFICATE-----
 -----END CERTIFICATE-----
+# Source code and templates that the assignment rule must leave alone.
+const tokenName = "access_token"
+PRIMARY_KEY=id
+SORT_KEY=created_at
+password: changeme
+API_KEY=${OPENROUTER_API_KEY}
+API_KEY=<your key here>
+STRIPE_SECRET_KEY=rk_live_EXAMPLE00000000000
+aws_access_key_id = AKIAIOSFODNN7EXAMPLE
+https://api.openrouter.ai/v1/chat
+postgres://db.example.com:5432/app

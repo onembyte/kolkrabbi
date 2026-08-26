@@ -20,6 +20,7 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/bus"
 	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/secret"
 	"github.com/onembyte/kolkrabbi/internal/tools"
 	"github.com/onembyte/kolkrabbi/internal/xid"
 	"github.com/onembyte/kolkrabbi/protocol"
@@ -707,11 +708,17 @@ func (a *Agent) executeTool(ctx context.Context, tc provider.ToolCall) (string, 
 		toolCtx, cancel = context.WithTimeout(ctx, TimeoutForEffort(a.Effort))
 		defer cancel()
 	}
-	return tools.Execute(toolCtx, tc.Function.Name, tc.Function.Arguments, tools.Options{
+	result, err := tools.Execute(toolCtx, tc.Function.Name, tc.Function.Arguments, tools.Options{
 		Root:     a.Root,
 		Guard:    a.guard(toolCtx),
 		PreWrite: a.preWrite,
 	})
+	// One chokepoint for every tool. A result goes into the conversation, the
+	// session file on disk and every later request to the provider, so a
+	// credential that survives this line is a credential Kolkrabbi has copied
+	// and kept. The event bus scrubs separately; the conversation is the copy
+	// that leaves the machine.
+	return secret.Scrub(result), err
 }
 
 func (a *Agent) footer(meta provider.Meta) {

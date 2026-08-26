@@ -88,10 +88,13 @@ func Scrub(text string) string {
 		at = end
 	}
 	if output.Cap() == 0 {
-		return text
+		// The prefix scan found nothing. Vendor-less secrets are recognised by
+		// the shape of the line instead, and are checked on the original text
+		// so the two passes cannot interfere with each other.
+		return scrubURLCredentials(scrubAssignments(text))
 	}
 	output.WriteString(text[last:])
-	return output.String()
+	return scrubURLCredentials(scrubAssignments(output.String()))
 }
 
 func scrubMatch(text string, at int) (start, end int, replacement string, ok bool) {

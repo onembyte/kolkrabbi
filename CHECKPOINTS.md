@@ -180,6 +180,9 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **R2 test isolation and stdin ownership** — the suite no longer writes into the developer's own Kolkrabbi state, and `/key -` no longer competes for the keyboard.
 - [x] **R3 rune-safe tool output** — the hottest truncation in the product no longer splits a UTF-8 rune, and the tests that missed it were vacuous by arithmetic.
 - [x] **R4 warnings reach the screen that owns it** — engine warnings no longer bypass the terminal renderer, and a restore that could not be saved says so.
+- [x] **E13.1 path confinement** — file tools resolve against the project root, symlinks first, and reaching outside asks; in full-auto it proceeds and is logged with the reason.
+- [x] **E13.2 permission tiers** — `--yolo` is gone; `/ask`, `/auto-approve`, `/full-auto` and `/permissions` are the whole model, and no tier removes the floor.
+- [x] **E13.3 scrubbed tool output** — every tool result is scrubbed at one chokepoint, and the scrubber now catches vendor-less secrets.
 - [x] **C12.7 fast-lane session naming** — a session earns a real name once enough has happened, without delaying the answer or overwriting a name a person chose.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
@@ -1686,6 +1689,74 @@ Acceptance checklist:
 - [x] `go test -race` on engine, cli and session, and full `make check`, green.
 
 **Item 12 is complete.**
+
+### E13.1–E13.3 confinement, tiers and scrubbing — verified detail
+
+The three holes named in `docs/plan/13-tools-permissions-sandboxing.md`, closed together because they
+are one hole seen from three sides: nothing stopped a path, nothing stopped `--yolo`, and nothing
+stopped a secret leaving in a tool result.
+
+**Confinement.** Paths resolve against the project root — the enclosing repository, or the working
+directory when there is none — with symlinks resolved *before* the comparison, since a link inside
+the root pointing out of it is a hole straight through. The resolved path is what the policy judges
+*and* what the tool opens: judging one path and opening another is how these checks are usually
+defeated. `read_file` and `list_dir` are judged too, which is the half that was quieter and worse —
+the interesting attack was never a write the user would be asked to approve, but a read they were
+never asked about at all.
+
+**Tiers.** `--yolo` returned true for every action with nothing beneath it, and it is gone.
+`ask` / `auto-approve` / `full-auto` are the whole model. `auto-approve` draws its line where Claude
+Code draws it — edits inside the project flow, shell commands still ask — because an edit is visible
+and reversible through checkpoints and a command is neither. `confirm` no longer has a bypass of its
+own: whether to ask is decided in exactly one place, so there is no second path that can quietly
+disagree with the first.
+
+**The floor holds in every tier**, `full-auto` included: credential files and directories, writes
+into system directories, `sudo`, downloads piped into a shell, and unrecoverable deletes. It reads a
+command's own words rather than substrings, so `echo 'rm -rf /' > docs/dangerous.txt` and
+`grep -r sudo .` are ordinary work, while `sudo rm -rf /var` is not. It is deliberately a short list
+of specific shapes rather than an attempt at a perimeter — the jail and the tiers are the control.
+
+**In full-auto, leaving the project is allowed and always logged**, with the path and the reason the
+model gave. The file tools gained an optional `purpose` argument so there is a reason to log; when
+the model gives none the line says so rather than printing an empty dash.
+
+**Scrubbing.** Every tool result passes `secret.Scrub` at one chokepoint before it becomes a message,
+because that copy is what reaches the session file on disk and every later provider request. A
+measurement first established what was already covered — vendor prefixes, JWTs, PEM blocks, GitHub
+and Slack tokens all were — so the work went only to the real gap: secrets belonging to no vendor
+Kolkrabbi has heard of. Those are now caught by the shape of the line, plus credentials embedded in
+URLs.
+
+Four times in this work a test of mine encoded the wrong premise, and the last two are the
+interesting ones. `AWS_SECRET_ACCESS_KEY=wJalrX…EXAMPLEKEY` and `AKIAIOSFODNN7EXAMPLE` are AWS's own
+*published documentation* values, and `testdata/falsepositives.txt` already recorded the project's
+considered policy that templates full of `EXAMPLE` and `YOUR_KEY_HERE` must survive scrubbing. The
+corpus was right and the new tests were wrong; they were changed to realistic secrets and the corpus
+was extended with the new shapes rather than the policy being overridden. The bar for redacting is
+high on purpose: over-redaction corrupts the output the model needs, and a scrubber that mangles
+`const tokenName = "access_token"` is one people switch off.
+
+Acceptance checklist:
+
+- [x] paths resolve inside, outside, through symlinks, for files that do not exist yet, and with
+  confinement disabled.
+- [x] every tier's verdict for every tool, inside and outside the root.
+- [x] the floor denies in all three tiers and does not catch ordinary commands.
+- [x] full-auto logs each step outside the project with the model's reason, and says so when none
+  was given; ordinary work inside the project stays silent.
+- [x] a refusal explains itself; a declined action does not proceed.
+- [x] `/permissions` lists all three and marks the active one; each tier has its own command;
+  entering full-auto states what it still refuses; an unknown tier changes nothing.
+- [x] `/yolo` no longer exists.
+- [x] tool output is scrubbed before it is kept, ordinary output is untouched, and a command that
+  prints a token is caught too.
+- [x] vendor-less assignments and URL credentials are scrubbed; documented examples, placeholders and
+  source code are not.
+- [x] `go test -race` on engine, tools, redact and cli; full `make check` green, lint 0 issues.
+
+Still open from the item 13 design, unchanged: permission *rules* with scopes, subagent auto-deny,
+binary detection and read ranges, and the OS sandbox matrix.
 
 ### B12 Claude subscription backend — recorded detail
 
