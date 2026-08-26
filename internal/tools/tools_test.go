@@ -101,7 +101,7 @@ func jsonEsc(s string) string {
 }
 
 func TestPreWriteHook(t *testing.T) {
-	dir := t.TempDir()
+	dir := resolvedTempDir(t)
 	p := filepath.Join(dir, "guarded.txt")
 	os.WriteFile(p, []byte("original"), 0o644)
 
@@ -133,4 +133,21 @@ func TestPreWriteHook(t *testing.T) {
 	if string(b) != "changed" {
 		t.Errorf("file was modified despite failing pre hook: %q", string(b))
 	}
+}
+
+// resolvedTempDir is t.TempDir() with symlinks resolved.
+//
+// The file tools resolve a path before checking it against the project root,
+// because a symlink inside the root that points outside it would otherwise be a
+// hole through the jail. That makes the resolved path the one they report. On
+// macOS `t.TempDir()` sits under /var, which is a symlink to /private/var, so a
+// test comparing a tool's path against a raw t.TempDir() passes on Linux and
+// fails on macOS — which is exactly how this was found.
+func resolvedTempDir(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("resolving the temp dir: %v", err)
+	}
+	return dir
 }

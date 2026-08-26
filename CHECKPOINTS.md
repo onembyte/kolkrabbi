@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **X2 the reported path is the resolved path, on every platform** — a macOS-only break I shipped, and the Linux test that would have caught it.
 - [x] **X1 fixtures that do not look like live keys** — the scrubber's own test corpus was blocking every push; fixtures now match the repository's existing shorter shape.
 - [x] **G15.3 plan mode** — `/plan` is read-only built out of permission rules, not a second permission system.
 - [x] **G15.2 `/diff`** — the session's own changes as diffs, measured from where the session started.
@@ -1922,6 +1923,42 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### X2 the reported path is the resolved path, on every platform — recorded detail
+
+The push went green through `make check` on Linux and failed CI on macOS. Two pre-existing tests
+broke — `TestPreWriteHook` and `TestE2E_ToolLoopWithPersistenceAndRewind` — and the cause was mine,
+from E13.1.
+
+**macOS `/var` is a symlink to `/private/var`.** Path confinement resolves symlinks before checking
+containment, deliberately: a symlink inside the root pointing out of it would otherwise be a hole
+straight through the jail. So the path a tool *reports* is the resolved one. On macOS every
+`t.TempDir()` sits under that symlink, so any test comparing a tool's path against a raw
+`t.TempDir()` compares two spellings of the same file and fails.
+
+**The production behaviour is right and unchanged.** The resolved path is what the confirmation
+should name and what the checkpoint should back up: it is the file that is actually written. The
+tests were asserting the wrong spelling, so they now resolve their fixture the same way the tool
+does, with the reason written down where the next person will read it.
+
+**The correction that matters is the third one.** Two tests passed on Linux and failed on macOS
+because nothing on Linux exercised a symlink in the happy path — the existing symlink test covers an
+*escape* out of the root, which is the security case, and there was no coverage of a link that stays
+inside. `TestTheReportedPathIsTheResolvedOne` builds one explicitly and asserts that both the
+confirmation and the pre-write hook name the resolved file. It runs on Linux, so this class of break
+is now caught before a push instead of by the one runner that happened to have a symlinked temp
+directory.
+
+Worth stating plainly: a green `make check` on one platform is not a green build. CI runs macOS for
+exactly this reason, and I pushed without waiting for it.
+
+Acceptance checklist:
+
+- [x] both broken tests resolve their fixture the way the tool does.
+- [x] a Linux-runnable test proves the reported path is the resolved one.
+- [x] the confirmation and the pre-write hook both see the resolved file.
+- [x] the escape case remains covered separately.
+- [x] full `make check` green: 1,925 tests, 0 lint issues, every script contract.
 
 ### X1 fixtures that do not look like live keys — recorded detail
 

@@ -42,7 +42,7 @@ func newTestAgent(t *testing.T, srv *enginetest.Server, mode string) (*engine.Ag
 // tool execution on disk -> results fed back -> final answer -> session
 // saved -> stats recorded -> checkpoint rewind restores the filesystem.
 func TestE2E_ToolLoopWithPersistenceAndRewind(t *testing.T) {
-	work := t.TempDir()
+	work := resolvedTempDir(t)
 	target := filepath.Join(work, "hello.txt")
 
 	srv := enginetest.New(
@@ -368,4 +368,16 @@ func TestE2E_RunTurnEmitsProtocolEventsToBus(t *testing.T) {
 	if !hasTurnStarted || !hasMessageDelta || !hasTurnFinished {
 		t.Fatalf("missing required turn events, received: %v", eventTypes)
 	}
+}
+
+// resolvedTempDir is t.TempDir() with symlinks resolved, matching what the
+// file tools report after resolving a path against the project root. See the
+// note on the copy of this helper in internal/tools.
+func resolvedTempDir(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("resolving the temp dir: %v", err)
+	}
+	return dir
 }

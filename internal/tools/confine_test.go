@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -101,5 +102,56 @@ func TestRootItselfIsInside(t *testing.T) {
 	_, outside, err := resolvePath(root, root)
 	if err != nil || outside {
 		t.Fatalf("the root is not inside itself: outside=%v err=%v", outside, err)
+	}
+}
+
+// The path a tool reports is the resolved one, not the one the model typed.
+//
+// This is what macOS was testing by accident: its temp directories live under
+// /var, a symlink to /private/var, so every path a tool reported there differed
+// from the raw t.TempDir() a test compared it against. Two tests passed on
+// Linux and failed on macOS for a whole release because nothing on Linux
+// exercised a symlink in the happy path. This does.
+func TestTheReportedPathIsTheResolvedOne(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	real := filepath.Join(root, "real")
+	if err := os.MkdirAll(real, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(real, filepath.Join(root, "link")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	t.Chdir(root)
+
+	var seen Request
+	var hookPath string
+	_, err = Execute(context.Background(), "write_file",
+		`{"path":"link/a.txt","content":"x","purpose":"through a symlink"}`,
+		Options{
+			Root:  root,
+			Guard: func(r Request) bool { seen = r; return true },
+			PreWrite: func(_, path string) error {
+				hookPath = path
+				return nil
+			},
+		})
+	if err != nil {
+		t.Fatalf("write through a symlink: %v", err)
+	}
+
+	want := filepath.Join(real, "a.txt")
+	// The confirmation is what a person approves, and the hook is what a
+	// checkpoint backs up. Both have to name the file that is actually written.
+	if seen.Path != want {
+		t.Fatalf("the confirmation saw %q, want the resolved %q", seen.Path, want)
+	}
+	if hookPath != want {
+		t.Fatalf("the pre-write hook saw %q, want the resolved %q", hookPath, want)
+	}
+	if _, err := os.Stat(want); err != nil {
+		t.Fatalf("nothing was written to the resolved path: %v", err)
 	}
 }
