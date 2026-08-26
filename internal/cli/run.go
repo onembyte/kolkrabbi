@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/provider/agentcli"
 	"github.com/onembyte/kolkrabbi/internal/session"
 	"github.com/onembyte/kolkrabbi/internal/stats"
 	"github.com/onembyte/kolkrabbi/protocol"
@@ -184,8 +186,14 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		freeModels = provider.RankFreeModels(provider.FallbackCatalogSeed())
 	}
 
+	backend, err := a.planBackend(model, o.effort)
+	if err != nil {
+		return nil, err
+	}
+
 	return engine.New(engine.Options{
 		Client:      client,
+		Backend:     backend,
 		Model:       model,
 		Mode:        o.mode,
 		Effort:      o.effort,
@@ -200,6 +208,36 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		PinnedModel: o.model != "",
 		FreeModels:  freeModels,
 	}), nil
+}
+
+// planBackend selects a provider-owned CLI backend when the session's model
+// belongs to a subscription plan the user has already signed into. An ordinary
+// model keeps the default provider client, and a plan model the user cannot use
+// yet stops the session with the reason rather than quietly answering from a
+// different provider than the one they asked for.
+func (a *app) planBackend(model, effort string) (engine.ChatBackend, error) {
+	d, err := a.resolve()
+	if err != nil {
+		return nil, err
+	}
+	manifest, err := provider.LoadConnectors(d.ConnectorsFile())
+	if err != nil {
+		return nil, err
+	}
+	planModel, err := provider.ResolvePlanModel(model, manifest)
+	if errors.Is(err, provider.ErrNotAPlanModel) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	switch planModel.Connector {
+	case "claude":
+		return agentcli.NewClaudeBackend(effort), nil
+	default:
+		return nil, fmt.Errorf("the %s connector is enabled but Kolkrabbi has no adapter for it yet, so %s cannot run a session",
+			planModel.Connector, planModel.Model)
+	}
 }
 
 // resolveSession picks the session this run continues: an explicit id, the most

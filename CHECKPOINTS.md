@@ -147,6 +147,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **B12.6 backend lifecycle ownership** — the CLI session opens and closes the Claude backend exactly once.
 - [x] **B12.7 session-scoped process lifetime** — the persistent provider process belongs to the Kolkrabbi session, and a line process reports its exit repeatably instead of blocking.
 - [x] **B12.8 interrupted-turn recovery** — an abandoned turn's frames never reach the next turn, an unrecoverable stream is replaced, and a provider that quits mid-turn says why.
+- [x] **B12.9 connector-to-backend selection** — an enabled connector actually chooses the provider that answers a turn, and an unusable plan model refuses with its reason.
 - [x] **L13.1 managed local storage paths** — a Kolk-owned model directory under the data dir, never a host Ollama path.
 - [x] **L13.2 managed runtime spec & lifecycle** — validated `RuntimeSpec`, start-at-most-once, deterministic close.
 - [x] **L13.3 managed sidecar starter** — `shell.StartManagedProcess` keeps process execution inside the one owner package.
@@ -689,8 +690,7 @@ Acceptance checklist:
   process replacement after an unrecoverable interrupt.
 - [ ] **open:** `docs/plan/04-subscription-backends.md` still describes one process per turn. It
   contradicts the shipped session-scoped process and must be reconciled.
-- [ ] **open:** nothing yet connects a `/plogin`-enabled connector to backend selection for a new
-  session, so the Claude backend is reachable only through `Options.Backend`.
+- [x] **closed by B12.9:** an enabled connector now selects the backend for a new session.
 
 ### B12.7 session-scoped process lifetime — verified detail
 
@@ -775,6 +775,49 @@ Acceptance checklist:
 - [x] a clean end of stream is `io.EOF`, repeatably, and never `(nil, nil)`.
 - [x] a mid-turn exit explains itself and preserves the underlying cause for `errors.Is`.
 - [x] `go test -race ./internal/provider/agentcli ./internal/shell ./internal/engine` green.
+
+### B12.9 connector-to-backend selection — verified detail
+
+Until this leaf, `internal/cli` never referenced `internal/provider/agentcli` at all. Every part of
+the plan, connector, and Claude-backend work was unreachable from the product: `kolk plans login`
+wrote metadata that nothing read, and the only way to reach `ClaudeBackend` was to construct
+`engine.Options` in Go. The owner's actual goal — use a Claude Max subscription from inside
+Kolkrabbi — did not work end to end.
+
+Subtasks, each red first:
+
+- **B12.9a resolution.** `provider.ResolvePlanModel` maps what the user typed to a plan model, or
+  refuses with the reason: unknown reference points at `kolk pmodels`; a model offered by several
+  plans asks for `<Plan>/<model>`; a model no plan can expose says so once instead of asking the
+  user to choose between dead ends; a plan whose connector is not enabled prints the exact
+  `kolk plans login <provider> "<Plan>"` line. `ErrNotAPlanModel` separates "ordinary model" from
+  "plan model you cannot use yet".
+- **B12.9b selection.** `app.planBackend` resolves the session's model against the connector
+  manifest and returns `agentcli.NewClaudeBackend` for an enabled `claude` connector, `nil` for an
+  ordinary model, and a named error for a connector with no adapter. `newAgent` passes it as
+  `engine.Options.Backend`; `Agent.Close`, already called by `runDefault`, releases it.
+
+Non-goals:
+
+- No live `/model` switch onto a plan model within a running session, and no per-effort validation
+  against the plan's advertised effort levels. Both are separate leaves.
+- No second adapter. `codex` is enabled-but-unimplemented and says so.
+
+Acceptance checklist:
+
+- [x] red first: the backend was `*provider.Client` for `-m claude-opus`, and an unusable plan model
+  started a session against OpenRouter instead of refusing.
+- [x] an enabled connector makes `-m claude-opus` run on `*agentcli.ClaudeBackend`.
+- [x] a plan model without an enabled connector refuses with the exact login command.
+- [x] an ordinary model keeps the default provider client.
+- [x] an enabled connector with no adapter names itself rather than silently answering elsewhere.
+- [x] `internal/cli` (L6) importing `internal/provider/agentcli` (L5) satisfies the architecture
+  ratchet; full `make check` green.
+- [x] real-binary rehearsal in isolated directories produced both refusals verbatim.
+
+Open UX note, not fixed here: `newAgent` still requires an OpenRouter key before anything else, so a
+user whose only provider is a Claude subscription cannot start a session without also holding an
+OpenRouter key. That gate predates this leaf and needs its own decision.
 
 ### L13 managed local models — active detail
 
