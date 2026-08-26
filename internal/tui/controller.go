@@ -53,6 +53,7 @@ type Controller struct {
 	models          []ModelSpec
 	plans           []PlanSpec
 	commandHistory  *CommandHistory
+	files           []string
 	suggestionLimit int
 	suggestions     []CommandSpec
 	suggestionIndex int
@@ -131,6 +132,12 @@ func (c *Controller) SetCommands(commands []CommandSpec, recentLimit int) {
 	if c.commandHistory == nil {
 		c.commandHistory = NewCommandHistory(recentLimit)
 	}
+	c.updateSuggestions()
+}
+
+// SetFiles installs the project's files for `@` mention completion.
+func (c *Controller) SetFiles(files []string) {
+	c.files = append(c.files[:0], files...)
 	c.updateSuggestions()
 }
 
@@ -339,6 +346,14 @@ func (c *Controller) setLifecycle(lifecycle string) {
 }
 
 func (c *Controller) updateSuggestions() {
+	// Mentions are checked before commands: a draft containing an `@` is
+	// someone naming a file, whatever else is on the line.
+	if files := SuggestFiles(c.files, c.editor.Draft(), c.suggestionLimit); len(files) > 0 {
+		c.suggestions = files
+		c.suggestionIndex = -1
+		c.screen.SetSuggestions(c.suggestions)
+		return
+	}
 	if len(c.commands) == 0 {
 		c.clearSuggestions()
 		return

@@ -72,8 +72,12 @@ model — not its contents. Inlining contents at mention time would spend the wi
 model may not need and would race the jail: a path is checked when the tool runs, and a mention is
 not a tool call.
 
-Completion is `.gitignore`-aware where the project is a repository, because a completion list whose
-first twenty entries are `node_modules` is not completion.
+Completion reads `.gitignore` for the shapes people actually write — exact names, directory names,
+`*.ext` globs, a leading `/` to anchor — plus a built-in skip list, because a completion list whose
+first twenty entries are `node_modules` is not completion. It is deliberately a subset and not a
+gitignore implementation: negations are skipped, which errs toward offering fewer files, and that is
+the safe direction for a list whose only job is convenience. The project is walked once at startup;
+a walk per keystroke would be the completion making the composer feel slow.
 
 ### 3. Context and cost in the status line — build it
 

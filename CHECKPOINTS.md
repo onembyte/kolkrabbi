@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **G11.2 `@file` mentions** — `@` completes against the project, path not contents, ignoring what `.gitignore` and a skip list say to.
 - [x] **G11.1 diff preview before confirm** — an edit or a write shows the change, a create is visibly not an overwrite, and the overlay renders it line by line.
 - [x] **F14.6 the orchestrator slot reaches the orchestrator** — the planner and synthesis take the slot when set, instead of it only affecting `design` tasks.
 - [x] **F14.5 concurrency** — independent readers run three at a time over the dependency graph; anything that may write is serialised, and each task's output arrives whole.
@@ -1916,6 +1917,47 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### G11.2 `@file` mentions — verified detail
+
+**The path reaches the model, not the contents.** Inlining a file at mention time would spend the
+window on something the model may not need, and it would race the jail: a path is checked when the
+tool runs, and a mention is not a tool call. Naming the file and letting the model read it keeps one
+place where confinement is decided.
+
+**`internal/projectfiles` is a new L0 package and never returns an error.** That shapes it: an
+unreadable subtree is skipped, the list is capped, and when it cannot tell whether to offer a file it
+leaves it out. A completion list is allowed to be incomplete; a session that fails to start because a
+directory could not be walked is not.
+
+**The `.gitignore` support is an honest subset** — exact names, directory names, `*.ext`, a leading
+`/` to anchor — plus a built-in skip list for the directories that make a completion list useless.
+Negations are skipped, which errs toward offering fewer files. Getting a full gitignore
+implementation subtly wrong is worse than having an obvious subset, and the doc now says which one
+this is rather than claiming the general thing.
+
+**Only the mention being typed completes.** `a@b.com` is an email address; `@model and explain` is
+someone who has moved on. Completing either would be the composer rewriting text the person is no
+longer editing. My own test asserted mid-line completion should work, which contradicted the rule the
+rest of the tests assumed — the test was wrong and now states the real contract, with a second test
+pinning that a finished mention is left alone.
+
+The walk runs once at startup. A walk per keystroke would be the completion making the composer feel
+slow, which is the opposite of its purpose.
+
+Two `nilerr` findings on the walk callback, both fixed by naming the intent (`skipUnreadable`) rather
+than silencing the linter — an `if err != nil { return nil }` really is worth being made to justify.
+
+Acceptance checklist:
+
+- [x] files list as sorted slash paths, `.git` and heavy directories never appear.
+- [x] `.gitignore` names, directories and `*.ext` globs are honoured; `/` anchors to the root.
+- [x] the list is capped, and an unreadable root yields nothing rather than failing.
+- [x] `@` completes; an empty mention offers the project.
+- [x] completing rewrites only the mention, leaving the rest of the line alone.
+- [x] no mention, an email address, or a finished mention suggests nothing.
+- [x] mentions take precedence over command completion in the composer.
+- [x] full `make check` green: 1,893 tests, 0 lint issues, every script contract.
 
 ### G11.1 diff preview before confirm — verified detail
 

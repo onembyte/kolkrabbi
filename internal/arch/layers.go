@@ -75,19 +75,20 @@ var packageLayer = map[string]Layer{
 
 	// L0 — platform. Everything that knows what an OS is lives here and
 	// nowhere else. Most of these arrive at migration step 5.
-	"internal/buildinfo":  L0Platform,
-	"internal/paths":      L0Platform,
-	"internal/shell":      L0Platform,
-	"internal/atomicfile": L0Platform,
-	"internal/keystore":   L0Platform,
-	"internal/lock":       L0Platform,
-	"internal/diskspace":  L0Platform,
-	"internal/diff":       L0Platform,
-	"internal/redact":     L0Platform,
-	"internal/secret":     L0Platform,
-	"internal/selfupdate": L0Platform,
-	"internal/term":       L0Platform,
-	"internal/xid":        L0Platform,
+	"internal/buildinfo":    L0Platform,
+	"internal/paths":        L0Platform,
+	"internal/shell":        L0Platform,
+	"internal/atomicfile":   L0Platform,
+	"internal/keystore":     L0Platform,
+	"internal/lock":         L0Platform,
+	"internal/diskspace":    L0Platform,
+	"internal/diff":         L0Platform,
+	"internal/projectfiles": L0Platform,
+	"internal/redact":       L0Platform,
+	"internal/secret":       L0Platform,
+	"internal/selfupdate":   L0Platform,
+	"internal/term":         L0Platform,
+	"internal/xid":          L0Platform,
 
 	// L2 — the event journal and fan-out hinge.
 	"internal/bus": L2Hinge,

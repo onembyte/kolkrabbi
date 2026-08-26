@@ -29,6 +29,7 @@ type RuntimeOptions struct {
 	Commands []CommandSpec
 	Models   []ModelSpec
 	Plans    []PlanSpec
+	Files    []string
 	Turn     func(context.Context, string) error
 }
 
@@ -75,6 +76,7 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 	controller := NewController(options.Status, defaultDraftSize)
 	controller.SetCommands(options.Commands, 8)
 	controller.SetModels(options.Models)
+	controller.SetFiles(options.Files)
 	controller.SetPlans(options.Plans)
 	return &Runtime{
 		input: options.Input, controller: controller,

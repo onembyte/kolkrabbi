@@ -10,6 +10,7 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/paths"
+	"github.com/onembyte/kolkrabbi/internal/projectfiles"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/tui"
 	"github.com/onembyte/kolkrabbi/protocol"
@@ -54,6 +55,9 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 		Commands: slashSuggestions(),
 		Models:   models,
 		Plans:    tuiPlans(),
+		// Listed once at startup: a walk per keystroke would be the completion
+		// making the composer feel slow, which is the opposite of the point.
+		Files: projectfiles.List(projectRoot(), mentionCandidates),
 		Turn: func(turnContext context.Context, prompt string) error {
 			if strings.HasPrefix(strings.TrimSpace(prompt), "/") {
 				shouldExit := a.slash(turnContext, ag, strings.TrimSpace(prompt))
@@ -169,6 +173,10 @@ func compactWorkingFolder(cwd, home string) string {
 	}
 	return filepath.Join("~", relative)
 }
+
+// mentionCandidates bounds the completion list. Past a few hundred entries a
+// filtered menu is not helping anyone find a file.
+const mentionCandidates = 400
 
 type tuiDecider struct{ runtime *tui.Runtime }
 
