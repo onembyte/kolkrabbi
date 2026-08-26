@@ -164,7 +164,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **L13.5a `localia` status** — `kolk localia` and `/localia` report hardware, managed storage, and installed local models, and pull nothing.
 - [x] **L13.5b1 catalog and plan** — `localia models` lists what can be planned for, `localia plan <model>` shows every number the decision rested on and downloads nothing.
 - [x] **L13.5b2 pull approval** — `localia pull` plans, asks, and treats anything but an explicit yes as no.
-- [ ] **L13.5b3 managed sidecar install** — download a pinned, checksum-verified runtime into Kolkrabbi's own directory, then pull through it.
+- [x] **L13.5b3 verified runtime install** — the install path is built and tested; it refuses to run without a pinned checksum, and this build pins none.
+- [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
 
@@ -1036,6 +1037,51 @@ Correction worth recording: the first version of the cannot-fit test asserted th
 200 GiB free and a 15 GiB card — the model fits there comfortably. The test premise was wrong, not
 the code, and it was fixed by giving that one test a cramped machine rather than by changing the
 planner.
+
+### L13.5b3 verified runtime install — verified detail
+
+`InstallRuntime` places a pinned sidecar binary. Kolkrabbi starts this process itself, so this is
+the one path in the product that installs an executable Kolkrabbi then runs, and it is built to
+refuse rather than to cope.
+
+- **No checksum, no fetch.** A release without a pinned SHA-256 is refused *before* anything is
+  downloaded, because with nothing to verify against there is no way to judge what came back.
+- **Nothing reaches the destination unverified.** The download lands in a temporary file beside the
+  destination and is renamed only after the digest matches. A rejected download leaves nothing on
+  disk.
+- **A body larger than promised is stopped, not truncated.** Reading one byte past the declared size
+  makes an oversized response its own error rather than a checksum failure with a misleading reason.
+- **An install that is already correct is left alone**, so repeating the step costs nothing.
+- **Nothing is executed during installation.**
+
+The pin itself is deliberately empty, and that is the deliverable's honest edge. Filling it in means
+choosing a specific upstream build and recording the checksum of bytes someone actually reviewed. A
+plausible-looking URL with an unverified digest would be worse than nothing: it would turn
+"verified" into a word rather than a property. `PinnedRuntime` therefore reports "no release", and a
+test guards the dangerous middle state — a version and URL with no checksum reads as configured
+while verifying nothing, so the pin is complete or absent, never partial.
+
+`localia pull` says so plainly when approved:
+
+```
+this build pins no verified local runtime, so qwen2.5-coder:7b cannot be pulled;
+the install path is ready and waiting for a reviewed release to be recorded
+```
+
+Acceptance checklist:
+
+- [x] verified bytes are installed at mode 0755.
+- [x] a checksum mismatch refuses, names the mismatch, and leaves nothing behind.
+- [x] an unpinned release is refused without fetching at all.
+- [x] a body larger than its declared size is refused, and nothing is left on disk.
+- [x] three installs of the same version download once; a different binary is replaced once.
+- [x] a fetch failure is surfaced with its cause intact.
+- [x] the pin is complete or absent, and if present must be https with a 64-character digest.
+- [x] full `make check` green.
+
+**L13.5b4 is blocked on the owner, deliberately.** The remaining work is not code: pick an upstream
+runtime release, verify it, and record its version, URL and SHA-256 in `pinnedRuntime`. Everything
+around that line is written and tested.
 
 ### B12 Claude subscription backend — recorded detail
 
@@ -2574,7 +2620,7 @@ phase must close without leaving this file.
 | Phase | Items | Leaves | State |
 |---|---|---|---|
 | A finish the subscription path | 4, 24 | P11.7 ✓, B12.12 ✓, B12.14 ✓ | B12.13 needs the owner |
-| B managed local models | 25 | L13.4 ✓, L13.5a ✓, L13.5b1 ✓, L13.5b2 ✓, L13.5c ✓ | L13.5b3 open |
+| B managed local models | 25 | L13.4 ✓, L13.5a–c ✓, L13.5b3 ✓ | L13.5b4 needs the owner |
 | C sessions, context, memory | 12 | doc first, then leaves | queued — blocks D |
 | D the local dashboard | 17 | A12.1–A12.5 | queued |
 | E tools, permissions, sandboxing | 13 | doc first, then leaves | queued — blocks F |

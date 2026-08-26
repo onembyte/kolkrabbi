@@ -269,9 +269,11 @@ func (a *app) pullLocalModel(ctx context.Context, name string, approved bool) er
 	if _, err := os.Stat(runtime); err != nil {
 		// Kolkrabbi runs its own sidecar and never touches a host installation,
 		// so there is nothing to pull through until that runtime is installed.
-		// Installing it is its own approved step, not a side effect of this one.
-		return fmt.Errorf("the managed local runtime is not installed at %s, so %s cannot be pulled yet; installing it is a separate approved step",
-			runtime, entry.Name)
+		if _, pinned := local.PinnedRuntime(); !pinned {
+			return fmt.Errorf("this build pins no verified local runtime, so %s cannot be pulled; the install path is ready and waiting for a reviewed release to be recorded",
+				entry.Name)
+		}
+		return fmt.Errorf("the managed local runtime is not installed at %s; run `kolk localia runtime install` first", runtime)
 	}
 	return fmt.Errorf("the managed local runtime at %s cannot pull models yet", runtime)
 }
