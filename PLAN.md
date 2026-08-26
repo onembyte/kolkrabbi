@@ -390,7 +390,8 @@ backend only.
 **Hardened when:** TUI framework decision with a spike, keymap table, render spec, confirm UX.
 **Inputs:** `docs/research/ecosystem.md`, `docs/research/platform-strategy.md`
 
-### [ ] 12. Sessions, context & memory
+### [x] 12. Sessions, context & memory
+**Hardened 2026-08-26** ([`docs/plan/12-sessions-context-memory.md`](docs/plan/12-sessions-context-memory.md)): sessions stay JSON because the dependency budget hard-fails above two modules; compaction measures the window from provider-reported tokens, fires at 75%, drops old tool output first, stays reversible and visible, and an overflow error compacts and retries once.
 **Scope:** persistence, resume, compaction, memory files.
 **Today:** JSON sessions, atomic save, `-r`/`-s`, list/rm/clear, title from first input, dangling tool-call repair.
 **Decide:**

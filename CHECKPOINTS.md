@@ -2621,7 +2621,7 @@ phase must close without leaving this file.
 |---|---|---|---|
 | A finish the subscription path | 4, 24 | P11.7 ✓, B12.12 ✓, B12.14 ✓ | B12.13 needs the owner |
 | B managed local models | 25 | L13.4 ✓, L13.5a–c ✓, L13.5b3 ✓ | L13.5b4 needs the owner |
-| C sessions, context, memory | 12 | doc first, then leaves | queued — blocks D |
+| C sessions, context, memory | 12 | doc ✓, leaves next | building |
 | D the local dashboard | 17 | A12.1–A12.5 | queued |
 | E tools, permissions, sandboxing | 13 | doc first, then leaves | queued — blocks F |
 | F orchestration & per-task routing | 14 | doc first, then leaves | queued |
@@ -4036,7 +4036,8 @@ checkpoint is expanded. Status here mirrors [`PLAN.md`](PLAN.md); PLAN remains a
 - [x] 9 command surface — hardened; doc complete (docs/plan/09-command-surface.md), strict CLI/slash parity, <= 6 char verbs, stream-json, reserve list
 - [x] 10 saga — hardened; doc complete (docs/plan/10-saga-loop.md), chapter-by-chapter SAGA.md loop, shell quality gates, commit-on-green, doom-loop detector
 - [ ] 11 REPL/TUI
-- [ ] 12 sessions, context, and memory
+- [x] 12 sessions, context, and memory — hardened; doc complete (docs/plan/12-sessions-context-memory.md),
+  JSON storage kept, 75% compaction with tool output sacrificed first, overflow compacts and retries once
 - [ ] 13 tools, permissions, and sandboxing
 - [ ] 14 orchestration and per-task routing
 - [ ] 15 code-mode specifics
