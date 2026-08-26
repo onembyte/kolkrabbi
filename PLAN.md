@@ -430,7 +430,8 @@ backend only.
 **Hardened when:** orchestration state machine, routing table format, concurrency/confirm design, cost-cap rules.
 **Inputs:** `docs/research/ecosystem.md` (Hermes section)
 
-### [ ] 15. Code mode specifics (Claude Code-style loop, done right)
+### [x] 15. Code mode specifics (Claude Code-style loop, done right)
+**Hardened 2026-08-26** ([`docs/plan/15-code-mode.md`](docs/plan/15-code-mode.md)): further along than the bullet list suggests — unique-match edits, checkpoints, `/changes`, `/rewind`, `/effort` mid-task and (from G11.1) the diff preview and create-vs-overwrite guard are built. Three gaps worth building: `/rewind` restores files but leaves the conversation, so the model reasons about a tree that no longer matches its history; there is no way to see what actually changed; and no plan mode. Formatter hooks belong to item 16 where the permission story is the design, test-command detection is deferred, and LSP/tree-sitter are refused on the module budget. Whitespace-tolerant matching and multi-hunk edits are refused on principle: both trade reviewability for round trips.
 **Scope:** the coding experience: editing quality, feedback loops, repo awareness, plan-first.
 **Today:** read/write/edit/list/bash with unique-match edits; checkpoints; project memory.
 **Decide:**
