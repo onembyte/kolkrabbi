@@ -41,3 +41,14 @@ func TestTranslateRedactsDisplayText(t *testing.T) {
 		t.Fatalf("unredacted event = %+v", events)
 	}
 }
+
+func TestTranslateProjectsProviderToolUseWithoutExecutingIt(t *testing.T) {
+	events, err := Translate([]byte(`{"type":"assistant","message":{"content":[{"type":"tool_use","id":"toolu_1","name":"Read","input":{"path":"README.md"}}]}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || events[0].Kind != EventTool ||
+		events[0].ToolName != "Read" || events[0].ToolInput != `{"path":"README.md"}` {
+		t.Fatalf("tool event = %+v", events)
+	}
+}

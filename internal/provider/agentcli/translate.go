@@ -13,6 +13,7 @@ const (
 	EventInit             EventKind = "init"
 	EventMessageDelta     EventKind = "message.delta"
 	EventMessageCompleted EventKind = "message.completed"
+	EventTool             EventKind = "tool"
 	EventUsage            EventKind = "usage"
 	EventError            EventKind = "error"
 )
@@ -28,6 +29,8 @@ type Event struct {
 	CacheCreation int
 	CostUSD       float64
 	Error         string
+	ToolName      string
+	ToolInput     string
 }
 
 type wireFrame struct {
@@ -37,8 +40,11 @@ type wireFrame struct {
 	Message *struct {
 		Model   string `json:"model"`
 		Content []struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
+			Type  string          `json:"type"`
+			Text  string          `json:"text"`
+			ID    string          `json:"id"`
+			Name  string          `json:"name"`
+			Input json.RawMessage `json:"input"`
 		} `json:"content"`
 		Usage *wireUsage `json:"usage"`
 	} `json:"message"`
@@ -76,6 +82,12 @@ func Translate(line []byte) ([]Event, error) {
 		for _, block := range frame.Message.Content {
 			if block.Type == "text" && block.Text != "" {
 				events = append(events, Event{Kind: EventMessageDelta, Model: frame.Message.Model, Text: secret.Scrub(block.Text)})
+			}
+			if block.Type == "tool_use" && block.Name != "" {
+				events = append(events, Event{
+					Kind: EventTool, ToolName: block.Name,
+					ToolInput: secret.Scrub(string(block.Input)),
+				})
 			}
 		}
 		if frame.Message.Usage != nil {
