@@ -171,3 +171,57 @@ func TestSessionsSubcommandsRejectAnUnknownID(t *testing.T) {
 		}
 	}
 }
+
+func TestResumePrefersASessionFromThisDirectory(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	if err := dirs.EnsureData(); err != nil {
+		t.Fatal(err)
+	}
+	here := t.TempDir()
+
+	mine := session.New(dirs.Sessions(), "vendor/model")
+	mine.CWD = here
+	mine.Title = "this project"
+	if err := mine.Save(); err != nil {
+		t.Fatal(err)
+	}
+	newer := session.New(dirs.Sessions(), "vendor/model")
+	newer.CWD = t.TempDir()
+	newer.Title = "another project"
+	if err := newer.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(here)
+	a, _, _ := newTestApp("")
+	resumed, err := a.resolveSession(&options{resume: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resumed.Title != "this project" {
+		t.Fatalf("resumed %q, want the session started here", resumed.Title)
+	}
+}
+
+func TestResumeSaysWhenItReachesIntoAnotherProject(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	if err := dirs.EnsureData(); err != nil {
+		t.Fatal(err)
+	}
+	elsewhere := t.TempDir()
+	only := session.New(dirs.Sessions(), "vendor/model")
+	only.CWD = elsewhere
+	only.Title = "another project"
+	if err := only.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(t.TempDir())
+	a, out, _ := newTestApp("")
+	if _, err := a.resolveSession(&options{resume: true}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), elsewhere) {
+		t.Fatalf("output = %q, want the other project named", out.String())
+	}
+}

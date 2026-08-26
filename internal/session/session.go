@@ -45,6 +45,10 @@ type Session struct {
 	Model     string    `json:"model"`
 	Title     string    `json:"title"`
 	CreatedAt time.Time `json:"created_at"`
+	// CWD is the directory the session was started in. Sessions written before
+	// this field existed have none, which is why every match here is explicit
+	// rather than a comparison against the empty string.
+	CWD       string    `json:"cwd,omitempty"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Messages  []Message `json:"messages"`
 
@@ -100,12 +104,54 @@ func fromProvider(pm provider.Message) Message {
 // New creates a fresh, not-yet-saved session in dir.
 func New(dir, model string) *Session {
 	now := time.Now()
+	// A session belongs to the project it was started in. Failing to read the
+	// working directory leaves it empty, which simply means "no project",
+	// rather than tying the session to the wrong one.
+	cwd, _ := os.Getwd()
 	return &Session{
 		ID:        xid.New(xid.Session),
 		Model:     model,
 		CreatedAt: now,
+		CWD:       cwd,
 		dir:       dir,
 	}
+}
+
+// LatestForDir resumes this project's most recent session, falling back to the
+// most recent overall.
+//
+// Standing in a directory and asking to resume means the work done here, not
+// whatever happened to be typed last in another window. A session with no
+// recorded directory belongs to no project and is only ever reachable through
+// the fallback: matching it against every directory would make one old session
+// hijack resume everywhere.
+func LatestForDir(dir, cwd string) (*Session, error) {
+	all, err := List(dir)
+	if err != nil {
+		return nil, err
+	}
+	if len(all) == 0 {
+		return nil, nil
+	}
+	if cwd != "" {
+		for _, candidate := range all {
+			if candidate.CWD != "" && sameDir(candidate.CWD, cwd) {
+				return candidate, nil
+			}
+		}
+	}
+	return all[0], nil
+}
+
+// sameDir compares directories through symlinks, so /tmp and /private/tmp are
+// one project rather than two.
+func sameDir(a, b string) bool {
+	if filepath.Clean(a) == filepath.Clean(b) {
+		return true
+	}
+	resolvedA, errA := filepath.EvalSymlinks(a)
+	resolvedB, errB := filepath.EvalSymlinks(b)
+	return errA == nil && errB == nil && resolvedA == resolvedB
 }
 
 func (s *Session) path() string { return filepath.Join(s.dir, s.ID+".json") }

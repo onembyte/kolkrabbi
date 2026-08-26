@@ -360,12 +360,17 @@ func (a *app) resolveSession(o *options) (*session.Session, error) {
 			return nil, fmt.Errorf("cannot load session %s: %w (try `kolk sessions`)", o.session, err)
 		}
 	case o.resume:
-		sess, err = session.Latest(sdir)
+		cwd, _ := os.Getwd()
+		sess, err = session.LatestForDir(sdir, cwd)
 		if err != nil {
 			return nil, err
 		}
 		if sess == nil {
 			fmt.Fprintln(a.stdout, "no previous session found, starting a new one.")
+		} else if sess.CWD != "" && cwd != "" && filepath.Clean(sess.CWD) != filepath.Clean(cwd) {
+			// Resuming something started elsewhere is legitimate but surprising,
+			// so it is stated rather than discovered from the transcript.
+			fmt.Fprintf(a.stdout, "resuming a session started in %s\n", sess.CWD)
 		}
 	}
 	if sess == nil {

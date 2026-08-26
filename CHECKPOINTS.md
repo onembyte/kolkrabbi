@@ -170,6 +170,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **C12.2b compaction in the turn loop** — fires at a turn boundary, keeps the replaced conversation for undo, and says out loud what it gave up.
 - [x] **C12.2c overflow recovery and `/compact`** — a refusal for length is recovered once instead of losing the turn, and `/compact` / `/compact undo` put the control in the user's hands.
 - [x] **C12.3 session commands** — `sessions search|rename|fork|export`, with a mistyped id reported as the ordinary mistake it is.
+- [x] **C12.4 project-aware resume** — `kolk -r` resumes the work done in this directory, and says so when it reaches into another project.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
@@ -1286,6 +1287,38 @@ Acceptance checklist:
 - [x] fork carries the history, leaves the original byte-identical, and prints the id to resume with.
 - [x] Markdown export is readable and elides tool bodies; `--json` is the stored record.
 - [x] all three id-taking verbs reject an unknown id with guidance and without a path.
+- [x] full `make check` green.
+
+### C12.4 project-aware resume — verified detail
+
+`kolk -r` resumed whatever was typed last anywhere. Standing in a directory and asking to resume
+means the work done *here*, not whatever happened in another window, and on a machine with several
+projects the old behaviour reliably resumed the wrong one.
+
+Sessions now record the directory they were started in, and resume prefers this project's most
+recent session before falling back to the newest overall.
+
+Two details that matter more than they look:
+
+- **A session with no recorded directory matches nothing.** Sessions written before this field
+  existed have none, and treating empty as a wildcard would let one old session hijack resume in
+  every directory on the machine. They stay reachable through the fallback and by `-s`.
+- **Directories are compared through symlinks**, so `/tmp` and `/private/tmp` are one project rather
+  than two — the difference between a resume that works on macOS and one that silently does not.
+
+Reaching into another project is legitimate but surprising, so it is stated —
+`resuming a session started in /home/me/other` — rather than left to be inferred from a transcript
+about unfamiliar code.
+
+Acceptance checklist:
+
+- [x] a new session records where it was started.
+- [x] this project's session wins over a newer one from elsewhere.
+- [x] the newest overall is used when this project has none.
+- [x] a session written before the field existed is reachable only through the fallback.
+- [x] no sessions is not an error.
+- [x] resuming across projects names the other directory.
+- [x] the frozen v0 session fixture still loads unchanged.
 - [x] full `make check` green.
 
 ### B12 Claude subscription backend — recorded detail
