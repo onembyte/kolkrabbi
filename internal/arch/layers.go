@@ -99,6 +99,7 @@ var packageLayer = map[string]Layer{
 
 	// L5 — adapters: they implement the engine's ports.
 	"internal/provider/agentcli": L5Adapter,
+	"internal/local":             L5Adapter,
 	"internal/config":            L5Adapter,
 	"internal/session":           L5Adapter,
 	"internal/checkpoint":        L5Adapter,
