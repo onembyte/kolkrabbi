@@ -55,7 +55,7 @@ func VerifyChapterAndPersist(ctx context.Context, runner CommandRunner, repoDir 
 	artifactErr := SaveSagaArtifact(repoDir, state, write)
 	if artifactErr != nil {
 		if verifyErr != nil {
-			return fmt.Errorf("%v; persisting saga artifact: %w", verifyErr, artifactErr)
+			return fmt.Errorf("%w; persisting saga artifact: %w", verifyErr, artifactErr)
 		}
 		return fmt.Errorf("saga: persisting saga artifact: %w", artifactErr)
 	}

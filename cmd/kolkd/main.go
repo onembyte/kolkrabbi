@@ -38,7 +38,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "kolkd: event bus error: %v\n", err)
 		os.Exit(1)
 	}
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 
 	if *stdio {
 		if err := serve.ServeStdio(ctx, os.Stdin, os.Stdout, b); err != nil && !errors.Is(err, context.Canceled) {
@@ -53,7 +53,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "kolkd: listen error on %s: %v\n", *addr, err)
 		os.Exit(1)
 	}
-	defer l.Close()
+	defer func() { _ = l.Close() }()
 
 	srv, err := serve.New(serve.Options{
 		Bus:   b,

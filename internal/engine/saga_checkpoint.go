@@ -67,7 +67,7 @@ func VerifyAndCommitResult(ctx context.Context, runner CommandRunner, repoDir st
 func gateFailure(ctx context.Context, runner CommandRunner, repoDir string, cause error) error {
 	result, err := runner.Run(ctx, "git checkout -- .", repoDir)
 	if err != nil {
-		return fmt.Errorf("%w; rollback could not run: %v", cause, err)
+		return fmt.Errorf("%w; rollback could not run: %w", cause, err)
 	}
 	if result.Failure != "" || result.ExitCode != 0 {
 		return fmt.Errorf("%w; rollback failed: %s", cause, result.Failure)

@@ -18,7 +18,7 @@ type ClaudeBackend struct {
 
 func (b ClaudeBackend) StreamChat(ctx context.Context, model string, messages []provider.Message, tools []provider.Tool, onToken func(string)) (provider.Message, provider.Meta, error) {
 	if len(tools) > 0 {
-		return provider.Message{}, provider.Meta{Model: model}, fmt.Errorf("Claude provider-owned tools are not yet supported by this adapter")
+		return provider.Message{}, provider.Meta{Model: model}, fmt.Errorf("claude provider-owned tools are not yet supported by this adapter")
 	}
 	prompt, err := promptFromMessages(messages)
 	if err != nil {
@@ -67,7 +67,7 @@ func promptFromMessages(messages []provider.Message) (string, error) {
 		b.WriteString(message.Content)
 	}
 	if strings.TrimSpace(b.String()) == "" {
-		return "", fmt.Errorf("Claude requires at least one non-empty message")
+		return "", fmt.Errorf("claude requires at least one non-empty message")
 	}
 	return b.String(), nil
 }

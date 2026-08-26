@@ -18,8 +18,6 @@ func Listen(addr string) (net.Listener, error) {
 		_ = os.Remove(addr)
 		return net.Listen("unix", addr)
 	}
-	if strings.HasPrefix(addr, "tcp:") {
-		addr = strings.TrimPrefix(addr, "tcp:")
-	}
+	addr = strings.TrimPrefix(addr, "tcp:")
 	return net.Listen("tcp", addr)
 }

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -23,7 +24,7 @@ func TestServeStdioShutdownCleanly(t *testing.T) {
 	defer cancel()
 
 	err := a.runServe(ctx, []string{"--stdio"})
-	if err != nil && err != context.DeadlineExceeded && err != context.Canceled {
+	if err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
 		t.Fatalf("runServe --stdio error: %v", err)
 	}
 }

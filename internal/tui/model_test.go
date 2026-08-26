@@ -213,10 +213,10 @@ func TestScreenStripsTerminalControlSequencesFromUntrustedRegions(t *testing.T) 
 		t.Fatalf("sanitized transcript = %q", got.Transcript)
 	}
 	view := m.View(60, 12)
-	if strings.ContainsAny(view, "\x1b\r") || strings.Contains(view, "\nspoof") {
+	if strings.ContainsAny(view, "\x1b\r") {
 		t.Fatalf("untrusted region retained terminal controls: %q", view)
 	}
-	for _, want := range []string{"assistant safe", "🐙 thinking… spoof", "kolk-code spoof", "model model", "keepthis"} {
+	for _, want := range []string{"assistant safe", "🐙 thinking…", "spoof", "kolk-code spoof", "model model", "keepthis"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("sanitized view omitted %q: %q", want, view)
 		}

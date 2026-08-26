@@ -126,16 +126,16 @@ func TestRuntimeToolWorkUsesOnlyTheEphemeralActivityRegion(t *testing.T) {
 	runtime.spinClock = clock
 	stop := runtime.StartWork(context.Background(), "Reading file — PLAN.md")
 	got := runtime.Snapshot()
-	if got.Activity != "⠋" || got.Transcript != "" || got.Status.Lifecycle != "working" {
+	if got.Activity != spinnerFrames[0] || got.Transcript != "" || got.Status.Lifecycle != "working" {
 		t.Fatalf("tool activity regions = %#v", got)
 	}
-	if strings.Contains(got.Activity, "🐙") || strings.Contains(got.Activity, "thinking") ||
+	if strings.Contains(got.Activity, "⠋") || strings.Contains(got.Activity, "thinking") ||
 		strings.Contains(got.Activity, "Reading file") {
-		t.Fatalf("spinner leaked an icon or activity label: %q", got.Activity)
+		t.Fatalf("activity leaked an old spinner or label: %q", got.Activity)
 	}
 	timer := nextSpinnerTimer(t, clock, spinnerInterval)
 	timer.fire()
-	waitForActivity(t, runtime, "⠙")
+	waitForActivity(t, runtime, spinnerFrames[1])
 	stop()
 	if got := runtime.Snapshot(); got.Activity != "" || got.Transcript != "" {
 		t.Fatalf("stopped tool activity leaked into transcript: %#v", got)

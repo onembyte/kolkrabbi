@@ -27,7 +27,7 @@ func RunClaude(ctx context.Context, invocation ClaudeInvocation, onEvent func(Ev
 
 func runClaude(ctx context.Context, invocation ClaudeInvocation, run lineRunner, onEvent func(Event)) error {
 	if onEvent == nil {
-		return fmt.Errorf("Claude event handler is required")
+		return fmt.Errorf("claude event handler is required")
 	}
 	return run(ctx, "claude", invocation.Args, strings.NewReader(invocation.Prompt+"\n"), func(line []byte) error {
 		events, err := Translate(line)
@@ -45,7 +45,7 @@ func runClaude(ctx context.Context, invocation ClaudeInvocation, run lineRunner,
 // invocation. The provider CLI remains responsible for authentication.
 func BuildClaudeInvocation(model, effort, prompt string) (ClaudeInvocation, error) {
 	if strings.TrimSpace(prompt) == "" {
-		return ClaudeInvocation{}, fmt.Errorf("Claude prompt cannot be empty")
+		return ClaudeInvocation{}, fmt.Errorf("claude prompt cannot be empty")
 	}
 	args := []string{
 		"-p",

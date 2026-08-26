@@ -46,7 +46,7 @@ func Mux(opts Options) (http.Handler, error) {
 	// Health check
 	mux.HandleFunc("/v1/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"ok"}` + "\n"))
+		_, _ = w.Write([]byte(`{"status":"ok"}` + "\n"))
 	})
 
 	// SSE events endpoint

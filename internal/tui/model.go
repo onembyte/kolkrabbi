@@ -56,9 +56,9 @@ func (m *Model) AppendTranscript(chunk string) {
 	m.transcript = appendTranscriptBounded(m.transcript, sanitizeTerminalText(chunk), maxTranscriptBytes)
 }
 
-// SetActivity replaces the ephemeral lifecycle line without writing it into
-// scrollback.
-func (m *Model) SetActivity(activity string) { m.activity = sanitizeTerminalLine(activity) }
+// SetActivity replaces the ephemeral lifecycle region without writing it into
+// scrollback. Newlines allow small multi-row status sprites.
+func (m *Model) SetActivity(activity string) { m.activity = sanitizeTerminalText(activity) }
 
 // SetDraft replaces the composer contents exactly. Leading/trailing space and
 // newlines are meaningful input and are deliberately not normalized.
@@ -143,7 +143,9 @@ func (m *Model) viewRows(width, height, cursor int) []viewRow {
 	}
 	activity := []viewRow{}
 	if m.activity != "" {
-		activity = []viewRow{{text: clipLine(m.activity, width), style: stylePurple}}
+		for _, line := range strings.Split(m.activity, "\n") {
+			activity = append(activity, viewRow{text: clipLine(line, width), style: stylePurple})
+		}
 	}
 	statusLine := []viewRow{}
 	for _, status := range formatStatus(m.status) {

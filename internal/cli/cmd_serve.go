@@ -31,7 +31,7 @@ func (a *app) runServe(ctx context.Context, args []string) error {
 	if err != nil {
 		return fmt.Errorf("initializing event bus: %w", err)
 	}
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 
 	if *stdio {
 		return serve.ServeStdio(ctx, os.Stdin, a.stdout, b)
@@ -41,7 +41,7 @@ func (a *app) runServe(ctx context.Context, args []string) error {
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", *addr, err)
 	}
-	defer l.Close()
+	defer func() { _ = l.Close() }()
 
 	srv, err := serve.New(serve.Options{
 		Bus:   b,

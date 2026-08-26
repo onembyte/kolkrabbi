@@ -58,7 +58,7 @@ HOME_DIR="$WORK/home"
 STAGE_ROOT="$WORK/stage"
 mkdir -p "$RELEASES" "$FAKEBIN" "$HOME_DIR" "$STAGE_ROOT"
 
-VERSION=1.1.5
+VERSION=1.1.10
 for target in darwin_amd64 darwin_arm64 linux_amd64 linux_arm64; do
   payload="$WORK/payload-$target"
   mkdir -p "$payload"

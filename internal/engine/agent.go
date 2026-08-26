@@ -8,8 +8,6 @@ package engine
 import (
 	"bufio"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -433,12 +431,6 @@ func (a *Agent) RateLast(rating int) error {
 		return fmt.Errorf("stats are disabled")
 	}
 	return a.Recorder.RecordRating(a.Sess.SessionID(), a.lastTurnID, rating)
-}
-
-func newTurnID() string {
-	b := make([]byte, 4)
-	rand.Read(b)
-	return hex.EncodeToString(b)
 }
 
 func (a *Agent) confirm(ctx context.Context, action, detail string) bool {

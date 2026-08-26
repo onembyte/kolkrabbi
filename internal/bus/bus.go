@@ -154,7 +154,7 @@ func New(session string, options Options) (*Bus, error) {
 			if err != nil {
 				return nil, err
 			}
-			defer f.Close()
+			defer func() { _ = f.Close() }()
 
 			err = protocol.DecodeStream(f, protocol.StreamNDJSON, func(env protocol.Envelope) error {
 				if env.Session != session {
@@ -314,7 +314,7 @@ func (b *Bus) readSpillAfter(afterSeq uint64) ([]protocol.Envelope, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var envelopes []protocol.Envelope
 	err = protocol.DecodeStream(f, protocol.StreamNDJSON, func(env protocol.Envelope) error {

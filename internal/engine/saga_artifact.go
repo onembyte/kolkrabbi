@@ -251,17 +251,17 @@ func ParseSagaMarkdown(data string) (*SagaState, error) {
 					s.Status = strings.TrimSpace(val[:idx])
 					inner := val[idx+1:]
 					if cidx := strings.Index(inner, "Chapter "); cidx != -1 {
-						fmt.Sscanf(inner[cidx:], "Chapter %d / %d", &s.ActiveChapter, &s.MaxChapters)
+						_, _ = fmt.Sscanf(inner[cidx:], "Chapter %d / %d", &s.ActiveChapter, &s.MaxChapters)
 					}
 				} else {
 					s.Status = val
 				}
 			} else if strings.HasPrefix(line, "- **Cumulative Cost**:") {
 				val := strings.TrimSpace(strings.TrimPrefix(line, "- **Cumulative Cost**:"))
-				fmt.Sscanf(val, "$%f / $%f", &s.CumulativeCost, &s.CostLimit)
+				_, _ = fmt.Sscanf(val, "$%f / $%f", &s.CumulativeCost, &s.CostLimit)
 			} else if strings.HasPrefix(line, "- **Strikes**:") {
 				val := strings.TrimSpace(strings.TrimPrefix(line, "- **Strikes**:"))
-				fmt.Sscanf(val, "%d / %d", &s.Strikes, &s.MaxStrikes)
+				_, _ = fmt.Sscanf(val, "%d / %d", &s.Strikes, &s.MaxStrikes)
 			}
 		case "Acceptance Criteria":
 			if strings.HasPrefix(line, "- [") && len(line) > 5 {
@@ -290,7 +290,7 @@ func ParseSagaMarkdown(data string) (*SagaState, error) {
 					currentChapter.Commit = strings.Trim(val, "`")
 				} else if strings.HasPrefix(line, "- **Cost**:") {
 					val := strings.TrimSpace(strings.TrimPrefix(line, "- **Cost**:"))
-					fmt.Sscanf(val, "$%f · %ds", &currentChapter.CostUSD, &currentChapter.DurationSec)
+					_, _ = fmt.Sscanf(val, "$%f · %ds", &currentChapter.CostUSD, &currentChapter.DurationSec)
 				}
 			}
 		case "Open Risks & Notes":

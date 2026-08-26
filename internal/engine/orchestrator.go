@@ -34,8 +34,6 @@ func maxTasksFor(effort string) int {
 	}
 }
 
-const maxSubagentRounds = 12 // tool-loop iterations per subagent, runaway guard
-
 // runOrchestrated is agent mode: a planner decomposes the request into
 // tasks, each task runs in an isolated subagent with its own context (zero
 // context cost to the main conversation), and a synthesis call produces the

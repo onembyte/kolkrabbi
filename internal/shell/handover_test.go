@@ -2,6 +2,7 @@ package shell
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -16,7 +17,7 @@ func TestHandoverRejectsMissingProviderCLI(t *testing.T) {
 func TestHandoverHonoursCancelledContextBeforeStarting(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := Handover(ctx, "kolk-provider-does-not-exist", nil, ""); err != context.Canceled {
+	if err := Handover(ctx, "kolk-provider-does-not-exist", nil, ""); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Handover error = %v, want context cancellation", err)
 	}
 }

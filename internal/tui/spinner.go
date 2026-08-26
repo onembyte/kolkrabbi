@@ -4,7 +4,14 @@ import "time"
 
 const spinnerInterval = 120 * time.Millisecond
 
-var spinnerFrames = [...]string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+// octopusFrames are compact terminal pixel-art sprites. Each frame is kept
+// monochrome here; the TUI applies its purple activity style at render time.
+var spinnerFrames = [...]string{
+	"  ▄██▄  \n ▐●██●▌ \n▗▟████▙▖\n ▙▟▙▟▙▟ ",
+	"  ▄██▄  \n ▐●██●▌ \n▗▟████▙▖\n▙▟▙▟▙▟  ",
+	"  ▄██▄  \n ▐●██●▌ \n▗▟████▙▖\n ▙▟▙▟▙▟ ",
+	"  ▄██▄  \n ▐●██●▌ \n▗▟████▙▖\n  ▙▟▙▟▙▟",
+}
 
 type spinnerTimer interface {
 	C() <-chan time.Time

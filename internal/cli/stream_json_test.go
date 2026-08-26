@@ -20,6 +20,9 @@ func TestSingleShotStreamJSONOutputsNDJSONEnvelopes(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("OPENROUTER_API_KEY", "sk-or-v1-testkey123")
+	t.Setenv(paths.EnvConfigDir, filepath.Join(home, "config"))
+	t.Setenv(paths.EnvDataDir, filepath.Join(home, "data"))
+	t.Setenv(paths.EnvCacheDir, filepath.Join(home, "cache"))
 
 	d, err := paths.Resolve()
 	if err != nil {
