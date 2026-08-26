@@ -17,7 +17,7 @@ type options struct {
 	session      string
 	baseURL      string
 	prompt       string
-	yolo         bool
+	permission   string
 	resume       bool
 	outputFormat string
 	rest         []string // positional words, joined into the prompt
@@ -49,8 +49,9 @@ var flagTable = []flagDef{
 		set: func(o *options, v string) { o.session = v }},
 	{long: "resume", short: "r", summary: "resume the most recent session",
 		set: func(o *options, _ string) { o.resume = true }},
-	{long: "yolo", short: "y", summary: "auto-approve every tool action for this run",
-		set: func(o *options, _ string) { o.yolo = true }},
+	{long: "permission", short: "P", arg: "<ask|auto-approve|full-auto>",
+		summary: "how much may happen without asking (default ask)",
+		set:     func(o *options, v string) { o.permission = v }},
 	{long: "base-url", arg: "<url>", summary: "any OpenAI-compatible endpoint (Ollama, LiteLLM, vLLM, mock)",
 		set: func(o *options, v string) { o.baseURL = v }},
 }

@@ -36,8 +36,10 @@ var slashCommandTable = []slashCommand{
 	{"dash", "[--addr 127.0.0.1:0]", "open the local usage dashboard in a browser"},
 	{"version", "[--json]", "print the running build"},
 	{"rate", "<1-5>", "rate the last turn for local stats"},
-	{"auto-approve", "[on|off]", "control tool confirmations for this session"},
-	{"yolo", "", "toggle auto-approval for this session"},
+	{"permissions", "[ask|auto-approve|full-auto]", "see or choose how much may happen without asking"},
+	{"ask", "", "confirm before changing a file or running a command"},
+	{"auto-approve", "", "edit inside the project without asking; still ask before commands"},
+	{"full-auto", "", "stop asking; the floor still refuses"},
 	{"new", "", "start a fresh saved session"},
 	{"clear", "", "alias for /new"},
 	{"session", "", "show the current session id and file"},
@@ -178,22 +180,14 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			fmt.Fprintln(a.stdout, "  "+p)
 		}
 		fmt.Fprintln(a.stdout, "\033[2mnote: files only — the conversation history is unchanged.\033[0m")
-	case "/yolo":
-		ag.Yolo = !ag.Yolo
-		if ag.Yolo {
-			fmt.Fprintln(a.stdout, "yolo mode: true — this process only; start another with `kolk --yolo`")
-		} else {
-			fmt.Fprintln(a.stdout, "yolo mode: false — tool actions will ask first")
+	case "/permissions", "/permission":
+		if strings.TrimSpace(arg) == "" {
+			a.showPermissions(ag)
+			break
 		}
-	case "/auto-approve":
-		switch arg {
-		case "", "on":
-			a.setAutoApprove(ag, true)
-		case "off":
-			a.setAutoApprove(ag, false)
-		default:
-			fmt.Fprintln(a.stdout, "usage: /auto-approve [on|off]")
-		}
+		a.setPermission(ag, strings.TrimSpace(arg))
+	case "/ask", "/auto-approve", "/full-auto":
+		a.setPermission(ag, strings.TrimPrefix(cmd, "/"))
 	case "/model":
 		if arg == "" {
 			fmt.Fprintf(a.stdout, "current model: %s\n", ag.Model)
@@ -299,11 +293,49 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 	return false
 }
 
-func (a *app) setAutoApprove(ag *engine.Agent, enabled bool) {
-	ag.Yolo = enabled
-	if enabled {
-		fmt.Fprintln(a.stdout, "auto-approve: on — tool actions will run without confirmation; this process only; start another with `kolk --yolo`")
+// permissionTiers is the whole permission model, in the order a person should
+// read it: safest first.
+var permissionTiers = []struct {
+	tier    engine.Permission
+	summary string
+}{
+	{engine.PermissionAsk, "asks before changing a file or running a command"},
+	{engine.PermissionAutoApprove, "edits inside the project without asking; still asks before running a command or leaving the project"},
+	{engine.PermissionFullAuto, "stops asking; still refuses the floor and logs every step outside the project"},
+}
+
+// showPermissions lists the tiers and marks the active one.
+func (a *app) showPermissions(ag *engine.Agent) {
+	fmt.Fprintln(a.stdout, "permission tiers — choose with /permissions <tier>, or /ask, /auto-approve, /full-auto")
+	for _, entry := range permissionTiers {
+		marker := "  "
+		if ag.Permission == entry.tier {
+			marker = "→ "
+		}
+		fmt.Fprintf(a.stdout, "%s%-13s %s\n", marker, entry.tier, entry.summary)
+	}
+	fmt.Fprintln(a.stdout, "\nno tier removes the floor: credential files, system directories, sudo,")
+	fmt.Fprintln(a.stdout, "piping a download into a shell and unrecoverable deletes are refused in all three.")
+}
+
+// setPermission moves the session to one tier and says what that now means.
+func (a *app) setPermission(ag *engine.Agent, name string) {
+	tier, ok := engine.NormalizePermission(name)
+	if !ok {
+		fmt.Fprintf(a.stdout, "%q is not a tier.\n", name)
+		a.showPermissions(ag)
 		return
 	}
-	fmt.Fprintln(a.stdout, "auto-approve: off — tool actions will ask first")
+	ag.Permission = tier
+	for _, entry := range permissionTiers {
+		if entry.tier == tier {
+			fmt.Fprintf(a.stdout, "permission: %s — %s\n", tier, entry.summary)
+		}
+	}
+	if tier == engine.PermissionFullAuto {
+		// The moment to say it is not unlimited is the moment someone asks for
+		// the most permissive tier.
+		fmt.Fprintln(a.stdout, "Kolkrabbi still refuses credential files, system directories, sudo, downloads piped into a shell and unrecoverable deletes.")
+	}
+	fmt.Fprintln(a.stdout, "this process only; start another with `kolk --permission "+string(tier)+"`")
 }

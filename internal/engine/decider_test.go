@@ -3,11 +3,13 @@ package engine
 import (
 	"bufio"
 	"context"
+	"io"
 	"strings"
 	"testing"
 
 	"github.com/onembyte/kolkrabbi/internal/bus"
 	"github.com/onembyte/kolkrabbi/internal/enginetest"
+	"github.com/onembyte/kolkrabbi/internal/tools"
 	"github.com/onembyte/kolkrabbi/internal/xid"
 	"github.com/onembyte/kolkrabbi/protocol"
 )
@@ -47,14 +49,32 @@ func TestDeciderOwnsInteractiveConfirmationAheadOfTheLegacyReader(t *testing.T) 
 	}
 }
 
-func TestYoloBypassesTheDecider(t *testing.T) {
+// confirm has no bypass of its own any more. Whether to ask is decided in one
+// place, by the permission tier, so there is no second path that can quietly
+// disagree with the first.
+func TestConfirmAlwaysAsksTheDecider(t *testing.T) {
 	decider := &recordingDecider{}
-	ag := New(Options{Sess: enginetest.NewFakeSession("s_1", "model"), Yolo: true, Decider: decider})
-	if !ag.confirm(context.Background(), "write", "file") {
-		t.Fatal("yolo did not approve")
+	ag := New(Options{Sess: enginetest.NewFakeSession("s_1", "model"), Permission: PermissionFullAuto, Decider: decider})
+
+	ag.confirm(context.Background(), "write", "file")
+
+	if decider.calls != 1 {
+		t.Fatalf("confirm consulted the decider %d times, want exactly one", decider.calls)
+	}
+}
+
+func TestFullAutoNeverReachesTheDecider(t *testing.T) {
+	decider := &recordingDecider{}
+	ag := New(Options{
+		Sess:       enginetest.NewFakeSession("s_1", "model"),
+		Permission: PermissionFullAuto, Decider: decider, Root: "/p", Out: io.Discard,
+	})
+
+	if !ag.guard(context.Background())(tools.Request{Tool: "bash", Command: "go test ./..."}) {
+		t.Fatal("full-auto did not allow an ordinary command")
 	}
 	if decider.calls != 0 {
-		t.Fatalf("yolo consulted the decider %d times", decider.calls)
+		t.Fatalf("full-auto asked %d times", decider.calls)
 	}
 }
 

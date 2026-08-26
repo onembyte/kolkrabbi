@@ -49,7 +49,7 @@ func TestPipedStdinRunsSingleShot(t *testing.T) {
 		"-p", "review this diff",
 		"--base-url", srv.URL,
 		"--model", "mock/model",
-		"-y",
+		"--permission", "full-auto",
 	}
 
 	if code := app.main(context.Background(), args); code != ExitOK {
@@ -97,7 +97,7 @@ func TestPipedStdinWithoutPromptFlagRunsSingleShot(t *testing.T) {
 	args := []string{
 		"--base-url", srv.URL,
 		"--model", "mock/model",
-		"-y",
+		"--permission", "full-auto",
 	}
 
 	if code := app.main(context.Background(), args); code != ExitOK {

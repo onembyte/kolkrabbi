@@ -47,7 +47,7 @@ func newTestAgentInternal(t *testing.T, srv *enginetest.Server, mode string) (*A
 	rec := &fakeRecorder{}
 	var out bytes.Buffer
 	ag := New(Options{
-		Client: client, Model: "mock/model", Mode: mode, Yolo: true,
+		Client: client, Model: "mock/model", Mode: mode, Permission: PermissionFullAuto,
 		Sess: sess, Out: &out, Recorder: rec,
 	})
 	return ag, &out, sess, rec

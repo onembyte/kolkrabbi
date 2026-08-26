@@ -12,7 +12,7 @@ _kolk_completions() {
     _init_completion || return
 
     local verbs="key model effort mode config update stats serve version help completion"
-    local flags="-m --model -e --effort --mode -p --print -y --yolo -r --resume -s --session --output-format"
+    local flags="-m --model -e --effort --mode -p --print -P --permission -r --resume -s --session --output-format"
     local efforts="low medium high max 1 2 3 4"
     local models="sonnet haiku opus gpt flash pro deepseek coder free auto"
     local modes="chat code agent"
@@ -77,7 +77,7 @@ _kolk() {
         '(-e --effort)'{-e,--effort}'[select model tier]:effort:(low medium high max 1 2 3 4)' \
         '--mode[operational mode]:mode:(chat code agent)' \
         '(-p --print)'{-p,--print}'[single-shot prompt]:prompt:' \
-        '(-y --yolo)'{-y,--yolo}'[auto-approve tool execution]' \
+        '(-P --permission)'{-P,--permission}'[how much may happen without asking]:tier:(ask auto-approve full-auto)' \
         '(-r --resume)'{-r,--resume}'[resume most recent session]' \
         '(-s --session)'{-s,--session}'[resume specific session]:session:' \
         '1: :->verb' \
@@ -138,7 +138,7 @@ complete -c kolk -s m -l model -d "use specific model" -x -a "sonnet haiku opus 
 complete -c kolk -s e -l effort -d "select model tier" -x -a "low medium high max 1 2 3 4"
 complete -c kolk -l mode -d "operational mode" -x -a "chat code agent"
 complete -c kolk -s p -l print -d "single-shot prompt"
-complete -c kolk -s y -l yolo -d "auto-approve tool execution"
+complete -c kolk -s P -l permission -d "how much may happen without asking" -x -a "ask auto-approve full-auto"
 complete -c kolk -s r -l resume -d "resume most recent session"
 `
 

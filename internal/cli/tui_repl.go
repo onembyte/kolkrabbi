@@ -126,9 +126,11 @@ func tuiWelcome(messageCount int) string {
 }
 
 func tuiStatus(ag *engine.Agent, lifecycle, folder string) tui.Status {
-	approval := "ask"
-	if ag.Yolo {
-		approval = "auto"
+	// The status line carries the tier verbatim: a session that will not stop
+	// to ask should say so where the user is already looking.
+	approval := string(ag.Permission)
+	if approval == "" {
+		approval = string(engine.DefaultPermission)
 	}
 	model := ag.ModelForEffort(ag.Effort)
 	sessID, sessTitle := "", ""

@@ -44,7 +44,7 @@ func TestSingleShotStreamJSONOutputsNDJSONEnvelopes(t *testing.T) {
 		"--output-format", "stream-json",
 		"--base-url", srv.URL,
 		"--model", "mock/model",
-		"-y",
+		"--permission", "full-auto",
 	}
 
 	if err := app.runDefault(context.Background(), args); err != nil {

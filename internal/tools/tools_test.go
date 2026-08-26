@@ -8,20 +8,23 @@ import (
 	"testing"
 )
 
-func alwaysAllow(action, detail string) bool { return true }
-func alwaysDeny(action, detail string) bool  { return false }
+// allowAll is the default policy: a nil guard permits everything, which is
+// what a caller with no policy expects.
+func allowAll() Options { return Options{} }
+
+func denyAll() Options { return Options{Guard: func(Request) bool { return false }} }
 
 func TestWriteReadEditFile(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "sub", "hello.txt")
 
 	// write_file should create parent dirs
-	_, err := Execute(context.Background(), "write_file", `{"path":"`+jsonEsc(p)+`","content":"line one\nline two\n"}`, alwaysAllow, nil)
+	_, err := Execute(context.Background(), "write_file", `{"path":"`+jsonEsc(p)+`","content":"line one\nline two\n"}`, allowAll())
 	if err != nil {
 		t.Fatalf("write_file: %v", err)
 	}
 
-	out, err := Execute(context.Background(), "read_file", `{"path":"`+jsonEsc(p)+`"}`, alwaysAllow, nil)
+	out, err := Execute(context.Background(), "read_file", `{"path":"`+jsonEsc(p)+`"}`, allowAll())
 	if err != nil {
 		t.Fatalf("read_file: %v", err)
 	}
@@ -30,7 +33,7 @@ func TestWriteReadEditFile(t *testing.T) {
 	}
 
 	// edit_file: unique replace should succeed
-	_, err = Execute(context.Background(), "edit_file", `{"path":"`+jsonEsc(p)+`","old_str":"line one","new_str":"LINE ONE"}`, alwaysAllow, nil)
+	_, err = Execute(context.Background(), "edit_file", `{"path":"`+jsonEsc(p)+`","old_str":"line one","new_str":"LINE ONE"}`, allowAll())
 	if err != nil {
 		t.Fatalf("edit_file: %v", err)
 	}
@@ -40,13 +43,13 @@ func TestWriteReadEditFile(t *testing.T) {
 	}
 
 	// edit_file: non-existent old_str should error
-	_, err = Execute(context.Background(), "edit_file", `{"path":"`+jsonEsc(p)+`","old_str":"nope","new_str":"x"}`, alwaysAllow, nil)
+	_, err = Execute(context.Background(), "edit_file", `{"path":"`+jsonEsc(p)+`","old_str":"nope","new_str":"x"}`, allowAll())
 	if err == nil {
 		t.Error("expected error for missing old_str, got nil")
 	}
 
 	// write_file should refuse when confirm denies
-	_, err = Execute(context.Background(), "write_file", `{"path":"`+jsonEsc(p)+`","content":"nope"}`, alwaysDeny, nil)
+	_, err = Execute(context.Background(), "write_file", `{"path":"`+jsonEsc(p)+`","content":"nope"}`, denyAll())
 	if err == nil {
 		t.Error("expected error when confirm denies write, got nil")
 	}
@@ -57,7 +60,7 @@ func TestEditFile_NonUniqueMatch(t *testing.T) {
 	p := filepath.Join(dir, "dup.txt")
 	os.WriteFile(p, []byte("foo\nfoo\n"), 0o644)
 
-	_, err := Execute(context.Background(), "edit_file", `{"path":"`+jsonEsc(p)+`","old_str":"foo","new_str":"bar"}`, alwaysAllow, nil)
+	_, err := Execute(context.Background(), "edit_file", `{"path":"`+jsonEsc(p)+`","old_str":"foo","new_str":"bar"}`, allowAll())
 	if err == nil || !strings.Contains(err.Error(), "not unique") {
 		t.Errorf("expected 'not unique' error, got: %v", err)
 	}
@@ -68,7 +71,7 @@ func TestListDir(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("x"), 0o644)
 	os.Mkdir(filepath.Join(dir, "sub"), 0o755)
 
-	out, err := Execute(context.Background(), "list_dir", `{"path":"`+jsonEsc(dir)+`"}`, alwaysAllow, nil)
+	out, err := Execute(context.Background(), "list_dir", `{"path":"`+jsonEsc(dir)+`"}`, allowAll())
 	if err != nil {
 		t.Fatalf("list_dir: %v", err)
 	}
@@ -78,7 +81,7 @@ func TestListDir(t *testing.T) {
 }
 
 func TestBash(t *testing.T) {
-	out, err := Execute(context.Background(), "bash", `{"command":"echo hello_kolk","description":"say hello"}`, alwaysAllow, nil)
+	out, err := Execute(context.Background(), "bash", `{"command":"echo hello_kolk","description":"say hello"}`, allowAll())
 	if err != nil {
 		t.Fatalf("bash: %v", err)
 	}
@@ -86,7 +89,7 @@ func TestBash(t *testing.T) {
 		t.Errorf("bash output = %q, want it to contain hello_kolk", out)
 	}
 
-	_, err = Execute(context.Background(), "bash", `{"command":"echo nope","description":"nope"}`, alwaysDeny, nil)
+	_, err = Execute(context.Background(), "bash", `{"command":"echo nope","description":"nope"}`, denyAll())
 	if err == nil {
 		t.Error("expected error when confirm denies bash, got nil")
 	}
@@ -112,7 +115,7 @@ func TestPreWriteHook(t *testing.T) {
 		}
 		return nil
 	}
-	_, err := Execute(context.Background(), "write_file", `{"path":"`+jsonEsc(p)+`","content":"changed"}`, alwaysAllow, pre)
+	_, err := Execute(context.Background(), "write_file", `{"path":"`+jsonEsc(p)+`","content":"changed"}`, Options{PreWrite: pre})
 	if err != nil {
 		t.Fatalf("write_file with pre hook: %v", err)
 	}
@@ -122,7 +125,7 @@ func TestPreWriteHook(t *testing.T) {
 
 	// a failing hook must abort the operation and leave the file untouched
 	failing := func(tool, path string) error { return os.ErrPermission }
-	_, err = Execute(context.Background(), "edit_file", `{"path":"`+jsonEsc(p)+`","old_str":"changed","new_str":"nope"}`, alwaysAllow, failing)
+	_, err = Execute(context.Background(), "edit_file", `{"path":"`+jsonEsc(p)+`","old_str":"changed","new_str":"nope"}`, Options{PreWrite: failing})
 	if err == nil {
 		t.Fatal("expected error when pre hook fails, got nil")
 	}

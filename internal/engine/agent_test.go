@@ -31,7 +31,7 @@ func newTestAgent(t *testing.T, srv *enginetest.Server, mode string) (*engine.Ag
 	}
 	var out bytes.Buffer
 	ag := engine.New(engine.Options{
-		Client: client, Model: "mock/model", Mode: mode, Yolo: true,
+		Client: client, Model: "mock/model", Mode: mode, Permission: engine.PermissionFullAuto,
 		Sess: sess, Ckpt: ckpt, Out: &out, Recorder: stats.NewStore(statsDir),
 	})
 	return ag, &out, sdir, statsDir
@@ -280,7 +280,7 @@ func TestE2E_DanglingToolCallsRepairedOnStartup(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	ag := engine.New(engine.Options{Client: client, Model: "mock/model", Yolo: true, Sess: loaded, Out: &out})
+	ag := engine.New(engine.Options{Client: client, Model: "mock/model", Permission: engine.PermissionFullAuto, Sess: loaded, Out: &out})
 
 	loadedMsgs := loaded.GetMessages()
 	last := loadedMsgs[len(loadedMsgs)-1]
@@ -328,12 +328,12 @@ func TestE2E_RunTurnEmitsProtocolEventsToBus(t *testing.T) {
 
 	var out bytes.Buffer
 	ag := engine.New(engine.Options{
-		Client: client,
-		Model:  "mock/model",
-		Yolo:   true,
-		Sess:   sess,
-		Out:    &out,
-		Bus:    b,
+		Client:     client,
+		Model:      "mock/model",
+		Permission: engine.PermissionFullAuto,
+		Sess:       sess,
+		Out:        &out,
+		Bus:        b,
 	})
 
 	if err := ag.RunTurn(context.Background(), "hi"); err != nil {

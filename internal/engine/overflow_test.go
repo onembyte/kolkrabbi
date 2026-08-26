@@ -87,7 +87,7 @@ func TestATurnRecoversOnceFromAnOverLongRequest(t *testing.T) {
 	var out strings.Builder
 	agent := New(Options{
 		Out: &out, Mode: ModeChat, Sess: session, Model: "vendor/model",
-		ContextWindow: 20_000, Backend: backend, Yolo: true,
+		ContextWindow: 20_000, Backend: backend, Permission: PermissionFullAuto,
 	})
 
 	if err := agent.RunTurn(context.Background(), "carry on"); err != nil {
@@ -123,7 +123,7 @@ func TestATurnDoesNotRetryOverflowForever(t *testing.T) {
 	var out strings.Builder
 	agent := New(Options{
 		Out: &out, Mode: ModeChat, Sess: session, Model: "vendor/model",
-		ContextWindow: 20_000, Backend: backend, Yolo: true,
+		ContextWindow: 20_000, Backend: backend, Permission: PermissionFullAuto,
 	})
 
 	if err := agent.RunTurn(context.Background(), "carry on"); err == nil {

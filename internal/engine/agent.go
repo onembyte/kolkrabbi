@@ -161,15 +161,20 @@ type WorkIndicator interface {
 
 // Options configures an Agent; zero values get sensible defaults.
 type Options struct {
-	Client   *provider.Client
-	Backend  ChatBackend
-	Model    string // the session's base model
-	Mode     string // chat | code | agent (default code)
-	Effort   string // quick | standard | deep | ultra (default standard)
-	Yolo     bool
+	Client  *provider.Client
+	Backend ChatBackend
+	Model   string // the session's base model
+	Mode    string // chat | code | agent (default code)
+	Effort  string // quick | standard | deep | ultra (default standard)
+	// Permission is how much may happen without asking. It never removes the
+	// floor: no tier allows an action the hardline rules refuse.
+	Permission Permission
+	// Root confines file tools. Empty disables confinement, which only tests
+	// and scripts should ever want.
+	Root     string
 	Sess     SessionPort
 	Ckpt     Checkpointer  // may be nil (checkpointing disabled)
-	In       *bufio.Reader // shared stdin reader; may be nil with Yolo
+	In       *bufio.Reader // shared stdin reader; may be nil when nothing asks
 	Out      io.Writer     // defaults to os.Stdout
 	Recorder Recorder      // records stats/ratings; nil disables stats
 	Clock    Clock         // nil defaults to time.Now
@@ -240,6 +245,18 @@ func New(o Options) *Agent {
 	}
 	if o.Mode == "" {
 		o.Mode = ModeCode
+	}
+	if o.Permission == "" {
+		// The safe tier is the default. Every other tier is something the user
+		// asked for out loud.
+		o.Permission = DefaultPermission
+	}
+	if o.Root == "" {
+		// Confinement is on unless a caller deliberately clears it, so the
+		// default is the directory Kolkrabbi was started in.
+		if cwd, err := os.Getwd(); err == nil {
+			o.Root = cwd
+		}
 	}
 	if o.Effort == "" {
 		o.Effort = EffortMedium
@@ -495,9 +512,6 @@ func (a *Agent) RateLast(rating int) error {
 }
 
 func (a *Agent) confirm(ctx context.Context, action, detail string) bool {
-	if a.Yolo {
-		return true
-	}
 	if a.Decider == nil {
 		return false
 	}
@@ -548,9 +562,67 @@ func (a *Agent) confirm(ctx context.Context, action, detail string) bool {
 	return allowed
 }
 
-func (a *Agent) confirmer(ctx context.Context) tools.Confirm {
-	return func(action, detail string) bool {
-		return a.confirm(ctx, action, detail)
+// guard applies the session's permission tier to one tool action.
+//
+// Every outcome is visible: a refusal says why, and an action taken without
+// asking because the tier allows it still announces itself when it leaves the
+// project. Autonomy nobody can read afterwards is not autonomy anyone can
+// trust.
+func (a *Agent) guard(ctx context.Context) tools.Guard {
+	return func(r tools.Request) bool {
+		verdict, reason := a.Permission.Judge(r)
+		switch verdict {
+		case VerdictDeny:
+			fmt.Fprintf(a.Out, "%s✗ refused: %s%s\n", colorDim, reason, colorReset)
+			return false
+		case VerdictAllow:
+			if r.Outside {
+				a.noteReachingOutside(r, reason)
+			}
+			return true
+		default:
+			return a.confirm(ctx, actionLabel(r), r.Detail)
+		}
+	}
+}
+
+// noteReachingOutside records, in the transcript, that Kolkrabbi went outside
+// the project without asking, and what for. In full-auto this line is the only
+// account of it anyone will have.
+func (a *Agent) noteReachingOutside(r tools.Request, reason string) {
+	purpose := strings.TrimSpace(r.Summary)
+	if purpose == "" {
+		purpose = "no description given"
+	}
+	fmt.Fprintf(a.Out, "%s◆ outside the project: %s %s — %s%s\n",
+		colorDim, r.Tool, r.Display, purpose, colorReset)
+	if a.Bus != nil {
+		data, _ := json.Marshal(map[string]string{
+			"tool": r.Tool, "path": r.Display, "purpose": purpose, "reason": reason,
+		})
+		_, _ = a.Bus.Publish(bus.Event{
+			Turn: a.lastTurnID,
+			Type: protocol.EventToolOutput,
+			Data: data,
+		})
+	}
+}
+
+// actionLabel names an action for a confirmation prompt.
+func actionLabel(r tools.Request) string {
+	switch r.Tool {
+	case "bash":
+		return "Run shell command"
+	case "write_file":
+		return "Write file " + r.Display
+	case "edit_file":
+		return "Edit file " + r.Display
+	case "read_file":
+		return "Read file " + r.Display
+	case "list_dir":
+		return "List directory " + r.Display
+	default:
+		return r.Tool
 	}
 }
 
@@ -635,7 +707,11 @@ func (a *Agent) executeTool(ctx context.Context, tc provider.ToolCall) (string, 
 		toolCtx, cancel = context.WithTimeout(ctx, TimeoutForEffort(a.Effort))
 		defer cancel()
 	}
-	return tools.Execute(toolCtx, tc.Function.Name, tc.Function.Arguments, a.confirmer(toolCtx), a.preWrite)
+	return tools.Execute(toolCtx, tc.Function.Name, tc.Function.Arguments, tools.Options{
+		Root:     a.Root,
+		Guard:    a.guard(toolCtx),
+		PreWrite: a.preWrite,
+	})
 }
 
 func (a *Agent) footer(meta provider.Meta) {

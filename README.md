@@ -100,7 +100,7 @@ and $/1M pricing when you want to make a deliberate override.
 kolk                          # interactive, code mode
 kolk --mode chat              # start in chat
 kolk --mode agent "plan, implement, and verify this change"
-kolk -y "run the tests and fix failures"    # auto-approve tool actions
+kolk --permission auto-approve "run the tests and fix failures"   # edits flow, commands still ask
 kolk -r                       # resume the most recent session
 kolk --base-url http://localhost:11434/v1 -m qwen2.5-coder:14b "..."  # Ollama
 kolk stats                    # the dashboard
@@ -109,8 +109,9 @@ kolk models claude            # browse models with $/1M pricing
 ```
 
 In-session: `/mode`, `/effort`, `/model`, `/rate 1-5`, `/changes`, `/rewind`,
-`/new`, `/auto-approve [on|off]`, `/yolo`, `/help`. `/auto-approve` without an
-argument enables it for the current session; `/yolo` remains the quick toggle.
+`/new`, `/permissions [ask|auto-approve|full-auto]`, `/help`. `/permissions`
+without an argument lists the three tiers and marks the active one; `/ask`,
+`/auto-approve` and `/full-auto` switch straight to one.
 In the interactive TUI, ↑ reloads the last message; one Ctrl+C clears only the
 composer, while a second consecutive Ctrl+C exits. Single-shot Ctrl+C still
 aborts that run.
@@ -148,9 +149,27 @@ kolk --base-url <url> -y "create the hello file"
 | `edit_file` | unique exact find/replace | yes | yes |
 | `list_dir` | list a directory | no | — |
 
-Chat mode carries no tools at all. Code mode and agent subagents use the same
-tool and confirmation gates; every side-effecting action requires approval
-unless `-y`, `/auto-approve on`, or `/yolo` is active.
+Chat mode carries no tools at all. Code mode and agent subagents share the same
+gates.
+
+File paths are confined to the project — the enclosing git repository, or the
+working directory when there is none. Reaching outside it asks first, and in
+`full-auto` it proceeds but is logged with the path and the reason the model
+gave for needing it.
+
+Three permission tiers decide how much happens without a prompt:
+
+| tier | inside the project | shell commands | outside the project |
+|---|---|---|---|
+| `ask` (default) | asks before writing | asks | asks |
+| `auto-approve` | edits without asking | asks | asks |
+| `full-auto` | edits without asking | runs | proceeds, and logs it |
+
+**No tier removes the floor.** Credential files (`~/.ssh`, `~/.aws`, `~/.gnupg`,
+`credentials.json`), writes into system directories, `sudo`, piping a download
+into a shell, and unrecoverable deletes are refused in all three, `full-auto`
+included. An agent that cannot refuse anything is not one you can leave
+running.
 
 ## Architecture
 

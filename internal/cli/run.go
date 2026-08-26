@@ -104,6 +104,17 @@ func (a *app) attachInteractiveActivity(ag *engine.Agent, repl bool) {
 
 // newAgent resolves config, key, session and model into a ready engine.
 func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
+	// Before anything else: a mistyped flag should be a mistyped flag, not a
+	// message about a missing API key.
+	permission := engine.DefaultPermission
+	if o.permission != "" {
+		resolved, ok := engine.NormalizePermission(o.permission)
+		if !ok {
+			return nil, usagef("permission %q is not one of ask, auto-approve or full-auto", o.permission)
+		}
+		permission = resolved
+	}
+
 	d, err := a.locate()
 	if err != nil {
 		return nil, err
@@ -203,7 +214,8 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		Model:             model,
 		Mode:              o.mode,
 		Effort:            o.effort,
-		Yolo:              o.yolo,
+		Permission:        permission,
+		Root:              projectRoot(),
 		Sess:              sess,
 		Ckpt:              ckpt,
 		In:                a.in,
@@ -320,6 +332,29 @@ func archiveCompaction(dir, id string) func([]provider.Message) (string, error) 
 
 // maxCompactionArchives bounds what one session can leave on disk.
 const maxCompactionArchives = 100
+
+// projectRoot is what file tools are confined to: the repository the user is
+// working in, or the directory Kolkrabbi was started in when there is none.
+//
+// The repository root rather than the working directory, because a coding agent
+// asked to fix a test in one package routinely needs a file in another, and a
+// jail that fires constantly is one people switch off.
+func projectRoot() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for dir := cwd; ; {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return cwd
+		}
+		dir = parent
+	}
+}
 
 // contextWindowFor reports the advertised context size of one model, or zero
 // when the catalog does not describe it. Zero means unknown, and the engine

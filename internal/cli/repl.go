@@ -27,7 +27,7 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 		sessID = ag.Sess.SessionID()
 	}
 	fmt.Fprintf(a.stdout, "kolk — mode: %s · effort: %s · model: %s%s\nsession: %s%s\n",
-		ag.Mode, ag.Effort, ag.Model, yoloTag(ag.Yolo), sessID, resumedNote)
+		ag.Mode, ag.Effort, ag.Model, permissionTag(ag.Permission), sessID, resumedNote)
 	fmt.Fprintln(a.stdout, "Type your request, or /help for commands. Ctrl+C interrupts a turn, /exit quits.")
 
 	for {
@@ -74,9 +74,11 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 	}
 }
 
-func yoloTag(yolo bool) string {
-	if yolo {
-		return "  (yolo: auto-approving tool actions)"
+// permissionTag names the tier in the banner when it is anything but the safe
+// default, so a session that will not stop to ask says so before it starts.
+func permissionTag(p engine.Permission) string {
+	if p == "" || p == engine.PermissionAsk {
+		return ""
 	}
-	return ""
+	return "  (" + string(p) + ")"
 }

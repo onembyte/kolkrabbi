@@ -31,11 +31,11 @@ func replFixture(t *testing.T, stdin string, steps ...enginetest.Step) (*app, *e
 	var out bytes.Buffer
 	a := &app{stdout: &out, stderr: &out, in: bufio.NewReader(strings.NewReader(stdin))}
 	ag := engine.New(engine.Options{
-		Client: client,
-		Model:  "mock/model",
-		Sess:   session.New(t.TempDir(), "mock/model"),
-		Yolo:   true,
-		Out:    io.Discard,
+		Client:     client,
+		Model:      "mock/model",
+		Sess:       session.New(t.TempDir(), "mock/model"),
+		Permission: engine.PermissionFullAuto,
+		Out:        io.Discard,
 	})
 	return a, ag, &out
 }
@@ -114,7 +114,7 @@ type errReader struct{}
 func (errReader) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }
 
 func TestReplRunsATurnAndSlashCommands(t *testing.T) {
-	a, ag, out := replFixture(t, "hello there\n/mode chat\n/yolo\n",
+	a, ag, out := replFixture(t, "hello there\n/mode chat\n/full-auto\n",
 		enginetest.Step{Text: "hi back", Cost: 0.001})
 	if err := a.repl(context.Background(), ag); err != nil {
 		t.Fatalf("repl returned %v", err)
@@ -123,8 +123,8 @@ func TestReplRunsATurnAndSlashCommands(t *testing.T) {
 	if !strings.Contains(got, "mode: chat") {
 		t.Errorf("/mode chat did not take effect:\n%s", got)
 	}
-	if !strings.Contains(got, "yolo mode: false") {
-		t.Errorf("/yolo did not toggle off:\n%s", got)
+	if !strings.Contains(got, "permission: full-auto") {
+		t.Errorf("/full-auto did not take effect:\n%s", got)
 	}
 	if len(ag.Sess.GetMessages()) < 3 {
 		t.Errorf("the turn did not reach the session: %d messages", len(ag.Sess.GetMessages()))
@@ -163,8 +163,12 @@ func TestSlashHelpListsAllReleaseModes(t *testing.T) {
 	if !strings.Contains(out.String(), "agent = orchestrated") {
 		t.Fatalf("slash help does not explain agent mode: %q", out.String())
 	}
-	if !strings.Contains(out.String(), "/auto-approve [on|off]") {
-		t.Fatalf("slash help does not list the explicit auto-approve command: %q", out.String())
+	// All three tiers have to be discoverable from help, not just the one a
+	// user already knows to ask for.
+	for _, tier := range []string{"/permissions", "/ask", "/auto-approve", "/full-auto"} {
+		if !strings.Contains(out.String(), tier) {
+			t.Fatalf("slash help does not list %s: %q", tier, out.String())
+		}
 	}
 	if !strings.Contains(out.String(), "/model [id]") || !strings.Contains(out.String(), "list available models") {
 		t.Fatalf("slash help does not describe model listing and switching: %q", out.String())
@@ -179,59 +183,44 @@ func TestSlashHelpListsAllReleaseModes(t *testing.T) {
 
 func TestSlashAutoApproveControlsTheLiveSession(t *testing.T) {
 	a, ag, out := replFixture(t, "")
-	ag.Yolo = false
+	ag.Permission = engine.PermissionAsk
 
-	for _, command := range []string{"/auto-approve", "/auto-approve on"} {
-		if a.slash(context.Background(), ag, command) {
-			t.Fatalf("%s must not exit the REPL", command)
-		}
-		if !ag.Yolo {
-			t.Fatalf("%s did not enable auto-approval", command)
-		}
+	if a.slash(context.Background(), ag, "/auto-approve") {
+		t.Fatal("/auto-approve must not exit the REPL")
 	}
-	if !strings.Contains(out.String(), "auto-approve: on — tool actions will run without confirmation") {
-		t.Fatalf("enabled state does not name the risk: %q", out.String())
+	if ag.Permission != engine.PermissionAutoApprove {
+		t.Fatalf("permission = %q", ag.Permission)
 	}
-	if !strings.Contains(out.String(), "this process only") || !strings.Contains(out.String(), "kolk --yolo") {
-		t.Fatalf("enabled state does not explain how auto-approve applies to later processes: %q", out.String())
+	// The tier has to state what it still asks about, or a user reads
+	// "auto-approve" as "approves everything".
+	if !strings.Contains(out.String(), "still asks") {
+		t.Fatalf("auto-approve did not say what it still asks about: %q", out.String())
+	}
+	if !strings.Contains(out.String(), "this process only") {
+		t.Fatalf("tier change does not explain its scope: %q", out.String())
 	}
 
-	if a.slash(context.Background(), ag, "/auto-approve off") {
-		t.Fatal("/auto-approve off must not exit the REPL")
+	if a.slash(context.Background(), ag, "/ask") {
+		t.Fatal("/ask must not exit the REPL")
 	}
-	if ag.Yolo {
-		t.Fatal("/auto-approve off did not disable auto-approval")
-	}
-	if !strings.Contains(out.String(), "auto-approve: off — tool actions will ask first") {
-		t.Fatalf("disabled state was not reported clearly: %q", out.String())
+	if ag.Permission != engine.PermissionAsk {
+		t.Fatalf("permission = %q", ag.Permission)
 	}
 }
 
-func TestSlashAutoApproveRejectsUnknownArgumentWithoutChangingState(t *testing.T) {
+func TestSlashPermissionsRejectsAnUnknownTierWithoutChangingState(t *testing.T) {
 	a, ag, out := replFixture(t, "")
-	ag.Yolo = false
+	ag.Permission = engine.PermissionAsk
 
-	if a.slash(context.Background(), ag, "/auto-approve forever") {
-		t.Fatal("invalid auto-approve argument must not exit the REPL")
+	if a.slash(context.Background(), ag, "/permissions forever") {
+		t.Fatal("an invalid tier must not exit the REPL")
 	}
-	if ag.Yolo {
-		t.Fatal("invalid auto-approve argument changed the current state")
+	if ag.Permission != engine.PermissionAsk {
+		t.Fatal("an invalid tier changed the current state")
 	}
-	if got := out.String(); !strings.Contains(got, "usage: /auto-approve [on|off]") {
-		t.Fatalf("invalid auto-approve argument did not print exact usage: %q", got)
-	}
-}
-
-func TestSlashYoloExplainsProcessScope(t *testing.T) {
-	a, ag, out := replFixture(t, "")
-	ag.Yolo = false
-
-	if a.slash(context.Background(), ag, "/yolo") {
-		t.Fatal("/yolo must not exit the REPL")
-	}
-	if !ag.Yolo || !strings.Contains(out.String(), "this process only") ||
-		!strings.Contains(out.String(), "kolk --yolo") {
-		t.Fatalf("/yolo did not enable or explain process scope: state %v, output %q", ag.Yolo, out.String())
+	// Refusing without showing the choices leaves the user guessing.
+	if got := out.String(); !strings.Contains(got, "full-auto") {
+		t.Fatalf("an invalid tier did not list the choices: %q", got)
 	}
 }
 
