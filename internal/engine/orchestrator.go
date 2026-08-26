@@ -44,7 +44,7 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 	a.Sess.AppendMessage(provider.Message{Role: "user", Content: userInput})
 	a.save()
 
-	model := a.modelFor(a.Effort)
+	model := a.orchestrationModel()
 	maxTasks := maxTasksFor(a.Effort)
 
 	// One accounting scope per run. Cleared afterwards so an ordinary turn is

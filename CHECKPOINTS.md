@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **F14.6 the orchestrator slot reaches the orchestrator** — the planner and synthesis take the slot when set, instead of it only affecting `design` tasks.
 - [x] **F14.5 concurrency** — independent readers run three at a time over the dependency graph; anything that may write is serialised, and each task's output arrives whole.
 - [x] **F14.4 cost is visible and capped** — a run shows what it has spent as it goes and stops at an optional ceiling rather than refusing.
 - [x] **F14.3 routing** — a task's kind resolves to a named slot, the slot to a model, printed with the plan before anything runs.
@@ -1914,6 +1915,32 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### F14.6 the orchestrator slot reaches the orchestrator — verified detail
+
+Found reviewing phase F against its own doc rather than against its leaf list, which is the review
+worth doing: every leaf was built as specified and the feature still had a hole.
+
+`runOrchestrated` resolved its model with `a.modelFor(a.Effort)` and handed that to the planner and
+to synthesis. F14.3 added the `orchestrator` slot, but it only ever reached tasks the planner
+happened to label `design`. So a user who set the slot named for the orchestrator would find it
+changed nothing about the orchestrator's own two calls — a name meaning something other than what it
+says, and the kind of gap that gets reported as "routing doesn't work".
+
+The planner and synthesis are the orchestrator's own calls, so they take the slot. There is still no
+*default*: unset, both run on the session model, which is what they have always done. Paying for a
+stronger planner is cheap and probably right — it is one call and it determines more of a run's
+quality than any other — but that is a judgement for the person paying, not one to make on their
+behalf the first time they open the config. The doc's open question is resolved and marked as such
+rather than quietly deleted.
+
+Acceptance checklist:
+
+- [x] the planner and synthesis use the orchestrator slot when it is set.
+- [x] tasks still route by their own kind, unaffected.
+- [x] with no slot set both run on the session model, as before.
+- [x] the planning line shows the model actually used.
+- [x] full `make check` green: 1,861 tests, 0 lint issues, every script contract.
 
 ### F14.5 concurrency — verified detail
 

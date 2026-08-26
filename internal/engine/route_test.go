@@ -123,3 +123,43 @@ func TestARunActuallyUsesTheRoutedModels(t *testing.T) {
 		t.Fatalf("the plan did not show the routing:\n%s", out.String())
 	}
 }
+
+func TestTheOrchestratorSlotReachesThePlannerAndSynthesis(t *testing.T) {
+	srv := enginetest.New(
+		enginetest.Step{Text: `[{"title":"a","kind":"edit"},{"title":"b","kind":"edit"}]`},
+		enginetest.Step{Text: "did a"},
+		enginetest.Step{Text: "did b"},
+		enginetest.Step{Text: "answer"},
+	)
+	defer srv.Close()
+
+	agent, out, _, _ := newTestAgentInternal(t, srv, ModeAgent)
+	agent.Slots = map[string]string{SlotOrchestrator: "strong/thinker"}
+
+	if err := agent.runOrchestrated(context.Background(), "two edits"); err != nil {
+		t.Fatalf("run returned %v", err)
+	}
+
+	// A slot named "orchestrator" that does not reach the planner is a name
+	// that means something other than what it says.
+	if got := srv.Models[0]; got != "strong/thinker" {
+		t.Fatalf("the planner ran on %q, want the orchestrator slot", got)
+	}
+	if got := srv.Models[len(srv.Models)-1]; got != "strong/thinker" {
+		t.Fatalf("synthesis ran on %q, want the orchestrator slot", got)
+	}
+	// The tasks themselves are unaffected: they route by their own kind.
+	if got := srv.Models[1]; got != "mock/model" {
+		t.Fatalf("an edit task ran on %q, want the worker default", got)
+	}
+	if !strings.Contains(out.String(), "strong/thinker") {
+		t.Fatalf("the planning model was not shown:\n%s", out.String())
+	}
+}
+
+func TestWithNoOrchestratorSlotThePlannerUsesTheSessionModel(t *testing.T) {
+	agent := routingAgent(nil)
+	if got := agent.orchestrationModel(); got != "session/model" {
+		t.Fatalf("planner would run on %q", got)
+	}
+}

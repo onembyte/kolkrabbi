@@ -184,12 +184,18 @@ either serialised or given worktrees, chosen per run and off by default. Checkpo
 - **F14.4 cost is visible and capped** — accumulated cost during the run, optional ceiling that
   stops rather than refuses.
 - **F14.5 concurrency** — three at a time over the dependency graph, per-task status lines.
+- **F14.6 the orchestrator slot reaches the orchestrator** — the planner and synthesis take it when
+  set, closing the gap where the slot only affected `design` tasks.
 
 ## Open questions
 
-- **Should the planner itself be routed to the `orchestrator` slot by default?** It is the call that
-  most determines a run's quality and it is one call, so paying for a stronger model is cheap. Left
-  as a slot with no default, pending real usage.
+- ~~**Should the planner itself be routed to the `orchestrator` slot by default?**~~ **Resolved in
+  F14.6**: the planner and the synthesis are the orchestrator's own calls and take the slot when it
+  is set — a slot named `orchestrator` that reached only tasks the planner happened to label
+  "design" would mean something other than what it says. There is still no *default*: unset, they
+  run on the session model. Paying for a stronger planner is cheap and probably right, but that is a
+  judgement for the person paying, not one to make on their behalf the first time they open the
+  config.
 - **Does a failed task get retried on a stronger model?** Escalation-on-failure is attractive and is
   also how a cheap run silently becomes an expensive one. Deferred until F14.4 makes the cost of a
   run visible enough to judge that trade honestly.

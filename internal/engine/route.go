@@ -66,6 +66,24 @@ func isKnownSlot(name string) bool {
 	return false
 }
 
+// orchestrationModel is what the planner and the synthesis run on.
+//
+// They are the orchestrator's own calls, so they take the orchestrator slot. A
+// slot with that name that reached only tasks the planner happened to label
+// "design" would be a name meaning something other than what it says.
+//
+// There is no default: unset, these run on the session model, which is what
+// they have always done. The planner is the one call that most determines a
+// run's quality and it is a single call, so paying for a stronger model there
+// is cheap — but that is a judgement for the person paying, not one to make on
+// their behalf the first time they open the config.
+func (a *Agent) orchestrationModel() string {
+	if model := strings.TrimSpace(a.Slots[SlotOrchestrator]); model != "" {
+		return model
+	}
+	return a.modelFor(a.Effort)
+}
+
 // modelForKind picks the model for one task.
 //
 // The fallback chain is deliberately short: an explicit slot, then the fast
