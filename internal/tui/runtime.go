@@ -267,11 +267,18 @@ func (r *Runtime) clearActivity(id uint64) {
 // Confirm displays a focused approval overlay and blocks only the calling
 // model worker. Main-composer storage is never reused for the y/N answer.
 func (r *Runtime) Confirm(ctx context.Context, approval Approval) bool {
+	decision := r.Decide(ctx, approval)
+	return decision == DecisionAllow || decision == DecisionAllowAlways
+}
+
+// Decide is Confirm with the answer kept whole, so a caller that can act on
+// "always" is not handed a boolean that has already forgotten which yes it was.
+func (r *Runtime) Decide(ctx context.Context, approval Approval) Decision {
 	reply := make(chan Decision, 1)
 	r.mu.Lock()
 	if r.approval != nil {
 		r.mu.Unlock()
-		return false
+		return DecisionDeny
 	}
 	r.approval = reply
 	r.controller.RequestApproval(approval)
@@ -280,7 +287,7 @@ func (r *Runtime) Confirm(ctx context.Context, approval Approval) bool {
 
 	select {
 	case decision := <-reply:
-		return decision == DecisionAllow
+		return decision
 	case <-ctx.Done():
 		r.mu.Lock()
 		if r.approval == reply {
@@ -289,7 +296,7 @@ func (r *Runtime) Confirm(ctx context.Context, approval Approval) bool {
 			r.renderLocked()
 		}
 		r.mu.Unlock()
-		return false
+		return DecisionDeny
 	}
 }
 

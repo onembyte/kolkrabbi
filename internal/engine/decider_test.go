@@ -37,7 +37,7 @@ func TestDeciderOwnsInteractiveConfirmationAheadOfTheLegacyReader(t *testing.T) 
 		Decider: decider,
 	})
 
-	if !ag.confirm(ctx, "Run shell command", "go test ./...") {
+	if !firstOf(ag.confirm(ctx, Confirmation{Action: "Run shell command", Detail: "go test ./..."})) {
 		t.Fatal("decider approval was ignored in favor of legacy stdin")
 	}
 	if decider.calls != 1 || decider.ctx != ctx {
@@ -56,7 +56,7 @@ func TestConfirmAlwaysAsksTheDecider(t *testing.T) {
 	decider := &recordingDecider{}
 	ag := New(Options{Sess: enginetest.NewFakeSession("s_1", "model"), Permission: PermissionFullAuto, Decider: decider})
 
-	ag.confirm(context.Background(), "write", "file")
+	firstOf(ag.confirm(context.Background(), Confirmation{Action: "write", Detail: "file"}))
 
 	if decider.calls != 1 {
 		t.Fatalf("confirm consulted the decider %d times, want exactly one", decider.calls)
@@ -103,7 +103,7 @@ func TestTerminalDeciderInteractive(t *testing.T) {
 
 func TestEngineFailsClosedWithoutDecider(t *testing.T) {
 	ag := New(Options{Sess: enginetest.NewFakeSession("s_1", "model")})
-	if ag.confirm(context.Background(), "write", "secret.txt") {
+	if firstOf(ag.confirm(context.Background(), Confirmation{Action: "write", Detail: "secret.txt"})) {
 		t.Fatal("expected engine to fail closed when no Decider or In is configured")
 	}
 }
@@ -160,7 +160,7 @@ func TestPermissionEventsEmittedOnBus(t *testing.T) {
 		Bus:     b,
 	})
 
-	if !ag.confirm(context.Background(), "bash", "ls -la") {
+	if !firstOf(ag.confirm(context.Background(), Confirmation{Action: "bash", Detail: "ls -la"})) {
 		t.Fatal("confirm failed")
 	}
 
@@ -180,3 +180,7 @@ func TestPermissionEventsEmittedOnBus(t *testing.T) {
 		t.Fatalf("event[1].Type = %q, want %q", events[1].Type, protocol.EventPermissionResolved)
 	}
 }
+
+// firstOf keeps the confirm-returns-a-decision change from rewriting every
+// assertion that only cares whether the action was allowed.
+func firstOf(allowed bool, _ protocol.PermissionDecision) bool { return allowed }

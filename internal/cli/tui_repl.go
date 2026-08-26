@@ -12,6 +12,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/tui"
+	"github.com/onembyte/kolkrabbi/protocol"
 )
 
 func (a *app) canUseTUI() bool {
@@ -172,8 +173,24 @@ func compactWorkingFolder(cwd, home string) string {
 type tuiDecider struct{ runtime *tui.Runtime }
 
 func (d tuiDecider) Confirm(ctx context.Context, confirmation engine.Confirmation) bool {
-	return d.runtime.Confirm(ctx, tui.Approval{
+	decision := d.Decide(ctx, confirmation)
+	return decision == protocol.PermissionDecisionAllow || decision == protocol.PermissionDecisionAllowSession
+}
+
+// Decide carries the TUI's three answers through to the engine. Without it the
+// overlay's "always" would arrive as a plain yes and the rule the user read
+// before agreeing to it would be dropped on the way.
+func (d tuiDecider) Decide(ctx context.Context, confirmation engine.Confirmation) protocol.PermissionDecision {
+	switch d.runtime.Decide(ctx, tui.Approval{
 		Action: confirmation.Action,
 		Detail: confirmation.Detail,
-	})
+		Rule:   confirmation.Rule,
+	}) {
+	case tui.DecisionAllow:
+		return protocol.PermissionDecisionAllow
+	case tui.DecisionAllowAlways:
+		return protocol.PermissionDecisionAllowSession
+	default:
+		return protocol.PermissionDecisionDeny
+	}
 }

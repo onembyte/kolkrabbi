@@ -15,6 +15,10 @@ import (
 type Confirmation struct {
 	Action string
 	Detail string
+	// Rule is the standing rule that would cover this action, offered so that
+	// "always" can mean something the user reads and keeps rather than an
+	// invisible cache entry. Empty when there is nothing sensible to propose.
+	Rule string
 }
 
 // Decider is the presentation-independent permission port.
@@ -51,7 +55,13 @@ func (t *TerminalDecider) Decide(ctx context.Context, c Confirmation) protocol.P
 	if t.in == nil || t.out == nil {
 		return protocol.PermissionDecisionDeny
 	}
-	fmt.Fprintf(t.out, "\n%s?%s %s\n%s%s%s\n%sAllow? [y/N/a (always)]: %s", colorYel, colorReset, c.Action, colorDim, c.Detail, colorReset, colorDim, colorReset)
+	always := "a (always)"
+	if c.Rule != "" {
+		// Say what "always" will actually mean. An approval whose scope the
+		// user cannot see is not one they gave.
+		always = "a (" + c.Rule + ")"
+	}
+	fmt.Fprintf(t.out, "\n%s?%s %s\n%s%s%s\n%sAllow? [y/N/%s]: %s", colorYel, colorReset, c.Action, colorDim, c.Detail, colorReset, colorDim, always, colorReset)
 	line, _ := t.in.ReadString('\n')
 	line = strings.TrimSpace(strings.ToLower(line))
 	switch line {

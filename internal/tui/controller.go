@@ -14,6 +14,10 @@ const (
 	DecisionNone Decision = iota
 	DecisionDeny
 	DecisionAllow
+	// DecisionAllowAlways allows this action and keeps the rule shown in the
+	// overlay. It is a separate decision from DecisionAllow because the user
+	// agreed to a different, wider thing.
+	DecisionAllowAlways
 )
 
 // Effect asks the runtime to perform work outside the pure controller.
@@ -30,6 +34,10 @@ type Approval struct {
 	Action string
 	Detail string
 	Input  string
+	// Rule is the standing rule `a` would keep. It is shown in full: an
+	// approval whose scope the user cannot read is not one they gave. Empty
+	// means there is nothing to propose and `a` is not offered.
+	Rule string
 }
 
 // Controller applies terminal and engine events to one screen and editor.
@@ -241,11 +249,15 @@ func (c *Controller) renderView(width, height int, styled bool) string {
 }
 
 func (c *Controller) approvalLines(width int) []string {
+	prompt := "Allow? [y/N]: %s▌"
+	if c.approval.Rule != "" {
+		prompt = "Allow? [y/N/a (" + c.approval.Rule + ")]: %s▌"
+	}
 	return []string{
 		horizontalRule("approval", width),
 		clipLine(sanitizeTerminalLine(c.approval.Action), width),
 		clipLine(sanitizeTerminalLine(c.approval.Detail), width),
-		clipLine(sanitizeTerminalLine(fmt.Sprintf("Allow? [y/N]: %s▌", c.approval.Input)), width),
+		clipLine(sanitizeTerminalLine(fmt.Sprintf(prompt, c.approval.Input)), width),
 		strings.Repeat("─", max(0, width)),
 	}
 }
@@ -259,8 +271,16 @@ func (c *Controller) handleApprovalKey(key Key) Effect {
 	case KeyEnter:
 		answer := strings.ToLower(strings.TrimSpace(c.approvalEditor.Draft()))
 		decision := DecisionDeny
-		if answer == "y" || answer == "yes" {
+		switch answer {
+		case "y", "yes":
 			decision = DecisionAllow
+		case "a", "always":
+			// Only when there is a rule to keep. Treating it as a plain yes
+			// would grant something the person typing `a` did not ask for,
+			// and treating it as a refusal is the safe reading.
+			if c.approval.Rule != "" {
+				decision = DecisionAllowAlways
+			}
 		}
 		return c.resolveApproval(decision, false, false)
 	default:

@@ -15,6 +15,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -222,9 +223,12 @@ type Agent struct {
 	// main turn, which is the only measured view of how full the window is.
 	lastPromptTokens int
 	preCompact       []provider.Message
-	lastArchive      string
-	saveWarned       bool
-	statsWarn        bool
+	// rulesMu guards Rules: a rule kept from a confirmation is written while
+	// tool calls may still be reading it, and phase F runs several at once.
+	rulesMu     sync.RWMutex
+	lastArchive string
+	saveWarned  bool
+	statsWarn   bool
 }
 
 // Close releases resources owned by the configured backend, when it exposes
@@ -515,12 +519,12 @@ func (a *Agent) RateLast(rating int) error {
 	return a.Recorder.RecordRating(a.Sess.SessionID(), a.lastTurnID, rating)
 }
 
-func (a *Agent) confirm(ctx context.Context, action, detail string) bool {
+func (a *Agent) confirm(ctx context.Context, confirmation Confirmation) (bool, protocol.PermissionDecision) {
 	if a.Decider == nil {
-		return false
+		return false, protocol.PermissionDecisionDeny
 	}
 
-	confirmation := Confirmation{Action: action, Detail: detail}
+	action, detail := confirmation.Action, confirmation.Detail
 	permID := xid.New(xid.Call)
 	turnID := a.lastTurnID
 	if turnID == "" {
@@ -563,7 +567,17 @@ func (a *Agent) confirm(ctx context.Context, action, detail string) bool {
 		})
 	}
 
-	return allowed
+	return allowed, decision
+}
+
+// Judge decides one action the way this session would: the floor first, then
+// the user's standing rules, then the tier. It is exported because the rules a
+// session is running under are worth being able to inspect from outside it.
+func (a *Agent) Judge(r tools.Request) (Verdict, string) {
+	a.rulesMu.RLock()
+	rules := a.Rules
+	a.rulesMu.RUnlock()
+	return a.Permission.judgeWith(rules, r)
 }
 
 // guard applies the session's permission tier to one tool action.
@@ -572,13 +586,6 @@ func (a *Agent) confirm(ctx context.Context, action, detail string) bool {
 // asking because the tier allows it still announces itself when it leaves the
 // project. Autonomy nobody can read afterwards is not autonomy anyone can
 // trust.
-// Judge decides one action the way this session would: the floor first, then
-// the user's standing rules, then the tier. It is exported because the rules a
-// session is running under are worth being able to inspect from outside it.
-func (a *Agent) Judge(r tools.Request) (Verdict, string) {
-	return a.Permission.judgeWith(a.Rules, r)
-}
-
 func (a *Agent) guard(ctx context.Context) tools.Guard {
 	return func(r tools.Request) bool {
 		verdict, reason := a.Judge(r)
@@ -592,7 +599,14 @@ func (a *Agent) guard(ctx context.Context) tools.Guard {
 			}
 			return true
 		default:
-			return a.confirm(ctx, actionLabel(r), r.Detail)
+			rule := suggestRule(r)
+			allowed, decision := a.confirm(ctx, Confirmation{
+				Action: actionLabel(r), Detail: r.Detail, Rule: rule,
+			})
+			if allowed && decision == protocol.PermissionDecisionAllowSession {
+				a.keepRule(rule)
+			}
+			return allowed
 		}
 	}
 }
@@ -616,6 +630,30 @@ func (a *Agent) subagentGuard(ctx context.Context) tools.Guard {
 			colorDim, reason, colorReset)
 		return false
 	}
+}
+
+// keepRule adds a rule the user accepted at the prompt to this session.
+//
+// It goes into the same list /permissions shows, rather than into a private
+// cache, so "always" is something the user can look at and take back. It is not
+// written to disk: the prompt says how to make it permanent, and a rule that
+// silently outlives the session someone approved it in is one nobody consented
+// to.
+func (a *Agent) keepRule(line string) {
+	parsed, err := ParseRule(line)
+	if err != nil {
+		return
+	}
+	a.rulesMu.Lock()
+	defer a.rulesMu.Unlock()
+	for _, existing := range a.Rules {
+		if existing.Source == line {
+			return
+		}
+	}
+	a.Rules = append(a.Rules, parsed)
+	fmt.Fprintf(a.Out, "%s  kept for this session: %s — /permissions to review, add `always` to keep it for good%s\n",
+		colorDim, line, colorReset)
 }
 
 // noteReachingOutside records, in the transcript, that Kolkrabbi went outside

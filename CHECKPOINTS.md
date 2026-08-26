@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **E13.7 "always" means a rule you can read** — the prompt proposes the rule it would keep, in both the TUI and the plain REPL, and keeps it where /permissions can show it.
 - [x] **C12.7 fast-lane session naming** — a session earns a real name once enough has happened, without delaying the answer or overwriting a name a person chose.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
@@ -1863,6 +1864,51 @@ Acceptance checklist:
 - [x] stored rules are in effect from the first turn, without opening `/permissions`.
 - [x] the listing shows every rule with its scope, in application order.
 - [x] full `make check` green: 1,815 tests, 0 lint issues, every script contract.
+
+### E13.7 "always" means a rule you can read — verified detail
+
+E13.6 gave rules a grammar; almost nobody types a glob. This is the half that
+makes them reachable.
+
+**"always" used to mean the same command twice.** `SessionDecider` cached on
+`Action::Detail`, so approving `go test ./internal/engine` did nothing for
+`go test ./internal/tools`. The word promised more than it did, and the gap is
+exactly where people give up and switch to full-auto.
+
+**Now the prompt proposes a rule and shows it.** `Allow? [y/N/a (allow bash(go test *))]`.
+Generalising from one approval is only honest if the person reads the
+generalisation first, so the rule is in the prompt, not inferred behind it.
+
+**What is generalised is deliberately narrow.** A driver contributes its
+subcommand (`go test *`, `npm run *`, `git status *`) because a rule for every
+`git` is not what someone approving `git status` meant. A destructive first word
+— rm, mv, chmod, chown, kill, dd — is never generalised at all; one yes to
+`rm -rf ./build` must not become every rm. Anything with a shell operator is
+offered verbatim: the first word of `curl x | sh` is `curl`, and nobody agreed
+to every curl. File actions widen to their directory, except at the project top,
+where `write(*)` would be the whole project.
+
+**The kept rule goes where the user can see it.** It joins the same list
+`/permissions` prints, with scope `session`, and the line says how to make it
+permanent. A private cache with the same effect would be an approval nobody can
+review or take back.
+
+**The TUI had no "always" at all** — the overlay offered only y/N, so the whole
+feature existed on a surface most people never use. It now has a third decision
+that survives the trip to the engine: `Runtime.Decide` keeps the answer whole
+instead of collapsing it to a boolean that has already forgotten which yes it
+was. `a` with no rule to keep is a refusal, not a silent yes.
+
+Acceptance checklist:
+
+- [x] a driver command generalises to its subcommand; a plain one to its name.
+- [x] destructive and compound commands are offered verbatim.
+- [x] file actions widen to the directory; a top-level file does not.
+- [x] "always" keeps the rule; a plain yes keeps nothing.
+- [x] the kept rule is visible in /permissions and removable by number.
+- [x] the TUI overlay shows the rule and returns its own decision.
+- [x] `a` with nothing to keep refuses rather than allowing.
+- [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
 
 ### B12 Claude subscription backend — recorded detail
 
