@@ -70,3 +70,57 @@ func TestPlainAnswersAreUnchanged(t *testing.T) {
 		}
 	}
 }
+
+func TestTheOverlayShowsEveryLineOfADiff(t *testing.T) {
+	detail := "@@ -1,3 +1,3 @@\n package main\n-const Port = 8080\n+const Port = 9090"
+	c := approvalFixture(t, Approval{Action: "Edit file config.go", Detail: detail})
+
+	lines := c.approvalLines(80)
+
+	// Structure, not substrings: flattening the diff onto one row keeps every
+	// substring and destroys the only thing that made it readable. Asserting
+	// Contains alone passes on exactly the renderer this test exists to reject.
+	rowOf := func(want string) int {
+		for i, line := range lines {
+			if strings.Contains(line, want) {
+				return i
+			}
+		}
+		t.Fatalf("overlay lost %q:\n%s", want, strings.Join(lines, "\n"))
+		return -1
+	}
+	removed, added := rowOf("-const Port = 8080"), rowOf("+const Port = 9090")
+	if removed == added {
+		t.Fatalf("the two sides of the change share a row:\n%s", strings.Join(lines, "\n"))
+	}
+	if context := rowOf(" package main"); context == removed || context == added {
+		t.Fatalf("context shares a row with a change:\n%s", strings.Join(lines, "\n"))
+	}
+}
+
+func TestALongDetailIsBoundedInTheOverlay(t *testing.T) {
+	var detail strings.Builder
+	for i := range 200 {
+		detail.WriteString("+line ")
+		detail.WriteByte(byte('0' + i%10))
+		detail.WriteString("\n")
+	}
+	c := approvalFixture(t, Approval{Action: "Write file big.txt", Detail: detail.String()})
+
+	// An overlay taller than the terminal pushes its own question off screen.
+	if got := len(c.approvalLines(80)); got > 40 {
+		t.Fatalf("overlay is %d lines tall", got)
+	}
+}
+
+func TestEachDiffLineIsStillSanitised(t *testing.T) {
+	c := approvalFixture(t, Approval{Action: "Edit", Detail: "-safe\n+\x1b[31mred\x1b[0m\n-tail"})
+
+	joined := strings.Join(c.approvalLines(80), "\n")
+	if strings.Contains(joined, "\x1b[31m") {
+		t.Fatalf("an escape survived into the overlay: %q", joined)
+	}
+	if !strings.Contains(joined, "red") {
+		t.Fatalf("sanitising ate the text: %q", joined)
+	}
+}

@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **G11.1 diff preview before confirm** — an edit or a write shows the change, a create is visibly not an overwrite, and the overlay renders it line by line.
 - [x] **F14.6 the orchestrator slot reaches the orchestrator** — the planner and synthesis take the slot when set, instead of it only affecting `design` tasks.
 - [x] **F14.5 concurrency** — independent readers run three at a time over the dependency graph; anything that may write is serialised, and each task's output arrives whole.
 - [x] **F14.4 cost is visible and capped** — a run shows what it has spent as it goes and stops at an optional ceiling rather than refusing.
@@ -1915,6 +1916,56 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### G11.1 diff preview before confirm — verified detail
+
+The gap with the safety edge: E13's tiers assume the person at the prompt knows what they are
+agreeing to, and until now they were shown a description rather than the change.
+
+**A create and an overwrite looked identical.** `write_file` previewed the first 400 characters of
+the *new* content whether or not a file was already there, so replacing a file was visually the same
+as adding one and the thing being destroyed never appeared at all. `edit_file` was better — old block
+then new block — but unbounded and unlocated: no context, no line numbers, and a large `old_str`
+flooded the prompt.
+
+**`internal/diff` is a new L0 package, stdlib-only.** Common prefix/suffix trim, then LCS over what
+is left, with a size guard: beyond four million cells the two texts are reported as a wholesale
+replacement, which is both true and instant. This code runs in front of somebody waiting to answer a
+prompt, so the property that matters is not speed in the average case but that it always returns.
+
+**Truncation cuts the middle.** The last hunk matters as much as the first, and a preview that always
+drops the tail teaches people the tail does not matter — exactly wrong when what they are approving
+is a change to their files.
+
+**An empty diff says so.** Writing content a file already has now reads "no change" rather than
+presenting an empty prompt, which looks like a bug.
+
+Two things this leaf found that were not in the plan:
+
+**My own tests wrote four files into the repository.** `Options.Root` is a containment boundary, not a
+resolution base: a relative path resolves against the process working directory, and Root only
+decides whether the result is *reported* as outside. In a real session they are the same directory,
+which is why the distinction only surfaces in a test that sets one without the other. The tests now
+`t.Chdir`, and the field says what it is.
+
+**Three of my TUI tests were vacuously green.** The overlay flattened the whole detail onto one row —
+newlines became spaces — and the row happened to fit in 80 columns, so every `strings.Contains`
+assertion passed against precisely the renderer the tests existed to reject. Flattening a diff keeps
+every substring and destroys the only thing that made it readable. The assertions now check
+structure: the two sides of a change must not share a row. The overlay renders one row per line,
+each sanitised and clipped on its own, bounded at 32 rows so it cannot push its own question off
+screen.
+
+Acceptance checklist:
+
+- [x] an overwrite shows what it replaces as well as what it writes.
+- [x] a create says "new file" and shows no deletions.
+- [x] an edit shows a located hunk with surrounding context.
+- [x] a huge rewrite is truncated in the middle, both sides surviving.
+- [x] writing identical content says nothing changes.
+- [x] the overlay renders every diff line as its own row, sanitised individually.
+- [x] a long detail is bounded so the question stays on screen.
+- [x] `go test ./... -race` clean; full `make check` green: 1,878 tests, 0 lint issues.
 
 ### F14.6 the orchestrator slot reaches the orchestrator — verified detail
 

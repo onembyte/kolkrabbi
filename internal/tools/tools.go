@@ -15,6 +15,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/onembyte/kolkrabbi/internal/diff"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/shell"
 )
@@ -78,22 +79,6 @@ func (o Options) fileRequest(tool, path, detail string) (Request, error) {
 		Outside: outside,
 		Detail:  detail,
 	}, nil
-}
-
-// truncateRunes caps a preview without splitting a rune.
-func truncateRunes(s string, limit int) string {
-	if len(s) <= limit {
-		return s
-	}
-	cut := s[:limit]
-	for len(cut) > 0 {
-		r, size := utf8.DecodeLastRuneInString(cut)
-		if r != utf8.RuneError || size > 1 {
-			break
-		}
-		cut = cut[:len(cut)-1]
-	}
-	return cut
 }
 
 // PreWrite is called for file-modifying tools (write_file, edit_file) after
@@ -282,15 +267,12 @@ func Execute(ctx context.Context, name, argsJSON string, o Options) (string, err
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", fmt.Errorf("bad arguments: %w", err)
 		}
-		preview := a.Content
-		if len(preview) > 400 {
-			preview = truncateRunes(preview, 400) + "\n... [truncated for preview]"
-		}
-		request, err := o.fileRequest("write_file", a.Path, preview)
+		request, err := o.fileRequest("write_file", a.Path, "")
 		if err != nil {
 			return "", err
 		}
 		request.Summary = a.Purpose
+		request.Detail = writePreview(request.Path, a.Content)
 		if !o.allow(request) {
 			return "", fmt.Errorf("writing %s was not allowed", request.Display)
 		}
@@ -334,14 +316,14 @@ func Execute(ctx context.Context, name, argsJSON string, o Options) (string, err
 		if count > 1 {
 			return "", fmt.Errorf("old_str is not unique in %s (%d matches); include more context", request.Display, count)
 		}
-		request.Detail = fmt.Sprintf("--- old ---\n%s\n--- new ---\n%s", a.OldStr, a.NewStr)
+		updated := strings.Replace(content, a.OldStr, a.NewStr, 1)
+		request.Detail = changePreview(content, updated)
 		if !o.allow(request) {
 			return "", fmt.Errorf("editing %s was not allowed", request.Display)
 		}
 		if err := snapshot("edit_file", request.Path); err != nil {
 			return "", err
 		}
-		updated := strings.Replace(content, a.OldStr, a.NewStr, 1)
 		if err := os.WriteFile(request.Path, []byte(updated), 0o644); err != nil {
 			return "", err
 		}
@@ -382,6 +364,55 @@ func Execute(ctx context.Context, name, argsJSON string, o Options) (string, err
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
+}
+
+// previewContext is how many unchanged lines surround each change in a
+// confirmation. Enough to tell the reader which occurrence this is; not so many
+// that the change is buried.
+const previewContext = 3
+
+// previewLines bounds a confirmation preview. A prompt someone has to scroll
+// is a prompt they answer without reading.
+const previewLines = 40
+
+// writePreview describes what writing this content to this path would do.
+//
+// A create and an overwrite must not look the same. The old preview showed the
+// first 400 characters of the new content either way, so replacing a file was
+// indistinguishable from adding one — and the thing being destroyed never
+// appeared at all.
+func writePreview(path, content string) string {
+	existing, err := os.ReadFile(path)
+	if err != nil {
+		// Unreadable for any reason — absent, a directory, no permission — is
+		// reported as new rather than guessed at. Being wrong in the direction
+		// of "this file does not exist yet" is the safe wrong.
+		return "new file\n" + diff.Truncate(prefixLines(content, "+"), previewLines)
+	}
+	return changePreview(string(existing), content)
+}
+
+// changePreview renders a before/after as a diff a person can act on.
+func changePreview(before, after string) string {
+	if before == after {
+		// An empty diff shown as an empty prompt reads as a bug.
+		return "no change: the file already has these contents"
+	}
+	return diff.Truncate(diff.Unified(before, after, previewContext), previewLines)
+}
+
+// prefixLines marks every line of a new file, so a create reads like the diff
+// it is rather than like a block of text.
+func prefixLines(content, marker string) string {
+	if content == "" {
+		return marker + "\n"
+	}
+	lines := strings.Split(strings.TrimSuffix(content, "\n"), "\n")
+	var b strings.Builder
+	for _, line := range lines {
+		b.WriteString(marker + line + "\n")
+	}
+	return b.String()
 }
 
 // binarySniffBytes is how much of a file decides whether it is text. A NUL in

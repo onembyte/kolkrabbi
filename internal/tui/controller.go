@@ -253,13 +253,46 @@ func (c *Controller) approvalLines(width int) []string {
 	if c.approval.Rule != "" {
 		prompt = "Allow? [y/N/a (" + c.approval.Rule + ")]: %s▌"
 	}
-	return []string{
+	lines := []string{
 		horizontalRule("approval", width),
 		clipLine(sanitizeTerminalLine(c.approval.Action), width),
-		clipLine(sanitizeTerminalLine(c.approval.Detail), width),
+	}
+	lines = append(lines, detailRows(c.approval.Detail, width)...)
+	return append(lines,
 		clipLine(sanitizeTerminalLine(fmt.Sprintf(prompt, c.approval.Input)), width),
 		strings.Repeat("─", max(0, width)),
+	)
+}
+
+// maxDetailRows bounds the detail an overlay shows. An overlay taller than the
+// terminal pushes its own question off the screen, which is how a person ends
+// up answering a prompt they cannot see.
+const maxDetailRows = 32
+
+// detailRows renders a multi-line detail as one row per line.
+//
+// A diff flattened onto a single row keeps every substring and destroys the
+// only thing that made it readable. Each line is sanitised and clipped on its
+// own, so an escape sequence in file contents cannot reach the terminal and a
+// long line cannot push the layout sideways.
+func detailRows(detail string, width int) []string {
+	if strings.TrimSpace(detail) == "" {
+		return nil
 	}
+	raw := strings.Split(strings.TrimSuffix(detail, "\n"), "\n")
+	if len(raw) > maxDetailRows {
+		head := maxDetailRows / 2
+		tail := maxDetailRows - head - 1
+		hidden := len(raw) - head - tail
+		kept := append([]string{}, raw[:head]...)
+		kept = append(kept, fmt.Sprintf("… %d more lines …", hidden))
+		raw = append(kept, raw[len(raw)-tail:]...)
+	}
+	rows := make([]string, 0, len(raw))
+	for _, line := range raw {
+		rows = append(rows, clipLine(sanitizeTerminalLine(line), width))
+	}
+	return rows
 }
 
 func (c *Controller) handleApprovalKey(key Key) Effect {
