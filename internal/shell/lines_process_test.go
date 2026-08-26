@@ -4,6 +4,8 @@ package shell
 
 import (
 	"context"
+	"errors"
+	"io"
 	"testing"
 	"time"
 )
@@ -60,11 +62,13 @@ func TestLinesProcessReportsExitRepeatablyWithoutBlocking(t *testing.T) {
 		closeErr = process.Close()
 	})
 
-	if firstErr != nil {
-		t.Fatalf("clean exit reported as an error: %v", firstErr)
+	// A clean end of stream must still be an error value. Returning a nil line
+	// with a nil error tells a reader loop "keep reading", which spins forever.
+	if !errors.Is(firstErr, io.EOF) {
+		t.Fatalf("end of a cleanly exited stream = %v, want io.EOF", firstErr)
 	}
-	if secondErr != nil {
-		t.Fatalf("repeated exit report changed: %v", secondErr)
+	if !errors.Is(secondErr, io.EOF) {
+		t.Fatalf("repeated end of stream = %v, want the same io.EOF", secondErr)
 	}
 	if closeErr != nil {
 		t.Fatalf("Close after exit = %v", closeErr)

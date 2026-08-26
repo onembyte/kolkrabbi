@@ -145,6 +145,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **B12.5 persistent Claude session** — one line-framed child process serves every turn of a Kolk session.
 - [x] **B12.6 backend lifecycle ownership** — the CLI session opens and closes the Claude backend exactly once.
 - [x] **B12.7 session-scoped process lifetime** — the persistent provider process belongs to the Kolkrabbi session, and a line process reports its exit repeatably instead of blocking.
+- [x] **B12.8 interrupted-turn recovery** — an abandoned turn's frames never reach the next turn, an unrecoverable stream is replaced, and a provider that quits mid-turn says why.
 - [x] **L13.1 managed local storage paths** — a Kolk-owned model directory under the data dir, never a host Ollama path.
 - [x] **L13.2 managed runtime spec & lifecycle** — validated `RuntimeSpec`, start-at-most-once, deterministic close.
 - [x] **L13.3 managed sidecar starter** — `shell.StartManagedProcess` keeps process execution inside the one owner package.
@@ -643,8 +644,8 @@ Acceptance checklist:
   survives across `StreamChat` calls. The value-receiver bug flagged in the prior session's notes is
   fixed in `9620f339`.
 - [x] the CLI session owns backend lifetime and closes it exactly once (`8278dba8`, `dbfaff5b`).
-- [ ] **open:** cancellation mid-turn, EOF without a result frame, malformed frames, and process
-  restart after a crash have no tests yet — B12.8 owns them.
+- [x] **closed by B12.8:** cancellation mid-turn, EOF without a result frame, malformed frames, and
+  process replacement after an unrecoverable interrupt.
 - [ ] **open:** `docs/plan/04-subscription-backends.md` still describes one process per turn. It
   contradicts the shipped session-scoped process and must be reconciled.
 - [ ] **open:** nothing yet connects a `/plogin`-enabled connector to backend selection for a new
@@ -687,6 +688,52 @@ Acceptance checklist:
 - [x] repeated `Next` and repeated `Close` return the same terminal result promptly, for both a
   clean exit and a failing child.
 - [x] `go test -race ./internal/shell` and the full `make check` are green.
+
+### B12.8 interrupted-turn recovery — verified detail
+
+Three defects, each of which shows up the first time a user presses Ctrl+C.
+
+A turn that ended early simply returned. The provider keeps emitting the frames it had already
+produced for that turn, so the *next* turn read them and answered the previous question. The test
+that proves it is exact: interrupt a turn after its first frame, ask something else, and the old
+answer comes back.
+
+`LinesProcess.Next` returned `(nil, nil)` at a clean end of stream. A reader loop reads that as
+"nothing yet, keep going" and spins forever on a dead process — a pegged core and a session that
+never answers. End of stream is now `io.EOF`, and the earlier B12.7 test that asserted the nil-error
+shape was wrong and is corrected.
+
+A provider that quits mid-turn surfaced as the single word `EOF`. The overwhelmingly likely cause is
+that the user is not signed in, which the message now says, with the command to check it.
+
+Scope:
+
+- `ClaudeSession.abandonTurn` drains the provider stream to the interrupted turn's completion frame
+  under a five-second bound, holding the turn mutex so nothing interleaves.
+- If that tail never arrives, the stream position is unknowable: the session marks itself `Unusable`
+  and refuses further turns rather than guessing where the next turn begins.
+- `ClaudeBackend` retires an unusable session and starts a fresh provider process for the next turn,
+  so one unrecoverable interrupt does not end Claude for the whole Kolkrabbi session.
+- `Next` distinguishes a clean end of stream from a failure, and a mid-turn exit is wrapped with an
+  actionable explanation that still unwraps to `io.EOF`.
+
+Non-goals:
+
+- No resume of the interrupted turn's partial content, and no attempt to reuse a provider that lost
+  its place. Correctness beats salvage here: a wrong answer attributed to the right question is
+  worse than an honest restart.
+- No provider-side cancellation signal. Kolkrabbi stops reading; it does not tell Claude to stop.
+
+Acceptance checklist:
+
+- [x] red first: the second turn after an interrupt returned `"one"`, the previous turn's answer.
+- [x] after resynchronization the next turn answers its own question.
+- [x] a session that cannot resynchronize reports `Unusable` and refuses the next turn with a
+  message naming the interrupted turn.
+- [x] the backend replaces an unusable session exactly once and the following turn succeeds.
+- [x] a clean end of stream is `io.EOF`, repeatably, and never `(nil, nil)`.
+- [x] a mid-turn exit explains itself and preserves the underlying cause for `errors.Is`.
+- [x] `go test -race ./internal/provider/agentcli ./internal/shell ./internal/engine` green.
 
 ### L13 managed local models — active detail
 

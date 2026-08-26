@@ -3,7 +3,9 @@ package agentcli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -22,10 +24,19 @@ type startLineProcess func(context.Context, string, []string) (lineProcess, erro
 // ClaudeSession owns one persistent provider CLI process for one Kolkrabbi
 // session. Turns are serialized because the provider stream is ordered.
 type ClaudeSession struct {
-	process lineProcess
-	mu      sync.Mutex
-	effort  string
-	closed  bool
+	process  lineProcess
+	mu       sync.Mutex
+	effort   string
+	closed   bool
+	unusable bool
+}
+
+// Unusable reports that the provider stream can no longer be trusted, so the
+// caller must replace this session rather than send another turn through it.
+func (s *ClaudeSession) Unusable() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.unusable
 }
 
 // NewClaudeSession starts one provider-owned Claude process.
@@ -52,6 +63,10 @@ func BuildClaudeSessionArgs(effort string) []string {
 	return args
 }
 
+// resyncGrace bounds how long Kolkrabbi waits for the tail of an interrupted
+// turn before declaring the stream position unknowable.
+const resyncGrace = 5 * time.Second
+
 type claudeInput struct {
 	Type    string           `json:"type"`
 	Message provider.Message `json:"message"`
@@ -63,6 +78,9 @@ func (s *ClaudeSession) Turn(ctx context.Context, messages []provider.Message, m
 	defer s.mu.Unlock()
 	if s.closed {
 		return provider.Message{}, provider.Meta{}, fmt.Errorf("claude session is closed")
+	}
+	if s.unusable {
+		return provider.Message{}, provider.Meta{Model: model}, fmt.Errorf("claude session cannot be reused after an interrupted turn; start a new session")
 	}
 	prompt, err := promptFromMessages(messages)
 	if err != nil {
@@ -80,11 +98,11 @@ func (s *ClaudeSession) Turn(ctx context.Context, messages []provider.Message, m
 	for {
 		line, err := s.process.Next(ctx)
 		if err != nil {
-			return provider.Message{}, provider.Meta{Model: model, Elapsed: time.Since(start)}, err
+			return provider.Message{}, provider.Meta{Model: model, Elapsed: time.Since(start)}, s.abandonTurn(ctx, explainEarlyExit(err))
 		}
 		translated, err := Translate(line)
 		if err != nil {
-			return provider.Message{}, provider.Meta{Model: model, Elapsed: time.Since(start)}, err
+			return provider.Message{}, provider.Meta{Model: model, Elapsed: time.Since(start)}, s.abandonTurn(ctx, err)
 		}
 		for _, event := range translated {
 			events = append(events, event)
@@ -97,6 +115,46 @@ func (s *ClaudeSession) Turn(ctx context.Context, messages []provider.Message, m
 					meta.Model = model
 				}
 				return message, meta, collectErr
+			}
+		}
+	}
+}
+
+// explainEarlyExit turns a bare end-of-stream into something the user can act
+// on. "EOF" alone says nothing about a provider CLI that quit, most often
+// because it is not signed in.
+func explainEarlyExit(err error) error {
+	if errors.Is(err, io.EOF) {
+		return fmt.Errorf("claude exited before finishing the turn; run `claude` in a terminal to check that it is signed in: %w", err)
+	}
+	return err
+}
+
+// abandonTurn resynchronizes the provider stream after a turn ends early.
+// The provider keeps emitting the frames it had already produced for that turn,
+// and handing them to the next turn would answer the previous question. The
+// caller still holds s.mu, so no other turn can interleave with the drain.
+func (s *ClaudeSession) abandonTurn(ctx context.Context, cause error) error {
+	// The turn's context is usually already cancelled — that is why the turn is
+	// being abandoned — so the drain detaches from its cancellation while
+	// keeping its values.
+	resync, cancel := context.WithTimeout(context.WithoutCancel(ctx), resyncGrace)
+	defer cancel()
+	for {
+		line, err := s.process.Next(resync)
+		if err != nil {
+			// The rest of the interrupted turn never arrived, so where the next
+			// turn's frames begin is unknowable. Refuse to guess.
+			s.unusable = true
+			return cause
+		}
+		events, translateErr := Translate(line)
+		if translateErr != nil {
+			continue
+		}
+		for _, event := range events {
+			if event.Kind == EventMessageCompleted {
+				return cause
 			}
 		}
 	}

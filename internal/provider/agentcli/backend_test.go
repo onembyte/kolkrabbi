@@ -123,3 +123,34 @@ func TestClaudeBackendSessionOutlivesOneTurnContext(t *testing.T) {
 		t.Fatal("closing the backend must also release the process context")
 	}
 }
+
+// An interrupt the session cannot recover from must not end Claude for the rest
+// of the Kolkrabbi session: the backend replaces the process and the next turn
+// works normally.
+func TestClaudeBackendReplacesAnUnusableSession(t *testing.T) {
+	starts := 0
+	backend := &ClaudeBackend{start: func(context.Context, string, []string) (lineProcess, error) {
+		starts++
+		if starts == 1 {
+			return &stallingLineProcess{lines: claudeTurnFrames("one")[:1], stallAt: 1}, nil
+		}
+		return &fakeLineProcess{lines: claudeTurnFrames("two")}, nil
+	}}
+
+	interrupted, cancel := context.WithCancel(context.Background())
+	go cancel()
+	if _, _, err := backend.StreamChat(interrupted, "opus", []provider.Message{{Role: "user", Content: "hi"}}, nil, nil); err == nil {
+		t.Fatal("an interrupted turn must report the interruption")
+	}
+
+	message, _, err := backend.StreamChat(context.Background(), "opus", []provider.Message{{Role: "user", Content: "again"}}, nil, nil)
+	if err != nil {
+		t.Fatalf("the turn after an unrecoverable interrupt failed: %v", err)
+	}
+	if message.Content != "two" {
+		t.Fatalf("message = %q, want the new session's answer", message.Content)
+	}
+	if starts != 2 {
+		t.Fatalf("started %d processes, want the unusable one replaced exactly once", starts)
+	}
+}

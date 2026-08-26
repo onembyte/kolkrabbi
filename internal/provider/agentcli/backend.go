@@ -50,7 +50,14 @@ func (b *ClaudeBackend) StreamChat(ctx context.Context, model string, messages [
 		if err != nil {
 			return provider.Message{}, provider.Meta{Model: model}, err
 		}
-		return session.Turn(ctx, messages, model, onToken)
+		message, meta, turnErr := session.Turn(ctx, messages, model, onToken)
+		// A session that lost its place in the provider stream is replaced
+		// rather than kept: one unrecoverable interrupt must not end Claude for
+		// the rest of the Kolkrabbi session.
+		if session.Unusable() {
+			b.dropSession(session)
+		}
+		return message, meta, turnErr
 	}
 	start := time.Now()
 	events := make([]Event, 0, 8)
@@ -95,6 +102,22 @@ func (b *ClaudeBackend) getSession(ctx context.Context) (*ClaudeSession, error) 
 	b.session = &ClaudeSession{process: process, effort: b.Effort}
 	b.release = release
 	return b.session, nil
+}
+
+// dropSession retires one session so the next turn starts a fresh provider
+// process. It is a no-op if the backend already moved on.
+func (b *ClaudeBackend) dropSession(session *ClaudeSession) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.session != session {
+		return
+	}
+	_ = b.session.Close()
+	if b.release != nil {
+		b.release()
+		b.release = nil
+	}
+	b.session = nil
 }
 
 // Close releases the provider process owned by this backend.

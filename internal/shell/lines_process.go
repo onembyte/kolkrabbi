@@ -99,7 +99,11 @@ func (p *LinesProcess) Next(ctx context.Context) ([]byte, error) {
 			return line, nil
 		}
 		<-p.exited
-		return nil, p.exitErr
+		if p.exitErr != nil {
+			return nil, p.exitErr
+		}
+		// A caller loop must be able to tell "no more lines" from "keep going".
+		return nil, io.EOF
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
