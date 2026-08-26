@@ -149,6 +149,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **B12.8 interrupted-turn recovery** — an abandoned turn's frames never reach the next turn, an unrecoverable stream is replaced, and a provider that quits mid-turn says why.
 - [x] **B12.9 connector-to-backend selection** — an enabled connector actually chooses the provider that answers a turn, and an unusable plan model refuses with its reason.
 - [x] **B12.10 live provider switch** — `/model` onto or off a plan model moves the provider with it and releases the one it retires.
+- [x] **B12.11 per-turn accounting** — a session turn records its own cost and tokens, not the provider's running totals, and no longer records zero.
 - [x] **L13.1 managed local storage paths** — a Kolk-owned model directory under the data dir, never a host Ollama path.
 - [x] **L13.2 managed runtime spec & lifecycle** — validated `RuntimeSpec`, start-at-most-once, deterministic close.
 - [x] **L13.3 managed sidecar starter** — `shell.StartManagedProcess` keeps process execution inside the one owner package.
@@ -689,8 +690,8 @@ Acceptance checklist:
 - [x] the CLI session owns backend lifetime and closes it exactly once (`8278dba8`, `dbfaff5b`).
 - [x] **closed by B12.8:** cancellation mid-turn, EOF without a result frame, malformed frames, and
   process replacement after an unrecoverable interrupt.
-- [ ] **open:** `docs/plan/04-subscription-backends.md` still describes one process per turn. It
-  contradicts the shipped session-scoped process and must be reconciled.
+- [x] **closed by B12.11:** `docs/plan/04-subscription-backends.md` now records that the
+  one-process-per-turn assumption ended on 2026-08-26, and what replaced it.
 - [x] **closed by B12.9:** an enabled connector now selects the backend for a new session.
 
 ### B12.7 session-scoped process lifetime — verified detail
@@ -856,6 +857,49 @@ Acceptance checklist:
 Refactor note: `engine.Options` is embedded in `Agent`, so `ag.Model` and `ag.Options.Model` are one
 field. The first draft assigned both, which staticcheck caught; `/new` inherits the provider through
 the same embedding.
+
+### B12.11 per-turn accounting — verified detail
+
+`docs/plan/04-subscription-backends.md` §3.3 carried a warning written before any of this shipped:
+
+> `result` usage is cumulative across turns in `--input-format stream-json` sessions. v0.x is one
+> process per turn and `--resume` starts fresh, so kolk is safe. The day anyone adopts stream-json
+> input to amortise the 1–3 s of Node startup, every `EventUsage` becomes a running total and must
+> be diffed — or item 17's cost chart grows quadratically.
+
+B12.5 adopted exactly that, and nothing diffed anything. Reconciling the document surfaced the bug
+it predicted, plus a second one the red test exposed immediately.
+
+Two defects:
+
+- **Cumulative totals recorded as per-turn.** Turn 2 would record turn 1 + turn 2, turn 3 all three.
+  Summing those in `stats.jsonl` grows the reported spend quadratically in turn count.
+- **Every session turn recorded `$0`.** A `result` frame emits its usage event *after* its
+  completion event, and the turn loop returned the moment it saw the completion — so the frame's
+  `total_cost_usd` and token counts were thrown away on every turn. Only the assistant frame's
+  partial usage survived, and cost was always zero.
+
+Scope:
+
+- The turn loop consumes a whole frame before collecting, so a completion never truncates the frame
+  that carries it.
+- `ClaudeSession.chargeTurn` keeps the totals already charged and reports the difference. A report
+  smaller than the running total means the provider restarted its own accounting, so kolk takes it
+  at face value and rebases rather than charging a negative turn.
+- The document's §3.3 hazard now records that the assumption ended, when, and what replaced it.
+
+Non-goals:
+
+- No cache-token accounting in `Meta`; `Collect` still drops `cache_read`/`cache_creation`.
+- No change to the one-shot path, where a fresh process makes absolute totals correct already.
+
+Acceptance checklist:
+
+- [x] red first: the first turn reported cost `0`, proving the usage event was being dropped.
+- [x] two turns against cumulative frames report 100/10/$0.10 then 150/15/$0.20.
+- [x] a report smaller than the running total is taken at face value, never negative.
+- [x] the one-shot backend path is unchanged and its tests pass untouched.
+- [x] full `make check` green.
 
 ### L13 managed local models — active detail
 

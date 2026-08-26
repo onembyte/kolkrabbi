@@ -585,11 +585,23 @@ The vendor ranks its own three overlapping accounting fields:
 | `permission_denials[]` | count → `Meta.Warnings`; rows → item 17 | authoritative. `tool_input` is arbitrary user data — **hash or opt-in** per dashboard §7 |
 | `duration_api_ms`, `ttft_ms`, `ttft_stream_ms`, `time_to_request_ms`, `num_turns`, `subagent_stats` | dashboard columns only (§7) | ★ `Usage.TTFT` is **kolk's own clock**, never the vendor's (§1.4: measured locally, to the first *content* event). In the tool-use fixture `ttft_ms(4504) > ttft_stream_ms(1344)` and the semantics are unverified — never pool with an HTTP TTFT. `num_turns` is the **tool-loop round count** (1 and 2 in the fixtures), *not* a retry count: putting it in `Meta.Attempt` makes "a fallback fired" read true on every tool call |
 
-★ **A hazard to comment at the code site, not in a TODO:** `result` usage is **cumulative across
-turns** in `--input-format stream-json` sessions. v0.x is one process per turn and `--resume` starts
-fresh, so kolk is safe. **The day anyone adopts stream-json input to amortise the 1–3 s of Node
-startup, every `EventUsage` becomes a running total and must be diffed** — or item 17's cost chart
-grows quadratically.
+★ **A hazard, now live and handled.** `result` usage is **cumulative across turns** in
+`--input-format stream-json` sessions. This document originally recorded that v0.x used one process
+per turn, so kolk was safe, and warned that "the day anyone adopts stream-json input to amortise the
+1–3 s of Node startup, every `EventUsage` becomes a running total and must be diffed — or item 17's
+cost chart grows quadratically."
+
+**That day was 2026-08-26.** At the owner's direction the Claude backend now keeps one process alive
+for the whole Kolkrabbi session (checkpoint B12.5) and does use `--input-format stream-json`, so the
+one-process-per-turn assumption above no longer holds anywhere in this document. `ClaudeSession`
+therefore keeps the totals it has already charged and reports each turn as the difference
+(`chargeTurn`, checkpoint B12.11). A report smaller than the running total means the provider
+restarted its own accounting: kolk takes that report at face value and rebases rather than charging
+a negative turn.
+
+The same checkpoint fixed a second consequence of the switch: a `result` frame carries its usage
+*after* its completion event, and the turn loop returned on sight of the completion, so every
+session turn recorded `$0`.
 
 #### 3.4 `Finish.Reason` / `Kind`, from `terminal_reason` first
 

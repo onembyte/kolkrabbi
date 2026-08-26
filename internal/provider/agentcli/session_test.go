@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"math"
 	"strings"
 	"testing"
 
@@ -170,5 +171,71 @@ func TestClaudeSessionExplainsAProviderThatExitsMidTurn(t *testing.T) {
 	}
 	if !errors.Is(err, io.EOF) {
 		t.Fatalf("error = %v, want the underlying cause preserved", err)
+	}
+}
+
+// A persistent --input-format stream-json process reports usage and cost as
+// running totals for the whole session. Recording them verbatim makes every
+// turn contain all the turns before it, so a cost chart grows quadratically.
+func TestClaudeSessionReportsPerTurnUsageFromCumulativeTotals(t *testing.T) {
+	process := &fakeLineProcess{lines: [][]byte{
+		[]byte(`{"type":"assistant","message":{"model":"opus","content":[{"type":"text","text":"one"}],"usage":{"input_tokens":100,"output_tokens":10}}}`),
+		[]byte(`{"type":"result","result":"one","subtype":"success","total_cost_usd":0.10,"usage":{"input_tokens":100,"output_tokens":10}}`),
+		[]byte(`{"type":"assistant","message":{"model":"opus","content":[{"type":"text","text":"two"}],"usage":{"input_tokens":150,"output_tokens":15}}}`),
+		[]byte(`{"type":"result","result":"two","subtype":"success","total_cost_usd":0.30,"usage":{"input_tokens":250,"output_tokens":25}}`),
+	}}
+	session, err := newClaudeSession(context.Background(), "high", func(context.Context, string, []string) (lineProcess, error) {
+		return process, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, first, err := session.Turn(context.Background(), []provider.Message{{Role: "user", Content: "one"}}, "opus", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.PromptTokens != 100 || first.CompletionTokens != 10 || math.Abs(first.Cost-0.10) > 1e-9 {
+		t.Fatalf("first turn = %d/%d/%v", first.PromptTokens, first.CompletionTokens, first.Cost)
+	}
+
+	_, second, err := session.Turn(context.Background(), []provider.Message{{Role: "user", Content: "two"}}, "opus", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.PromptTokens != 150 {
+		t.Fatalf("second turn prompt tokens = %d, want 150 (250 total minus the first turn)", second.PromptTokens)
+	}
+	if second.CompletionTokens != 15 {
+		t.Fatalf("second turn completion tokens = %d, want 15", second.CompletionTokens)
+	}
+	if math.Abs(second.Cost-0.20) > 1e-9 {
+		t.Fatalf("second turn cost = %v, want 0.20 (0.30 total minus the first turn)", second.Cost)
+	}
+}
+
+func TestClaudeSessionRebasesWhenTheProviderResetsItsTotals(t *testing.T) {
+	process := &fakeLineProcess{lines: [][]byte{
+		[]byte(`{"type":"result","result":"one","subtype":"success","total_cost_usd":0.50,"usage":{"input_tokens":500,"output_tokens":50}}`),
+		[]byte(`{"type":"result","result":"two","subtype":"success","total_cost_usd":0.05,"usage":{"input_tokens":40,"output_tokens":4}}`),
+	}}
+	session, err := newClaudeSession(context.Background(), "high", func(context.Context, string, []string) (lineProcess, error) {
+		return process, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := session.Turn(context.Background(), []provider.Message{{Role: "user", Content: "one"}}, "opus", nil); err != nil {
+		t.Fatal(err)
+	}
+	_, second, err := session.Turn(context.Background(), []provider.Message{{Role: "user", Content: "two"}}, "opus", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Smaller than the running total means the provider restarted its own
+	// accounting. Never report a negative charge.
+	if second.PromptTokens != 40 || math.Abs(second.Cost-0.05) > 1e-9 {
+		t.Fatalf("rebased turn = %d tokens / %v cost, want the reported values", second.PromptTokens, second.Cost)
 	}
 }

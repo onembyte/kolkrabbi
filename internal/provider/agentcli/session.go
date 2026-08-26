@@ -29,6 +29,11 @@ type ClaudeSession struct {
 	effort   string
 	closed   bool
 	unusable bool
+	// The provider reports usage for the whole session, so the running totals
+	// already charged are kept to turn each report into one turn's own cost.
+	spentCost   float64
+	spentInput  int
+	spentOutput int
 }
 
 // Unusable reports that the provider stream can no longer be trusted, so the
@@ -104,18 +109,26 @@ func (s *ClaudeSession) Turn(ctx context.Context, messages []provider.Message, m
 		if err != nil {
 			return provider.Message{}, provider.Meta{Model: model, Elapsed: time.Since(start)}, s.abandonTurn(ctx, err)
 		}
+		// The whole frame is consumed before collecting: a result frame carries
+		// its usage *after* the completion event, so returning on sight of the
+		// completion threw every turn's cost away.
+		completed := false
 		for _, event := range translated {
 			events = append(events, event)
 			if event.Kind == EventMessageDelta && onToken != nil {
 				onToken(event.Text)
 			}
 			if event.Kind == EventMessageCompleted {
-				message, meta, collectErr := Collect(events, time.Since(start))
-				if meta.Model == "" {
-					meta.Model = model
-				}
-				return message, meta, collectErr
+				completed = true
 			}
+		}
+		if completed {
+			message, meta, collectErr := Collect(events, time.Since(start))
+			if meta.Model == "" {
+				meta.Model = model
+			}
+			s.chargeTurn(&meta)
+			return message, meta, collectErr
 		}
 	}
 }
@@ -128,6 +141,23 @@ func explainEarlyExit(err error) error {
 		return fmt.Errorf("claude exited before finishing the turn; run `claude` in a terminal to check that it is signed in: %w", err)
 	}
 	return err
+}
+
+// chargeTurn converts the provider's session-cumulative usage into this turn's
+// own usage. A persistent `--input-format stream-json` process reports running
+// totals, so recording them verbatim would make every turn contain the turns
+// before it and grow a cost chart quadratically.
+func (s *ClaudeSession) chargeTurn(meta *provider.Meta) {
+	cost, input, output := meta.Cost, meta.PromptTokens, meta.CompletionTokens
+	if cost >= s.spentCost && input >= s.spentInput && output >= s.spentOutput {
+		meta.Cost = cost - s.spentCost
+		meta.PromptTokens = input - s.spentInput
+		meta.CompletionTokens = output - s.spentOutput
+	}
+	// Anything smaller than the running total means the provider restarted its
+	// own accounting. Take the report at face value rather than charging a
+	// negative turn, and rebase on it either way.
+	s.spentCost, s.spentInput, s.spentOutput = cost, input, output
 }
 
 // abandonTurn resynchronizes the provider stream after a turn ends early.
