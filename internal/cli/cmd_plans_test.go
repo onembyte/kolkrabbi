@@ -56,3 +56,33 @@ func TestPlansShowsEnabledConnectorStatus(t *testing.T) {
 		t.Fatalf("plans output does not show enabled connector: %q", out.String())
 	}
 }
+
+func TestPlansLoginUsesHandoverAndPersistsMetadata(t *testing.T) {
+	base := t.TempDir()
+	t.Setenv(paths.EnvDataDir, filepath.Join(base, "data"))
+	t.Setenv(paths.EnvConfigDir, filepath.Join(base, "config"))
+	t.Setenv(paths.EnvCacheDir, filepath.Join(base, "cache"))
+	a, out, errOut := newTestApp("")
+	var gotExecutable string
+	a.handover = func(_ context.Context, executable string, args []string, dir string) error {
+		gotExecutable = executable
+		if len(args) != 0 || dir != "" {
+			t.Fatalf("handover args=%v dir=%q, want no provider credential inputs", args, dir)
+		}
+		return nil
+	}
+	if code := a.main(context.Background(), []string{"plans", "login", "anthropic", "Claude", "Max"}); code != ExitOK {
+		t.Fatalf("plans login exit = %d, stderr = %q", code, errOut.String())
+	}
+	if gotExecutable != "claude" || !strings.Contains(out.String(), "connector enabled") {
+		t.Fatalf("handover/output = %q, executable=%q", out.String(), gotExecutable)
+	}
+	dirs, err := paths.Resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := provider.LoadConnectors(dirs.ConnectorsFile())
+	if err != nil || len(manifest.Connectors) != 1 || !manifest.Connectors[0].Enabled {
+		t.Fatalf("saved connector = %+v, err=%v", manifest.Connectors, err)
+	}
+}

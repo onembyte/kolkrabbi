@@ -23,6 +23,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/selfupdate"
+	"github.com/onembyte/kolkrabbi/internal/shell"
 	"github.com/onembyte/kolkrabbi/internal/term"
 )
 
@@ -68,6 +69,7 @@ type app struct {
 	enterRaw         func(*os.File) (func() error, error)
 	terminalSize     func(*os.File) (int, int)
 	isStdinPiped     func() bool
+	handover         func(context.Context, string, []string, string) error
 }
 
 func newApp() *app {
@@ -92,6 +94,7 @@ func newApp() *app {
 		}
 		return (stat.Mode() & os.ModeCharDevice) == 0
 	}
+	a.handover = shell.Handover
 	return a
 }
 
@@ -147,7 +150,7 @@ func commandTable() []command {
 		{"config", "[get <k> | set <k> <v> | unset <k> | set-tier <effort> <id> | show]",
 			"read and write saved settings", (*app).runConfig},
 		{"models", "[filter]", "list models with context size and $/1M pricing", (*app).runModels},
-		{"plans", "[filter]", "list provider plans and connector capabilities", (*app).runPlans},
+		{"plans", "[filter] | login <provider> <plan>", "list plans or start provider-owned login", (*app).runPlans},
 		{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors", (*app).runPlanModels},
 		{"update", "", "install the latest verified release", (*app).runUpdate},
 		{"sessions", "[rm <id> | clear]", "list or delete saved sessions", (*app).runSessions},

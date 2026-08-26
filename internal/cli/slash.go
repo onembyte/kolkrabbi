@@ -24,7 +24,7 @@ var slashCommandTable = []slashCommand{
 	{"mode", "<chat|code|agent>", "switch mode (agent = orchestrated; code is default)"},
 	{"effort", "<low|medium|high|max>", "select model tier and orchestration width"},
 	{"model", "[id]", "list available models or switch this session"},
-	{"plans", "[filter]", "list provider plans and connector capabilities"},
+	{"plans", "[filter] | login <provider> <plan>", "list plans or start provider-owned login"},
 	{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors"},
 	{"config", "[get <k> | set <k> <v> | unset <k> | show]", "read and write saved settings"},
 	{"update", "", "install the latest verified release"},
