@@ -80,6 +80,9 @@ func (b *overflowThenOKBackend) StreamChat(_ context.Context, _ string, messages
 func TestATurnRecoversOnceFromAnOverLongRequest(t *testing.T) {
 	session := enginetest.NewFakeSession("s1", "vendor/model")
 	session.SetMessages(longSession())
+	// This test counts provider calls, so it opts out of session naming, which
+	// is a separate fast-lane call after a successful turn.
+	session.SetAutoTitle("overflow fixture")
 	backend := &overflowThenOKBackend{}
 	var out strings.Builder
 	agent := New(Options{
@@ -115,6 +118,7 @@ func (b *alwaysOverflowBackend) StreamChat(_ context.Context, _ string, _ []prov
 func TestATurnDoesNotRetryOverflowForever(t *testing.T) {
 	session := enginetest.NewFakeSession("s1", "vendor/model")
 	session.SetMessages(longSession())
+	session.SetAutoTitle("overflow fixture")
 	backend := &alwaysOverflowBackend{}
 	var out strings.Builder
 	agent := New(Options{

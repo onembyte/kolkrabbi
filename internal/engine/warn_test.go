@@ -18,6 +18,8 @@ func (s *failingSaveSession) SessionTitle() string             { return "t" }
 func (s *failingSaveSession) ModelName() string                { return "vendor/model" }
 func (s *failingSaveSession) SetModelName(string)              {}
 func (s *failingSaveSession) SetTitleFromInput(string)         {}
+func (s *failingSaveSession) TitleIsAuto() bool                { return false }
+func (s *failingSaveSession) SetAutoTitle(string) bool         { return false }
 func (s *failingSaveSession) GetMessages() []provider.Message  { return s.messages }
 func (s *failingSaveSession) SetMessages(m []provider.Message) { s.messages = m }
 func (s *failingSaveSession) AppendMessage(m provider.Message) { s.messages = append(s.messages, m) }

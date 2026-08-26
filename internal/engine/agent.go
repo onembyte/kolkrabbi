@@ -725,6 +725,12 @@ func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 		err = a.runLoop(ctx, userInput)
 	}
 
+	// After the turn, never before it: naming is a nicety, and making the user
+	// wait on it to read the answer they asked for gets the priority backwards.
+	if err == nil {
+		a.titleSessionIfNeeded(ctx)
+	}
+
 	if a.Bus != nil {
 		if err != nil {
 			if ctx.Err() != nil {
@@ -737,6 +743,7 @@ func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 			}
 		} else {
 			finishedData, _ := json.Marshal(protocol.TurnFinishedData{Reason: "stop"})
+
 			_, _ = a.Bus.Publish(bus.Event{
 				Turn: a.lastTurnID,
 				Type: protocol.EventTurnFinished,

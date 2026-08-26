@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/onembyte/kolkrabbi/internal/atomicfile"
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -48,7 +49,9 @@ type Session struct {
 	// CWD is the directory the session was started in. Sessions written before
 	// this field existed have none, which is why every match here is explicit
 	// rather than a comparison against the empty string.
-	CWD       string    `json:"cwd,omitempty"`
+	CWD string `json:"cwd,omitempty"`
+	// TitleAuto marks a title Kolkrabbi derived rather than one the user chose.
+	TitleAuto bool      `json:"title_auto,omitempty"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Messages  []Message `json:"messages"`
 
@@ -179,15 +182,60 @@ func (s *Session) Save() error {
 }
 
 // SetTitleFromInput sets a human-readable title from the first user message.
+// SetTitleFromInput derives a first title from what the user typed. The title
+// is marked automatic so Kolkrabbi may later improve on its own guess without
+// ever overwriting a name a person chose.
 func (s *Session) SetTitleFromInput(input string) {
 	if s.Title != "" {
 		return
 	}
-	t := strings.Join(strings.Fields(input), " ")
-	if len(t) > 60 {
-		t = t[:60] + "…"
+	s.Title = trimTitle(strings.Join(strings.Fields(input), " "))
+	s.TitleAuto = s.Title != ""
+}
+
+// SetTitle records a title as chosen rather than derived.
+func (s *Session) SetTitle(title string) {
+	s.Title = trimTitle(strings.Join(strings.Fields(title), " "))
+	s.TitleAuto = false
+}
+
+// SetAutoTitle replaces a derived title with a better derived one, and does
+// nothing to a title the user chose.
+func (s *Session) SetAutoTitle(title string) bool {
+	if !s.TitleAuto {
+		return false
 	}
-	s.Title = t
+	trimmed := trimTitle(strings.Join(strings.Fields(title), " "))
+	if trimmed == "" {
+		return false
+	}
+	s.Title = trimmed
+	// One improvement, then stable: a title that keeps changing under the user
+	// is worse than a mediocre one that stays put.
+	s.TitleAuto = false
+	return true
+}
+
+// TitleIsAuto reports whether the current title was derived rather than chosen.
+func (s *Session) TitleIsAuto() bool { return s.TitleAuto }
+
+const maxTitleBytes = 60
+
+// trimTitle caps a title without splitting a rune. The cut is at a byte count,
+// so any prompt not written in English can land mid-character.
+func trimTitle(t string) string {
+	if len(t) <= maxTitleBytes {
+		return t
+	}
+	cut := t[:maxTitleBytes]
+	for len(cut) > 0 {
+		r, size := utf8.DecodeLastRuneInString(cut)
+		if r != utf8.RuneError || size > 1 {
+			break
+		}
+		cut = cut[:len(cut)-1]
+	}
+	return cut + "…"
 }
 
 func (s *Session) SessionID() string     { return s.ID }

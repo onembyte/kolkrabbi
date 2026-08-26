@@ -180,6 +180,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **R2 test isolation and stdin ownership** — the suite no longer writes into the developer's own Kolkrabbi state, and `/key -` no longer competes for the keyboard.
 - [x] **R3 rune-safe tool output** — the hottest truncation in the product no longer splits a UTF-8 rune, and the tests that missed it were vacuous by arithmetic.
 - [x] **R4 warnings reach the screen that owns it** — engine warnings no longer bypass the terminal renderer, and a restore that could not be saved says so.
+- [x] **C12.7 fast-lane session naming** — a session earns a real name once enough has happened, without delaying the answer or overwriting a name a person chose.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
@@ -1648,6 +1649,43 @@ Acceptance checklist:
 - [x] it warns once however many times the save fails, and keeps trying to save.
 - [x] a restore that cannot be persisted says so.
 - [x] full `make check` green.
+
+### C12.7 fast-lane session naming — verified detail
+
+The last piece of item 12. A session's title was the opening line the user typed, which is often the
+least descriptive sentence in it — `kolk sessions` and the dashboard's session list both read it,
+and "hi" names nothing. After two turns Kolkrabbi now replaces its own guess with a fast-lane name.
+
+Four decisions, each of them a test, and two of them corrections found while building:
+
+- **After the turn, never before it.** The first version ran naming at the same boundary as
+  compaction, which made the user wait on a name to read the answer they had just asked for. That
+  gets the priority backwards, and the overflow tests caught it by counting an unexpected provider
+  call.
+- **Eligibility is checked before the call, not after.** The first version generated a name and then
+  discovered it was not allowed to use it, spending a fast-lane call on a discarded result *every
+  turn after the second*. `TitleIsAuto` is on the port for exactly this reason.
+- **Once, then stable.** A title that keeps changing under the user is worse than a mediocre one that
+  stays put, and every change costs a call.
+- **Never over a chosen name.** `kolk sessions rename` marks a title as the user's, and naming skips
+  it. Silence on failure, too: naming is a nicety nobody asked for, so complaining when it fails
+  would be noise about a thing the user never requested.
+
+Also fixed here, the fourth instance of this session's byte-offset pattern: `SetTitleFromInput` cut
+at 60 bytes, so any prompt not written in English could produce a title with a split rune. It now
+trims to a rune boundary, tested with four multibyte fillers at four offsets so the cut cannot land
+cleanly by accident — the lesson from R3 applied on the first try rather than after a vacuous pass.
+
+Acceptance checklist:
+
+- [x] two turns produce a real name; one turn does not.
+- [x] naming happens once however many turns follow, and costs exactly one call.
+- [x] a title the user chose is never replaced.
+- [x] a failed naming is silent and changes nothing.
+- [x] titles stay valid UTF-8 at every cut offset.
+- [x] `go test -race` on engine, cli and session, and full `make check`, green.
+
+**Item 12 is complete.**
 
 ### B12 Claude subscription backend — recorded detail
 
@@ -3187,7 +3225,7 @@ phase must close without leaving this file.
 |---|---|---|---|
 | A finish the subscription path | 4, 24 | P11.7 ✓, B12.12 ✓, B12.14 ✓ | B12.13 needs the owner |
 | B managed local models | 25 | L13.4 ✓, L13.5a–c ✓, L13.5b3 ✓ | L13.5b4 needs the owner |
-| C sessions, context, memory | 12 | doc ✓, C12.1–C12.6 ✓ | auto-titling open |
+| C sessions, context, memory | 12 | doc ✓, C12.1–C12.7 ✓ | complete |
 | D the local dashboard | 17 | doc ✓; A12.2/A12.5 superseded | building |
 | E tools, permissions, sandboxing | 13 | doc first, then leaves | queued — blocks F |
 | F orchestration & per-task routing | 14 | doc first, then leaves | queued |

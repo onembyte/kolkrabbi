@@ -117,7 +117,7 @@ func (a *app) renameSession(dir, id, title string) error {
 	if err != nil {
 		return err
 	}
-	loaded.Title = title
+	loaded.SetTitle(title)
 	if err := loaded.Save(); err != nil {
 		return err
 	}

@@ -9,11 +9,12 @@ import (
 
 // FakeSession is an in-memory session.
 type FakeSession struct {
-	mu       sync.Mutex
-	id       string
-	model    string
-	title    string
-	messages []provider.Message
+	mu         sync.Mutex
+	id         string
+	model      string
+	title      string
+	autoTitled bool
+	messages   []provider.Message
 }
 
 // NewFakeSession creates an in-memory session.
@@ -52,6 +53,22 @@ func (s *FakeSession) SetTitleFromInput(t string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.title = t
+}
+
+func (s *FakeSession) TitleIsAuto() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return !s.autoTitled
+}
+
+func (s *FakeSession) SetAutoTitle(t string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.autoTitled || t == "" {
+		return false
+	}
+	s.title, s.autoTitled = t, true
+	return true
 }
 
 func (s *FakeSession) GetMessages() []provider.Message {

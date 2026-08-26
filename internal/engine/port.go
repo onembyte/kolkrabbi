@@ -13,6 +13,13 @@ type SessionPort interface {
 	ModelName() string
 	SetModelName(string)
 	SetTitleFromInput(string)
+	// TitleIsAuto reports whether the title is still Kolkrabbi's own guess, and
+	// so may be improved. It is asked before the improvement is generated,
+	// because generating one costs a model call.
+	TitleIsAuto() bool
+	// SetAutoTitle offers a better derived title, and reports whether it was
+	// taken. It must never overwrite a title the user chose.
+	SetAutoTitle(string) bool
 	GetMessages() []provider.Message
 	SetMessages([]provider.Message)
 	AppendMessage(provider.Message)

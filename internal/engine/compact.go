@@ -271,6 +271,65 @@ func (a *Agent) applyCompaction(before []provider.Message, result Compaction) {
 	}
 }
 
+const titleSystemPrompt = `You name a coding session in at most six words.
+Answer with the name only: no quotes, no punctuation at the end, no preamble.
+Name the work, not the conversation: "add the config parser", not "user asks for help".`
+
+// titleSessionIfNeeded replaces Kolkrabbi's first guess at a session name with
+// a better one, once, after enough has happened to name.
+//
+// The first title is the opening line the user typed, which is often the least
+// descriptive sentence of the whole session. This runs at a turn boundary like
+// compaction, costs one fast-lane call, and never touches a title the user
+// chose: `kolk sessions rename` marks a title as theirs.
+func (a *Agent) titleSessionIfNeeded(ctx context.Context) {
+	if a.Sess == nil || a.Backend == nil {
+		return
+	}
+	// Asked before the call, not after: generating a name Kolkrabbi is not
+	// allowed to use spends a model call on nothing, every turn.
+	if !a.Sess.TitleIsAuto() {
+		return
+	}
+	messages := a.Sess.GetMessages()
+	if countTurns(messages) < turnsBeforeTitling {
+		return
+	}
+	var transcript strings.Builder
+	for _, message := range messages {
+		if message.Content == "" || message.Role == "tool" {
+			continue
+		}
+		transcript.WriteString(message.Role)
+		transcript.WriteString(": ")
+		transcript.WriteString(message.Content)
+		transcript.WriteString("\n")
+	}
+	title, err := a.FastLaneChat(ctx, titleSystemPrompt, transcript.String())
+	if err != nil || strings.TrimSpace(title) == "" {
+		// Naming is a nicety. A session that cannot be named still works, and
+		// saying so would be noise about something the user never asked for.
+		return
+	}
+	if a.Sess.SetAutoTitle(strings.TrimSpace(title)) {
+		a.save()
+	}
+}
+
+// turnsBeforeTitling is how much has to have happened before a name is worth
+// more than the opening line.
+const turnsBeforeTitling = 2
+
+func countTurns(messages []provider.Message) int {
+	turns := 0
+	for _, message := range messages {
+		if message.Role == "user" {
+			turns++
+		}
+	}
+	return turns
+}
+
 // CompactNow compacts regardless of how full the window is, for a user asking
 // explicitly and for recovering from a provider that has already refused. It
 // returns what it gave up and whether anything changed.
