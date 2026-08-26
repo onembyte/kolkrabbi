@@ -6,4 +6,4 @@ package diskspace
 // managed local model is not supported here yet. Unknown is the honest answer:
 // the fit planner refuses on unknown, so nothing is pulled on a promise that
 // was never checked.
-func Free(string) (uint64, bool) { return 0, false }
+func free(string) (uint64, bool) { return 0, false }

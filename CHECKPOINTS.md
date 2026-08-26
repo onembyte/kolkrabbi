@@ -161,7 +161,9 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **L13.4a hardware snapshot & fit planner** — the documented probe-independent shape, reserved headroom, and a refusal that carries the numbers behind it.
 - [x] **L13.4b sysfs and meminfo probe** — the snapshot is filled from platform metadata through injectable seams, failing closed to unknown.
 - [x] **L13.4c disk space and NVIDIA VRAM** — `internal/diskspace` measures free space per platform, NVIDIA cards are measured through the vendor tool, and `NewSystemProber` wires both.
-- [ ] **L13.5 `/localia` surface** — hardware status, storage usage, catalog, explicit pull approval, GPU and quantization selection.
+- [x] **L13.5a `localia` status** — `kolk localia` and `/localia` report hardware, managed storage, and installed local models, and pull nothing.
+- [ ] **L13.5b catalog and pull approval** — a local-model catalog, the fit plan shown before a pull, and the pull itself as an explicit confirmation.
+- [ ] **L13.5c GPU and quantization settings** — persist `gpu_mode`, `gpu_index`, `quantization` and the reserved-headroom values as non-secret local configuration.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
 
 Scope:
@@ -859,6 +861,47 @@ Acceptance checklist:
 - [x] `NewSystemProber` wires filesystem, statfs and vendor tool, and produces a snapshot on this
   machine with no GPU, driver, or privileged access.
 - [x] full `make check` green, including the architecture gate that forced the platform move.
+
+### L13.5a `localia` status — verified detail
+
+The first thing that makes L13 reachable. `kolk localia` and `/localia` print what this machine
+could run, where Kolkrabbi keeps local models, and what is installed. It reads only: nothing here
+downloads, starts a sidecar, or writes configuration, because the contract says every pull is an
+explicit user action.
+
+Unknown stays visibly unknown in the output. A card Kolkrabbi could not measure prints `unknown`,
+never `0 B`, which would read as a fact about the machine.
+
+A real run on the development host exposed a defect the unit tests could not: free disk read
+`unknown`, because `statfs` fails on the managed model directory, which does not exist until the
+first pull. Reporting the destination as unmeasurable would have made the planner refuse every pull
+forever. `diskspace.Free` now measures the nearest existing ancestor — the filesystem the directory
+will actually occupy, which is the number the decision needs.
+
+Scope:
+
+- `localia` in the command table and `/localia` in the slash table, covered by the existing parity
+  test.
+- The probe is injectable, so the tests need neither a GPU nor Ollama, and the default wires
+  `local.NewSystemProber`.
+- `local.HumanBytes` is exported: sizes here decide whether a multi-gigabyte download is worth
+  starting, so they are read by a person.
+
+Non-goals:
+
+- No catalog, no pull, no sidecar start, no GPU configuration. L13.5b and L13.5c own those, and
+  keeping them out is what lets this leaf be read-only.
+
+Acceptance checklist:
+
+- [x] hardware, storage, model directory and installed models are reported.
+- [x] an unmeasured card prints `unknown`.
+- [x] an empty managed directory says nothing is installed and that Kolkrabbi never pulls on its own.
+- [x] `/localia` mirrors the command.
+- [x] the default probe path runs on a machine with no GPU and no Ollama.
+- [x] real-binary run on the development host: 15.5 GiB RAM, 7.7 GiB free where `df` reports 7.8 G,
+  the Intel card listed as unmeasurable, and no models installed.
+- [x] full `make check` green.
 
 ### B12 Claude subscription backend — recorded detail
 

@@ -27,6 +27,7 @@ var slashCommandTable = []slashCommand{
 	{"plans", "[filter] | login <provider> <plan>", "list plans or start provider-owned login"},
 	{"plogin", "[filter]", "search plans and start provider-owned login"},
 	{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors"},
+	{"localia", "", "local hardware, managed storage, and installed local models"},
 	{"config", "[get <k> | set <k> <v> | unset <k> | show]", "read and write saved settings"},
 	{"update", "", "install the latest verified release"},
 	{"stats", "[--json]", "100% local usage and rating dashboard"},
@@ -223,6 +224,10 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 	case "/plogin":
 		if err := a.runPlanLogin(ctx, strings.Fields(arg)); err != nil {
 			fmt.Fprintf(a.stderr, "plan login error: %v\n", err)
+		}
+	case "/localia":
+		if err := a.runLocalia(ctx, strings.Fields(arg)); err != nil {
+			fmt.Fprintf(a.stderr, "localia error: %v\n", err)
 		}
 	case "/pmodels":
 		if err := a.runPlanModels(ctx, strings.Fields(arg)); err != nil {

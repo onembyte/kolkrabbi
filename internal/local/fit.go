@@ -183,6 +183,10 @@ func usableVRAM(accelerator Accelerator, config Config) (uint64, bool) {
 	return accelerator.AvailableVRAM.Bytes - reserved, true
 }
 
+// HumanBytes formats a byte count for a person reading a plan or a status
+// line. Sizes here decide whether a multi-gigabyte download is worth starting.
+func HumanBytes(b uint64) string { return humanBytes(b) }
+
 func humanBytes(b uint64) string {
 	const unit = 1 << 10
 	if b < unit {

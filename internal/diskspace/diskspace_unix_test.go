@@ -14,8 +14,16 @@ func TestDiskFreeBytesMeasuresARealDirectory(t *testing.T) {
 	}
 }
 
-func TestDiskFreeBytesIsUnknownForAPathThatIsNotThere(t *testing.T) {
-	if _, ok := Free(t.TempDir() + "/definitely/not/here"); ok {
-		t.Fatal("a missing path must be unknown, not a number")
+func TestFreeMeasuresTheFilesystemAPathWillLiveOn(t *testing.T) {
+	// Kolkrabbi's managed model directory does not exist until the first pull,
+	// and reporting it as unmeasurable would refuse every pull forever.
+	base := t.TempDir()
+	deep, ok := Free(base + "/local-models/blobs")
+	if !ok {
+		t.Fatal("a path whose ancestor exists must be measurable")
+	}
+	here, _ := Free(base)
+	if deep != here {
+		t.Fatalf("nested path measured %d, its existing ancestor %d", deep, here)
 	}
 }
