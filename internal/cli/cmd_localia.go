@@ -6,6 +6,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/local"
@@ -16,7 +17,17 @@ import (
 // configures anything, because every pull is an explicit user action.
 func (a *app) runLocalia(ctx context.Context, args []string) error {
 	if len(args) > 0 {
-		return usagef("%s", usageLine("localia"))
+		switch args[0] {
+		case "models":
+			return a.printLocalCatalog(strings.Join(args[1:], " "))
+		case "plan":
+			if len(args) < 2 {
+				return usagef("usage: kolk localia plan <model>")
+			}
+			return a.printLocalPlan(ctx, args[1])
+		default:
+			return usagef("%s", usageLine("localia"))
+		}
 	}
 	dirs, err := a.resolve()
 	if err != nil {
@@ -24,13 +35,7 @@ func (a *app) runLocalia(ctx context.Context, args []string) error {
 	}
 	modelDir := dirs.LocalModelsDir()
 
-	probe := a.probeHardware
-	if probe == nil {
-		probe = func(ctx context.Context, dir string) local.Hardware {
-			return local.NewSystemProber(dir).Probe(ctx)
-		}
-	}
-	hardware := probe(ctx, modelDir)
+	hardware := a.hardware(ctx, modelDir)
 
 	fmt.Fprintf(a.stdout, "system RAM: %s\n", capacityLabel(hardware.SystemRAM))
 	fmt.Fprintf(a.stdout, "free disk:  %s\n", capacityLabel(hardware.DiskFree))
@@ -106,4 +111,97 @@ func installedLocalModels(dir string) ([]string, error) {
 	}
 	sort.Strings(names)
 	return names, nil
+}
+
+// printLocalCatalog lists what Kolkrabbi knows how to plan for. Runtime figures
+// are estimates and say so: the exact need depends on context length, batch
+// size and the runtime's own overhead, none of which Kolkrabbi controls.
+func (a *app) printLocalCatalog(filter string) error {
+	entries := local.Catalog(filter)
+	if len(entries) == 0 {
+		fmt.Fprintf(a.stdout, "no local model matches %q\n", filter)
+		return nil
+	}
+	fmt.Fprintln(a.stdout, "MODEL                  PARAMS  QUANT      DOWNLOAD    NEEDS (estimate)")
+	for _, entry := range entries {
+		requirement := entry.Requirement()
+		fmt.Fprintf(a.stdout, "%-22s %-7s %-10s %-11s %s on gpu / %s on cpu\n",
+			entry.Name, entry.Parameters, entry.Quantization,
+			local.HumanBytes(entry.StorageBytes),
+			local.HumanBytes(requirement.VRAMBytes), local.HumanBytes(requirement.RAMBytes))
+	}
+	fmt.Fprintln(a.stdout, "\nplan one before pulling it: kolk localia plan <model>")
+	return nil
+}
+
+// printLocalPlan shows where a model would run and every number that decision
+// rested on. It downloads nothing: seeing the plan must never be the act that
+// commits a multi-gigabyte pull.
+func (a *app) printLocalPlan(ctx context.Context, name string) error {
+	entry, err := local.LookupModel(name)
+	if err != nil {
+		return err
+	}
+	dirs, err := a.resolve()
+	if err != nil {
+		return err
+	}
+	cfg, err := config.Load(dirs.ConfigFile())
+	if err != nil {
+		return err
+	}
+	hardware := a.hardware(ctx, dirs.LocalModelsDir())
+
+	plan, err := local.PlanFit(hardware, localRuntimeConfig(cfg), entry.Requirement())
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(a.stdout, "%s (%s, %s)\n", entry.Name, entry.Parameters, entry.Quantization)
+	fmt.Fprintf(a.stdout, "  download:  %s into %s\n", local.HumanBytes(plan.StorageBytes), dirs.LocalModelsDir())
+	fmt.Fprintf(a.stdout, "  disk free: %s\n", local.HumanBytes(plan.DiskFreeBytes))
+	fmt.Fprintf(a.stdout, "  placement: %s", plan.Placement)
+	if plan.Accelerator != "" {
+		fmt.Fprintf(a.stdout, " (%s, index %d)", plan.Accelerator, plan.GPUIndex)
+	}
+	fmt.Fprintln(a.stdout)
+	fmt.Fprintf(a.stdout, "  needs:     %s (estimate)\n", local.HumanBytes(plan.RequiredBytes))
+	fmt.Fprintf(a.stdout, "  available: %s after %s reserved\n",
+		local.HumanBytes(plan.AvailableBytes), local.HumanBytes(plan.ReservedBytes))
+	if plan.Fallback != "" {
+		fmt.Fprintf(a.stdout, "  fallback:  %s\n", plan.Fallback)
+	}
+	fmt.Fprintln(a.stdout, "\nnothing has been downloaded; this is a plan, not a pull")
+	return nil
+}
+
+// hardware probes this machine, or uses whatever a test injected.
+func (a *app) hardware(ctx context.Context, modelDir string) local.Hardware {
+	if a.probeHardware != nil {
+		return a.probeHardware(ctx, modelDir)
+	}
+	return local.NewSystemProber(modelDir).Probe(ctx)
+}
+
+// localRuntimeConfig turns saved settings into the planner's input, leaving
+// anything unset to the planner's own defaults.
+func localRuntimeConfig(cfg *config.Config) local.Config {
+	runtime := local.Config{
+		GPUMode:      cfg.Local.GPUMode,
+		Quantization: cfg.Local.Quantization,
+	}
+	if cfg.Local.GPUIndex != nil {
+		runtime.GPUIndex = *cfg.Local.GPUIndex
+	}
+	// Unset means "use the documented default headroom", not "reserve nothing".
+	// A user who chose zero gets zero; a user who chose nothing gets protected.
+	runtime.ReservedVRAMFraction = local.DefaultReservedVRAMFraction
+	if cfg.Local.ReservedVRAMFraction != nil {
+		runtime.ReservedVRAMFraction = *cfg.Local.ReservedVRAMFraction
+	}
+	runtime.ReservedRAMBytes = local.DefaultReservedRAM
+	if cfg.Local.ReservedRAMBytes != nil {
+		runtime.ReservedRAMBytes = *cfg.Local.ReservedRAMBytes
+	}
+	return runtime
 }

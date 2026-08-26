@@ -29,6 +29,16 @@ type Hardware struct {
 	DiskFree     Capacity
 }
 
+// Reserved headroom applied when the user has not chosen their own. The
+// contract requires defaults that leave room for the operating system and for
+// Kolkrabbi itself: a plan that consumes every byte on the machine is one the
+// machine cannot survive, and a model that loads by starving the desktop is not
+// a model that ran successfully.
+const (
+	DefaultReservedRAM          = 2 << 30
+	DefaultReservedVRAMFraction = 0.1
+)
+
 // Config is the persisted, non-secret local-model configuration.
 type Config struct {
 	GPUMode              string // auto | cpu | gpu

@@ -155,7 +155,7 @@ func commandTable() []command {
 		{"models", "[filter]", "list models with context size and $/1M pricing", (*app).runModels},
 		{"plans", "[filter] | login <provider> <plan>", "list plans or start provider-owned login", (*app).runPlans},
 		{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors", (*app).runPlanModels},
-		{"localia", "", "local hardware, managed storage, and installed local models", (*app).runLocalia},
+		{"localia", "[models [filter] | plan <model>]", "local hardware, model catalog, and fit plans", (*app).runLocalia},
 		{"update", "", "install the latest verified release", (*app).runUpdate},
 		{"sessions", "[rm <id> | clear]", "list or delete saved sessions", (*app).runSessions},
 		{"stats", "[--json]", "100% local usage and rating dashboard", (*app).runStats},

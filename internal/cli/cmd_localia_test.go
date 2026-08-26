@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/local"
 )
 
@@ -94,5 +95,123 @@ func TestLocaliaNeedsNoGpuOrOllama(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "system RAM") {
 		t.Fatalf("localia output = %q", out.String())
+	}
+}
+
+func TestLocaliaModelsListsTheCatalogWithSizes(t *testing.T) {
+	isolateConnectorState(t)
+	a, out, errOut := newTestApp("")
+
+	if code := a.main(context.Background(), []string{"localia", "models"}); code != ExitOK {
+		t.Fatalf("localia models exit = %d, stderr = %q", code, errOut.String())
+	}
+	got := out.String()
+	for _, want := range []string{"qwen2.5-coder:7b", "Q4_K_M", "GiB", "estimate"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("output = %q, want %q", got, want)
+		}
+	}
+}
+
+func TestLocaliaPlanShowsEveryNumberTheDecisionRestedOn(t *testing.T) {
+	isolateConnectorState(t)
+	a, out, errOut := newTestApp("")
+	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
+
+	if code := a.main(context.Background(), []string{"localia", "plan", "qwen2.5-coder:7b"}); code != ExitOK {
+		t.Fatalf("localia plan exit = %d, stderr = %q", code, errOut.String())
+	}
+	got := out.String()
+	for _, want := range []string{"qwen2.5-coder:7b", "download", "needs", "available", "reserved", "gpu"} {
+		if !strings.Contains(strings.ToLower(got), want) {
+			t.Fatalf("plan output = %q, want %q", got, want)
+		}
+	}
+	// Planning is not pulling. Nothing may be downloaded by looking.
+	if strings.Contains(strings.ToLower(got), "downloading") {
+		t.Fatalf("plan output = %q, want no download to have started", got)
+	}
+}
+
+func TestLocaliaPlanRefusesWithItsReason(t *testing.T) {
+	isolateConnectorState(t)
+	a, _, errOut := newTestApp("")
+	a.probeHardware = func(context.Context, string) local.Hardware {
+		tiny := fakeHardware()
+		tiny.SystemRAM = local.Capacity{Bytes: 2 << 30, Known: true}
+		tiny.Accelerators = nil
+		return tiny
+	}
+
+	if code := a.main(context.Background(), []string{"localia", "plan", "phi4:14b"}); code == ExitOK {
+		t.Fatal("a model that cannot fit must not report a plan")
+	}
+	if !strings.Contains(errOut.String(), "GiB") {
+		t.Fatalf("stderr = %q, want the sizes that caused the refusal", errOut.String())
+	}
+}
+
+func TestLocaliaPlanUsesTheConfiguredHeadroom(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	cfg, err := config.Load(dirs.ConfigFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := config.SetLocal(cfg, "local.gpu_mode", "cpu"); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.SetLocal(cfg, "local.reserved_ram_bytes", "28GiB"); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.Save(dirs.ConfigFile(), cfg); err != nil {
+		t.Fatal(err)
+	}
+	a, _, errOut := newTestApp("")
+	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
+
+	// 32 GiB with 28 reserved leaves 4, which cannot hold a 14B model.
+	if code := a.main(context.Background(), []string{"localia", "plan", "phi4:14b"}); code == ExitOK {
+		t.Fatalf("configured headroom was ignored; stderr = %q", errOut.String())
+	}
+}
+
+func TestLocaliaPlanReservesHeadroomByDefault(t *testing.T) {
+	isolateConnectorState(t)
+	a, out, errOut := newTestApp("")
+	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
+
+	if code := a.main(context.Background(), []string{"localia", "plan", "qwen2.5-coder:7b"}); code != ExitOK {
+		t.Fatalf("plan exit = %d, stderr = %q", code, errOut.String())
+	}
+	// A default of zero reserved would let a plan consume every byte on the
+	// machine, which is not a machine that survives the model running.
+	if strings.Contains(out.String(), "after 0 B reserved") {
+		t.Fatalf("plan output = %q, want documented default headroom", out.String())
+	}
+}
+
+func TestLocaliaPlanHonoursADeliberateZeroReserve(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	cfg, err := config.Load(dirs.ConfigFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := config.SetLocal(cfg, "local.reserved_ram_bytes", "0"); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.SetLocal(cfg, "local.gpu_mode", "cpu"); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.Save(dirs.ConfigFile(), cfg); err != nil {
+		t.Fatal(err)
+	}
+	a, out, _ := newTestApp("")
+	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
+
+	if code := a.main(context.Background(), []string{"localia", "plan", "qwen2.5-coder:7b"}); code != ExitOK {
+		t.Fatal("plan must succeed")
+	}
+	if !strings.Contains(out.String(), "after 0 B reserved") {
+		t.Fatalf("plan output = %q, want a chosen zero to be respected", out.String())
 	}
 }

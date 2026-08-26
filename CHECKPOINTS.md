@@ -162,7 +162,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **L13.4b sysfs and meminfo probe** — the snapshot is filled from platform metadata through injectable seams, failing closed to unknown.
 - [x] **L13.4c disk space and NVIDIA VRAM** — `internal/diskspace` measures free space per platform, NVIDIA cards are measured through the vendor tool, and `NewSystemProber` wires both.
 - [x] **L13.5a `localia` status** — `kolk localia` and `/localia` report hardware, managed storage, and installed local models, and pull nothing.
-- [ ] **L13.5b catalog and pull approval** — a local-model catalog, the fit plan shown before a pull, and the pull itself as an explicit confirmation.
+- [x] **L13.5b1 catalog and plan** — `localia models` lists what can be planned for, `localia plan <model>` shows every number the decision rested on and downloads nothing.
+- [ ] **L13.5b2 pull approval and download** — the confirmed pull itself, through the managed sidecar, with verification before anything is executed.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
 
@@ -942,6 +943,53 @@ Acceptance checklist:
 - [x] get, set and unset round-trip, and an unknown `local.*` key is rejected rather than stored.
 - [x] real-binary rehearsal: three settings written to the config file, two invalid values refused
   with their reasons, and `localia` showing the stored values with `(computed)` for the rest.
+- [x] full `make check` green.
+
+### L13.5b1 catalog and plan — verified detail
+
+`localia models` lists what Kolkrabbi knows how to plan for, and `localia plan <model>` answers
+"where would this run and does it fit" without committing to anything. Seeing the plan must never be
+the act that starts a multi-gigabyte download, so the two are separate verbs and the plan says so in
+its last line.
+
+Honesty about what is a fact and what is not runs through this leaf. A quantization's file size is
+published and is recorded as such. Everything about runtime memory is an *estimate* derived from it
+— weights plus a fifth, with a floor, because a proportional overhead alone under-counts small
+models — and every place it is shown is labelled `(estimate)`. The estimate is deliberately
+generous: over-estimating costs a user a model that would probably have fit, while under-estimating
+costs them a multi-gigabyte download that cannot load. The catalog is deliberately short, because a
+long list of models nobody sized is not more useful than a few whose sizes were checked.
+
+A real run exposed a contract gap the unit tests could not: `available: 15.5 GiB after 0 B reserved`.
+`docs/plan/25` requires defaults that reserve headroom for the operating system and for Kolkrabbi,
+and the planner's zero values reserved nothing. Unset now means the documented default (2 GiB of RAM,
+10% of VRAM); a user who *chooses* zero still gets zero. That distinction is exactly why the config
+fields are pointers.
+
+Scope:
+
+- `local.Catalog`, `local.LookupModel`, and `CatalogEntry.Requirement`.
+- `localia models [filter]` and `localia plan <model>`, both in the command and slash tables.
+- `localRuntimeConfig` maps saved settings onto the planner's input and supplies default headroom
+  for anything unset.
+
+Non-goals:
+
+- No download, no sidecar start, no confirmation flow. L13.5b2 owns those, and keeping them out is
+  what makes this leaf safe to run on any machine.
+
+Acceptance checklist:
+
+- [x] the catalog filters by name, quantization and parameter count, and every entry carries a size
+  and a quantization.
+- [x] every runtime estimate exceeds the file on disk, and the CPU estimate exceeds the GPU one.
+- [x] an unknown model names the command that lists them.
+- [x] the plan prints download size, destination, disk free, placement, need, availability, reserved
+  headroom and any fallback.
+- [x] a model that cannot fit refuses with its sizes; configured headroom changes the outcome.
+- [x] unset headroom uses the documented default; a chosen zero is respected.
+- [x] real-binary rehearsal on the development host: the catalog, a CPU plan with the fallback
+  explained, and `qwen2.5-coder:14b needs 8.8 GiB on disk and only 7.7 GiB is free`.
 - [x] full `make check` green.
 
 ### B12 Claude subscription backend — recorded detail
