@@ -377,7 +377,8 @@ backend only.
 **Hardened when:** state machine + `SAGA.md` format + stop conditions + CLI spec + 2 worked examples.
 **Inputs:** `docs/research/ecosystem.md` (loop/autonomy patterns)
 
-### [ ] 11. REPL / TUI & input
+### [x] 11. REPL / TUI & input
+**Hardened 2026-08-26** ([`docs/plan/11-repl-tui-input.md`](docs/plan/11-repl-tui-input.md)): the framework question was already answered by the module budget — Bubble Tea plus Lip Gloss plus Glamour is not two modules, so `internal/tui` is hand-rolled and built. Reading the code against the bullets found three real gaps: no diff preview before a confirm (someone approving an edit is approving a description of it), no `@file` mentions, and a status line carrying neither context nor cost though both already exist in the engine. Syntax highlighting and three extra keybindings are explicitly out.
 **Scope:** how it feels to type in kolk; rendering; keybindings.
 **Today:** single-line stdin REPL, ANSI colors, streaming plain text, cost footer, Ctrl+C = interrupt turn.
 **Decide:**
