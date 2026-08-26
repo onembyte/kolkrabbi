@@ -157,3 +157,45 @@ func (s *Store) Changes() []Entry {
 	copy(out, s.entries)
 	return out
 }
+
+// ChangedPaths lists each file this session touched, once, in the order it was
+// first touched.
+//
+// A file edited three times is one changed file. First-touched order is the
+// order someone will look for it: it is the order things happened in.
+func (s *Store) ChangedPaths() []string {
+	seen := make(map[string]bool, len(s.entries))
+	paths := make([]string, 0, len(s.entries))
+	for _, e := range s.entries {
+		if seen[e.Path] {
+			continue
+		}
+		seen[e.Path] = true
+		paths = append(paths, e.Path)
+	}
+	return paths
+}
+
+// Original returns a file's contents as they were before this session first
+// touched it, and whether it existed then.
+//
+// The *first* backup, not the most recent one: a session diff answers "what has
+// this session done to my file", and against the previous edit it would answer
+// "what did the last turn do", which is a different and much less useful
+// question.
+func (s *Store) Original(path string) ([]byte, bool, error) {
+	for _, e := range s.entries {
+		if e.Path != path {
+			continue
+		}
+		if !e.Existed {
+			return nil, false, nil
+		}
+		content, err := os.ReadFile(filepath.Join(s.dir, e.Backup))
+		if err != nil {
+			return nil, true, fmt.Errorf("missing backup for %s: %w", path, err)
+		}
+		return content, true, nil
+	}
+	return nil, false, fmt.Errorf("%s was not changed by this session", path)
+}

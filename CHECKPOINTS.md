@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **G15.2 `/diff`** — the session's own changes as diffs, measured from where the session started.
 - [x] **G15.1 `/undo`** — one turn, both halves; files and conversation never move independently.
 - [x] **G11.3 context and cost in the status line** — the two numbers that decide whether to compact or stop, where someone is already looking.
 - [x] **G11.2 `@file` mentions** — `@` completes against the project, path not contents, ignoring what `.gitignore` and a skip list say to.
@@ -1919,6 +1920,40 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### G15.2 `/diff` — verified detail
+
+`/changes` listed paths and verbs, which answers "did it touch anything" and not "should I keep
+this". Deciding that means reading the change, and until now that meant leaving Kolkrabbi.
+
+Nothing new had to be built to store it. The checkpoint store already keeps the pre-edit contents of
+every file the agent's tools touch, and G11.1's `internal/diff` already renders them. This leaf is
+those two facts joined, plus one accessor each.
+
+**The baseline is the start of the session, not the previous edit.** `Original` returns the *first*
+backup for a path. A file edited three times has one answer to "what has this session done to it";
+diffing against the most recent backup would answer "what did the last turn do", which is a different
+and much less useful question. The test asserts the intermediate state does not appear at all.
+
+**A file touched and put back says so.** An empty diff printed under a heading reads as a bug, and
+"the session edited it and it is back to where it started" is a fact worth knowing when deciding what
+to keep.
+
+**A created file is shown as new**, not as a diff against nothing, and a file that has since been
+deleted says it is gone rather than printing nothing.
+
+Per-file truncation is 120 lines, cut in the middle like a confirmation is, and a path argument
+matches on the tail so `/diff agent.go` works without typing the directory.
+
+Acceptance checklist:
+
+- [x] the diff shows what changed and names the file.
+- [x] the baseline is the session's start, with intermediate states absent.
+- [x] a created file is marked new and shows its content.
+- [x] a path argument narrows to one file and excludes the others.
+- [x] a file reverted by hand is reported as unchanged.
+- [x] nothing changed says so; an unknown path names itself.
+- [x] full `make check` green: 1,918 tests, 0 lint issues, every script contract.
 
 ### G15.1 `/undo` — verified detail
 
