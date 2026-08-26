@@ -159,7 +159,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **L13.2 managed runtime spec & lifecycle** — validated `RuntimeSpec`, start-at-most-once, deterministic close.
 - [x] **L13.3 managed sidecar starter** — `shell.StartManagedProcess` keeps process execution inside the one owner package.
 - [x] **L13.4a hardware snapshot & fit planner** — the documented probe-independent shape, reserved headroom, and a refusal that carries the numbers behind it.
-- [ ] **L13.4b platform probes** — read the shape from Linux device metadata and vendor utilities, failing closed to unknown.
+- [x] **L13.4b sysfs and meminfo probe** — the snapshot is filled from platform metadata through injectable seams, failing closed to unknown.
+- [ ] **L13.4c disk space and NVIDIA VRAM** — a real statfs behind the disk seam, and NVIDIA VRAM through `internal/shell`, which owns process execution.
 - [ ] **L13.5 `/localia` surface** — hardware status, storage usage, catalog, explicit pull approval, GPU and quantization selection.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
 
@@ -780,6 +781,42 @@ Acceptance checklist:
 - [x] eight tests cover GPU fit, CPU fallback with a reported fallback, refusal instead of swap,
   explicit-GPU refusal, unknown capacity, disk shortfall, explicit GPU index, and no pooling.
 - [x] refusals name the sizes that caused them.
+- [x] the package still needs neither a GPU nor Ollama to test.
+- [x] full `make check` green.
+
+### L13.4b sysfs and meminfo probe — verified detail
+
+A probe reads real machine state, which normally means tests that need a GPU. `Prober` reads through
+an `fs.FS` and an injected disk-space function instead, so every branch is exercised with
+`fstest.MapFS` and none of it needs hardware, `/proc`, or root.
+
+Every read fails closed to unknown, which is the whole point: the planner refuses on unknown, so a
+probe that guesses is strictly worse than one that admits it cannot tell.
+
+Decisions, each a test:
+
+- **`MemTotal` is parsed with its unit.** `MemTotal: 32764700` without `kB` is not the line this
+  parser understands, so it is unknown rather than off by 1024.
+- **An unreadable card is still listed.** NVIDIA exposes no VRAM counters in sysfs; hiding the card
+  would be worse than listing it unmeasured, because the planner can refuse on unknown but cannot
+  refuse on a card it never saw.
+- **Connectors and render nodes are not accelerators.** `card0-DP-1` and `renderD128` sit beside
+  `card0` in the same directory and would otherwise triple the card count.
+- **An unrecognised vendor ID is reported raw** rather than dropped.
+
+Non-goals:
+
+- No disk measurement and no NVIDIA VRAM yet. Both need something this leaf deliberately does not
+  reach for — a syscall behind build tags, and process execution, which only `internal/shell` may
+  do. They are L13.4c.
+
+Acceptance checklist:
+
+- [x] seven tests: RAM parsed, RAM unknown in three ways, AMD VRAM total and available, an
+  unmeasurable card still listed, connectors ignored, disk through the seam, disk unknown without one.
+- [x] real-machine evidence on the development host: `MemTotal 16272760 kB` read as
+  16,663,306,240 bytes (exactly ×1024), the Intel `card1` listed with unknown VRAM as expected for
+  integrated graphics, and its nine connectors plus `renderD128` correctly ignored.
 - [x] the package still needs neither a GPU nor Ollama to test.
 - [x] full `make check` green.
 
