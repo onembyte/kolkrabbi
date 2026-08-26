@@ -45,7 +45,8 @@ var slashCommandTable = []slashCommand{
 	{"session", "", "show the current session id and file"},
 	{"changes", "", "list files modified by this session"},
 	{"saga", "[goal | resume | status | stop | rewind]", "careful-progression autonomous loop"},
-	{"rewind", "", "undo the last turn's file changes"},
+	{"undo", "", "take back the last turn: its file changes and its conversation"},
+	{"rewind", "", "restore the last turn's files only, leaving the conversation"},
 	{"help", "", "show all slash commands"},
 	{"exit", "", "quit Kolkrabbi"},
 	{"quit", "", "alias for /exit"},
@@ -165,6 +166,31 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			}
 			fmt.Fprintf(a.stdout, "turn %-3d %-8s %s (%s)\n", e.Turn, verb, e.Path, e.Tool)
 		}
+	case "/undo":
+		result, err := ag.Undo()
+		if err != nil {
+			fmt.Fprintf(a.stderr, "undo failed: %v\n", err)
+			if len(result.Files) > 0 {
+				fmt.Fprintln(a.stderr, "some files were restored before it stopped; the conversation is unchanged.")
+				for _, p := range result.Files {
+					fmt.Fprintln(a.stderr, "  "+p)
+				}
+			}
+			break
+		}
+		if result.Messages == 0 && len(result.Files) == 0 {
+			fmt.Fprintln(a.stdout, "nothing to undo.")
+			break
+		}
+		fmt.Fprintf(a.stdout, "undid the last turn: %d messages", result.Messages)
+		if len(result.Files) == 0 {
+			fmt.Fprintln(a.stdout, ", no file changes.")
+			break
+		}
+		fmt.Fprintf(a.stdout, ", %d file(s) restored:\n", len(result.Files))
+		for _, p := range result.Files {
+			fmt.Fprintln(a.stdout, "  "+p)
+		}
 	case "/rewind":
 		restored, err := ag.Rewind()
 		if err != nil {
@@ -179,7 +205,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		for _, p := range restored {
 			fmt.Fprintln(a.stdout, "  "+p)
 		}
-		fmt.Fprintln(a.stdout, "\033[2mnote: files only — the conversation history is unchanged.\033[0m")
+		fmt.Fprintln(a.stdout, "\033[2mnote: files only — the conversation still describes these edits. /undo takes back both.\033[0m")
 	case "/permissions", "/permission":
 		if strings.TrimSpace(arg) == "" {
 			a.showPermissions(ag)

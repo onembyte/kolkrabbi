@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **G15.1 `/undo`** — one turn, both halves; files and conversation never move independently.
 - [x] **G11.3 context and cost in the status line** — the two numbers that decide whether to compact or stop, where someone is already looking.
 - [x] **G11.2 `@file` mentions** — `@` completes against the project, path not contents, ignoring what `.gitignore` and a skip list say to.
 - [x] **G11.1 diff preview before confirm** — an edit or a write shows the change, a create is visibly not an overwrite, and the overlay renders it line by line.
@@ -1918,6 +1919,39 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### G15.1 `/undo` — verified detail
+
+`/rewind` restored files and left the conversation, and said so in its own note. That note described
+a real divergence rather than a limitation: the model's history still contained the edits, so the
+next turn reasoned about a tree that no longer matched what it believed. Nothing surfaces that — the
+user cannot see the mismatch and the model cannot detect it.
+
+**Order is the design.** Files are restored first. If they cannot be, the conversation is left exactly
+as it was and the error says so: a half-undo that rewinds history while leaving edits in place is the
+same divergence in the other direction, and it is the direction that silently loses work.
+
+**A turn starts at what the person said.** Everything after the last user message — replies, tool
+calls, their results — exists because of it, so taking the turn back takes all of it. A turn that
+changed no files is still a turn.
+
+**One turn per undo.** The store keeps every turn, so walking back further is available; repeated
+single undos are easier to reason about than a count nobody can picture, and nobody has asked for the
+other thing. Recorded as an open question rather than closed off.
+
+`/rewind` stays for someone who genuinely wants only the files, and its note now points at `/undo`
+rather than just stating the limitation.
+
+Acceptance checklist:
+
+- [x] undo takes back both halves and reports each.
+- [x] a failed file restore leaves the conversation untouched.
+- [x] a turn with no file changes is still undone.
+- [x] undoing nothing says so rather than erroring.
+- [x] undo without checkpointing refuses, and does not trim history.
+- [x] two undos take back two turns, asking the store once each.
+- [x] `/undo` is registered for help and completion; `/rewind` points at it.
+- [x] full `make check` green: 1,907 tests, 0 lint issues, every script contract.
 
 ### G11.3 context and cost in the status line — verified detail
 
