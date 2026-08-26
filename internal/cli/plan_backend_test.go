@@ -216,3 +216,29 @@ func TestSlashEffortSaysThePlanProviderKeepsItsOwnLevel(t *testing.T) {
 		t.Fatalf("output = %q, want it to say the provider keeps its level and how to restart it", got)
 	}
 }
+
+func TestSwitchingModelsUpdatesTheContextWindow(t *testing.T) {
+	isolateConnectorState(t)
+	a, ag, _ := replFixture(t, "")
+	a.catalog = []provider.ModelInfo{
+		{ID: "vendor/small", ContextLength: 8_000},
+		{ID: "vendor/large", ContextLength: 200_000},
+	}
+
+	if a.slash(context.Background(), ag, "/model vendor/large") {
+		t.Fatal("/model must not exit the session")
+	}
+	if ag.ContextWindow != 200_000 {
+		t.Fatalf("window = %d, want the new model's", ag.ContextWindow)
+	}
+
+	// A model the catalog does not describe is unknown, not the previous
+	// model's limit: compaction is destructive and must not run on a borrowed
+	// number.
+	if a.slash(context.Background(), ag, "/model vendor/unlisted") {
+		t.Fatal("/model must not exit the session")
+	}
+	if ag.ContextWindow != 0 {
+		t.Fatalf("window = %d, want unknown for a model the catalog does not describe", ag.ContextWindow)
+	}
+}

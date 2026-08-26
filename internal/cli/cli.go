@@ -70,6 +70,7 @@ type app struct {
 	enterRaw         func(*os.File) (func() error, error)
 	terminalOwned    func() bool
 	probeHardware    func(context.Context, string) local.Hardware
+	catalog          []provider.ModelInfo
 	terminalSize     func(*os.File) (int, int)
 	isStdinPiped     func() bool
 	handover         func(context.Context, string, []string, string) error

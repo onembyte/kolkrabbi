@@ -165,6 +165,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **L13.5b1 catalog and plan** — `localia models` lists what can be planned for, `localia plan <model>` shows every number the decision rested on and downloads nothing.
 - [x] **L13.5b2 pull approval** — `localia pull` plans, asks, and treats anything but an explicit yes as no.
 - [x] **L13.5b3 verified runtime install** — the install path is built and tested; it refuses to run without a pinned checksum, and this build pins none.
+- [x] **C12.1 context accounting** — the window is measured from provider-reported tokens, shown in the per-turn footer, and unknown never means small.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
@@ -1082,6 +1083,51 @@ Acceptance checklist:
 **L13.5b4 is blocked on the owner, deliberately.** The remaining work is not code: pick an upstream
 runtime release, verify it, and record its version, URL and SHA-256 in `pinnedRuntime`. Everything
 around that line is written and tested.
+
+### C12.1 context accounting — verified detail
+
+The first leaf of [`docs/plan/12-sessions-context-memory.md`](docs/plan/12-sessions-context-memory.md).
+Everything else in that document depends on knowing how full the window is, and Kolkrabbi did not
+know at all: no accounting, no threshold, no display.
+
+The distinction the type exists to keep is measured versus estimated. `Meta.PromptTokens` is the
+provider's own count of what it just read; a character estimate is a floor for the one moment before
+any turn has been answered. Compaction throws conversation away, so the two must never be confused
+at the point that decision is made.
+
+Decisions, each a test:
+
+- **Unknown window never compacts.** A model the catalog does not describe reports zero, and zero
+  means "no limit was stated", not "a small limit". Discarding a user's conversation on a guessed
+  ceiling is worse than a provider error they can read.
+- **Switching to an unlisted model returns to unknown** rather than keeping the previous model's
+  number. A borrowed limit is a guess wearing a measurement's clothes.
+- **The fraction is capped at 1.** A stale catalog can make a provider report more than the window
+  it advertises, and showing 140% would read as a bug in Kolkrabbi rather than in the catalog. It
+  still asks for compaction.
+- **The footer shows it**: `[code · vendor/model · 12445 tok · 12.3k/128k ctx · 812ms]`. A user who
+  can watch the window fill can see a compaction coming instead of being surprised by the model
+  forgetting something. Nothing is claimed when the window is unknown.
+
+The window is resolved once from the catalog already loaded during session construction and kept in
+memory, so a `/model` switch re-resolves it without a network call — the existing
+`TestSlashModelDirectSwitchDoesNotFetchCatalog` guarantee still holds.
+
+Non-goals:
+
+- Nothing compacts yet. C12.2 owns the compaction itself; this leaf only makes the decision
+  measurable and visible.
+
+Acceptance checklist:
+
+- [x] a reported count wins over an estimate, and an estimate never claims to be measured.
+- [x] the threshold fires at exactly 75% and not at 74.9%.
+- [x] an unknown window never compacts and claims no fraction.
+- [x] `128000` renders as `128k`, not `128.0k` — the decimal appears only when it carries
+  information.
+- [x] the footer shows usage with a window and says nothing without one.
+- [x] a model switch updates the window; an unlisted model sets it back to unknown.
+- [x] full `make check` green.
 
 ### B12 Claude subscription backend — recorded detail
 

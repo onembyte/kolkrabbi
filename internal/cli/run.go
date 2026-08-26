@@ -178,10 +178,14 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		eventBus = b
 	}
 
-	var freeModels []string
-	if models, err := client.ListModelsCached(ctx, d.CatalogFile(), provider.DefaultCatalogTTL, false); err == nil {
-		freeModels = provider.RankFreeModels(models)
+	catalog, err := client.ListModelsCached(ctx, d.CatalogFile(), provider.DefaultCatalogTTL, false)
+	if err != nil {
+		catalog = provider.FallbackCatalogSeed()
 	}
+	// Kept in memory so a later /model switch can resolve the new model's
+	// window without a network call.
+	a.catalog = catalog
+	freeModels := provider.RankFreeModels(catalog)
 	if len(freeModels) == 0 {
 		freeModels = provider.RankFreeModels(provider.FallbackCatalogSeed())
 	}
@@ -192,21 +196,22 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	}
 
 	return engine.New(engine.Options{
-		Client:      client,
-		Backend:     backend,
-		Model:       model,
-		Mode:        o.mode,
-		Effort:      o.effort,
-		Yolo:        o.yolo,
-		Sess:        sess,
-		Ckpt:        ckpt,
-		In:          a.in,
-		Out:         a.stdout,
-		Recorder:    stats.NewStore(d.Data),
-		Tiers:       cfg.Tiers,
-		Bus:         eventBus,
-		PinnedModel: o.model != "",
-		FreeModels:  freeModels,
+		Client:        client,
+		Backend:       backend,
+		Model:         model,
+		Mode:          o.mode,
+		Effort:        o.effort,
+		Yolo:          o.yolo,
+		Sess:          sess,
+		Ckpt:          ckpt,
+		In:            a.in,
+		Out:           a.stdout,
+		Recorder:      stats.NewStore(d.Data),
+		Tiers:         cfg.Tiers,
+		Bus:           eventBus,
+		PinnedModel:   o.model != "",
+		FreeModels:    freeModels,
+		ContextWindow: a.contextWindowFor(model),
 	}), nil
 }
 
@@ -286,6 +291,18 @@ func (a *app) planEffort(effort string, plan provider.PlanModel) string {
 	return resolved
 }
 
+// contextWindowFor reports the advertised context size of one model, or zero
+// when the catalog does not describe it. Zero means unknown, and the engine
+// treats unknown as "never compact" rather than as a small window.
+func (a *app) contextWindowFor(model string) int {
+	for _, entry := range a.catalog {
+		if entry.ID == model {
+			return entry.ContextLength
+		}
+	}
+	return 0
+}
+
 // switchModel points a live session at a model and, when that model belongs to
 // a subscription plan, at the provider that can actually answer it. Without
 // this the status line names one model while a different provider replies.
@@ -314,6 +331,9 @@ func (a *app) switchModel(ag *engine.Agent, ref string) (string, error) {
 	// Options is embedded in Agent, so these are the session's own fields and a
 	// later /new inherits the provider it is running on.
 	ag.Model = resolved
+	// A provider CLI's window is not in the catalog, so a plan model reports
+	// unknown rather than borrowing the previous model's limit.
+	ag.ContextWindow = a.contextWindowFor(resolved)
 	ag.PinnedModel = true
 	if ag.Sess != nil {
 		ag.Sess.SetModelName(resolved)

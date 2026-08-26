@@ -181,6 +181,11 @@ type Options struct {
 	Bus         *bus.Bus
 	PinnedModel bool
 	FreeModels  []string
+	// ContextWindow is the active model's advertised context size, or zero when
+	// it is unknown. Surfaces resolve it from the catalog; the engine never
+	// guesses one, because compaction is destructive and a guessed limit would
+	// throw away conversation on no evidence.
+	ContextWindow int
 }
 
 // ChatBackend is the engine's provider seam. The existing OpenRouter client
@@ -622,8 +627,25 @@ func (a *Agent) footer(meta provider.Meta) {
 	if meta.PromptTokens+meta.CompletionTokens > 0 {
 		toks = fmt.Sprintf(" · %d tok", meta.PromptTokens+meta.CompletionTokens)
 	}
-	fmt.Fprintf(a.Out, "%s  [%s · %s%s%s · %dms]%s\n",
-		colorDim, a.Mode, meta.Model, toks, cost, meta.Elapsed.Milliseconds(), colorReset)
+	// How full the window is, whenever the model's window is known. A user who
+	// can watch it fill can see a compaction coming instead of being surprised
+	// by the model forgetting something.
+	window := ""
+	if label := a.contextUsage(meta.PromptTokens).Label(); label != "" {
+		window = " · " + label
+	}
+	fmt.Fprintf(a.Out, "%s  [%s · %s%s%s%s · %dms]%s\n",
+		colorDim, a.Mode, meta.Model, toks, window, cost, meta.Elapsed.Milliseconds(), colorReset)
+}
+
+// contextUsage measures the active model's window against what the provider
+// last reported reading.
+func (a *Agent) contextUsage(lastPromptTokens int) ContextUsage {
+	var messages []provider.Message
+	if a.Sess != nil && lastPromptTokens <= 0 {
+		messages = a.Sess.GetMessages()
+	}
+	return MeasureContext(a.ContextWindow, lastPromptTokens, messages)
 }
 
 // RunTurn dispatches a user message according to the current mode.
