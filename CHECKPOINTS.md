@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **F14.1 tasks carry structure** — a plan is records with a kind and real dependencies, and a subagent is briefed with only the results it asked for.
 - [x] **E13.7 "always" means a rule you can read** — the prompt proposes the rule it would keep, in both the TUI and the plain REPL, and keeps it where /permissions can show it.
 - [x] **C12.7 fast-lane session naming** — a session earns a real name once enough has happened, without delaying the answer or overwriting a name a person chose.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
@@ -1909,6 +1910,52 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### F14.1 tasks carry structure — verified detail
+
+Phase F opened with the hardening doc (`docs/plan/14-orchestration-routing.md`), and reading
+`orchestrator.go` to write it turned up the thing worth fixing first. This leaf is the prerequisite
+the rest of the phase needs.
+
+**"Comes after" and "depends on" were the same claim.** A task was a bare string, so the only
+ordering information available was position, and the code implemented dependency by pasting every
+earlier result into every later briefing. A plan therefore got worse as it went: the sixth
+subagent's context contained five tasks' worth of output, most of it irrelevant to its own job. A
+`Needs` list makes the distinction sayable, and `dependencyBriefing` hands a task only what it
+declared.
+
+**The planner is a model, so the parser accepts both shapes.** Whatever richer format we ask for, a
+weaker planner will sometimes send the flat array of strings that works today, and a run must not
+fail on that. A bare string yields `Kind: KindUnknown` and depends on everything before it — which
+is exactly the current behaviour, so the degradation path is the status quo rather than a broken
+run. This is the one place a model's reply becomes control flow; a strict parser here fails on a
+stray sentence rather than on anything the user did.
+
+**Nonsense dependencies are dropped, not repaired.** A dependency on a later task is a cycle, on a
+missing task it is a briefing that would silently omit what the task asked for, and a duplicate is
+one dependency however many times it was written. Guessing what the planner meant is worse than a
+task running with less context than it requested, because the guess is invisible.
+
+**An unrecognised kind stays unknown.** A task routed to the wrong model on a misread label costs
+more than one routed to the default.
+
+Two of my own premises were wrong and the code was right both times: I wrote a fixture whose
+"valid" dependency was the task itself, and I generated the implicit dependency list in 0-based
+indices while the planner's numbering — and therefore `resolveNeeds` — is 1-based. The second was a
+real bug in new code, caught because the plain-string test asserted the exact list rather than that
+it was non-empty.
+
+Acceptance checklist:
+
+- [x] a flat array of strings still produces a working plan with today's dependencies.
+- [x] a structured plan carries kind and dependencies, and a task with none has none.
+- [x] forward, missing, self and duplicate dependencies are dropped.
+- [x] an unrecognised kind is left unknown rather than guessed.
+- [x] the cap and the empty-title cleaning still apply.
+- [x] garbage output is no plan, not a partial one.
+- [x] a subagent is briefed with only the results it declared it needs.
+- [x] the printed plan shows each task's kind, ready for the model to join it in F14.3.
+- [x] full `make check` green: 1,834 tests, 0 lint issues, every script contract.
 
 ### B12 Claude subscription backend — recorded detail
 

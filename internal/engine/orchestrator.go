@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"runtime"
@@ -67,27 +66,27 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 	}
 
 	fmt.Fprintf(a.Out, "%s◆ plan (%d tasks):%s\n", colorMag, len(tasks), colorReset)
-	for i, t := range tasks {
-		fmt.Fprintf(a.Out, "%s  %d. %s%s\n", colorDim, i+1, t, colorReset)
+	for i, task := range tasks {
+		fmt.Fprintf(a.Out, "%s  %d. %s%s%s\n", colorDim, i+1, task.Title, task.annotation(), colorReset)
 	}
 
 	// ---- 2. delegate ----
-	results := make([]string, 0, len(tasks))
+	results := make([]string, len(tasks))
 	for i, task := range tasks {
-		fmt.Fprintf(a.Out, "\n%s◆ subagent %d/%d: %s%s\n", colorMag, i+1, len(tasks), task, colorReset)
+		fmt.Fprintf(a.Out, "\n%s◆ subagent %d/%d: %s%s\n", colorMag, i+1, len(tasks), task.Title, colorReset)
 		res, err := a.runSubagent(ctx, model, userInput, tasks, results, i)
 		if err != nil {
 			return fmt.Errorf("subagent %d: %w", i+1, err)
 		}
-		results = append(results, res)
+		results[i] = res
 	}
 
 	// ---- 3. synthesize ----
 	fmt.Fprintf(a.Out, "\n%s◆ synthesizing%s\n", colorMag, colorReset)
 	var sb strings.Builder
 	sb.WriteString("Original request:\n" + userInput + "\n\nCompleted tasks and their results:\n")
-	for i, t := range tasks {
-		fmt.Fprintf(&sb, "\n%d. %s\nResult: %s\n", i+1, t, results[i])
+	for i, task := range tasks {
+		fmt.Fprintf(&sb, "\n%d. %s\nResult: %s\n", i+1, task.Title, results[i])
 	}
 	sb.WriteString("\nWrite the final answer to the original request based on this work. Be concise; report what was done, key findings, and anything the user must know. Do not repeat raw task output verbatim.")
 
@@ -114,10 +113,21 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 }
 
 // plan asks the planner for a strict-JSON task list.
-func (a *Agent) plan(ctx context.Context, model, userInput string, maxTasks int) ([]string, provider.Meta, error) {
-	prompt := fmt.Sprintf(`Decompose the request below into at most %d concrete, self-contained tasks for coding subagents that have file and shell access but cannot talk to each other. Order matters: later tasks may depend on earlier results. If the request is trivial or a single step, return a single task.
+//
+// The reply is asked for as objects and accepted as either: a planner that
+// sends the flat array of strings this used to require still produces a
+// working plan, it just produces one that cannot be routed.
+func (a *Agent) plan(ctx context.Context, model, userInput string, maxTasks int) ([]Task, provider.Meta, error) {
+	prompt := fmt.Sprintf(`Decompose the request below into at most %d concrete, self-contained tasks for coding subagents that have file and shell access but cannot talk to each other. If the request is trivial or a single step, return a single task.
 
-Respond with ONLY a JSON array of task strings. No prose, no markdown fences.
+Respond with ONLY a JSON array. No prose, no markdown fences. Each element is an object:
+
+  {"title": "what to do", "kind": "edit", "needs": [1]}
+
+"kind" is one of: edit, test, research, explain, design, boilerplate. Omit it if none fits.
+"needs" lists the task numbers (counting from 1) whose results this task actually requires.
+Omit "needs" or use [] when the task stands alone — do not list a task merely because it
+comes earlier.
 
 Request:
 %s`, maxTasks, userInput)
@@ -130,53 +140,23 @@ Request:
 	if err != nil {
 		return nil, meta, err
 	}
-	tasks := parseTaskList(msg.Content, maxTasks)
-	return tasks, meta, nil
-}
-
-// parseTaskList tolerantly extracts a JSON string array from model output.
-func parseTaskList(s string, maxTasks int) []string {
-	start := strings.Index(s, "[")
-	end := strings.LastIndex(s, "]")
-	if start == -1 || end == -1 || end < start {
-		return nil
-	}
-	var tasks []string
-	if err := json.Unmarshal([]byte(s[start:end+1]), &tasks); err != nil {
-		return nil
-	}
-	out := tasks[:0]
-	for _, t := range tasks {
-		t = strings.TrimSpace(t)
-		if t != "" {
-			out = append(out, t)
-		}
-	}
-	if len(out) > maxTasks {
-		out = out[:maxTasks]
-	}
-	return out
+	return parseTasks(msg.Content, maxTasks), meta, nil
 }
 
 // runSubagent executes one task in an isolated context: its conversation
 // never enters the main session, only its final summary does.
-func (a *Agent) runSubagent(ctx context.Context, model, original string, tasks, results []string, idx int) (string, error) {
+func (a *Agent) runSubagent(ctx context.Context, model, original string, tasks []Task, results []string, idx int) (string, error) {
 	cwd := workingDir()
 	var briefing strings.Builder
 	fmt.Fprintf(&briefing, `You are subagent %d of %d in an orchestrated run on %s (working directory %s). You have tools to read/write/edit files, list directories, and run shell commands. Complete ONLY your assigned task, then reply with a short result summary (what you did, key outputs, paths touched). Be efficient: few tool calls, no exploration beyond the task.
 
 Overall request: %s
 `, idx+1, len(tasks), runtime.GOOS, cwd, original)
-	if len(results) > 0 {
-		briefing.WriteString("\nResults from earlier tasks:\n")
-		for i, r := range results {
-			fmt.Fprintf(&briefing, "%d. %s -> %s\n", i+1, tasks[i], r)
-		}
-	}
+	briefing.WriteString(dependencyBriefing(tasks, results, idx))
 
 	msgs := []provider.Message{
 		{Role: "system", Content: briefing.String()},
-		{Role: "user", Content: "Your task: " + tasks[idx]},
+		{Role: "user", Content: "Your task: " + tasks[idx].Title},
 	}
 
 	maxRounds := MaxRoundsFor(ModeCode, a.Effort)
