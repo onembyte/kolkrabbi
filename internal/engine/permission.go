@@ -69,9 +69,20 @@ func NormalizePermission(name string) (Permission, bool) {
 // nobody can explain reads as a bug, and an allowance nobody can see is how
 // autonomy becomes untraceable.
 func (p Permission) Judge(r tools.Request) (Verdict, string) {
+	return p.judgeWith(nil, r)
+}
+
+// judgeWith is Judge with the user's standing rules applied. The order is the
+// whole design: the floor cannot be argued with, a rule beats the tier because
+// the user wrote it down deliberately, and the tier is what is left.
+func (p Permission) judgeWith(rules Rules, r tools.Request) (Verdict, string) {
 	// The floor is checked first and applies to every tier, including full-auto.
 	if reason, blocked := hardline(r); blocked {
 		return VerdictDeny, reason
+	}
+
+	if rule, matched := rules.Match(r); matched {
+		return rule.Decision, fmt.Sprintf("rule %q", rule.Source)
 	}
 
 	if r.Outside {

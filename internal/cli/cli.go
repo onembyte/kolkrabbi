@@ -45,6 +45,10 @@ type app struct {
 	// nothing touches the filesystem until a command actually needs it.
 	dirs     paths.Dirs
 	migrated bool
+	// sessionRules are permission rules the user added for this process only.
+	// They are deliberately not written anywhere: a rule that outlives the
+	// session someone scoped it to is a rule nobody consented to.
+	sessionRules []string
 	// in is the one shared stdin reader. The REPL and the engine's tool
 	// confirmations both read lines from it; two readers would each buffer and
 	// one would eat the other's input.

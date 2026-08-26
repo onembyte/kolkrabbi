@@ -208,7 +208,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		return nil, err
 	}
 
-	return engine.New(engine.Options{
+	ag := engine.New(engine.Options{
 		Client:            client,
 		Backend:           backend,
 		Model:             model,
@@ -228,7 +228,12 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		ContextWindow:     a.contextWindowFor(model),
 		UserMemoryFile:    d.MemoryFile(),
 		ArchiveCompaction: archiveCompaction(d.Sessions(), sess.ID),
-	}), nil
+	})
+	// Rules the user already wrote down apply from the first turn. A stored
+	// permission that only takes effect after someone opens /permissions is a
+	// permission that was not actually stored.
+	a.applyRules(ag)
+	return ag, nil
 }
 
 // planBackend selects a provider-owned CLI backend when the session's model

@@ -170,6 +170,9 @@ type Options struct {
 	// Permission is how much may happen without asking. It never removes the
 	// floor: no tier allows an action the hardline rules refuse.
 	Permission Permission
+	// Rules are the user's standing answers, consulted before the tier and
+	// after the floor. The last matching rule wins.
+	Rules Rules
 	// Root confines file tools. Empty disables confinement, which only tests
 	// and scripts should ever want.
 	Root     string
@@ -569,9 +572,16 @@ func (a *Agent) confirm(ctx context.Context, action, detail string) bool {
 // asking because the tier allows it still announces itself when it leaves the
 // project. Autonomy nobody can read afterwards is not autonomy anyone can
 // trust.
+// Judge decides one action the way this session would: the floor first, then
+// the user's standing rules, then the tier. It is exported because the rules a
+// session is running under are worth being able to inspect from outside it.
+func (a *Agent) Judge(r tools.Request) (Verdict, string) {
+	return a.Permission.judgeWith(a.Rules, r)
+}
+
 func (a *Agent) guard(ctx context.Context) tools.Guard {
 	return func(r tools.Request) bool {
-		verdict, reason := a.Permission.Judge(r)
+		verdict, reason := a.Judge(r)
 		switch verdict {
 		case VerdictDeny:
 			fmt.Fprintf(a.Out, "%s✗ refused: %s%s\n", colorDim, reason, colorReset)
@@ -598,7 +608,7 @@ func (a *Agent) guard(ctx context.Context) tools.Guard {
 func (a *Agent) subagentGuard(ctx context.Context) tools.Guard {
 	main := a.guard(ctx)
 	return func(r tools.Request) bool {
-		verdict, reason := a.Permission.Judge(r)
+		verdict, reason := a.Judge(r)
 		if verdict != VerdictAsk {
 			return main(r)
 		}

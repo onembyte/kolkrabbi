@@ -185,6 +185,10 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			a.showPermissions(ag)
 			break
 		}
+		if looksLikeRule(arg) {
+			a.editRule(ag, arg)
+			break
+		}
 		a.setPermission(ag, strings.TrimSpace(arg))
 	case "/ask", "/auto-approve", "/full-auto":
 		a.setPermission(ag, strings.TrimPrefix(cmd, "/"))
@@ -316,6 +320,7 @@ func (a *app) showPermissions(ag *engine.Agent) {
 	}
 	fmt.Fprintln(a.stdout, "\nno tier removes the floor: credential files, system directories, sudo,")
 	fmt.Fprintln(a.stdout, "piping a download into a shell and unrecoverable deletes are refused in all three.")
+	a.printRules(ag)
 }
 
 // setPermission moves the session to one tier and says what that now means.

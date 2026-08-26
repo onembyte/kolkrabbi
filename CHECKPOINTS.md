@@ -185,6 +185,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.3 scrubbed tool output** — every tool result is scrubbed at one chokepoint, and the scrubber now catches vendor-less secrets.
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
+- [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
 - [x] **C12.7 fast-lane session naming** — a session earns a real name once enough has happened, without delaying the answer or overwriting a name a person chose.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
@@ -1816,6 +1817,52 @@ Acceptance checklist:
 - [x] a binary is named and sized, and none of its bytes reach the conversation.
 - [x] a UTF-8 file with emoji and accents is still treated as text.
 - [x] full `make check` green.
+
+### E13.6 permission rules with scopes — verified detail
+
+A tier is a blunt instrument: someone who wants `go test` to stop asking should not have to accept
+every shell command to get it. Rules are the fine adjustment, and they are the last piece of item 13
+before orchestration needs them.
+
+**The grammar is one line.** `allow bash(git *)`, `deny write(*/migrations/*)`, `ask write(*)`. It is
+stored as the line the user typed rather than as a parsed structure, because a permission list is
+worth having on disk only if a person can open it and see what they agreed to. A JSON object per
+rule would be a format nobody reviews.
+
+**The order is the semantics.** Rules are applied global-first, then the project's, then the
+session's, and the last one that matches wins — the behaviour of every allow/deny list people
+already know. The listing prints them in exactly that order and numbers them, so what someone reads
+is what actually happens. `forget <number>` removes by that number, because retyping a glob exactly
+is how people delete the wrong rule.
+
+**Precedence around the rules is the whole design.** The floor is checked first and cannot be argued
+with: no rule grants `read(~/.ssh/*)` or `sudo`, and a test holds that line. A rule beats the tier in
+both directions — it can widen (`allow bash(git *)` under `ask`) and it can narrow (`ask write(*)`
+under `full-auto`), because a tier someone can only loosen is not a control.
+
+**Scope decides what survives.** `session` is never written to disk; a rule that outlives the session
+it was scoped to is a rule nobody consented to. `project` is keyed by root, so a decision made in one
+checkout does not follow the user into another. `always` is the deliberate global. Stored rules load
+before the first turn — a permission that only takes effect once someone opens `/permissions` was not
+actually stored.
+
+**The glob is deliberately small**: `*` for any run of characters, everything else literal. A pattern
+language with more corners is one where a rule can quietly mean something its author did not intend.
+Matching runs against both the path as the user sees it and the resolved absolute path, so
+`write(src/*)` works the way it looks. `~` is expanded through `internal/paths`, which the
+architecture test caught me routing around.
+
+Acceptance checklist:
+
+- [x] a rule can allow what the tier would ask about, and ask about what the tier would allow.
+- [x] the last matching rule wins, across three overlapping rules.
+- [x] no rule breaches the floor, in any tier.
+- [x] a rule names a family (`write`) and covers both tools that implement it.
+- [x] a bad line is refused with the line quoted, and is not stored.
+- [x] `session` scope is not written to disk; `project` and `always` are, at 0600.
+- [x] stored rules are in effect from the first turn, without opening `/permissions`.
+- [x] the listing shows every rule with its scope, in application order.
+- [x] full `make check` green: 1,815 tests, 0 lint issues, every script contract.
 
 ### B12 Claude subscription backend — recorded detail
 

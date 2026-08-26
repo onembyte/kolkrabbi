@@ -1,11 +1,15 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
 
+	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/engine"
+	"github.com/onembyte/kolkrabbi/internal/paths"
+	"github.com/onembyte/kolkrabbi/internal/tools"
 )
 
 func TestPermissionsShowsAllThreeAndMarksTheCurrentOne(t *testing.T) {
@@ -108,5 +112,121 @@ func TestYoloIsGone(t *testing.T) {
 
 	if !strings.Contains(out.String(), "unknown command") {
 		t.Fatalf("output = %q, want /yolo to no longer exist", out.String())
+	}
+}
+
+// ruleFixture gives the app a config directory of its own so a test can add
+// rules without touching the developer's real permission file.
+func ruleFixture(t *testing.T) (*app, *engine.Agent, *bytes.Buffer) {
+	t.Helper()
+	isolateConnectorState(t)
+	a, ag, out := replFixture(t, "")
+	a.dirs = paths.Dirs{Config: t.TempDir(), Data: t.TempDir(), Cache: t.TempDir()}
+	ag.Root = "/p"
+	ag.Permission = engine.PermissionAsk
+	return a, ag, out
+}
+
+func TestAddingARuleTakesEffectImmediately(t *testing.T) {
+	a, ag, _ := ruleFixture(t)
+
+	a.slash(context.Background(), ag, "/permissions allow bash(git *)")
+
+	// The point of writing a rule is not to have to restart.
+	verdict, _ := ag.Judge(tools.Request{Tool: "bash", Command: "git status"})
+	if verdict != engine.VerdictAllow {
+		t.Fatalf("the rule did not reach the running session: verdict = %v", verdict)
+	}
+}
+
+func TestAProjectRuleIsWrittenWhereItWillBeFoundAgain(t *testing.T) {
+	a, ag, _ := ruleFixture(t)
+
+	a.slash(context.Background(), ag, "/permissions allow bash(go test *)")
+
+	stored, err := config.LoadPermissions(config.PermissionsFile(a.dirs.Config))
+	if err != nil {
+		t.Fatalf("loading what was written: %v", err)
+	}
+	if got := stored.For("/p"); len(got) != 1 || got[0] != "allow bash(go test *)" {
+		t.Fatalf("stored %v for this project", got)
+	}
+	// It is this project's rule, not everyone's.
+	if len(stored.Always) != 0 {
+		t.Fatalf("stored %v globally, want nothing", stored.Always)
+	}
+}
+
+func TestScopeAlwaysAppliesEverywhereAndSessionIsNotWritten(t *testing.T) {
+	a, ag, _ := ruleFixture(t)
+
+	a.slash(context.Background(), ag, "/permissions deny write(*.pem) always")
+	a.slash(context.Background(), ag, "/permissions allow bash(ls *) session")
+
+	stored, _ := config.LoadPermissions(config.PermissionsFile(a.dirs.Config))
+	if len(stored.Always) != 1 || stored.Always[0] != "deny write(*.pem)" {
+		t.Fatalf("always-scope stored %v", stored.Always)
+	}
+	// A session rule that outlives the session is a rule nobody consented to.
+	if len(stored.For("/p")) != 1 {
+		t.Fatalf("a session rule was written to disk: %v", stored.For("/p"))
+	}
+	// It still has to work for the rest of this session.
+	if verdict, _ := ag.Judge(tools.Request{Tool: "bash", Command: "ls -la"}); verdict != engine.VerdictAllow {
+		t.Fatalf("the session rule is not in effect: %v", verdict)
+	}
+}
+
+func TestTheRulesInEffectAreListedWithTheirScope(t *testing.T) {
+	a, ag, out := ruleFixture(t)
+	a.slash(context.Background(), ag, "/permissions deny write(*.pem) always")
+	a.slash(context.Background(), ag, "/permissions allow bash(git *)")
+	a.slash(context.Background(), ag, "/permissions ask write(*) session")
+	out.Reset()
+
+	a.slash(context.Background(), ag, "/permissions")
+
+	got := out.String()
+	for _, want := range []string{"deny write(*.pem)", "allow bash(git *)", "ask write(*)", "always", "project", "session"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("listing = %q, want it to mention %q", got, want)
+		}
+	}
+}
+
+func TestARuleCanBeForgottenByItsNumber(t *testing.T) {
+	a, ag, out := ruleFixture(t)
+	a.slash(context.Background(), ag, "/permissions allow bash(git *)")
+	a.slash(context.Background(), ag, "/permissions allow bash(rm *)")
+	out.Reset()
+
+	a.slash(context.Background(), ag, "/permissions forget 2")
+
+	if verdict, _ := ag.Judge(tools.Request{Tool: "bash", Command: "rm ./x"}); verdict == engine.VerdictAllow {
+		t.Fatal("the forgotten rule is still in effect")
+	}
+	if verdict, _ := ag.Judge(tools.Request{Tool: "bash", Command: "git status"}); verdict != engine.VerdictAllow {
+		t.Fatal("forgetting one rule removed another")
+	}
+	stored, _ := config.LoadPermissions(config.PermissionsFile(a.dirs.Config))
+	if got := stored.For("/p"); len(got) != 1 {
+		t.Fatalf("disk still holds %v", got)
+	}
+}
+
+func TestARuleThatDoesNotParseIsRefusedAndNotStored(t *testing.T) {
+	a, ag, out := ruleFixture(t)
+	var errOut bytes.Buffer
+	a.stderr = &errOut
+
+	a.slash(context.Background(), ag, "/permissions allow bash(")
+
+	combined := out.String() + errOut.String()
+	if !strings.Contains(combined, "allow bash(") {
+		t.Fatalf("output = %q, want the bad line quoted back", combined)
+	}
+	stored, _ := config.LoadPermissions(config.PermissionsFile(a.dirs.Config))
+	if len(stored.For("/p")) != 0 {
+		t.Fatalf("a rule that does not parse was stored: %v", stored.For("/p"))
 	}
 }
