@@ -51,3 +51,32 @@ func TestClaudeBackendStreamsTextThroughEngineCallback(t *testing.T) {
 		t.Fatalf("message=%+v tokens=%q meta=%+v", message, tokens, meta)
 	}
 }
+
+func TestClaudeBackendReusesPersistentSession(t *testing.T) {
+	process := &fakeLineProcess{lines: [][]byte{
+		[]byte(`{"type":"assistant","message":{"model":"opus","content":[{"type":"text","text":"one"}]}}`),
+		[]byte(`{"type":"result","result":"one","subtype":"success"}`),
+		[]byte(`{"type":"assistant","message":{"model":"opus","content":[{"type":"text","text":"two"}]}}`),
+		[]byte(`{"type":"result","result":"two","subtype":"success"}`),
+	}}
+	starts := 0
+	backend := ClaudeBackend{
+		Effort: "high",
+		start: func(context.Context, string, []string) (lineProcess, error) {
+			starts++
+			return process, nil
+		},
+	}
+	for _, want := range []string{"one", "two"} {
+		message, _, err := backend.StreamChat(context.Background(), "opus", []provider.Message{{Role: "user", Content: want}}, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if message.Content != want {
+			t.Fatalf("message = %q, want %q", message.Content, want)
+		}
+	}
+	if starts != 1 {
+		t.Fatalf("session starts = %d, want one process", starts)
+	}
+}
