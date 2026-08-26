@@ -117,7 +117,7 @@ that point the interesting fact is not the synthesis.
 A cap on **money**, not on rounds — rounds are already capped and they are not what the user cares
 about.
 
-- Each run gets a ceiling: the config's `orchestration.max_cost_usd`, default unset.
+- Each run gets a ceiling: the config's `max_run_cost_usd`, default unset. (Written flat rather than nested: a one-field object is clutter in a file people are meant to open and read.)
 - When a run would exceed it, the remaining tasks are skipped and marked over-budget, and synthesis
   reports it. It is a stop, not a refusal: the work already done is still delivered.
 - With no ceiling set, the run prints its accumulated cost as it goes. Making the number visible is

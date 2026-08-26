@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **F14.4 cost is visible and capped** — a run shows what it has spent as it goes and stops at an optional ceiling rather than refusing.
 - [x] **F14.3 routing** — a task's kind resolves to a named slot, the slot to a model, printed with the plan before anything runs.
 - [x] **F14.2 a run survives its failures** — a failed task is reported rather than discarding the whole run, and the answer says what is missing from it.
 - [x] **F14.1 tasks carry structure** — a plan is records with a kind and real dependencies, and a subagent is briefed with only the results it asked for.
@@ -1912,6 +1913,51 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### F14.4 cost is visible and capped — verified detail
+
+The last leaf before concurrency, and the doc's reason for that ordering: parallelism spends money
+faster than anyone can read.
+
+**An orchestrated run is the one place a single typed line becomes several dollars.** Six tasks, each
+allowed a dozen tool rounds, each on whatever model F14.3 routed it to. Rounds were already capped;
+rounds are not what anyone is worried about.
+
+**Visibility is most of the value.** A ceiling only helps someone who has already decided on a
+number. The running total after each task, and the run total after synthesis, are what tell everyone
+else whether they should. The footer reports the synthesis call alone, so the run's real cost existed
+nowhere until now.
+
+**The ceiling stops, it does not refuse.** Remaining tasks are marked over-budget and the run
+synthesises anyway: the tasks that finished cost money and are still worth delivering. Same shape as
+F14.2's failures, and it reuses the same machinery — over-budget counts as a failure for the "answer
+is partial" warning, and blocks anything that depended on it.
+
+**No ceiling is not a ceiling of zero.** The default is unset, because a limit nobody chose would be
+a surprise the first time it truncated real work.
+
+**Accounted before the recorder is consulted.** `record` returns early when no stats recorder is
+configured, so hooking the total after that check would have made the number silently wrong in
+exactly the setups least likely to notice. What a run costs is true whether or not stats are being
+written anywhere.
+
+`spend` carries a mutex it does not yet need. F14.5 runs three tasks at once, and a counter that is
+correct only while one thing is happening is a race waiting for the leaf that was always coming next.
+
+One deviation from the hardening doc, recorded there too: the config key is flat `max_run_cost_usd`
+rather than nested `orchestration.max_cost_usd`. A one-field object is clutter in a file people are
+meant to open and read.
+
+Acceptance checklist:
+
+- [x] a run shows its running total and its final total.
+- [x] a ceiling stops the remaining tasks and still produces an answer.
+- [x] synthesis is told the run was cut short, naming the task that never ran.
+- [x] no ceiling means the whole run proceeds however much it costs.
+- [x] the ceiling is checked before spending, not after.
+- [x] cost is accounted even with no stats recorder configured.
+- [x] the ceiling round-trips through the config file.
+- [x] full `make check` green: 1,853 tests, 0 lint issues, every script contract.
 
 ### F14.3 routing — verified detail
 

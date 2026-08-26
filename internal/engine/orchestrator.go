@@ -45,6 +45,11 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 	model := a.modelFor(a.Effort)
 	maxTasks := maxTasksFor(a.Effort)
 
+	// One accounting scope per run. Cleared afterwards so an ordinary turn is
+	// never charged against an orchestration ceiling.
+	a.runSpend = &spend{limit: a.MaxRunCostUSD}
+	defer func() { a.runSpend = nil }()
+
 	// ---- 1. plan ----
 	fmt.Fprintf(a.Out, "%s◆ planning (%s)…%s\n", colorMag, model, colorReset)
 	tasks, meta, err := a.plan(ctx, model, userInput, maxTasks)
@@ -95,7 +100,7 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 	if failures := countFailures(outcomes); failures > 0 {
 		// The reader cannot see the task list. If the answer does not say what
 		// is missing from it, nothing will.
-		fmt.Fprintf(&sb, "\n\nIMPORTANT: %d of %d tasks failed or were blocked. Say plainly what could not be done and what that leaves uncertain. Do not present the answer as complete.", failures, len(tasks))
+		fmt.Fprintf(&sb, "\n\nIMPORTANT: %d of %d tasks failed, were blocked, or were stopped by the run's budget. Say plainly what could not be done and what that leaves uncertain. Do not present the answer as complete.", failures, len(tasks))
 	}
 
 	synth := []provider.Message{
@@ -117,6 +122,11 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 	a.Sess.AppendMessage(provider.Message{Role: "assistant", Content: msg.Content})
 	a.save()
 	a.footer(meta)
+	// The footer reports the synthesis call. What the user actually spent is
+	// the whole run, and that number exists nowhere else.
+	if total := a.runSpend.total(); total > 0 {
+		fmt.Fprintf(a.Out, "%s  run total: $%.2f across %d tasks%s\n", colorDim, total, len(tasks), colorReset)
+	}
 	return nil
 }
 
@@ -131,6 +141,14 @@ func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([
 	results := make([]string, len(tasks))
 
 	for i, task := range tasks {
+		if a.runSpend.exhausted() {
+			outcomes[i] = outcome{
+				Status: statusOverBudget,
+				Reason: fmt.Sprintf("the run reached its $%.2f budget after $%.2f", a.MaxRunCostUSD, a.runSpend.total()),
+			}
+			fmt.Fprintf(a.Out, "\n%s◆ stopping at the budget: %s never ran%s\n", colorMag, task.Title, colorReset)
+			continue
+		}
 		if blocker, blocked := blockedBy(tasks, outcomes, i); blocked {
 			outcomes[i] = outcome{Status: statusBlocked, Reason: "blocked: " + blocker + " did not produce a result"}
 			fmt.Fprintf(a.Out, "\n%s◆ subagent %d/%d skipped: %s — %s%s\n",
@@ -158,8 +176,26 @@ func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([
 		case statusIncomplete:
 			fmt.Fprintf(a.Out, "%s! %s did not finish; keeping what it reached%s\n", colorDim, task.Title, colorReset)
 		}
+		a.noteRunCost()
 	}
 	return outcomes, nil
+}
+
+// noteRunCost shows what the run has spent so far.
+//
+// Visibility is most of the value here. A ceiling only helps someone who
+// already decided on a number; the running total is what tells everyone else
+// whether they should.
+func (a *Agent) noteRunCost() {
+	total := a.runSpend.total()
+	if total <= 0 {
+		return
+	}
+	if a.MaxRunCostUSD > 0 {
+		fmt.Fprintf(a.Out, "%s  run so far: $%.2f of $%.2f%s\n", colorDim, total, a.MaxRunCostUSD, colorReset)
+		return
+	}
+	fmt.Fprintf(a.Out, "%s  run so far: $%.2f%s\n", colorDim, total, colorReset)
 }
 
 // plan asks the planner for a strict-JSON task list.

@@ -230,6 +230,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		Recorder:          stats.NewStore(d.Data),
 		Tiers:             cfg.Tiers,
 		Slots:             cfg.Slots,
+		MaxRunCostUSD:     cfg.MaxRunCostUSD,
 		Bus:               eventBus,
 		PinnedModel:       o.model != "",
 		FreeModels:        freeModels,

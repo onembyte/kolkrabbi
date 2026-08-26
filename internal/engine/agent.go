@@ -178,6 +178,10 @@ type Options struct {
 	// fast) to a model. Anything unset falls back to the session model, so an
 	// empty map is today's behaviour rather than a broken configuration.
 	Slots map[string]string
+	// MaxRunCostUSD stops an orchestrated run once it has cost this much.
+	// Zero means no ceiling, which is the default: a limit nobody chose would
+	// be a surprise the first time it truncated real work.
+	MaxRunCostUSD float64
 	// Root confines file tools. Empty disables confinement, which only tests
 	// and scripts should ever want.
 	Root     string
@@ -227,6 +231,9 @@ type Agent struct {
 	// main turn, which is the only measured view of how full the window is.
 	lastPromptTokens int
 	preCompact       []provider.Message
+	// runSpend accumulates the cost of the orchestrated run in progress, and
+	// is nil the rest of the time.
+	runSpend *spend
 	// rulesMu guards Rules: a rule kept from a confirmation is written while
 	// tool calls may still be reading it, and phase F runs several at once.
 	rulesMu     sync.RWMutex
@@ -485,6 +492,10 @@ func (a *Agent) save() {
 
 // record appends a stats line; never fatal, warn once.
 func (a *Agent) record(role string, meta provider.Meta, toolCalls int) {
+	// Accounted before the recorder is consulted: what a run costs is true
+	// whether or not stats are being written anywhere.
+	a.runSpend.add(meta.Cost)
+
 	if a.Recorder == nil || a.Sess == nil {
 		return
 	}

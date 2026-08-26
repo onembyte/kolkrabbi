@@ -30,7 +30,10 @@ type Config struct {
 	// to a model. Unset roles fall back to the session model, so this file
 	// never has to be complete to be useful.
 	Slots map[string]string `json:"slots,omitempty"`
-	Local LocalSettings     `json:"local,omitempty"`
+	// MaxRunCostUSD stops an orchestrated run once it has cost this much.
+	// Zero, the default, means no ceiling.
+	MaxRunCostUSD float64       `json:"max_run_cost_usd,omitempty"`
+	Local         LocalSettings `json:"local,omitempty"`
 }
 
 // Load reads a config file. A missing file is not an error: it returns a

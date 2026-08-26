@@ -23,6 +23,8 @@ const (
 	statusFailed
 	// statusBlocked was never attempted because something it needed failed.
 	statusBlocked
+	// statusOverBudget was never attempted because the run hit its ceiling.
+	statusOverBudget
 )
 
 func (s status) String() string {
@@ -33,6 +35,8 @@ func (s status) String() string {
 		return "incomplete"
 	case statusBlocked:
 		return "blocked"
+	case statusOverBudget:
+		return "not run — over budget"
 	default:
 		return "failed"
 	}
@@ -67,7 +71,7 @@ func blockedBy(tasks []Task, outcomes []outcome, index int) (string, bool) {
 		if need >= len(outcomes) {
 			continue
 		}
-		if s := outcomes[need].Status; s == statusFailed || s == statusBlocked {
+		if s := outcomes[need].Status; s == statusFailed || s == statusBlocked || s == statusOverBudget {
 			return tasks[need].Title, true
 		}
 	}
@@ -100,7 +104,7 @@ func summarise(tasks []Task, outcomes []outcome) string {
 func countFailures(outcomes []outcome) int {
 	n := 0
 	for _, o := range outcomes {
-		if o.Status == statusFailed || o.Status == statusBlocked {
+		if o.Status == statusFailed || o.Status == statusBlocked || o.Status == statusOverBudget {
 			n++
 		}
 	}
