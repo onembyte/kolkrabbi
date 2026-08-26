@@ -486,7 +486,8 @@ But the gap t3code exposes is real and it is not about features. **Kolkrabbi is 
 terminal that started it.** Everything below follows from taking that seriously, in versions that fit
 this project's constraints rather than copies of theirs.
 
-### [ ] 26. Remote access — steer a session from another device
+### [x] 26. Remote access — steer a session from another device
+**Hardened 2026-08-26** ([`docs/plan/26-remote-access.md`](docs/plan/26-remote-access.md)): Kolkrabbi never runs a relay — reaching a machine is Tailscale's or SSH's problem, and a relay is where an open-source agent quietly becomes a SaaS. Tokens are per device and stored only as hashes; pairing is a six-digit code armed briefly, single-use and attempt-capped, on a route that 404s when not armed. Reading and steering are separate tiers with read as the default, and the item 13 floor is unreachable from the network. QR is refused (Reed-Solomon we would have to own) and native mobile apps are refused (two release trains between a fix and its users).
 **Scope:** reach a running Kolkrabbi from a phone, a tablet, or another machine, safely.
 **Today:** `kolk serve` exists with an SSE event stream, a permission-resolve endpoint and bearer
 auth — and a hole: `isLoopback` treats an empty host as loopback, so `--addr :8080` binds every
