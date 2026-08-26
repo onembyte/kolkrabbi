@@ -107,6 +107,11 @@ func (d Dirs) StatsFile() string { return filepath.Join(d.Data, "stats.jsonl") }
 // %LocalAppData% and a %AppData% that roams to a domain profile server.
 func (d Dirs) CredentialsFile() string { return filepath.Join(d.Data, "credentials.json") }
 
+// DevicesFile records which devices may reach a running Kolkrabbi. It lives in
+// Data for the same reason CredentialsFile does: it grants access, so it is
+// state rather than a setting, and it must not travel with a dotfiles repo.
+func (d Dirs) DevicesFile() string { return filepath.Join(d.Data, "devices.json") }
+
 // ConnectorsFile stores only provider-owned connector metadata, never secrets.
 func (d Dirs) ConnectorsFile() string { return filepath.Join(d.Data, "connectors.json") }
 

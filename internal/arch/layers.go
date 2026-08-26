@@ -104,6 +104,7 @@ var packageLayer = map[string]Layer{
 	"internal/provider/agentcli": L5Adapter,
 	"internal/local":             L5Adapter,
 	"internal/config":            L5Adapter,
+	"internal/devices":           L5Adapter,
 	"internal/session":           L5Adapter,
 	"internal/checkpoint":        L5Adapter,
 	"internal/stats":             L5Adapter,

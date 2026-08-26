@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **I26.3 the device store** — one token per device, stored only as a hash, revocable one at a time.
 - [x] **I26.2 the protected surface, ratcheted** — every route needs the token except two that say nothing, and widening that set now fails a test.
 - [x] **I26.1 the bind floor** — a wildcard address is not loopback, and the refusal happens before the socket opens.
 - [x] **X3 a long path is elided in the middle, not the end** — the filename is the part a person needs, and it was the part being cut.
@@ -1926,6 +1927,48 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### I26.3 the device store — verified detail
+
+The storage pairing needs, built before pairing so that the security properties are settled while
+they are still cheap to change.
+
+**One token per device, not one per machine.** A shared secret means losing a phone costs everyone
+else their access, and in practice means nobody revokes anything. Each device gets its own token, a
+label, and a last-seen time; revoking one leaves the rest working, and a test holds that.
+
+**The token is never stored — only its hash.** The store hands a token back exactly once, at pairing,
+and keeps a SHA-256 of it. A device that loses its token pairs again; a device file that leaks hands
+over nothing. This costs one hash and is the difference between a stolen file being an inconvenience
+and being a compromise. The test reads the file back and asserts the token does not appear in it.
+
+**Last-seen is recorded on every authentication**, because "which of these is still in use" is the
+question someone asks before revoking, and a list that cannot answer it invites revoking the wrong
+device. The clock is injectable so the test asserts on it without sleeping.
+
+**Comparison is constant time**, even though it compares hashes rather than secrets. Iterating a set
+of devices with a variable-time compare is still an oracle, and the constant-time version costs
+nothing.
+
+The file lives in Data rather than Config, at 0600, for the reason `CredentialsFile` already
+documents: it grants access, so it is state, not a setting, and it must not travel with a dotfiles
+repository. A missing file is an empty store — no paired devices is the normal starting state — and
+a corrupt one names itself rather than sending someone hunting.
+
+The `Tier` type is here rather than in the server because it is a property of the device record, and
+the read/steer split is the thing I26.6 will enforce.
+
+Acceptance checklist:
+
+- [x] a paired device's token authenticates as that device.
+- [x] the token never appears in the file; the label does.
+- [x] two devices get different tokens and neither breaks the other.
+- [x] revoking one device leaves the others; revoking twice reports honestly.
+- [x] an unknown, empty or wrong-length token is rejected.
+- [x] devices survive a reload with their tier intact.
+- [x] using a device records when.
+- [x] a missing file is empty, a corrupt one names itself, and the file is 0600.
+- [x] full `make check` green: 1,952 tests, 0 lint issues, every script contract.
 
 ### I26.2 the protected surface, ratcheted — verified detail
 
