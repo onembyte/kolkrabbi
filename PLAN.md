@@ -385,6 +385,20 @@ backend only.
 **Hardened when:** phased roadmap with DoD and the non-goals list, reflected in README and GitHub milestones.
 **Inputs:** all of the above
 
+### [ ] 24. Subscription provider matrix and login backends
+**Scope:** make subscription and plan coverage explicit without conflating consumer accounts with API access.
+The inventory and acceptance gates live in [`docs/plan/24-subscription-provider-matrix.md`](docs/plan/24-subscription-provider-matrix.md).
+
+- [ ] Anthropic Claude Free/Pro/Max/Team/Enterprise via the user's own CLI handover.
+- [ ] OpenAI ChatGPT Free/Plus/Pro/Business/Enterprise via a permitted Codex/first-party CLI path.
+- [ ] Google Gemini Free/AI Pro/AI Ultra/Workspace via documented API access.
+- [ ] xAI Grok consumer/business plans.
+- [ ] Perplexity Pro/Max/Enterprise.
+- [ ] Mistral Le Chat Free/Pro/Team/Enterprise.
+- [ ] DeepSeek, Qwen/Alibaba, GitHub Copilot, and Cohere plans.
+- [ ] For every provider: terms review, capability matrix, billing-mode labeling,
+  offline fixtures, and credential-redaction tests.
+
 ---
 
 ## Appendix A — research inputs (2026-08-21)
