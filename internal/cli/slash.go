@@ -24,6 +24,7 @@ var slashCommandTable = []slashCommand{
 	{"mode", "<chat|code|agent>", "switch mode (agent = orchestrated; code is default)"},
 	{"effort", "<low|medium|high|max>", "select model tier and orchestration width"},
 	{"model", "[id]", "list available models or switch this session"},
+	{"plans", "[filter]", "list provider plans and connector capabilities"},
 	{"config", "[get <k> | set <k> <v> | unset <k> | show]", "read and write saved settings"},
 	{"update", "", "install the latest verified release"},
 	{"stats", "[--json]", "100% local usage and rating dashboard"},
@@ -203,6 +204,10 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 				fmt.Fprintf(a.stderr, "could not list models: %v\n", err)
 			}
 			fmt.Fprintf(a.stdout, "\nswitch: /model <id|alias>\n")
+		}
+	case "/plans":
+		if err := a.runPlans(ctx, strings.Fields(arg)); err != nil {
+			fmt.Fprintf(a.stderr, "plans error: %v\n", err)
 		}
 	case "/key":
 		if err := a.runKey(ctx, strings.Fields(arg)); err != nil {
