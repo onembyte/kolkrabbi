@@ -67,6 +67,7 @@ type app struct {
 	newActivity      func(io.Writer) engine.ActivityIndicator
 	chooseDefault    func(context.Context, *provider.Client) defaultModelChoice
 	enterRaw         func(*os.File) (func() error, error)
+	terminalOwned    func() bool
 	terminalSize     func(*os.File) (int, int)
 	isStdinPiped     func() bool
 	handover         func(context.Context, string, []string, string) error

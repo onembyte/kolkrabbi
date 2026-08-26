@@ -72,7 +72,18 @@ func (a *app) runPlanLogin(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(a.stdout, "starting %s login in the provider terminal; Kolkrabbi will not see credentials\n", selected.Connector)
+	// A live Kolkrabbi session reads the keyboard from its own goroutine, so a
+	// provider CLI spawned here would fight it for every keystroke. The login
+	// therefore moves to a terminal Kolkrabbi does not own.
+	if a.terminalOwned != nil && a.terminalOwned() {
+		fmt.Fprintf(a.stdout, "%s signs you in from a separate terminal, so its CLI owns the keyboard.\n\n", selected.Name)
+		fmt.Fprintf(a.stdout, "  1. open another terminal\n")
+		fmt.Fprintf(a.stdout, "  2. run: kolk plans login %s %q\n", selected.Provider, selected.Name)
+		fmt.Fprintf(a.stdout, "  3. come back here and run /plans to confirm the connector\n\n")
+		fmt.Fprintf(a.stdout, "Kolkrabbi never sees the credentials either way.\n")
+		return nil
+	}
+	fmt.Fprintf(a.stdout, "starting %s login in this terminal; Kolkrabbi will not see credentials\n", selected.Connector)
 	if err := a.handover(ctx, selected.Connector, nil, ""); err != nil {
 		return err
 	}

@@ -29,6 +29,12 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 		return err
 	}
 
+	// While the runtime below is live it reads the terminal from its own
+	// goroutine. Anything that would hand the terminal to a child process must
+	// see that Kolkrabbi owns it.
+	a.terminalOwned = func() bool { return true }
+	defer func() { a.terminalOwned = nil }()
+
 	models := tuiModels(ctx, a, ag)
 	originalStdout, originalStderr := a.stdout, a.stderr
 	folder := workingFolderLabel()

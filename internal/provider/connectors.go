@@ -60,6 +60,14 @@ func SaveConnector(ctx context.Context, path string, connector Connector) error 
 	if err := validateConnector(connector); err != nil {
 		return err
 	}
+	// The manifest promises when each connector was last written. Callers that
+	// do not care get the current instant; callers replaying a known write keep
+	// theirs, so the field is never silently zero.
+	if connector.UpdatedAt.IsZero() {
+		connector.UpdatedAt = time.Now().UTC()
+	} else {
+		connector.UpdatedAt = connector.UpdatedAt.UTC()
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("creating connector directory: %w", err)
 	}

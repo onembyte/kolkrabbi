@@ -86,3 +86,65 @@ func TestPlansLoginUsesHandoverAndPersistsMetadata(t *testing.T) {
 		t.Fatalf("saved connector = %+v, err=%v", manifest.Connectors, err)
 	}
 }
+
+func TestPlansLoginRefusesHandoverWhileKolkrabbiOwnsTheTerminal(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	a, out, errOut := newTestApp("")
+	a.terminalOwned = func() bool { return true }
+	a.handover = func(context.Context, string, []string, string) error {
+		t.Fatal("a provider login must never be spawned while Kolkrabbi owns the terminal")
+		return nil
+	}
+
+	if code := a.main(context.Background(), []string{"plans", "login", "anthropic", "Claude", "Max"}); code != ExitOK {
+		t.Fatalf("plans login exit = %d, stderr = %q", code, errOut.String())
+	}
+
+	got := out.String()
+	if !strings.Contains(got, `kolk plans login anthropic "Claude Max"`) {
+		t.Fatalf("output does not tell the user the exact command to run elsewhere: %q", got)
+	}
+	if !strings.Contains(got, "separate terminal") {
+		t.Fatalf("output does not explain why the login moves terminals: %q", got)
+	}
+	manifest, err := provider.LoadConnectors(dirs.ConnectorsFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.Connectors) != 0 {
+		t.Fatalf("a refused login enabled connectors anyway: %+v", manifest.Connectors)
+	}
+}
+
+func TestSlashPlanLoginRefusesHandoverWhileKolkrabbiOwnsTheTerminal(t *testing.T) {
+	isolateConnectorState(t)
+	a, ag, out := replFixture(t, "")
+	a.terminalOwned = func() bool { return true }
+	a.handover = func(context.Context, string, []string, string) error {
+		t.Fatal("/plogin must never spawn a provider login inside the TUI")
+		return nil
+	}
+
+	if a.slash(context.Background(), ag, "/plogin anthropic Claude Max") {
+		t.Fatal("/plogin must not exit the session")
+	}
+	if got := out.String(); !strings.Contains(got, `kolk plans login anthropic "Claude Max"`) {
+		t.Fatalf("slash plogin output = %q", got)
+	}
+}
+
+// isolateConnectorState keeps every plan test off the developer's real
+// connector manifest. Without it a login test writes a fake enabled connector
+// into the machine running the suite.
+func isolateConnectorState(t *testing.T) paths.Dirs {
+	t.Helper()
+	base := t.TempDir()
+	t.Setenv(paths.EnvDataDir, filepath.Join(base, "data"))
+	t.Setenv(paths.EnvConfigDir, filepath.Join(base, "config"))
+	t.Setenv(paths.EnvCacheDir, filepath.Join(base, "cache"))
+	dirs, err := paths.Resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dirs
+}

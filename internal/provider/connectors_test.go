@@ -69,3 +69,45 @@ func TestLoadConnectorsRejectsCorruptAndWrongVersion(t *testing.T) {
 		t.Fatal("unsupported connector version should fail")
 	}
 }
+
+func TestSaveConnectorStampsUpdatedAt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "connectors.json")
+	before := time.Now().UTC()
+	if err := SaveConnector(context.Background(), path, Connector{
+		Provider: "anthropic", Plan: "Claude Max", Name: "claude",
+		LoginOwner: "provider-cli", Enabled: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest, err := LoadConnectors(path)
+	if err != nil || len(manifest.Connectors) != 1 {
+		t.Fatalf("manifest = %+v, err = %v", manifest, err)
+	}
+	stamped := manifest.Connectors[0].UpdatedAt
+	if stamped.IsZero() {
+		t.Fatal("a saved connector must record when it was written")
+	}
+	if stamped.Before(before.Add(-time.Second)) || stamped.After(time.Now().UTC().Add(time.Minute)) {
+		t.Fatalf("updated_at = %s, want a current UTC instant", stamped)
+	}
+}
+
+func TestSaveConnectorPreservesAnExplicitUpdatedAt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "connectors.json")
+	want := time.Date(2026, 8, 26, 5, 30, 0, 0, time.UTC)
+	if err := SaveConnector(context.Background(), path, Connector{
+		Provider: "anthropic", Plan: "Claude Max", Name: "claude",
+		LoginOwner: "provider-cli", Enabled: true, UpdatedAt: want,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest, err := LoadConnectors(path)
+	if err != nil || len(manifest.Connectors) != 1 {
+		t.Fatalf("manifest = %+v, err = %v", manifest, err)
+	}
+	if got := manifest.Connectors[0].UpdatedAt; !got.Equal(want) {
+		t.Fatalf("updated_at = %s, want %s", got, want)
+	}
+}
