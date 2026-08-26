@@ -24,6 +24,11 @@ const (
 	mebibyte = 1 << 20
 )
 
+// SidecarName is the managed runtime binary Kolkrabbi owns. It is deliberately
+// looked for only below Kolkrabbi's own directory: a binary of the same name on
+// PATH belongs to the host and is never used.
+const SidecarName = "ollama"
+
 // catalog is deliberately short. A long list of models nobody verified is not
 // more useful than a few whose sizes were checked, and every entry here has to
 // be sized before it can honestly be offered.

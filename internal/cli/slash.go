@@ -27,7 +27,7 @@ var slashCommandTable = []slashCommand{
 	{"plans", "[filter] | login <provider> <plan>", "list plans or start provider-owned login"},
 	{"plogin", "[filter]", "search plans and start provider-owned login"},
 	{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors"},
-	{"localia", "[models [filter] | plan <model>]", "local hardware, model catalog, and fit plans"},
+	{"localia", "[models [filter] | plan <model> | pull [--yes] <model>]", "local hardware, model catalog, fit plans, and pulls"},
 	{"config", "[get <k> | set <k> <v> | unset <k> | show]", "read and write saved settings"},
 	{"update", "", "install the latest verified release"},
 	{"stats", "[--json]", "100% local usage and rating dashboard"},

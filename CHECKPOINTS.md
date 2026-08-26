@@ -163,7 +163,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **L13.4c disk space and NVIDIA VRAM** — `internal/diskspace` measures free space per platform, NVIDIA cards are measured through the vendor tool, and `NewSystemProber` wires both.
 - [x] **L13.5a `localia` status** — `kolk localia` and `/localia` report hardware, managed storage, and installed local models, and pull nothing.
 - [x] **L13.5b1 catalog and plan** — `localia models` lists what can be planned for, `localia plan <model>` shows every number the decision rested on and downloads nothing.
-- [ ] **L13.5b2 pull approval and download** — the confirmed pull itself, through the managed sidecar, with verification before anything is executed.
+- [x] **L13.5b2 pull approval** — `localia pull` plans, asks, and treats anything but an explicit yes as no.
+- [ ] **L13.5b3 managed sidecar install** — download a pinned, checksum-verified runtime into Kolkrabbi's own directory, then pull through it.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
 
@@ -991,6 +992,50 @@ Acceptance checklist:
 - [x] real-binary rehearsal on the development host: the catalog, a CPU plan with the fallback
   explained, and `qwen2.5-coder:14b needs 8.8 GiB on disk and only 7.7 GiB is free`.
 - [x] full `make check` green.
+
+### L13.5b2 pull approval — verified detail
+
+`localia pull <model>` plans, shows what the download costs, asks once, and only then acts. The
+order is the point: a model that cannot fit is refused *before* the user is asked to approve a
+download that could never have worked.
+
+Anything that is not an explicit yes is a no, including end of input. A closed stdin must never
+approve a multi-gigabyte download, which is what makes `--yes` a deliberate opt-in for scripts
+rather than the accidental default of a pipeline.
+
+The approved path stops honestly. Kolkrabbi runs its own sidecar and never touches a host
+installation, so with no managed runtime installed there is nothing to pull through, and it says
+exactly that and where it looked. Installing that runtime is its own approved step (L13.5b3), not a
+side effect of asking for a model.
+
+Scope:
+
+- `localia pull [--yes] <model>`, plan → question → act.
+- `local.SidecarName`, looked for only below Kolkrabbi's own directory: a binary of the same name on
+  `PATH` belongs to the host and is never used.
+
+Non-goals:
+
+- No download and no runtime install. Those need a pinned version and a checksum that the owner has
+  verified, and shipping unverified values would be worse than shipping nothing.
+
+Acceptance checklist:
+
+- [x] the download size and placement are shown before the question is asked.
+- [x] `n` cancels, says nothing was downloaded, and exits 0 — declining is a normal outcome.
+- [x] closed stdin is a decline, not approval.
+- [x] a model that cannot fit is refused with its sizes and is never offered.
+- [x] `--yes` skips the question.
+- [x] declining creates no managed model directory.
+- [x] an approved pull names the missing runtime and where it was expected.
+- [x] real-binary rehearsal of decline and approve on the development host.
+- [x] full `make check` green.
+
+Correction worth recording: the first version of the cannot-fit test asserted that
+`qwen2.5-coder:14b` would be refused on the fixture machine. It was not, because the fixture has
+200 GiB free and a 15 GiB card — the model fits there comfortably. The test premise was wrong, not
+the code, and it was fixed by giving that one test a cramped machine rather than by changing the
+planner.
 
 ### B12 Claude subscription backend — recorded detail
 
@@ -2528,8 +2573,8 @@ phase must close without leaving this file.
 
 | Phase | Items | Leaves | State |
 |---|---|---|---|
-| A finish the subscription path | 4, 24 | P11.7, B12.12, B12.13, B12.14 | next |
-| B managed local models | 25 | L13.4, L13.5 | queued |
+| A finish the subscription path | 4, 24 | P11.7 ✓, B12.12 ✓, B12.14 ✓ | B12.13 needs the owner |
+| B managed local models | 25 | L13.4 ✓, L13.5a ✓, L13.5b1 ✓, L13.5b2 ✓, L13.5c ✓ | L13.5b3 open |
 | C sessions, context, memory | 12 | doc first, then leaves | queued — blocks D |
 | D the local dashboard | 17 | A12.1–A12.5 | queued |
 | E tools, permissions, sandboxing | 13 | doc first, then leaves | queued — blocks F |

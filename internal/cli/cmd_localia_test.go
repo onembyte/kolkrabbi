@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"bytes"
 	"context"
+	"os"
 	"strings"
 	"testing"
 
@@ -213,5 +215,96 @@ func TestLocaliaPlanHonoursADeliberateZeroReserve(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "after 0 B reserved") {
 		t.Fatalf("plan output = %q, want a chosen zero to be respected", out.String())
+	}
+}
+
+func pullFixture(t *testing.T, stdin string) (*app, *bytes.Buffer, *bytes.Buffer) {
+	t.Helper()
+	isolateConnectorState(t)
+	a, out, errOut := newTestApp(stdin)
+	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
+	return a, out, errOut
+}
+
+func TestLocaliaPullAsksBeforeDownloadingAnything(t *testing.T) {
+	a, out, _ := pullFixture(t, "n\n")
+
+	if code := a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:7b"}); code != ExitOK {
+		t.Fatal("declining a pull is a normal outcome, not a failure")
+	}
+	got := out.String()
+	if !strings.Contains(got, "4.6 GiB") {
+		t.Fatalf("output = %q, want the download size before the question", got)
+	}
+	if !strings.Contains(strings.ToLower(got), "[y/n]") {
+		t.Fatalf("output = %q, want an explicit question", got)
+	}
+	if !strings.Contains(got, "nothing was downloaded") {
+		t.Fatalf("output = %q, want the outcome stated", got)
+	}
+}
+
+func TestLocaliaPullTreatsSilenceAsNo(t *testing.T) {
+	// A closed stdin must never be read as approval for a multi-gigabyte
+	// download.
+	a, out, _ := pullFixture(t, "")
+
+	if code := a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:7b"}); code != ExitOK {
+		t.Fatal("an unanswered question is a decline, not an error")
+	}
+	if !strings.Contains(out.String(), "nothing was downloaded") {
+		t.Fatalf("output = %q", out.String())
+	}
+}
+
+func TestLocaliaPullRefusesBeforeAskingWhenTheModelCannotFit(t *testing.T) {
+	isolateConnectorState(t)
+	a, out, errOut := newTestApp("y\n")
+	a.probeHardware = func(context.Context, string) local.Hardware {
+		cramped := fakeHardware()
+		cramped.DiskFree = local.Capacity{Bytes: 5 << 30, Known: true}
+		return cramped
+	}
+
+	if code := a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:14b"}); code == ExitOK {
+		t.Fatal("a model that cannot fit must not be offered")
+	}
+	if strings.Contains(strings.ToLower(out.String()), "[y/n]") {
+		t.Fatalf("output = %q, want no question for a model that cannot fit", out.String())
+	}
+	if !strings.Contains(errOut.String(), "GiB") {
+		t.Fatalf("stderr = %q, want the sizes behind the refusal", errOut.String())
+	}
+}
+
+func TestLocaliaPullSaysWhatIsMissingWhenApproved(t *testing.T) {
+	a, _, errOut := pullFixture(t, "y\n")
+
+	code := a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:7b"})
+	if code == ExitOK {
+		t.Fatal("there is no managed runtime installed, so the pull cannot succeed yet")
+	}
+	if !strings.Contains(errOut.String(), "runtime") {
+		t.Fatalf("stderr = %q, want the missing piece named", errOut.String())
+	}
+}
+
+func TestLocaliaPullYesSkipsTheQuestion(t *testing.T) {
+	a, out, _ := pullFixture(t, "")
+
+	_ = a.main(context.Background(), []string{"localia", "pull", "--yes", "qwen2.5-coder:7b"})
+	if strings.Contains(strings.ToLower(out.String()), "[y/n]") {
+		t.Fatalf("output = %q, want --yes to answer it", out.String())
+	}
+}
+
+func TestLocaliaPullWritesNothingWhenDeclined(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	a, _, _ := newTestApp("n\n")
+	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
+
+	_ = a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:7b"})
+	if _, err := os.Stat(dirs.LocalModelsDir()); err == nil {
+		t.Fatal("declining a pull created the managed model directory")
 	}
 }

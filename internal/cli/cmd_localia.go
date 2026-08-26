@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,6 +26,12 @@ func (a *app) runLocalia(ctx context.Context, args []string) error {
 				return usagef("usage: kolk localia plan <model>")
 			}
 			return a.printLocalPlan(ctx, args[1])
+		case "pull":
+			rest, approved := stripYesFlag(args[1:])
+			if len(rest) < 1 {
+				return usagef("usage: kolk localia pull [--yes] <model>")
+			}
+			return a.pullLocalModel(ctx, rest[0], approved)
 		default:
 			return usagef("%s", usageLine("localia"))
 		}
@@ -204,4 +211,83 @@ func localRuntimeConfig(cfg *config.Config) local.Config {
 		runtime.ReservedRAMBytes = *cfg.Local.ReservedRAMBytes
 	}
 	return runtime
+}
+
+// stripYesFlag pulls the non-interactive approval out of the arguments.
+func stripYesFlag(args []string) ([]string, bool) {
+	rest, approved := make([]string, 0, len(args)), false
+	for _, arg := range args {
+		if arg == "--yes" || arg == "-y" {
+			approved = true
+			continue
+		}
+		rest = append(rest, arg)
+	}
+	return rest, approved
+}
+
+// pullLocalModel plans, asks, and only then installs. The order matters: a
+// model that cannot fit is refused before the user is asked to approve a
+// download that could never have worked.
+func (a *app) pullLocalModel(ctx context.Context, name string, approved bool) error {
+	entry, err := local.LookupModel(name)
+	if err != nil {
+		return err
+	}
+	dirs, err := a.resolve()
+	if err != nil {
+		return err
+	}
+	cfg, err := config.Load(dirs.ConfigFile())
+	if err != nil {
+		return err
+	}
+	plan, err := local.PlanFit(a.hardware(ctx, dirs.LocalModelsDir()), localRuntimeConfig(cfg), entry.Requirement())
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(a.stdout, "%s (%s, %s)\n", entry.Name, entry.Parameters, entry.Quantization)
+	fmt.Fprintf(a.stdout, "  download:  %s into %s\n", local.HumanBytes(plan.StorageBytes), dirs.LocalModelsDir())
+	fmt.Fprintf(a.stdout, "  placement: %s", plan.Placement)
+	if plan.Accelerator != "" {
+		fmt.Fprintf(a.stdout, " (%s, index %d)", plan.Accelerator, plan.GPUIndex)
+	}
+	fmt.Fprintln(a.stdout)
+	fmt.Fprintf(a.stdout, "  needs:     %s of %s available (estimate)\n",
+		local.HumanBytes(plan.RequiredBytes), local.HumanBytes(plan.AvailableBytes))
+	if plan.Fallback != "" {
+		fmt.Fprintf(a.stdout, "  fallback:  %s\n", plan.Fallback)
+	}
+
+	if !approved && !a.confirmed("Download and install it now?") {
+		fmt.Fprintln(a.stdout, "cancelled; nothing was downloaded")
+		return nil
+	}
+
+	runtime := filepath.Join(dirs.LocalModelsDir(), "runtime", local.SidecarName)
+	if _, err := os.Stat(runtime); err != nil {
+		// Kolkrabbi runs its own sidecar and never touches a host installation,
+		// so there is nothing to pull through until that runtime is installed.
+		// Installing it is its own approved step, not a side effect of this one.
+		return fmt.Errorf("the managed local runtime is not installed at %s, so %s cannot be pulled yet; installing it is a separate approved step",
+			runtime, entry.Name)
+	}
+	return fmt.Errorf("the managed local runtime at %s cannot pull models yet", runtime)
+}
+
+// confirmed asks one yes-or-no question. Anything that is not an explicit yes
+// is a no, including end of input: a closed stdin must never approve a
+// multi-gigabyte download.
+func (a *app) confirmed(question string) bool {
+	fmt.Fprintf(a.stdout, "\n%s [y/N] ", question)
+	if a.in == nil {
+		return false
+	}
+	line, err := a.in.ReadString('\n')
+	if err != nil && line == "" {
+		return false
+	}
+	answer := strings.ToLower(strings.TrimSpace(line))
+	return answer == "y" || answer == "yes"
 }
