@@ -189,7 +189,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 				fmt.Fprintf(a.stderr, "could not list models: %v\n", err)
 			}
 			fmt.Fprintln(a.stdout, "\nswitch: /model <name|alias>")
-		} else {
+		} else if strings.Contains(arg, "/") || provider.ResolveModelAlias(arg) != arg {
 			resolved := provider.ResolveModelAlias(arg)
 			ag.Model = resolved
 			ag.PinnedModel = true
@@ -197,6 +197,12 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 				ag.Sess.SetModelName(resolved)
 			}
 			fmt.Fprintf(a.stdout, "model set to %s\n", resolved)
+		} else {
+			d, _ := a.locate()
+			if err := a.printModelCatalog(ctx, ag.Client, d.CatalogFile(), false, arg); err != nil {
+				fmt.Fprintf(a.stderr, "could not list models: %v\n", err)
+			}
+			fmt.Fprintf(a.stdout, "\nswitch: /model <id|alias>\n")
 		}
 	case "/key":
 		if err := a.runKey(ctx, strings.Fields(arg)); err != nil {
