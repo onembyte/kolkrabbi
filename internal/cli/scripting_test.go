@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -17,6 +18,14 @@ func TestPipedStdinRunsSingleShot(t *testing.T) {
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	// HOME alone isolates nothing on a desktop Linux machine: XDG_DATA_HOME is
+	// usually set and wins, so this test used to write sessions, event spills
+	// and usage records into the developer's own Kolkrabbi state. The KOLK_*
+	// overrides mean the same thing on every platform, which is why they are
+	// what isolateHome uses.
+	t.Setenv(paths.EnvConfigDir, filepath.Join(home, "config"))
+	t.Setenv(paths.EnvDataDir, filepath.Join(home, "data"))
+	t.Setenv(paths.EnvCacheDir, filepath.Join(home, "cache"))
 	t.Setenv("OPENROUTER_API_KEY", "sk-or-v1-testkey123")
 
 	d, err := paths.Resolve()
@@ -58,6 +67,14 @@ func TestPipedStdinWithoutPromptFlagRunsSingleShot(t *testing.T) {
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	// HOME alone isolates nothing on a desktop Linux machine: XDG_DATA_HOME is
+	// usually set and wins, so this test used to write sessions, event spills
+	// and usage records into the developer's own Kolkrabbi state. The KOLK_*
+	// overrides mean the same thing on every platform, which is why they are
+	// what isolateHome uses.
+	t.Setenv(paths.EnvConfigDir, filepath.Join(home, "config"))
+	t.Setenv(paths.EnvDataDir, filepath.Join(home, "data"))
+	t.Setenv(paths.EnvCacheDir, filepath.Join(home, "cache"))
 	t.Setenv("OPENROUTER_API_KEY", "sk-or-v1-testkey123")
 
 	d, err := paths.Resolve()

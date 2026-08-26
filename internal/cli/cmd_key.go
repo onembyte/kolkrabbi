@@ -64,6 +64,11 @@ func (a *app) runKey(ctx context.Context, args []string) error {
 	source := "paste"
 	raw := input
 	if input == "-" {
+		// A session reads the terminal from its own goroutine, so reading it
+		// here would compete for the user's keystrokes and look like a hang.
+		if a.terminalOwned != nil && a.terminalOwned() {
+			return fmt.Errorf("reading a key from stdin needs a terminal this session already owns; run `kolk key -` outside the session, or paste the key directly")
+		}
 		source = "stdin"
 		value, err := io.ReadAll(io.LimitReader(a.in, keystore.MaxValueBytes+2))
 		if err != nil {

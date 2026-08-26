@@ -177,6 +177,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **D17.2 `kolk dash`** — a loopback-only dashboard rendered entirely on the server, with no script, no assets and no network.
 - [x] **D17.3 effort folding & recent sessions** — one effort level is one row whatever it was called when it was recorded, and sessions are listed with what each cost.
 - [x] **R1 session-safety review** — every command added this session was re-checked against the one rule the session's own bugs kept teaching: nothing may take the keyboard or block the turn.
+- [x] **R2 test isolation and stdin ownership** — the suite no longer writes into the developer's own Kolkrabbi state, and `/key -` no longer competes for the keyboard.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
@@ -1543,6 +1544,45 @@ Acceptance checklist:
 - [x] `--yes` still proceeds in-session.
 - [x] the hardware probe carries a short deadline.
 - [x] `go test -race ./internal/cli` and full `make check` green.
+
+### R2 test isolation and stdin ownership — verified detail
+
+Two more results from the same review, one of them the most consequential hygiene bug found this
+session.
+
+**The test suite was writing into the developer's real Kolkrabbi state**, and had been for a long
+time. `internal/cli/scripting_test.go` isolated with `t.Setenv("HOME", tempdir)` alone. On a desktop
+Linux machine `XDG_DATA_HOME` is set and takes precedence over `$HOME`, so the temp home isolated
+nothing: every run created sessions, event spill files and usage records in
+`~/.local/share/kolk/`. CI never caught it because containers usually do not set `XDG_*`, which is
+exactly why it survived.
+
+The damage is measurable and now visible: **543 of the 571 records in this machine's real
+`stats.jsonl` name `mock/model`** — the test fixture's model. The dashboard built two checkpoints
+ago reads that file, so the developer's own cost chart is 95% synthetic. That is the concrete reason
+this class of bug matters rather than being mere tidiness.
+
+The fix is the isolation the repository already documents and already uses elsewhere: the `KOLK_*`
+overrides, which mean the same thing on every platform. Proof rather than assertion — a full
+`go test ./...` now leaves the session count unchanged and `stats.jsonl` byte-identical, checked by
+checksum before and after.
+
+**`/key -` read stdin inside a session**, competing with the session's own reader exactly as the
+provider login and the local-model pull did. It now refuses in-session and says where to run it,
+while piping into `kolk key -` outside a session is unchanged.
+
+Acceptance checklist:
+
+- [x] `go test ./...` leaves the real sessions directory and `stats.jsonl` untouched, verified by
+  checksum.
+- [x] the two offending tests use the platform-independent overrides, with the reason recorded in
+  the test itself so it is not undone later.
+- [x] `/key -` is refused while the session owns the terminal and still works outside one.
+- [x] full `make check` green.
+
+Left for the owner, deliberately: the 543 synthetic records already in
+`~/.local/share/kolk/stats.jsonl`. Removing rows from a user's own data is their call, not a tidy-up
+to perform unasked.
 
 ### B12 Claude subscription backend — recorded detail
 
