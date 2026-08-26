@@ -118,11 +118,13 @@ func TestFreeModelRotationUsesEachCandidateOncePerTurn(t *testing.T) {
 	if err := ag.RunTurn(context.Background(), "hello"); err != nil {
 		t.Fatalf("Turn error = %v", err)
 	}
+
 	for _, model := range []string{"two/free:free", "three/free:free"} {
 		if strings.Count(out.String(), "rotating to "+model) != 1 {
 			t.Fatalf("expected one rotation to %s, output %q", model, out.String())
 		}
 	}
+
 	if ag.Model != "three/free:free" {
 		t.Fatalf("final model = %s, want three/free:free", ag.Model)
 	}
