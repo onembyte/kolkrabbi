@@ -62,7 +62,7 @@ func (s *ClaudeSession) Turn(ctx context.Context, messages []provider.Message, m
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
-		return provider.Message{}, provider.Meta{}, fmt.Errorf("Claude session is closed")
+		return provider.Message{}, provider.Meta{}, fmt.Errorf("claude session is closed")
 	}
 	prompt, err := promptFromMessages(messages)
 	if err != nil {
