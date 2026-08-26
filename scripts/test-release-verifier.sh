@@ -53,7 +53,7 @@ trap 'rm -rf "$WORK"' EXIT
 RELEASE="$WORK/release"
 FAKEBIN="$WORK/fakebin"
 mkdir -p "$RELEASE" "$FAKEBIN"
-VERSION=1.1.11
+VERSION=1.1.12
 TAG="v$VERSION"
 
 host_os="$(uname -s | tr '[:upper:]' '[:lower:]')"
