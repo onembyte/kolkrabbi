@@ -21,7 +21,7 @@ import (
 
 // runDefault is `kolk` with no verb: build an agent, then either run one turn
 // (a prompt was given) or hand it to the REPL.
-func (a *app) runDefault(ctx context.Context, args []string) error {
+func (a *app) runDefault(ctx context.Context, args []string) (err error) {
 	o, err := parseFlags(args)
 	if err != nil {
 		return err
@@ -31,6 +31,15 @@ func (a *app) runDefault(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if closeErr := ag.Close(); closeErr != nil {
+			if err == nil {
+				err = closeErr
+			} else {
+				fmt.Fprintf(a.stderr, "warning: backend close failed: %v\n", closeErr)
+			}
+		}
+	}()
 
 	if a.isStdinPiped != nil && a.isStdinPiped() && a.in != nil {
 		piped, err := io.ReadAll(a.in)
