@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **G15.3 plan mode** — `/plan` is read-only built out of permission rules, not a second permission system.
 - [x] **G15.2 `/diff`** — the session's own changes as diffs, measured from where the session started.
 - [x] **G15.1 `/undo`** — one turn, both halves; files and conversation never move independently.
 - [x] **G11.3 context and cost in the status line** — the two numbers that decide whether to compact or stop, where someone is already looking.
@@ -1920,6 +1921,45 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### G15.3 plan mode — verified detail
+
+Item 15 called for read-only exploration → plan → approve → execute. E13 turned that from a mechanism
+into a mode: `deny write(*)` and `deny bash(*)` as session-scoped rules say the whole thing.
+
+**Built out of the rules, not beside them.** A separate plan-mode flag consulted somewhere in the
+guard would be a second permission system with its own precedence, and two permission systems are how
+a session ends up refusing something neither of them can explain. Using rules means `/permissions`
+shows a plan-mode session exactly what is refusing it, and a test asserts that.
+
+**It refuses even in full-auto**, because it is a rule and rules sit above the tier. That is the same
+precedence F14 and E13 already established, applied rather than re-decided.
+
+**Leaving drops what plan mode added and nothing else.** A session rule someone wrote themselves is
+not plan mode's to remove, and the test pins the rule count back to what it was before.
+
+**The model is told why.** Refusing the tools silently produces a model that keeps trying them and
+reports failures; what is wanted is one that explores and proposes. `ExtraSystem` appends the
+instruction and rebuilds the system prompt in place.
+
+That mutation costs the provider's prompt cache, which is exactly why this project injects loop
+wakeups as user turns instead. This is the deliberate exception: it happens when a person changes
+what the session is *for*, at most twice per plan, and the alternative — putting the posture in a user
+message — leaves an instruction in the transcript that compaction may later summarise away. The cost
+is recorded on the method rather than discovered later.
+
+**Approving a plan is not a new verb.** The user reads it and runs `/plan off`. An "approve" that
+silently re-enabled writing would be the second permission system arriving through a different door.
+
+Acceptance checklist:
+
+- [x] writes and commands are refused in plan mode, even under full-auto.
+- [x] reads and listings still work — a mode that cannot read is an off switch.
+- [x] leaving restores writing and leaves the user's own session rules alone.
+- [x] `/permissions` shows the rules doing the refusing.
+- [x] the model is told to plan, and the instruction goes when the mode does.
+- [x] entering twice does not stack two sets of rules.
+- [x] `go test ./... -race` clean; full `make check` green: 1,924 tests, 0 lint issues.
 
 ### G15.2 `/diff` — verified detail
 

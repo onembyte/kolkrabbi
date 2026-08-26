@@ -45,6 +45,7 @@ var slashCommandTable = []slashCommand{
 	{"session", "", "show the current session id and file"},
 	{"changes", "", "list files modified by this session"},
 	{"diff", "[path]", "show what this session changed, as a diff"},
+	{"plan", "[off]", "read-only: explore and propose, without writing or running anything"},
 	{"saga", "[goal | resume | status | stop | rewind]", "careful-progression autonomous loop"},
 	{"undo", "", "take back the last turn: its file changes and its conversation"},
 	{"rewind", "", "restore the last turn's files only, leaving the conversation"},
@@ -167,6 +168,8 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			}
 			fmt.Fprintf(a.stdout, "turn %-3d %-8s %s (%s)\n", e.Turn, verb, e.Path, e.Tool)
 		}
+	case "/plan":
+		a.planMode(ag, arg)
 	case "/diff":
 		if ag.Ckpt == nil {
 			fmt.Fprintln(a.stdout, "checkpointing is not enabled, so there is nothing to compare against.")

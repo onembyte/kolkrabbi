@@ -174,6 +174,9 @@ type Options struct {
 	// Rules are the user's standing answers, consulted before the tier and
 	// after the floor. The last matching rule wins.
 	Rules Rules
+	// ExtraSystem is a standing instruction appended to the system prompt,
+	// used by plan mode to say what the session is for. Empty most of the time.
+	ExtraSystem string
 	// MaxConcurrentTasks is how many orchestrated tasks may run at once. Three
 	// is small enough that the output of that many agents can still be read,
 	// and rate limits rather than CPU are the binding constraint. One is
@@ -426,7 +429,35 @@ When asked to build or continue a project, inspect the relevant plan and checkpo
 		sys += fmt.Sprintf("\n\nProject notes (from %s):\n%s", name, body)
 		break
 	}
+	if extra := strings.TrimSpace(a.ExtraSystem); extra != "" {
+		// Last, so a posture the user just chose wins a contradiction with
+		// anything standing.
+		sys += "\n\n" + extra
+	}
 	return sys
+}
+
+// SetExtraSystem changes the standing instruction appended to the system
+// prompt and rebuilds it in the running session.
+//
+// Mutating the system prompt mid-session costs the provider's prompt cache,
+// which is why loop wakeups are injected as user turns instead. This is the
+// exception: it happens when a person deliberately changes what the session is
+// for, at most twice per plan, and the alternative — telling the model its
+// posture in a user message — puts an instruction in the transcript that
+// compaction may later summarise away.
+func (a *Agent) SetExtraSystem(extra string) {
+	a.ExtraSystem = extra
+	if a.Sess == nil {
+		return
+	}
+	msgs := a.Sess.GetMessages()
+	if len(msgs) == 0 || msgs[0].Role != "system" {
+		return
+	}
+	msgs[0] = provider.Message{Role: "system", Content: a.systemPrompt(a.Mode)}
+	a.Sess.SetMessages(msgs)
+	a.save()
 }
 
 // readMemory loads one memory file, capped at a line boundary.
