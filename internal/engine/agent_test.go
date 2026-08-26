@@ -75,7 +75,12 @@ func TestE2E_ToolLoopWithPersistenceAndRewind(t *testing.T) {
 	if !strings.Contains(out.String(), "Creating the file now.") || !strings.Contains(out.String(), "Done — hello.txt is created.") {
 		t.Errorf("streamed output missing content:\n%s", out.String())
 	}
-	if !strings.Contains(out.String(), "Writing file — "+target) || strings.Contains(out.String(), "write_file({") {
+	// The filename, not the whole path: a long temp directory is elided in the
+	// middle, and asserting on the full string made this pass on Linux and fail
+	// on macOS for reasons that had nothing to do with the behaviour under test.
+	if !strings.Contains(out.String(), "Writing file — ") ||
+		!strings.Contains(out.String(), filepath.Base(target)) ||
+		strings.Contains(out.String(), "write_file({") {
 		t.Errorf("tool activity was not descriptive and payload-safe:\n%s", out.String())
 	}
 	if !strings.Contains(out.String(), "$0.0020") {

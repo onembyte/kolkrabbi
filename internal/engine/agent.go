@@ -775,7 +775,7 @@ func describeToolCall(tc provider.ToolCall) string {
 	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
 		return "Using tool — " + compactToolText(tc.Function.Name)
 	}
-	path := compactToolText(args.Path)
+	path := compactToolPath(args.Path)
 	switch tc.Function.Name {
 	case "bash":
 		detail := compactToolText(args.Description)
@@ -806,19 +806,47 @@ func describeToolCall(tc provider.ToolCall) string {
 	return "Using tool — " + compactToolText(tc.Function.Name)
 }
 
+// activityWidth is how much of one tool line is shown. Long enough to be
+// useful, short enough not to wrap on a normal terminal.
+const activityWidth = 120
+
 func compactToolText(value string) string {
+	value = sanitizeToolText(value)
+	runes := []rune(value)
+	if len(runes) > activityWidth {
+		// A command reads left to right: what it is matters more than its last
+		// flag, so this keeps the beginning.
+		value = string(runes[:activityWidth]) + "…"
+	}
+	return value
+}
+
+// compactToolPath shortens a path by dropping its middle.
+//
+// The end of a path is what says which file this is. Cutting there — which is
+// what happened until a macOS runner produced a long enough temp directory to
+// show it — leaves a person approving "somewhere under /private/var", with the
+// filename the one part they cannot see.
+func compactToolPath(value string) string {
+	value = sanitizeToolText(value)
+	runes := []rune(value)
+	if len(runes) <= activityWidth {
+		return value
+	}
+	// Enough of the head to know where it is, the rest given to the tail.
+	const head = 24
+	tail := activityWidth - head - 1
+	return string(runes[:head]) + "…" + string(runes[len(runes)-tail:])
+}
+
+func sanitizeToolText(value string) string {
 	value = strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) {
 			return ' '
 		}
 		return r
 	}, value)
-	value = strings.Join(strings.Fields(value), " ")
-	runes := []rune(value)
-	if len(runes) > 120 {
-		value = string(runes[:120]) + "…"
-	}
-	return value
+	return strings.Join(strings.Fields(value), " ")
 }
 
 // executeTool runs one tool for the main session, where a person can answer.

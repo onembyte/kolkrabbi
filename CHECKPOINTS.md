@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **X3 a long path is elided in the middle, not the end** — the filename is the part a person needs, and it was the part being cut.
 - [x] **X2 the reported path is the resolved path, on every platform** — a macOS-only break I shipped, and the Linux test that would have caught it.
 - [x] **X1 fixtures that do not look like live keys** — the scrubber's own test corpus was blocking every push; fixtures now match the repository's existing shorter shape.
 - [x] **G15.3 plan mode** — `/plan` is read-only built out of permission rules, not a second permission system.
@@ -1923,6 +1924,39 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### X3 a long path is elided in the middle, not the end — recorded detail
+
+The second macOS CI failure looked like more of X2 and was not. The assertion saw:
+
+    Writing file — /private/var/folders/…/TestE2E_ToolLoopWithPersistenceAndRewind3553888001/001/hello.tx…
+
+`compactToolText` capped every tool line at 120 runes by keeping the head. For a command that is
+right — a command reads left to right, and what it is matters more than its last flag. For a path it
+is exactly backwards: the end says which file this is, so cutting there leaves a person approving
+"somewhere under /private/var" with the filename the one part they cannot see.
+
+This is a real UX defect, not a test artifact, and it had been shipping since the activity line
+existed. Nothing on Linux produced a path long enough to cross 120 characters; a macOS temp directory
+does, which is the only reason it surfaced. The same principle already applied elsewhere in this
+session — G11.1 truncates a diff in the middle because the last hunk matters as much as the first —
+and this line was the place it had not been applied.
+
+Paths now keep 24 characters of head, an ellipsis, and everything else from the tail. Commands are
+unchanged.
+
+The test that failed asserted on the whole path, which is what made it platform-dependent for reasons
+unrelated to what it was testing. It now asserts the label and the base name.
+
+Acceptance checklist:
+
+- [x] a short path is shown whole.
+- [x] a long path keeps its filename and shows the elision.
+- [x] a long command still keeps its beginning.
+- [x] the argument payload never reaches the line.
+- [x] control characters cannot draw on the terminal.
+- [x] the end-to-end assertion no longer depends on the length of a temp path.
+- [x] full `make check` green: 1,930 tests, 0 lint issues, every script contract.
 
 ### X2 the reported path is the resolved path, on every platform — recorded detail
 
