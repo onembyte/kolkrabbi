@@ -141,6 +141,21 @@ func TestCredentialsLiveInDataNotConfig(t *testing.T) {
 	}
 }
 
+func TestLocalModelsLiveInManagedData(t *testing.T) {
+	d := Dirs{Config: filepath.FromSlash("/c"), Data: filepath.FromSlash("/d"), Cache: filepath.FromSlash("/x")}
+	got := d.LocalModelsDir()
+	if !strings.HasPrefix(got, d.Data+string(filepath.Separator)) {
+		t.Fatalf("LocalModelsDir() = %q, want a path below Data %q", got, d.Data)
+	}
+	if strings.HasPrefix(got, d.Config) || strings.HasPrefix(got, d.Cache) {
+		t.Fatalf("LocalModelsDir() = %q must not use config or cache storage", got)
+	}
+	runtimeDir := d.LocalRuntimeDir()
+	if !strings.HasPrefix(runtimeDir, d.Data+string(filepath.Separator)) {
+		t.Fatalf("LocalRuntimeDir() = %q, want a path below Data %q", runtimeDir, d.Data)
+	}
+}
+
 func TestEnsureDataWritesAGitignore(t *testing.T) {
 	base := t.TempDir()
 	d := Dirs{Config: filepath.Join(base, "c"), Data: filepath.Join(base, "d"), Cache: filepath.Join(base, "x")}
@@ -154,7 +169,7 @@ func TestEnsureDataWritesAGitignore(t *testing.T) {
 	}
 	// KOLK_DATA_DIR makes it legal to point state inside a repository, and the
 	// failure mode of getting that wrong is a published API key.
-	for _, want := range []string{"credentials.json", "sessions/", "stats.jsonl"} {
+	for _, want := range []string{"credentials.json", "local-models/", "sessions/", "stats.jsonl"} {
 		if !strings.Contains(string(b), want) {
 			t.Errorf(".gitignore does not cover %q:\n%s", want, b)
 		}

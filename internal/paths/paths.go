@@ -110,6 +110,12 @@ func (d Dirs) CredentialsFile() string { return filepath.Join(d.Data, "credentia
 // ConnectorsFile stores only provider-owned connector metadata, never secrets.
 func (d Dirs) ConnectorsFile() string { return filepath.Join(d.Data, "connectors.json") }
 
+// LocalModelsDir stores models and managed local-runtime state.
+func (d Dirs) LocalModelsDir() string { return filepath.Join(d.Data, "local-models") }
+
+// LocalRuntimeDir stores versioned runtime binaries owned by Kolk.
+func (d Dirs) LocalRuntimeDir() string { return filepath.Join(d.Data, "local-runtime") }
+
 // CatalogFile is the cached model catalog: rebuildable, so it lives in Cache.
 func (d Dirs) CatalogFile() string { return filepath.Join(d.Cache, "models.json") }
 
@@ -139,6 +145,8 @@ func (d Dirs) EnsureData() error {
 const gitignore = `# kolk keeps state here. None of it belongs in a repository.
 credentials.json
 connectors.json
+local-models/
+local-runtime/
 sessions/
 stats.jsonl
 dash.db
