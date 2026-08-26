@@ -43,6 +43,7 @@ type Controller struct {
 	beforeApproval  string
 	commands        []CommandSpec
 	models          []ModelSpec
+	plans           []PlanSpec
 	commandHistory  *CommandHistory
 	suggestionLimit int
 	suggestions     []CommandSpec
@@ -128,6 +129,12 @@ func (c *Controller) SetCommands(commands []CommandSpec, recentLimit int) {
 // SetModels installs the provider model catalog used for live /model filtering.
 func (c *Controller) SetModels(models []ModelSpec) {
 	c.models = append(c.models[:0], models...)
+	c.updateSuggestions()
+}
+
+// SetPlans installs the provider-plan catalog used for live /plogin filtering.
+func (c *Controller) SetPlans(plans []PlanSpec) {
+	c.plans = append(c.plans[:0], plans...)
 	c.updateSuggestions()
 }
 
@@ -288,6 +295,9 @@ func (c *Controller) updateSuggestions() {
 		recent = c.commandHistory.Recent()
 	}
 	c.suggestions = SuggestModels(c.models, c.editor.Draft(), c.suggestionLimit)
+	if len(c.suggestions) == 0 {
+		c.suggestions = SuggestPlanLogins(c.plans, c.editor.Draft(), c.suggestionLimit)
+	}
 	if len(c.suggestions) == 0 {
 		c.suggestions = SuggestCommands(c.commands, c.editor.Draft(), recent, c.suggestionLimit)
 	}

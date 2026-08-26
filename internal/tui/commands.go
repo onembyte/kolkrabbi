@@ -17,6 +17,12 @@ type ModelSpec struct {
 	Name string
 }
 
+// PlanSpec is the presentation subset used by the provider-login picker.
+type PlanSpec struct {
+	Provider string
+	Name     string
+}
+
 // CommandHistory retains bounded unique names in most-recent-first order.
 type CommandHistory struct {
 	limit  int
@@ -105,6 +111,7 @@ func SuggestModels(models []ModelSpec, draft string, limit int) []CommandSpec {
 	if !strings.HasPrefix(strings.ToLower(draft), prefix) {
 		return nil
 	}
+
 	if limit <= 0 {
 		limit = 8
 	}
@@ -122,6 +129,33 @@ func SuggestModels(models []ModelSpec, draft string, limit int) []CommandSpec {
 		suggestions = append(suggestions, CommandSpec{
 			Name: model.ID, Usage: prefix + model.ID, Summary: model.Name,
 			Complete: prefix + model.ID,
+		})
+		if len(suggestions) == limit {
+			break
+		}
+	}
+	return suggestions
+}
+
+// SuggestPlanLogins filters provider plans while /plogin is being typed.
+func SuggestPlanLogins(plans []PlanSpec, draft string, limit int) []CommandSpec {
+	const prefix = "/plogin "
+	if !strings.HasPrefix(strings.ToLower(draft), prefix) {
+		return nil
+	}
+	if limit <= 0 {
+		limit = 8
+	}
+	filter := strings.ToLower(strings.TrimSpace(draft[len(prefix):]))
+	suggestions := make([]CommandSpec, 0, min(limit, len(plans)))
+	for _, plan := range plans {
+		label := plan.Provider + " " + plan.Name
+		if filter != "" && !strings.Contains(strings.ToLower(label), filter) {
+			continue
+		}
+		suggestions = append(suggestions, CommandSpec{
+			Name: label, Usage: prefix + label, Summary: "provider-owned login",
+			Complete: prefix + label,
 		})
 		if len(suggestions) == limit {
 			break

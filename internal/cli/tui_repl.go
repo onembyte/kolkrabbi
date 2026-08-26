@@ -46,6 +46,7 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 		Status:   tuiStatus(ag, "ready", folder),
 		Commands: slashSuggestions(),
 		Models:   models,
+		Plans:    tuiPlans(),
 		Turn: func(turnContext context.Context, prompt string) error {
 			if strings.HasPrefix(strings.TrimSpace(prompt), "/") {
 				shouldExit := a.slash(turnContext, ag, strings.TrimSpace(prompt))
@@ -96,6 +97,15 @@ func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 	out := make([]tui.ModelSpec, 0, len(models))
 	for _, model := range models {
 		out = append(out, tui.ModelSpec{ID: model.ID, Name: model.Name})
+	}
+	return out
+}
+
+func tuiPlans() []tui.PlanSpec {
+	plans := provider.Plans("")
+	out := make([]tui.PlanSpec, 0, len(plans))
+	for _, plan := range plans {
+		out = append(out, tui.PlanSpec{Provider: plan.Provider, Name: plan.Name})
 	}
 	return out
 }

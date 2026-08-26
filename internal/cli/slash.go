@@ -25,6 +25,7 @@ var slashCommandTable = []slashCommand{
 	{"effort", "<low|medium|high|max>", "select model tier and orchestration width"},
 	{"model", "[id]", "list available models or switch this session"},
 	{"plans", "[filter] | login <provider> <plan>", "list plans or start provider-owned login"},
+	{"plogin", "[filter]", "search plans and start provider-owned login"},
 	{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors"},
 	{"config", "[get <k> | set <k> <v> | unset <k> | show]", "read and write saved settings"},
 	{"update", "", "install the latest verified release"},
@@ -209,6 +210,10 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 	case "/plans":
 		if err := a.runPlans(ctx, strings.Fields(arg)); err != nil {
 			fmt.Fprintf(a.stderr, "plans error: %v\n", err)
+		}
+	case "/plogin":
+		if err := a.runPlanLogin(ctx, strings.Fields(arg)); err != nil {
+			fmt.Fprintf(a.stderr, "plan login error: %v\n", err)
 		}
 	case "/pmodels":
 		if err := a.runPlanModels(ctx, strings.Fields(arg)); err != nil {
