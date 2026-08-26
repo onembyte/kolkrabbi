@@ -160,6 +160,7 @@ func commandTable() []command {
 		{"update", "", "install the latest verified release", (*app).runUpdate},
 		{"sessions", "[search <text> | rename <id> <title> | fork <id> | export <id> [--json] | rm <id> | clear]", "list, search, fork, export or delete saved sessions", (*app).runSessions},
 		{"stats", "[--json]", "100% local usage and rating dashboard", (*app).runStats},
+		{"dash", "[--addr 127.0.0.1:0]", "open the local usage dashboard in a browser", (*app).runDash},
 		{"serve", "[--addr <addr>] [--token <tok>] [--stdio]", "start headless event server or stdio bridge", (*app).runServe},
 		{"version", "[--json]", "print the running build", (*app).runVersion},
 		{"saga", "[goal | resume | status | stop | rewind]", "careful-progression autonomous loop", (*app).runSaga},

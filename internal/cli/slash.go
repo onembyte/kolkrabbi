@@ -33,6 +33,7 @@ var slashCommandTable = []slashCommand{
 	{"config", "[get <k> | set <k> <v> | unset <k> | show]", "read and write saved settings"},
 	{"update", "", "install the latest verified release"},
 	{"stats", "[--json]", "100% local usage and rating dashboard"},
+	{"dash", "[--addr 127.0.0.1:0]", "open the local usage dashboard in a browser"},
 	{"version", "[--json]", "print the running build"},
 	{"rate", "<1-5>", "rate the last turn for local stats"},
 	{"auto-approve", "[on|off]", "control tool confirmations for this session"},
@@ -263,6 +264,10 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 	case "/config":
 		if err := a.runConfig(ctx, strings.Fields(arg)); err != nil {
 			fmt.Fprintf(a.stderr, "config error: %v\n", err)
+		}
+	case "/dash":
+		if err := a.runDash(ctx, strings.Fields(arg)); err != nil {
+			fmt.Fprintf(a.stderr, "dash error: %v\n", err)
 		}
 	case "/stats":
 		if err := a.runStats(ctx, strings.Fields(arg)); err != nil {

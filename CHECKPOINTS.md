@@ -174,6 +174,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **C12.5 memory layers and `/remember`** — a user layer beneath the project file, capped at a line boundary, written only when the user says so.
 - [x] **C12.6 durable compaction archive** — the replaced conversation survives the process, and deleting a session deletes it too.
 - [x] **D17.1 resilient usage log** — one unreadable line costs one line, not a history, and incomplete totals say they are incomplete.
+- [x] **D17.2 `kolk dash`** — a loopback-only dashboard rendered entirely on the server, with no script, no assets and no network.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
@@ -1425,6 +1426,57 @@ Acceptance checklist:
 - [x] a missing file is still not an error, and `Load`'s original signature still works.
 - [x] `kolk stats` declares incomplete totals, and stays silent when nothing was skipped.
 - [x] full `make check` green, lint 0 issues.
+
+### D17.2 `kolk dash` — verified detail
+
+The dashboard the product has promised since its README. It renders three views from the same
+`stats.jsonl` that `kolk stats` reads, through the same functions, so the two surfaces can be wrong
+together but can never disagree.
+
+Everything is drawn on the server. The page contains no `<script>`, loads nothing, and declares that
+to the browser with `default-src 'none'` — a page that needs scripting to show a number shows
+nothing in half the places it is opened, and a chart library would be a vendored third-party asset
+with an update obligation for three static charts.
+
+Decisions, each a test:
+
+- **Loopback only, and no flag to defeat it.** This page is a record of everything the user has
+  worked on. A non-loopback address is refused *with the reason*, because a limit that does not
+  explain itself is one somebody goes looking for a way around.
+- **Port 0 by default.** A second instance never collides with the first, and there is no
+  predictable port sitting open on a shared machine. The bound URL is printed.
+- **Model names are escaped.** They come from a provider catalog, which Kolkrabbi does not control,
+  and the test uses an `<img onerror=…>` id specifically.
+- **The empty state is a screen, not an empty axis.** A new user sees what will appear here and how
+  to produce it.
+- **Ratings show their sample size.** `5.0★ (1)` is not a ranking; hiding the count invites reading
+  it as one.
+- **Incomplete totals say so**, carrying D17.1's skipped count onto the page.
+- **`Cache-Control: no-store`**, so a record of the user's work does not sit in a browser cache.
+
+The page is also checked for well-formed markup by parsing it, because hand-built HTML is easy to
+get subtly wrong and browsers hide exactly that.
+
+Verified against the development host's real usage log: the leaderboard, the daily spend chart and
+the effort/mode breakdown all rendered with real figures over HTTP. Binary grew 7.91 MB → 8.43 MB,
+well inside the 12 MB soft budget, and cold start is unchanged at 2.9 ms.
+
+Known wart, not fixed here: historical records carry both canonical and legacy effort names, so
+`medium` and `standard` appear as separate rows in the breakdown. They are the same level and should
+be folded through `engine.NormalizeEffort`.
+
+Acceptance checklist:
+
+- [x] the page shows the leaderboard, a daily spend chart and the effort/mode breakdown.
+- [x] no script tag; an SVG chart is present.
+- [x] the markup parses.
+- [x] a hostile model name is escaped.
+- [x] no data produces an explanatory screen rather than an empty chart.
+- [x] a skipped-line count reaches the page.
+- [x] every non-loopback spelling is refused with its reason; loopback spellings are accepted.
+- [x] the handler serves the page, sets CSP and no-store, 404s anything else, and works on a machine
+  with no usage yet.
+- [x] real-binary rehearsal over HTTP against real data; full `make check` green, lint 0 issues.
 
 ### B12 Claude subscription backend — recorded detail
 
