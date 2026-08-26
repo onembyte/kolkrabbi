@@ -17,6 +17,11 @@ import (
 func TestToolOutputIsScrubbedBeforeItIsKept(t *testing.T) {
 	root := t.TempDir()
 	t.Chdir(root)
+	// Deliberately shorter than a real OpenRouter key, matching the fixture
+	// shape the rest of this repository already uses. A fixture built to a
+	// vendor's exact length is one a secret scanner cannot tell from the real
+	// thing, and GitHub's push protection then blocks every push of the tests
+	// that exist to prove secrets never leak.
 	secretLine := "OPENROUTER_API_KEY=sk-or-v1-0123456789abcdef0123456789abcdef"
 	if err := os.WriteFile(filepath.Join(root, ".env"), []byte(secretLine+"\n"), 0o600); err != nil {
 		t.Fatal(err)

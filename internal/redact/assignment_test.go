@@ -20,6 +20,9 @@ func TestSecretAssignmentsAreScrubbedWhateverTheVendor(t *testing.T) {
 	for _, line := range []string{
 		"DATABASE_PASSWORD=hunter2correcthorsebattery",
 		"MY_SERVICE_TOKEN=abcdef0123456789abcdef0123456789",
+		// A test-key prefix, not a live one: see the note in
+		// engine/scrub_tools_test.go. What is under test is the assignment
+		// shape, not the vendor's exact live-key format.
 		"export STRIPE_SECRET_KEY=rk_test_0123456789abcdefghijkl",
 		"api_key: 9f8e7d6c5b4a39281706abcdef012345",
 		`  "clientSecret": "s3cr3t-value-long-enough-here"`,

@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **X1 fixtures that do not look like live keys** — the scrubber's own test corpus was blocking every push; fixtures now match the repository's existing shorter shape.
 - [x] **G15.3 plan mode** — `/plan` is read-only built out of permission rules, not a second permission system.
 - [x] **G15.2 `/diff`** — the session's own changes as diffs, measured from where the session started.
 - [x] **G15.1 `/undo`** — one turn, both halves; files and conversation never move independently.
@@ -1921,6 +1922,51 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### X1 fixtures that do not look like live keys — recorded detail
+
+Pushing 61 commits was refused by GitHub push protection. The two strings it named were fixtures I
+wrote during E13.3 — the leaf whose entire purpose is proving that secrets never reach the
+conversation. The test suite that exists to stop secrets leaking was the thing blocking the push.
+
+Both were synthetic, and a sweep of the whole unpushed diff for credential shapes found six such
+strings, all in the scrubber's corpus, none from the owner's environment: four documentation stubs,
+two I had generated.
+
+**The cause was mine and specific.** This repository already had a convention — `sk-or-v1-` followed
+by 40 hex characters — used by roughly twenty fixtures that are already on `origin/main` and pass
+push protection. I wrote a new one at 64 characters, which is a real OpenRouter key's length, and
+that is what a scanner matches on. The Stripe fixture had the same problem: `rk_live_51…` is the
+exact shape of a live restricted key.
+
+**The fix is to conform, not to invent.** Both now use the shape the surrounding code already uses,
+and each carries a note saying why it is deliberately not the vendor's real length — otherwise the
+next person to tidy them makes them realistic again and re-blocks the repository. An assembly helper
+that concatenated prefixes at run time would have worked too, and would have been a clever mechanism
+where a shorter literal does the job.
+
+Both tests still assert exactly what they did: the scrubber's detection is on the assignment shape
+and the value's entropy, neither of which depends on matching a vendor's byte count.
+
+Changing the fixtures did not by itself unblock the push: push protection scans every commit in a
+push, and the original strings were still in the commit that introduced them. The owner chose to
+rewrite rather than allowlist, which was the cheaper option than it first appeared — `0b7b5326` had
+never been pushed, so the rewrite touched only the 62 local commits and nothing anyone had pulled. I
+had warned it would rewrite published history; that was wrong, and worth correcting before the
+decision rather than after.
+
+The rewrite replaced both strings across the unpushed range with `git filter-branch`, leaving this
+commit holding the explanatory notes alone. A backup ref was taken first and kept until the push
+succeeded.
+
+Acceptance checklist:
+
+- [x] every credential-shaped string in the unpushed diff was located and identified.
+- [x] confirmed none originated from the owner's environment.
+- [x] both flagged fixtures conform to the repository's existing fixture shape.
+- [x] both tests still assert the value is scrubbed and the assignment survives.
+- [x] a note in each file explains the constraint so it is not undone.
+- [x] full `make check` green: 1,924 tests, 0 lint issues, every script contract.
 
 ### G15.3 plan mode — verified detail
 
