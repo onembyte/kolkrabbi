@@ -389,7 +389,10 @@ backend only.
 **Scope:** make subscription and plan coverage explicit without conflating consumer accounts with API access.
 The inventory and acceptance gates live in [`docs/plan/24-subscription-provider-matrix.md`](docs/plan/24-subscription-provider-matrix.md).
 
-- [ ] Anthropic Claude Free/Pro/Max/Team/Enterprise via the user's own CLI handover.
+- [~] Anthropic Claude Free/Pro/Max/Team/Enterprise via the user's own CLI handover — shipped
+  2026-08-26 as checkpoints P11 (plans, connectors, `kolk plans login`) and B12 (persistent
+  `ClaudeBackend` over `claude -p --output-format stream-json`). Still open: proof the provider
+  actually authenticated, connector→backend selection for a new session, and failure-path tests.
 - [ ] OpenAI ChatGPT Free/Plus/Pro/Business/Enterprise via a permitted Codex/first-party CLI path.
 - [ ] Google Gemini Free/AI Pro/AI Ultra/Workspace via documented API access.
 - [ ] xAI Grok consumer/business plans.
@@ -398,6 +401,21 @@ The inventory and acceptance gates live in [`docs/plan/24-subscription-provider-
 - [ ] DeepSeek, Qwen/Alibaba, GitHub Copilot, and Cohere plans.
 - [ ] For every provider: terms review, capability matrix, billing-mode labeling,
   offline fixtures, and credential-redaction tests.
+
+### [~] 25. Managed local models
+**Scope:** first-party local inference that never touches a host-owned Ollama install.
+The contract lives in [`docs/plan/25-managed-local-models.md`](docs/plan/25-managed-local-models.md).
+
+- [x] Kolk-owned versioned sidecar, private endpoint, and a model store inside Kolk's data directory.
+- [x] Runtime lifecycle: validate before start, start at most once, close with the session.
+- [ ] Hardware probe with the fixed `{accelerators, system_ram_bytes, disk_free_bytes}` shape that
+  fails closed to "unknown" and never lets a missing probe authorize a pull.
+- [ ] Fit planner: show size, required VRAM/RAM, reserved headroom, and fallback before any pull;
+  refuse what does not fit instead of degrading into swap.
+- [ ] `/localia` and its CLI twin, with parity tests that need neither a GPU nor Ollama.
+**Hardened when:** the contract doc's five TDD checkpoints are closed and a manual GPU smoke test is
+recorded as separate evidence.
+**Inputs:** items 3, 8, 13, 18
 
 ---
 

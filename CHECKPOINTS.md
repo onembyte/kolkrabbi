@@ -131,7 +131,24 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **S10.1 saga state machine & artifact engine** — `SAGA.md` parser, generator, and chapter lifecycle state machine.
 - [x] **S10.2 quality gate & git checkpointer** — automated test discovery, verification execution, and commit-on-green.
 - [x] **S10.3 budget & doom-loop guardrails** — chapter limit, dollar budget, timeout, and consecutive failure detection.
-- [~] **S10.4 CLI & slash command surface** — `kolk saga [goal|resume|status|stop|rewind]` and REPL twin `/saga`.
+- [x] **S10.4 CLI & slash command surface** — `kolk saga [goal|resume|status|stop|rewind]` and REPL twin `/saga`.
+- [x] **P11.1 provider plan registry & search** — static plan matrix with case-insensitive filtering behind `kolk plans` / `/plans`.
+- [x] **P11.2 credential-free connector manifest** — versioned `connectors.json` with atomic, locked upsert and no credential fields.
+- [x] **P11.3 plan model catalog** — `kolk pmodels` / `/pmodels` list provider, plan, connector, model, effort levels, and access status.
+- [x] **P11.4 provider-owned login handoff** — `shell.Handover` attaches the provider CLI to the real terminal; Kolk never sees credentials.
+- [x] **P11.5 live plan login picker** — `/plogin` filters and completes plans while typing, mirroring `/model`.
+- [x] **P11.6 terminal ownership around provider login** — a provider CLI is never spawned while Kolkrabbi owns the keyboard; in-session logins hand the user the exact command for a separate terminal.
+- [x] **B12.1 Claude CLI invocation contract** — safe argv construction, prompt only over stdin, `--bare` forbidden.
+- [x] **B12.2 Claude stream translation** — allow-listed NDJSON frame projection with scrubbed text and tool input.
+- [x] **B12.3 provider-neutral result adapter** — translated events become `provider.Message` and `provider.Meta`.
+- [x] **B12.4 engine chat backend seam** — `engine.ChatBackend` with the OpenRouter client as the unchanged default.
+- [x] **B12.5 persistent Claude session** — one line-framed child process serves every turn of a Kolk session.
+- [x] **B12.6 backend lifecycle ownership** — the CLI session opens and closes the Claude backend exactly once.
+- [x] **L13.1 managed local storage paths** — a Kolk-owned model directory under the data dir, never a host Ollama path.
+- [x] **L13.2 managed runtime spec & lifecycle** — validated `RuntimeSpec`, start-at-most-once, deterministic close.
+- [x] **L13.3 managed sidecar starter** — `shell.StartManagedProcess` keeps process execution inside the one owner package.
+- [ ] **L13.4 hardware probe & fit planner** — deterministic accelerator/RAM/disk snapshot, reserved headroom, refuse-on-no-fit.
+- [ ] **L13.5 `/localia` surface** — hardware status, storage usage, catalog, explicit pull approval, GPU and quantization selection.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
 
 Scope:
@@ -474,7 +491,7 @@ Acceptance checklist:
 - [x] unit tests prove doom-loop halts after 3 consecutive failures.
 - [x] full `./scripts/test.sh` passes without regressions.
 
-### S10.4 CLI & slash command surface — active detail
+### S10.4 CLI & slash command surface — verified detail
 
 Scope:
 
@@ -491,10 +508,176 @@ Non-goals:
 
 Acceptance checklist:
 
-- [ ] `kolk saga status` returns ExitOK.
-- [ ] `kolk saga` with no args returns usage help.
-- [ ] `/saga` slash twin is registered and routes.
-- [ ] full `./scripts/test.sh` passes without regressions.
+- [x] `kolk saga status` returns ExitOK — `TestSagaStatusNoActiveSaga`, `TestSagaStatusPrintsSAGAArtifact`,
+  and the installed `kolk saga status` both exit 0 and print `no active saga`.
+- [x] `kolk saga` with no args returns usage help — `TestSagaNoArgsReturnsUsage`; the installed binary
+  prints `usage: kolk saga <goal | resume | status | stop | rewind>` and exits 2.
+- [x] `/saga` slash twin is registered and routes — `slash.go` dispatches `/saga` into the same
+  `runSaga`, and `TestTopLevelAndSlashParity` proves the table entry.
+- [x] full `./scripts/test.sh` passes without regressions — `make check` exit 0 on 2026-08-26 05:04
+  (1,541 root-module tests, 5 platforms, 0 lint issues).
+
+Verification 2026-08-26 04:55–05:05 (claude, independent of the code's author): `go test ./internal/cli
+-run 'Saga|Parity' -count=1 -v` green (8 saga tests plus parity), full `make check` exit 0. The leaf's
+stated non-goal still holds — `resume`, `stop`, and `rewind` are deliberate stubs and the engine's
+saga loop (`internal/engine/saga_*.go`, `internal/cli/saga_adapter.go`) is not yet driven from the CLI.
+That integration is the next S-series leaf, not part of S10.4.
+
+### P11 provider plans & subscription connectors — recorded detail
+
+These leaves were implemented and pushed between 03:28 and 03:50 on 2026-08-26 without a ledger
+entry. They are recorded here after the fact from the commits and their tests, and were verified by
+an independent full-gate run on 2026-08-26 05:04. Retroactive recording is a one-off correction, not
+a new practice: the checkpoint contract still requires the entry before the code.
+
+Scope:
+
+- A static provider-plan matrix (Anthropic, OpenAI, Google, xAI, Perplexity, Mistral, DeepSeek,
+  Qwen, GitHub Copilot, Cohere) with case-insensitive filtering, surfaced as `kolk plans [filter]`
+  and `/plans [filter]`.
+- A versioned, credential-free connector manifest at `Dirs.ConnectorsFile()`, written through
+  `internal/atomicfile` under an `internal/lock` advisory lock.
+- A plan model catalog behind `kolk pmodels [filter]` and `/pmodels [filter]` reporting provider,
+  plan, connector, model, effort levels, and `enabled` / `available` / `unsupported subscription`.
+- `shell.Handover`, which attaches an unmodified provider CLI to the real `os.Stdin`/`os.Stdout`/
+  `os.Stderr` for login, plus `kolk plans login <provider> <plan>` and the live `/plogin` picker.
+
+Non-goals:
+
+- No OAuth flow, token read, token storage, cookie access, keychain access, or credential replay of
+  any kind. Kolkrabbi stays credential-blind; the provider CLI owns the login.
+- No live provider account or entitlement query — the catalog is metadata, not an authoritative
+  account model list.
+- No Gemini subscription CLI reuse: `docs/research/subscription-auth.md` records that Gemini CLI's
+  terms forbid third-party OAuth reuse, so that path stays `unsupported subscription` and Gemini
+  remains API-key only.
+
+Acceptance checklist:
+
+- [x] plan search, connector persistence, connector status, plan model catalog, login handoff, and
+  the live picker each landed with focused tests (`internal/provider/plans_test.go`,
+  `connectors_test.go`, `plan_models_test.go`, `internal/cli/cmd_plans_test.go`,
+  `cmd_plan_models_test.go`, `internal/shell/handover_test.go`, `internal/tui` picker tests).
+- [x] the persisted manifest carries provider, plan, connector, sandbox flag, login owner, enabled
+  state, and timestamp — and no credential-shaped field.
+- [x] `internal/shell` remains the only package permitted to execute processes; the adapters reach
+  it through `internal/arch/layers.go`-registered seams.
+- [x] commits `c08c9624`, `3bf6a0e0`, `7b7ca81c`, `bb8bc9a7`, `0ea44a52`, `339001fd`, `76e58243`,
+  and `dd74907d` are on `origin/main` with green CI.
+- [x] **P11.6 closed 2026-08-26 05:20** — see its own detail box below.
+- [ ] **open:** a successful provider-CLI exit is still treated as proof of login. Nothing verifies
+  the provider actually authenticated before the connector is marked enabled.
+
+### P11.6 terminal ownership around provider login — verified detail
+
+The uncommitted attempt found in the worktree restored cooked mode around the handoff and put it
+back afterwards. That is necessary but not sufficient: `tui.Runtime.Run` reads the terminal from a
+dedicated goroutine that stays blocked in `Read` for the whole session, including while a slash
+command runs on the turn goroutine. A provider CLI spawned from `/plogin` therefore competes with
+Kolkrabbi for every keystroke, and the kernel hands each one to whichever reader gets there first —
+the login is unusable from inside a session, with or without raw mode. The original patch is kept
+verbatim at `p11.6-original-suspend-attempt.patch` in the session scratchpad.
+
+This also matches what the owner asked for on 2026-08-26: *"we will let each provider manage the
+login in another separated terminal and then kolk use that plan logged in"*.
+
+Scope:
+
+- `app.terminalOwned` reports whether Kolkrabbi currently owns the keyboard. `tuiRepl` sets it for
+  exactly the lifetime of the TUI runtime and clears it on the way out.
+- When the terminal is owned, `kolk plans login` and `/plogin` refuse to hand over. They print the
+  numbered next step, including the exact `kolk plans login <provider> "<Plan>"` line to paste into
+  a second terminal, and enable nothing.
+- Outside a session the handover is unchanged: the provider CLI gets the real terminal.
+- `SaveConnector` stamps `UpdatedAt` in UTC when the caller leaves it zero, and normalizes an
+  explicit instant to UTC. The field was declared and serialized but never written, so every
+  connector on disk claimed `0001-01-01T00:00:00Z`.
+
+Non-goals:
+
+- No cancellable terminal reader. Suspending a live TUI around a foreground child is a real
+  capability, but it needs a poll-based reader in `internal/term` and belongs in its own leaf.
+- No proof that the provider actually authenticated — still tracked as an open P11 box.
+
+Acceptance checklist:
+
+- [x] red first: `TestPlansLoginRefusesHandoverWhileKolkrabbiOwnsTheTerminal` and
+  `TestSlashPlanLoginRefusesHandoverWhileKolkrabbiOwnsTheTerminal` failed by calling `handover`.
+- [x] a refused in-session login writes no connector and prints the exact external command.
+- [x] `kolk plans login` outside a session still hands over and still enables the connector
+  (`TestPlansLoginUsesHandoverAndPersistsMetadata` unchanged and green).
+- [x] `TestSaveConnectorStampsUpdatedAt` and `TestSaveConnectorPreservesAnExplicitUpdatedAt` cover
+  the timestamp both ways.
+- [x] test hygiene: the discarded suspend test ran `plans login` with no directory overrides and
+  wrote a fake enabled `Claude Max` connector into the developer's real
+  `~/.local/share/kolk/connectors.json` during `make check`. Every plan test now goes through
+  `isolateConnectorState`, which sets all three `KOLK_*_DIR` overrides.
+- [x] full `make check` green.
+
+### B12 Claude subscription backend — recorded detail
+
+Recorded after the fact, same correction as P11. Implemented 03:52–04:11 on 2026-08-26.
+
+Scope:
+
+- `internal/provider/agentcli`: invocation builder, NDJSON stream translator, provider-neutral
+  result adapter, persistent `ClaudeSession`, and `ClaudeBackend`.
+- `internal/shell/lines_process.go`: a persistent line-framed child process with a 1 MB scanner
+  bound, stderr diagnostics, cancellation, and deterministic close.
+- `internal/engine`: the `ChatBackend` seam plus `Options.Backend`, with the OpenRouter client
+  unchanged as the default; `retry.go` and `fastlane.go` route through the seam.
+
+Non-goals:
+
+- No engine-side execution of Claude tool calls. Tool frames are display metadata only.
+- No token handling: the user logs in with their own `claude` install, and Kolkrabbi spawns it.
+- `--bare` is forbidden because it bypasses subscription login.
+
+Acceptance checklist:
+
+- [x] the translator allow-lists frame fields and scrubs text and tool input before anything reaches
+  the bus or the transcript (`translate_test.go`).
+- [x] one Claude process serves the whole Kolk session rather than one process per turn —
+  `ClaudeBackend` holds `*ClaudeSession` behind a pointer receiver (`backend.go:35`), so the session
+  survives across `StreamChat` calls. The value-receiver bug flagged in the prior session's notes is
+  fixed in `9620f339`.
+- [x] the CLI session owns backend lifetime and closes it exactly once (`8278dba8`, `dbfaff5b`).
+- [ ] **open:** cancellation mid-turn, EOF without a result frame, malformed frames, and process
+  restart after a crash have no tests yet.
+- [ ] **open:** `docs/plan/04-subscription-backends.md` still describes one process per turn. It
+  contradicts the shipped session-scoped process and must be reconciled.
+- [ ] **open:** nothing yet connects a `/plogin`-enabled connector to backend selection for a new
+  session, so the Claude backend is reachable only through `Options.Backend`.
+
+### L13 managed local models — active detail
+
+Contract: [`docs/plan/25-managed-local-models.md`](docs/plan/25-managed-local-models.md). Implemented
+04:24–04:45 on 2026-08-26; L13.4 and L13.5 are still open.
+
+Scope:
+
+- A Kolk-owned, versioned Ollama sidecar with a private listen address and a model store below the
+  Kolk data directory.
+- `internal/local.Runtime` owns one sidecar for its caller's lifetime with an injected `StartFunc`,
+  so no test needs an Ollama binary; `shell.StartManagedProcess` is the real starter.
+
+Non-goals:
+
+- Kolk never discovers, starts, stops, or connects to a host-owned Ollama service.
+- No implicit model pull. Every pull is an explicit, sized, confirmed user action.
+
+Acceptance checklist:
+
+- [x] managed storage paths land under the Kolk data directory (`8caf1e8e`).
+- [x] the runtime spec validates before start, starts at most once, and closes deterministically
+  (`dbf8dc4a`, `7e38af6d`).
+- [x] the sidecar starter lives in `internal/shell` and keeps `os/exec` inside its one owner
+  (`031b0847`).
+- [ ] the hardware probe returns the documented `{accelerators, system_ram_bytes, disk_free_bytes}`
+  shape, fails closed to "unknown", and never lets a missing probe authorize a pull.
+- [ ] the fit planner shows model size, required VRAM/RAM, reserved headroom, and the expected
+  fallback, and refuses a pull that does not fit instead of degrading into swap.
+- [ ] `/localia` and its CLI twin exist, with parity tests that need neither a GPU nor Ollama.
 
 ### U0.4g persistent purple composer — verified detail
 
@@ -3086,6 +3269,10 @@ checkpoint is expanded. Status here mirrors [`PLAN.md`](PLAN.md); PLAN remains a
 - [ ] 21 quality, testing, and security
 - [ ] 22 onboarding and docs
 - [ ] 23 roadmap, phasing, and non-goals
+- [~] 24 subscription provider matrix — doc complete (docs/plan/24-subscription-provider-matrix.md);
+  Anthropic handover shipped under P11/B12, every other provider still open
+- [~] 25 managed local models — contract complete (docs/plan/25-managed-local-models.md);
+  L13.1–L13.3 shipped, hardware planner and `/localia` open
 
 ### Independent verification log (ox-alpha)
 
@@ -3137,3 +3324,15 @@ checkpoint is expanded. Status here mirrors [`PLAN.md`](PLAN.md); PLAN remains a
   spinner, no octopus/phase text, durable transcript, cost footer, composer-only first Ctrl+C, and
   double-Ctrl+C exit on v1.1.3. Evidence recorded under the U0.4e acceptance box by codex; these
   runs were ox-alpha's independent pass. No failures found.
+
+- 2026-08-26 04:50–05:05 — independent review pass by claude (opus-5), no production code written.
+  Read-only inspection of the tree, the ledger, and the prior Copilot session records, then a full
+  `make check`: exit 0 with 1,541 root-module tests, darwin/linux amd64+arm64 plus advisory
+  windows/amd64, 0 lint issues, 2 third-party modules, binary 7.91 MB (soft budget 12 MB, hard
+  20 MB), cold start 2.9 ms p50, and site 110 / surface 13 / installer 72 / spec 29 / release 24 /
+  workflow 41 / verifier 30 checks. The four modified worktree files and the untracked
+  `internal/cli/SAGA.md` were present and untouched during the run. Public releases `v1.1.12`,
+  `v1.1.13`, and `v1.1.14` are published and their workflows are green; the `v1.1.11` tag exists but
+  its release never published, so the version line skips it. Findings recorded above: S10.4 was
+  closable and is now closed; P11/B12/L13 had shipped with no ledger entry and are now recorded;
+  the binary grew from 6.27 MB (v1.1.5) to 7.91 MB, still inside budget but worth watching.

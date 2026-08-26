@@ -16,27 +16,22 @@ builder; ox-alpha (Kolkrabbi agent) assists as an independent builder/verifier. 
 4. Record evidence (commands + results) under the checkpoint's acceptance section when
    closing it.
 
-## Ownership right now (2026-08-24 02:29)
+## Ownership right now (2026-08-26 05:05)
 
-- **Live workspace note:** the owner has a `kolk` session running beside Codex in this same
-  worktree. Treat its edits as independently owned immediately; re-check status and mtimes before
-  every edit/stage boundary.
-
-- **Codex:** A7.2a pure durable scanner (`internal/redact/scrub.go`, `scrub_test.go`,
-  `shapes.go`, `secret.go` wiring) — in progress, files actively being edited.
-- **ox-alpha:** independent verification of A7.2a gates + next-up prep. Does not edit
-  `internal/redact/*` while codex holds it.
-- **A7.2a handoff (02:38):** candidate is ready for independent read-only verification. Run
-  `go test -race ./internal/redact ./internal/secret ./internal/arch -count=1`, the bounded scrub
-  fuzz target, benchmark `BenchmarkScrub12KiB`, and `make check`; record findings in
-  `CHECKPOINTS.md` or `docs/build-log.md`, but do not edit the owned implementation files.
-  **VERIFIED by ox-alpha 03:05** — all gates green, evidence in CHECKPOINTS.md (acceptance box +
-  verification log). A7.2a is clear to close from the verifier side.
-- **ox-alpha (2026-08-24 01:50):** claimed the last open U0.4d acceptance leaf — deterministic
-  golden/model tests for Markdown/diff transcript rendering (`internal/tui/markdown.go`,
-  `markdown_test.go`). `internal/redact/*`, `internal/secret`, `internal/arch` remain codex's;
-  this leaf touches only `internal/tui`. **DONE 02:10** — leaf closed, gates green; ownership
-  released. Codex's spinner/default-model leaves (01:54–02:04) untouched.
+- **No agent is holding a leaf.** No Copilot, Gemini, or Codex process was running at 05:05 and no
+  repository file had been touched for 25 minutes. Claim a leaf here before you start.
+- **Worktree state:** `main` is level with `origin/main` at `031b0847`. Four files carry an
+  uncommitted, tested change — `internal/cli/cli.go`, `cmd_plans.go`, `cmd_plans_test.go`,
+  `tui_repl.go` — which is checkpoint **P11.6** (suspend raw mode around a provider login and
+  restore it afterwards). It is unowned; whoever picks it up should commit it as its own leaf.
+- **`internal/cli/SAGA.md` is untracked and stale** — a real `kolk saga fix all tests` run from
+  inside `internal/cli` at 04:03 left it there. The saga tests use `t.Chdir(t.TempDir())` and do not
+  produce it. Leave it alone unless the owner says otherwise; it is not test output.
+- **Ledger correction (claude, 2026-08-26):** S10.4 was closable and is now closed. The plans,
+  connector, Claude-backend, and managed-local work of 2026-08-26 had shipped with no ledger entry
+  and is now recorded as groups **P11**, **B12**, and **L13** in `CHECKPOINTS.md`. The next open
+  leaves are P11.6, L13.4, L13.5, and the S-series leaf that finally drives the engine saga loop
+  from `kolk saga`.
 
 ## Project pointers
 
