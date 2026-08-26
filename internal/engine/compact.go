@@ -249,6 +249,50 @@ func (a *Agent) compactIfNeeded(ctx context.Context) {
 		result.Replaced, result.Stage, result.FreedTokens)
 }
 
+// CompactNow compacts regardless of how full the window is, for a user asking
+// explicitly and for recovering from a provider that has already refused. It
+// returns what it gave up and whether anything changed.
+func (a *Agent) CompactNow(ctx context.Context, target int) (Compaction, bool) {
+	if a.Sess == nil {
+		return Compaction{}, false
+	}
+	before := a.Sess.GetMessages()
+	if target <= 0 {
+		// No window to aim at: halve what is there, which is the same promise
+		// compaction makes anywhere else.
+		target = estimateTokens(before) / 2
+	}
+	result, err := CompactMessages(before, keepRecentTurns, target, a.summarizeSpan(ctx))
+	if err != nil {
+		fmt.Fprintf(a.Out, "could not compact the session: %v\n", err)
+		return Compaction{}, false
+	}
+	if result.Stage == StageNone || result.Replaced == 0 {
+		return result, false
+	}
+	a.preCompact = before
+	a.Sess.SetMessages(result.Messages)
+	if err := a.Sess.Save(); err != nil {
+		fmt.Fprintf(a.Out, "warning: compacted session could not be saved: %v\n", err)
+	}
+	return result, true
+}
+
+// recoverFromOverflow compacts after a provider has refused an over-long
+// request, so the turn can be retried instead of simply lost. It is allowed
+// once per turn: a second refusal after compacting means the request cannot be
+// made to fit, and retrying again would only spend money to fail again.
+func (a *Agent) recoverFromOverflow(ctx context.Context) bool {
+	target := int(float64(a.ContextWindow) * compactToFraction)
+	result, changed := a.CompactNow(ctx, target)
+	if !changed {
+		return false
+	}
+	fmt.Fprintf(a.Out, "the request was too long for %s; compacted %d messages (%s) and retrying once\n",
+		a.Model, result.Replaced, result.Stage)
+	return true
+}
+
 // RestoreCompaction puts back the messages the last compaction replaced.
 func (a *Agent) RestoreCompaction() bool {
 	if a.Sess == nil || a.preCompact == nil {

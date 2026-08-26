@@ -168,7 +168,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **C12.1 context accounting** — the window is measured from provider-reported tokens, shown in the per-turn footer, and unknown never means small.
 - [x] **C12.2a compaction transform** — the pure shrink: tool output first, then the calls, then a summary, always leaving a conversation a provider will accept.
 - [x] **C12.2b compaction in the turn loop** — fires at a turn boundary, keeps the replaced conversation for undo, and says out loud what it gave up.
-- [ ] **C12.2c overflow recovery and `/compact`** — classify a provider's context-overflow refusal, compact and retry once, and expose manual `/compact` and undo.
+- [x] **C12.2c overflow recovery and `/compact`** — a refusal for length is recovered once instead of losing the turn, and `/compact` / `/compact undo` put the control in the user's hands.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
@@ -1219,6 +1219,42 @@ Acceptance checklist:
 - [x] the compaction can be undone, and a second undo is a no-op rather than a lie.
 - [x] an unknown window never compacts however full the session looks.
 - [x] `go test -race ./internal/engine ./internal/cli` and full `make check` green.
+
+### C12.2c overflow recovery and `/compact` — verified detail
+
+Two things close the compaction work.
+
+**A refusal for length is now recoverable.** It is the one provider failure Kolkrabbi can actually
+do something about, and it used to end the turn. `IsContextOverflow` classifies it and the turn
+compacts and asks again — exactly once. A second refusal after compacting means the request cannot
+be made to fit, and retrying again would spend money to fail the same way.
+
+There is no typed signal for this in an OpenAI-compatible API, so it is matched on text, and that
+heuristic is defensible here for a reason worth recording: a false positive costs one compaction and
+one retry, both visible and both reversible, while a false negative merely leaves today's behaviour.
+Nothing is disabled and nothing is lost either way. This is the opposite of the P11.7b situation,
+where a false positive would have disabled a working connector — which is why that one refuses to
+guess and this one does.
+
+**`/compact` puts the control in the user's hands**, with `/compact undo` beside it. Every path says
+what it did: it compacted and how to reverse it, or it restored, or there was nothing to compact and
+the recent turns are kept as they are.
+
+Acceptance checklist:
+
+- [x] the usual provider phrasings are recognised, including one that appears only in the raw body,
+  and 413 as well as 400.
+- [x] rate limits, auth failures, unknown models and network errors are not mistaken for it.
+- [x] a real turn recovers: the provider is called twice, the second request is measurably smaller,
+  and the recovery is explained in the transcript.
+- [x] a request that cannot be made to fit fails after exactly one retry.
+- [x] `/compact` shrinks on demand and tells the user how to undo; `/compact undo` restores.
+- [x] undo with nothing to undo, and `/compact` on a short session, both say so honestly.
+- [x] `go test -race ./internal/engine ./internal/cli` and full `make check` green.
+
+Remaining in the item 12 design, not yet built: the durable pre-compaction file (undo is
+session-scoped today), `sessions search/rename/fork/export`, cwd-aware resume, fast-lane auto-titling,
+and the user-level memory layer.
 
 ### B12 Claude subscription backend — recorded detail
 

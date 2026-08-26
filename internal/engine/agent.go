@@ -727,6 +727,7 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 		}
 	}
 	emptyCompletions := 0
+	overflowRecovered := false
 	toolRounds := 0
 	maxRounds := MaxRoundsFor(a.Mode, a.Effort)
 
@@ -745,6 +746,15 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 		})
 		if err != nil {
 			fmt.Fprintln(a.Out)
+			// A refusal for length is recoverable exactly once: compact what the
+			// session is carrying and ask again, rather than losing the turn.
+			if a.Sess != nil && !overflowRecovered && IsContextOverflow(err) {
+				overflowRecovered = true
+				if a.recoverFromOverflow(ctx) {
+					requestMessages = a.Sess.GetMessages()
+					continue
+				}
+			}
 			return err
 		}
 		fmt.Fprintln(a.Out)

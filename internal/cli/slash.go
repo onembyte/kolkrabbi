@@ -28,6 +28,7 @@ var slashCommandTable = []slashCommand{
 	{"plogin", "[filter]", "search plans and start provider-owned login"},
 	{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors"},
 	{"localia", "[models [filter] | plan <model> | pull [--yes] <model>]", "local hardware, model catalog, fit plans, and pulls"},
+	{"compact", "[undo]", "shrink the conversation now, or put back the last one"},
 	{"config", "[get <k> | set <k> <v> | unset <k> | show]", "read and write saved settings"},
 	{"update", "", "install the latest verified release"},
 	{"stats", "[--json]", "100% local usage and rating dashboard"},
@@ -225,6 +226,23 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		if err := a.runPlanLogin(ctx, strings.Fields(arg)); err != nil {
 			fmt.Fprintf(a.stderr, "plan login error: %v\n", err)
 		}
+	case "/compact":
+		if strings.TrimSpace(arg) == "undo" {
+			if ag.RestoreCompaction() {
+				fmt.Fprintln(a.stdout, "restored the conversation replaced by the last compaction")
+			} else {
+				fmt.Fprintln(a.stdout, "no compaction to undo in this session")
+			}
+			break
+		}
+		target := int(float64(ag.ContextWindow) * 0.5)
+		result, changed := ag.CompactNow(ctx, target)
+		if !changed {
+			fmt.Fprintln(a.stdout, "nothing to compact yet; the recent turns are kept as they are")
+			break
+		}
+		fmt.Fprintf(a.stdout, "compacted %d messages (%s), freeing about %d tokens · undo with /compact undo\n",
+			result.Replaced, result.Stage, result.FreedTokens)
 	case "/localia":
 		if err := a.runLocalia(ctx, strings.Fields(arg)); err != nil {
 			fmt.Fprintf(a.stderr, "localia error: %v\n", err)
