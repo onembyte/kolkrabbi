@@ -19,13 +19,17 @@ const connectorManifestVersion = 1
 // Connector records how kolk may invoke a provider-owned CLI. It deliberately
 // contains no token, cookie, credential path, or refresh state.
 type Connector struct {
-	Provider   string    `json:"provider"`
-	Plan       string    `json:"plan"`
-	Name       string    `json:"name"`
-	Sandbox    bool      `json:"sandbox"`
-	LoginOwner string    `json:"login_owner"`
-	Enabled    bool      `json:"enabled"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	Provider   string `json:"provider"`
+	Plan       string `json:"plan"`
+	Name       string `json:"name"`
+	Sandbox    bool   `json:"sandbox"`
+	LoginOwner string `json:"login_owner"`
+	Enabled    bool   `json:"enabled"`
+	// Verified records that Kolkrabbi has seen this connector actually answer,
+	// as opposed to merely seeing its CLI exit cleanly. Quitting a login without
+	// signing in also exits cleanly, so the two states are not the same claim.
+	Verified  bool      `json:"verified,omitempty"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type ConnectorManifest struct {

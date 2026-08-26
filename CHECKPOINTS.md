@@ -150,7 +150,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **B12.9 connector-to-backend selection** — an enabled connector actually chooses the provider that answers a turn, and an unusable plan model refuses with its reason.
 - [x] **B12.10 live provider switch** — `/model` onto or off a plan model moves the provider with it and releases the one it retires.
 - [x] **B12.11 per-turn accounting** — a session turn records its own cost and tokens, not the provider's running totals, and no longer records zero.
-- [ ] **P11.7 proof of login** — verify the provider actually authenticated before a connector is marked enabled, instead of trusting a clean exit.
+- [x] **P11.7a honest login state** — a clean provider exit records the connector as `unverified` and says what it does and does not prove.
+- [ ] **P11.7b verify on first use** — a connector that answers a turn becomes verified; one that fails to authenticate is demoted with a reason.
 - [ ] **B12.12 effort validation** — reject or downgrade an effort the selected plan does not advertise, rather than sending one the provider will reinterpret.
 - [ ] **B12.13 subscription-only first run** — decide, with the owner, whether a session whose provider is a subscription still requires an OpenRouter key. Product decision before code.
 - [x] **B12.14 cache token accounting** — cache tokens reach `provider.Meta`, the call record and `stats.jsonl`, from both the Claude adapter and OpenRouter, and are diffed per turn like the rest.
@@ -615,8 +616,8 @@ Acceptance checklist:
 - [x] commits `c08c9624`, `3bf6a0e0`, `7b7ca81c`, `bb8bc9a7`, `0ea44a52`, `339001fd`, `76e58243`,
   and `dd74907d` are on `origin/main` with green CI.
 - [x] **P11.6 closed 2026-08-26 05:20** — see its own detail box below.
-- [ ] **open:** a successful provider-CLI exit is still treated as proof of login. Nothing verifies
-  the provider actually authenticated before the connector is marked enabled.
+- [~] **P11.7:** a clean exit no longer claims a verified login (P11.7a). Confirming on first use is
+  P11.7b, still open.
 
 ### P11.6 terminal ownership around provider login — verified detail
 
@@ -663,6 +664,40 @@ Acceptance checklist:
   `~/.local/share/kolk/connectors.json` during `make check`. Every plan test now goes through
   `isolateConnectorState`, which sets all three `KOLK_*_DIR` overrides.
 - [x] full `make check` green.
+
+### P11.7a honest login state — verified detail
+
+`kolk plans login` ran the provider CLI, saw exit 0, wrote `enabled: true` and printed
+`Claude Max connector enabled`. A user who opens the login and quits without signing in also exits 0,
+so that message asserted something Kolkrabbi had never observed. The failure it produces is the worst
+kind: `kolk plans` says enabled, and the first turn fails somewhere else entirely.
+
+Scope:
+
+- `Connector.Verified` records the difference between "its CLI exited cleanly" and "Kolkrabbi has
+  seen it answer". Absent in existing manifests, which is correct — none of them were verified.
+- The login prints what it actually observed and what it will do about it.
+- `kolk plans` shows `unverified` rather than `enabled`, with a footer explaining the state.
+- An unverified connector is still usable. It has to be, or it could never become verified.
+
+Non-goals:
+
+- No probe that spends tokens to test a login, and no invented provider subcommand. What proves a
+  login is a turn the user wanted anyway (P11.7b).
+
+Acceptance checklist:
+
+- [x] red first: login recorded no verification state and printed `connector enabled`.
+- [x] a clean login records `enabled: true, verified: false` and says a clean exit is not proof.
+- [x] `kolk plans` prints `unverified` and explains it; a verified connector still prints `enabled`.
+- [x] real-binary rehearsal against a hand-written manifest shows the unverified state and footer.
+- [x] full `make check` green.
+
+Open question, deliberately not decided here: a connector matches on provider and CLI name, so
+signing into Claude Max marks Claude Free and Claude Pro `unverified`/`enabled` too. The `claude`
+binary is one CLI and the account behind it has one plan, so the status arguably describes the
+connector rather than the entitlement. Deciding which it should describe is a product question for
+item 24, not a fix to make silently.
 
 ### B12 Claude subscription backend — recorded detail
 

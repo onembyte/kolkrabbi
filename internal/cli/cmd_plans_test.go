@@ -44,7 +44,7 @@ func TestPlansShowsEnabledConnectorStatus(t *testing.T) {
 	}
 	if err := provider.SaveConnector(context.Background(), dirs.ConnectorsFile(), provider.Connector{
 		Provider: "google", Plan: "Google AI Pro", Name: "gemini",
-		LoginOwner: "provider-cli", Enabled: true,
+		LoginOwner: "provider-cli", Enabled: true, Verified: true,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestPlansLoginUsesHandoverAndPersistsMetadata(t *testing.T) {
 	if code := a.main(context.Background(), []string{"plans", "login", "anthropic", "Claude", "Max"}); code != ExitOK {
 		t.Fatalf("plans login exit = %d, stderr = %q", code, errOut.String())
 	}
-	if gotExecutable != "claude" || !strings.Contains(out.String(), "connector enabled") {
+	if gotExecutable != "claude" || !strings.Contains(out.String(), "Claude Max recorded") {
 		t.Fatalf("handover/output = %q, executable=%q", out.String(), gotExecutable)
 	}
 	dirs, err := paths.Resolve()
@@ -147,4 +147,54 @@ func isolateConnectorState(t *testing.T) paths.Dirs {
 		t.Fatal(err)
 	}
 	return dirs
+}
+
+// A provider CLI that exits 0 has not proved anything: the user may have quit
+// the login without signing in. Kolkrabbi records what it saw, not what it
+// hopes happened.
+func TestPlansLoginRecordsAnUnverifiedConnector(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	a, out, errOut := newTestApp("")
+	a.handover = func(context.Context, string, []string, string) error { return nil }
+
+	if code := a.main(context.Background(), []string{"plans", "login", "anthropic", "Claude", "Max"}); code != ExitOK {
+		t.Fatalf("plans login exit = %d, stderr = %q", code, errOut.String())
+	}
+
+	manifest, err := provider.LoadConnectors(dirs.ConnectorsFile())
+	if err != nil || len(manifest.Connectors) != 1 {
+		t.Fatalf("manifest = %+v, err = %v", manifest, err)
+	}
+	connector := manifest.Connectors[0]
+	if !connector.Enabled {
+		t.Fatal("a clean login must record the connector")
+	}
+	if connector.Verified {
+		t.Fatal("a clean exit was recorded as a verified login")
+	}
+	if !strings.Contains(out.String(), "not proof") {
+		t.Fatalf("output = %q, want it to say what a clean exit does and does not prove", out.String())
+	}
+}
+
+func TestPlansMarksAnUnverifiedConnectorAsSuch(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	if err := provider.SaveConnector(context.Background(), dirs.ConnectorsFile(), provider.Connector{
+		Provider: "anthropic", Plan: "Claude Max", Name: "claude",
+		LoginOwner: "provider-cli", Enabled: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	a, out, errOut := newTestApp("")
+
+	if code := a.main(context.Background(), []string{"plans", "claude"}); code != ExitOK {
+		t.Fatalf("plans exit = %d, stderr = %q", code, errOut.String())
+	}
+	got := out.String()
+	if !strings.Contains(got, "unverified") {
+		t.Fatalf("plans output = %q, want the unverified state", got)
+	}
+	if !strings.Contains(got, "answers a turn") {
+		t.Fatalf("plans output = %q, want an explanation of what unverified means", got)
+	}
 }
