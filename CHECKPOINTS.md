@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **I26.2 the protected surface, ratcheted** — every route needs the token except two that say nothing, and widening that set now fails a test.
 - [x] **I26.1 the bind floor** — a wildcard address is not loopback, and the refusal happens before the socket opens.
 - [x] **X3 a long path is elided in the middle, not the end** — the filename is the part a person needs, and it was the part being cut.
 - [x] **X2 the reported path is the resolved path, on every platform** — a macOS-only break I shipped, and the Linux test that would have caught it.
@@ -1925,6 +1926,40 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### I26.2 the protected surface, ratcheted — verified detail
+
+Having fixed which addresses may be served, the next question is what is reachable once one is. This
+leaf found no defect — which is worth recording, because "I checked and it was already right" is a
+different and more useful statement than silence.
+
+The auth middleware wraps the whole mux rather than individual handlers, so **every route is
+protected by default** and an unknown path answers 401 rather than 404. That last part matters more
+than it looks: a 404 to an unauthenticated caller maps the API surface for whoever is probing it.
+A wrong token gets 403 and a missing one 401, which is the right distinction to keep — collapsing
+them tells a prober whether the token exists at all.
+
+**The real risk is not a forgotten handler, it is a widened exemption.** Because the middleware
+covers everything, the only way to expose an endpoint is to add it to the exempt map — so the test
+is on that map, not on the handlers. It was an inline literal inside `Mux`; it is now a named
+`openRoutes` with a test asserting it contains exactly `/` and `/v1/health` and nothing else. Adding
+a third requires changing the test, which is the point: it forces someone to write down why.
+
+Both open routes are open for the same reason — neither says anything about the session, and a
+liveness probe that needs a credential is a liveness probe nothing can use.
+
+Also asserted: a refused response never quotes either the configured token or the one that was
+offered. An error message that echoes a credential puts it in logs, terminals and screenshots.
+
+Acceptance checklist:
+
+- [x] every protected route refuses without a token.
+- [x] a wrong token is 403, a missing one 401.
+- [x] `/` and `/v1/health` stay open.
+- [x] an unknown route does not reveal that it is unknown.
+- [x] no response quotes a credential.
+- [x] the open-route set is exactly two, and widening it fails a test.
+- [x] full `make check` green: 1,942 tests, 0 lint issues, every script contract.
 
 ### I26.1 the bind floor — verified detail
 

@@ -21,6 +21,18 @@ type Options struct {
 	Resolver     PermissionResolver
 }
 
+// openRoutes answer without a credential.
+//
+// Named rather than inline so that widening it is a visible change to a policy
+// with a test on it. Both are here for the same reason: neither says anything
+// about the session, and a liveness probe that needs a credential is a liveness
+// probe nothing can use. Anything that reveals what the agent is doing, or
+// lets someone answer for it, does not belong in this map.
+var openRoutes = map[string]bool{
+	"/":          true,
+	"/v1/health": true,
+}
+
 // Mux creates an http.Handler with all endpoints mounted and auth enforced.
 func Mux(opts Options) (http.Handler, error) {
 	if opts.Bus == nil {
@@ -59,12 +71,7 @@ func Mux(opts Options) (http.Handler, error) {
 	// Permission resolution
 	mux.Handle("/v1/permissions/resolve", permissionResolveHandler(opts.Resolver))
 
-	exempt := map[string]bool{
-		"/":          true,
-		"/v1/health": true,
-	}
-
-	return authMiddleware(opts.Token, exempt, mux), nil
+	return authMiddleware(opts.Token, openRoutes, mux), nil
 }
 
 // Server is the HTTP server lifecycle wrapper.
