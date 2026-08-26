@@ -171,6 +171,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **C12.2c overflow recovery and `/compact`** — a refusal for length is recovered once instead of losing the turn, and `/compact` / `/compact undo` put the control in the user's hands.
 - [x] **C12.3 session commands** — `sessions search|rename|fork|export`, with a mistyped id reported as the ordinary mistake it is.
 - [x] **C12.4 project-aware resume** — `kolk -r` resumes the work done in this directory, and says so when it reaches into another project.
+- [x] **C12.5 memory layers and `/remember`** — a user layer beneath the project file, capped at a line boundary, written only when the user says so.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
@@ -1320,6 +1321,43 @@ Acceptance checklist:
 - [x] resuming across projects names the other directory.
 - [x] the frozen v0 session fixture still loads unchanged.
 - [x] full `make check` green.
+
+### C12.5 memory layers and `/remember` — verified detail
+
+Kolkrabbi had one memory layer, the project file in the working directory. Standing preferences that
+belong to a person rather than a repository had nowhere to live, so they were retyped every session
+or written into somebody's project file.
+
+`<config>/memory.md` is the user layer. Both are appended to the system prompt with the user's notes
+first and the project's second, so a project statement wins a contradiction by being nearer the task.
+
+**Only the user writes memory.** `/remember [--project] <note>` appends one line and says what it
+wrote and where; an empty note is refused rather than written. There is deliberately no tool for
+this: an agent that can edit its own standing instructions unprompted is an agent whose behaviour
+cannot be explained by reading the repository. `--project` appends to the file the engine already
+loads rather than creating a second one beside it, which a test asserts explicitly.
+
+Two defects fixed while here, both in code that predates this leaf:
+
+- **Truncation cut at a byte offset**, which can split a UTF-8 rune. An oversized memory file
+  therefore put invalid bytes into *every request the session made* — a corrupt prompt rather than a
+  long one. The cut now lands on a line boundary and the test uses multibyte content specifically to
+  prove it.
+- **Truncation was silent.** Notes that stop being followed halfway down a file are impossible to
+  debug from outside, so the cut now says `[truncated: <path> is larger than 16384 bytes]`.
+
+Acceptance checklist:
+
+- [x] both layers reach the system prompt, in the documented order.
+- [x] no memory means an unchanged prompt.
+- [x] an oversized file is cut at a line boundary, stays valid UTF-8, and announces the cut.
+- [x] `/remember` writes to the user layer and names the file.
+- [x] `/remember --project` writes to the file already in use and creates no second one.
+- [x] notes append rather than replace; an empty note writes nothing at all.
+- [x] `go test -race ./internal/engine ./internal/cli` and full `make check` green.
+
+**Item 12 is now built except the durable pre-compaction file and fast-lane auto-titling**, both
+recorded as remaining.
 
 ### B12 Claude subscription backend — recorded detail
 

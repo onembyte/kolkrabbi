@@ -7,6 +7,7 @@ package engine
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -130,7 +131,10 @@ func TimeoutForEffort(effort string) time.Duration {
 // wins; their content is appended to the system prompt (like CLAUDE.md).
 var projectMemoryFiles = []string{"KOLKRABBI.md", "AGENTS.md"}
 
-const maxProjectMemory = 16 * 1024
+// maxMemoryBytes caps each memory layer. Notes are prepended to every request,
+// so an unbounded file is a permanent tax on the window that the user never
+// sees being charged.
+const maxMemoryBytes = 16 * 1024
 
 const emptyCompletionRecovery = "The previous response was empty. Continue the original user request now. Use tools when needed, and finish the requested concrete step or explain a specific blocker."
 
@@ -186,6 +190,9 @@ type Options struct {
 	// guesses one, because compaction is destructive and a guessed limit would
 	// throw away conversation on no evidence.
 	ContextWindow int
+	// UserMemoryFile is the user's own standing notes, applied to every
+	// project. Empty means none; surfaces resolve the path.
+	UserMemoryFile string
 }
 
 // ChatBackend is the engine's provider seam. The existing OpenRouter client
@@ -353,18 +360,44 @@ Be concise in your prose responses. Do not narrate every tool call at length; le
 When asked to build or continue a project, inspect the relevant plan and checkpoint, select one concrete unfinished checkpoint, and carry it through implementation and verification. Do not stop after inspection: keep using tools until that checkpoint is complete, or state a concrete blocker and the evidence for it.`
 	}
 
+	// The user's own notes first, the project's second: a project statement wins
+	// a contradiction by being nearer the task.
+	if body, ok := readMemory(a.UserMemoryFile); ok {
+		sys += fmt.Sprintf("\n\nYour notes (from %s):\n%s", a.UserMemoryFile, body)
+	}
 	for _, name := range projectMemoryFiles {
-		b, err := os.ReadFile(name)
-		if err != nil {
+		body, ok := readMemory(name)
+		if !ok {
 			continue
 		}
-		if len(b) > maxProjectMemory {
-			b = b[:maxProjectMemory]
-		}
-		sys += fmt.Sprintf("\n\nProject notes (from %s):\n%s", name, string(b))
+		sys += fmt.Sprintf("\n\nProject notes (from %s):\n%s", name, body)
 		break
 	}
 	return sys
+}
+
+// readMemory loads one memory file, capped at a line boundary.
+//
+// Cutting at a byte offset can split a UTF-8 rune, which puts invalid bytes in
+// every request the session makes: a corrupt prompt rather than a long one. The
+// cut is also announced, because notes that silently stop being followed
+// halfway down the file are impossible to debug from the outside.
+func readMemory(name string) (string, bool) {
+	if name == "" {
+		return "", false
+	}
+	raw, err := os.ReadFile(name)
+	if err != nil || len(raw) == 0 {
+		return "", false
+	}
+	if len(raw) <= maxMemoryBytes {
+		return string(raw), true
+	}
+	cut := raw[:maxMemoryBytes]
+	if boundary := bytes.LastIndexByte(cut, '\n'); boundary > 0 {
+		cut = cut[:boundary]
+	}
+	return string(cut) + fmt.Sprintf("\n[truncated: %s is larger than %d bytes]", name, maxMemoryBytes), true
 }
 
 // repairDanglingToolCalls handles a session that was interrupted between an

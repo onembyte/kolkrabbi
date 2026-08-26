@@ -29,6 +29,7 @@ var slashCommandTable = []slashCommand{
 	{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors"},
 	{"localia", "[models [filter] | plan <model> | pull [--yes] <model>]", "local hardware, model catalog, fit plans, and pulls"},
 	{"compact", "[undo]", "shrink the conversation now, or put back the last one"},
+	{"remember", "[--project] <note>", "add one line of standing guidance"},
 	{"config", "[get <k> | set <k> <v> | unset <k> | show]", "read and write saved settings"},
 	{"update", "", "install the latest verified release"},
 	{"stats", "[--json]", "100% local usage and rating dashboard"},
@@ -225,6 +226,10 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 	case "/plogin":
 		if err := a.runPlanLogin(ctx, strings.Fields(arg)); err != nil {
 			fmt.Fprintf(a.stderr, "plan login error: %v\n", err)
+		}
+	case "/remember":
+		if err := a.runRemember(strings.Fields(arg)); err != nil {
+			fmt.Fprintf(a.stderr, "remember error: %v\n", err)
 		}
 	case "/compact":
 		if strings.TrimSpace(arg) == "undo" {

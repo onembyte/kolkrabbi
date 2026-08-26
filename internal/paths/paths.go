@@ -110,6 +110,10 @@ func (d Dirs) CredentialsFile() string { return filepath.Join(d.Data, "credentia
 // ConnectorsFile stores only provider-owned connector metadata, never secrets.
 func (d Dirs) ConnectorsFile() string { return filepath.Join(d.Data, "connectors.json") }
 
+// MemoryFile is the user's own standing notes, applied to every project. It
+// lives with configuration because it is a preference, not session state.
+func (d Dirs) MemoryFile() string { return filepath.Join(d.Config, "memory.md") }
+
 // LocalModelsDir stores models and managed local-runtime state.
 func (d Dirs) LocalModelsDir() string { return filepath.Join(d.Data, "local-models") }
 
