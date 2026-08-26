@@ -39,6 +39,7 @@ type Server struct {
 	i        int
 	Requests [][]provider.Message // messages array of every request received, in order
 	Tools    []int                // number of tool schemas each request carried
+	Models   []string             // the model each request asked for, in order
 }
 
 func New(steps ...Step) *Server {
@@ -89,6 +90,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Messages []provider.Message `json:"messages"`
 		Tools    []provider.Tool    `json:"tools"`
+		Model    string             `json:"model"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
@@ -98,6 +100,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	s.Requests = append(s.Requests, req.Messages)
 	s.Tools = append(s.Tools, len(req.Tools))
+	s.Models = append(s.Models, req.Model)
 	if s.i >= len(s.steps) {
 		s.mu.Unlock()
 		http.Error(w, `{"error":{"message":"mockrouter: no more scripted steps"}}`, http.StatusInternalServerError)

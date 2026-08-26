@@ -174,6 +174,10 @@ type Options struct {
 	// Rules are the user's standing answers, consulted before the tier and
 	// after the floor. The last matching rule wins.
 	Rules Rules
+	// Slots maps a named orchestration role (orchestrator, worker, explore,
+	// fast) to a model. Anything unset falls back to the session model, so an
+	// empty map is today's behaviour rather than a broken configuration.
+	Slots map[string]string
 	// Root confines file tools. Empty disables confinement, which only tests
 	// and scripts should ever want.
 	Root     string

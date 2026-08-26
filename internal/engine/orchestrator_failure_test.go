@@ -112,7 +112,7 @@ func TestCancellationIsNotAFailureToReport(t *testing.T) {
 
 	// Straight at the delegation loop: going through the planner would fail
 	// there and never reach the branch this test is about.
-	outcomes, err := agent.runTasks(ctx, "mock/model", "a and b", []Task{{Title: "a"}, {Title: "b"}})
+	outcomes, err := agent.runTasks(ctx, "a and b", []Task{{Title: "a"}, {Title: "b"}})
 
 	// The user asked it to stop. Recording two failed tasks and synthesising an
 	// answer would be answering a question they withdrew.

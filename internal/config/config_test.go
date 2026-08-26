@@ -39,3 +39,17 @@ func TestConfigSchemaAndWritesContainNoCredentialField(t *testing.T) {
 		}
 	}
 }
+
+func TestSlotsRoundTrip(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "config.json")
+	if err := Save(file, &Config{Slots: map[string]string{"explore": "cheap/reader"}}); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := Load(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := reloaded.Slots["explore"]; got != "cheap/reader" {
+		t.Fatalf("slots = %v", reloaded.Slots)
+	}
+}

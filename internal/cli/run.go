@@ -208,6 +208,13 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		return nil, err
 	}
 
+	// A misspelled slot is silently ignored otherwise, which means paying for
+	// the wrong model for as long as it takes someone to notice — on a setting
+	// nobody looks at twice, indefinitely.
+	if err := engine.ValidateSlots(cfg.Slots); err != nil {
+		fmt.Fprintf(a.stderr, "config: %v\n", err)
+	}
+
 	ag := engine.New(engine.Options{
 		Client:            client,
 		Backend:           backend,
@@ -222,6 +229,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		Out:               a.stdout,
 		Recorder:          stats.NewStore(d.Data),
 		Tiers:             cfg.Tiers,
+		Slots:             cfg.Slots,
 		Bus:               eventBus,
 		PinnedModel:       o.model != "",
 		FreeModels:        freeModels,

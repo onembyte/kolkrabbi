@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **F14.3 routing** — a task's kind resolves to a named slot, the slot to a model, printed with the plan before anything runs.
 - [x] **F14.2 a run survives its failures** — a failed task is reported rather than discarding the whole run, and the answer says what is missing from it.
 - [x] **F14.1 tasks carry structure** — a plan is records with a kind and real dependencies, and a subagent is briefed with only the results it asked for.
 - [x] **E13.7 "always" means a rule you can read** — the prompt proposes the rule it would keep, in both the TUI and the plain REPL, and keeps it where /permissions can show it.
@@ -1911,6 +1912,45 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### F14.3 routing — verified detail
+
+The point of item 14, now that a run can survive being wrong about a model.
+
+**Two levels, kind → slot → model.** Collapsing them is what makes routing tables unmaintainable. A
+user thinks "reading should be cheap", not "research and explain should both be gemini-flash"; the
+slot is where that thought goes, and which kinds sit behind it can change without their config
+changing.
+
+**Nothing configured is today's behaviour.** Every kind falls through to the session model. Routing
+that quietly changes what a run costs without being asked for is a surprise, not a feature, and this
+is the setting most likely to be left untouched forever.
+
+**Except boilerplate, which uses the fast lane unasked.** That lane already exists and already knows
+how to pick something cheap given whether the session model is free or paid. Making someone
+configure it a second time to get mechanical work off the expensive model would be a setting that
+should not need to exist. It stays overridable.
+
+**A typo is reported, not ignored.** `explorer` when the slot is `explore` means paying for the wrong
+model for as long as it takes someone to notice, which on a setting nobody re-reads is indefinitely.
+`ValidateSlots` names the typo and lists the four real slots, and the session says so at startup
+rather than failing.
+
+**The plan prints the model beside each task, before anything runs.** Routing that is only printed
+and not applied would be worse than none, so the end-to-end test asserts on the model each request
+actually carried — which needed the test server to start recording it. Resolution happens once,
+before the plan is printed, so what a person reads is what runs.
+
+Acceptance checklist:
+
+- [x] with nothing configured every kind runs on the session model.
+- [x] kinds resolve through slots; setting one slot changes one thing.
+- [x] boilerplate reaches the fast lane without configuration, and is overridable.
+- [x] an unknown slot name is reported with the valid ones.
+- [x] the routed model is shown with the plan.
+- [x] a real run sends each task to its routed model, asserted on the wire.
+- [x] slots round-trip through the config file.
+- [x] full `make check` green: 1,848 tests, 0 lint issues, every script contract.
 
 ### F14.2 a run survives its failures — verified detail
 

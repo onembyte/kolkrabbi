@@ -65,13 +65,19 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 		return a.runLoop(ctx, userInput)
 	}
 
+	// Routing is resolved before anything is printed, so the plan a person
+	// reads is the plan that runs, models included.
+	for i := range tasks {
+		tasks[i].Model = a.modelForKind(tasks[i].Kind)
+	}
+
 	fmt.Fprintf(a.Out, "%s◆ plan (%d tasks):%s\n", colorMag, len(tasks), colorReset)
 	for i, task := range tasks {
 		fmt.Fprintf(a.Out, "%s  %d. %s%s%s\n", colorDim, i+1, task.Title, task.annotation(), colorReset)
 	}
 
 	// ---- 2. delegate ----
-	outcomes, err := a.runTasks(ctx, model, userInput, tasks)
+	outcomes, err := a.runTasks(ctx, userInput, tasks)
 	if err != nil {
 		return err
 	}
@@ -120,7 +126,7 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 // discards every result produced before it, and those results already cost
 // money. The only thing that stops a run is the user cancelling it, which is
 // not a failure to report.
-func (a *Agent) runTasks(ctx context.Context, model, userInput string, tasks []Task) ([]outcome, error) {
+func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([]outcome, error) {
 	outcomes := make([]outcome, len(tasks))
 	results := make([]string, len(tasks))
 
@@ -133,6 +139,12 @@ func (a *Agent) runTasks(ctx context.Context, model, userInput string, tasks []T
 		}
 
 		fmt.Fprintf(a.Out, "\n%s◆ subagent %d/%d: %s%s\n", colorMag, i+1, len(tasks), task.Title, colorReset)
+		// Routing normally happens before the run; resolving here as well keeps
+		// a task that arrived without one from asking for an empty model.
+		model := task.Model
+		if model == "" {
+			model = a.modelForKind(task.Kind)
+		}
 		result, err := a.runSubagent(ctx, model, userInput, tasks, results, i)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()

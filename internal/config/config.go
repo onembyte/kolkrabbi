@@ -26,7 +26,11 @@ type Config struct {
 	Mode    string            `json:"mode,omitempty"`
 	BaseURL string            `json:"base_url,omitempty"`
 	Tiers   map[string]string `json:"tiers,omitempty"` // effort level -> model id
-	Local   LocalSettings     `json:"local,omitempty"`
+	// Slots maps an orchestration role (orchestrator, worker, explore, fast)
+	// to a model. Unset roles fall back to the session model, so this file
+	// never has to be complete to be useful.
+	Slots map[string]string `json:"slots,omitempty"`
+	Local LocalSettings     `json:"local,omitempty"`
 }
 
 // Load reads a config file. A missing file is not an error: it returns a
