@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
 )
@@ -29,6 +30,9 @@ type Step struct {
 	RetryAfter       string
 	ErrorBody        string
 	StreamError      string
+	// Delay holds the response open, so a test can observe whether calls
+	// overlap rather than inferring it from ordering.
+	Delay time.Duration
 }
 
 type Server struct {
@@ -40,6 +44,17 @@ type Server struct {
 	Requests [][]provider.Message // messages array of every request received, in order
 	Tools    []int                // number of tool schemas each request carried
 	Models   []string             // the model each request asked for, in order
+
+	inFlight    int
+	maxInFlight int
+}
+
+// MaxInFlight is the most requests this server ever handled at once, which is
+// the only honest way to assert that work actually ran in parallel.
+func (s *Server) MaxInFlight() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.maxInFlight
 }
 
 func New(steps ...Step) *Server {
@@ -101,6 +116,15 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	s.Requests = append(s.Requests, req.Messages)
 	s.Tools = append(s.Tools, len(req.Tools))
 	s.Models = append(s.Models, req.Model)
+	s.inFlight++
+	if s.inFlight > s.maxInFlight {
+		s.maxInFlight = s.inFlight
+	}
+	defer func() {
+		s.mu.Lock()
+		s.inFlight--
+		s.mu.Unlock()
+	}()
 	if s.i >= len(s.steps) {
 		s.mu.Unlock()
 		http.Error(w, `{"error":{"message":"mockrouter: no more scripted steps"}}`, http.StatusInternalServerError)
@@ -109,6 +133,10 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	step := s.steps[s.i]
 	s.i++
 	s.mu.Unlock()
+
+	if step.Delay > 0 {
+		time.Sleep(step.Delay)
+	}
 
 	if step.StatusCode != 0 && step.StatusCode != http.StatusOK {
 		if step.RetryAfter != "" {

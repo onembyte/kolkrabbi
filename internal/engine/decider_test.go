@@ -70,7 +70,7 @@ func TestFullAutoNeverReachesTheDecider(t *testing.T) {
 		Permission: PermissionFullAuto, Decider: decider, Root: "/p", Out: io.Discard,
 	})
 
-	if !ag.guard(context.Background())(tools.Request{Tool: "bash", Command: "go test ./..."}) {
+	if !ag.guard(context.Background(), ag.Out)(tools.Request{Tool: "bash", Command: "go test ./..."}) {
 		t.Fatal("full-auto did not allow an ordinary command")
 	}
 	if decider.calls != 0 {

@@ -18,7 +18,7 @@ func TestASubagentNeverPrompts(t *testing.T) {
 		Out: &out, Permission: PermissionAsk, Decider: decider, Root: "/p",
 	}}
 
-	allowed := agent.subagentGuard(context.Background())(tools.Request{
+	allowed := agent.subagentGuard(context.Background(), agent.Out)(tools.Request{
 		Tool: "write_file", Path: "/p/main.go", Display: "main.go",
 	})
 
@@ -34,7 +34,7 @@ func TestASubagentRefusalExplainsHowToAllowIt(t *testing.T) {
 	var out strings.Builder
 	agent := &Agent{Options: Options{Out: &out, Permission: PermissionAsk, Root: "/p"}}
 
-	agent.subagentGuard(context.Background())(tools.Request{
+	agent.subagentGuard(context.Background(), agent.Out)(tools.Request{
 		Tool: "bash", Command: "go test ./...",
 	})
 
@@ -52,13 +52,13 @@ func TestASubagentStillDoesWhatTheTierAllows(t *testing.T) {
 
 	// auto-approve lets edits inside the project through, for a subagent as
 	// much as for the main session.
-	if !agent.subagentGuard(context.Background())(tools.Request{
+	if !agent.subagentGuard(context.Background(), agent.Out)(tools.Request{
 		Tool: "write_file", Path: "/p/main.go", Display: "main.go",
 	}) {
 		t.Fatal("a subagent was refused something its tier allows")
 	}
 	// A command still needs asking under auto-approve, so a subagent cannot.
-	if agent.subagentGuard(context.Background())(tools.Request{Tool: "bash", Command: "go test ./..."}) {
+	if agent.subagentGuard(context.Background(), agent.Out)(tools.Request{Tool: "bash", Command: "go test ./..."}) {
 		t.Fatal("a subagent ran a command its tier would have asked about")
 	}
 }
@@ -67,7 +67,7 @@ func TestTheFloorStillAppliesInASubagent(t *testing.T) {
 	var out strings.Builder
 	agent := &Agent{Options: Options{Out: &out, Permission: PermissionFullAuto, Root: "/p"}}
 
-	if agent.subagentGuard(context.Background())(tools.Request{
+	if agent.subagentGuard(context.Background(), agent.Out)(tools.Request{
 		Tool: "read_file", Path: "/home/me/.ssh/id_ed25519", Display: "…", Outside: true,
 	}) {
 		t.Fatal("the floor did not hold inside a subagent")
@@ -84,7 +84,7 @@ func TestAFullAutoSubagentWorksUnattended(t *testing.T) {
 		{Tool: "write_file", Path: "/p/main.go", Display: "main.go"},
 		{Tool: "bash", Command: "go build ./..."},
 	} {
-		if !agent.subagentGuard(context.Background())(request) {
+		if !agent.subagentGuard(context.Background(), agent.Out)(request) {
 			t.Fatalf("full-auto subagent was blocked on %s", request.Tool)
 		}
 	}

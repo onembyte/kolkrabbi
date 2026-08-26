@@ -52,6 +52,11 @@ type CallRecord struct {
 }
 
 // Recorder is the accounting port.
+//
+// Implementations must be safe for concurrent use: an orchestrated run records
+// from several subagents at once. The shipped store appends one line per call
+// with a single O_APPEND write, which is atomic for a regular file and so is
+// already safe across goroutines and across processes.
 type Recorder interface {
 	RecordCall(r CallRecord) error
 	RecordRating(session, turn string, rating int) error

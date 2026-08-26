@@ -32,8 +32,11 @@ type Config struct {
 	Slots map[string]string `json:"slots,omitempty"`
 	// MaxRunCostUSD stops an orchestrated run once it has cost this much.
 	// Zero, the default, means no ceiling.
-	MaxRunCostUSD float64       `json:"max_run_cost_usd,omitempty"`
-	Local         LocalSettings `json:"local,omitempty"`
+	MaxRunCostUSD float64 `json:"max_run_cost_usd,omitempty"`
+	// MaxConcurrentTasks is how many orchestrated tasks may run at once.
+	// Zero means the default of three; one makes a run sequential.
+	MaxConcurrentTasks int           `json:"max_concurrent_tasks,omitempty"`
+	Local              LocalSettings `json:"local,omitempty"`
 }
 
 // Load reads a config file. A missing file is not an error: it returns a

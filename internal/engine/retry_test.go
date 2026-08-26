@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,6 +18,9 @@ import (
 const upstreamRateLimitBody = `{"error":{"message":"Provider returned error","metadata":{"provider_name":"Stealth","limit_source":"upstream_provider_shared_pool","remedy_hint":"Retry shortly"}}}`
 
 type fakeRecorder struct {
+	// mu because an orchestrated run records from several subagents at once,
+	// which is the contract every Recorder now has to meet.
+	mu      sync.Mutex
 	Calls   []CallRecord
 	Ratings []struct {
 		Session string
@@ -26,11 +30,15 @@ type fakeRecorder struct {
 }
 
 func (r *fakeRecorder) RecordCall(c CallRecord) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.Calls = append(r.Calls, c)
 	return nil
 }
 
 func (r *fakeRecorder) RecordRating(session, turn string, rating int) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.Ratings = append(r.Ratings, struct {
 		Session string
 		Turn    string

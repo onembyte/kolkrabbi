@@ -86,7 +86,7 @@ func TestAnAlwaysAnswerKeepsTheSuggestedRule(t *testing.T) {
 
 	request := bashOf("go test ./...")
 	request.Detail = "go test ./..."
-	if !agent.guard(t.Context())(request) {
+	if !agent.guard(t.Context(), agent.Out)(request) {
 		t.Fatal("the action was refused")
 	}
 
@@ -108,7 +108,7 @@ func TestAPlainYesKeepsNothing(t *testing.T) {
 		Decider:    onceDecider{},
 	}}
 
-	if !agent.guard(t.Context())(bashOf("go test ./...")) {
+	if !agent.guard(t.Context(), agent.Out)(bashOf("go test ./...")) {
 		t.Fatal("the action was refused")
 	}
 	if len(agent.Rules) != 0 {

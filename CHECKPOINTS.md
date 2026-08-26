@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **F14.5 concurrency** — independent readers run three at a time over the dependency graph; anything that may write is serialised, and each task's output arrives whole.
 - [x] **F14.4 cost is visible and capped** — a run shows what it has spent as it goes and stops at an optional ceiling rather than refusing.
 - [x] **F14.3 routing** — a task's kind resolves to a named slot, the slot to a model, printed with the plan before anything runs.
 - [x] **F14.2 a run survives its failures** — a failed task is reported rather than discarding the whole run, and the answer says what is missing from it.
@@ -1913,6 +1914,56 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### F14.5 concurrency — verified detail
+
+The last leaf of phase F, and the doc named three preconditions for it — failures survivable (F14.2),
+output not interleaved, permissions that do not deadlock (E13.4). All three held before this started,
+which is why it is a scheduler change and not a redesign.
+
+**Tasks run when what they need is resolved, not when their turn comes.** F14.1's `Needs` is the
+graph. `resolveNeeds` only ever points backwards, so a cycle cannot be constructed and the scheduler
+needs no cycle detection — it needs a loop that launches everything ready, waits for one to finish,
+and sweeps again. Resolving a task *without* running it (blocked, over budget) can unblock the next
+one, so the launch sweep repeats until nothing more is ready.
+
+**Anything that may write is serialised.** They share one working tree, and two agents editing it at
+once is how a run produces a state neither intended. Only `research` and `explain` are treated as
+readers; **an unlabelled task counts as a writer**, which means a plan from a weaker planner stays
+fully sequential — exactly today's behaviour. Concurrency arriving as a side effect of a planner
+getting vaguer would be a hazard nobody chose.
+
+**Output is buffered per task, not streamed.** Three agents streaming into one terminal is
+unreadable. Each task announces itself when it starts and its output arrives whole when it finishes.
+At a limit of one the writer is `a.Out` directly, so a sequential run still streams live.
+
+Threading that writer through was most of the diff: `guard`, `subagentGuard`, `noteReachingOutside`,
+`keepRule`, `executeToolWith` and `runSubagent` all wrote to `a.Out` unconditionally, so a refused
+tool call in one subagent would have printed into the middle of another's output.
+
+**The race detector found a real contract change in the test's own fake.** `Recorder` is now called
+from several goroutines at once. The shipped `stats.Store` was already safe — one `O_APPEND` write
+per line, atomic for a regular file across both goroutines and processes — but the interface never
+said so, and `fakeRecorder` appended to a slice unguarded. The contract is now written on the
+interface, which is where an implementer will look. `statsWarn` became a `sync.Once` for the same
+reason.
+
+Two existing tests needed re-scoping rather than fixing: the routing test asserted on the order
+requests arrived in, which under concurrency is not a fact about routing, so it now pins the limit to
+one. And I had dropped the word "subagent" from the progress lines, which an end-to-end test asserted
+on — restored, because churning a user-visible contract for no reason is not a refactor.
+
+Acceptance checklist:
+
+- [x] independent readers overlap, verified by peak in-flight requests at the server.
+- [x] never more than the limit run at once.
+- [x] a task never overlaps something it declared it needs.
+- [x] tasks that may write never run together.
+- [x] a plan with no kinds stays fully sequential.
+- [x] each task's output arrives in one piece.
+- [x] failures, blocking, budget and cancellation all still behave as F14.2 and F14.4 specified.
+- [x] `go test ./... -race` clean across the tree, run five times for flakiness.
+- [x] full `make check` green: 1,859 tests, 0 lint issues, every script contract.
 
 ### F14.4 cost is visible and capped — verified detail
 

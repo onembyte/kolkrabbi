@@ -12,7 +12,7 @@ func TestFullAutoLogsEveryStepOutsideTheProject(t *testing.T) {
 	var out strings.Builder
 	agent := &Agent{Options: Options{Out: &out, Permission: PermissionFullAuto, Root: "/home/me/project"}}
 
-	allowed := agent.guard(context.Background())(tools.Request{
+	allowed := agent.guard(context.Background(), agent.Out)(tools.Request{
 		Tool: "read_file", Path: "/home/me/notes/spec.md", Display: "/home/me/notes/spec.md",
 		Outside: true, Summary: "check the API spec the task refers to",
 	})
@@ -33,7 +33,7 @@ func TestTheLogSaysSoWhenTheModelGaveNoReason(t *testing.T) {
 	var out strings.Builder
 	agent := &Agent{Options: Options{Out: &out, Permission: PermissionFullAuto, Root: "/home/me/project"}}
 
-	agent.guard(context.Background())(tools.Request{
+	agent.guard(context.Background(), agent.Out)(tools.Request{
 		Tool: "write_file", Path: "/tmp/scratch", Display: "/tmp/scratch", Outside: true,
 	})
 
@@ -46,7 +46,7 @@ func TestARefusalExplainsItself(t *testing.T) {
 	var out strings.Builder
 	agent := &Agent{Options: Options{Out: &out, Permission: PermissionFullAuto, Root: "/home/me/project"}}
 
-	allowed := agent.guard(context.Background())(tools.Request{
+	allowed := agent.guard(context.Background(), agent.Out)(tools.Request{
 		Tool: "read_file", Path: "/home/me/.ssh/id_ed25519", Display: "/home/me/.ssh/id_ed25519", Outside: true,
 	})
 
@@ -63,7 +63,7 @@ func TestInsideTheProjectFullAutoIsSilent(t *testing.T) {
 	var out strings.Builder
 	agent := &Agent{Options: Options{Out: &out, Permission: PermissionFullAuto, Root: "/home/me/project"}}
 
-	agent.guard(context.Background())(tools.Request{
+	agent.guard(context.Background(), agent.Out)(tools.Request{
 		Tool: "write_file", Path: "/home/me/project/main.go", Display: "main.go",
 	})
 
@@ -90,7 +90,7 @@ func TestAskTierPromptsWithTheActionAndPath(t *testing.T) {
 	var out strings.Builder
 	agent := &Agent{Options: Options{Out: &out, Permission: PermissionAsk, Decider: decider, Root: "/p"}}
 
-	agent.guard(context.Background())(tools.Request{Tool: "write_file", Path: "/p/main.go", Display: "main.go"})
+	agent.guard(context.Background(), agent.Out)(tools.Request{Tool: "write_file", Path: "/p/main.go", Display: "main.go"})
 
 	if decider.asked != 1 {
 		t.Fatalf("asked %d times, want once", decider.asked)
@@ -104,7 +104,7 @@ func TestADeclinedActionDoesNotProceed(t *testing.T) {
 	decider := &guardDecider{allow: false}
 	agent := &Agent{Options: Options{Out: &strings.Builder{}, Permission: PermissionAsk, Decider: decider, Root: "/p"}}
 
-	if agent.guard(context.Background())(tools.Request{Tool: "bash", Command: "go test ./..."}) {
+	if agent.guard(context.Background(), agent.Out)(tools.Request{Tool: "bash", Command: "go test ./..."}) {
 		t.Fatal("a declined command was allowed to run")
 	}
 }

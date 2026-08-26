@@ -103,6 +103,9 @@ func TestARunActuallyUsesTheRoutedModels(t *testing.T) {
 
 	agent, out, _, _ := newTestAgentInternal(t, srv, ModeAgent)
 	agent.Slots = map[string]string{SlotExplore: "cheap/reader"}
+	// One at a time: this test is about which model each task asks for, and
+	// under concurrency the order requests arrive in is not a fact about that.
+	agent.MaxConcurrentTasks = 1
 
 	if err := agent.runOrchestrated(context.Background(), "read then change"); err != nil {
 		t.Fatalf("run returned %v", err)

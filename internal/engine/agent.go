@@ -174,6 +174,11 @@ type Options struct {
 	// Rules are the user's standing answers, consulted before the tier and
 	// after the floor. The last matching rule wins.
 	Rules Rules
+	// MaxConcurrentTasks is how many orchestrated tasks may run at once. Three
+	// is small enough that the output of that many agents can still be read,
+	// and rate limits rather than CPU are the binding constraint. One is
+	// sequential, which is what an unlabelled plan gets anyway.
+	MaxConcurrentTasks int
 	// Slots maps a named orchestration role (orchestrator, worker, explore,
 	// fast) to a model. Anything unset falls back to the session model, so an
 	// empty map is today's behaviour rather than a broken configuration.
@@ -234,12 +239,14 @@ type Agent struct {
 	// runSpend accumulates the cost of the orchestrated run in progress, and
 	// is nil the rest of the time.
 	runSpend *spend
+	// statsWarnOnce keeps the stats warning to one line even when several
+	// subagents hit the same broken recorder at the same moment.
+	statsWarnOnce sync.Once
 	// rulesMu guards Rules: a rule kept from a confirmation is written while
 	// tool calls may still be reading it, and phase F runs several at once.
 	rulesMu     sync.RWMutex
 	lastArchive string
 	saveWarned  bool
-	statsWarn   bool
 }
 
 // Close releases resources owned by the configured backend, when it exposes
@@ -514,9 +521,10 @@ func (a *Agent) record(role string, meta provider.Meta, toolCalls int) {
 		Ms:                  meta.Elapsed.Milliseconds(),
 		ToolCalls:           toolCalls,
 	})
-	if err != nil && !a.statsWarn {
-		fmt.Fprintf(a.Out, "\nwarning: could not record stats: %v\n", err)
-		a.statsWarn = true
+	if err != nil {
+		a.statsWarnOnce.Do(func() {
+			fmt.Fprintf(a.Out, "\nwarning: could not record stats: %v\n", err)
+		})
 	}
 }
 
@@ -601,16 +609,16 @@ func (a *Agent) Judge(r tools.Request) (Verdict, string) {
 // asking because the tier allows it still announces itself when it leaves the
 // project. Autonomy nobody can read afterwards is not autonomy anyone can
 // trust.
-func (a *Agent) guard(ctx context.Context) tools.Guard {
+func (a *Agent) guard(ctx context.Context, out io.Writer) tools.Guard {
 	return func(r tools.Request) bool {
 		verdict, reason := a.Judge(r)
 		switch verdict {
 		case VerdictDeny:
-			fmt.Fprintf(a.Out, "%s✗ refused: %s%s\n", colorDim, reason, colorReset)
+			fmt.Fprintf(out, "%s✗ refused: %s%s\n", colorDim, reason, colorReset)
 			return false
 		case VerdictAllow:
 			if r.Outside {
-				a.noteReachingOutside(r, reason)
+				a.noteReachingOutside(out, r, reason)
 			}
 			return true
 		default:
@@ -619,7 +627,7 @@ func (a *Agent) guard(ctx context.Context) tools.Guard {
 				Action: actionLabel(r), Detail: r.Detail, Rule: rule,
 			})
 			if allowed && decision == protocol.PermissionDecisionAllowSession {
-				a.keepRule(rule)
+				a.keepRule(out, rule)
 			}
 			return allowed
 		}
@@ -634,14 +642,14 @@ func (a *Agent) guard(ctx context.Context) tools.Guard {
 // the refusal says how to allow it — by choosing a tier, which is a decision
 // the user makes once and can review, rather than by answering a prompt nobody
 // saw.
-func (a *Agent) subagentGuard(ctx context.Context) tools.Guard {
-	main := a.guard(ctx)
+func (a *Agent) subagentGuard(ctx context.Context, out io.Writer) tools.Guard {
+	main := a.guard(ctx, out)
 	return func(r tools.Request) bool {
 		verdict, reason := a.Judge(r)
 		if verdict != VerdictAsk {
 			return main(r)
 		}
-		fmt.Fprintf(a.Out, "%s✗ subagent refused: %s — subagents cannot ask; use /auto-approve or /full-auto to widen what they may do%s\n",
+		fmt.Fprintf(out, "%s✗ subagent refused: %s — subagents cannot ask; use /auto-approve or /full-auto to widen what they may do%s\n",
 			colorDim, reason, colorReset)
 		return false
 	}
@@ -654,7 +662,7 @@ func (a *Agent) subagentGuard(ctx context.Context) tools.Guard {
 // written to disk: the prompt says how to make it permanent, and a rule that
 // silently outlives the session someone approved it in is one nobody consented
 // to.
-func (a *Agent) keepRule(line string) {
+func (a *Agent) keepRule(out io.Writer, line string) {
 	parsed, err := ParseRule(line)
 	if err != nil {
 		return
@@ -667,19 +675,19 @@ func (a *Agent) keepRule(line string) {
 		}
 	}
 	a.Rules = append(a.Rules, parsed)
-	fmt.Fprintf(a.Out, "%s  kept for this session: %s — /permissions to review, add `always` to keep it for good%s\n",
+	fmt.Fprintf(out, "%s  kept for this session: %s — /permissions to review, add `always` to keep it for good%s\n",
 		colorDim, line, colorReset)
 }
 
 // noteReachingOutside records, in the transcript, that Kolkrabbi went outside
 // the project without asking, and what for. In full-auto this line is the only
 // account of it anyone will have.
-func (a *Agent) noteReachingOutside(r tools.Request, reason string) {
+func (a *Agent) noteReachingOutside(out io.Writer, r tools.Request, reason string) {
 	purpose := strings.TrimSpace(r.Summary)
 	if purpose == "" {
 		purpose = "no description given"
 	}
-	fmt.Fprintf(a.Out, "%s◆ outside the project: %s %s — %s%s\n",
+	fmt.Fprintf(out, "%s◆ outside the project: %s %s — %s%s\n",
 		colorDim, r.Tool, r.Display, purpose, colorReset)
 	if a.Bus != nil {
 		data, _ := json.Marshal(map[string]string{
@@ -778,18 +786,18 @@ func compactToolText(value string) string {
 
 // executeTool runs one tool for the main session, where a person can answer.
 func (a *Agent) executeTool(ctx context.Context, tc provider.ToolCall) (string, error) {
-	return a.executeToolWith(ctx, tc, a.guard)
+	return a.executeToolWith(ctx, tc, a.Out, a.guard)
 }
 
 // executeSubagentTool runs one tool for an orchestrated subagent, where nobody
 // can.
-func (a *Agent) executeSubagentTool(ctx context.Context, tc provider.ToolCall) (string, error) {
-	return a.executeToolWith(ctx, tc, a.subagentGuard)
+func (a *Agent) executeSubagentTool(ctx context.Context, tc provider.ToolCall, out io.Writer) (string, error) {
+	return a.executeToolWith(ctx, tc, out, a.subagentGuard)
 }
 
-func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, guard func(context.Context) tools.Guard) (string, error) {
+func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, out io.Writer, guard func(context.Context, io.Writer) tools.Guard) (string, error) {
 	description := describeToolCall(tc)
-	fmt.Fprintf(a.Out, "%s  → %s%s\n", colorDim, description, colorReset)
+	fmt.Fprintf(out, "%s  → %s%s\n", colorDim, description, colorReset)
 	stopWork := func() {}
 	if a.Work != nil {
 		if stop := a.Work.StartWork(ctx, description); stop != nil {
@@ -805,7 +813,7 @@ func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, guard
 	}
 	result, err := tools.Execute(toolCtx, tc.Function.Name, tc.Function.Arguments, tools.Options{
 		Root:     a.Root,
-		Guard:    guard(toolCtx),
+		Guard:    guard(toolCtx, out),
 		PreWrite: a.preWrite,
 	})
 	// One chokepoint for every tool. A result goes into the conversation, the

@@ -1,8 +1,10 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"strings"
@@ -130,56 +132,180 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 	return nil
 }
 
-// runTasks delegates each task in turn and returns what became of each.
+// runTasks delegates the plan and returns what became of each task.
 //
-// A run reports its failures; it does not vanish. Aborting on the first error
-// discards every result produced before it, and those results already cost
-// money. The only thing that stops a run is the user cancelling it, which is
-// not a failure to report.
+// Tasks run as soon as everything they need is resolved, up to a small
+// concurrency limit. A run reports its failures; it does not vanish. Aborting
+// on the first error discards results that already cost money. The only thing
+// that stops a run is the user cancelling it, which is not a failure to report.
 func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([]outcome, error) {
 	outcomes := make([]outcome, len(tasks))
 	results := make([]string, len(tasks))
+	resolved := make([]bool, len(tasks))
+	started := make([]bool, len(tasks))
 
-	for i, task := range tasks {
+	limit := a.concurrencyLimit()
+	finished := make(chan taskRun)
+	running, writing := 0, false
+
+	for {
+		// Launch everything that can go now. Resolving a task without running
+		// it — blocked, over budget — can unblock the next one, so this
+		// sweeps until nothing more is ready.
+		for running < limit {
+			index, launch, ok := a.nextRunnable(tasks, outcomes, resolved, started, writing)
+			if !ok {
+				break
+			}
+			started[index] = true
+			if !launch {
+				resolved[index] = true
+				continue
+			}
+			if writesFiles(tasks[index].Kind) {
+				writing = true
+			}
+			running++
+			go a.runOneTask(ctx, finished, userInput, tasks, results, index)
+		}
+
+		if running == 0 {
+			break
+		}
+
+		done := <-finished
+		running--
+		if ctx.Err() != nil {
+			// The user asked it to stop. Draining the rest and reporting them
+			// as failures would be answering a question they withdrew.
+			return nil, ctx.Err()
+		}
+		if writesFiles(tasks[done.index].Kind) {
+			writing = false
+		}
+
+		outcomes[done.index] = a.classify(done.result, done.err)
+		results[done.index] = outcomes[done.index].Result
+		resolved[done.index] = true
+		a.reportTask(tasks, outcomes, done)
+	}
+	return outcomes, nil
+}
+
+// taskRun is one finished subagent, with everything it printed on the way.
+type taskRun struct {
+	index  int
+	result string
+	err    error
+	output string
+}
+
+// runOneTask runs a subagent into its own buffer.
+//
+// Buffered rather than streamed because three agents streaming into one
+// terminal is unreadable. What a reader needs from a parallel run is to know
+// what is happening and to get each task's output whole, not to watch tokens
+// arrive from three places at once.
+func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInput string, tasks []Task, results []string, index int) {
+	out := a.Out
+	var buffered *bytes.Buffer
+	if a.concurrencyLimit() > 1 {
+		buffered = &bytes.Buffer{}
+		out = buffered
+	}
+
+	model := tasks[index].Model
+	if model == "" {
+		// Routing normally happens before the run; resolving here as well
+		// keeps a task that arrived without one from asking for an empty model.
+		model = a.modelForKind(tasks[index].Kind)
+	}
+	result, err := a.runSubagent(ctx, out, model, userInput, tasks, results, index)
+
+	run := taskRun{index: index, result: result, err: err}
+	if buffered != nil {
+		run.output = buffered.String()
+	}
+	finished <- run
+}
+
+// nextRunnable finds the next task that can be started or resolved without
+// running. launch is false for a task that is being resolved in place.
+func (a *Agent) nextRunnable(tasks []Task, outcomes []outcome, resolved, started []bool, writing bool) (index int, launch, ok bool) {
+	for i := range tasks {
+		if started[i] || !dependenciesResolved(tasks, resolved, i) {
+			continue
+		}
+		if blocker, blocked := blockedBy(tasks, outcomes, i); blocked {
+			outcomes[i] = outcome{Status: statusBlocked, Reason: "blocked: " + blocker + " did not produce a result"}
+			fmt.Fprintf(a.Out, "%s◆ subagent %d/%d skipped: %s — %s%s\n",
+				colorDim, i+1, len(tasks), tasks[i].Title, outcomes[i].Reason, colorReset)
+			return i, false, true
+		}
 		if a.runSpend.exhausted() {
 			outcomes[i] = outcome{
 				Status: statusOverBudget,
 				Reason: fmt.Sprintf("the run reached its $%.2f budget after $%.2f", a.MaxRunCostUSD, a.runSpend.total()),
 			}
-			fmt.Fprintf(a.Out, "\n%s◆ stopping at the budget: %s never ran%s\n", colorMag, task.Title, colorReset)
+			fmt.Fprintf(a.Out, "%s◆ stopping at the budget: %s never ran%s\n", colorMag, tasks[i].Title, colorReset)
+			return i, false, true
+		}
+		if writing && writesFiles(tasks[i].Kind) {
+			// One working tree. Two agents editing it at once is how a run
+			// produces a state neither of them intended.
 			continue
 		}
-		if blocker, blocked := blockedBy(tasks, outcomes, i); blocked {
-			outcomes[i] = outcome{Status: statusBlocked, Reason: "blocked: " + blocker + " did not produce a result"}
-			fmt.Fprintf(a.Out, "\n%s◆ subagent %d/%d skipped: %s — %s%s\n",
-				colorDim, i+1, len(tasks), task.Title, outcomes[i].Reason, colorReset)
-			continue
-		}
-
-		fmt.Fprintf(a.Out, "\n%s◆ subagent %d/%d: %s%s\n", colorMag, i+1, len(tasks), task.Title, colorReset)
-		// Routing normally happens before the run; resolving here as well keeps
-		// a task that arrived without one from asking for an empty model.
-		model := task.Model
-		if model == "" {
-			model = a.modelForKind(task.Kind)
-		}
-		result, err := a.runSubagent(ctx, model, userInput, tasks, results, i)
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		outcomes[i] = a.classify(result, err)
-		results[i] = outcomes[i].Result
-
-		switch outcomes[i].Status {
-		case statusFailed:
-			fmt.Fprintf(a.Out, "%s✗ %s failed: %s%s\n", colorDim, task.Title, outcomes[i].Reason, colorReset)
-		case statusIncomplete:
-			fmt.Fprintf(a.Out, "%s! %s did not finish; keeping what it reached%s\n", colorDim, task.Title, colorReset)
-		}
-		a.noteRunCost()
+		fmt.Fprintf(a.Out, "\n%s◆ subagent %d/%d started: %s%s%s\n", colorMag, i+1, len(tasks), tasks[i].Title, tasks[i].annotation(), colorReset)
+		return i, true, true
 	}
-	return outcomes, nil
+	return 0, false, false
 }
+
+// dependenciesResolved reports whether everything a task needs has an outcome.
+func dependenciesResolved(tasks []Task, resolved []bool, index int) bool {
+	for _, need := range tasks[index].Needs {
+		if need < len(resolved) && !resolved[need] {
+			return false
+		}
+	}
+	return true
+}
+
+// writesFiles reports whether a task may change the working tree.
+//
+// Only reading kinds are treated as safe. An unlabelled task might write, and
+// assuming otherwise would make concurrency a hazard that arrives with a weaker
+// planner rather than with a decision anyone made.
+func writesFiles(kind Kind) bool {
+	return kind != KindResearch && kind != KindExplain
+}
+
+// reportTask prints one finished task: its buffered output, then its verdict.
+func (a *Agent) reportTask(tasks []Task, outcomes []outcome, done taskRun) {
+	if done.output != "" {
+		fmt.Fprintf(a.Out, "\n%s◆ subagent %d/%d %s:%s\n", colorMag, done.index+1, len(tasks), tasks[done.index].Title, colorReset)
+		fmt.Fprint(a.Out, done.output)
+	}
+	switch outcomes[done.index].Status {
+	case statusFailed:
+		fmt.Fprintf(a.Out, "%s✗ %s failed: %s%s\n", colorDim, tasks[done.index].Title, outcomes[done.index].Reason, colorReset)
+	case statusIncomplete:
+		fmt.Fprintf(a.Out, "%s! %s did not finish; keeping what it reached%s\n", colorDim, tasks[done.index].Title, colorReset)
+	}
+	a.noteRunCost()
+}
+
+// concurrencyLimit is how many tasks may run at once.
+func (a *Agent) concurrencyLimit() int {
+	if a.MaxConcurrentTasks > 0 {
+		return a.MaxConcurrentTasks
+	}
+	return defaultConcurrentTasks
+}
+
+// defaultConcurrentTasks is three: small enough that the output of that many
+// agents can still be read, and rate limits rather than CPU are what binds.
+const defaultConcurrentTasks = 3
 
 // noteRunCost shows what the run has spent so far.
 //
@@ -231,7 +357,7 @@ Request:
 
 // runSubagent executes one task in an isolated context: its conversation
 // never enters the main session, only its final summary does.
-func (a *Agent) runSubagent(ctx context.Context, model, original string, tasks []Task, results []string, idx int) (string, error) {
+func (a *Agent) runSubagent(ctx context.Context, out io.Writer, model, original string, tasks []Task, results []string, idx int) (string, error) {
 	cwd := workingDir()
 	var briefing strings.Builder
 	fmt.Fprintf(&briefing, `You are subagent %d of %d in an orchestrated run on %s (working directory %s). You have tools to read/write/edit files, list directories, and run shell commands. Complete ONLY your assigned task, then reply with a short result summary (what you did, key outputs, paths touched). Be efficient: few tool calls, no exploration beyond the task.
@@ -248,13 +374,13 @@ Overall request: %s
 	maxRounds := MaxRoundsFor(ModeCode, a.Effort)
 	for round := 0; round < maxRounds; round++ {
 		msg, meta, err := a.streamChat(ctx, activityWorking, model, msgs, tools.Definitions(), func(tok string) {
-			fmt.Fprint(a.Out, tok)
+			fmt.Fprint(out, tok)
 		})
 		if err != nil {
-			fmt.Fprintln(a.Out)
+			fmt.Fprintln(out)
 			return "", err
 		}
-		fmt.Fprintln(a.Out)
+		fmt.Fprintln(out)
 		a.record("subagent", meta, len(msg.ToolCalls))
 		msgs = append(msgs, msg)
 
@@ -262,7 +388,7 @@ Overall request: %s
 			return strings.TrimSpace(msg.Content), nil
 		}
 		for _, tc := range msg.ToolCalls {
-			result, err := a.executeSubagentTool(ctx, tc)
+			result, err := a.executeSubagentTool(ctx, tc, out)
 			if err != nil {
 				result = "Error: " + err.Error()
 			}
