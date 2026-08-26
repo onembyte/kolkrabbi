@@ -60,6 +60,149 @@ Legend: `[ ]` open · `[~]` in progress · `[x]` hardened (doc linked).
 
 ---
 
+## Phase plan — one `/loop` per phase (written 2026-08-26)
+
+The items below are ordered by decisions, not by number. Each phase is one `/loop`, and each phase
+names the checkpoint leaves it must close in [`CHECKPOINTS.md`](CHECKPOINTS.md). Two loop shapes are
+used, matching the two things this repository does:
+
+- **harden** — resolve an item's "Decide" bullets and write `docs/plan/NN-slug.md`. No production
+  code. This is the loop template already documented above.
+- **build** — turn a hardened doc into TDD checkpoint leaves, one leaf per iteration, red → green →
+  refactor → focused verify → `make check` → record in `docs/build-log.md`.
+
+Never run a build loop for an item whose doc is not hardened, and never run two phases at once: the
+checkpoint contract allows one active leaf, and the 2026-08-26 session showed what happens when
+twenty-five commits land outside it.
+
+**Ordering rule used here:** finish what is half-built before starting what is unbuilt, put
+correctness before the surface that displays it, and put permissions before autonomy.
+
+### Phase A — finish the subscription path · items 4, 24
+
+Everything from `kolk plans` to a Claude-answered turn now works end to end, but four boxes are
+still open and each one is a way for a user to be told something untrue.
+
+- `P11.7` a clean provider-CLI exit is treated as proof of login; nothing verifies the user actually
+  authenticated before the connector is marked enabled.
+- `B12.12` the active effort is never validated against the plan's advertised effort levels, so
+  `max` on a plan that stops at `high` silently means something else.
+- `B12.13` `newAgent` demands an OpenRouter key before anything, so a user whose only provider is a
+  Claude subscription cannot start a session. This one is a product decision, not a bug: it
+  contradicts the north star for subscription users and needs the owner's call before code.
+- `B12.14` `Collect` drops `cache_read_input_tokens` and `cache_creation_input_tokens`, so cached
+  turns are mis-costed even though the wire shape already carries them.
+
+**Exit:** all four leaves closed, item 24's Anthropic row `[x]`, a second provider still not started.
+
+```
+/loop build phase A of PLAN.md: close P11.7, B12.12 and B12.14 as separate TDD checkpoint leaves,
+one leaf per iteration, red first. Ask the owner about B12.13 before writing any code for it.
+Record each leaf in CHECKPOINTS.md and docs/build-log.md, and stop when all four are resolved.
+```
+
+### Phase B — managed local models · item 25
+
+`internal/local` can start and stop a sidecar and nothing can drive it. A runtime with no planner
+and no command surface is weight without value, and the longer it sits the more it looks finished.
+
+- `L13.4` hardware probe and fit planner: the documented `{accelerators, system_ram_bytes,
+  disk_free_bytes}` shape, failing closed to unknown, reserving headroom, refusing what does not fit
+  instead of degrading into swap.
+- `L13.5` `/localia` and its CLI twin, with parity tests that need neither a GPU nor Ollama.
+
+**Exit:** `docs/plan/25-managed-local-models.md`'s five TDD checkpoints closed, plus one manual GPU
+smoke test recorded as separate evidence.
+
+```
+/loop build phase B of PLAN.md: implement L13.4 then L13.5 against docs/plan/25-managed-local-models.md,
+one TDD leaf per iteration, red first, no GPU or Ollama required by any test. Record each leaf.
+```
+
+### Phase C — sessions, context and memory · item 12
+
+This is the next real cliff. Both new backends accumulate context and nothing compacts it: a long
+Claude session will hit the provider's context limit with no recovery path, and the fast lane
+already exists to summarise but is not used for it. Storage also has to be decided before the
+dashboard picks a database, so this phase blocks phase D.
+
+**Exit:** `docs/plan/12-sessions-context-memory.md` hardened — storage decision (JSON vs the
+dashboard's SQLite), compaction algorithm and threshold, memory precedence, session command spec.
+
+```
+/loop harden item 12 of PLAN.md: read the item and docs/research/dashboard.md and ecosystem.md,
+resolve every "Decide" bullet, write docs/plan/12-sessions-context-memory.md from the template in
+docs/plan/README.md, then tick the item with a one-line decision.
+```
+
+### Phase D — the local dashboard · item 17, migration group A12
+
+Only now. Per-turn accounting was wrong until 2026-08-26 (B12.11): Claude turns recorded `$0`, and
+under the persistent process they would have recorded running totals. A chart built on those numbers
+would have been confidently wrong, which is worse than no chart. The A12 leaves are already written
+in the migration queue.
+
+**Exit:** A12.1–A12.5 closed, `kolk dash` serving the five v1 views, budgets re-measured with the
+SQLite dependency.
+
+```
+/loop harden item 17 of PLAN.md first, then build migration group A12 leaf by leaf, one per
+iteration, red first, re-measuring the binary-size and dependency budgets in the closing leaf.
+```
+
+### Phase E — tools, permissions and sandboxing · item 13
+
+Before autonomy, not after. Phase F deploys several agents at once; the permission model has to
+exist before anything runs unattended, and `--yolo` needs a hardline blocklist that survives it.
+
+**Exit:** `docs/plan/13-tools-permissions-sandboxing.md` hardened, then its build leaves.
+
+```
+/loop harden item 13 of PLAN.md: resolve every "Decide" bullet, cite the permission precedents in
+docs/research/ecosystem.md, write docs/plan/13-tools-permissions-sandboxing.md, tick the item.
+```
+
+### Phase F — orchestration and per-task routing · item 14
+
+The owner's stated goal for `ultra`: many agents, each on the model that suits its task. Depends on
+item 8 (done), phase C (context isolation and compaction) and phase E (permissions).
+
+**Exit:** `docs/plan/14-orchestration-routing.md` hardened — orchestration state machine, routing
+table format, concurrency and confirm design, cost caps — then built in leaves.
+
+```
+/loop harden item 14 of PLAN.md: resolve every "Decide" bullet including parallel subagents,
+per-task routing, roles, worktree isolation and failure handling; write
+docs/plan/14-orchestration-routing.md; tick the item.
+```
+
+### Phase G — the surface · items 11, 15, 16
+
+TUI and input, code-mode specifics, and extensibility (MCP, skills, hooks). Deliberately after the
+engine phases: each of these is a surface over something the phases above decide.
+
+```
+/loop harden items 11, 15 and 16 of PLAN.md in that order, one item per iteration, writing each
+doc before starting the next.
+```
+
+### Phase H — ship it for real · T0.5, items 19–23
+
+The owner trial gate still has two open boxes, both of them the same missing evidence: nobody has
+proved the flow on a machine with no Go toolchain and no prior Kolkrabbi state. Everything else in
+this phase is distribution, quality, onboarding and the roadmap that records what was refused.
+
+**Exit:** T0.5 closed with a recorded clean-machine rehearsal, both trial-gate boxes green, and the
+owner told the app is ready to try.
+
+```
+/loop close T0.5 of CHECKPOINTS.md: rehearse install, first run, key addition and first model
+response on a machine with no Go toolchain and no prior Kolkrabbi files, record the evidence, then
+harden items 20, 21, 22, 23 and 19 one per iteration.
+```
+
+---
+
 ## 0. Ground truth — what exists today (verified 2026-08-21)
 
 Extracted from `kolkrabbi.tar` into this directory. Go 1.22 module `kolkrabbi` (built here with

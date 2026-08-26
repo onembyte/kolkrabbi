@@ -150,6 +150,10 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **B12.9 connector-to-backend selection** — an enabled connector actually chooses the provider that answers a turn, and an unusable plan model refuses with its reason.
 - [x] **B12.10 live provider switch** — `/model` onto or off a plan model moves the provider with it and releases the one it retires.
 - [x] **B12.11 per-turn accounting** — a session turn records its own cost and tokens, not the provider's running totals, and no longer records zero.
+- [ ] **P11.7 proof of login** — verify the provider actually authenticated before a connector is marked enabled, instead of trusting a clean exit.
+- [ ] **B12.12 effort validation** — reject or downgrade an effort the selected plan does not advertise, rather than sending one the provider will reinterpret.
+- [ ] **B12.13 subscription-only first run** — decide, with the owner, whether a session whose provider is a subscription still requires an OpenRouter key. Product decision before code.
+- [ ] **B12.14 cache token accounting** — carry `cache_read_input_tokens` and `cache_creation_input_tokens` into `provider.Meta`; the wire shape already parses them and `Collect` drops them.
 - [x] **L13.1 managed local storage paths** — a Kolk-owned model directory under the data dir, never a host Ollama path.
 - [x] **L13.2 managed runtime spec & lifecycle** — validated `RuntimeSpec`, start-at-most-once, deterministic close.
 - [x] **L13.3 managed sidecar starter** — `shell.StartManagedProcess` keeps process execution inside the one owner package.
@@ -2105,6 +2109,28 @@ Acceptance checklist:
 - [x] focused tests and race detector pass.
 - [x] full repository gates pass.
 - [x] build log records the red/green/refactor result.
+
+## Phase queue — one `/loop` per phase
+
+[`PLAN.md`](PLAN.md) owns the phase plan, its ordering rationale and the exact `/loop` command for
+each phase. This is the checkpoint-side index of the same order, so a builder can see which leaves a
+phase must close without leaving this file.
+
+| Phase | Items | Leaves | State |
+|---|---|---|---|
+| A finish the subscription path | 4, 24 | P11.7, B12.12, B12.13, B12.14 | next |
+| B managed local models | 25 | L13.4, L13.5 | queued |
+| C sessions, context, memory | 12 | doc first, then leaves | queued — blocks D |
+| D the local dashboard | 17 | A12.1–A12.5 | queued |
+| E tools, permissions, sandboxing | 13 | doc first, then leaves | queued — blocks F |
+| F orchestration & per-task routing | 14 | doc first, then leaves | queued |
+| G the surface | 11, 15, 16 | doc per item | queued |
+| H ship it for real | T0.5, 19–23 | T0.5 then doc per item | queued |
+
+The ordering rule is recorded in PLAN.md: finish what is half-built before starting what is unbuilt,
+put correctness before the surface that displays it, and put permissions before autonomy. Phase D
+sits after the accounting fix deliberately — a dashboard built on the pre-B12.11 numbers would have
+been confidently wrong.
 
 ## Migration queue — one checkpoint group at a time
 
