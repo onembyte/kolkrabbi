@@ -294,3 +294,48 @@ func TestCompactIfNeededNeverRunsWithoutAKnownWindow(t *testing.T) {
 		t.Fatalf("output = %q", out.String())
 	}
 }
+
+func TestCompactionArchivesWhatItReplaced(t *testing.T) {
+	agent, _, out := compactionAgent(t, 20_000, 19_000)
+	var archived []provider.Message
+	agent.ArchiveCompaction = func(messages []provider.Message) (string, error) {
+		archived = messages
+		return "/tmp/s1.pre-compact-1.json", nil
+	}
+
+	agent.compactIfNeeded(context.Background())
+
+	if len(archived) == 0 {
+		t.Fatal("the replaced conversation was not archived")
+	}
+	if estimateTokens(archived) != estimateTokens(longSession()) {
+		t.Fatal("the archive is not what was there before")
+	}
+	// Where it went is part of the promise: an undo the user cannot locate
+	// after the session ends is not reversibility.
+	if !strings.Contains(out.String(), "pre-compact-1.json") {
+		t.Fatalf("output = %q, want the archive named", out.String())
+	}
+}
+
+func TestCompactionProceedsWhenItCannotArchive(t *testing.T) {
+	agent, session, out := compactionAgent(t, 20_000, 19_000)
+	agent.ArchiveCompaction = func([]provider.Message) (string, error) {
+		return "", errors.New("disk is full")
+	}
+	before := estimateTokens(session.GetMessages())
+
+	agent.compactIfNeeded(context.Background())
+
+	// The session still had to fit. Losing the archive costs reversibility
+	// beyond this process, not the ability to keep working.
+	if estimateTokens(session.GetMessages()) >= before {
+		t.Fatal("a failed archive stopped the compaction")
+	}
+	if !strings.Contains(out.String(), "disk is full") {
+		t.Fatalf("output = %q, want the archive failure surfaced", out.String())
+	}
+	if !agent.RestoreCompaction() {
+		t.Fatal("in-memory undo must still work without an archive")
+	}
+}

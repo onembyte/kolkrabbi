@@ -1,6 +1,7 @@
 package session
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -96,5 +97,49 @@ func TestLatestForDirWithNoSessionsIsNotAnError(t *testing.T) {
 	got, err := LatestForDir(t.TempDir(), t.TempDir())
 	if err != nil || got != nil {
 		t.Fatalf("got %+v, err %v", got, err)
+	}
+}
+
+func TestDeleteRemovesCompactionArchivesToo(t *testing.T) {
+	dir := t.TempDir()
+	s := New(dir, "vendor/model")
+	if err := s.Save(); err != nil {
+		t.Fatal(err)
+	}
+	// A compaction archive holds the conversation that was replaced, so a
+	// deleted session that leaves one behind is still readable on disk.
+	archive := filepath.Join(dir, s.ID+".pre-compact-1.json")
+	if err := os.WriteFile(archive, []byte(`[{"role":"user","content":"secret"}]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Delete(dir, s.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(archive); err == nil {
+		t.Fatal("deleting the session left its replaced conversation on disk")
+	}
+}
+
+func TestDeleteLeavesOtherSessionsArchivesAlone(t *testing.T) {
+	dir := t.TempDir()
+	mine := New(dir, "vendor/model")
+	if err := mine.Save(); err != nil {
+		t.Fatal(err)
+	}
+	other := New(dir, "vendor/model")
+	if err := other.Save(); err != nil {
+		t.Fatal(err)
+	}
+	keep := filepath.Join(dir, other.ID+".pre-compact-1.json")
+	if err := os.WriteFile(keep, []byte("[]"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Delete(dir, mine.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(keep); err != nil {
+		t.Fatalf("another session's archive was removed: %v", err)
 	}
 }

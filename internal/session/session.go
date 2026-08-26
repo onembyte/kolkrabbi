@@ -261,10 +261,28 @@ func Latest(dir string) (*Session, error) {
 	return all[0], nil
 }
 
-// Delete removes a session file and its checkpoint directory.
+// CompactionArchives are the pre-compaction conversations kept for one session.
+func CompactionArchives(dir, id string) ([]string, error) {
+	return filepath.Glob(filepath.Join(dir, id+".pre-compact-*.json"))
+}
+
+// Delete removes a session file, its checkpoint directory, and every
+// pre-compaction archive belonging to it.
+//
+// The archives hold the conversation a compaction replaced, so leaving them
+// behind would mean deleting a session that is still readable on disk.
 func Delete(dir, id string) error {
 	if err := os.Remove(filepath.Join(dir, id+".json")); err != nil {
 		return err
+	}
+	archives, err := CompactionArchives(dir, id)
+	if err != nil {
+		return err
+	}
+	for _, archive := range archives {
+		if err := os.Remove(archive); err != nil {
+			return fmt.Errorf("removing compaction archive %s: %w", archive, err)
+		}
 	}
 	// RemoveAll is nil for a path that does not exist, so this only reports a
 	// checkpoint directory that really could not be removed — which matters,

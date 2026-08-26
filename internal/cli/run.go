@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 
+	"github.com/onembyte/kolkrabbi/internal/atomicfile"
 	"github.com/onembyte/kolkrabbi/internal/bus"
 	"github.com/onembyte/kolkrabbi/internal/checkpoint"
 	"github.com/onembyte/kolkrabbi/internal/config"
@@ -196,23 +198,24 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	}
 
 	return engine.New(engine.Options{
-		Client:         client,
-		Backend:        backend,
-		Model:          model,
-		Mode:           o.mode,
-		Effort:         o.effort,
-		Yolo:           o.yolo,
-		Sess:           sess,
-		Ckpt:           ckpt,
-		In:             a.in,
-		Out:            a.stdout,
-		Recorder:       stats.NewStore(d.Data),
-		Tiers:          cfg.Tiers,
-		Bus:            eventBus,
-		PinnedModel:    o.model != "",
-		FreeModels:     freeModels,
-		ContextWindow:  a.contextWindowFor(model),
-		UserMemoryFile: d.MemoryFile(),
+		Client:            client,
+		Backend:           backend,
+		Model:             model,
+		Mode:              o.mode,
+		Effort:            o.effort,
+		Yolo:              o.yolo,
+		Sess:              sess,
+		Ckpt:              ckpt,
+		In:                a.in,
+		Out:               a.stdout,
+		Recorder:          stats.NewStore(d.Data),
+		Tiers:             cfg.Tiers,
+		Bus:               eventBus,
+		PinnedModel:       o.model != "",
+		FreeModels:        freeModels,
+		ContextWindow:     a.contextWindowFor(model),
+		UserMemoryFile:    d.MemoryFile(),
+		ArchiveCompaction: archiveCompaction(d.Sessions(), sess.ID),
 	}), nil
 }
 
@@ -291,6 +294,32 @@ func (a *app) planEffort(effort string, plan provider.PlanModel) string {
 	}
 	return resolved
 }
+
+// archiveCompaction keeps every conversation a compaction replaced, numbered
+// and never overwritten: a second compaction must not erase the record of the
+// first, which is the one the user is most likely to want back.
+func archiveCompaction(dir, id string) func([]provider.Message) (string, error) {
+	return func(messages []provider.Message) (string, error) {
+		encoded, err := json.MarshalIndent(messages, "", "  ")
+		if err != nil {
+			return "", err
+		}
+		for n := 1; n <= maxCompactionArchives; n++ {
+			path := filepath.Join(dir, fmt.Sprintf("%s.pre-compact-%d.json", id, n))
+			if _, err := os.Stat(path); err == nil {
+				continue
+			}
+			if err := atomicfile.Write(path, append(encoded, '\n'), 0o600); err != nil {
+				return "", err
+			}
+			return path, nil
+		}
+		return "", fmt.Errorf("session %s already has %d compaction archives", id, maxCompactionArchives)
+	}
+}
+
+// maxCompactionArchives bounds what one session can leave on disk.
+const maxCompactionArchives = 100
 
 // contextWindowFor reports the advertised context size of one model, or zero
 // when the catalog does not describe it. Zero means unknown, and the engine

@@ -172,6 +172,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **C12.3 session commands** — `sessions search|rename|fork|export`, with a mistyped id reported as the ordinary mistake it is.
 - [x] **C12.4 project-aware resume** — `kolk -r` resumes the work done in this directory, and says so when it reaches into another project.
 - [x] **C12.5 memory layers and `/remember`** — a user layer beneath the project file, capped at a line boundary, written only when the user says so.
+- [x] **C12.6 durable compaction archive** — the replaced conversation survives the process, and deleting a session deletes it too.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
@@ -1358,6 +1359,40 @@ Acceptance checklist:
 
 **Item 12 is now built except the durable pre-compaction file and fast-lane auto-titling**, both
 recorded as remaining.
+
+### C12.6 durable compaction archive — verified detail
+
+C12.2b made compaction reversible for the life of the process. The item 12 design promised more than
+that, and the gap mattered: a session compacted in the morning and reopened in the afternoon had
+lost the conversation permanently, with nothing on disk to go back to.
+
+Each compaction now writes what it replaced to `<id>.pre-compact-<n>.json`, numbered and never
+overwritten — a second compaction must not erase the record of the first, which is the one a user is
+most likely to want back. The path is printed with the compaction line, because an undo nobody can
+locate is not reversibility.
+
+Neither archiving failure stops the work. If the archive cannot be written the compaction still
+happens, says why, and in-memory undo still works: the session *had* to fit, and losing the archive
+costs reversibility beyond this process rather than the ability to keep working.
+
+**The consequence worth catching:** an archive holds the conversation that was replaced, so a
+deleted session that left one behind would still be readable on disk. `session.Delete` now removes a
+session's archives with it, and `Clear` inherits that by delegating. A test proves another session's
+archives are untouched, because a glob that deletes too much is a worse bug than one that deletes too
+little.
+
+The engine does not touch the filesystem for this: it calls an injected archiver and the surface owns
+where files go, which is the same seam every other storage decision in this codebase uses.
+
+Acceptance checklist:
+
+- [x] the replaced conversation is archived and the path is named in the output.
+- [x] a failed archive is reported, does not stop the compaction, and leaves in-memory undo working.
+- [x] archives are numbered and never overwrite an earlier one, bounded per session.
+- [x] deleting a session deletes its archives; another session's are left alone.
+- [x] `go test -race ./internal/engine ./internal/cli ./internal/session` and full `make check` green.
+
+Item 12 is now built except fast-lane auto-titling, which is recorded as the one remaining piece.
 
 ### B12 Claude subscription backend — recorded detail
 
@@ -2897,7 +2932,7 @@ phase must close without leaving this file.
 |---|---|---|---|
 | A finish the subscription path | 4, 24 | P11.7 ✓, B12.12 ✓, B12.14 ✓ | B12.13 needs the owner |
 | B managed local models | 25 | L13.4 ✓, L13.5a–c ✓, L13.5b3 ✓ | L13.5b4 needs the owner |
-| C sessions, context, memory | 12 | doc ✓, leaves next | building |
+| C sessions, context, memory | 12 | doc ✓, C12.1–C12.6 ✓ | auto-titling open |
 | D the local dashboard | 17 | A12.1–A12.5 | queued |
 | E tools, permissions, sandboxing | 13 | doc first, then leaves | queued — blocks F |
 | F orchestration & per-task routing | 14 | doc first, then leaves | queued |

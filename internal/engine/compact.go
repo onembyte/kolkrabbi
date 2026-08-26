@@ -238,15 +238,37 @@ func (a *Agent) compactIfNeeded(ctx context.Context) {
 	}
 	// Kept so the step can be undone within this session. Compaction is the one
 	// operation that makes the model forget, so it must be reversible.
-	a.preCompact = before
-	a.Sess.SetMessages(result.Messages)
-	if err := a.Sess.Save(); err != nil {
-		fmt.Fprintf(a.Out, "warning: compacted session could not be saved: %v\n", err)
-	}
+	a.applyCompaction(before, result)
 	// Said out loud, always. A user who cannot see this happen cannot explain
 	// why the model suddenly forgot something.
 	fmt.Fprintf(a.Out, "compacted %d messages (%s), freeing about %d tokens\n",
 		result.Replaced, result.Stage, result.FreedTokens)
+	if a.lastArchive != "" {
+		fmt.Fprintf(a.Out, "the replaced conversation is in %s\n", a.lastArchive)
+	}
+}
+
+// applyCompaction swaps in the smaller conversation, keeping what it replaced
+// both in memory for this session and on disk for after it.
+//
+// Neither failure stops the compaction. The session had to fit, and losing the
+// archive costs reversibility beyond this process rather than the ability to
+// keep working.
+func (a *Agent) applyCompaction(before []provider.Message, result Compaction) {
+	a.preCompact = before
+	a.lastArchive = ""
+	if a.ArchiveCompaction != nil {
+		path, err := a.ArchiveCompaction(before)
+		if err != nil {
+			fmt.Fprintf(a.Out, "warning: could not archive the replaced conversation: %v\n", err)
+		} else {
+			a.lastArchive = path
+		}
+	}
+	a.Sess.SetMessages(result.Messages)
+	if err := a.Sess.Save(); err != nil {
+		fmt.Fprintf(a.Out, "warning: compacted session could not be saved: %v\n", err)
+	}
 }
 
 // CompactNow compacts regardless of how full the window is, for a user asking
@@ -270,11 +292,7 @@ func (a *Agent) CompactNow(ctx context.Context, target int) (Compaction, bool) {
 	if result.Stage == StageNone || result.Replaced == 0 {
 		return result, false
 	}
-	a.preCompact = before
-	a.Sess.SetMessages(result.Messages)
-	if err := a.Sess.Save(); err != nil {
-		fmt.Fprintf(a.Out, "warning: compacted session could not be saved: %v\n", err)
-	}
+	a.applyCompaction(before, result)
 	return result, true
 }
 

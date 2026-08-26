@@ -193,6 +193,10 @@ type Options struct {
 	// UserMemoryFile is the user's own standing notes, applied to every
 	// project. Empty means none; surfaces resolve the path.
 	UserMemoryFile string
+	// ArchiveCompaction stores the conversation a compaction replaced and
+	// reports where. Surfaces own the filesystem; nil simply means undo lives
+	// only as long as the process.
+	ArchiveCompaction func([]provider.Message) (string, error)
 }
 
 // ChatBackend is the engine's provider seam. The existing OpenRouter client
@@ -209,6 +213,7 @@ type Agent struct {
 	// main turn, which is the only measured view of how full the window is.
 	lastPromptTokens int
 	preCompact       []provider.Message
+	lastArchive      string
 	saveWarned       bool
 	statsWarn        bool
 }
