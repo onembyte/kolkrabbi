@@ -98,10 +98,11 @@ var packageLayer = map[string]Layer{
 	"internal/engine": L4Engine,
 
 	// L5 — adapters: they implement the engine's ports.
-	"internal/config":     L5Adapter,
-	"internal/session":    L5Adapter,
-	"internal/checkpoint": L5Adapter,
-	"internal/stats":      L5Adapter,
+	"internal/provider/agentcli": L5Adapter,
+	"internal/config":            L5Adapter,
+	"internal/session":           L5Adapter,
+	"internal/checkpoint":        L5Adapter,
+	"internal/stats":             L5Adapter,
 
 	// L6 — surfaces. The only layer allowed to wire concrete types together.
 	"internal/cli":   L6Surface,
