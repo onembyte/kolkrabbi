@@ -4,13 +4,13 @@ import "time"
 
 const spinnerInterval = 120 * time.Millisecond
 
-// octopusFrames are compact terminal pixel-art sprites. Each frame is kept
+// octopusFrames are tiny terminal pixel-art sprites. Each frame is kept
 // monochrome here; the TUI applies its purple activity style at render time.
 var spinnerFrames = [...]string{
-	" ▄█▄ \n▐●█●▌\n▙▟▙▟",
-	" ▄█▄ \n▐●█●▌\n▟▙▟▙",
-	" ▄█▄ \n▐●█●▌\n▙▟▙▟",
-	" ▄█▄ \n▐●█●▌\n▙▟▙▟ ",
+	"●●\n▙▟",
+	"●●\n▟▙",
+	"●●\n▙▟",
+	"●●\n▟▙",
 }
 
 type spinnerTimer interface {
