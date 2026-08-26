@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 
+	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/local"
 )
 
@@ -42,6 +44,26 @@ func (a *app) runLocalia(ctx context.Context, args []string) error {
 		fmt.Fprintf(a.stdout, "  %-8s %-10s vram %-12s available %s\n",
 			card.Vendor, card.Name, capacityLabel(card.VRAM), capacityLabel(card.AvailableVRAM))
 	}
+
+	cfg, err := config.Load(dirs.ConfigFile())
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(a.stdout, "\nSETTINGS")
+	for _, key := range config.LocalKeys {
+		value, _ := config.GetLocal(cfg, key)
+		if value == "" {
+			value = "(computed)"
+		} else if key == "local.reserved_ram_bytes" {
+			// Everything else on this screen is in GiB; a raw byte count here
+			// would be the one number the reader has to convert themselves.
+			if bytes, err := strconv.ParseUint(value, 10, 64); err == nil {
+				value = local.HumanBytes(bytes)
+			}
+		}
+		fmt.Fprintf(a.stdout, "  %-30s %s\n", key, value)
+	}
+	fmt.Fprintf(a.stdout, "  change with: kolk config set %s <value>\n", config.LocalKeys[0])
 
 	installed, err := installedLocalModels(modelDir)
 	if err != nil {

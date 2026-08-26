@@ -163,7 +163,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **L13.4c disk space and NVIDIA VRAM** — `internal/diskspace` measures free space per platform, NVIDIA cards are measured through the vendor tool, and `NewSystemProber` wires both.
 - [x] **L13.5a `localia` status** — `kolk localia` and `/localia` report hardware, managed storage, and installed local models, and pull nothing.
 - [ ] **L13.5b catalog and pull approval** — a local-model catalog, the fit plan shown before a pull, and the pull itself as an explicit confirmation.
-- [ ] **L13.5c GPU and quantization settings** — persist `gpu_mode`, `gpu_index`, `quantization` and the reserved-headroom values as non-secret local configuration.
+- [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
 
 Scope:
@@ -901,6 +901,47 @@ Acceptance checklist:
 - [x] the default probe path runs on a machine with no GPU and no Ollama.
 - [x] real-binary run on the development host: 15.5 GiB RAM, 7.7 GiB free where `df` reports 7.8 G,
   the Intel card listed as unmeasurable, and no models installed.
+- [x] full `make check` green.
+
+### L13.5c GPU and quantization settings — verified detail
+
+The contract names five persisted values: `gpu_mode`, `gpu_index`, `quantization`,
+`reserved_vram_fraction` and `reserved_ram_bytes`. They live in the config file Kolkrabbi already
+has, as `local.*` keys, rather than a second settings file — one config surface means `kolk config`
+already knows how to read, write and remove them, and there is one answer to "where do my settings
+live?".
+
+Two shapes matter here:
+
+- **The numeric fields are pointers.** Their zero values are meaningful — GPU 0 is a real card, and
+  reserving zero headroom is a deliberate choice — so "set to zero" and "never chosen" must not be
+  the same state.
+- **Validation happens where the value is typed.** `local.gpu_mode turbo` fails immediately with the
+  three valid modes, rather than being stored and surfacing much later as a refused pull with no
+  obvious cause. `reserved_vram_fraction` must be at least 0 and below 1, because reserving all of
+  it leaves nothing to run in: that setting could only ever refuse every model.
+
+`ParseBytes` accepts `4GiB`, `4G`, `512MiB` and plain bytes, because reserved memory in raw bytes is
+a number nobody types correctly. `localia` renders it back through `HumanBytes` for the same reason:
+every other size on that screen is in GiB, and a raw byte count would be the one number the reader
+has to convert themselves.
+
+Non-goals:
+
+- The planner does not read these yet. Wiring `config.LocalSettings` into `local.Config` belongs
+  with the pull path in L13.5b, where a plan is actually computed.
+
+Acceptance checklist:
+
+- [x] gpu mode accepts auto/cpu/gpu case-insensitively, stores it normalised, and rejects anything
+  else.
+- [x] reserved fraction accepts 0.15 and rejects 1, 1.5, -0.1 and non-numbers.
+- [x] byte sizes accept `4GiB`, `4G`, `512MiB`, `1.5GiB`, whitespace and plain bytes, and reject
+  negatives, nonsense units and empty.
+- [x] gpu index stores a zero and rejects a negative.
+- [x] get, set and unset round-trip, and an unknown `local.*` key is rejected rather than stored.
+- [x] real-binary rehearsal: three settings written to the config file, two invalid values refused
+  with their reasons, and `localia` showing the stored values with `(computed)` for the rest.
 - [x] full `make check` green.
 
 ### B12 Claude subscription backend — recorded detail

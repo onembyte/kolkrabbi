@@ -65,6 +65,16 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 			} else {
 				fmt.Fprintf(a.stdout, "(unset — inherits model %s)\n", orDefault(cfg.Model, defaultModel))
 			}
+		case strings.HasPrefix(key, "local."):
+			value, known := config.GetLocal(cfg, key)
+			if !known {
+				return usagef("unknown config key %q", key)
+			}
+			if value == "" {
+				fmt.Fprintln(a.stdout, "(unset — Kolkrabbi computes it)")
+			} else {
+				fmt.Fprintln(a.stdout, value)
+			}
 		default:
 			return usagef("unknown config key %q", key)
 		}
@@ -101,6 +111,15 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintf(a.stdout, "effort.%s.model → %s\n", canonical, val)
+		case strings.HasPrefix(key, "local."):
+			if err := config.SetLocal(cfg, key, val); err != nil {
+				return usagef("%s", err)
+			}
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			stored, _ := config.GetLocal(cfg, key)
+			fmt.Fprintf(a.stdout, "%s → %s\n", key, stored)
 		default:
 			return usagef("unknown config key %q", key)
 		}
@@ -140,6 +159,14 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintf(a.stdout, "removed effort.%s.model\n", canonical)
+		case strings.HasPrefix(key, "local."):
+			if err := config.UnsetLocal(cfg, key); err != nil {
+				return usagef("%s", err)
+			}
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "removed %s\n", key)
 		default:
 			return usagef("unknown config key %q", key)
 		}
