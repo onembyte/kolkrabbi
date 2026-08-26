@@ -35,6 +35,34 @@ headroom, and expected fallback before confirmation. If the selected model
 does not fit, Kolk rejects the pull with an actionable explanation rather than
 silently degrading or using swap.
 
+The hardware snapshot has a deterministic, probe-independent shape:
+
+```text
+accelerators: [{vendor, name, vram_bytes, available_vram_bytes}]
+system_ram_bytes
+disk_free_bytes
+```
+
+Probe adapters may use platform-native sources such as Linux device metadata
+or vendor utilities, but they return this shape to the planner and may fail
+closed to an "unknown" value. A missing probe never means zero capacity and
+never authorizes a pull.
+
+The persisted local configuration uses:
+
+```text
+gpu_mode: auto | cpu | gpu
+gpu_index: integer (only with gpu mode)
+quantization: provider model variant selected by the user
+reserved_vram_fraction: [0, 1)
+reserved_ram_bytes
+```
+
+`auto` selects the largest fitting supported GPU configuration after applying
+reserved headroom; it does not consume multiple GPUs unless the user opts in.
+Kolk never promises that a quantization variant fits based on file size alone:
+the planner compares both storage size and runtime memory requirements.
+
 ## TDD checkpoints
 
 1. Contract tests prove sidecar paths, private endpoint ownership, explicit
@@ -47,4 +75,3 @@ silently degrading or using swap.
    Ollama installation.
 5. Verification records race/full-suite results and a manual GPU smoke test
    as separate evidence.
-
