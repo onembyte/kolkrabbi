@@ -2,12 +2,18 @@ package provider
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 )
 
 // ModelIsFree returns true if the model is explicitly zero-cost on OpenRouter.
 func ModelIsFree(model ModelInfo) bool {
-	return model.ID == "openrouter/auto" || strings.HasSuffix(model.ID, ":free")
+	if model.ID == "openrouter/auto" || model.ID == "openrouter/free" || strings.HasSuffix(model.ID, ":free") {
+		return true
+	}
+	prompt, promptErr := strconv.ParseFloat(model.Pricing.Prompt, 64)
+	completion, completionErr := strconv.ParseFloat(model.Pricing.Completion, 64)
+	return promptErr == nil && completionErr == nil && prompt == 0 && completion == 0
 }
 
 // CodingSuitability scores how oriented a model is toward software engineering.
@@ -43,12 +49,14 @@ type rankedFreeCandidate struct {
 	codingScore int
 }
 
-// RankFreeModels filters and ranks available free models by coding suitability
-// and context length.
+// RankFreeModels filters candidates to zero-cost, tool-capable models with at
+// least 32k context, then ranks them by coding suitability, context length,
+// and stable model ID. An empty result means the caller must use its verified
+// openrouter/free fallback.
 func RankFreeModels(models []ModelInfo) []string {
 	var freeCandidates []rankedFreeCandidate
 	for _, m := range models {
-		if !ModelIsFree(m) {
+		if !ModelIsFree(m) || m.ContextLength < 32768 || !supportsTools(m) {
 			continue
 		}
 		freeCandidates = append(freeCandidates, rankedFreeCandidate{
@@ -73,4 +81,13 @@ func RankFreeModels(models []ModelInfo) []string {
 		result[i] = c.model.ID
 	}
 	return result
+}
+
+func supportsTools(model ModelInfo) bool {
+	for _, parameter := range model.SupportedParameters {
+		if strings.EqualFold(parameter, "tools") {
+			return true
+		}
+	}
+	return false
 }
