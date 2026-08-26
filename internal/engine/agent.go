@@ -197,6 +197,15 @@ type Agent struct {
 	statsWarn  bool
 }
 
+// Close releases resources owned by the configured backend, when it exposes
+// an optional lifecycle.
+func (a *Agent) Close() error {
+	if closer, ok := a.Backend.(io.Closer); ok {
+		return closer.Close()
+	}
+	return nil
+}
+
 // New wires up an agent around an existing (possibly resumed) session. The
 // session's system prompt is (re)generated so cwd and project memory are
 // always current, and any dangling tool calls from an interrupted run are

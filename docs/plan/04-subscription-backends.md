@@ -6,8 +6,8 @@ Status: hardened on 2026-08-22 · supersedes: — · PLAN.md item 4
 
 kolk ships **one** subscription backend in v0.x: registry key **`claude`**, user-visible label
 **"Claude Agent"**, package `internal/provider/agentcli`. It spawns the user's **own, unmodified,
-self-logged-in `claude` binary** as `claude -p --verbose --output-format stream-json`, one process
-per turn, prompt on stdin, in a cleared environment, and translates the vendor's NDJSON into
+self-logged-in `claude` binary** as a session-scoped persistent process using
+`--input-format stream-json`, with prompts on stdin, in a cleared environment, and translates the vendor's NDJSON into
 `provider.Event`. kolk never sees, stores, proxies, reads or refreshes a credential — and that is
 enforced by the *shape* of the code (the login path is an L0 handover with no pipe; the login-state
 type has no field an identity can land in; a CI source denylist fails the build on the words) rather
@@ -1458,7 +1458,7 @@ The dangerous failure is not "mystifying denials"; it is the vendor falling back
 post-hoc diff review over a per-turn shadow-git snapshot is a smaller, honest promise that kolk can
 actually keep.
 
-**Why one process per turn.** `--input-format stream-json` would amortise 1–3 s of Node startup
+**Why one process per Kolkrabbi session.** `--input-format stream-json` amortises 1–3 s of Node startup
 (`time_to_request_ms` is only 53 ms, so the cost is Node's, not the vendor's). It is rejected for
 v0.x because it requires stdin readable for the session's lifetime, it makes every `result`'s usage a
 **running cumulative total** that must be diffed or item 17's cost chart grows quadratically, and
