@@ -20,18 +20,23 @@ import (
 // and a false positive would disable a connector that works. Kolkrabbi says
 // what it suspects instead, once, and leaves the state alone.
 type verifyingBackend struct {
-	inner     engine.ChatBackend
-	plan      provider.PlanModel
+	inner engine.ChatBackend
+	plan  provider.PlanModel
+	// effort is the level the provider process was started with. It cannot
+	// change without restarting that process, so the session has to be able to
+	// say what the provider is actually running at.
+	effort    string
 	confirm   func(context.Context)
 	explain   func()
 	confirmed sync.Once
 	explained sync.Once
 }
 
-func (a *app) verifyingBackend(inner engine.ChatBackend, plan provider.PlanModel) *verifyingBackend {
+func (a *app) verifyingBackend(inner engine.ChatBackend, plan provider.PlanModel, effort string) *verifyingBackend {
 	return &verifyingBackend{
-		inner: inner,
-		plan:  plan,
+		inner:  inner,
+		plan:   plan,
+		effort: effort,
 		confirm: func(ctx context.Context) {
 			dirs, err := a.resolve()
 			if err != nil {

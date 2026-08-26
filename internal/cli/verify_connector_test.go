@@ -39,7 +39,7 @@ func unverifiedClaude(t *testing.T) (*app, provider.PlanModel) {
 // answered. That is a turn the user wanted anyway, so it costs nothing extra.
 func TestAnsweredTurnVerifiesTheConnector(t *testing.T) {
 	a, planModel := unverifiedClaude(t)
-	backend := a.verifyingBackend(stubBackend{}, planModel)
+	backend := a.verifyingBackend(stubBackend{}, planModel, "high")
 
 	if _, _, err := backend.StreamChat(context.Background(), "claude-opus", nil, nil, nil); err != nil {
 		t.Fatal(err)
@@ -62,7 +62,7 @@ func TestAFailedTurnOnAnUnverifiedConnectorExplainsTheLikelyCause(t *testing.T) 
 	a, planModel := unverifiedClaude(t)
 	var errOut strings.Builder
 	a.stderr = &errOut
-	backend := a.verifyingBackend(stubBackend{err: errors.New("provider process exited unsuccessfully")}, planModel)
+	backend := a.verifyingBackend(stubBackend{err: errors.New("provider process exited unsuccessfully")}, planModel, "high")
 
 	if _, _, err := backend.StreamChat(context.Background(), "claude-opus", nil, nil, nil); err == nil {
 		t.Fatal("the underlying failure must still reach the caller")
@@ -83,7 +83,7 @@ func TestAFailedTurnOnAnUnverifiedConnectorExplainsTheLikelyCause(t *testing.T) 
 
 func TestAVerifiedConnectorIsNotReWrittenOnEveryTurn(t *testing.T) {
 	a, planModel := unverifiedClaude(t)
-	backend := a.verifyingBackend(stubBackend{}, planModel)
+	backend := a.verifyingBackend(stubBackend{}, planModel, "high")
 
 	for range 3 {
 		if _, _, err := backend.StreamChat(context.Background(), "claude-opus", nil, nil, nil); err != nil {
@@ -101,7 +101,7 @@ func TestAFailedTurnExplainsOnlyOnce(t *testing.T) {
 	a, planModel := unverifiedClaude(t)
 	var errOut strings.Builder
 	a.stderr = &errOut
-	backend := a.verifyingBackend(stubBackend{err: errors.New("boom")}, planModel)
+	backend := a.verifyingBackend(stubBackend{err: errors.New("boom")}, planModel, "high")
 
 	for range 3 {
 		_, _, _ = backend.StreamChat(context.Background(), "claude-opus", nil, nil, nil)

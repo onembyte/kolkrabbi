@@ -102,6 +102,12 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		} else {
 			m := ag.ModelForEffort(ag.Effort)
 			fmt.Fprintf(a.stdout, "effort: %s → %s\n", ag.Effort, m)
+			// A provider CLI is started with its effort and keeps it for the
+			// life of its process, so this dial did not reach it.
+			if plan, ok := ag.Backend.(*verifyingBackend); ok && plan.effort != ag.Effort {
+				fmt.Fprintf(a.stdout, "%s is still running at %s effort; re-run /model %s to restart it at %s\n",
+					plan.plan.Connector, plan.effort, plan.plan.Model, ag.Effort)
+			}
 		}
 	case "/rate":
 		n, err := strconv.Atoi(arg)

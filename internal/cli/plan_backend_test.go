@@ -131,3 +131,88 @@ func TestSlashModelRefusesAnUnusablePlanModelWithoutChangingTheSession(t *testin
 		t.Fatalf("a refused switch changed the session: model %q backend %T", ag.Model, ag.Backend)
 	}
 }
+
+// Effort levels are per plan: Claude Pro stops at high. Passing max straight
+// through would let the provider decide what the user meant.
+func TestSessionStepsEffortDownToWhatThePlanOffers(t *testing.T) {
+	dirs := storeFirstRunKey(t)
+	enablePlanConnector(t, dirs)
+	a, _, errOut := newTestApp("")
+
+	agent, err := a.newAgent(context.Background(), &options{model: "claude-sonnet", effort: "max"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wrapped, ok := agent.Backend.(*verifyingBackend)
+	if !ok {
+		t.Fatalf("backend = %T", agent.Backend)
+	}
+	claude, ok := wrapped.inner.(*agentcli.ClaudeBackend)
+	if !ok {
+		t.Fatalf("wrapped backend = %T", wrapped.inner)
+	}
+	if claude.Effort != "high" {
+		t.Fatalf("provider effort = %q, want the highest level Claude Pro offers", claude.Effort)
+	}
+	if !strings.Contains(errOut.String(), "Claude Pro") || !strings.Contains(errOut.String(), "high") {
+		t.Fatalf("stderr = %q, want the substitution named", errOut.String())
+	}
+}
+
+func TestSessionKeepsAnEffortThePlanOffers(t *testing.T) {
+	dirs := storeFirstRunKey(t)
+	enablePlanConnector(t, dirs)
+	a, _, errOut := newTestApp("")
+
+	agent, err := a.newAgent(context.Background(), &options{model: "claude-opus", effort: "max"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapped := agent.Backend.(*verifyingBackend)
+	if claude := wrapped.inner.(*agentcli.ClaudeBackend); claude.Effort != "max" {
+		t.Fatalf("provider effort = %q, want max on a plan that offers it", claude.Effort)
+	}
+	if errOut.Len() != 0 {
+		t.Fatalf("stderr = %q, want silence when nothing changed", errOut.String())
+	}
+}
+
+func TestSessionNormalisesALegacyEffortBeforeCheckingThePlan(t *testing.T) {
+	dirs := storeFirstRunKey(t)
+	enablePlanConnector(t, dirs)
+	a, _, errOut := newTestApp("")
+
+	// "ultra" is the legacy spelling of max; Claude Pro still stops at high.
+	agent, err := a.newAgent(context.Background(), &options{model: "claude-sonnet", effort: "ultra"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapped := agent.Backend.(*verifyingBackend)
+	if claude := wrapped.inner.(*agentcli.ClaudeBackend); claude.Effort != "high" {
+		t.Fatalf("provider effort = %q, want a legacy alias resolved before the plan check", claude.Effort)
+	}
+	if !strings.Contains(errOut.String(), "high") {
+		t.Fatalf("stderr = %q", errOut.String())
+	}
+}
+
+// A provider process is started with its effort and keeps it. Letting /effort
+// report a new level while the provider still runs at the old one is the same
+// silent mismatch /model used to have.
+func TestSlashEffortSaysThePlanProviderKeepsItsOwnLevel(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	enablePlanConnector(t, dirs)
+	a, ag, out := replFixture(t, "")
+	if a.slash(context.Background(), ag, "/model claude-opus") {
+		t.Fatal("/model must not exit the session")
+	}
+
+	if a.slash(context.Background(), ag, "/effort low") {
+		t.Fatal("/effort must not exit the session")
+	}
+	got := out.String()
+	if !strings.Contains(got, "claude") || !strings.Contains(got, "/model") {
+		t.Fatalf("output = %q, want it to say the provider keeps its level and how to restart it", got)
+	}
+}

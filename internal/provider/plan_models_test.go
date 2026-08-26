@@ -151,3 +151,38 @@ func TestResolvePlanModelExplainsWhenEveryPlanOfferingItIsUnusable(t *testing.T)
 		t.Fatalf("error = %v, want no pointless disambiguation", err)
 	}
 }
+
+func TestEffortForPlanKeepsALevelThePlanOffers(t *testing.T) {
+	got, changed := EffortForPlan("high", []string{"low", "medium", "high", "max"})
+	if got != "high" || changed {
+		t.Fatalf("effort = %q changed = %v", got, changed)
+	}
+}
+
+func TestEffortForPlanStepsDownToTheHighestOffered(t *testing.T) {
+	// Claude Pro stops at high. Sending max would have the provider decide what
+	// the user meant.
+	got, changed := EffortForPlan("max", []string{"low", "medium", "high"})
+	if got != "high" || !changed {
+		t.Fatalf("effort = %q changed = %v, want high and a reported change", got, changed)
+	}
+}
+
+func TestEffortForPlanNeverSilentlyUpgrades(t *testing.T) {
+	// Nothing at or below what was asked for: take the cheapest on offer, not
+	// the closest, because the closest would spend more than the user chose.
+	got, changed := EffortForPlan("low", []string{"medium", "high", "max"})
+	if got != "medium" || !changed {
+		t.Fatalf("effort = %q changed = %v, want the lowest offered", got, changed)
+	}
+}
+
+func TestEffortForPlanPassesThroughWhenNothingIsAdvertised(t *testing.T) {
+	got, changed := EffortForPlan("max", nil)
+	if got != "max" || changed {
+		t.Fatalf("effort = %q changed = %v, want an unknown plan to be left alone", got, changed)
+	}
+	if got, changed := EffortForPlan("", []string{"low"}); got != "" || changed {
+		t.Fatalf("an unset effort must stay unset: %q %v", got, changed)
+	}
+}

@@ -152,7 +152,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **B12.11 per-turn accounting** — a session turn records its own cost and tokens, not the provider's running totals, and no longer records zero.
 - [x] **P11.7a honest login state** — a clean provider exit records the connector as `unverified` and says what it does and does not prove.
 - [x] **P11.7b verify on first use** — the first answered turn confirms the connector; a failed turn on an unverified one explains the likely cause once and changes nothing.
-- [ ] **B12.12 effort validation** — reject or downgrade an effort the selected plan does not advertise, rather than sending one the provider will reinterpret.
+- [x] **B12.12 effort within the plan** — an effort a plan does not offer steps down and says so, and `/effort` reports what the running provider is actually using.
 - [ ] **B12.13 subscription-only first run** — decide, with the owner, whether a session whose provider is a subscription still requires an OpenRouter key. Product decision before code.
 - [x] **B12.14 cache token accounting** — cache tokens reach `provider.Meta`, the call record and `stats.jsonl`, from both the Claude adapter and OpenRouter, and are diffed per turn like the rest.
 - [x] **L13.1 managed local storage paths** — a Kolk-owned model directory under the data dir, never a host Ollama path.
@@ -1016,6 +1016,53 @@ Acceptance checklist:
 - [x] an OpenRouter usage chunk reporting 90 cached of 120 prompt tokens records 90.
 - [x] `stats.jsonl` contains both fields when reported and neither when not.
 - [x] full `make check` green.
+
+### B12.12 effort within the plan — verified detail
+
+Plan models advertise their own effort levels: Claude Pro stops at `high`, Claude Max offers `max`.
+`BuildClaudeSessionArgs` passed the session's effort straight through, so `-e max` on a Pro plan sent
+`--effort max` and let the provider decide what the user meant.
+
+Scope:
+
+- `provider.EffortForPlan` maps a requested level onto the closest one a plan offers. The dial is a
+  preference, so an unavailable level steps down rather than refusing to start a session — but never
+  silently, or the effort a user set means something they did not choose.
+- The substitution is never more expensive than the request: when nothing at or below the requested
+  level is offered, the cheapest offered level wins rather than the nearest one. A user who asked for
+  `low` must not be billed for `high` because a plan starts there.
+- A plan that advertises nothing, and an unset effort, both pass through untouched.
+- The CLI normalizes legacy spellings (`ultra` → `max`) before the plan check, so an alias is not
+  mistaken for a level no plan offers.
+
+A second mismatch surfaced while testing this. A provider process is started with its effort and
+keeps it for the life of that process, so `/effort` mid-session changed Kolkrabbi's own knobs and
+reported a level the provider was not using — the same silent mismatch `/model` had before B12.10.
+`/effort` now says what the provider is actually running at and how to restart it:
+
+```
+effort: low → claude-opus
+claude is still running at high effort; re-run /model claude-opus to restart it at low
+```
+
+That guidance is accurate because `switchModel` passes `ag.Effort` into `planBackendFor`, so
+re-selecting the model rebuilds the provider at the new level. Restarting is the user's choice
+because it costs the provider's conversation state.
+
+Non-goals:
+
+- No automatic provider restart on `/effort`. It would silently discard the provider-side context
+  the persistent session exists to keep.
+
+Acceptance checklist:
+
+- [x] red first: `-e max` on Claude Pro reached the provider as `max`, and `ultra` reached it
+  unresolved.
+- [x] a level the plan offers passes through with no message at all.
+- [x] `max` on a plan that stops at `high` becomes `high` and names the substitution.
+- [x] `low` against a plan starting at `medium` becomes `medium`, never `high`.
+- [x] `/effort` reports the running provider's level and the exact command to restart it.
+- [x] `go test -race ./internal/cli ./internal/provider/...` and full `make check` green.
 
 ### L13 managed local models — active detail
 

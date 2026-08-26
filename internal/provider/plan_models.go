@@ -124,3 +124,52 @@ func sharedUnusableAccess(matches []PlanModel) (string, bool) {
 	}
 	return access, true
 }
+
+// planEffortOrder is the canonical effort ladder, cheapest first. It mirrors
+// the engine's levels without importing them: a plan catalog is domain data and
+// cannot depend on the engine that consumes it.
+var planEffortOrder = []string{"low", "medium", "high", "max"}
+
+// EffortForPlan maps a session's effort onto the closest level a plan actually
+// offers and reports whether it had to move. A plan that advertises nothing is
+// left alone, and the result is never more expensive than what was asked for:
+// when nothing at or below the request is offered, the cheapest level wins
+// rather than the nearest one.
+func EffortForPlan(effort string, offered []string) (string, bool) {
+	if effort == "" || len(offered) == 0 {
+		return effort, false
+	}
+	rank := func(level string) int {
+		for i, name := range planEffortOrder {
+			if strings.EqualFold(name, level) {
+				return i
+			}
+		}
+		return -1
+	}
+	wanted := rank(effort)
+	best, bestRank := "", -1
+	lowest, lowestRank := "", len(planEffortOrder)
+	for _, level := range offered {
+		at := rank(level)
+		if at < 0 {
+			continue
+		}
+		if strings.EqualFold(level, effort) {
+			return effort, false
+		}
+		if at < lowestRank {
+			lowest, lowestRank = level, at
+		}
+		if wanted >= 0 && at <= wanted && at > bestRank {
+			best, bestRank = level, at
+		}
+	}
+	if best != "" {
+		return best, true
+	}
+	if lowest != "" {
+		return lowest, true
+	}
+	return effort, false
+}

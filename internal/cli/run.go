@@ -242,7 +242,8 @@ func (a *app) planBackendFor(model, effort string) (engine.ChatBackend, provider
 	case "claude":
 		// Wrapped so the first answered turn confirms the connector the user
 		// signed into in another terminal.
-		return a.verifyingBackend(agentcli.NewClaudeBackend(effort), planModel), planModel, nil
+		resolved := a.planEffort(effort, planModel)
+		return a.verifyingBackend(agentcli.NewClaudeBackend(resolved), planModel, resolved), planModel, nil
 	default:
 		return nil, provider.PlanModel{}, fmt.Errorf("the %s connector is enabled but Kolkrabbi has no adapter for it yet, so %s cannot run a session",
 			planModel.Connector, planModel.Model)
@@ -267,6 +268,22 @@ func (a *app) namedPlanModel(ref string) (bool, error) {
 		return true, err
 	}
 	return true, nil
+}
+
+// planEffort maps the session's effort onto a level the plan actually offers.
+// The dial is a preference, so an unavailable level steps down rather than
+// refusing to start a session — but never silently: the substitution is the
+// kind of thing a user must be told, or the effort they set means something
+// they did not choose.
+func (a *app) planEffort(effort string, plan provider.PlanModel) string {
+	if canonical, ok := engine.NormalizeEffort(effort); ok {
+		effort = canonical
+	}
+	resolved, changed := provider.EffortForPlan(effort, plan.Efforts)
+	if changed {
+		fmt.Fprintf(a.stderr, "%s does not offer %s effort; using %s\n", plan.Plan, effort, resolved)
+	}
+	return resolved
 }
 
 // switchModel points a live session at a model and, when that model belongs to
