@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/onembyte/kolkrabbi/internal/paths"
+	"github.com/onembyte/kolkrabbi/internal/shell"
 )
 
 // RuntimeSpec describes a sidecar before it is started.
@@ -42,6 +43,14 @@ type Runtime struct {
 // need to execute or contact an Ollama binary.
 func NewRuntime(spec RuntimeSpec, start StartFunc) *Runtime {
 	return &Runtime{spec: spec, start: start}
+}
+
+// NewManagedRuntime wires the lifecycle owner to Kolk's shell process
+// primitive. It does not start the sidecar until Start is called.
+func NewManagedRuntime(spec RuntimeSpec) *Runtime {
+	return NewRuntime(spec, func(ctx context.Context, executable string, args, env []string) (Process, error) {
+		return shell.StartManagedProcess(ctx, executable, args, env)
+	})
 }
 
 // Start launches the sidecar at most once.
