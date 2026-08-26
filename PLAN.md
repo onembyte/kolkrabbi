@@ -454,7 +454,8 @@ backend only.
 
 ## C. Data
 
-### [ ] 17. The local dashboard — model efficiency, session by session (Braintrust, but local and yours)
+### [x] 17. The local dashboard
+**Hardened 2026-08-26** ([`docs/plan/17-local-dashboard.md`](docs/plan/17-local-dashboard.md)): `stats.jsonl` stays the store — a heavy user's year aggregates in 578 ms, so SQLite would cost the third module and the budget gate to buy imperceptible speed; `kolk dash` serves loopback-only, server-rendered SVG with no JavaScript library. — model efficiency, session by session (Braintrust, but local and yours)
 **Scope:** what we record, how we score, what we show, where it lives. 100% local, zero telemetry.
 **Today:** `stats.jsonl` (per call: model, mode, effort, role, tokens, cost, ms, tool_calls) + `/rate` rows; `kolk stats` per-model table (calls, tokens, cost, avg ms, rating, modes).
 **Decide:**

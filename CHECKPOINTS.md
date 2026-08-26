@@ -2933,7 +2933,7 @@ phase must close without leaving this file.
 | A finish the subscription path | 4, 24 | P11.7 ✓, B12.12 ✓, B12.14 ✓ | B12.13 needs the owner |
 | B managed local models | 25 | L13.4 ✓, L13.5a–c ✓, L13.5b3 ✓ | L13.5b4 needs the owner |
 | C sessions, context, memory | 12 | doc ✓, C12.1–C12.6 ✓ | auto-titling open |
-| D the local dashboard | 17 | A12.1–A12.5 | queued |
+| D the local dashboard | 17 | doc ✓; A12.2/A12.5 superseded | building |
 | E tools, permissions, sandboxing | 13 | doc first, then leaves | queued — blocks F |
 | F orchestration & per-task routing | 14 | doc first, then leaves | queued |
 | G the surface | 11, 15, 16 | doc per item | queued |
@@ -2979,10 +2979,14 @@ proceed without changing repository visibility, tags, releases, or deployments.
   - [x] **A11.7 cli serve & daemon binary** — implement `kolk serve` in `internal/cli/cmd_serve.go` and daemon entrypoint `cmd/kolkd/main.go`.
 - [ ] **A12 local dashboard store** — SQLite ingest and measured size/startup budget changes.
   - [ ] **A12.1 embedded assets & sentinel** — commit `internal/dash/dist/index.html` placeholder sentinel and `internal/dash/embed.go`.
-  - [ ] **A12.2 sqlite store & migrations** — add `modernc.org/sqlite` dependency, implement schema migrations (`sessions`, `turns`, `spans`, `scores`) with WAL mode.
+  - [~] **A12.2 sqlite store & migrations** — **superseded 2026-08-26 by `docs/plan/17-local-dashboard.md`.**
+  A heavy user's year aggregates from `stats.jsonl` in 578 ms, so SQLite would spend the third
+  third-party module — a hard budget-gate failure — to buy imperceptible speed. Revisit only when a
+  real `kolk stats` run exceeds 2 s.
   - [ ] **A12.3 jsonl ingestion & event ingest** — implement `internal/dash/ingest.go` importing existing `stats.jsonl` into SQLite and subscribing to live bus events.
   - [ ] **A12.4 queries & handler endpoints** — implement `internal/dash/query.go` and `internal/dash/handler.go` mounting `/dash/*` and `/v1/stats/*`.
-  - [ ] **A12.5 budget & arch verification** — update budget dependencies ceiling in `scripts/check-budgets.sh`, measure binary size/cold-start, and verify `make check`.
+  - [ ] **A12.5 budget & arch verification** — measure binary size and cold start and verify `make check`.
+  The dependency ceiling is **no longer raised**: item 17 keeps the store dependency-free.
 - [ ] **A13 Windows** — replace every honest stub and make Windows CI required.
 - [ ] **A14 additive product leaves** — TUI, external agent adapters, and saga, separately.
 - [ ] **A15 generated client proof** — nested tools module and TypeScript protocol client.
