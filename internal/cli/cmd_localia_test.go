@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/local"
@@ -306,5 +307,62 @@ func TestLocaliaPullWritesNothingWhenDeclined(t *testing.T) {
 	_ = a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:7b"})
 	if _, err := os.Stat(dirs.LocalModelsDir()); err == nil {
 		t.Fatal("declining a pull created the managed model directory")
+	}
+}
+
+func TestLocaliaPullDoesNotPromptWhileKolkrabbiOwnsTheTerminal(t *testing.T) {
+	isolateConnectorState(t)
+	a, out, errOut := newTestApp("")
+	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
+	a.terminalOwned = func() bool { return true }
+
+	// Reading stdin here would fight the session's own reader for the user's
+	// keystrokes, exactly as a provider login would.
+	code := a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:7b"})
+
+	if strings.Contains(strings.ToLower(out.String()), "[y/n]") {
+		t.Fatalf("output = %q, want no prompt while the session owns the keyboard", out.String())
+	}
+	if code == ExitOK {
+		t.Fatal("the pull must not proceed unconfirmed")
+	}
+	if !strings.Contains(errOut.String(), "kolk localia pull") {
+		t.Fatalf("stderr = %q, want the command to run in a separate terminal", errOut.String())
+	}
+}
+
+func TestLocaliaPullWithYesStillWorksInSession(t *testing.T) {
+	isolateConnectorState(t)
+	a, _, errOut := newTestApp("")
+	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
+	a.terminalOwned = func() bool { return true }
+
+	// An explicit --yes needs no keyboard, so it is allowed to proceed to the
+	// point where it reports what is actually missing.
+	_ = a.main(context.Background(), []string{"localia", "pull", "--yes", "qwen2.5-coder:7b"})
+	if strings.Contains(errOut.String(), "separate terminal") {
+		t.Fatalf("stderr = %q, want --yes to bypass the prompt entirely", errOut.String())
+	}
+}
+
+func TestHardwareProbeIsBounded(t *testing.T) {
+	isolateConnectorState(t)
+	a, _, _ := newTestApp("")
+	var deadline time.Time
+	var hasDeadline bool
+	a.probeHardware = func(ctx context.Context, _ string) local.Hardware {
+		deadline, hasDeadline = ctx.Deadline()
+		return fakeHardware()
+	}
+
+	_ = a.main(context.Background(), []string{"localia"})
+
+	// nvidia-smi against a wedged driver is a known hang. Unknown is a valid
+	// answer; a frozen session is not.
+	if !hasDeadline {
+		t.Fatal("the hardware probe runs without a deadline")
+	}
+	if until := time.Until(deadline); until <= 0 || until > time.Minute {
+		t.Fatalf("probe deadline is %s away, want a short bound", until)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/local"
@@ -182,12 +183,19 @@ func (a *app) printLocalPlan(ctx context.Context, name string) error {
 	return nil
 }
 
+// hardwareProbeTimeout bounds the whole snapshot. A vendor tool that hangs —
+// nvidia-smi against a wedged driver is the known case — must not hang a
+// session, and "unknown" is a valid answer everywhere the snapshot is used.
+const hardwareProbeTimeout = 5 * time.Second
+
 // hardware probes this machine, or uses whatever a test injected.
 func (a *app) hardware(ctx context.Context, modelDir string) local.Hardware {
+	bounded, cancel := context.WithTimeout(ctx, hardwareProbeTimeout)
+	defer cancel()
 	if a.probeHardware != nil {
-		return a.probeHardware(ctx, modelDir)
+		return a.probeHardware(bounded, modelDir)
 	}
-	return local.NewSystemProber(modelDir).Probe(ctx)
+	return local.NewSystemProber(modelDir).Probe(bounded)
 }
 
 // localRuntimeConfig turns saved settings into the planner's input, leaving
@@ -260,9 +268,17 @@ func (a *app) pullLocalModel(ctx context.Context, name string, approved bool) er
 		fmt.Fprintf(a.stdout, "  fallback:  %s\n", plan.Fallback)
 	}
 
-	if !approved && !a.confirmed("Download and install it now?") {
-		fmt.Fprintln(a.stdout, "cancelled; nothing was downloaded")
-		return nil
+	if !approved {
+		// A session reads the keyboard from its own goroutine, so prompting
+		// here would compete with it for the user's keystrokes — the same
+		// contention a provider login would cause.
+		if a.terminalOwned != nil && a.terminalOwned() {
+			return fmt.Errorf("a pull needs a yes or no, which this session cannot ask for; run `kolk localia pull %s` in another terminal, or repeat it here with --yes", entry.Name)
+		}
+		if !a.confirmed("Download and install it now?") {
+			fmt.Fprintln(a.stdout, "cancelled; nothing was downloaded")
+			return nil
+		}
 	}
 
 	runtime := filepath.Join(dirs.LocalModelsDir(), "runtime", local.SidecarName)

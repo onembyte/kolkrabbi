@@ -71,6 +71,7 @@ type app struct {
 	terminalOwned    func() bool
 	probeHardware    func(context.Context, string) local.Hardware
 	catalog          []provider.ModelInfo
+	dashURL          string
 	terminalSize     func(*os.File) (int, int)
 	isStdinPiped     func() bool
 	handover         func(context.Context, string, []string, string) error

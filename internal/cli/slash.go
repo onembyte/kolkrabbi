@@ -266,7 +266,11 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			fmt.Fprintf(a.stderr, "config error: %v\n", err)
 		}
 	case "/dash":
-		if err := a.runDash(ctx, strings.Fields(arg)); err != nil {
+		addr, err := dashAddrFrom(strings.Fields(arg))
+		if err == nil {
+			err = a.startDashInSession(addr)
+		}
+		if err != nil {
 			fmt.Fprintf(a.stderr, "dash error: %v\n", err)
 		}
 	case "/stats":

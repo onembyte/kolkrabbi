@@ -21,37 +21,16 @@ const defaultDashAddr = "127.0.0.1:0"
 // flag: this page is a record of everything the user has worked on, and no
 // convenience justifies publishing it to a network by accident.
 func (a *app) runDash(ctx context.Context, args []string) error {
-	addr := defaultDashAddr
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--addr":
-			if i+1 >= len(args) {
-				return usagef("usage: kolk dash [--addr 127.0.0.1:0]")
-			}
-			addr = args[i+1]
-			i++
-		default:
-			return usagef("%s", usageLine("dash"))
-		}
-	}
-	if !dashAddrIsLoopback(addr) {
-		return fmt.Errorf("%s is not a loopback address; the dashboard is a record of everything you have worked on and is never served to a network", addr)
-	}
-
-	d, err := a.resolve()
+	addr, err := dashAddrFrom(args)
 	if err != nil {
 		return err
 	}
-	listener, err := net.Listen("tcp", addr)
+	listener, server, err := a.dashListener(addr)
 	if err != nil {
-		return fmt.Errorf("listening on %s: %w", addr, err)
+		return err
 	}
 	defer func() { _ = listener.Close() }()
 
-	server := &http.Server{
-		Handler:           a.dashHandler(d.Data),
-		ReadHeaderTimeout: 5 * time.Second,
-	}
 	fmt.Fprintf(a.stdout, "kolk dash on http://%s — press Ctrl+C to stop\n", listener.Addr())
 	fmt.Fprintln(a.stdout, "nothing leaves this machine; the page is rendered from your local usage log")
 
@@ -67,6 +46,51 @@ func (a *app) runDash(ctx context.Context, args []string) error {
 		}
 		return nil
 	}
+}
+
+// startDashInSession serves the dashboard in the background and returns at
+// once.
+//
+// A slash command runs on the turn goroutine, so serving until cancelled here
+// would freeze the session behind a web server the user cannot see: the prompt
+// simply stops responding until they interrupt it. The server instead outlives
+// the command and the session keeps working.
+func (a *app) startDashInSession(addr string) error {
+	if a.dashURL != "" {
+		// A second /dash is a request to find the first one, not to start
+		// another server on another port.
+		fmt.Fprintf(a.stdout, "kolk dash is already running on %s\n", a.dashURL)
+		return nil
+	}
+	listener, server, err := a.dashListener(addr)
+	if err != nil {
+		return err
+	}
+	a.dashURL = "http://" + listener.Addr().String()
+	go func() { _ = server.Serve(listener) }()
+	fmt.Fprintf(a.stdout, "kolk dash on %s — it stays up for this session\n", a.dashURL)
+	fmt.Fprintln(a.stdout, "nothing leaves this machine; the page is rendered from your local usage log")
+	return nil
+}
+
+// dashListener validates the address and prepares the server both entry points
+// use, so the loopback rule cannot be true in one and forgotten in the other.
+func (a *app) dashListener(addr string) (net.Listener, *http.Server, error) {
+	if !dashAddrIsLoopback(addr) {
+		return nil, nil, fmt.Errorf("%s is not a loopback address; the dashboard is a record of everything you have worked on and is never served to a network", addr)
+	}
+	d, err := a.resolve()
+	if err != nil {
+		return nil, nil, err
+	}
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("listening on %s: %w", addr, err)
+	}
+	return listener, &http.Server{
+		Handler:           a.dashHandler(d.Data),
+		ReadHeaderTimeout: 5 * time.Second,
+	}, nil
 }
 
 // dashHandler reads the usage log per request, so the page is current without
@@ -102,4 +126,22 @@ func dashAddrIsLoopback(addr string) bool {
 	}
 	ip := net.ParseIP(strings.Trim(host, "[]"))
 	return ip != nil && ip.IsLoopback()
+}
+
+// dashAddrFrom reads the optional address flag.
+func dashAddrFrom(args []string) (string, error) {
+	addr := defaultDashAddr
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--addr":
+			if i+1 >= len(args) {
+				return "", usagef("usage: kolk dash [--addr 127.0.0.1:0]")
+			}
+			addr = args[i+1]
+			i++
+		default:
+			return "", usagef("%s", usageLine("dash"))
+		}
+	}
+	return addr, nil
 }

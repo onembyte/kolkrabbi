@@ -176,6 +176,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **D17.1 resilient usage log** — one unreadable line costs one line, not a history, and incomplete totals say they are incomplete.
 - [x] **D17.2 `kolk dash`** — a loopback-only dashboard rendered entirely on the server, with no script, no assets and no network.
 - [x] **D17.3 effort folding & recent sessions** — one effort level is one row whatever it was called when it was recorded, and sessions are listed with what each cost.
+- [x] **R1 session-safety review** — every command added this session was re-checked against the one rule the session's own bugs kept teaching: nothing may take the keyboard or block the turn.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
@@ -1509,6 +1510,39 @@ Acceptance checklist:
 - [x] sessions with no id produce no table rather than a blank row.
 - [x] real-binary rehearsal against the development host's own usage log.
 - [x] full `make check` green.
+
+### R1 session-safety review — verified detail
+
+A deliberate review pass over the commands added during this session, checking each against the rule
+that this session's own bugs kept teaching: **inside a live session, nothing may take the keyboard
+and nothing may block the turn.** It found three faults, one of them mine from two checkpoints
+earlier.
+
+- **`/dash` froze the session.** `runDash` serves until its context is cancelled, which is right for
+  `kolk dash` and wrong for a slash command running on the turn goroutine: the prompt simply stopped
+  responding until the user interrupted it. This is the same shape as the P11.6 handover bug I fixed
+  at the start of the session, reintroduced by me in D17.2 — a good argument for reviewing new
+  surfaces against known failure modes rather than trusting that the lesson generalised. The
+  in-session form now starts the server in the background and returns, a second `/dash` points at
+  the first rather than starting another, and both entry points share one listener helper so the
+  loopback rule cannot hold in one and be forgotten in the other.
+- **`localia pull` prompted for stdin inside a session**, competing with the session's own reader for
+  the user's keystrokes — the exact contention that made the original provider login unusable. It
+  now refuses in-session with the command to run elsewhere, while `--yes` still works because it
+  needs no keyboard.
+- **The hardware probe had no deadline.** `nvidia-smi` against a wedged driver is a known hang, and
+  it would have hung a session through `/localia`. The whole snapshot is now bounded, which is safe
+  precisely because "unknown" is a valid answer everywhere the snapshot is used.
+
+Acceptance checklist:
+
+- [x] `/dash` returns promptly instead of serving on the turn goroutine.
+- [x] a second `/dash` reports the running URL and starts no second server.
+- [x] the loopback refusal holds for both `kolk dash` and `/dash`.
+- [x] `localia pull` does not prompt while the session owns the terminal, and says where to run it.
+- [x] `--yes` still proceeds in-session.
+- [x] the hardware probe carries a short deadline.
+- [x] `go test -race ./internal/cli` and full `make check` green.
 
 ### B12 Claude subscription backend — recorded detail
 
