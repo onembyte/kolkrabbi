@@ -3890,3 +3890,11 @@ verifier gates are green; binary size is 6.27 MB, cold start is 4.4 ms p50, and 
 remains two. The full test target cannot yet be re-run in this sandbox because its local `httptest`
 listeners require an unavailable escalation approval. No tag or public-release claim is made until
 that clean gate, snapshot, CI, signed assets, updater, and installer rehearsal pass.
+
+### M8.2 free-model routing checkpoint
+
+The ranking contract now rejects paid, non-tool-capable, and sub-32k candidates,
+then applies deterministic coding/context/ID ordering. Rotation tests cover
+per-turn candidate bounds and pinned-model protection. Focused race tests for
+provider, engine, and CLI packages and the full `go test ./... -count=1` suite
+passed on 2026-08-26.

@@ -281,6 +281,11 @@ Acceptance checklist:
 - [x] pinned user models never auto-rotate on 429, surfacing error after standard retries.
 - [x] focused engine and provider tests pass with `-race`, and full `./scripts/test.sh` remains 100% green.
 
+Verification checkpoint 2026-08-26: free candidates are gated to zero-cost,
+tool-capable models with at least 32k context; ranking is deterministic; each
+unpinned free-model turn rotates through each candidate at most once. Focused
+provider, engine, and CLI race tests plus `go test ./... -count=1` passed.
+
 ### M8.3 model aliases & catalog browser — verified detail
 
 Scope:
