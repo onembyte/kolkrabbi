@@ -160,7 +160,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **L13.3 managed sidecar starter** — `shell.StartManagedProcess` keeps process execution inside the one owner package.
 - [x] **L13.4a hardware snapshot & fit planner** — the documented probe-independent shape, reserved headroom, and a refusal that carries the numbers behind it.
 - [x] **L13.4b sysfs and meminfo probe** — the snapshot is filled from platform metadata through injectable seams, failing closed to unknown.
-- [ ] **L13.4c disk space and NVIDIA VRAM** — a real statfs behind the disk seam, and NVIDIA VRAM through `internal/shell`, which owns process execution.
+- [x] **L13.4c disk space and NVIDIA VRAM** — `internal/diskspace` measures free space per platform, NVIDIA cards are measured through the vendor tool, and `NewSystemProber` wires both.
 - [ ] **L13.5 `/localia` surface** — hardware status, storage usage, catalog, explicit pull approval, GPU and quantization selection.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
 
@@ -819,6 +819,46 @@ Acceptance checklist:
   integrated graphics, and its nine connectors plus `renderD128` correctly ignored.
 - [x] the package still needs neither a GPU nor Ollama to test.
 - [x] full `make check` green.
+
+### L13.4c disk space and NVIDIA VRAM — verified detail
+
+The two measurements the pure probe could not make: free disk space needs a syscall, and NVIDIA
+cards expose no VRAM counters in sysfs at all.
+
+**Free space** is `internal/diskspace`, a new L0 platform package. The first attempt put the
+build-tagged files in `internal/local` and the architecture gate rejected it — *"OS-divergent but
+sits in L5 adapter; put the divergence behind an interface in the platform layer"* — which is
+exactly right, and is the rule doing its job. It reports space available to an unprivileged writer
+(`Bavail`), not `Bfree`, which counts blocks reserved for root and would promise space Kolkrabbi
+cannot use. Platforms without a verified implementation return unknown, so the planner refuses
+rather than pulling on a promise nobody checked.
+
+**NVIDIA VRAM** comes from `nvidia-smi --query-gpu=name,memory.total,memory.used`, run through
+`internal/shell`, the one package allowed to execute anything. The merge rule is the careful part:
+the vendor tool's lines are applied only when their count matches the number of unmeasured NVIDIA
+cards found in sysfs. With any other count, which line describes which card is unknowable, and
+putting one card's VRAM on another would let the planner approve a model that cannot load. Unknown
+refuses; a wrong number approves.
+
+Anything not exactly in the expected CSV shape is dropped rather than interpreted, so a driver error
+printed on stdout — `Failed to initialize NVML: Driver/library version mismatch` — cannot become a
+measurement.
+
+Non-goals:
+
+- No Windows implementation. `x/sys/windows` could provide one, but untested code that claims a
+  capability is worse than an honest unknown, and the managed sidecar is not supported there yet.
+
+Acceptance checklist:
+
+- [x] `Free` measures a real directory and reports unknown for a path that is not there.
+- [x] the vendor tool's MiB values become bytes and available is total minus used.
+- [x] a count mismatch leaves every card unknown rather than guessing an assignment.
+- [x] a driver error line is not parsed as a measurement, and the sysfs name is kept.
+- [x] the vendor tool is not consulted when no NVIDIA card is present.
+- [x] `NewSystemProber` wires filesystem, statfs and vendor tool, and produces a snapshot on this
+  machine with no GPU, driver, or privileged access.
+- [x] full `make check` green, including the architecture gate that forced the platform move.
 
 ### B12 Claude subscription backend — recorded detail
 

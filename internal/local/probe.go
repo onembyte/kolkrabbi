@@ -1,12 +1,17 @@
 package local
 
 import (
+	"context"
 	"io/fs"
+	"os"
 	"path"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/onembyte/kolkrabbi/internal/diskspace"
+	"github.com/onembyte/kolkrabbi/internal/shell"
 )
 
 // Prober fills the documented hardware shape from platform-native sources. It
@@ -19,6 +24,35 @@ type Prober struct {
 	Root     fs.FS
 	ModelDir string
 	DiskFree func(path string) (uint64, bool)
+	// NvidiaSMI returns the vendor tool's CSV lines. NVIDIA exposes no VRAM
+	// counters in sysfs, so this is the only way to measure those cards, and it
+	// is a seam because a test must never depend on a driver being installed.
+	NvidiaSMI func(context.Context) ([]string, bool)
+}
+
+// NewSystemProber wires the probe to this machine: the real filesystem, a real
+// statfs, and the vendor tool for cards sysfs cannot describe. Everything it
+// cannot reach still degrades to unknown rather than to a number.
+func NewSystemProber(modelDir string) Prober {
+	return Prober{
+		Root:     os.DirFS("/"),
+		ModelDir: modelDir,
+		DiskFree: diskspace.Free,
+		NvidiaSMI: func(ctx context.Context) ([]string, bool) {
+			var lines []string
+			err := shell.RunLines(ctx, "nvidia-smi", []string{
+				"--query-gpu=name,memory.total,memory.used",
+				"--format=csv,noheader,nounits",
+			}, nil, func(line []byte) error {
+				lines = append(lines, string(line))
+				return nil
+			})
+			if err != nil {
+				return nil, false
+			}
+			return lines, true
+		},
+	}
 }
 
 // cardName matches a real DRM card, not its connectors (card0-DP-1) or its
@@ -35,13 +69,75 @@ var vendorNames = map[string]string{
 
 // Probe returns one snapshot. It never fails: anything it cannot read is
 // reported as unknown.
-func (p Prober) Probe() Hardware {
+func (p Prober) Probe(ctx context.Context) Hardware {
 	hardware := Hardware{
 		SystemRAM: p.systemRAM(),
 		DiskFree:  p.diskFree(),
 	}
-	hardware.Accelerators = p.accelerators()
+	hardware.Accelerators = p.fillNvidia(ctx, p.accelerators())
 	return hardware
+}
+
+// fillNvidia measures NVIDIA cards, which sysfs cannot describe, using the
+// vendor tool. It only does so when the number of lines matches the number of
+// NVIDIA cards found: with any other count, which line describes which card is
+// unknowable, and putting one card's VRAM on another would let the planner
+// approve a model that cannot load. Unknown refuses; a wrong number approves.
+func (p Prober) fillNvidia(ctx context.Context, cards []Accelerator) []Accelerator {
+	if p.NvidiaSMI == nil {
+		return cards
+	}
+	indices := make([]int, 0, len(cards))
+	for index, card := range cards {
+		if card.Vendor == "nvidia" && !card.VRAM.Known {
+			indices = append(indices, index)
+		}
+	}
+	if len(indices) == 0 {
+		return cards
+	}
+	lines, ok := p.NvidiaSMI(ctx)
+	if !ok {
+		return cards
+	}
+	measured := parseNvidiaSMI(lines)
+	if len(measured) != len(indices) {
+		return cards
+	}
+	for position, index := range indices {
+		cards[index].Name = measured[position].Name
+		cards[index].VRAM = measured[position].VRAM
+		cards[index].AvailableVRAM = measured[position].AvailableVRAM
+	}
+	return cards
+}
+
+// parseNvidiaSMI reads `--query-gpu=name,memory.total,memory.used
+// --format=csv,noheader,nounits`, whose values are MiB. Anything that is not
+// exactly that shape is dropped rather than guessed at, so a driver error
+// printed on stdout cannot become a measurement.
+func parseNvidiaSMI(lines []string) []Accelerator {
+	cards := make([]Accelerator, 0, len(lines))
+	for _, line := range lines {
+		fields := strings.Split(line, ",")
+		if len(fields) != 3 {
+			continue
+		}
+		name := strings.TrimSpace(fields[0])
+		total, totalErr := strconv.ParseUint(strings.TrimSpace(fields[1]), 10, 64)
+		used, usedErr := strconv.ParseUint(strings.TrimSpace(fields[2]), 10, 64)
+		if name == "" || totalErr != nil || usedErr != nil || used > total {
+			continue
+		}
+		const mib = 1 << 20
+		cards = append(cards, Accelerator{
+			Vendor:        "nvidia",
+			Name:          name,
+			VRAM:          Capacity{Bytes: total * mib, Known: true},
+			AvailableVRAM: Capacity{Bytes: (total - used) * mib, Known: true},
+		})
+	}
+	return cards
 }
 
 func (p Prober) systemRAM() Capacity {

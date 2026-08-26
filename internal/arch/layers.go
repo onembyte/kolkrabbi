@@ -81,6 +81,7 @@ var packageLayer = map[string]Layer{
 	"internal/atomicfile": L0Platform,
 	"internal/keystore":   L0Platform,
 	"internal/lock":       L0Platform,
+	"internal/diskspace":  L0Platform,
 	"internal/redact":     L0Platform,
 	"internal/secret":     L0Platform,
 	"internal/selfupdate": L0Platform,
