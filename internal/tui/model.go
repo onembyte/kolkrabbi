@@ -23,6 +23,10 @@ type Status struct {
 	Folder      string
 	Approval    string
 	Lifecycle   string
+	// Context and Cost are the two numbers that decide whether to compact or
+	// stop. Empty means not measured yet, which is different from zero.
+	Context string
+	Cost    string
 }
 
 // Snapshot is an immutable copy of the screen regions. Tests and future
@@ -355,6 +359,10 @@ func formatStatus(status Status) []string {
 			{label: "folder", value: status.Folder},
 			{label: "approval", value: status.Approval},
 			{label: "state", value: status.Lifecycle},
+			// Last, so a narrow terminal clips these before the model or the
+			// state — those cannot be recovered by running a command.
+			{label: "context", value: status.Context},
+			{label: "cost", value: status.Cost},
 		},
 	}
 	lines := make([]string, 0, len(groups))

@@ -147,7 +147,27 @@ func tuiStatus(ag *engine.Agent, lifecycle, folder string) tui.Status {
 		Model: model, Mode: ag.Mode, Effort: ag.Effort,
 		Session: sessID, SessionName: sessTitle, Folder: folder,
 		Approval: approval, Lifecycle: lifecycle,
+		Context: contextLabel(ag), Cost: sessionCostLabel(ag),
 	}
+}
+
+// contextLabel is how full the window is, or nothing before the first turn.
+// "context 0%" would be a measurement nobody made.
+func contextLabel(ag *engine.Agent) string {
+	usage := ag.Context()
+	if !usage.Measured {
+		return ""
+	}
+	return fmt.Sprintf("%d%%", int(usage.Fraction()*100))
+}
+
+// sessionCostLabel is what this session has cost, once it has cost anything.
+func sessionCostLabel(ag *engine.Agent) string {
+	total := ag.SessionCostUSD()
+	if total <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("$%.2f", total)
 }
 
 func workingFolderLabel() string {

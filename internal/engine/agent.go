@@ -239,6 +239,11 @@ type Agent struct {
 	// runSpend accumulates the cost of the orchestrated run in progress, and
 	// is nil the rest of the time.
 	runSpend *spend
+	// sessionSpend accumulates every call this session has made. The footer
+	// answers "what did that cost"; this is the only thing that can answer
+	// "what has this session cost", which is the question that decides whether
+	// to keep going.
+	sessionSpend spend
 	// statsWarnOnce keeps the stats warning to one line even when several
 	// subagents hit the same broken recorder at the same moment.
 	statsWarnOnce sync.Once
@@ -502,6 +507,7 @@ func (a *Agent) record(role string, meta provider.Meta, toolCalls int) {
 	// Accounted before the recorder is consulted: what a run costs is true
 	// whether or not stats are being written anywhere.
 	a.runSpend.add(meta.Cost)
+	a.sessionSpend.add(meta.Cost)
 
 	if a.Recorder == nil || a.Sess == nil {
 		return
@@ -868,6 +874,16 @@ func (a *Agent) footer(meta provider.Meta) {
 	fmt.Fprintf(a.Out, "%s  [%s · %s%s%s%s · %dms]%s\n",
 		colorDim, a.Mode, meta.Model, toks, window, cost, meta.Elapsed.Milliseconds(), colorReset)
 }
+
+// SessionCostUSD is what every call in this session has cost so far,
+// orchestrated subagents included.
+func (a *Agent) SessionCostUSD() float64 { return a.sessionSpend.total() }
+
+// Context is how full the window is, measured the same way the turn footer
+// measures it. Exported because the status line is where someone looks before
+// deciding whether to compact, and making them run a command to find out is
+// the surface failing at its one job.
+func (a *Agent) Context() ContextUsage { return a.contextUsage(a.lastPromptTokens) }
 
 // contextUsage measures the active model's window against what the provider
 // last reported reading.

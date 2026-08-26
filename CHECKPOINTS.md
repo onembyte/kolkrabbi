@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **G11.3 context and cost in the status line** — the two numbers that decide whether to compact or stop, where someone is already looking.
 - [x] **G11.2 `@file` mentions** — `@` completes against the project, path not contents, ignoring what `.gitignore` and a skip list say to.
 - [x] **G11.1 diff preview before confirm** — an edit or a write shows the change, a create is visibly not an overwrite, and the overlay renders it line by line.
 - [x] **F14.6 the orchestrator slot reaches the orchestrator** — the planner and synthesis take the slot when set, instead of it only affecting `design` tasks.
@@ -1917,6 +1918,43 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### G11.3 context and cost in the status line — verified detail
+
+The last leaf of item 11, and the smallest, but it closes the gap between what the engine knows and
+what the person can see.
+
+**Nothing was tracking what a session had cost.** The turn footer answers "what did that cost"; the
+question that decides whether to keep going is "what has this cost so far", and no code answered it.
+`sessionSpend` accumulates in the same place the run meter does, so orchestrated subagents count
+toward it — a run's ceiling is per-run, and the session meter is not reset by it.
+
+**Context was measured and unexported.** `contextUsage` fed the footer only, so someone deciding
+whether to `/compact` had to run a command to learn whether they needed to. That is the status line
+failing at the one thing it is for.
+
+**Empty is not zero.** Before the first turn nothing has been measured, and "context 0%" would be a
+measurement nobody made. Both fields are absent until they mean something, which the existing
+formatter already handles by skipping empty values.
+
+**They go last** so a narrow terminal clips them before it clips the model or the state — those are
+the fields someone cannot recover by running a command.
+
+Noted while here and deliberately not changed: `tui_repl.go` passes lifecycle `"working"` to
+`SetStatus` *after* `RunTurn` returns. It reads like a bug and is not one — the runtime calls
+`FinishTurn` afterwards and that call decides the lifecycle. Left alone rather than churned; the
+`SetStatus` there is what refreshes the two new numbers after every turn, which is why it matters.
+
+Acceptance checklist:
+
+- [x] a fresh session reports no cost.
+- [x] the session meter adds up every call, across turns.
+- [x] orchestrated subagents count toward the session, not just the run.
+- [x] context usage is readable from outside the engine.
+- [x] both appear in the status line, and last.
+- [x] neither appears before it has been measured.
+- [x] both are sanitised like every other status field.
+- [x] `go test ./... -race` clean; full `make check` green: 1,901 tests, 0 lint issues.
 
 ### G11.2 `@file` mentions — verified detail
 
