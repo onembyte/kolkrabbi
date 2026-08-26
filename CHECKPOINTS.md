@@ -166,6 +166,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **L13.5b2 pull approval** — `localia pull` plans, asks, and treats anything but an explicit yes as no.
 - [x] **L13.5b3 verified runtime install** — the install path is built and tested; it refuses to run without a pinned checksum, and this build pins none.
 - [x] **C12.1 context accounting** — the window is measured from provider-reported tokens, shown in the per-turn footer, and unknown never means small.
+- [x] **C12.2a compaction transform** — the pure shrink: tool output first, then the calls, then a summary, always leaving a conversation a provider will accept.
+- [ ] **C12.2b compaction in the turn loop** — fire it at a turn boundary, snapshot first, print what was given up, and retry once on an overflow error.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
@@ -1128,6 +1130,55 @@ Acceptance checklist:
 - [x] the footer shows usage with a window and says nothing without one.
 - [x] a model switch updates the window; an unlisted model sets it back to unknown.
 - [x] full `make check` green.
+
+### C12.2a compaction transform — verified detail
+
+The pure half of compaction: given a conversation and a token target, give up the least meaningful
+content first and stop at the first stage that fits.
+
+The constraint that shapes every stage is that the result must still be a conversation a provider
+will accept. A tool result without its call, or a call without its result, fails validation before
+the model ever sees it — so tool output is **emptied, not removed**, keeping the message that
+carries the id, and collapsing a call means replacing the assistant message *and its results*
+together with one line naming what ran. A helper asserts that invariant on the output of every
+stage, because getting it wrong produces a session that is broken from the next turn onward and
+looks like a provider bug.
+
+The order of sacrifice, each stage a test:
+
+1. **Tool output** — most of the bytes of a coding session, least of its meaning, already capped at
+  12 000 characters by the tool layer. Replaced by `[tool output dropped: n chars]`, which says it
+  happened rather than letting the content silently vanish.
+2. **The calls themselves** — collapsed with their results into `[ran: bash, read_file]`, so the
+  model still knows work happened and what kind.
+3. **One summary** of everything older, generated through the injected summarizer.
+
+The system prompt and the most recent turns are never touched: recent turns are what the model needs
+most, and re-deriving the system prompt from a summary would change the agent's own instructions.
+With no summarizer available the transform reports the stage it actually reached rather than
+claiming one that never ran.
+
+Correction recorded: the first version of three tests used token targets that no amount of head
+compaction could reach, because the *kept* recent turns alone exceeded them. The transform correctly
+escalated and the tests read that as choosing the wrong stage. The fixture was resized so each stage
+is genuinely reachable — the second time this session a test premise, not the code, was wrong.
+
+Non-goals:
+
+- Nothing calls this yet. C12.2b wires it into the turn loop with the snapshot, the visible line, and
+  the overflow retry.
+
+Acceptance checklist:
+
+- [x] tool output goes first and says so; recent turns stay verbatim.
+- [x] the system prompt survives every stage.
+- [x] calls collapse only when dropping output is not enough, and still record what ran.
+- [x] compaction stops at the first stage that fits, making no model call when it does not need one.
+- [x] the summary stage labels itself, keeps its content, and is reached only last.
+- [x] a summarizer failure is surfaced with its cause.
+- [x] a short session is left untouched.
+- [x] every stage's output passes the tool-call well-formedness check.
+- [x] `go test -race ./internal/engine` and full `make check` green.
 
 ### B12 Claude subscription backend — recorded detail
 
