@@ -2,11 +2,13 @@
 package local
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/onembyte/kolkrabbi/internal/paths"
 )
@@ -17,6 +19,73 @@ type RuntimeSpec struct {
 	ModelDir   string
 	Host       string
 	Env        []string
+}
+
+// Process is the lifecycle surface needed by the managed sidecar.
+type Process interface {
+	Close() error
+}
+
+// StartFunc starts one already-validated managed sidecar.
+type StartFunc func(context.Context, string, []string, []string) (Process, error)
+
+// Runtime owns one sidecar for its caller's lifetime.
+type Runtime struct {
+	spec    RuntimeSpec
+	start   StartFunc
+	mu      sync.Mutex
+	process Process
+	closed  bool
+}
+
+// NewRuntime creates a lifecycle owner. The starter is injected so tests never
+// need to execute or contact an Ollama binary.
+func NewRuntime(spec RuntimeSpec, start StartFunc) *Runtime {
+	return &Runtime{spec: spec, start: start}
+}
+
+// Start launches the sidecar at most once.
+func (r *Runtime) Start(ctx context.Context) error {
+	if r == nil {
+		return fmt.Errorf("local runtime is nil")
+	}
+	if err := r.spec.Validate(); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return fmt.Errorf("local runtime is closed")
+	}
+	if r.process != nil {
+		return nil
+	}
+	if r.start == nil {
+		return fmt.Errorf("local runtime starter is not configured")
+	}
+	process, err := r.start(ctx, r.spec.Executable, []string{"serve"}, append([]string(nil), r.spec.Env...))
+	if err != nil {
+		return fmt.Errorf("starting managed local runtime: %w", err)
+	}
+	r.process = process
+	return nil
+}
+
+// Close stops the sidecar once and prevents later restarts.
+func (r *Runtime) Close() error {
+	if r == nil {
+		return nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return nil
+	}
+	r.closed = true
+	if r.process == nil {
+		return nil
+	}
+	return r.process.Close()
 }
 
 // NewRuntimeSpec creates a sidecar specification entirely inside Kolk state.
