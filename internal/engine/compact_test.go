@@ -1,10 +1,12 @@
 package engine
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
 
+	"github.com/onembyte/kolkrabbi/internal/enginetest"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 )
 
@@ -204,5 +206,91 @@ func TestCompactSurfacesASummarizerFailure(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "provider refused") {
 		t.Fatalf("error = %v, want the cause preserved", err)
+	}
+}
+
+type stubSummaryBackend struct{ calls int }
+
+func (b *stubSummaryBackend) StreamChat(_ context.Context, _ string, _ []provider.Message, _ []provider.Tool, _ func(string)) (provider.Message, provider.Meta, error) {
+	b.calls++
+	return provider.Message{Role: "assistant", Content: "goal: ship it. edited two files."}, provider.Meta{}, nil
+}
+
+func compactionAgent(t *testing.T, window, lastPromptTokens int) (*Agent, *enginetest.FakeSession, *strings.Builder) {
+	t.Helper()
+	session := enginetest.NewFakeSession("s1", "vendor/model")
+	session.SetMessages(longSession())
+	var out strings.Builder
+	agent := &Agent{Options: Options{
+		Out: &out, Mode: ModeCode, Sess: session,
+		ContextWindow: window, Backend: &stubSummaryBackend{},
+	}}
+	agent.lastPromptTokens = lastPromptTokens
+	return agent, session, &out
+}
+
+func TestCompactIfNeededLeavesAWindowWithRoomAlone(t *testing.T) {
+	agent, session, out := compactionAgent(t, 128_000, 1_000)
+	before := len(session.GetMessages())
+
+	agent.compactIfNeeded(context.Background())
+
+	if len(session.GetMessages()) != before {
+		t.Fatal("a session well under the threshold was compacted")
+	}
+	if out.String() != "" {
+		t.Fatalf("output = %q, want silence", out.String())
+	}
+}
+
+func TestCompactIfNeededShrinksAndSaysSo(t *testing.T) {
+	agent, session, out := compactionAgent(t, 20_000, 19_000)
+
+	agent.compactIfNeeded(context.Background())
+
+	if estimateTokens(session.GetMessages()) >= estimateTokens(longSession()) {
+		t.Fatal("the session did not shrink")
+	}
+	got := out.String()
+	if !strings.Contains(got, "compacted") || !strings.Contains(got, "freeing about") {
+		t.Fatalf("output = %q, want a visible statement of what was given up", got)
+	}
+	assertWellFormed(t, session.GetMessages())
+}
+
+func TestCompactIfNeededIsReversible(t *testing.T) {
+	agent, session, _ := compactionAgent(t, 20_000, 19_000)
+	before := session.GetMessages()
+
+	agent.compactIfNeeded(context.Background())
+	if len(session.GetMessages()) == len(before) &&
+		estimateTokens(session.GetMessages()) == estimateTokens(before) {
+		t.Fatal("nothing was compacted, so reversal proves nothing")
+	}
+
+	if !agent.RestoreCompaction() {
+		t.Fatal("a compaction that happened must be undoable")
+	}
+	if estimateTokens(session.GetMessages()) != estimateTokens(before) {
+		t.Fatal("restoring did not put the conversation back")
+	}
+	// Only the most recent compaction is held, so a second undo is a no-op
+	// rather than a lie.
+	if agent.RestoreCompaction() {
+		t.Fatal("there was nothing left to restore")
+	}
+}
+
+func TestCompactIfNeededNeverRunsWithoutAKnownWindow(t *testing.T) {
+	agent, session, out := compactionAgent(t, 0, 500_000)
+	before := estimateTokens(session.GetMessages())
+
+	agent.compactIfNeeded(context.Background())
+
+	if estimateTokens(session.GetMessages()) != before {
+		t.Fatal("an unknown window compacted anyway")
+	}
+	if out.String() != "" {
+		t.Fatalf("output = %q", out.String())
 	}
 }

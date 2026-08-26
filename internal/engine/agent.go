@@ -198,8 +198,12 @@ type ChatBackend interface {
 type Agent struct {
 	Options
 	lastTurnID string
-	saveWarned bool
-	statsWarn  bool
+	// lastPromptTokens is what the provider reported reading on the most recent
+	// main turn, which is the only measured view of how full the window is.
+	lastPromptTokens int
+	preCompact       []provider.Message
+	saveWarned       bool
+	statsWarn        bool
 }
 
 // Close releases resources owned by the configured backend, when it exposes
@@ -657,6 +661,7 @@ func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 	if a.Sess != nil {
 		a.Sess.SetTitleFromInput(userInput)
 	}
+	a.compactIfNeeded(ctx)
 
 	if a.Bus != nil {
 		startedData, _ := json.Marshal(protocol.TurnStartedData{
@@ -751,6 +756,7 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 				Data: completedData,
 			})
 		}
+		a.lastPromptTokens = meta.PromptTokens
 		a.record("main", meta, len(msg.ToolCalls))
 		if strings.TrimSpace(msg.Content) == "" && len(msg.ToolCalls) == 0 {
 			emptyCompletions++

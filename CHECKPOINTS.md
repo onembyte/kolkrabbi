@@ -167,7 +167,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **L13.5b3 verified runtime install** — the install path is built and tested; it refuses to run without a pinned checksum, and this build pins none.
 - [x] **C12.1 context accounting** — the window is measured from provider-reported tokens, shown in the per-turn footer, and unknown never means small.
 - [x] **C12.2a compaction transform** — the pure shrink: tool output first, then the calls, then a summary, always leaving a conversation a provider will accept.
-- [ ] **C12.2b compaction in the turn loop** — fire it at a turn boundary, snapshot first, print what was given up, and retry once on an overflow error.
+- [x] **C12.2b compaction in the turn loop** — fires at a turn boundary, keeps the replaced conversation for undo, and says out loud what it gave up.
+- [ ] **C12.2c overflow recovery and `/compact`** — classify a provider's context-overflow refusal, compact and retry once, and expose manual `/compact` and undo.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
@@ -1179,6 +1180,45 @@ Acceptance checklist:
 - [x] a short session is left untouched.
 - [x] every stage's output passes the tool-call well-formedness check.
 - [x] `go test -race ./internal/engine` and full `make check` green.
+
+### C12.2b compaction in the turn loop — verified detail
+
+Compaction now runs, at exactly one place: the start of a turn, before anything is sent. Never
+during one. Compacting between a tool call and its result would orphan the call, which is the exact
+damage A10's session repair exists to undo, and it would be caused by the feature meant to keep
+sessions healthy.
+
+Three properties the tests pin down:
+
+- **It aims below the threshold, not at it.** Shrinking to 75% would compact again on the very next
+  turn; halving the window buys real room for the cost of one summary.
+- **It is reversible.** The replaced conversation is kept so the step can be undone within the
+  session, because compaction is the one operation that makes the model forget. A second undo
+  reports that there is nothing left rather than silently succeeding.
+- **It is never silent.** `compacted 14 messages (tool results), freeing about 9000 tokens` prints
+  every time. A user who cannot see this happen cannot explain why the model suddenly forgot
+  something, and would reasonably file it as a bug.
+
+Failure is non-fatal throughout. A session that cannot be compacted, or cannot be saved after being
+compacted, still tries its turn and lets the provider answer or refuse — the alternative is a tool
+that stops working because its optimisation failed.
+
+The summary comes from the fast lane (M8.4), which is what that slot was built for and is zero-cost
+whenever the session model is free. The prompt asks for goal, decisions, files, commands that still
+matter, and open work, in that order, and explicitly discards conversational texture.
+
+Non-goals:
+
+- No durable pre-compaction file yet, so undo is session-scoped; C12.2c owns that alongside
+  `/compact`, `/rewind --compact`, and the overflow retry.
+
+Acceptance checklist:
+
+- [x] a window with room is left alone, silently.
+- [x] a filling window shrinks, stays well-formed, and prints what it gave up.
+- [x] the compaction can be undone, and a second undo is a no-op rather than a lie.
+- [x] an unknown window never compacts however full the session looks.
+- [x] `go test -race ./internal/engine ./internal/cli` and full `make check` green.
 
 ### B12 Claude subscription backend — recorded detail
 

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -193,4 +194,89 @@ func estimateTokens(messages []provider.Message) int {
 		}
 	}
 	return characters / charsPerToken
+}
+
+// keepRecentTurns is how much recent conversation compaction never touches.
+// Two turns is enough for the model to see what it just did and what was just
+// asked, which is the context a summary is worst at reproducing.
+const keepRecentTurns = 2
+
+// compactToFraction is how far below the window compaction aims. Shrinking to
+// the threshold would compact again on the very next turn; halving the window
+// buys back real room for the cost of one summary.
+const compactToFraction = 0.5
+
+const summarySystemPrompt = `You compress a coding session's older history so work can continue.
+Preserve, in this order: the user's goal, decisions taken, files created or modified, commands whose
+results still matter, and work left open. Drop conversational texture entirely. Be specific about
+names and paths. Write at most 200 words of plain prose, no preamble.`
+
+// compactIfNeeded shrinks the session at a turn boundary when the window is
+// filling. It is deliberately called before a turn begins and never during one:
+// compacting between a tool call and its result would orphan the call, which is
+// the exact damage the session repair exists to undo.
+//
+// Failure here is never fatal. A session that cannot be compacted should still
+// try its turn and let the provider answer or refuse.
+func (a *Agent) compactIfNeeded(ctx context.Context) {
+	if a.Sess == nil {
+		return
+	}
+	usage := a.contextUsage(a.lastPromptTokens)
+	if !usage.ShouldCompact() {
+		return
+	}
+	before := a.Sess.GetMessages()
+	target := int(float64(usage.Window) * compactToFraction)
+	result, err := CompactMessages(before, keepRecentTurns, target, a.summarizeSpan(ctx))
+	if err != nil {
+		fmt.Fprintf(a.Out, "could not compact the session: %v\n", err)
+		return
+	}
+	if result.Stage == StageNone || result.Replaced == 0 {
+		return
+	}
+	// Kept so the step can be undone within this session. Compaction is the one
+	// operation that makes the model forget, so it must be reversible.
+	a.preCompact = before
+	a.Sess.SetMessages(result.Messages)
+	if err := a.Sess.Save(); err != nil {
+		fmt.Fprintf(a.Out, "warning: compacted session could not be saved: %v\n", err)
+	}
+	// Said out loud, always. A user who cannot see this happen cannot explain
+	// why the model suddenly forgot something.
+	fmt.Fprintf(a.Out, "compacted %d messages (%s), freeing about %d tokens\n",
+		result.Replaced, result.Stage, result.FreedTokens)
+}
+
+// RestoreCompaction puts back the messages the last compaction replaced.
+func (a *Agent) RestoreCompaction() bool {
+	if a.Sess == nil || a.preCompact == nil {
+		return false
+	}
+	a.Sess.SetMessages(a.preCompact)
+	a.preCompact = nil
+	_ = a.Sess.Save()
+	return true
+}
+
+// summarizeSpan summarises older history through the fast lane, which exists
+// for exactly this and is zero-cost whenever the session model is free.
+func (a *Agent) summarizeSpan(ctx context.Context) Summarizer {
+	if a.Backend == nil {
+		return nil
+	}
+	return func(span []provider.Message) (string, error) {
+		var transcript strings.Builder
+		for _, message := range span {
+			if message.Content == "" {
+				continue
+			}
+			transcript.WriteString(message.Role)
+			transcript.WriteString(": ")
+			transcript.WriteString(message.Content)
+			transcript.WriteString("\n")
+		}
+		return a.FastLaneChat(ctx, summarySystemPrompt, transcript.String())
+	}
 }
