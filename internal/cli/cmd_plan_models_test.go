@@ -12,7 +12,8 @@ func TestPlanModelsListsAndFilters(t *testing.T) {
 		t.Fatalf("pmodels exit = %d, stderr = %q", code, errOut.String())
 	}
 	if got := out.String(); !strings.Contains(got, "gemini-2.5-pro") ||
-		!strings.Contains(got, "low,medium,high") {
+		!strings.Contains(got, "low,medium,high") ||
+		!strings.Contains(got, "unsupported subscription") {
 		t.Fatalf("plan-models output = %q", got)
 	}
 }

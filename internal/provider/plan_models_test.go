@@ -16,3 +16,12 @@ func TestPlanModelsFilterAndEfforts(t *testing.T) {
 		}
 	}
 }
+
+func TestPlanModelsMetadataIsComplete(t *testing.T) {
+	for _, model := range PlanModels("") {
+		if model.Provider == "" || model.Plan == "" || model.Connector == "" ||
+			model.Model == "" || model.Access == "" || len(model.Efforts) == 0 {
+			t.Errorf("incomplete plan model metadata: %+v", model)
+		}
+	}
+}
