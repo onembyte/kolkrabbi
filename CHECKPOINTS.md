@@ -186,6 +186,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **F14.2 a run survives its failures** — a failed task is reported rather than discarding the whole run, and the answer says what is missing from it.
 - [x] **F14.1 tasks carry structure** — a plan is records with a kind and real dependencies, and a subagent is briefed with only the results it asked for.
 - [x] **E13.7 "always" means a rule you can read** — the prompt proposes the rule it would keep, in both the TUI and the plain REPL, and keeps it where /permissions can show it.
 - [x] **C12.7 fast-lane session naming** — a session earns a real name once enough has happened, without delaying the answer or overwriting a name a person chose.
@@ -1910,6 +1911,51 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### F14.2 a run survives its failures — verified detail
+
+The change the hardening doc argued was worth the most, and the reason routing waited behind it.
+
+**One failed subagent used to throw the whole run away.** `runOrchestrated` returned an error the
+moment any subagent failed. Everything produced before it was discarded — already paid for — and the
+user got an error instead of the two-thirds of an answer that existed. Now each task gets an
+outcome, and the run continues.
+
+**A task that merely ran out of rounds keeps its work.** It previously returned `""` *and* an error,
+which is the worst of both: work that exists, thrown away, reported as a failure. It is now its own
+status, with the last thing the subagent actually said kept as a partial result. `errRoundsExhausted`
+is a distinct error precisely so the two cases can be told apart.
+
+**A task whose dependency failed is blocked, not attempted.** F14.1's `Needs` is what makes this
+sayable: running "fix it" after "find it" failed spends money on a task that cannot have the input it
+declared it needed. Only failed and blocked dependencies block — an incomplete one produced
+something, and a task asked for a result, not for a guarantee.
+
+**The failures go in the synthesis prompt, not only in the terminal.** An orchestrated answer that
+silently omits the third of six tasks that did not work is worse than no orchestration: the reader
+cannot see the task list, so if the answer does not say what is missing, nothing does. When any task
+failed the synthesis is told to say so plainly and not to present the answer as complete, and the
+terminal prints how many did not finish before the answer starts.
+
+**Cancellation is not a failure to report.** The user asked it to stop; recording every remaining
+task as failed and synthesising an answer would be answering a question they withdrew. It is the one
+thing that still aborts, and it returns no outcomes at all.
+
+Two test premises of mine were wrong again, both about the fixture rather than the code: a three-task
+plan silently became two because the default effort caps orchestration width at two, and the
+cancellation test died inside the planner without ever reaching the branch it claimed to cover — it
+now calls `runTasks` directly.
+
+Acceptance checklist:
+
+- [x] one failed subagent does not abort the run, and the work that succeeded reaches synthesis.
+- [x] the synthesis prompt names the failed task and is told the answer is partial.
+- [x] a blocked task is skipped without a request being made for it.
+- [x] round exhaustion keeps its partial work and is not reported as a failure.
+- [x] a run where everything failed still produces an answer that says so.
+- [x] cancellation aborts and reports nothing.
+- [x] failures are visible as they happen, not only in the final answer.
+- [x] full `make check` green: 1,840 tests, 0 lint issues, every script contract.
 
 ### F14.1 tasks carry structure — verified detail
 

@@ -71,24 +71,26 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 	}
 
 	// ---- 2. delegate ----
-	results := make([]string, len(tasks))
-	for i, task := range tasks {
-		fmt.Fprintf(a.Out, "\n%s◆ subagent %d/%d: %s%s\n", colorMag, i+1, len(tasks), task.Title, colorReset)
-		res, err := a.runSubagent(ctx, model, userInput, tasks, results, i)
-		if err != nil {
-			return fmt.Errorf("subagent %d: %w", i+1, err)
-		}
-		results[i] = res
+	outcomes, err := a.runTasks(ctx, model, userInput, tasks)
+	if err != nil {
+		return err
 	}
 
 	// ---- 3. synthesize ----
+	if failures := countFailures(outcomes); failures > 0 {
+		fmt.Fprintf(a.Out, "\n%s◆ %d of %d tasks did not finish — the answer below is partial%s\n",
+			colorMag, failures, len(tasks), colorReset)
+	}
 	fmt.Fprintf(a.Out, "\n%s◆ synthesizing%s\n", colorMag, colorReset)
 	var sb strings.Builder
-	sb.WriteString("Original request:\n" + userInput + "\n\nCompleted tasks and their results:\n")
-	for i, task := range tasks {
-		fmt.Fprintf(&sb, "\n%d. %s\nResult: %s\n", i+1, task.Title, results[i])
-	}
+	sb.WriteString("Original request:\n" + userInput + "\n\nTasks and what became of them:\n")
+	sb.WriteString(summarise(tasks, outcomes))
 	sb.WriteString("\nWrite the final answer to the original request based on this work. Be concise; report what was done, key findings, and anything the user must know. Do not repeat raw task output verbatim.")
+	if failures := countFailures(outcomes); failures > 0 {
+		// The reader cannot see the task list. If the answer does not say what
+		// is missing from it, nothing will.
+		fmt.Fprintf(&sb, "\n\nIMPORTANT: %d of %d tasks failed or were blocked. Say plainly what could not be done and what that leaves uncertain. Do not present the answer as complete.", failures, len(tasks))
+	}
 
 	synth := []provider.Message{
 		{Role: "system", Content: "You are the orchestrator's synthesis step. You produce the final user-facing answer from completed subagent work."},
@@ -110,6 +112,42 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 	a.save()
 	a.footer(meta)
 	return nil
+}
+
+// runTasks delegates each task in turn and returns what became of each.
+//
+// A run reports its failures; it does not vanish. Aborting on the first error
+// discards every result produced before it, and those results already cost
+// money. The only thing that stops a run is the user cancelling it, which is
+// not a failure to report.
+func (a *Agent) runTasks(ctx context.Context, model, userInput string, tasks []Task) ([]outcome, error) {
+	outcomes := make([]outcome, len(tasks))
+	results := make([]string, len(tasks))
+
+	for i, task := range tasks {
+		if blocker, blocked := blockedBy(tasks, outcomes, i); blocked {
+			outcomes[i] = outcome{Status: statusBlocked, Reason: "blocked: " + blocker + " did not produce a result"}
+			fmt.Fprintf(a.Out, "\n%s◆ subagent %d/%d skipped: %s — %s%s\n",
+				colorDim, i+1, len(tasks), task.Title, outcomes[i].Reason, colorReset)
+			continue
+		}
+
+		fmt.Fprintf(a.Out, "\n%s◆ subagent %d/%d: %s%s\n", colorMag, i+1, len(tasks), task.Title, colorReset)
+		result, err := a.runSubagent(ctx, model, userInput, tasks, results, i)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		outcomes[i] = a.classify(result, err)
+		results[i] = outcomes[i].Result
+
+		switch outcomes[i].Status {
+		case statusFailed:
+			fmt.Fprintf(a.Out, "%s✗ %s failed: %s%s\n", colorDim, task.Title, outcomes[i].Reason, colorReset)
+		case statusIncomplete:
+			fmt.Fprintf(a.Out, "%s! %s did not finish; keeping what it reached%s\n", colorDim, task.Title, colorReset)
+		}
+	}
+	return outcomes, nil
 }
 
 // plan asks the planner for a strict-JSON task list.
@@ -183,7 +221,20 @@ Overall request: %s
 			msgs = append(msgs, provider.Message{Role: "tool", ToolCallID: tc.ID, Content: result})
 		}
 	}
-	return "", fmt.Errorf("exceeded %d tool rounds without finishing", maxRounds)
+	// Not an empty result: whatever the last round produced is what this task
+	// reached, and it is worth more than nothing to the synthesis.
+	return lastText(msgs), fmt.Errorf("%w (%d rounds)", errRoundsExhausted, maxRounds)
+}
+
+// lastText is the most recent thing the subagent actually said, which is the
+// closest thing to a partial result an unfinished task has.
+func lastText(msgs []provider.Message) string {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == "assistant" && strings.TrimSpace(msgs[i].Content) != "" {
+			return strings.TrimSpace(msgs[i].Content)
+		}
+	}
+	return ""
 }
 
 func workingDir() string {
