@@ -51,6 +51,7 @@ func (a *app) runSagaLoop(ctx context.Context) error {
 	runner := &engine.SagaRunner{
 		Planner:  engine.AgentPlanner{Agent: agent},
 		Worker:   engine.AgentWorker{Agent: agent},
+		Repairer: engine.AgentRepairer{Agent: agent},
 		Runner:   sagaCommandRunner{shell: shell.New()},
 		Detector: engine.FileGateDetector{},
 		Budget: engine.SagaBudget{

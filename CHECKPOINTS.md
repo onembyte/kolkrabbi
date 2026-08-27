@@ -154,6 +154,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **S10.3 budget & doom-loop guardrails** — chapter limit, dollar budget, timeout, and consecutive failure detection.
 - [x] **S10.4 CLI & slash command surface** — `kolk saga [goal|resume|status|stop|rewind]` and REPL twin `/saga`.
 - [x] **S10.8 the next-chapter planner** — the saga decides one chapter at a time from what the last one achieved, as the doc's napkin test shows.
+- [x] **S10.11 the repair turn** — a chapter whose gates fail gets one attempt to fix itself before its work is discarded, as the doc specifies.
 - [x] **S10.10 the provider guard, everywhere and pinned** — every package audited for the same gap, the guard applied independently of directory isolation, and the property itself under test.
 - [x] **S10.9 the test suite cannot reach a provider** — isolation is no longer something a test can forget, and a stray call now hits a closed port instead of the real API.
 - [x] **S10.7 resume is the resume anchor** — `kolk saga resume` works the chapters instead of saying the loop is unwired, which stopped being true the moment S10.6 landed.
@@ -2096,6 +2097,49 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### S10.11 the repair turn — verified detail
+
+`docs/plan/10-saga-loop.md` §1.1 step 3: "If tests fail, the chapter receives one internal repair
+turn to fix the regression. If still failing, the entire chapter's changes are rolled back." The
+executor rolled back immediately.
+
+**Why it matters more than it sounds.** Rolling back a nearly-right chapter is expensive in a way the
+budget cannot see: the next attempt starts from nothing, pays for the whole chapter again, and can
+easily fail the same way. One repair turn is the cheapest possible intervention between "almost" and
+"discard everything".
+
+**One attempt, not a loop.** A chapter that cannot fix itself twice will not fix itself at all, and
+each attempt is a paid model turn. The test pins that the repairer is called exactly once even when
+the gates never pass.
+
+**The repair turn is told what failed, and only what failed.** "Fix the regression" is not an
+instruction without the regression, so the failing gates' names and output go into the prompt — and
+the passing ones do not, because they are not the subject.
+
+**`AgentRepairer` is separate from `AgentWorker` despite both being one turn**, because they are told
+different things. The worker is asked to make a change; the repairer is asked to make a failing check
+pass *without going further*. A repair that quietly widens scope is how a bounded chapter stops being
+bounded, so the prompt says so outright.
+
+**A repair that itself errors is not a verifier error.** It is simply a chapter that stayed broken,
+and the rollback below it is already the right answer. Turning it into an error would have surfaced a
+model hiccup as a saga malfunction.
+
+**A signature got shorter on the way.** `VerifyChapter` took a runner and a detector and would have
+needed a repairer too; it now takes the assembled `*ChapterVerifier`, which the runner builds. Four
+things one object is made of, passed as one object.
+
+Acceptance checklist:
+
+- [x] a failed gate gets exactly one repair turn, then commits if it passes.
+- [x] a chapter that stays broken is rolled back and never committed.
+- [x] a repair that errors still rolls back, without becoming a verifier error.
+- [x] a passing chapter is never repaired.
+- [x] with no repairer the previous behaviour holds exactly.
+- [x] the repair prompt carries the failing gates' output and not the passing ones.
+- [x] wired into `kolk saga run`, not left as a seam nobody calls.
+- [x] full `make check` green: 2,064 tests, 0 lint issues.
 
 ### S10.10 the provider guard, everywhere and pinned — verified detail
 

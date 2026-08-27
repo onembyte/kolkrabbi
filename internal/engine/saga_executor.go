@@ -51,8 +51,11 @@ type ChapterWorker interface {
 type SagaRunner struct {
 	// Planner decides the next chapter. Nil means the chapters are already
 	// written — by a person, in SAGA.md — and the run works those and stops.
-	Planner  ChapterPlanner
-	Worker   ChapterWorker
+	Planner ChapterPlanner
+	Worker  ChapterWorker
+	// Repairer gets one turn to fix a chapter its gates rejected. Nil rolls
+	// the chapter back instead, which is what happened before S10.11.
+	Repairer ChapterRepairer
 	Runner   CommandRunner
 	Detector QualityGateDetector
 	Budget   SagaBudget
@@ -147,9 +150,30 @@ func (r *SagaRunner) RunChapter(ctx context.Context, repoDir string, state *Saga
 		chapter.Changes = append(chapter.Changes, result.Summary)
 	}
 
-	verifyErr := VerifyChapter(ctx, r.Runner, repoDir, state, index, r.Detector)
+	verifyErr := VerifyChapter(ctx, r.verifier(ctx), repoDir, state, index)
 	r.persist(repoDir, state)
 	return verifyErr
+}
+
+// verifier assembles the ports for one chapter's verification.
+//
+// Built here rather than inside VerifyChapter so the state machine takes a
+// verifier and not the four things one is made of — the parameter list was
+// already long and the repair turn would have made it longer.
+func (r *SagaRunner) verifier(ctx context.Context) *ChapterVerifier {
+	detector := r.Detector
+	if detector == nil {
+		// A nil port would panic on the first Detect. Defaulting says the
+		// useful thing instead: no detector given means "work it out from the
+		// repository".
+		detector = FileGateDetector{}
+	}
+	return &ChapterVerifier{
+		Detector:     detector,
+		Runner:       NewCommandGateRunner(ctx, r.Runner),
+		Checkpointer: NewCommandCheckpointer(ctx, r.Runner),
+		Repairer:     r.Repairer,
+	}
 }
 
 // advanceToExecuting walks a chapter to the state work begins in.

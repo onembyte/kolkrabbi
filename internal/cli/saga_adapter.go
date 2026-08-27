@@ -27,5 +27,11 @@ func VerifySagaChapter(ctx context.Context, sh shell.Shell, repoDir string, stat
 	if sh == nil {
 		return fmt.Errorf("saga: shell is required")
 	}
-	return engine.VerifyChapterAndPersist(ctx, sagaCommandRunner{shell: sh}, repoDir, state, chapterIndex, engine.FileGateDetector{}, atomicfile.Write)
+	runner := sagaCommandRunner{shell: sh}
+	verifier := &engine.ChapterVerifier{
+		Detector:     engine.FileGateDetector{},
+		Runner:       engine.NewCommandGateRunner(ctx, runner),
+		Checkpointer: engine.NewCommandCheckpointer(ctx, runner),
+	}
+	return engine.VerifyChapterAndPersist(ctx, verifier, repoDir, state, chapterIndex, atomicfile.Write)
 }

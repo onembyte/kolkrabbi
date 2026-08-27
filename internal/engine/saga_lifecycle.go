@@ -16,7 +16,7 @@ import (
 // own. It replaced a pre-computed []string: with the ports design the detector
 // is the thing that decides, and passing both meant two sources of truth for
 // one answer.
-func VerifyChapter(ctx context.Context, runner CommandRunner, repoDir string, state *SagaState, chapterIndex int, detector QualityGateDetector) error {
+func VerifyChapter(ctx context.Context, verifier *ChapterVerifier, repoDir string, state *SagaState, chapterIndex int) error {
 	if state == nil {
 		return fmt.Errorf("saga: state is required")
 	}
@@ -33,18 +33,7 @@ func VerifyChapter(ctx context.Context, runner CommandRunner, repoDir string, st
 		}
 	}
 
-	if detector == nil {
-		// A nil port would panic on the first Detect. Defaulting to the file
-		// detector says the useful thing instead: no detector given means
-		// "work it out from the repository".
-		detector = FileGateDetector{}
-	}
-	verifier := &ChapterVerifier{
-		Detector:     detector,
-		Runner:       NewCommandGateRunner(ctx, runner),
-		Checkpointer: NewCommandCheckpointer(ctx, runner),
-	}
-	commit, err := verifyThroughPorts(verifier, repoDir, *chapter)
+	commit, err := verifyThroughPorts(ctx, verifier, repoDir, *chapter)
 	if err != nil {
 		if strikeErr := RecordGateFailure(state); strikeErr != nil {
 			return strikeErr
@@ -70,8 +59,8 @@ func VerifyChapter(ctx context.Context, runner CommandRunner, repoDir string, st
 // VerifyChapterAndPersist applies the chapter result and persists the updated
 // saga artifact even when verification fails, preserving the failure/strike
 // state needed for resume.
-func VerifyChapterAndPersist(ctx context.Context, runner CommandRunner, repoDir string, state *SagaState, chapterIndex int, detector QualityGateDetector, write ArtifactWriter) error {
-	verifyErr := VerifyChapter(ctx, runner, repoDir, state, chapterIndex, detector)
+func VerifyChapterAndPersist(ctx context.Context, verifier *ChapterVerifier, repoDir string, state *SagaState, chapterIndex int, write ArtifactWriter) error {
+	verifyErr := VerifyChapter(ctx, verifier, repoDir, state, chapterIndex)
 	artifactErr := SaveSagaArtifact(repoDir, state, write)
 	if artifactErr != nil {
 		if verifyErr != nil {
@@ -97,8 +86,8 @@ func transitionChapter(chapter *Chapter, to ChapterStatus) error {
 // because "the gates failed" is an outcome and not a malfunction. The state
 // machine needs the distinction the other way round — it records a strike and
 // a message — so the translation happens here rather than in either of them.
-func verifyThroughPorts(verifier *ChapterVerifier, repoDir string, chapter Chapter) (string, error) {
-	result, err := verifier.Verify(repoDir, chapter)
+func verifyThroughPorts(ctx context.Context, verifier *ChapterVerifier, repoDir string, chapter Chapter) (string, error) {
+	result, err := verifier.Verify(ctx, repoDir, chapter)
 	if err != nil {
 		return "", err
 	}

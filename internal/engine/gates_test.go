@@ -1,6 +1,7 @@
 package engine_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -158,7 +159,7 @@ func TestVerifyCommitsOnGreen(t *testing.T) {
 	}
 
 	ch := engine.Chapter{Number: 1, Title: "add feature"}
-	result, err := cv.Verify("/repo", ch)
+	result, err := cv.Verify(context.Background(), "/repo", ch)
 	if err != nil {
 		t.Fatalf("Verify: %v", err)
 	}
@@ -185,7 +186,7 @@ func TestVerifyRollsBackOnFail(t *testing.T) {
 	}
 
 	ch := engine.Chapter{Number: 2, Title: "break things"}
-	result, err := cv.Verify("/repo", ch)
+	result, err := cv.Verify(context.Background(), "/repo", ch)
 	if err != nil {
 		t.Fatalf("Verify: %v", err)
 	}
@@ -212,7 +213,7 @@ func TestVerifyNoChangesSkips(t *testing.T) {
 	}
 
 	ch := engine.Chapter{Number: 3, Title: "read-only audit"}
-	result, err := cv.Verify("/repo", ch)
+	result, err := cv.Verify(context.Background(), "/repo", ch)
 	if err != nil {
 		t.Fatalf("Verify: %v", err)
 	}
@@ -233,7 +234,7 @@ func TestVerifyNoGatesCommitsUnconditionally(t *testing.T) {
 	}
 
 	ch := engine.Chapter{Number: 4, Title: "add docs"}
-	result, err := cv.Verify("/repo", ch)
+	result, err := cv.Verify(context.Background(), "/repo", ch)
 	if err != nil {
 		t.Fatalf("Verify: %v", err)
 	}

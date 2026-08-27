@@ -32,6 +32,16 @@ type fixedGates []engine.QualityGate
 
 func (g fixedGates) Detect(string) []engine.QualityGate { return []engine.QualityGate(g) }
 
+// verifierOver assembles the ports a lifecycle test needs around one runner.
+func verifierOver(runner engine.CommandRunner, gates fixedGates) *engine.ChapterVerifier {
+	ctx := context.Background()
+	return &engine.ChapterVerifier{
+		Detector:     gates,
+		Runner:       engine.NewCommandGateRunner(ctx, runner),
+		Checkpointer: engine.NewCommandCheckpointer(ctx, runner),
+	}
+}
+
 func TestVerifyChapterAndPersistWritesCompletedState(t *testing.T) {
 	runner := &recordingRunner{
 		results: map[string]engine.CommandResult{
@@ -44,7 +54,7 @@ func TestVerifyChapterAndPersistWritesCompletedState(t *testing.T) {
 
 	var artifact string
 	state := &engine.SagaState{Chapters: []engine.Chapter{{Number: 1, Title: "first chapter", Status: engine.StatusVerifying}}}
-	err := engine.VerifyChapterAndPersist(context.Background(), runner, t.TempDir(), state, 0, nil,
+	err := engine.VerifyChapterAndPersist(context.Background(), verifierOver(runner, fixedGates{}), t.TempDir(), state, 0,
 		func(_ string, data []byte, _ os.FileMode) error {
 			artifact = string(data)
 			return nil
@@ -72,7 +82,7 @@ func TestVerifyChapterCompletesAndResetsStrikes(t *testing.T) {
 		Strikes:  2,
 		Chapters: []engine.Chapter{{Number: 1, Title: "first chapter", Status: engine.StatusExecuting}},
 	}
-	if err := engine.VerifyChapter(context.Background(), runner, t.TempDir(), state, 0, fixedGates{{Name: "test", Command: "go test ./..."}}); err != nil {
+	if err := engine.VerifyChapter(context.Background(), verifierOver(runner, fixedGates{{Name: "test", Command: "go test ./..."}}), t.TempDir(), state, 0); err != nil {
 		t.Fatalf("VerifyChapter() error = %v", err)
 	}
 	chapter := state.Chapters[0]
@@ -101,7 +111,7 @@ func TestVerifyChapterMarksFailureAndBlocksAtLimit(t *testing.T) {
 		MaxStrikes: 3,
 		Chapters:   []engine.Chapter{{Number: 1, Title: "broken chapter", Status: engine.StatusVerifying}},
 	}
-	if err := engine.VerifyChapter(context.Background(), runner, t.TempDir(), state, 0, fixedGates{{Name: "test", Command: "go test ./..."}}); err == nil {
+	if err := engine.VerifyChapter(context.Background(), verifierOver(runner, fixedGates{{Name: "test", Command: "go test ./..."}}), t.TempDir(), state, 0); err == nil {
 		t.Fatal("VerifyChapter() error = nil, want gate failure")
 	}
 	if state.Chapters[0].Status != engine.StatusFailed || state.Status != "blocked" || state.Strikes != 3 {
@@ -114,7 +124,7 @@ func TestVerifyChapterRejectsInvalidChapter(t *testing.T) {
 		Chapters: []engine.Chapter{{Number: 1, Status: engine.StatusDone}},
 	}
 
-	err := engine.VerifyChapter(context.Background(), &recordingRunner{}, t.TempDir(), state, 0, nil)
+	err := engine.VerifyChapter(context.Background(), verifierOver(&recordingRunner{}, fixedGates{}), t.TempDir(), state, 0)
 	if err == nil {
 		t.Fatal("VerifyChapter() error = nil, want invalid-status error")
 	}
@@ -131,7 +141,7 @@ func TestVerifyChapterAndPersistWritesFailedState(t *testing.T) {
 	}
 	var artifact string
 	state := &engine.SagaState{Chapters: []engine.Chapter{{Number: 1, Title: "broken chapter", Status: engine.StatusVerifying}}}
-	err := engine.VerifyChapterAndPersist(context.Background(), runner, t.TempDir(), state, 0, fixedGates{{Name: "make", Command: "make check"}},
+	err := engine.VerifyChapterAndPersist(context.Background(), verifierOver(runner, fixedGates{{Name: "make", Command: "make check"}}), t.TempDir(), state, 0,
 		func(_ string, data []byte, _ os.FileMode) error {
 			artifact = string(data)
 			return nil
