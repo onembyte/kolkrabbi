@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **I28.2 `/commit` drafts and stops** — the message, the command that would use it, and the plain statement that nothing was committed.
 - [x] **I28.1 dirty-tree awareness** — a turn knows which files are uncommitted before it advises about them, and it is told beside the turn rather than in the system prompt.
 - [x] **I27.4 cost per card, and context refused** — cost is a number people act on; a raw token count without its window is not.
 - [x] **I27.3 blocked cards** — a session waiting on a prompt has stopped, and the listing says so; the tail read was measured and made 17× cheaper before it shipped.
@@ -2127,6 +2128,46 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### I28.2 built — `/commit` drafts and stops
+
+The item's central refusal, built as a feature: **it does not commit.** A `/commit` that commits
+without a confirmation is a shell command wearing a costume, and `git commit` is already one
+keystroke away with the message this prints. The output says so in as many words — the draft, then
+"nothing was committed", then the exact `git commit -F -` heredoc that would use it.
+
+**It does not stage either, and that question is now closed.** The doc leaned against offering to
+stage; I28.2 answers it outright: `git add -p` is a conversation, and quietly staging everything
+would surprise exactly the person who typed `/commit` — someone who was staging deliberately. With
+nothing staged it says so and names `git add -p` and `git add <path>`, which is help without taking
+the decision. The doc's open question is struck through with that reasoning.
+
+**Two edge cases were decided rather than discovered later.** Nothing staged is the common mistake,
+not an error, so it is answered with the command that fixes it and never the word "error". An
+enormous diff is truncated **visibly**: a model handed half a change with no notice describes it as
+if it were the whole one, and the person reading the message would never know — so the truncation is
+in the text the model sees.
+
+**The diff is scrubbed before it reaches a model, and that is the most important line in the file.**
+A diff is the single most likely thing to carry a secret into a prompt: it is the literal text of what
+changed, including the line that added a key. The test asserts not only that a key is absent but that
+no twenty-character prefix survives, the same bar `kolk doctor` and `--debug` set.
+
+**The parity ratchet asked the right question.** `/commit` has no `kolk commit` twin, and the rule
+does not simply allow that — it demands a recorded reason: *"add the twin, or add it to sessionOnly
+saying what it acts on that a one-shot process lacks."* The reason is real — drafting runs through the
+running session's fast lane, which a one-shot process has no model wired for — and it is now written
+next to twelve others rather than left as an assumption in my head.
+
+Acceptance checklist:
+
+- [x] six tests written first, four of them about restraint rather than function.
+- [x] the diff scrubbed before drafting, with a prefix search asserted absent.
+- [x] both edge cases decided in writing: nothing staged, and a diff too large to send.
+- [x] the truncation made visible to the model, not just to the code.
+- [x] the doc's staging question answered and struck through.
+- [x] the session-only reason recorded where the ratchet asked for it.
+- [x] full `make check` green: 2,237 tests, 0 lint issues.
 
 ### I28.1 built — dirty-tree awareness, and an open question answered by a cost
 

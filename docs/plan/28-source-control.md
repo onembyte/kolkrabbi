@@ -80,8 +80,10 @@ expensive in context and the model can read one when it needs it.
 
 ## Open questions
 
-- **Should `/commit` offer to stage?** `git add -p` is a conversation, and a `/commit` that quietly
-  staged everything would surprise anyone who was staging deliberately.
+- ~~**Should `/commit` offer to stage?**~~ **Answered by I28.2: no.** `git add -p` is a conversation,
+  and a `/commit` that quietly staged everything would surprise exactly the person who typed it —
+  someone who was staging deliberately. With nothing staged it says so and names `git add -p` and
+  `git add <path>`, which is help without taking the decision.
 - ~~**Does dirty-tree awareness belong in the system prompt or the first user turn?**~~ **Answered by
   I28.1, and by a cost rather than a taste.** The comment on `SetExtraSystem` already says why:
   mutating the system prompt mid-session costs the provider's prompt cache, which is why loop wakeups
