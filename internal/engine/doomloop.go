@@ -1,9 +1,13 @@
 package engine
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/onembyte/kolkrabbi/internal/provider"
 )
 
 // doomThreshold is fixed at three and does not scale with effort.
@@ -27,6 +31,7 @@ type doomLoop struct {
 	last     string // tool + canonical arguments + result of the previous call
 	repeats  int    // how many times in a row that same call has been seen
 	reported bool   // whether the caller has already been told about this one
+	denied   bool   // a subagent has been refused this call once already
 }
 
 // observe records a settled tool call and reports whether it completes a loop.
@@ -49,6 +54,26 @@ func (d *doomLoop) observe(tool, arguments, result string) bool {
 	d.reported = true
 	return true
 }
+
+// wouldRepeat reports whether a call that has not run yet would be the third
+// identical one with, so far, identical results.
+//
+// The check happens before execution because the decision is that the third
+// call is never made — but the result half of the rule can only come from the
+// calls that already settled, which is exactly what makes two prior identical
+// results the precondition. A pair that returned different bytes is not
+// two-thirds of a loop.
+func (d *doomLoop) wouldRepeat(tool, arguments string) bool {
+	if d.repeats < doomThreshold-1 {
+		return false
+	}
+	return strings.HasPrefix(d.last, tool+"\x00"+canonicalJSON(arguments)+"\x00")
+}
+
+// allowRepeat records that a person looked at the loop and said run it anyway.
+// The count starts over, or the next identical call would ask again straight
+// away and the answer would have meant nothing.
+func (d *doomLoop) allowRepeat() { d.reset() }
 
 // reset forgets the current run. The counter belongs to a turn: asking for the
 // same thing in two different turns is a person repeating themselves.
@@ -141,4 +166,62 @@ func itoa(n int) string {
 		n /= 10
 	}
 	return string(digits)
+}
+
+// answerDoomLoop decides what happens instead of making a call that has proved
+// it changes nothing. It returns either an error that ends the turn, or the
+// text to hand back as the tool's result.
+//
+// The tiering is item 13's, applied unchanged: it depends on who is there to
+// ask. What it is emphatically not is a permission rule — `allow bash(*)`
+// answers "is this dangerous?", while this answers "is this futile?", and
+// collapsing the two would let a reasonable rule silently remove a spending
+// guard.
+func (a *Agent) answerDoomLoop(ctx context.Context, loop *doomLoop, tc provider.ToolCall, subagent bool) (string, error) {
+	stop := &DoomLoopError{Tool: tc.Function.Name, Repeats: doomThreshold}
+
+	if subagent {
+		loop.allowRepeat()
+		if loop.denied {
+			// Told once, looped again. A child that cannot take the hint is not
+			// going to recover, and it has no one to ask.
+			return "", stop
+		}
+		loop.denied = true
+		return "Error: this exact call has already been made " + itoa(doomThreshold-1) +
+			" times with the same result, so it was not run again. Do something different, or stop.", nil
+	}
+
+	if a.Permission == PermissionFullAuto {
+		// Full-auto never stops to ask, and there is nobody to ask. Proceeding
+		// anyway is the behaviour this guard exists to prevent, so the safe
+		// action is to stop — and, as everywhere else in this tier, to say what
+		// happened and why.
+		fmt.Fprintf(a.Out, "%s✗ stopped: %s repeated %d times with identical arguments and results (%s)%s\n",
+			colorDim, tc.Function.Name, doomThreshold, compactArguments(tc.Function.Arguments), colorReset)
+		return "", stop
+	}
+
+	// Someone is watching. The only escape offered is this one call: there is
+	// deliberately no rule to keep, because "always allow" here would mean
+	// "always allow me to spend your budget achieving nothing".
+	allowed, _ := a.confirm(ctx, Confirmation{
+		Action: "run " + tc.Function.Name + " again",
+		Detail: "it has already run " + itoa(doomThreshold-1) + " times with the same arguments and the same result: " +
+			compactArguments(tc.Function.Arguments),
+	})
+	if !allowed {
+		return "", stop
+	}
+	loop.allowRepeat()
+	return "", nil
+}
+
+// compactArguments keeps a doom-loop message to one line.
+func compactArguments(arguments string) string {
+	flat := strings.Join(strings.Fields(arguments), " ")
+	if len(flat) > 120 {
+		return flat[:117] + "..."
+	}
+	return flat
 }

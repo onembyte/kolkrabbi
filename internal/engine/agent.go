@@ -1121,14 +1121,26 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 					Data: reqData,
 				})
 			}
-			result, err := a.executeTool(ctx, tc)
-			if err != nil {
-				result = "Error: " + err.Error()
+			// Checked before the call runs, because a call that has proved
+			// three times over that it changes nothing should not be made a
+			// fourth time. The result half of the rule comes from the two that
+			// already settled.
+			var result string
+			var err error
+			if loop.wouldRepeat(tc.Function.Name, tc.Function.Arguments) {
+				denial, stop := a.answerDoomLoop(ctx, &loop, tc, false)
+				if stop != nil {
+					return stop
+				}
+				result = denial
 			}
-			// Observed after the call settles, because the result is half the
-			// rule: the same arguments returning the same bytes three times in
-			// a row is not a fourth attempt.
-			looping := loop.observe(tc.Function.Name, tc.Function.Arguments, result)
+			if result == "" {
+				result, err = a.executeTool(ctx, tc)
+				if err != nil {
+					result = "Error: " + err.Error()
+				}
+				loop.observe(tc.Function.Name, tc.Function.Arguments, result)
+			}
 			if a.Bus != nil {
 				outData, _ := json.Marshal(protocol.ToolOutputData{
 					ID:       tc.ID,
@@ -1147,16 +1159,6 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 					ToolCallID: tc.ID,
 					Content:    result,
 				})
-			}
-			if looping {
-				// L30.2 replaces this with the tiered response the item
-				// describes: ask in the interactive tiers, abort in full-auto,
-				// auto-deny in a subagent. Until then every tier gets full
-				// auto's answer, which is the safe one — stopping a turn that
-				// has proved it is achieving nothing is strictly better than
-				// the status quo, where it runs to the round ceiling and is
-				// paid for every round on the way.
-				return &DoomLoopError{Tool: tc.Function.Name, Repeats: doomThreshold}
 			}
 		}
 		if a.Sess != nil {

@@ -375,6 +375,9 @@ Overall request: %s
 	}
 
 	maxRounds := MaxRoundsFor(ModeCode, a.Effort)
+	// A subagent gets its own counter: two children repeating different calls
+	// are two pieces of work, not one loop.
+	var loop doomLoop
 	for round := 0; round < maxRounds; round++ {
 		msg, meta, err := a.streamChat(ctx, activityWorking, model, msgs, tools.Definitions(), func(tok string) {
 			fmt.Fprint(out, tok)
@@ -391,9 +394,21 @@ Overall request: %s
 			return strings.TrimSpace(msg.Content), nil
 		}
 		for _, tc := range msg.ToolCalls {
-			result, err := a.executeSubagentTool(ctx, tc, out)
-			if err != nil {
-				result = "Error: " + err.Error()
+			var result string
+			if loop.wouldRepeat(tc.Function.Name, tc.Function.Arguments) {
+				denial, stop := a.answerDoomLoop(ctx, &loop, tc, true)
+				if stop != nil {
+					return "", stop
+				}
+				result = denial
+			}
+			if result == "" {
+				var err error
+				result, err = a.executeSubagentTool(ctx, tc, out)
+				if err != nil {
+					result = "Error: " + err.Error()
+				}
+				loop.observe(tc.Function.Name, tc.Function.Arguments, result)
 			}
 			msgs = append(msgs, provider.Message{Role: "tool", ToolCallID: tc.ID, Content: result})
 		}

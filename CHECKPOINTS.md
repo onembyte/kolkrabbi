@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **L30.2 who is there to ask decides what happens** — the call is never made a third time; the tier decides whether that means a question, a stop, or a refusal.
 - [x] **L30.4 the ceiling is no longer the detector** — a repeated call stops on the third round, not the fifty-first.
 - [x] **L30.1 the doom-loop detector** — three identical calls with identical results are a loop; either half differing is progress.
 - [x] **L32.5 a snapshot store is visible and mortal** — `kolk sessions` shows what it costs, and deleting the session deletes it.
@@ -2116,6 +2117,56 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### L30.2 built — the tiered response
+
+The interim behaviour L30.1 left — every tier gets full-auto's answer — is gone. What replaced it
+turned on a detail the loop prompt flagged before the tick began, and it was right to.
+
+**The observation point had to move.** L30.1 observed a call *after* it settled, which is where the
+result half of the rule comes from — but the decision is that the third call is never made. So there
+are now two entry points: `wouldRepeat` checks a **pending** call against the two that already
+settled, and `observe` still records the settled ones. The precondition falls out of that split
+rather than being asserted: two prior calls whose results *differed* are not two-thirds of a loop, so
+a pending third is not blocked. That has its own test.
+
+**Each tier answers the question "who is there to ask", and each has a behavioural test**, because
+the unit tests prove the rule and not the wiring:
+
+- **`/ask` and `/auto-approve`** ask, and the question says why — "it has already run twice with the
+  same arguments and the same result". Answering yes calls `allowRepeat`, which clears the count; a
+  test asserts that, because a "yes" that left the counter at two would ask again on the very next
+  call and would have meant nothing.
+- **`/full-auto`** stops and names the tool and the arguments it stopped. Proceeding is the behaviour
+  the guard exists to prevent, and a guard that yields in the tier with the largest budget is
+  decoration.
+- **A subagent** is refused once, with the loop named in the tool result so the model has to react to
+  it, and a **second** trigger ends the child's turn. Subagents run their own tool loop in
+  `orchestrator.go`, so they get their own detector — two children repeating different calls are two
+  pieces of work, not one loop.
+
+**No standing rule is ever offered.** The `Confirmation` goes out with an empty `Rule`, and a test
+asserts it: "always allow" here would mean "always allow me to spend your budget achieving nothing",
+and it would disable the guard for every future loop in the session to get past one call.
+
+**The guard is not a permission rule, and there is now a test that says so.** A session carrying
+`allow *(*)` — the widest rule the system can express — still stops on a doom loop. `allow bash(*)`
+answers "is this dangerous?"; this answers "is this futile?", and collapsing them would let a
+reasonable permission rule silently remove a spending guard.
+
+One lint finding worth keeping rather than silencing: `answerDoomLoop` returned `(error, string)`,
+and ST1008 asked for the error last. Swapping it is the right shape — the denial text is the normal
+outcome and the stop is the exception.
+
+Acceptance checklist:
+
+- [x] the pre-execution check written test-first, including the case where the two prior results differed.
+- [x] all four tier behaviours built, three with behavioural tests through a real turn.
+- [x] "run it again" proven to clear the count, not merely to allow one call.
+- [x] the absence of a standing-rule offer asserted, not assumed.
+- [x] a wide-open permission rule proven not to disable the guard.
+- [x] the subagent given its own counter, in its own loop, rather than sharing the parent's.
+- [x] full `make check` green: 2,115 tests, 0 lint issues.
 
 ### L30.1 built, and L30.4 arrived with it — the doom-loop detector
 
