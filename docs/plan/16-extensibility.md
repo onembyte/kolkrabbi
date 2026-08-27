@@ -118,7 +118,7 @@ stdlib, so the module budget is not the obstacle. `kolk mcp add/list/rm`, namesp
 
 ## Build leaves
 
-- **G16.1 markdown commands** — a file is a command; project over user; `$ARGUMENTS`; `.claude/commands` read as a fallback.
+- **G16.1 markdown commands** — ✓ a file is a command; project over user; `$ARGUMENTS` placed or appended; `.claude/commands` read as a fallback; a built-in name is refused.
 - **G16.2 hook events and the confirmation** — three post-events, confirmed once per command, floor applies, failures reported not fatal.
 - **G16.3 project hooks are shown before they run** — cloning a repository executes nothing.
 - **G16.4 `mcp(...)` permission rules** — ✓ `mcp` is a rule family whose membership is the `__` namespace, so `allow mcp(github__*)` means one server and nothing else.

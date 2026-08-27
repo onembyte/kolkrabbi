@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/checkpoint"
+	"github.com/onembyte/kolkrabbi/internal/commands"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/session"
@@ -101,6 +102,15 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		}
 	case "/help":
 		printSlashHelp(a.stdout)
+		// Listed after the built-ins and marked, so a reader can tell what came
+		// from this machine's files from what kolk ships.
+		for _, command := range a.markdownCommands() {
+			summary := command.Description
+			if summary == "" {
+				summary = "from " + command.Source
+			}
+			fmt.Fprintf(a.stdout, "%-42s %s\n", "/"+command.Name, summary)
+		}
 		fmt.Fprintln(a.stdout, "\nKeys: ↑ last message · Shift+Enter newline · Ctrl+C clear input (twice exits)")
 	case "/mode":
 		if arg == "" {
@@ -350,9 +360,44 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			fmt.Fprintf(a.stderr, "saga error: %v\n", err)
 		}
 	default:
+		// A markdown command is not a built-in and cannot shadow one: this is
+		// reached only after every built-in has been tried. It expands to a
+		// prompt and runs as a user turn, so what the model then does is judged
+		// exactly as if the person had typed it.
+		if command, found := a.markdownCommand(strings.TrimPrefix(cmd, "/")); found {
+			if err := ag.RunTurn(ctx, command.Prompt(arg)); err != nil {
+				fmt.Fprintf(a.stderr, "error: %v\n", err)
+				writeAdvice(a.stderr, err)
+			}
+			break
+		}
 		fmt.Fprintln(a.stdout, "unknown command, /help for a list")
 	}
 	return false
+}
+
+// markdownCommand looks one up by name.
+//
+// The directories are read on demand rather than cached, and the measurement
+// says that is fine: a lookup costs one ReadDir of a directory that usually
+// does not exist. Caching would mean a file added mid-session did not work
+// until the session restarted, which is the wrong trade for something a person
+// edits while using it.
+func (a *app) markdownCommand(name string) (commands.Command, bool) {
+	for _, command := range a.markdownCommands() {
+		if command.Name == name {
+			return command, true
+		}
+	}
+	return commands.Command{}, false
+}
+
+func (a *app) markdownCommands() []commands.Command {
+	d, err := a.resolve()
+	if err != nil {
+		return nil
+	}
+	return commands.Load(projectRoot(), d.Config)
 }
 
 // permissionTiers is the whole permission model, in the order a person should

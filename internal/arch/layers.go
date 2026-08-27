@@ -83,6 +83,7 @@ var packageLayer = map[string]Layer{
 	"internal/lock":         L0Platform,
 	"internal/diskspace":    L0Platform,
 	"internal/diff":         L0Platform,
+	"internal/commands":     L3Domain,
 	"internal/netaddr":      L0Platform,
 	"internal/ports":        L0Platform,
 	"internal/projectfiles": L0Platform,

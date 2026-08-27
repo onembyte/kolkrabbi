@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **G16.1 markdown commands** — a file in a directory becomes a slash command, and it cannot become one that already exists.
 - [x] **G16.4 `mcp(...)` permission rules** — a server's tools become governable by prefix, and the widest rule stops quietly excluding them.
 - [x] **G16.5 tool schemas stop being free** — measured at 2,816 bytes, bounded by a failing budget, and reported by `kolk doctor`; the doc's estimate was nearly double.
 - [x] **I27.6 the view** — the dash renders the cards, blocked first, and a prediction I27.4 made about the catalogue turned out to be false.
@@ -2133,6 +2134,56 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### G16.1 built — markdown commands
+
+A file is a command: `.kolk/commands/review.md` is `/review`, its body is the prompt, and the prompt
+is sent as a **user turn** rather than a system prompt — because a command is a thing the user said.
+It carries no permissions of its own; what the model then does is judged exactly as if the person had
+typed it, which is what stops a command being a way around the tier.
+
+**Three edge cases decided rather than discovered.**
+
+*A name that collides with a built-in is refused, not renamed.* A file that could shadow `/undo`
+would make the one command a person reaches for when something has gone wrong mean whatever a
+repository says it means — the same instinct G16.3 will apply to hooks, arriving early because a
+markdown command is the cheapest way to try it. Silently loading it under another name would be
+worse: someone would be typing a command that is not the one they wrote.
+
+*Both a project and a user file with one name:* the project wins, "because it is nearer the work",
+and the implementation makes that structural — the first directory to define a name keeps it, so
+precedence is the order of the list rather than a comparison someone has to maintain.
+
+*An enormous file* is cut at a line boundary at 16 KiB, matching the project-memory cap it sits
+beside. Half a sentence of instruction is worse than none, and a prompt that does not fit costs the
+window before the work starts.
+
+**`$ARGUMENTS` is placed or appended.** Replaced wherever it appears, so a command may name its
+argument twice; and when the body never mentions it the arguments are appended instead, so a command
+still composes with whatever was typed after it rather than silently dropping it.
+
+**Claude Code's directory is read, not converted.** `.claude/commands` is the last fallback, behind
+both kolk directories. Someone who already wrote those should not have to move them to try this, and
+the formats are close enough that divergence would be ours to explain.
+
+**Measured, because the lookup touches the filesystem:** 16 µs when no command directories exist —
+the overwhelmingly common case, and the one that matters — and 513 µs with forty commands. It is paid
+on `/help` and on an unknown slash command, not per keystroke. Nothing is cached on purpose: a file
+added mid-session should work, and a cache would mean it did not until the session restarted.
+
+**Not built, deliberately:** front matter honours `description` and nothing else. Whether a command
+may declare a mode or an effort is item 16's open question, left out of v1 because it turns a command
+from "expands to a prompt" into a thing that reconfigures the session, which is a larger promise.
+
+Acceptance checklist:
+
+- [x] eight tests written first, one per rule in the item's table plus the three edge cases.
+- [x] the built-in collision refused, with the reasoning recorded next to the list.
+- [x] precedence made structural rather than a comparison to maintain.
+- [x] the size cap matched to the existing project-memory behaviour instead of reinvented.
+- [x] the lookup measured, and the no-directories case measured separately.
+- [x] the mode/effort question left alone, as the doc decided.
+- [x] full `make check` green: 2,275 tests, 0 lint issues.
 
 ### G16.4 built — `mcp(...)` rules, and a hole the widest rule already had
 
