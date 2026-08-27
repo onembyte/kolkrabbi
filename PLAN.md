@@ -660,7 +660,8 @@ concurrency story for two sessions editing one repository written down.
 **Hardened when:** the split between Kolkrabbi's own git actions and the model's is fixed, and the
 PR provider list is decided — including the refusals.
 
-### [ ] 29. Workspace services — what the code you just wrote is doing
+### [x] 29. Workspace services — what the code you just wrote is doing
+**Hardened 2026-08-27** ([`docs/plan/29-workspace-services.md`](docs/plan/29-workspace-services.md)): port discovery ships and is the whole feature — a task starts a dev server and the port it chose is the one fact the user needs and cannot easily get, for the price of a `/proc/net/tcp` read. Only loopback ports get a clickable URL, by the same reasoning as I26.5. Supervision is refused: restart needs to know how it started, logs need somewhere kept, health needs defining per service, and all three need to outlive Kolkrabbi, which means the daemon item 27 just refused. Resource telemetry is refused on the test it failed — nobody could name a decision CPU and memory would change, and a number nobody acts on teaches its reader to ignore panels.
 **Scope:** the running program, not the source.
 **Today:** nothing. A dev server started by the agent is a process nobody can see.
 **Decide:**

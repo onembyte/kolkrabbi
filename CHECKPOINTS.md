@@ -2099,6 +2099,50 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### Items 27, 28 and 29 hardened — recorded detail
+
+Phase I's docs are complete, and with item 16 that leaves only items 19–23 unhardened in the whole
+plan. Three items in two ticks, and most of the content is refusals — which is the point of hardening
+rather than a shortfall.
+
+**Item 27 was largely decided by having built it.** The discovery-versus-supervisor question was
+answered by I27.1's advisory lock, and the doc records the cost rather than the win: nothing can start
+a session remotely, because that needs a supervisor running before there is anything to supervise. The
+decisive field on a card is **blocked** — a session waiting on a permission prompt has stopped, is
+spending nothing, needs a person, and looks exactly like one thinking hard. Reading only live
+sessions' journal *tails* comes from I27.2's measurement, not taste.
+
+**Item 28 mostly defends a division that already exists.** Kolkrabbi touches git in one place — the
+saga's chapter commit — and the rule that justifies it generalises: *do it yourself only when it must
+be atomic with something you already own.* Branch-per-session fails that and three more tests: it
+moves the user's HEAD, it has no good ending, and checkpoints already isolate an agent's edits
+including outside a repository. Bitbucket and Azure DevOps are refused in writing, with the
+comparison stated plainly — t3code supports all three and also carries 393 dependencies.
+
+**Item 29 is one feature and two refusals.** Port discovery ships because a dev server's port is the
+one fact a user needs and cannot easily get. Supervision is refused because of what it *becomes*:
+restart needs to know how it started, logs need somewhere kept, health needs defining per service, and
+all three must outlive Kolkrabbi — which is the daemon item 27 refused a tick earlier.
+
+**Resource telemetry is the one worth singling out**, because it was cut on a test rather than a
+preference: *name a decision it changes*. Cost per session changes whether to keep going; context
+usage changes whether to compact; CPU and memory change nothing a user would do differently. A number
+nobody acts on makes a dashboard look busy and teaches its reader to ignore panels.
+
+One consistency carried forward without being asked for: **only loopback ports get a clickable URL**,
+by the same reasoning I26.5 applied to Kolkrabbi's own server — printing a LAN link invites a click
+that publishes what the user may not have meant to publish.
+
+Acceptance checklist:
+
+- [x] every Decide bullet in all three items resolved, refusals included.
+- [x] item 27's decided question recorded with its cost, not just its answer.
+- [x] the rule behind item 28's division stated so it generalises.
+- [x] telemetry cut against a stated test rather than an opinion.
+- [x] four build leaves named across the three items.
+- [x] the phase table updated; only items 19–23 remain unhardened.
+- [x] full `make check` green: 2,057 tests, 0 lint issues.
+
 ### Item 16 hardened — recorded detail
 
 The last item blocking phase G, and the one item 15 deliberately pushed work into: formatter hooks
@@ -5501,7 +5545,7 @@ phase must close without leaving this file.
 | E tools, permissions, sandboxing | 13 | doc ✓, E13.1–E13.7 ✓ | complete; OS sandbox matrix deferred |
 | F orchestration & per-task routing | 14 | doc ✓, F14.1–F14.6 ✓ | complete |
 | G the surface | 11, 15, 16 | docs ✓ for all three, G11.1–G11.6 ✓, G15.1–G15.3 ✓ | item 16 hardened, G16 leaves queued |
-| I reach | 26–29 | doc ✓ for 26, I26.1–I26.6 ✓, I27.1–I27.2 ✓ | I26.7 blocked on I27; items 27–29 undocced |
+| I reach | 26–29 | docs ✓ for all four, I26.1–I26.6 ✓, I27.1–I27.2 ✓ | I26.7 and the I27–I29 leaves queued |
 | H ship it for real | T0.5, 19–23 | T0.5 then doc per item | queued |
 
 This table was four phases out of date until an audit on 2026-08-27 rewrote it: it still called E
