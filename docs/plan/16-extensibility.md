@@ -120,7 +120,7 @@ stdlib, so the module budget is not the obstacle. `kolk mcp add/list/rm`, namesp
 
 - **G16.1 markdown commands** — ✓ a file is a command; project over user; `$ARGUMENTS` placed or appended; `.claude/commands` read as a fallback; a built-in name is refused.
 - **G16.2 hook events and the confirmation** — ✓ three post-events, confirmed once per distinct command per session, floor refuses without asking, failures reported and never fatal. The user's file only; project hooks are G16.3.
-- **G16.3 project hooks are shown before they run** — cloning a repository executes nothing.
+- **G16.3 project hooks are shown before they run** — ✓ all of them listed together, confirmed once per session, keyed by the file's fingerprint so an edit re-asks. Cloning a repository executes nothing.
 - **G16.4 `mcp(...)` permission rules** — ✓ `mcp` is a rule family whose membership is the `__` namespace, so `allow mcp(github__*)` means one server and nothing else.
 - **G16.5 tool-schema budget** — ✓ measured (2,816 bytes for five tools), bounded by a failing budget, and reported by `kolk doctor`.
 

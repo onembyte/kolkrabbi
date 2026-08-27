@@ -50,6 +50,9 @@ type app struct {
 	// dashboard can tell which sessions are actually going.
 	sessionHold *lock.File
 	debugLog    *debugLog
+	// projectHooksApproved remembers this session's answer per hooks-file
+	// fingerprint. Session-scoped on purpose: see approveProjectHooks.
+	projectHooksApproved map[string]bool
 	// sessionRules are permission rules the user added for this process only.
 	// They are deliberately not written anywhere: a rule that outlives the
 	// session someone scoped it to is a rule nobody consented to.
