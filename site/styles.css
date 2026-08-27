@@ -799,7 +799,118 @@ footer strong {
   gap: 1.5rem;
 }
 
+/* ---- provider wall ------------------------------------------------- */
+
+.providers {
+  padding: clamp(5rem, 9vw, 9rem) 0;
+  border-top: 1px solid var(--line);
+}
+
+.provider-wall {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  list-style: none;
+}
+
+.provider {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  min-height: 200px;
+  padding: clamp(1.15rem, 2.2vw, 1.7rem);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: rgba(16, 12, 24, 0.55);
+}
+
+.provider-mark svg {
+  display: block;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 0.9rem;
+}
+
+.provider-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.provider-route {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.provider-route code {
+  font-size: 0.92em;
+}
+
+.provider-state {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: auto;
+  padding: 0.28rem 0.45rem;
+  border: 1px solid var(--line-bright);
+  font: 700 0.6rem var(--mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.provider[data-support="live"] .provider-mark {
+  color: var(--violet-light);
+}
+
+.provider[data-support="live"] .provider-state {
+  color: var(--green);
+  border-color: rgba(126, 231, 135, 0.4);
+  background: rgba(126, 231, 135, 0.08);
+}
+
+.provider[data-support="planned"] {
+  background: rgba(16, 12, 24, 0.22);
+}
+
+.provider[data-support="planned"] .provider-mark {
+  color: #574d64;
+}
+
+.provider[data-support="planned"] .provider-name {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.provider[data-support="planned"] .provider-route {
+  color: #6f6580;
+}
+
+.provider[data-support="planned"] .provider-state {
+  color: #6f6580;
+  border-color: var(--line);
+  background: transparent;
+}
+
+.provider-note {
+  max-width: 720px;
+  margin: 2rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.provider-note strong {
+  color: var(--paper);
+}
+
 @media (max-width: 900px) {
+  .provider-wall {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
   .hero,
   .catalog-hero {
     grid-template-columns: 1fr;
@@ -838,6 +949,14 @@ footer strong {
 }
 
 @media (max-width: 640px) {
+  .provider-wall {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .provider {
+    min-height: 0;
+  }
+
   .site-header,
   main,
   footer {

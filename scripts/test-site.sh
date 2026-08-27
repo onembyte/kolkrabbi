@@ -38,6 +38,12 @@ excludes() {
   fi
 }
 
+provider_status() {
+  local name="$1" want="$2" got
+  got="$(grep -B3 -F ">$name</span>" "$SITE/index.html" | grep -o 'data-support="[a-z]*"' | tail -n 1)"
+  if [ "$got" = "data-support=\"$want\"" ]; then pass; else fail "$name must be marked $want on the provider wall"; fi
+}
+
 last_section_is() {
   local file="$1" id="$2" found
   found="$(grep -Eo '<section[^>]+id="[^"]+"' "$SITE/$file" | tail -n 1)"
@@ -71,6 +77,26 @@ excludes index.html 'parallel subagents|subagents in parallel|at once' "landing 
 excludes index.html '<script[^>]*>[^<]' "landing page must not ship inline JavaScript"
 excludes index.html "<(script|img|link)[^>]+(src|href)=[\"']https?://" "landing page loads an external resource"
 excludes index.html "style=[\"']" "styles must stay in styles.css for a strict CSP"
+
+contains index.html 'id="providers"' "landing page has no provider wall"
+contains index.html 'class="provider-wall"' "provider wall markup is missing"
+contains index.html '<span class="provider-mark" aria-hidden="true"><svg viewBox="0 0 24 24"' "provider marks must be inline SVG, not fetched images, for a strict CSP"
+# A tile is a promise. Lit means an adapter exists in this repository today;
+# every other provider on docs/plan/24-subscription-provider-matrix.md is dim.
+provider_status OpenRouter live
+provider_status Anthropic live
+provider_status Ollama live
+provider_status LiteLLM live
+provider_status vLLM live
+provider_status OpenAI planned
+provider_status Google planned
+provider_status xAI planned
+provider_status Perplexity planned
+provider_status Mistral planned
+provider_status DeepSeek planned
+provider_status Qwen planned
+provider_status Cohere planned
+provider_status GitHub planned
 
 contains capabilities.html '<html lang="en">' "capabilities page must declare its language"
 contains capabilities.html 'name="viewport"' "capabilities page must configure a mobile viewport"
@@ -124,6 +150,8 @@ contains styles.css '.command-row' "install command/button layout is missing"
 contains styles.css '.key-command' "run-step key command layout is missing"
 contains styles.css '.status-badge' "capability status style is missing"
 contains styles.css '.video-grid' "bilingual video layout style is missing"
+contains styles.css '.provider-wall' "provider wall layout style is missing"
+contains styles.css '[data-support="planned"]' "unsupported providers have no dimmed style"
 contains styles.css '@media (max-width:' "responsive layout rule is missing"
 contains styles.css ':focus-visible' "keyboard focus style is missing"
 contains styles.css 'prefers-reduced-motion' "reduced-motion support is missing"
