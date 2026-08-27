@@ -2,7 +2,7 @@
 // sandboxed manual testing of kolk — no network, no API key, no cost.
 //
 //	go run ./cmd/mockserver      # prints its URL
-//	kolk --base-url <url> -y "create the hello file"
+//	kolk --base-url <url> --permission full-auto "create the hello file"
 //
 // The script below covers a full demo session: one code-mode turn, then one
 // orchestrated agent-mode turn (plan → two subagents → synthesis). Edit the
@@ -54,6 +54,6 @@ func main() {
 		enginetest.Step{Text: "Done: appended a line and verified the file now has 2 lines.", Cost: 0.0012},
 	)
 	fmt.Println(srv.URL)
-	fmt.Println("try: kolk --base-url", srv.URL, `-y "create the hello file"`)
+	fmt.Println("try: kolk --base-url", srv.URL, `--permission full-auto "create the hello file"`)
 	select {}
 }
