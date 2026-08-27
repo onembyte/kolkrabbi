@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **I26.7b the route, and what it refuses** — token, steer tier, the command's own rules, and an honest 501 where there is no session to ask.
 - [x] **I26.7a the `turn.start` command** — the protocol half of letting a paired device ask for something rather than only watch.
 - [x] **L21.2 `--debug`** — off unless asked, scrubbed on the way in, and it names its own file at the end.
 - [x] **L21.1 `kolk doctor`** — prints what it found, never what it found with.
@@ -2122,6 +2123,52 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### I26.7b built — serving the turn route, and the thing it cannot do
+
+**The design question was answered by reading, not by building.** `kolk serve` owns a bus, a device
+store, a permission resolver and a socket — and **no agent**. A standalone server has nothing to
+steer. The tempting fix is a supervisor that spawns or adopts a session, which is exactly what item
+27 refused ("restart needs to know how it started, logs need somewhere kept, health needs defining")
+and item 29 refused again. So the route says so: **501, "this server is not attached to a session, so
+there is nothing to ask"**, and a host process that does own a session mounts the handler and
+supplies a `TurnStarter`.
+
+That is the precedent `PermissionResolver` already set in this package — a port the host fills, a
+clean refusal when it is nil — and following it was better than inventing a second pattern for the
+same shape of absence.
+
+**Four properties, four tests.** The route needs a credential like every route but the two that say
+nothing. A device paired at **read** is refused with 403 while a **steer** device gets 202 — and the
+test asserts the read device's prompt never reached the starter, because a 403 that still ran the
+turn would pass a status check. The command's own rules are the server's rules. And an accepted turn
+reaches the session with exactly the prompt that was sent.
+
+**`protocol.ValidateCommand` is now exported, and that is the point.** The alternative was
+`internal/serve` deriving "what is a valid turn.start" for itself, which is two copies of one
+decision and two chances to disagree. The contract package validates; the server applies. An unknown
+command is an error there rather than a pass, because a server that accepted what it could not name
+would be guessing.
+
+**The steer-route ratchet fired, which is why this leaf was safe.** Mounting `/v1/turns` made
+`TestOnlyOneRouteNeedsSteer` fail — adding a write endpoint without listing it would have left it
+answerable by any paired device, silently. The list grew on purpose, the test was renamed to
+`TestOnlyTheActingRoutesNeedSteer`, and its comment now records why there are two: both entries let a
+device *act*, one by answering a prompt and one by asking for work.
+
+**What a remote turn still cannot do:** bypass anything. It hands a prompt to the same agent a local
+prompt reaches, so the permission tier, the hardline floor and the doom-loop guard all apply
+unchanged. The port's documentation says that in the one place a future implementer will read it.
+
+Acceptance checklist:
+
+- [x] whether `serve` owns an agent checked in code before any design was chosen.
+- [x] the supervisor refused, and the refusal made visible as a 501 with a sentence.
+- [x] the existing nil-port precedent followed rather than a second pattern invented.
+- [x] the read-tier test asserts the turn did not run, not merely that the status was 403.
+- [x] validation exported so the contract has one definition, not two.
+- [x] the steer ratchet satisfied deliberately, with the reason recorded in the test.
+- [x] full `make check` green: 2,204 tests, 0 lint issues.
 
 ### I26.7a built — the `turn.start` command
 

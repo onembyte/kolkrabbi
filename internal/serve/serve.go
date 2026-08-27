@@ -20,6 +20,9 @@ type Options struct {
 	Addr         string
 	PingInterval time.Duration
 	Resolver     PermissionResolver
+	// Turns is how a remote prompt reaches a session. Nil means this server
+	// is not attached to one, which is what `kolk serve` standalone is.
+	Turns TurnStarter
 	// Devices holds the paired devices. Nil disables device auth and pairing.
 	Devices *devices.Store
 	// Pairing is the short window during which a new device may be added.
@@ -78,6 +81,7 @@ func Mux(opts Options) (http.Handler, error) {
 
 	// Permission resolution
 	mux.Handle("/v1/permissions/resolve", permissionResolveHandler(opts.Resolver))
+	mux.Handle("/v1/turns", turnStartHandler(opts.Turns))
 
 	// Pairing. Not in openRoutes: it is exempt from auth because handing out
 	// the first credential is what it does, and it exists only while armed.

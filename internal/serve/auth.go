@@ -25,6 +25,7 @@ func isLoopback(addr string) bool { return netaddr.IsLoopback(addr) }
 // and not listed here is readable by any device.
 var steerRoutes = map[string]bool{
 	"/v1/permissions/resolve": true,
+	"/v1/turns":               true,
 }
 
 // authMiddleware authenticates a request and enforces what its caller may do.

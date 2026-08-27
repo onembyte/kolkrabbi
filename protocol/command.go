@@ -95,3 +95,23 @@ func validateTurnStartCommand(raw json.RawMessage) error {
 	}
 	return nil
 }
+
+// ValidateCommand checks one client command against the contract.
+//
+// It is exported because a server has to apply the same rules the schema
+// publishes, and the alternative — each server deriving "what is a valid
+// turn.start" for itself — is two copies of one decision and two chances to
+// disagree. An unknown command is an error rather than a pass: a server that
+// accepted what it could not name would be guessing.
+func ValidateCommand(command CommandType, raw json.RawMessage) error {
+	switch command {
+	case CommandTurnStart:
+		return validateTurnStartCommand(raw)
+	case CommandTurnCancel:
+		return validateTurnCancelCommand(raw)
+	case CommandPermissionResolve:
+		return validatePermissionResolveCommand(raw)
+	default:
+		return fmt.Errorf("protocol: unknown command %q", command)
+	}
+}

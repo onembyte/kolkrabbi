@@ -127,11 +127,19 @@ func TestUsingADeviceIsRecorded(t *testing.T) {
 	}
 }
 
-func TestOnlyOneRouteNeedsSteer(t *testing.T) {
+func TestOnlyTheActingRoutesNeedSteer(t *testing.T) {
 	// The ratchet: adding a write endpoint without listing it here leaves it
 	// answerable by any paired device, which is the failure this exists to
 	// make loud.
-	want := map[string]bool{"/v1/permissions/resolve": true}
+	//
+	// It made exactly that noise when /v1/turns was mounted (I26.7b), which is
+	// why this list grew on purpose rather than by accident. Both entries let a
+	// device *act*: one answers a permission prompt, the other asks for work.
+	// Anything authenticated and absent from this list is readable only.
+	want := map[string]bool{
+		"/v1/permissions/resolve": true,
+		"/v1/turns":               true,
+	}
 
 	if len(steerRoutes) != len(want) {
 		t.Fatalf("steer routes = %v, want exactly %v", steerRoutes, want)
