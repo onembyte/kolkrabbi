@@ -626,7 +626,8 @@ interface and is accepted with no token. `kolk dash` is loopback-only and read-o
 write-endpoint list fixed with what each may do.
 **Inputs:** item 13 (permissions), item 19 (platform strategy), `internal/serve`, `internal/dash`
 
-### [ ] 27. Many sessions, one view
+### [x] 27. Many sessions, one view
+**Hardened 2026-08-27** ([`docs/plan/27-many-sessions.md`](docs/plan/27-many-sessions.md)): discovery over a supervisor, decided by building it — an advisory lock means liveness is observed, so a killed session stops looking live without anything noticing it died, at the cost that nothing can start a session remotely. The card's decisive field is **blocked**: a session waiting on a permission prompt has stopped, is spending nothing, needs a person, and looks exactly like one thinking hard. Read from the journal tail of live sessions only, because I27.2 measured a full decode at 26 ms and a view somebody polls cannot afford more. A Claude-backed session already appears because it is a Kolkrabbi session; a `claude` the user started themselves does not, since a card with five empty fields is the appearance of control without the substance. Two sessions in one checkout are shown, not prevented.
 **Scope:** several Kolkrabbi sessions — and the provider CLIs it already drives — visible and
 steerable side by side.
 **Today:** one session per terminal. `kolk sessions` lists them; nothing shows two running at once.
