@@ -215,6 +215,41 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **C12.7 fast-lane session naming** — a session earns a real name once enough has happened, without delaying the answer or overwriting a name a person chose.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
+### R1.3 v1.2.1 composer release — verified detail
+
+Scope:
+
+- Publish `G11.4`–`G11.6` plus the provider wall, the session lock, the pollable overview, and the
+  `kolk-mock` hint fix as `v1.2.1`, and move the installer badge and snapshot template with it.
+- Establish what the mid-session history rewrite did before tagging, rather than after.
+
+What the rewrite did:
+
+- On 2026-08-27 something force-rewrote `main`. Every commit was rehashed, so `v1.1.7` through
+  `v1.2.0` — nine published tags — point at commits no longer reachable from `main`, and
+  `git describe --tags --abbrev=0 HEAD` resolves to `v1.1.6`.
+- Nothing was lost: `git diff v1.2.0 HEAD --stat` is exactly the work done since that release.
+- The owner chose to leave the orphaned tags alone rather than force-move nine published tags, so
+  `v1.2.1` is reachable and every release after it is coherent again.
+- The generated changelog was expected to be meaningless and was not: GoReleaser resolved the
+  previous release correctly and listed the six real commits. The notes were still replaced by hand,
+  because a list of commit subjects is not what someone upgrading needs to read.
+
+Non-goals:
+
+- No tag surgery on published releases; no rewrite of the rewrite.
+- No protocol-version bump, Windows artifact, or installer algorithm change.
+
+Acceptance checklist:
+
+- [x] tag ancestry established and recorded before tagging, not discovered afterwards.
+- [x] `make check` green before the tag: 2022 tests, all gates.
+- [x] tag `v1.2.1` points at `ce42b9c0`, its release workflow succeeds, and the signed manifest plus
+  four archives pass the independent verifier.
+- [x] the release is neither draft nor prerelease, and GitHub's latest redirect resolves to `v1.2.1`,
+  which is what the website installer discovers.
+- [x] the published notes describe the change rather than listing commit subjects.
+
 ### G11.4–G11.6 the composer frame, the icon, and shift+tab — verified detail
 
 Scope:
@@ -271,6 +306,8 @@ Acceptance checklist:
   wheel and the phase the engine already reports.
 - [x] **G11.6 shift+tab cycles the tier** — `CSI Z` becomes a key instead of being swallowed, and the
   surface owns what the next tier is.
+- [x] **R1.3 v1.2.1 composer release** — publish the composer frame, the icon and shift+tab, and
+  record what the mid-session history rewrite did to the tag ancestry.
 
 Scope:
 
