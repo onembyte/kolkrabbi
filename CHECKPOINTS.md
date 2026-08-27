@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **L21.4 every action is pinned by commit SHA** — a tag is whatever that account publishes next, which is a credential decision wearing a version number.
 - [x] **L31.1 the driver list grew by evidence, not by import** — approving `goreleaser check` must not write a rule that allows `goreleaser release`.
 - [x] **L19.2 three platform claims corrected** — `desktop/`, `bind/` and `tools/` were never carved, and SQLite was never added.
 - [x] **L19.1 the third-party allowance list cannot rot** — an allowance nothing imports fails the build, because a budget that pre-approves what nobody asked for is not a budget.
@@ -2108,6 +2109,46 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### L21.4 built — every action pinned by commit SHA
+
+The first build leaf after the plan finished hardening, and the one item 21 named as a real if
+bounded exposure: the release and smoke workflows pinned every action by digest, while `ci.yml` ran
+`actions/checkout@v5`, `actions/setup-go@v6` and `golangci/golangci-lint-action@v8` — nine floating
+references across four jobs.
+
+A tag is a moving pointer its owner can repoint at any time, so `@v5` does not mean a version, it
+means *whatever that account publishes next*. That is a credential decision wearing a version
+number. The exposure in these jobs is bounded — they can read the repository and nothing else — but
+"bounded" is not "absent", and the two workflows that would matter most were already pinned, which
+made the inconsistency the whole finding.
+
+`scripts/test-workflow-pins.sh` was written first and failed on all nine. The rule is mechanical: a
+40-character hex SHA, plus a `# vN` comment naming the human-readable version so a reader can see
+what the digest is meant to be and confirm it with
+`gh api repos/<action>/git/ref/tags/<tag>`. Local actions (`./…`) are exempt, because a path into
+this repository is not a third-party reference.
+
+Each tag was resolved through `gh api` rather than copied. Two of the three answers —
+`actions/checkout@v6` at `d23441a4…` and `actions/setup-go@v6` at `924ae3a1…` — matched the digests
+`release.yml` already carried, which is a useful cross-check on both files at once.
+`golangci-lint-action@v8` resolved to `4afd733a…`.
+
+**One thing changed beyond pinning, and it is worth saying rather than burying:** `ci.yml` was on
+`actions/checkout@v5` and is now on v6's digest. That is a major-version bump, not just a pin. It is
+the version `release.yml` has been running successfully, which is why it was chosen over resolving
+`v5` — but it is a behaviour change, and if CI fails on checkout it is this line.
+
+Both mutations were run: repointing one pin back to `@v5` fails, and stripping a `# v6` comment from
+a correct digest fails. Wired into `make check` and the CI guardrails job — 43 checks.
+
+Acceptance checklist:
+
+- [x] contract written first, red on all nine floating references.
+- [x] every digest resolved with `gh api`, not copied from memory; two cross-checked against release.yml.
+- [x] both failure modes mutation-tested — a moving tag, and a digest with no version comment.
+- [x] the v5 → v6 bump called out rather than smuggled in with the pinning.
+- [x] full `make check` green: 2,085 tests, 0 lint issues.
 
 ### Item 31 hardened — the plan has no unhardened items left — recorded detail
 
