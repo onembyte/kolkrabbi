@@ -153,6 +153,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **S10.2 quality gate & git checkpointer** — automated test discovery, verification execution, and commit-on-green.
 - [x] **S10.3 budget & doom-loop guardrails** — chapter limit, dollar budget, timeout, and consecutive failure detection.
 - [x] **S10.4 CLI & slash command surface** — `kolk saga [goal|resume|status|stop|rewind]` and REPL twin `/saga`.
+- [x] **S10.8 the next-chapter planner** — the saga decides one chapter at a time from what the last one achieved, as the doc's napkin test shows.
+- [!] **S10.9 the test suite can reach a provider** — `make check` made a live OpenRouter call; the OS keychain is not isolated by `KOLK_*_DIR`. Needs its own checkpoint.
 - [x] **S10.7 resume is the resume anchor** — `kolk saga resume` works the chapters instead of saying the loop is unwired, which stopped being true the moment S10.6 landed.
 - [x] **S10.6 the chapter executor** — `kolk saga run` walks the chapters: work, verify, record, repeat until a budget stops it.
 - [x] **S10.5 saga artifact ownership & honest subcommands** — `SAGA.md` belongs to the project root, and `resume`/`stop`/`rewind` report the real saga instead of always denying one.
@@ -2050,6 +2052,70 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### S10.8 the next-chapter planner — verified detail
+
+`docs/plan/10-saga-loop.md` §1.1 asks the saga to "select exactly one discrete, manageable task that
+moves closer to the goal", having read what the previous chapters achieved. Built in three
+checkpoints; two shipped and the third was reverted, which is the more useful half of this record.
+
+**A: the planner port.** `ChapterPlanner` returns one title, or `""` when the goal is met. The loop
+asks for a chapter only when nothing is pending, appends it, and works it. Tested entirely with a
+fake — the budget ceiling, the sequential numbering, a failing planner, and the planner seeing the
+previous chapters' outcomes, all without a provider.
+
+Two distinctions that fall out of having a planner. **`no-work` now means different things.** Without
+a planner, running out of chapters means the hand-written list ended, which says nothing about the
+goal; with one, it means the planner judged the goal met. The loop reports `StopNoWork` and
+`StopGoalComplete` accordingly, because a saga claiming success for running out of plan would be the
+worst possible lie for it to tell. And **a failing planner is an error, not a stop** — a planner that
+cannot answer is a broken saga, not a finished one.
+
+**B: the agent planner.** Runs on the fast lane, not the session model: choosing one next step from a
+short list is a cheap judgement, and paying the coding model for it once per chapter is how a saga's
+cost drifts away from the work it is doing. Failed chapters go into the prompt *with their
+verification message*, because repeating a chapter that just failed the same way is precisely the
+loop the doom detector exists to stop, and the planner is the only thing that can avoid it. A
+multi-line answer is cut to its first line: "exactly one discrete task" is the rule, and the title
+ends up in a commit message.
+
+**C was reverted, and that is the finding.** The napkin test shows `kolk saga "<goal>"` starting the
+run, so I made it do that — and the suite hung. Recording a goal now required a model, a key and a
+network, and with no key it hung in catalog discovery rather than refusing. Setting down an intention
+is a cheap local act and should stay one, so the verb records the goal and says
+`start it with kolk saga resume`. The doc's napkin test is aspirational on this point and the code
+now disagrees with it deliberately.
+
+Acceptance checklist:
+
+- [x] a goal with no chapters plans one, works it, and stops as goal-complete.
+- [x] the planner sees the previous chapters and their outcomes.
+- [x] chapters are numbered in sequence; planning respects the chapter ceiling.
+- [x] a failing planner stops the run rather than looping.
+- [x] hand-written chapters still work with no planner, reporting no-work.
+- [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
+- [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### S10.9 the test suite can reach a provider — blocked, recorded 2026-08-27
+
+Wiring `resume` to the loop exposed something worse than the change: **`make check` made a live
+OpenRouter request.** `TestSagaSubcommandsReportTheRealStateOfAnActiveSaga` called `saga resume`,
+which since S10.6 builds an agent, and the call came back `HTTP 429: free-models-per-day` — a real
+rate limit, against the owner's real quota.
+
+`isolateHome` sets `KOLK_CONFIG_DIR`, `KOLK_DATA_DIR`, `KOLK_CACHE_DIR` and blanks
+`OPENROUTER_API_KEY`, so the isolation looks complete. It is not: `resolveOpenRouterCredential` also
+reads the **OS keychain**, which no environment variable redirects. A test that believes it has no
+credentials can therefore have the user's.
+
+That also qualifies an earlier claim in this ledger. When the test suite was fixed to stop writing
+into real Kolkrabbi state, the verification was by file checksum — which proves nothing about a
+keychain.
+
+The immediate bleeding is stopped: that test no longer calls `resume`, and the loop's behaviour is
+covered offline with fakes. The real fix is a seam that makes provider access impossible from a test
+rather than merely unlikely, and it deserves its own checkpoint rather than a hurried patch at the
+end of another one.
 
 ### S10.7 resume is the resume anchor — verified detail
 

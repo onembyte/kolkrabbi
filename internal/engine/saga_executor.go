@@ -20,6 +20,19 @@ type WorkResult struct {
 	Summary string
 }
 
+// ChapterPlanner chooses the next chapter, one at a time.
+//
+// One at a time, and only after seeing what the last one achieved, because
+// docs/plan/10-saga-loop.md §1.1 asks for "exactly one discrete, manageable
+// task that moves closer to the goal" chosen from the current state. A plan
+// written up front cannot know what chapter three learned, and a saga whose
+// plan is already wrong by chapter three is one nobody can trust to keep going.
+//
+// An empty title means the goal is met and there is nothing left to plan.
+type ChapterPlanner interface {
+	Next(ctx context.Context, goal string, done []Chapter) (string, error)
+}
+
 // ChapterWorker performs one chapter's actual work.
 //
 // A port rather than the Agent itself, so the loop that spends a budget and
@@ -36,6 +49,9 @@ type ChapterWorker interface {
 // machine, the gates, the budget guards and the artifact writer all existed and
 // nothing called them, because nothing walked the chapters.
 type SagaRunner struct {
+	// Planner decides the next chapter. Nil means the chapters are already
+	// written — by a person, in SAGA.md — and the run works those and stops.
+	Planner  ChapterPlanner
 	Worker   ChapterWorker
 	Runner   CommandRunner
 	Detector QualityGateDetector
@@ -68,7 +84,14 @@ func (r *SagaRunner) Run(ctx context.Context, repoDir string, state *SagaState) 
 
 		index, ok := nextChapter(state)
 		if !ok {
-			return StopNoWork, nil
+			planned, err := r.planNext(ctx, state)
+			if err != nil {
+				return StopNone, err
+			}
+			if !planned {
+				return r.noMoreWork(), nil
+			}
+			index = len(state.Chapters) - 1
 		}
 
 		err := r.RunChapter(ctx, repoDir, state, index)
@@ -148,6 +171,40 @@ func (r *SagaRunner) advanceToExecuting(chapter *Chapter) error {
 		return fmt.Errorf("saga: chapter %d is %q and cannot be worked", chapter.Number, chapter.Status)
 	}
 	return transitionChapter(chapter, StatusExecuting)
+}
+
+// planNext asks the planner for one more chapter, if there is a planner.
+func (r *SagaRunner) planNext(ctx context.Context, state *SagaState) (bool, error) {
+	if r.Planner == nil {
+		return false, nil
+	}
+	title, err := r.Planner.Next(ctx, state.Goal, state.Chapters)
+	if err != nil {
+		// Returning an error rather than stopping quietly: a planner that
+		// cannot answer is a broken saga, not a finished one.
+		return false, fmt.Errorf("saga: planning the next chapter: %w", err)
+	}
+	if title == "" {
+		return false, nil
+	}
+	state.Chapters = append(state.Chapters, Chapter{
+		Number: len(state.Chapters) + 1,
+		Title:  title,
+		Status: StatusPending,
+	})
+	return true, nil
+}
+
+// noMoreWork distinguishes a finished goal from an exhausted plan.
+//
+// With a planner, nothing left to plan means the planner judged the goal met.
+// Without one, it only means the hand-written chapters ran out, which says
+// nothing about the goal.
+func (r *SagaRunner) noMoreWork() StopReason {
+	if r.Planner != nil {
+		return StopGoalComplete
+	}
+	return StopNoWork
 }
 
 // nextChapter finds the first chapter still worth attempting.

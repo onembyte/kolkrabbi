@@ -26,11 +26,10 @@ func (a *app) runSagaLoop(ctx context.Context) error {
 		fmt.Fprintln(a.stdout, "no saga to resume. `kolk saga <goal>` starts one.")
 		return nil
 	}
-	if len(state.Chapters) == 0 {
-		fmt.Fprintf(a.stdout, "saga %q has no chapters yet; nothing left to work.\n", state.Goal)
-		return nil
-	}
-	if !hasPendingChapter(state) {
+	// No early return for an empty chapter list any more: with a planner, no
+	// chapters is where a saga starts, which is what the doc's napkin test
+	// shows. Only a saga whose chapters are all finished has nothing to do.
+	if len(state.Chapters) > 0 && !hasPendingChapter(state) {
 		fmt.Fprintf(a.stdout, "saga %q has nothing left to work; every chapter is finished or blocked.\n", state.Goal)
 		return nil
 	}
@@ -50,6 +49,7 @@ func (a *app) runSagaLoop(ctx context.Context) error {
 	defer func() { _ = agent.Close() }()
 
 	runner := &engine.SagaRunner{
+		Planner:  engine.AgentPlanner{Agent: agent},
 		Worker:   engine.AgentWorker{Agent: agent},
 		Runner:   sagaCommandRunner{shell: shell.New()},
 		Detector: engine.FileGateDetector{},

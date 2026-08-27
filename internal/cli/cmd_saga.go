@@ -30,11 +30,18 @@ func (a *app) runSaga(ctx context.Context, args []string) error {
 	case "run":
 		return a.runSagaLoop(ctx)
 	default:
+		// Records the goal and stops, deliberately. The napkin test in
+		// docs/plan/10-saga-loop.md shows this verb starting the run, and it
+		// was tried: setting a goal then needs a model, a key and a network,
+		// and with no key it hangs in catalog discovery rather than refusing.
+		// Recording an intention is a cheap local act and should stay one.
+		// `kolk saga resume` starts the work.
 		goal := strings.Join(args, " ")
 		if err := a.saveSagaGoal(goal); err != nil {
 			return err
 		}
 		fmt.Fprintf(a.stdout, "saga goal set: %s\n", goal)
+		fmt.Fprintln(a.stdout, "start it with `kolk saga resume`")
 		return nil
 	}
 }

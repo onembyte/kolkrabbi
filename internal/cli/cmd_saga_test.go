@@ -125,8 +125,13 @@ func TestSagaSubcommandsReportTheRealStateOfAnActiveSaga(t *testing.T) {
 		t.Fatalf("saga goal exit = %d, stderr = %q", code, errOut.String())
 	}
 
+	// `resume` is deliberately not exercised here any more. Since S10.6 it
+	// works the chapters, which means building an agent and calling a
+	// provider — and this test did exactly that, reaching OpenRouter from
+	// `make check`. The loop's behaviour is covered offline in
+	// internal/engine's executor and planner tests, with fakes.
 	for _, tt := range []struct{ subcommand, want string }{
-		{"resume", "ship the thing"},
+		{"status", "ship the thing"},
 		{"rewind", "ship the thing"},
 	} {
 		a, out, errOut := newTestApp("")
