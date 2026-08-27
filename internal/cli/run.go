@@ -36,6 +36,12 @@ func (a *app) runDefault(ctx context.Context, args []string) (err error) {
 		return err
 	}
 	defer func() {
+		// Released before the backend so a crash in Close still frees the
+		// session for the next process.
+		if a.sessionHold != nil {
+			_ = a.sessionHold.Close()
+			a.sessionHold = nil
+		}
 		if closeErr := ag.Close(); closeErr != nil {
 			if err == nil {
 				err = closeErr
@@ -182,6 +188,13 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		// Checkpointing is a convenience, never a precondition for a turn.
 		fmt.Fprintf(a.stderr, "warning: checkpoints disabled: %v\n", err)
 		ckpt = nil
+	}
+
+	// Marks the session live for as long as this process runs it. Advisory,
+	// and deliberately not fatal: a platform without file locks still runs
+	// sessions, it just cannot report which are running.
+	if held, err := session.Hold(d.Sessions(), sess.ID); err == nil {
+		a.sessionHold = held
 	}
 
 	var eventBus *bus.Bus

@@ -188,6 +188,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **I27.1 a session says it is running** — an advisory lock, so liveness is observed rather than reported.
 - [x] **I26.6 read and steer tiers** — a device token means less than the operator's, and the store no longer races.
 - [x] **I26.5 reachability** — `kolk serve` says how to reach it and who else can, Tailscale first.
 - [x] **I26.4 pairing** — a six-digit code, armed briefly, single use, attempt-capped, on a route that does not exist the rest of the time.
@@ -1932,6 +1933,46 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### I27.1 a session says it is running — verified detail
+
+Reordered deliberately, and worth saying why: I went to build I26.7, the remote client, and found it
+had nothing to show. `kolk serve` creates its own bus with a fresh session id and no spill path, so
+it is a standalone event server for a session that does not exist. A remote page built on it would
+have rendered an empty screen and looked finished.
+
+The missing piece is item 27's discovery question, so that came first. My own hardening doc had the
+leaf order wrong; the doc is now amended rather than quietly worked around.
+
+**Liveness is a lock, not a flag.** The interesting case is the one nobody writes code for: a session
+whose process was killed. A flag in a file needs someone to clear it, and the process that would have
+is the one that died. The OS drops an advisory lock when the process goes, so a crashed session stops
+looking live without anything noticing it crashed. `internal/lock` already existed with PID recording
+and nothing was using it for this.
+
+**Asking does not steal it.** `Live` takes the lock and immediately gives it back, because a dashboard
+that polls would otherwise lock out the session it is describing. A test starts a session *after*
+inspecting it twice, which is the assertion that matters.
+
+**Unknown is a state.** `lock_windows.go` and `lock_other.go` both return `ErrUnsupported`, so on those
+platforms liveness genuinely cannot be observed. Reporting `unknown` is better than reporting `idle`
+for every session on Windows — a dashboard that quietly lies is worse than one that admits a gap. The
+tests skip there rather than asserting a behaviour that cannot exist, and they detect that by probing
+rather than by listing platforms.
+
+**Holding is not fatal.** A platform without file locks still runs sessions; it just cannot say which
+are running. The REPL takes the lock if it can and carries on if it cannot, and releases it before
+closing the backend so a failure there still frees the session for the next process.
+
+Acceptance checklist:
+
+- [x] an unheld session is idle; a held one is live; a released one is idle again.
+- [x] inspecting liveness does not prevent the session from starting.
+- [x] two holders of one session are refused.
+- [x] the lock file is 0600 and its directory is created.
+- [x] unsupported platforms report unknown, and the tests skip there.
+- [x] a real session holds its lock for the life of the process.
+- [x] full `make check` green: 1,999 tests, 0 lint issues, every script contract.
 
 ### I26.6 read and steer tiers — verified detail
 

@@ -514,9 +514,11 @@ write-endpoint list fixed with what each may do.
 steerable side by side.
 **Today:** one session per terminal. `kolk sessions` lists them; nothing shows two running at once.
 **Decide:**
-- Whether a supervising process owns the sessions or the dashboard discovers them from their files
-  and buses. Discovery keeps the core small and has no daemon to crash; ownership is what makes
-  "start a session from the phone" possible.
+- ~~Whether a supervising process owns the sessions or the dashboard discovers them~~ **Decided
+  (I27.1)**: discovery. A running session holds an advisory lock on `<sessions>/<id>.lock`, so
+  liveness is observed rather than reported — a session whose process was killed stops looking live
+  without anything having to notice it died. No daemon, nothing to crash, and no supervisor to keep
+  in sync with reality. "Start a session from the phone" stays out of reach and stays out of scope.
 - What a session card shows: last turn, context, cost, whether it is waiting on a permission prompt.
   A view that cannot show *blocked* is not a control plane.
 - Whether the `agentcli` backends (Claude, and later others) appear as sessions here, which is

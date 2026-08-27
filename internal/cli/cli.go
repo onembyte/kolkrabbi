@@ -21,6 +21,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/buildinfo"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/local"
+	"github.com/onembyte/kolkrabbi/internal/lock"
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/selfupdate"
@@ -45,6 +46,9 @@ type app struct {
 	// nothing touches the filesystem until a command actually needs it.
 	dirs     paths.Dirs
 	migrated bool
+	// sessionHold marks this session live while the process runs it, so a
+	// dashboard can tell which sessions are actually going.
+	sessionHold *lock.File
 	// sessionRules are permission rules the user added for this process only.
 	// They are deliberately not written anywhere: a rule that outlives the
 	// session someone scoped it to is a rule nobody consented to.
