@@ -37,3 +37,10 @@ tmp/
 # IDE
 .vscode/
 .idea/
+
+# Research notes are ours, not the project's. They are working material —
+# source reads of other agents, provider docs, vendor comparisons — kept out of
+# the published repository deliberately. The plan's "Inputs:" lines still name
+# them, and those links are meant to resolve on a maintainer's machine and
+# nowhere else.
+docs/research/

@@ -37,3 +37,16 @@ Why this and not the alternatives; what constraint or evidence drove it.
   change.
 - Keep the prototype in mind: say what changes in `internal/…` and what is kept.
 - A hardened item should let someone start implementing without asking questions.
+
+## A note on `docs/research/`
+
+The `**Inputs:**` line on many plan items names a file under `docs/research/`. Those files are not in
+this repository and the links will not resolve here.
+
+They are working material — source-level reads of other agents, provider documentation, vendor
+comparisons — kept on maintainers' machines rather than published. The references stay because they
+record *what a decision was made from*, which is worth knowing even when the source is not to hand,
+and because a hardening doc that hid its inputs would be asking to be trusted rather than checked.
+
+Every decision those notes fed is written out in full in the doc that cites them. Nothing load-bearing
+lives only in the research.
