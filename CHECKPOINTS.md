@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **I26.7a the `turn.start` command** — the protocol half of letting a paired device ask for something rather than only watch.
 - [x] **L21.2 `--debug`** — off unless asked, scrubbed on the way in, and it names its own file at the end.
 - [x] **L21.1 `kolk doctor`** — prints what it found, never what it found with.
 - [x] **L21.3 fuzzing where third-party bytes become control flow** — the SSE reader and tool dispatch, with invariants rather than "does not panic".
@@ -2121,6 +2122,46 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### I26.7a built — the `turn.start` command
+
+I26.7 is "the remote client — the dash page, authenticated, able to steer", and it has two halves: a
+command a device can send, and a page that sends it. This tick built the first, because the page
+cannot be written against a command that does not exist and the command is where every rule lives.
+
+**It follows `turn.cancel` rather than inventing a third shape.** A catalogue entry, a typed payload,
+a JSON Schema, a golden fixture, a validator, and an OpenAPI operation — the same six things the two
+existing commands have. Nothing here is new machinery; the leaf is a vocabulary addition, which is
+exactly what item 26 said steering would be.
+
+**The prompt is bounded at 32 KiB, and the reason is not request size.** A prompt is not a one-off
+cost: it enters the conversation and is carried in *every later request to the provider*, so an
+unbounded remote prompt is an unbounded bill as well as an unbounded body. The limit is far past
+anything a person types on a phone and far short of anything that hurts. Empty and whitespace-only
+prompts are refused too — a device that asks for nothing should get an error, not a turn.
+
+**Three ratchets fired, all correctly, and they are the reason this was a small leaf rather than a
+risky one.** `TestCommandVocabularyIsClosedAcrossCodeSchemasAndGoldens` refused a catalogue entry
+with no conformance validator and no schema. `TestOpenAPIMutationsAreDerivedFromShippedCommands`
+noticed the shipped command had no operation. `TestOpenAPIContainsOnlyOwnerStableOperations` refused
+the new path until it was declared owner-stable on purpose. And the spec guard required a CHANGELOG
+entry before it would let the contract change at all. Four independent objections to one addition,
+each naming exactly what was missing.
+
+**What is deliberately not here:** the route, the tier check, and the page. `POST /v1/turns` is
+declared in the contract and not yet served — which is the honest order, since I26.2's ratchet means
+a new route must be added to the protected set on purpose, and a remote turn must go through the same
+permission tier and the same doom-loop guard as a local one. That is the next leaf, and it is where
+the security work is.
+
+Acceptance checklist:
+
+- [x] five tests written first, including the two refusals (empty prompt, oversized prompt).
+- [x] the existing command's shape followed rather than a third invented.
+- [x] the bound justified by the recurring cost, not by request size.
+- [x] every ratchet that objected was satisfied by fixing the contract, not by widening the test.
+- [x] the spec change recorded in `spec/CHANGELOG.md` as the guard requires.
+- [x] full `make check` green: 2,194 tests, 0 lint issues, spec guard 29 checks.
 
 ### L21.2 built — `--debug`, and item 21 is complete
 

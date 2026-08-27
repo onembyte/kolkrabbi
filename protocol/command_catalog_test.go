@@ -16,7 +16,7 @@ import (
 )
 
 func TestCommandVocabularyIsClosedAcrossCodeSchemasAndGoldens(t *testing.T) {
-	want := []CommandType{CommandTurnCancel, CommandPermissionResolve}
+	want := []CommandType{CommandTurnStart, CommandTurnCancel, CommandPermissionResolve}
 	if got := KnownCommandTypes(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("known command catalog = %v, want %v", got, want)
 	}
@@ -166,6 +166,8 @@ func assertCatalogCommandGolden(t *testing.T, command CommandType) {
 	}
 	var errValidation error
 	switch command {
+	case CommandTurnStart:
+		errValidation = validateTurnStartCommand(raw)
 	case CommandTurnCancel:
 		errValidation = validateTurnCancelCommand(raw)
 	case CommandPermissionResolve:

@@ -34,6 +34,30 @@
         }
       }
     },
+    "/v1/turns": {
+      "post": {
+        "operationId": "startTurn",
+        "x-kolk-command": "turn.start",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TurnStartCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Turn accepted; follow /v1/events for what it does"
+          },
+          "default": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
     "/v1/turns/{id}/cancel": {
       "post": {
         "operationId": "cancelTurn",
@@ -108,6 +132,9 @@
       },
       "Error": {
         "$ref": "./schemas/entities/error.json"
+      },
+      "TurnStartCommand": {
+        "$ref": "./schemas/commands/turn.start.json"
       },
       "PermissionDecisionInput": {
         "type": "object",

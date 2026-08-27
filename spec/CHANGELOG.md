@@ -49,3 +49,7 @@ are allowed during version 0, but every change is recorded here.
 - Publish the first owner-stable OpenAPI 3.1 cut with hello, turn cancellation, permission
   resolution, shared safe errors, and bearer authentication outside the hello shape check; defer
   every route whose command, entity, or replay semantics are not frozen.
+- Define the `turn.start` client command as one non-empty prompt bounded to 32 KiB, and its
+  `POST /v1/turns` operation. It is what a paired device needs in order to ask a session for
+  something rather than only watch it; the prompt is bounded because it enters the conversation
+  and is carried in every later request.

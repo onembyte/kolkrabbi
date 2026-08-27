@@ -91,6 +91,7 @@ func TestOpenAPIContainsOnlyOwnerStableOperations(t *testing.T) {
 	wantPaths := map[string][]string{
 		"/v1/hello":             {"get"},
 		"/v1/permissions/{id}":  {"post"},
+		"/v1/turns":             {"post"},
 		"/v1/turns/{id}/cancel": {"post"},
 	}
 	if got := pathMethodInventory(document.Paths); !reflect.DeepEqual(got, wantPaths) {

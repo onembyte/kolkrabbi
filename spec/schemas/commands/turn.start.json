@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/commands/turn.start.json",
+  "title": "turn.start command",
+  "type": "object",
+  "required": ["prompt"],
+  "properties": {
+    "prompt": {"type": "string", "minLength": 1, "maxLength": 32768}
+  },
+  "additionalProperties": true
+}
