@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **I29.1 listening-port discovery** — a `bash` call that starts a server says where it is, and only a loopback port gets a link.
 - [x] **I28.3 `/pr` drafts and hands over** — item 28 is complete; three copies of shell quoting became one on the way.
 - [x] **I28.2 `/commit` drafts and stops** — the message, the command that would use it, and the plain statement that nothing was committed.
 - [x] **I28.1 dirty-tree awareness** — a turn knows which files are uncommitted before it advises about them, and it is told beside the turn rather than in the system prompt.
@@ -2129,6 +2130,49 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### I29.1 built — listening-port discovery, which is all item 29 kept
+
+Item 29 refused most of its own scope — supervision, because restart, logs and health all need to
+outlive Kolkrabbi and that means the daemon items 27 and 29 both declined; resource telemetry,
+because nobody could name a decision CPU and memory would change. **One leaf survived, and it is
+small.** Saying so is more useful than inflating it: a task starts a dev server, and the port it chose
+is the one fact the user needs and the one thing the terminal does not tell them.
+
+**It reads, and never asks.** `/proc/net/tcp` and `tcp6`, parsed as text, with `lsof` as the fallback
+where `/proc` is not a thing. An HTTP request to find out what a port is would be the agent making a
+network call nobody asked for, which is a worse thing than the question it answers.
+
+**Only loopback ports get a URL**, and the parser is deliberately literal about which those are. The
+kernel writes addresses little-endian per four bytes, so `127.0.0.1` appears as `0100007F`; rather
+than reassemble a dotted quad and risk being clever, the two well-known loopback encodings are matched
+directly. A wrong guess would print a clickable link to somebody else's network — the same reasoning
+I26.5 applied to kolk's own address, applied here to somebody else's server.
+
+**The process is not reported, on purpose.** What a person needs is the address they can open. A pid
+is something the shell will tell them, and reporting it would be the first step toward the
+supervision this item refused.
+
+**Measured, because it runs on every bash call:** 1.3 ms per snapshot, two snapshots per call, so
+2.7 ms — against a call that runs a command. The spec predicted "two reads of a small file"; the
+measurement agrees. A test also opens a real listener and asserts it is discovered with its link,
+which is the only way to know the hex parsing is right.
+
+**The open question is half-answered.** It asked whether the port line belongs in the transcript or
+the status line, and noted the first mention is needed either way. The first mention is built. The
+status-line half — a server started ten turns ago, still running — needs something to hold that state
+across turns, and the doc now says that is the careful part rather than leaving the question looking
+untouched.
+
+Acceptance checklist:
+
+- [x] six tests written first, including the established-connection row that must not count as a listener.
+- [x] loopback matched literally, so a link can never point at another network.
+- [x] the cost measured against the spec's own prediction.
+- [x] verified against a real listener, not only against fixtures.
+- [x] wired into the bash tool, so it is a feature rather than an export with no caller.
+- [x] the open question moved forward honestly instead of being marked done.
+- [x] full `make check` green: 2,250 tests, 0 lint issues.
 
 ### I28.3 built — `/pr` hands over, and item 28 is complete
 

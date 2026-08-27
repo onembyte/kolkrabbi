@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/onembyte/kolkrabbi/internal/diff"
+	"github.com/onembyte/kolkrabbi/internal/ports"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/shell"
 )
@@ -211,6 +212,10 @@ func Execute(ctx context.Context, name, argsJSON string, o Options) (string, err
 		}) {
 			return "", fmt.Errorf("this command was not allowed to run")
 		}
+		// Taken before, compared after: what this command started, not what was
+		// already running. Two reads of a small kernel table, and silent on a
+		// machine that will not answer.
+		listeningBefore := ports.Snapshot()
 		res, err := sh.Run(ctx, shell.Cmd{Command: a.Command})
 		if err != nil {
 			// Only a cancelled turn reaches here. Everything else — a non-zero
@@ -226,6 +231,11 @@ func Execute(ctx context.Context, name, argsJSON string, o Options) (string, err
 		}
 		if result == "" {
 			result = "(no output)"
+		}
+		// A task starts a dev server; the port it chose is the one fact the
+		// user needs and the one thing the terminal does not tell them.
+		for _, listener := range ports.Opened(listeningBefore, ports.Snapshot()) {
+			result += "\n[" + ports.Describe(listener) + "]"
 		}
 		return result, nil
 

@@ -71,9 +71,11 @@ If it returns, it returns with a decision attached.
 
 ## Open questions
 
-- **Does the port line belong in the transcript or the status line?** The transcript is where it
-  happened; the status line is where it still is. A dev server started ten turns ago is more useful in
-  the second place, and needs the first mention either way.
+- **Does the port line belong in the transcript or the status line?** I29.1 built the first mention,
+  which the question says is needed either way: the line is appended to the `bash` result, so it is in
+  the transcript where it happened and the model can act on it. The status line half — a dev server
+  started ten turns ago, still running — is still open, and it needs something to hold that state
+  across turns, which is the part worth being careful about.
 - **Should a port that stops listening be noticed?** Symmetrical and tidy, and it means keeping the
   snapshot alive across turns rather than across one call — which is the first step towards the
   supervision this item just refused.
