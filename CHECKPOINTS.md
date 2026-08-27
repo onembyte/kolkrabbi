@@ -2033,6 +2033,49 @@ Acceptance checklist:
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
 
+### Verification pass 5 — C12, D17, L13 — recorded detail
+
+Twenty leaves across sessions and context, the dashboard, and the managed local-model planner. Every
+claim held. The finding is a duplication the pass exposed rather than a false claim.
+
+**D17.2 is the most thoroughly verified leaf so far**, because it was the easiest to falsify and the
+most costly if wrong. `internal/dash/page.go` contains no `<script>`, no `fetch`, no external `src`
+or `href`; the handler sets `default-src 'none'` and `no-store`. And loopback is *enforced*, not
+merely defaulted: `--addr 0.0.0.0:9111`, `:9111`, `192.168.1.5:9111` and `[::]:9111` are each refused
+by the running binary, with a reason that says why it matters — "the dashboard is a record of
+everything you have worked on".
+
+**C12.1's "unknown never means small" is real and load-bearing.** `ShouldCompact` returns false when
+the window is `0`, so an unknown window never triggers throwing conversation away. `Measured`
+distinguishes a provider's own token count from an estimate, and the type's comment says the two must
+never be confused when deciding to discard. C12.2b's `preCompact` keeps the replaced conversation and
+`RestoreCompaction` puts it back.
+
+**L13.5b3 holds exactly as written**, including its unusual second half: the install path refuses when
+`SHA256` is empty, and this build pins none — so the code is tested and cannot run, which is what the
+leaf claims and what `L13.5b4` is blocked on.
+
+**Finding: one security predicate, implemented twice, with different correctness.** `kolk dash` and
+`kolk serve` each answered "does this address reach only this machine?" in their own function. The
+dash copy handled an empty host correctly. The serve copy did not, which is why `--addr :8080` bound
+every interface and was served without a token until I26.1 caught it — a hole that existed for as
+long as both copies did.
+
+Extracted to `internal/netaddr`, stdlib-only, L0, with the empty host, the unparseable address and
+`localhost.evil.com` each pinned by a test. Both callers now delegate; the running binary refuses the
+same four addresses it refused before. The dash copy being right is precisely the argument for one
+copy: the correct implementation existed the whole time and the wrong one could not learn from it.
+
+Acceptance checklist:
+
+- [x] the dashboard page verified to contain no script, asset or network reference.
+- [x] four hostile addresses refused by the running binary, not by reading code.
+- [x] compaction proven not to fire on an unknown window.
+- [x] the runtime installer proven to refuse an unpinned checksum.
+- [x] the duplicated predicate extracted, tested, and both callers repointed.
+- [x] behaviour re-verified through the binary after the extraction.
+- [x] full `make check` green: 2,026 tests, 0 lint issues.
+
 ### Verification pass 4 — S10, P11, B12 — recorded detail
 
 Twenty-five leaves across the saga loop, provider plans and the Claude subscription backend. Every

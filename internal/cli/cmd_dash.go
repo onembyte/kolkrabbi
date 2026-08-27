@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/dash"
+	"github.com/onembyte/kolkrabbi/internal/netaddr"
 	"github.com/onembyte/kolkrabbi/internal/stats"
 )
 
@@ -116,17 +116,10 @@ func (a *app) dashHandler(dataDir string) http.Handler {
 	return mux
 }
 
-func dashAddrIsLoopback(addr string) bool {
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return false
-	}
-	if host == "localhost" {
-		return true
-	}
-	ip := net.ParseIP(strings.Trim(host, "[]"))
-	return ip != nil && ip.IsLoopback()
-}
+// dashAddrIsLoopback reports whether the dashboard would be reachable from
+// anywhere but this machine. Shared with `kolk serve` through internal/netaddr:
+// this copy was right and serve's was not, which is the argument for one copy.
+func dashAddrIsLoopback(addr string) bool { return netaddr.IsLoopback(addr) }
 
 // dashAddrFrom reads the optional address flag.
 func dashAddrFrom(args []string) (string, error) {

@@ -83,6 +83,7 @@ var packageLayer = map[string]Layer{
 	"internal/lock":         L0Platform,
 	"internal/diskspace":    L0Platform,
 	"internal/diff":         L0Platform,
+	"internal/netaddr":      L0Platform,
 	"internal/projectfiles": L0Platform,
 	"internal/redact":       L0Platform,
 	"internal/secret":       L0Platform,
@@ -173,8 +174,9 @@ var forbiddenImports = map[string][]string{
 // layer being able to import them without pulling another Kolkrabbi package
 // back in. This is stricter than the ordinary same-layer import allowance.
 var stdlibOnlyPackages = map[string]bool{
-	"internal/diff":   true,
-	"internal/redact": true,
+	"internal/diff":    true,
+	"internal/netaddr": true,
+	"internal/redact":  true,
 }
 
 // authHeaders are request headers that carry a credential. Building one is
