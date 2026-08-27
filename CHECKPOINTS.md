@@ -214,6 +214,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **L23.2 the README carries the refusals** — someone deciding whether to use kolk needs the non-goals more than the phases.
+- [x] **L23.1 the plan's bookkeeping is checked** — a tick must have the document it claims, and the document must not claim more than the tick.
 - [x] **L22.2 documentation cannot describe what does not exist** — the README's commands and the welcome's slash commands are checked against the tables that define them.
 - [x] **L22.1 a new session is told the dials turn** — the status line shows mode, effort and model; nothing said they could be changed mid-conversation.
 - [x] **L21.0 the error matrix is code, not a table** — every provider failure arrives with a next action, at all three places a turn can fail.
@@ -2103,6 +2105,64 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### Item 23 hardened — recorded detail
+
+This item proposed phases running v0.1 through v1.0 and "later, iPad". The shipped version is
+**v1.2.1**, and every milestone in that list except the desktop app and a frozen daemon API has been
+passed — two of them, MCP and sandboxing, by *deciding not to do them*, which is a thing a version
+number cannot express. Rewriting the roadmap to say what is true was most of the work.
+
+**Version-numbered phases were replaced by the phase letters actually in use.** A–J, one `/loop`
+each, already in PLAN.md and already how the work runs. Version numbers were a proxy for ordering,
+and the phases are the ordering. The rule they encode is worth restating: finish what is half-built
+before starting what is unbuilt, correctness before the surface that displays it, permissions before
+autonomy — the last clause being why phase E preceded F, since an orchestrator that can spawn
+subagents before a permission floor exists is a machine for doing the wrong thing quickly.
+
+**Done is defined against numbers that already fail the build.** `make check` is fifteen gates, and
+the numeric ones fail rather than warn. The one measurement deliberately left outside the gate is
+cost per task: it is recorded by `kolk stats`, which is what the item asked for, but making it a
+budget would fail builds for a model price change nobody here controls.
+
+**The non-goals were collected, not invented** — twenty lines, each naming the item that argued it
+and the condition that would change the answer. Two are marked as exceptions rather than smuggled in
+with the rest. A hosted service and cloud sync are decided *here*, because no item had been forced to
+decide them, and saying "refused in item 12" would have been fiction — item 12 never mentions either.
+Windows is *deferred, not refused*: item 2 names a Windows CLI as a target, and demoting a target to
+a principle because it is convenient for a table is exactly the drift this item is supposed to
+prevent. Both attributions were checked against the documents before they were written down, and both
+were wrong in the first draft.
+
+**GitHub milestones are refused**, for the reason item 22 refused a docs tree: a second copy of the
+phase list, in a system that is not versioned with the code, drifts the first week someone reorders a
+phase in a commit. PLAN.md and CHECKPOINTS.md are the roadmap, they review in a diff, and as of this
+item they check each other.
+
+**L23.1 — the plan's bookkeeping is a claim, and it had no guard.** An audit on 2026-08-27 found the
+phase table four phases stale, still calling built phases "queued". A tick with no document is the
+same rot one step earlier. The contract: `[x]` requires a document that says `Status: hardened`;
+`[~]` permits a document but forbids one that claims to be hardened; every document must have an
+item; every `docs/plan/` link in PLAN.md must resolve. 81 checks, in `make check` and in CI.
+
+Its first draft also demanded that every `[~]` item have a document, and item 1 immediately failed —
+it records its decisions inline in PLAN.md and predates the convention. That is a legitimate shape,
+so the rule was relaxed rather than the plan rewritten to satisfy it. Three mutations confirm it
+bites: ticking item 19 (no document), breaking a link, and adding `Status: hardened` to item 24's
+part-done document.
+
+**L23.2 — the README now carries the roadmap and the refusals**, because someone deciding whether to
+use kolk needs the non-goals more than the phases, and "no telemetry, no cloud sync, no hosted
+service" is the part of this project's design that is hardest to verify by reading code.
+
+Acceptance checklist:
+
+- [x] the roadmap rewritten against the shipped version rather than the proposed one.
+- [x] every non-goal traced to the item that refused it; two exceptions marked rather than hidden.
+- [x] two wrong attributions caught by checking the documents before committing.
+- [x] the ratchet mutation-tested three ways, and relaxed where it overreached instead of forcing the plan to fit.
+- [x] GitHub milestones refused with the same reasoning as item 22's docs tree.
+- [x] full `make check` green.
 
 ### Item 22 hardened — recorded detail
 
@@ -5725,7 +5785,7 @@ phase must close without leaving this file.
 | F orchestration & per-task routing | 14 | doc ✓, F14.1–F14.6 ✓ | complete |
 | G the surface | 11, 15, 16 | docs ✓ for all three, G11.1–G11.6 ✓, G15.1–G15.3 ✓ | item 16 hardened, G16 leaves queued |
 | I reach | 26–29 | docs ✓ for all four, I26.1–I26.6 ✓, I27.1–I27.2 ✓ | I26.7 and the I27–I29 leaves queued |
-| H ship it for real | T0.5, 19–23 | items 20–22 docs ✓, L20.1–L20.2 ✓, L21.0 ✓, L22.1–L22.2 ✓ | 19, 23, T0.5 and L21.1–L21.4 remain |
+| H ship it for real | T0.5, 19–23 | items 20–23 docs ✓, L20.1–L20.2 ✓, L21.0 ✓, L22.1–L22.2 ✓, L23.1–L23.2 ✓ | 19, T0.5 and L21.1–L21.4 remain |
 
 This table was four phases out of date until an audit on 2026-08-27 rewrote it: it still called E
 "building — blocks F", F and G "queued", and did not mention phase I at all, while E, F, G's built

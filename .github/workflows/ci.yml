@@ -88,6 +88,9 @@ jobs:
       - name: weekly live smoke workflow contract
         run: make smoke-workflow-check
 
+      - name: the plan's tick marks match its documents
+        run: make plan-check
+
       # `go install <module>/cmd/x@version` hard-fails on a module with a
       # replace directive, which is exactly how kolk is meant to be installed.
       - name: no replace in the root go.mod

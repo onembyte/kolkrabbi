@@ -240,6 +240,27 @@ Go module path: `github.com/onembyte/kolkrabbi`. Binary: `kolk`.
 > [`docs/plan/02-architecture.md`](docs/plan/02-architecture.md); the open plan
 > items are in [`PLAN.md`](PLAN.md).
 
+## Roadmap and what kolk will not do
+
+The roadmap is [`PLAN.md`](PLAN.md) and [`CHECKPOINTS.md`](CHECKPOINTS.md) — versioned with the code,
+reviewed in a diff, and checked against each other by `make check`. Work goes in phases, not version
+numbers: the ordering rule is *finish what is half-built before starting what is unbuilt, correctness
+before the surface that displays it, and permissions before autonomy*.
+
+Refusals are worth more than plans when you are deciding whether to use something, so the short list
+of what kolk deliberately does **not** do:
+
+- **No telemetry, no analytics, no background version check.** kolk contacts a server when you ask it
+  to. `kolk update` checks for a release; nothing else phones anywhere.
+- **No hosted service and no cloud sync.** Sessions are files on your disk.
+- **No plugins compiled in Go**, and no dynamic loading into the agent's address space.
+- **No native mobile apps.** A phone can steer a session over the local network instead.
+- **No branch-per-session**, and no pull-request integration beyond GitHub's `gh`.
+- **Windows is cross-built and advisory in CI, not supported.** macOS and Linux are.
+
+The reasoning for each, and the condition that would change it, is in
+[`docs/plan/23-roadmap-phasing-non-goals.md`](docs/plan/23-roadmap-phasing-non-goals.md).
+
 ## Known limitations / next steps
 
 - Ratings inform *you* via the dashboard; auto-routing by rating ("send
