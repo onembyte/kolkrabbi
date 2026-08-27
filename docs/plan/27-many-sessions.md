@@ -28,14 +28,27 @@ where each field can honestly come from.
 | id, title, model, cwd | the session file's header, decoded without its messages | ✓ I27.2 |
 | updated | same | ✓ I27.2 |
 | live / idle / unknown | the advisory lock, probed without taking or creating it | ✓ I27.1 |
-| **blocked** | the last `permission.requested` in the event journal with no matching `permission.resolved` | — |
-| **cost** | `stats.jsonl` rows carrying this session's id | — |
-| **context** | the most recent `usage.reported` event | — |
+| **blocked** | the last `permission.requested` in the event journal with no matching `permission.resolved` | ✓ I27.3 |
+| **cost** | `stats.jsonl` rows carrying this session's id | ✓ I27.4 |
+| **context** | the most recent `usage.reported` event | **refused, see below** |
 
 **Blocked is the field that makes this a control plane rather than a list.** A session waiting on a
 permission prompt has stopped, is spending nothing, and needs a person — and it looks exactly like a
 session that is thinking hard. A view that cannot tell those apart is a view that lets work sit
 unnoticed for an hour.
+
+**Context per card is refused (2026-08-27, I27.4).** The field was specified as "the most recent
+`usage.reported` event", and building it revealed that the number that event carries is a raw prompt
+token count. On its own that is meaningless — 45,000 tokens is nearly full for one model and a
+quarter of another — so the useful form is a *percentage of the window*, which needs the model's
+context length from the catalogue, a thing the listing does not have and would have to fetch or cache
+per model to show a number in a column.
+
+The raw count without the window is exactly what item 29 refused when it dropped resource telemetry:
+a number nobody can act on, which teaches its reader to skip the panel. Cost is the opposite — a
+session that has quietly spent four dollars is one somebody stops — so cost shipped and context did
+not. What would change the answer: a card that already carries the model's window, which the dash
+page (I27.6) will have because it renders from a process that has the catalogue in memory.
 
 **`unknown` stays a state.** Windows and the fallback build return `ErrUnsupported` for advisory
 locks, so liveness genuinely cannot be observed there. A dashboard that reports "idle" for every

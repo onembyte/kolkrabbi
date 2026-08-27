@@ -6,8 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/session"
+	"github.com/onembyte/kolkrabbi/internal/stats"
 )
 
 // A per-turn snapshot layer is the first thing to suspect when a data directory
@@ -172,5 +174,51 @@ func TestSessionsReportsABlockedSession(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("the listing omits %q:\n%s", want, out)
 		}
+	}
+}
+
+// Cost is a number people act on: a session that has quietly spent four dollars
+// is one somebody stops or looks into.
+func TestSessionsShowsWhatASessionHasSpent(t *testing.T) {
+	a, stdout, _ := newTestApp(t, "")
+	d, err := a.resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess := session.New(d.Sessions(), "test/model")
+	if err := sess.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if err := stats.Append(d.Data, stats.Record{
+		Kind: "call", Time: time.Now(), Session: sess.ID, Cost: 4.20,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := a.runSessions(context.Background(), nil); err != nil {
+		t.Fatalf("runSessions: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "$4.20") {
+		t.Errorf("the listing does not show what the session spent:\n%s", stdout.String())
+	}
+}
+
+// "Nothing recorded" and "ran free" are different facts, and only the second is
+// worth a column. A session with no calls must not read as costing nothing.
+func TestSessionsSaysNothingAboutASessionWithNoCalls(t *testing.T) {
+	a, stdout, _ := newTestApp(t, "")
+	d, err := a.resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess := session.New(d.Sessions(), "test/model")
+	if err := sess.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.runSessions(context.Background(), nil); err != nil {
+		t.Fatalf("runSessions: %v", err)
+	}
+	if strings.Contains(stdout.String(), "$0.00") {
+		t.Errorf("a session with no recorded calls was reported as costing nothing:\n%s", stdout.String())
 	}
 }

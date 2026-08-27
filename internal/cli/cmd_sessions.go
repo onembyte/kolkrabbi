@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/session"
+	"github.com/onembyte/kolkrabbi/internal/stats"
 )
 
 func (a *app) runSessions(_ context.Context, args []string) error {
@@ -70,10 +71,21 @@ func (a *app) runSessions(_ context.Context, args []string) error {
 		fmt.Fprintln(a.stdout, "no sessions yet.")
 		return nil
 	}
+	wanted := make(map[string]bool, len(all))
 	for _, s := range all {
-		fmt.Fprintf(a.stdout, "%-22s %s  %-32s msgs:%-4d %s%s\n",
+		wanted[s.ID] = true
+	}
+	// One read for the whole listing, and only for the sessions being shown:
+	// stats.jsonl holds every session's calls together, so asking per card
+	// would re-read the same file once per card.
+	costs, err := stats.CostForSessions(d.Data, wanted)
+	if err != nil {
+		costs = nil
+	}
+	for _, s := range all {
+		fmt.Fprintf(a.stdout, "%-22s %s  %-32s msgs:%-4d %s%s%s\n",
 			s.ID, s.UpdatedAt.Format("2006-01-02 15:04"), s.Model, len(s.Messages),
-			snapshotSize(s), s.Title)
+			sessionCost(costs, s.ID), snapshotSize(s), s.Title)
 	}
 	a.reportBlockedSessions(sdir)
 	a.warnAboutSharedCheckouts(sdir)
@@ -299,4 +311,21 @@ func firstLine(text string) string {
 		return line
 	}
 	return text
+}
+
+// sessionCost is what a session has spent, when anything is recorded for it.
+//
+// Cost is a number people act on: a session that has quietly spent four dollars
+// is one somebody stops or looks into. Item 23 keeps it measured and never a
+// gate, and this is the measured half.
+//
+// A session with no recorded calls prints nothing rather than "$0.00", because
+// "nothing recorded" and "ran free" are different facts and only the second is
+// worth a column. A free session that did run prints $0.00 on purpose.
+func sessionCost(costs map[string]float64, id string) string {
+	cost, recorded := costs[id]
+	if !recorded {
+		return ""
+	}
+	return fmt.Sprintf("$%.2f ", cost)
 }

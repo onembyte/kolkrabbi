@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **I27.4 cost per card, and context refused** — cost is a number people act on; a raw token count without its window is not.
 - [x] **I27.3 blocked cards** — a session waiting on a prompt has stopped, and the listing says so; the tail read was measured and made 17× cheaper before it shipped.
 - [x] **I27.5 a shared checkout says so** — two live sessions in one directory is a thing people do on purpose and a thing they should be told once.
 - [x] **I26.7b the route, and what it refuses** — token, steer tier, the command's own rules, and an honest 501 where there is no session to ask.
@@ -2125,6 +2126,46 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### I27.4 built — cost per card, and context refused for a reason
+
+The leaf was specified as two fields. One shipped and one is now a written refusal, which is the more
+useful half of the work.
+
+**Cost ships, because cost is a number people act on.** A session that has quietly spent four dollars
+is one somebody stops or looks into. Item 23 keeps cost measured and never a gate, and this is the
+measured half. "Nothing recorded" and "ran free" stay different facts: a session with no calls prints
+nothing, and a free session that did run prints `$0.00` on purpose, because collapsing them would
+report a working free session as unknown.
+
+**Context is refused.** The field was "the most recent `usage.reported` event", and building it
+showed what that event actually carries: a raw prompt token count. On its own that is meaningless —
+45,000 tokens is nearly full for one model and a quarter of another — so the useful form is a
+percentage of the window, which needs the model's context length from the catalogue, which the
+listing does not have. The raw count is exactly what item 29 refused when it dropped resource
+telemetry: *a number nobody can act on teaches its reader to skip the panel.* The doc now records the
+refusal and what would change it — the dash page renders from a process that already holds the
+catalogue.
+
+**Measured again, and it mattered again.** `stats.jsonl` holds every session's calls in one file, so
+the first implementation decoded all of it: **218 ms over 50,000 rows / 4.4 MB.** A listing shows a
+handful of sessions out of hundreds, so `CostForSessions` rejects a row on two substring scans before
+any JSON is parsed — the row must be a call, and its session must be one being shown. **20 ms, 11×
+cheaper**, and a differential test proves the two paths agree on the same log.
+
+**Then the dead-export rule made the right call about the leftover.** Once the cheap path took over,
+`CostBySession` had only test callers. The rule offers wire-it, delete-it or allowlist-it, and the
+honest answer was none of those: it is not API, it is the plain implementation the fast one is
+checked against, so it became `costBySession`. A reference implementation kept as an oracle is worth
+having; an exported one nobody calls is what item 19 deleted a whole allowance for.
+
+Acceptance checklist:
+
+- [x] six tests written first across two packages, including the zero-versus-absent distinction.
+- [x] both paths measured on the same fixture, and the fast one proved equal to the slow one.
+- [x] the context half refused in writing, with the condition that would change it.
+- [x] the leftover unexported rather than allowlisted, because it is an oracle and not an API.
+- [x] full `make check` green: 2,225 tests, 0 lint issues.
 
 ### I27.3 built — blocked cards, and a cost that had to be measured twice
 
