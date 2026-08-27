@@ -50,6 +50,7 @@ var slashCommandTable = []slashCommand{
 	{"undo", "", "take back the last turn: its file changes and its conversation"},
 	{"rewind", "", "restore the last turn's files only, leaving the conversation"},
 	{"commit", "", "draft a commit message from the staged diff, and stop"},
+	{"pr", "", "draft a pull request title and body, and hand over `gh pr create`"},
 	{"doctor", "", "check keys, directories, terminal and network"},
 	{"help", "", "show all slash commands"},
 	{"exit", "", "quit Kolkrabbi"},
@@ -92,6 +93,8 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		return true
 	case "/commit":
 		a.runCommitDraft(ctx, ag)
+	case "/pr":
+		a.runPullRequestDraft(ctx, ag)
 	case "/doctor":
 		if err := a.runDoctor(ctx, nil); err != nil {
 			fmt.Fprintln(a.stdout, err)

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"github.com/onembyte/kolkrabbi/internal/shell"
 	"strings"
 )
 
@@ -80,7 +81,7 @@ func NewCommandCheckpointer(ctx context.Context, runner CommandRunner) GitCheckp
 
 // CommitChapter stages everything and commits it, returning the short hash.
 func (c commandCheckpointer) CommitChapter(repoDir string, chapterNum int, summary string) (string, error) {
-	message := shellQuote(fmt.Sprintf("saga(chapter %d): %s", chapterNum, summary))
+	message := shell.Quote(fmt.Sprintf("saga(chapter %d): %s", chapterNum, summary))
 	if err := c.mustRun("git add -A && git commit -m "+message, repoDir, "commit"); err != nil {
 		return "", err
 	}
@@ -127,12 +128,4 @@ func (c commandCheckpointer) mustRun(command, repoDir, what string) error {
 		return fmt.Errorf("saga: %s failed: %s", what, result.Failure)
 	}
 	return nil
-}
-
-// shellQuote wraps text for a POSIX shell.
-//
-// A chapter title is model-written text arriving on a command line, so this is
-// the boundary where a quote in a title stops being punctuation.
-func shellQuote(text string) string {
-	return "'" + strings.ReplaceAll(text, "'", `'\''`) + "'"
 }

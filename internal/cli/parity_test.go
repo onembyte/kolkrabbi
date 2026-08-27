@@ -169,6 +169,7 @@ var sessionOnly = map[string]string{
 	"permissions":  "shows and edits the running session's tier and rules",
 	"plan":         "puts the running session into read-only planning",
 	"commit":       "drafts through the running session's fast lane, which a one-shot process has no model wired for",
+	"pr":           "drafts through the running session's fast lane, like /commit",
 	"compact":      "shrinks the conversation this process is holding",
 	"remember":     "appends what the session just learned",
 	"rate":         "rates the turn that just happened",

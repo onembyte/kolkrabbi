@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **I28.3 `/pr` drafts and hands over** — item 28 is complete; three copies of shell quoting became one on the way.
 - [x] **I28.2 `/commit` drafts and stops** — the message, the command that would use it, and the plain statement that nothing was committed.
 - [x] **I28.1 dirty-tree awareness** — a turn knows which files are uncommitted before it advises about them, and it is told beside the turn rather than in the system prompt.
 - [x] **I27.4 cost per card, and context refused** — cost is a number people act on; a raw token count without its window is not.
@@ -2128,6 +2129,47 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### I28.3 built — `/pr` hands over, and item 28 is complete
+
+Built to I28.2's shape: read git, scrub before a model sees it, bound the input visibly, draft
+through the fast lane, print the draft **and the command that would use it**, run nothing. Drafting
+is where the model helps; running it is a confirmation like any other.
+
+**Three failure paths, three explanations, no errors.** No `gh` on the machine — pull requests go
+through it by design, so the message names `cli.github.com` rather than reporting a fault. A branch
+never pushed — one `git push -u origin <branch>` fixes it, and the message says exactly that with the
+branch filled in. No commits the base does not have — nothing to propose yet, naming the base it
+compared against so the answer is checkable.
+
+**The base is asked for, not guessed.** `git symbolic-ref refs/remotes/origin/HEAD` says what the
+remote considers default, with `main` as the fallback. Guessing `master` on a repository that uses
+`main` produces a diff of the entire history, which is a confusing way to fail.
+
+**The handover is shell-quoted, and there is a test with an apostrophe in it.** A drafted title is
+model-written text going onto a command line — a `don't` in it would break the command the user is
+being handed, which is the worst possible place for that to happen.
+
+**Then three copies of one boundary became one.** Writing this file produced a third `shellQuote`: the
+saga had one for chapter titles, the shadow store had one for snapshot messages, and `/pr` needed one
+for a drafted title. All three are the same boundary — where a quote in someone else's text stops
+being punctuation and becomes syntax — and three copies is three chances for one to be subtly
+different. They are now `shell.Quote`. The allowlist records that this exact function was **deleted
+once for having no callers**, which was right then; three is the number that earns it back, and the
+comment says so.
+
+With this, **item 28 is complete**: dirty-tree awareness, `/commit`, `/pr` — the three things that
+were worth building, around a great many that were refused.
+
+Acceptance checklist:
+
+- [x] seven tests written first, five of them about the paths where nothing gets drafted.
+- [x] every failure path names the next command instead of reporting an error.
+- [x] the base branch read from the remote rather than assumed.
+- [x] the handover quoted, with an apostrophe test proving it.
+- [x] the log scrubbed before drafting, prefix search asserted absent.
+- [x] the third copy of shell quoting consolidated rather than added.
+- [x] full `make check` green: 2,244 tests, 0 lint issues.
 
 ### I28.2 built — `/commit` drafts and stops
 

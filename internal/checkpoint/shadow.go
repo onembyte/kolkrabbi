@@ -115,7 +115,7 @@ func (s *Shadow) Snapshot(ctx context.Context, turn int) (string, error) {
 		return "", fmt.Errorf("checkpoint: staging the snapshot: %s", failure(result, err))
 	}
 	message := fmt.Sprintf("kolk snapshot: turn %d", turn)
-	result, err := s.git(ctx, "git commit --quiet --allow-empty -m "+quote(message))
+	result, err := s.git(ctx, "git commit --quiet --allow-empty -m "+shell.Quote(message))
 	if err != nil || !result.OK() {
 		return "", fmt.Errorf("checkpoint: recording the snapshot: %s", failure(result, err))
 	}
@@ -164,9 +164,6 @@ func failure(result shell.Result, err error) string {
 		return strings.TrimSpace(result.Output)
 	}
 }
-
-// quote makes one shell word out of arbitrary text.
-func quote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
 // The two ways a turn's file state can be captured.
 const (
@@ -244,7 +241,7 @@ func reasonOf(err error) string {
 // ChangedSince lists what differs between the work tree and one snapshot.
 // It is read before a restore, so a rewind can say what it put back.
 func (s *Shadow) ChangedSince(ctx context.Context, commit string) ([]string, error) {
-	result, err := s.git(ctx, "git diff --name-only "+quote(commit))
+	result, err := s.git(ctx, "git diff --name-only "+shell.Quote(commit))
 	if err != nil || !result.OK() {
 		return nil, fmt.Errorf("checkpoint: comparing against the snapshot: %s", failure(result, err))
 	}
@@ -281,7 +278,7 @@ func (s *Shadow) ChangedSince(ctx context.Context, commit string) ([]string, err
 // alone: the snapshot never held it, so putting the tree "back" cannot mean
 // deleting it.
 func (s *Shadow) RestoreTo(ctx context.Context, commit string) error {
-	if result, err := s.git(ctx, "git reset --hard --quiet "+quote(commit)); err != nil || !result.OK() {
+	if result, err := s.git(ctx, "git reset --hard --quiet "+shell.Quote(commit)); err != nil || !result.OK() {
 		return fmt.Errorf("checkpoint: restoring the snapshot: %s", failure(result, err))
 	}
 	if result, err := s.git(ctx, "git clean -fdq"); err != nil || !result.OK() {
