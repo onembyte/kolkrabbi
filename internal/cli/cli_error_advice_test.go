@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 )
 
@@ -84,5 +85,43 @@ func TestEveryTurnFailureSiteWritesAdvice(t *testing.T) {
 		if !strings.Contains(string(source), site.call) {
 			t.Errorf("%s prints a failed turn without its next action", site.file)
 		}
+	}
+}
+
+// A turn that stops because it was going nowhere, and a saga that stops for the
+// same reason, must say the same thing. Two vocabularies for one failure is how
+// a user learns that the words do not mean anything in particular.
+func TestADoomLoopStopReadsLikeTheSagasOwn(t *testing.T) {
+	a, _, stderr := newTestApp(t, "")
+	a.printFailure(&engine.DoomLoopError{Tool: "read_file", Repeats: 3}, ExitError)
+	out := stderr.String()
+
+	if !strings.Contains(out, doomLoopPhrase) {
+		t.Errorf("a turn-level stop does not use the shared phrase %q:\n%s", doomLoopPhrase, out)
+	}
+	if !strings.Contains(out, "read_file") {
+		t.Errorf("the stop does not name the tool that repeated:\n%s", out)
+	}
+	if !strings.Contains(out, "/undo") {
+		t.Errorf("the stop gives the user no next action:\n%s", out)
+	}
+}
+
+// The saga's chapter-level stop is where the phrase came from. If someone
+// rewrites either line, this fails and they have to change both on purpose.
+func TestBothDoomLoopStopsShareOnePhrase(t *testing.T) {
+	saga := sagaStopMessage(engine.StopDoomLoop, &engine.SagaState{Goal: "g"})
+	if !strings.Contains(saga, doomLoopPhrase) {
+		t.Errorf("the saga's stop no longer uses the shared phrase %q: %q", doomLoopPhrase, saga)
+	}
+}
+
+// Advice for an ordinary provider failure must still work: the doom-loop case
+// is an addition, not a replacement.
+func TestProviderAdviceSurvivesTheDoomLoopCase(t *testing.T) {
+	a, _, stderr := newTestApp(t, "")
+	a.printFailure(&provider.HTTPError{StatusCode: 401}, ExitError)
+	if !strings.Contains(stderr.String(), "kolk key") {
+		t.Errorf("provider advice stopped printing:\n%s", stderr.String())
 	}
 }

@@ -151,9 +151,11 @@ type DoomLoopError struct {
 	Repeats int
 }
 
+// Error is deliberately short. The surface prints this line and then adds the
+// detail and the next action, so a message that spelled out the whole story
+// here would be read twice.
 func (e *DoomLoopError) Error() string {
-	return "stopped: " + e.Tool + " was called " + itoa(e.Repeats) +
-		" times in a row with the same arguments and the same result, so the turn was going nowhere"
+	return "stopped: " + e.Tool + " repeated without progress"
 }
 
 func itoa(n int) string {

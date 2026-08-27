@@ -112,7 +112,8 @@ func sagaStopMessage(reason engine.StopReason, state *engine.SagaState) string {
 	case engine.StopTimeout:
 		return fmt.Sprintf("saga %q: stopped at the time limit.", state.Goal)
 	case engine.StopDoomLoop:
-		return fmt.Sprintf("saga %q: stopped after repeated failures without progress. The last chapter's verification says why.", state.Goal)
+		return fmt.Sprintf("saga %q: %s failures without progress. The last chapter's verification says why.",
+			state.Goal, doomLoopPhrase)
 	default:
 		return fmt.Sprintf("saga %q: stopped.", state.Goal)
 	}

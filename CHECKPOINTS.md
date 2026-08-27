@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **L30.3 one vocabulary for one failure** — the turn-level stop and the saga's chapter-level stop share a phrase that a test keeps shared.
 - [x] **L30.2 who is there to ask decides what happens** — the call is never made a third time; the tier decides whether that means a question, a stop, or a refusal.
 - [x] **L30.4 the ceiling is no longer the detector** — a repeated call stops on the third round, not the fifty-first.
 - [x] **L30.1 the doom-loop detector** — three identical calls with identical results are a loop; either half differing is progress.
@@ -2117,6 +2118,40 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### L30.3 built — item 30 is complete
+
+The last item-30 leaf, and mostly a decision about where a small piece of text belongs.
+
+**The layering settled the obvious idea.** Item 21's `provider.Advise` already prints at all three
+places a turn can fail, so putting the doom-loop line there would have been free. It cannot go there:
+`DoomLoopError` is an engine type and `internal/provider` is L3, a layer below L4, so `Advise` cannot
+see it. `internal/cli`'s `writeAdvice` is the correct home, and it is the better one anyway — the
+surface is exactly where the two stops have to sound like each other.
+
+**One phrase, held by a constant and a test.** `doomLoopPhrase` is now used by the saga's
+chapter-level stop and the turn-level one. A user who meets the second should recognise it from the
+first; two vocabularies for one failure teach people that the words do not mean anything in
+particular. A test asserts the saga's line still contains it, so rewriting either message fails the
+build and the author has to change both on purpose.
+
+**The error message got shorter, not longer.** `DoomLoopError.Error` said the whole story — tool,
+count, arguments, and that the turn was going nowhere — and the surface then printed the same story
+again underneath it. It now says `stopped: read_file repeated without progress`, and the advice lines
+carry the detail and the next action. The next action names `/undo` and closes off the wrong
+instinct: *raising effort will not help, the limit is three whatever the budget.*
+
+With this, **item 30 is complete** — the detector (L30.1), the tiered responses (L30.2), the surface
+(L30.3) and the proof that the round ceiling is no longer doing the detector's job (L30.4).
+
+Acceptance checklist:
+
+- [x] the layering checked before wiring, not after — L3 cannot see an L4 type.
+- [x] the shared phrase made a constant so it cannot drift silently.
+- [x] a test pins the saga's line to the same phrase, so both change together or neither does.
+- [x] the raw error shortened once the surface carried the detail, so nothing is said twice.
+- [x] provider advice proven still to work, since this is an addition and not a replacement.
+- [x] full `make check` green: 2,118 tests, 0 lint issues.
 
 ### L30.2 built — the tiered response
 
