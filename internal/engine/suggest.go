@@ -27,10 +27,19 @@ func suggestRule(r tools.Request) string {
 
 // commandDrivers are programs whose first word says nothing useful on its own:
 // a rule for every `git` is not what someone approving `git status` meant.
+//
+// The list grows by evidence, one program at a time, rather than by importing
+// somebody else's generated arity table. It grew on 2026-08-27 (item 31) when
+// every command in this repository's Makefile, CI workflows and scripts was run
+// through generaliseCommand: `goreleaser check` validates a config file and
+// `goreleaser release` publishes to the internet, and a `goreleaser *` rule
+// derived from approving the first would have allowed the second. `cosign`
+// joined it for the same reason — `verify-blob` reads, `sign` signs.
 var commandDrivers = map[string]bool{
 	"git": true, "go": true, "npm": true, "pnpm": true, "yarn": true, "cargo": true,
 	"docker": true, "kubectl": true, "make": true, "python": true, "python3": true,
 	"pip": true, "pip3": true, "gh": true, "brew": true, "apt": true, "systemctl": true,
+	"goreleaser": true, "cosign": true,
 }
 
 // destructiveCommands are never generalised. One approval of `rm -rf ./build`

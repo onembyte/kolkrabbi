@@ -115,3 +115,36 @@ func TestAPlainYesKeepsNothing(t *testing.T) {
 		t.Fatalf("rules = %+v, want none", agent.Rules)
 	}
 }
+
+// A one-word rule for a program whose subcommands differ in power is the one
+// way the structural derivation goes wrong, and it was found by running every
+// command in this repository's Makefile, CI workflows and scripts through
+// generaliseCommand (item 31). `goreleaser check` validates a config file;
+// `goreleaser release` publishes to the internet. Approving the first must not
+// write a rule that allows the second.
+func TestApprovingASafeSubcommandDoesNotAllowADangerousOne(t *testing.T) {
+	cases := []struct{ command, want string }{
+		{"goreleaser check", "goreleaser check *"},
+		{"cosign verify-blob --bundle x.json", "cosign verify-blob *"},
+	}
+	for _, tc := range cases {
+		if got := generaliseCommand(tc.command); got != tc.want {
+			t.Errorf("generaliseCommand(%q) = %q, want %q", tc.command, got, tc.want)
+		}
+	}
+}
+
+// The corpus also showed what must NOT change. A program whose second word is a
+// flag has no subcommand to keep, and widening to the program alone is the
+// rule a person meant when they approved it.
+func TestAFlagIsNotASubcommand(t *testing.T) {
+	for command, want := range map[string]string{
+		"gofmt -w .":     "gofmt *",
+		"go build ./...": "go build *",
+		"make check":     "make check *",
+	} {
+		if got := generaliseCommand(command); got != want {
+			t.Errorf("generaliseCommand(%q) = %q, want %q", command, got, want)
+		}
+	}
+}
