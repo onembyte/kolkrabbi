@@ -210,6 +210,11 @@ type Options struct {
 	// guesses one, because compaction is destructive and a guessed limit would
 	// throw away conversation on no evidence.
 	ContextWindow int
+	// DirtyFiles reports paths with uncommitted changes, or nil when this
+	// project is not a repository and nil when the host supplies no way to
+	// look. The engine touches no OS, so the host provides this.
+	DirtyFiles func(context.Context) []string
+
 	// UserMemoryFile is the user's own standing notes, applied to every
 	// project. Empty means none; surfaces resolve the path.
 	UserMemoryFile string
@@ -956,6 +961,11 @@ func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 	}
 	if a.Sess != nil {
 		a.Sess.SetTitleFromInput(userInput)
+	}
+	// Beside the turn rather than in the system prompt: dirty state changes
+	// every turn, and the system prompt is the one thing that must not.
+	if preamble := a.dirtyTreePreamble(ctx); preamble != "" {
+		userInput = preamble + "\n\n" + userInput
 	}
 	a.compactIfNeeded(ctx)
 

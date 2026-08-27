@@ -36,6 +36,10 @@ func (a *app) runDefault(ctx context.Context, args []string) (err error) {
 	if err != nil {
 		return err
 	}
+	// The engine touches no OS, so the host supplies the look. Measured at
+	// 6.7 ms on a 215 MiB repository with 544 files, which is nothing against a
+	// turn — but it is per turn, so it was measured rather than assumed.
+	ag.DirtyFiles = uncommittedFiles(projectRoot())
 	// Written here rather than beside the rest of the header, because these are
 	// the values the run *resolved* — a flag left unset reads as empty, and a
 	// diagnostic that reports "mode " has recorded the one thing it must not

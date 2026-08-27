@@ -82,6 +82,8 @@ expensive in context and the model can read one when it needs it.
 
 - **Should `/commit` offer to stage?** `git add -p` is a conversation, and a `/commit` that quietly
   staged everything would surprise anyone who was staging deliberately.
-- **Does dirty-tree awareness belong in the system prompt or the first user turn?** The system prompt
-  costs a cache invalidation on every change; the user turn is noisier but honest about being a fact
-  at a moment in time. Leaning towards the turn, on the evidence of G15.3's prompt-cache note.
+- ~~**Does dirty-tree awareness belong in the system prompt or the first user turn?**~~ **Answered by
+  I28.1, and by a cost rather than a taste.** The comment on `SetExtraSystem` already says why:
+  mutating the system prompt mid-session costs the provider's prompt cache, which is why loop wakeups
+  are injected as user turns instead. Dirty state changes every turn, so it is the worst possible
+  thing to put somewhere that must stay stable. It goes beside the turn, the same way.

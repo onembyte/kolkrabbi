@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **I28.1 dirty-tree awareness** — a turn knows which files are uncommitted before it advises about them, and it is told beside the turn rather than in the system prompt.
 - [x] **I27.4 cost per card, and context refused** — cost is a number people act on; a raw token count without its window is not.
 - [x] **I27.3 blocked cards** — a session waiting on a prompt has stopped, and the listing says so; the tail read was measured and made 17× cheaper before it shipped.
 - [x] **I27.5 a shared checkout says so** — two live sessions in one directory is a thing people do on purpose and a thing they should be told once.
@@ -2126,6 +2127,45 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### I28.1 built — dirty-tree awareness, and an open question answered by a cost
+
+Item 28 calls this the highest-value thing in the item: *a session that cannot see uncommitted
+changes gives advice about a tree that no longer exists.*
+
+**The item's open question was answered by a comment written for another reason.** It asked whether
+this belongs in the system prompt or beside the turn. `SetExtraSystem` already records that mutating
+the system prompt mid-session **costs the provider's prompt cache**, which is why loop wakeups are
+injected as user turns instead. Dirty state changes every turn, which makes it the worst possible
+thing to put in the one place that must stay stable. So it goes beside the turn — decided by a cost
+already measured, not by taste, and the doc's question is struck through with that reasoning.
+
+**Names, not a diff**, as the item specified: a diff is expensive in context and the model can read
+one when it needs to. What a session needs before it advises is *that* these files differ from the
+last commit. The list is capped at twenty with an "…and N more", because a tree with three hundred
+changed files must not put three hundred paths in front of every turn — the useful fact is that the
+tree is dirty and roughly where, and an inventory is what a tool call is for.
+
+**Measured, because it runs every turn.** `git status --porcelain` on this repository — 215 MiB of
+pack, 544 files — costs **6.7 ms**. Against a turn that takes seconds that is nothing, but "per turn"
+is exactly the shape that earned a measurement in each of the last three leaves.
+
+**It reuses the saga's question rather than inventing a second one**, and the comment says plainly
+what it is *not*: this reads the **user's own** repository, which is a different thing from the
+shadow store's `GIT_DIR` — that one records snapshots, this one reports what a person has not
+committed. Two git-shaped things in one codebase is exactly where a later reader gets confused.
+
+**Everything about it fails quietly.** Not a repository, no git, a command that errors: all mean
+"nothing to say", never a failed turn. A courtesy that can break a turn is a defect.
+
+Acceptance checklist:
+
+- [x] seven tests written first, across the engine's rendering and the host's look.
+- [x] the open question answered from evidence already in the codebase, and struck through in the doc.
+- [x] the per-turn cost measured on a real repository before shipping.
+- [x] the existing `git status --porcelain` reused, with the shadow store's distinct role spelled out.
+- [x] the port optional, so a non-repository or a machine without git runs turns exactly as before.
+- [x] full `make check` green: 2,232 tests, 0 lint issues.
 
 ### I27.4 built — cost per card, and context refused for a reason
 
