@@ -133,7 +133,15 @@ func tuiWelcome(messageCount int) string {
 	welcome.WriteString("Type a request or /help. Up arrow recalls history; Ctrl+C clears input, twice exits.\n")
 	if messageCount > 1 {
 		_, _ = fmt.Fprintf(&welcome, "Resumed with %d messages.\n", messageCount-1)
+		return welcome.String()
 	}
+	// Only on a new session. The status line already shows which mode, effort
+	// and model this session is on; what it cannot show is that they are
+	// changeable mid-conversation, which is the thing a first-time user has no
+	// way to discover and the thing that makes the three dials worth having.
+	// A resumed session has met them already, and repeating it every time is
+	// how an orientation becomes noise.
+	welcome.WriteString("Switch anytime with /mode, /effort or /model. Each lists its options.\n")
 	return welcome.String()
 }
 

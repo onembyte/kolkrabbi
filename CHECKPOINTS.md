@@ -214,6 +214,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **L22.2 documentation cannot describe what does not exist** — the README's commands and the welcome's slash commands are checked against the tables that define them.
+- [x] **L22.1 a new session is told the dials turn** — the status line shows mode, effort and model; nothing said they could be changed mid-conversation.
 - [x] **L21.0 the error matrix is code, not a table** — every provider failure arrives with a next action, at all three places a turn can fail.
 - [x] **L20.1 the weekly live smoke test** — the one test that is allowed to cost money: opt-in, fork-proof, never on a push, and pinned to the free model the offline catalogue promises.
 - [x] **L20.2 the install section says how people actually install** — three paths instead of one, and the one that was there could not have worked.
@@ -2101,6 +2103,59 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### Item 22 hardened — recorded detail
+
+A documentation item is the easiest thing in this plan to write fiction about, so this one began by
+running the binary rather than reading about it: a fresh build, an empty HOME, no key. `kolk "hello"`
+prints three lines, names the exact command to fix it, and exits 0. The first-run path was already
+right, and most of what the item asked for around it was either built or should not be built.
+
+**Three refusals.** OAuth "login with OpenRouter": pasting a key is one command against something
+already in the clipboard, while the flow costs a redirect listener, a token store with its own expiry
+and refresh semantics, a second class of auth failure to diagnose, and a browser on a machine that is
+frequently a remote shell. A first-run mode picker: every question asked before the first turn is
+asked before the user knows what the answers mean. `/help` per mode: a help list that is a different
+document each time it is read is exactly the confusion a flat list avoids. Demo GIFs joined them —
+a recorded terminal is a binary blob that ages the moment the UI moves, cannot be diffed or tested,
+and looks authoritative while being wrong, which is the same condition item 21 attached to golden TUI
+tests.
+
+**The eight-file `docs/` tree was refused as specified, and replaced with something with teeth.**
+`kolk help` and `kolk help <command>` are generated from the command table, so they cannot drift; a
+prose tree covering commands, config, modes, effort, saga, dashboard, providers and subscriptions
+would be a second source of truth for facts that already have one. The real failure mode of
+user-facing docs is not incompleteness — it is fiction, and this repository produced two examples in
+a week. The README's own first line told people to run `go build -o kolk .` against a root that holds
+no main package, so the first command a new user typed returned an error. And an error message
+drafted during item 21 recommended `kolk doctor`, which that same document queues as unbuilt; it was
+caught by reading, which is not a control.
+
+**L22.2** makes it a control. Every `kolk <command>` in the README — in backticks or a fenced block,
+never in prose, because "kolk asks" and "kolk contacts" are sentences — must name a command in the
+table, and every slash command in the welcome must exist in the slash table. The rule never demands
+that a command *be* documented: `kolk help` is the complete reference and a tour that omits
+`kolk completion` is fine. Only invention fails. Both halves were mutation-tested: inserting
+`kolk doctor` into the README fails, and renaming `/mode` to `/moode` fails.
+
+**L22.1 — the orientation line.** The status line reports mode, effort, model and tier; what it
+cannot report is that all of them change mid-conversation, which is the one thing that makes the
+dials worth having and the one thing a first-time user cannot discover. A new session now gets
+"Switch anytime with /mode, /effort or /model. Each lists its options."; a **resumed** session does
+not, because an orientation repeated every time is noise and noise is what people learn to skip.
+
+The first draft spelled out every value and was worse twice over: it wrapped across two lines at 72
+columns, and the phrase "mid-session: " tripped an existing guard forbidding duplicated `session: `
+metadata in the startup transcript. A test written six weeks earlier caught prose, which is the kind
+of accident that only happens when the guards are about properties rather than strings.
+
+Acceptance checklist:
+
+- [x] the first-run path observed by running the binary in an isolated HOME, not inferred from code.
+- [x] both new tests written red first; both mutation-tested afterwards.
+- [x] every Decide bullet resolved: four refusals, two builds, the rest recorded as already built.
+- [x] one claim about the site checked before committing (it shows the logo, not a screenshot).
+- [x] full `make check` green: 2,082 tests, 0 lint issues.
 
 ### Item 21 hardened — recorded detail
 
@@ -5670,7 +5725,7 @@ phase must close without leaving this file.
 | F orchestration & per-task routing | 14 | doc ✓, F14.1–F14.6 ✓ | complete |
 | G the surface | 11, 15, 16 | docs ✓ for all three, G11.1–G11.6 ✓, G15.1–G15.3 ✓ | item 16 hardened, G16 leaves queued |
 | I reach | 26–29 | docs ✓ for all four, I26.1–I26.6 ✓, I27.1–I27.2 ✓ | I26.7 and the I27–I29 leaves queued |
-| H ship it for real | T0.5, 19–23 | items 20 and 21 docs ✓, L20.1–L20.2 ✓, L21.0 ✓ | 19, 22, 23, T0.5 and L21.1–L21.4 remain |
+| H ship it for real | T0.5, 19–23 | items 20–22 docs ✓, L20.1–L20.2 ✓, L21.0 ✓, L22.1–L22.2 ✓ | 19, 23, T0.5 and L21.1–L21.4 remain |
 
 This table was four phases out of date until an audit on 2026-08-27 rewrote it: it still called E
 "building — blocks F", F and G "queued", and did not mention phase I at all, while E, F, G's built

@@ -171,3 +171,30 @@ func TestTUIStatusReResolvesModelWhenEffortChanges(t *testing.T) {
 		t.Fatalf("status after /effort quick = %#v, want effort low and model legacy/quick-model", status3)
 	}
 }
+
+// The status line already says what mode, effort and model a session is on.
+// What it cannot say is how to change any of them, and a first session is
+// exactly where that matters: the three dials that make kolk feel different
+// are invisible until someone reads the docs, which is one place too far.
+func TestANewSessionIsToldHowToChangeTheThreeDials(t *testing.T) {
+	got := tuiWelcome(0)
+	for _, want := range []string{"/mode", "/effort", "/model"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("a new session's welcome never mentions %s: %q", want, got)
+		}
+	}
+	if strings.Count(got, "\n") > 3 {
+		t.Errorf("the welcome grew past three lines, which is a wall, not an orientation: %q", got)
+	}
+}
+
+// A resumed session has already met the dials. Repeating them every time turns
+// an orientation into noise, and noise is what people learn to skip.
+func TestAResumedSessionIsNotReorientated(t *testing.T) {
+	got := tuiWelcome(8)
+	for _, unwanted := range []string{"/mode", "/effort", "/model"} {
+		if strings.Contains(got, unwanted) {
+			t.Errorf("a resumed session was re-orientated with %s: %q", unwanted, got)
+		}
+	}
+}
