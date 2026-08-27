@@ -47,8 +47,8 @@ questions.
 $ curl -fsSL https://kolk.sh/install | sh
 kolk 0.1.0 → /usr/local/bin/kolk
 
-$ kolk key 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
-openrouter  sk-or-v1-…4f2a   verified · $12.47 credits · free tier: no
+$ kolk key sk-or-v1-EXAMPLE00000000000000000000000000000000000000000000000000000FAKE
+openrouter  sk-or-v1-…FAKE   verified · $12.47 credits · free tier: no
 saved to    ~/.local/share/kolk/credentials.json   (0600 — plain text, readable only by you)
 tip         next time keep it out of your shell history:  pbpaste | kolk key
 
@@ -252,8 +252,8 @@ read-only `$HOME` degrades those with a message and leaves the read path untouch
 moment the user's mental model diverged from reality:
 
 ```console
-$ kolk key sk-or-v1-b3d7…4f2a
-openrouter  sk-or-v1-…4f2a   verified · $12.47 credits
+$ kolk key sk-or-v1-EXAM…FAKE
+openrouter  sk-or-v1-…FAKE   verified · $12.47 credits
 saved to    ~/.local/share/kolk/credentials.json (0600)
 
 !  $OPENROUTER_API_KEY is set in this shell and wins (link 2 beats link 3).
@@ -280,7 +280,7 @@ ref      openrouter/default
   0  flag                              (none — by design; a secret in argv is world-readable)
   1  KOLK_API_KEY                      not set
   2  OPENROUTER_API_KEY   sk-or-v1-…9c31   ← IN USE
-  3  store: file          sk-or-v1-…4f2a   present, shadowed by link 2   (a different key)
+  3  store: file          sk-or-v1-…FAKE   present, shadowed by link 2   (a different key)
        ~/.local/share/kolk/credentials.json · added 2026-08-19 · verified 3 d ago
        manage / revoke:  kolk key --manage openrouter
 
@@ -328,7 +328,7 @@ credentials  (kolk holds these)
     0  flag                              (none — by design)
     1  KOLK_API_KEY                      not set
     2  OPENROUTER_API_KEY   sk-or-v1-…9c31   ← IN USE
-    3  store: file          sk-or-v1-…4f2a   present, shadowed by link 2
+    3  store: file          sk-or-v1-…FAKE   present, shadowed by link 2
          added 2026-08-19 · verified 3 d ago · manage: kolk key --manage openrouter
     → effective: link 2. To use the stored key: unset OPENROUTER_API_KEY
   anthropic · default
@@ -389,7 +389,7 @@ So:
   (`sha256hex(resolved) != entry.key_hash` ⇒ "the key in `$OPENROUTER_API_KEY` is not the one you
   saved") and the input to the deep link.
 - **Nothing key-derived is ever rendered.** `doctor`, `key`, `--why` and `logout` print the mask
-  (`sk-or-v1-…4f2a`) and, where a comparison is needed *within one run*, a **per-process-salted**
+  (`sk-or-v1-…FAKE`) and, where a comparison is needed *within one run*, a **per-process-salted**
   fingerprint — comparable inside the run, worthless outside it, unbruteforceable offline.
 - The deep link is reached by **`kolk key --manage [provider]`**, which opens the browser. This also
   removes the broken-truncated-URL bug every draft had (`openrouter.ai/keys/9a3f2c11` is not a URL
@@ -534,7 +534,7 @@ func (v *Value) UnmarshalJSON([]byte) error { return ErrMarshal }
 
 // ── safe derived facts (plain strings; they marshal fine) ────────────────────
 func (v Value) IsZero() bool
-func (v Value) Mask() string        // redact.Mask(plaintext) — "sk-or-v1-…4f2a"
+func (v Value) Mask() string        // redact.Mask(plaintext) — "sk-or-v1-…FAKE"
 func (v Value) Fingerprint() string // sha256(processSalt‖plaintext)[:4] hex.
                                     // Comparable WITHIN a run; uncorrelatable across runs;
                                     // unbruteforceable offline. The ONLY digest ever displayed.
@@ -669,7 +669,7 @@ type Entry struct {
     Ref      Ref
     Backend  Backend
     Helper   string    // when Backend == BackendHelper
-    Mask     string    // "sk-or-v1-…4f2a"
+    Mask     string    // "sk-or-v1-…FAKE"
     KeyHash  string    // sha256hex(plaintext) — 0600-only, never displayed
     Machine  string    // the host that wrote it — so a lockout can NAME the machine (§3.5)
     Created  time.Time
@@ -913,7 +913,7 @@ file**.
     "openrouter/default": {
       "backend":  "file",
       "value":    "kolk-b64:c2stb3ItdjEt…",   // ABSENT for every backend except file
-      "mask":     "sk-or-v1-…4f2a",
+      "mask":     "sk-or-v1-…FAKE",
       "key_hash": "9a3f2c1188de4c07…",        // full sha256hex — 0600-only, never rendered
       "machine":  "mba.local",
       "created":  "2026-08-22T18:04:11Z",
