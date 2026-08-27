@@ -36,7 +36,7 @@ kolk-code> /effort 3
 | **3. One install command, static binary** | Self-generating completions (Bash, Zsh, Fish) and help text are embedded in the binary without external man-page or toolchain dependencies. | `TestEmbeddedCompletionGeneration` |
 | **4. One key command** | `kolk key <key>` and `/key <key>` accept any supported provider key, inferring the provider shape automatically. | `TestKeyCommandParity` |
 | **5. Complexity ships off, discoverable later** | Advanced tools (MCP, hooks, profiles, worktree) remain on the reserve list. v0.1 ships only core verbs. | `TestCommandTableMatchesSpec` |
-| **6. Simple to type beats simple to explain** | All verbs are $\le 6$ letters. Common actions have single-character flags (`-m`, `-e`, `-y`, `-p`, `-r`). | `TestCommandNameLengthGuardrail` |
+| **6. Simple to type beats simple to explain** | Verbs are $\le 6$ letters, with five recorded exceptions (see below). Common actions have single-character flags (`-m`, `-e`, `-p`, `-r`); `-y` was removed by E13.2. | `TestCommandNameLengthGuardrail` |
 
 ---
 
@@ -146,6 +146,26 @@ Future capabilities must not invent one-off top-level commands without architect
 | `serve` | Item 2 | v0.4 | Background daemon / headless event server |
 
 ---
+
+
+### Amendment, 2026-08-27 — the six-letter rule has five exceptions
+
+An audit compared `commandTable()` against this rule and found five shipped verbs breaking it:
+`completion`, `localia`, `pmodels`, `sessions`, `version`.
+
+`TestCommandNameLengthGuardrail`, named above as the enforcement, could not have caught them: it
+checked a hardcoded list of thirteen names rather than the table, so it asserted `len("key") > 6` —
+decidable when it was written and unable to fail afterwards. Three of those thirteen (`login`,
+`doctor`, `exit`) are not commands at all. The test now reads the table.
+
+The five are recorded as exceptions rather than renamed, because they are published: `kolk sessions`
+and `kolk version` shipped in v1.2.1. Renaming them is a deprecation with a cost to users, and that
+is the owner's call, not a tidy-up. Each exception carries its reason in `longVerbs`, a new long verb
+fails the test, and a second test rejects an exemption for a command that no longer exists.
+
+**Open for the owner:** shorten some of these on the next major, or accept that the rule is "short
+unless the shorter name reads worse". `version` in particular is what every other CLI calls it, and
+muscle memory is a stronger argument than a character count.
 
 ## Rationale
 

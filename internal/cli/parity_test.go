@@ -6,23 +6,64 @@ import (
 	"testing"
 )
 
-// TestCommandNameLengthGuardrail enforces that every core command verb
-// is strictly a single lowercase word of 6 characters or fewer per
-// docs/plan/09-command-surface.md §1.2 and §2.
+// longVerbs are the shipped commands that break the "≤ 6 letters" rule in
+// docs/plan/09-command-surface.md §1.2.
+//
+// They are listed rather than fixed because they are published: `kolk sessions`
+// and `kolk version` are in v1.2.1 and in the installer's documentation, so
+// renaming them is a product decision with a deprecation cost, not a tidy-up.
+// The list exists so the violation is visible and bounded — a new long verb
+// fails the test, and shortening one of these means deleting its line here.
+var longVerbs = map[string]string{
+	"completion": "generates a shell script; typed once per machine, never in a session",
+	"localia":    "the local-model planner; named for the feature, not the keystrokes",
+	"pmodels":    "plan models; `pmodel` reads as a typo of `model`",
+	"sessions":   "plural because it lists; `sess` was judged worse to read",
+	"version":    "what every other CLI calls it, and muscle memory beats the rule",
+}
+
+// TestCommandNameLengthGuardrail enforces the naming rules in
+// docs/plan/09-command-surface.md §1.2 against the command table itself.
+//
+// It used to check a hardcoded list of thirteen names, which meant it asserted
+// `len("key") > 6` — decidable when it was written and unable to fail
+// afterwards. It also named `login`, `doctor` and `exit`, none of which are
+// commands: two are planned and one is a REPL-only word. A guardrail that
+// cannot observe what it guards is documentation with a test's name on it.
 func TestCommandNameLengthGuardrail(t *testing.T) {
-	canonicalVerbs := []string{
-		"key", "model", "effort", "mode", "config", "login",
-		"update", "stats", "dash", "saga", "doctor", "help", "exit",
-	}
-	for _, name := range canonicalVerbs {
-		if len(name) > 6 {
-			t.Errorf("canonical verb %q exceeds 6-character limit (%d chars)", name, len(name))
-		}
+	for _, cmd := range commandTable() {
+		name := cmd.name
 		if strings.ToLower(name) != name {
-			t.Errorf("canonical verb %q must be all lowercase", name)
+			t.Errorf("verb %q must be all lowercase", name)
 		}
 		if strings.ContainsAny(name, " -_\t\n") {
-			t.Errorf("canonical verb %q must be a single word without hyphens or spaces", name)
+			t.Errorf("verb %q must be a single word without hyphens or spaces", name)
+		}
+		if len(name) > 6 && longVerbs[name] == "" {
+			t.Errorf("verb %q is %d characters; the rule is 6. Shorten it, or add it to longVerbs with the reason it earns an exception.",
+				name, len(name))
+		}
+	}
+}
+
+// TestTheLongVerbListDoesNotRot checks the exemptions against the table.
+//
+// An exemption for a command that no longer exists is a claim nobody will
+// re-read, and it quietly widens the rule for a name someone might reuse.
+func TestTheLongVerbListDoesNotRot(t *testing.T) {
+	real := make(map[string]bool)
+	for _, cmd := range commandTable() {
+		real[cmd.name] = true
+	}
+	for name, reason := range longVerbs {
+		if !real[name] {
+			t.Errorf("longVerbs exempts %q, which is not a command", name)
+		}
+		if len(name) <= 6 {
+			t.Errorf("%q is within the rule and needs no exemption", name)
+		}
+		if reason == "" {
+			t.Errorf("%q is exempt with no reason given", name)
 		}
 	}
 }

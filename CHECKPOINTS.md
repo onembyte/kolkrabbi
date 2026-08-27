@@ -2033,6 +2033,52 @@ Acceptance checklist:
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
 
+### Verification pass 3 — E7, M8, C9 — recorded detail
+
+**E7.1 is the cleanest leaf audited so far.** Ran all twelve spellings through the binary: `low`,
+`medium`, `high`, `max`, `1`–`4`, and the legacy `quick`/`standard`/`deep`/`ultra` each resolve
+correctly, and `bogus` is refused naming the canonical set. E7.2's three knobs — `MaxRoundsFor`,
+`TimeoutForEffort`, `maxTasksFor` — all exist and all take effort.
+
+**C9.1's "parity engine" is weaker than the phrase suggests, in two ways.**
+
+First, parity is checked in one direction only: every CLI verb must have a slash twin, but a
+slash-only command is never questioned. `/diff`, `/undo` and `/plan`, which I added this week, have no
+CLI twin and nothing noticed. `docs/plan/09-command-surface.md` §7 states the rule as an equivalence,
+so the test enforces half of it.
+
+Second, and worse: **`TestCommandNameLengthGuardrail` could not fail.** It looped over a hardcoded
+list of thirteen names asserting `len(name) > 6` — every value decidable when it was written. Three
+of the thirteen (`login`, `doctor`, `exit`) are not commands: two are planned, one is a REPL word. And
+five real commands break the rule it claims to enforce: `completion` (10), `sessions` (8), `localia`,
+`pmodels`, `version` (7 each). The doc names this test as the mechanism behind "All verbs are ≤ 6
+letters", so a hardened policy has been unenforced since it was written.
+
+The test now reads `commandTable()`. Proved it can fail by renaming `key` to `authenticate` and
+watching it catch it — the old test passed on the same tree. The five violations are recorded as
+`longVerbs` with a reason each rather than renamed: `kolk sessions` and `kolk version` shipped in
+v1.2.1, so renaming is a deprecation with a cost to users and the owner's call. A second test rejects
+an exemption for a command that no longer exists, so the list cannot rot the way the old one did.
+
+**This is the third instance of one pattern**, after the site capability catalog and the U0.1
+supersession: *a ratchet that only pins what somebody remembered to write down is not a check that
+the set is right.* Pass 1 found a catalog missing a capability, pass 2 a leaf outliving its feature,
+pass 3 a guardrail that never observed its subject. Worth carrying into the final pass.
+
+**Left for the owner:** whether to shorten any of the five on a major, or amend the rule to "short
+unless the shorter name reads worse". `version` is what every other CLI calls it.
+
+Acceptance checklist:
+
+- [x] every effort spelling verified by running the binary.
+- [x] the three effort knobs exist and are wired to effort.
+- [x] the parity test's actual direction established and recorded.
+- [x] the length guardrail rewritten to read the command table.
+- [x] proved the new guardrail fails where the old one passed.
+- [x] exemptions carry reasons and cannot outlive their commands.
+- [x] the policy doc amended rather than left contradicting the tree.
+- [x] full `make check` green: 2,023 tests, 0 lint issues.
+
 ### Verification pass 2 — the U0 group — recorded detail
 
 Twenty leaves covering auto-approve, the prompt, the model catalog, rate-limit recovery, the updater,
