@@ -56,8 +56,9 @@ mobile client can be added as a directory rather than a rewrite.
 
 Read [`docs/plan/02-architecture.md`](docs/plan/02-architecture.md) before moving code between
 packages. Design decisions live in [`docs/plan/`](docs/plan/); each file is the settled answer for
-one item of [`PLAN.md`](PLAN.md), and the dated research behind them is in
-[`docs/research/`](docs/research/).
+one item of [`PLAN.md`](PLAN.md), and the dated research behind them is kept unpublished
+(see [the note in `docs/plan/README.md`](docs/plan/README.md#a-note-on-docsresearch)) — nothing
+load-bearing lives only there.
 
 ## Commits
 

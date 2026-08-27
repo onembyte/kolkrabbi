@@ -8,7 +8,7 @@ decided and built.
 | Directory | What it is |
 |---|---|
 | [`plan/`](plan/) | **Settled design decisions.** One file per [`PLAN.md`](../PLAN.md) item: the decision, the spec, the alternatives rejected, and the risks. These are the source of truth for how kolk behaves. |
-| [`research/`](research/) | **Dated snapshots** of the research behind those decisions — vendor policies, API limits, competitor surveys, platform constraints. Verify before relying on a specific number; they age. |
+| `research/` *(not published)* | Dated research snapshots the decisions were made from — vendor policies, API limits, competitor surveys, platform constraints. Kept on maintainers' machines; see [the note in `plan/README.md`](plan/README.md#a-note-on-docsresearch). Every decision they fed is written out in full in the doc that cites them. |
 | [`build-log.md`](build-log.md) | The running implementation log. |
 | [`cloudflare-pages.md`](cloudflare-pages.md) | How the site is deployed. |
 
