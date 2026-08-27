@@ -141,3 +141,74 @@ func TestModelAndEffortTopLevelCommandsWork(t *testing.T) {
 		t.Errorf("kolk effort high output = %q", out.String())
 	}
 }
+
+// sessionOnly are slash commands with no `kolk <verb>` twin, and the reason.
+//
+// docs/plan/09-command-surface.md §7 states parity as an equivalence, but only
+// one direction was ever tested: every CLI verb needed a slash twin, and a
+// slash-only command was never questioned. So /diff, /undo and /plan arrived
+// with no twin and nothing noticed.
+//
+// Most of these are session-only for a real reason — they act on a live
+// conversation that a one-shot process does not have. Writing the reason down
+// is the point: it turns "nobody built the twin" into "there is nothing for the
+// twin to act on", which are different, and only one of them is a gap.
+var sessionOnly = map[string]string{
+	"ask":          "sets the permission tier of the running session",
+	"auto-approve": "sets the permission tier of the running session",
+	"full-auto":    "sets the permission tier of the running session",
+	"permissions":  "shows and edits the running session's tier and rules",
+	"plan":         "puts the running session into read-only planning",
+	"compact":      "shrinks the conversation this process is holding",
+	"remember":     "appends what the session just learned",
+	"rate":         "rates the turn that just happened",
+	"changes":      "lists what this session changed",
+	"diff":         "shows what this session changed; a fresh process has no session to diff",
+	"undo":         "takes back this session's last turn",
+	"rewind":       "restores this session's last turn's files",
+	"session":      "identifies the running session",
+	"new":          "starts a fresh session inside the running process",
+	"clear":        "alias for /new",
+	"exit":         "leaves the REPL; a one-shot process has already left",
+	"quit":         "alias for /exit",
+	"plogin":       "picks a plan to log into, interactively",
+}
+
+// TestEverySlashCommandIsAccountedFor closes the other half of the parity rule.
+func TestEverySlashCommandIsAccountedFor(t *testing.T) {
+	cliVerbs := map[string]bool{}
+	for _, cmd := range commandTable() {
+		cliVerbs[cmd.name] = true
+	}
+
+	for _, sc := range slashCommandTable {
+		name := strings.TrimPrefix(sc.name, "/")
+		if cliVerbs[name] {
+			continue
+		}
+		if reason := sessionOnly[name]; reason == "" {
+			t.Errorf("/%s has no `kolk %s` twin and no reason recorded — add the twin, or add it to sessionOnly saying what it acts on that a one-shot process lacks", name, name)
+		}
+	}
+}
+
+// TestTheSessionOnlyListDoesNotRot keeps its entries real.
+func TestTheSessionOnlyListDoesNotRot(t *testing.T) {
+	slashNames := map[string]bool{}
+	for _, sc := range slashCommandTable {
+		slashNames[strings.TrimPrefix(sc.name, "/")] = true
+	}
+	cliVerbs := map[string]bool{}
+	for _, cmd := range commandTable() {
+		cliVerbs[cmd.name] = true
+	}
+
+	for name := range sessionOnly {
+		if !slashNames[name] {
+			t.Errorf("sessionOnly names /%s, which is not a slash command", name)
+		}
+		if cliVerbs[name] {
+			t.Errorf("/%s has a CLI twin now and no longer needs to be listed as session-only", name)
+		}
+	}
+}

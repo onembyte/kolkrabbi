@@ -18,11 +18,27 @@ Every checkpoint is small enough to review and revert independently and follows 
 6. **Repository verification:** run `make fmt-check`, `make vet`, `./scripts/test.sh`, architecture,
    purity, build-tag, and budget gates. Use `./scripts/test.sh`, never bare `go test ./...`.
 7. **Record:** add the result and reproducible commands to [`docs/build-log.md`](docs/build-log.md).
+8. **Walk back:** if this checkpoint *removed* or *replaced* anything — a flag, a command, a type, a
+   decision — search this file and PLAN.md for what still promises it, and mark those entries
+   superseded, naming this checkpoint. Every other gate writes forward; this is the only one that
+   looks behind.
 
-A checkpoint is not complete merely because production code compiles. All seven gates must close.
+A checkpoint is not complete merely because production code compiles. All eight gates must close.
 Unrelated dirty files are user-owned and remain untouched.
 
 Status: `[ ]` queued · `[~]` active · `[x]` verified · `[!]` blocked
+
+Gate 8 was added on 2026-08-27 after an audit found four entries promising things that had been
+removed: U0.1 offering `/yolo` compatibility after E13.2 deleted it, PLAN item 24 listing work that
+B12.9 and P11.7 had shipped, the A12 group promising a SQLite store after item 17's measurement
+refused it, and the phase table describing four phases as queued or building after their leaves
+closed. Each was written correctly at the time; nothing brought the news.
+
+A mechanical check was tried and rejected. Scanning leaf headlines for `/commands` and `--flags` that
+no longer exist in the tree flags exactly the entries that *do* record a removal — "`--yolo` is gone",
+"`--bare` forbidden" — while missing the ones that matter, whose claims sit on continuation lines.
+Distinguishing "promises this exists" from "records this was removed" is semantic, not textual. So
+this stays a step a person takes, and is written into the contract rather than left to memory.
 
 ## Current baseline
 
@@ -2032,6 +2048,66 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### Final pass — what the audit found, and what to do about it — recorded detail
+
+Eight passes over 1,208 ticked leaves, verified against code or by running the binary rather than by
+reading the boxes. **No leaf claimed work that did not exist.** That is the headline, and it was not
+guaranteed: the failures were all around the leaves, in the connective tissue.
+
+**Built this pass.**
+
+*Parity now runs both ways.* `docs/plan/09-command-surface.md` §7 states it as an equivalence and
+only one direction was tested — every CLI verb needed a slash twin, but a slash-only command was
+never questioned, so `/diff`, `/undo` and `/plan` arrived with no twin and nothing noticed. The other
+half is now a test with an eighteen-entry `sessionOnly` list, each carrying what it acts on that a
+one-shot process lacks. Proved it fails by adding `/probeonly`. Most of those eighteen are
+session-only for a real reason; writing the reason down turns "nobody built the twin" into "there is
+nothing for a twin to act on", which are different, and only one is a gap.
+
+*Gate 8, walk back.* Four entries promised things that had been removed. Each was written correctly
+and nothing brought the news, because all seven existing gates write forward. **A mechanical check
+was tried and rejected**, which is worth recording: scanning leaf headlines for `/commands` and
+`--flags` missing from the tree flags exactly the entries that correctly record a removal — "`--yolo`
+is gone", "`--bare` forbidden" — and misses the ones that matter, whose claims sit on continuation
+lines. Telling "promises this exists" from "records this was removed" is semantic, not textual. A
+noisy gate is a gate people disable, so this is a step a person takes, written into the contract
+rather than left to memory.
+
+**Recommended, not built — these are the owner's calls.**
+
+1. **Wire or drop `ChapterVerifier`.** 134 lines of implementation and 249 of test for a saga
+   verification path nothing calls, duplicating the live one. The dead copy is the better design —
+   ports only, never shell. Wiring it is the architecturally right move and a real change; dropping
+   it recovers 383 lines. Either beats the current state, which is a third answer: keep both and let
+   the tests imply the dead one is live.
+2. **Triage the 18 `untriaged 2026-08-27` entries in `arch.DeadExportAllowlist`.** Each is a symbol
+   only tests reach. Some are surface built ahead of a caller — `session.Overview` waits on I26.7 —
+   and some are probably deletable. The ratchet stops new ones today; the backlog is a morning's work.
+3. **Decide the five long verbs.** `completion`, `sessions`, `localia`, `pmodels`, `version` break the
+   hardened six-letter rule. They shipped in v1.2.1, so renaming is a deprecation with a cost to
+   users. Shorten some on a major, or amend the rule to "short unless the shorter name reads worse".
+4. **Item 16 and items 27–29 have no hardening doc.** Item 16 is the last of phase G; 27–29 are the
+   rest of phase I. Nothing is blocked on them, but phase G cannot close without 16.
+5. **`internal/tui` exports 36 symbols nothing outside it uses.** Not a defect — a package exporting
+   an API its own tests exercise is a legitimate choice — but it is the largest such surface in the
+   tree and worth one deliberate look.
+
+**What the audit says about the project.** The code is in better shape than the paperwork: eight
+mutation tests against this week's work were caught eight times, the updater verifies before it
+replaces, the dashboard genuinely refuses a network address, and compaction genuinely will not act on
+an unknown window. The failures were ratchets that only pinned what someone remembered to write
+down — a capability catalog missing self-update, a verb guardrail that could not fail, a linter blind
+to dead exports, a parity rule enforcing half of itself. Three of those are now real checks. The
+fourth needed a person.
+
+Acceptance checklist:
+
+- [x] parity closed in both directions, with a reason per exemption.
+- [x] proved the new parity rule fails on an unaccounted command.
+- [x] gate 8 added to the contract, with the rejected mechanical check recorded.
+- [x] the remaining findings written as decisions with their costs, not as tasks.
+- [x] full `make check` green: 2,030 tests, 0 lint issues.
 
 ### Verification pass 7 — the migration queue — recorded detail
 
