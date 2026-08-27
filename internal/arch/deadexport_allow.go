@@ -30,11 +30,12 @@ var DeadExportAllowlist = map[string]string{
 	// finally gave the budget guards something to guard — the rot test caught
 	// that, rather than the entry sitting here claiming otherwise.
 
-	// Mine, and the reason this rule earns its place: I built both two days ago
-	// and wired neither. Overview is what I26.7's remote client will render;
+	// Overview left this list on 2026-08-27, when I27.5 gave it a caller:
+	// `kolk sessions` reads the cards to warn about a shared checkout. The rot
+	// test noticed within one run, which is the whole point of having it.
+	//
 	// ParseRules is the plural nobody needed, since the CLI parses line by line
 	// to survive one bad rule.
-	"Overview":   "built for I26.7, which has not landed yet",
 	"ParseRules": "the CLI uses ParseRule per line so one bad rule costs one rule",
 
 	// Triaged 2026-08-27, and nothing here says "untriaged" any more. Eleven of
@@ -52,7 +53,11 @@ var DeadExportAllowlist = map[string]string{
 	"NewRuntimeSpec":    "managed runtime, blocked on L13.5b4 pinning a release",
 
 	// A7.4's event-to-text path, built ahead of the thing that will read it.
-	// I26.7's remote client needs exactly this — protocol events rendered as
-	// terminal text — so it is waiting for a consumer, not left over from one.
-	"NewPlainRenderer": "A7.4's event renderer, waiting on I26.7's remote client",
+	//
+	// Reason corrected on 2026-08-27: I26.7 has partly landed — the turn.start
+	// command and its route — and this still has no caller, because what needs
+	// it is the *page* half, which renders protocol events as text. Saying
+	// "waiting on I26.7" now reads as waiting on something already done, so the
+	// entry names the half that is actually outstanding.
+	"NewPlainRenderer": "A7.4's event renderer, waiting on I26.7's client page",
 }

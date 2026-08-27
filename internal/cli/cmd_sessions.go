@@ -75,6 +75,7 @@ func (a *app) runSessions(_ context.Context, args []string) error {
 			s.ID, s.UpdatedAt.Format("2006-01-02 15:04"), s.Model, len(s.Messages),
 			snapshotSize(s), s.Title)
 	}
+	a.warnAboutSharedCheckouts(sdir)
 	fmt.Fprintln(a.stdout, "\nresume the latest with `kolk -r`, or a specific one with `kolk -s <id>`")
 	return nil
 }
@@ -238,5 +239,26 @@ func humanBytes(n int64) string {
 		return fmt.Sprintf("%dKB", n/(1<<10))
 	default:
 		return fmt.Sprintf("%dB", n)
+	}
+}
+
+// warnAboutSharedCheckouts says once when live sessions overlap.
+//
+// Item 27 does not refuse two terminals in one repository — people do that on
+// purpose. What it refuses is silence: each session's `/undo` restores over the
+// other's work, because a snapshot covers a whole tree, and that is a thing to
+// be told rather than to discover.
+//
+// It is best-effort. A listing that failed because liveness could not be read
+// would trade a useful command for a warning nobody asked for.
+func (a *app) warnAboutSharedCheckouts(dir string) {
+	cards, err := session.Overview(dir)
+	if err != nil {
+		return
+	}
+	for _, shared := range session.SharedCheckouts(cards) {
+		fmt.Fprintf(a.stdout, "\n! %d live sessions are working in the same directory (%s): %s\n",
+			len(shared.Sessions), shared.Dir, strings.Join(shared.Sessions, ", "))
+		fmt.Fprintln(a.stdout, "  they will edit each other's files, and an /undo in one takes back what the other did.")
 	}
 }

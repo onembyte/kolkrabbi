@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **I27.5 a shared checkout says so** — two live sessions in one directory is a thing people do on purpose and a thing they should be told once.
 - [x] **I26.7b the route, and what it refuses** — token, steer tier, the command's own rules, and an honest 501 where there is no session to ask.
 - [x] **I26.7a the `turn.start` command** — the protocol half of letting a paired device ask for something rather than only watch.
 - [x] **L21.2 `--debug`** — off unless asked, scrubbed on the way in, and it names its own file at the end.
@@ -2123,6 +2124,45 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### I27.5 built — a shared checkout says so, and an allowlist entry came due
+
+The smallest queued I27 leaf, chosen deliberately over starting several. Item 27 does not refuse two
+terminals in one repository — people do that on purpose. What it refuses is **silence** about it, and
+the reason is sharper now than when the item was written: since L32.3 a rewind restores a *whole
+tree*, so an `/undo` in one session takes back what the other did in the same checkout. That is a
+thing to be told once, not discovered.
+
+**The rule is narrow on purpose.** Only live sessions count — an idle one holds no lock and runs no
+turns, so it competes for nothing. A session with no recorded directory is skipped rather than
+guessed at, because a warning about nothing is how warnings come to be ignored. Three sessions in one
+directory produce one warning, not three: the fact a person needs is that this checkout is contended.
+And the output is ordered, so the same situation reads the same way twice.
+
+**The interesting part was not the rule but what surfacing it cost.** `SharedCheckouts` alone would
+have been another export with no caller — the exact thing this repository has a ratchet for. Wiring
+it into `kolk sessions` gave `session.Overview` its first non-test caller, and
+`TestTheDeadExportAllowlistDoesNotRot` failed **within one run**: *"Overview has non-test callers now
+and no longer needs an exemption."* The entry is deleted. It had said "built for I26.7, which has not
+landed yet" since the day it was written, and it turned out to be I27.5 that needed it, not I26.7 —
+which is what an exemption with a reason is for: it made the wrong prediction visible instead of
+letting a dead export sit.
+
+**The other entry was audited rather than assumed.** `NewPlainRenderer` still has no caller, and its
+reason said "waiting on I26.7's remote client". I26.7 has now partly landed — the command and the
+route — so that sentence had quietly become misleading: it reads as waiting on something already
+done. The half that actually needs an event-to-text renderer is the *client page*, and the reason now
+says so. Correcting a reason costs one line; leaving it to rot costs the next reader's trust in every
+other line in the file.
+
+Acceptance checklist:
+
+- [x] five tests written first, one per property of the rule including its two exclusions.
+- [x] the smallest queued leaf built properly rather than three started.
+- [x] the warning surfaced, not merely computed, so it is a feature and not an export.
+- [x] the allowlist entry deleted by the rot test on schedule, not by memory.
+- [x] the second entry checked against the code and its stale reason corrected.
+- [x] full `make check` green: 2,210 tests, 0 lint issues.
 
 ### I26.7b built — serving the turn route, and the thing it cannot do
 

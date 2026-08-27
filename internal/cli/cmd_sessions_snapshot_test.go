@@ -91,3 +91,47 @@ func TestDeletingASessionDeletesItsSnapshotStore(t *testing.T) {
 		t.Errorf("the snapshot store outlived the session it belonged to: %v", err)
 	}
 }
+
+// Two live sessions in one checkout is a thing people do on purpose, and a
+// thing they should be told about once — not discover when an /undo restores
+// someone else's work.
+func TestSessionsWarnsAboutASharedCheckout(t *testing.T) {
+	a, stdout, _ := newTestApp(t, "")
+	d, err := a.resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := d.Sessions()
+
+	// Two sessions in one directory, both held, so both are live.
+	shared := t.TempDir()
+	for _, id := range []string{"first", "second"} {
+		sess := session.New(dir, "test/model")
+		sess.CWD = shared
+		sess.Title = id
+		if err := sess.Save(); err != nil {
+			t.Fatal(err)
+		}
+		held, err := session.Hold(dir, sess.ID)
+		if err != nil {
+			t.Skipf("advisory locks unavailable here: %v", err)
+		}
+		t.Cleanup(func() { _ = held.Close() })
+	}
+	// Both sessions share one directory: rewrite the second to match the first.
+	cards, err := session.Overview(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cards) != 2 {
+		t.Fatalf("expected two cards, got %d", len(cards))
+	}
+
+	if err := a.runSessions(context.Background(), nil); err != nil {
+		t.Fatalf("runSessions: %v", err)
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "same directory") {
+		t.Errorf("the listing does not warn about a shared checkout:\n%s", out)
+	}
+}
