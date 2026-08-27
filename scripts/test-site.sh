@@ -55,7 +55,7 @@ contains index.html 'https://kolkrabbi.francomichetti.com/install.sh' "install U
 contains index.html 'kolk key &lt;API_KEY&gt;' "API-key command drifted"
 contains index.html '<code class="key-command"><span class="prompt" aria-hidden="true">$</span> kolk key &lt;API_KEY&gt;</code>' "API-key command is not in the run step"
 contains index.html '<code class="use-command"><span class="prompt" aria-hidden="true">$</span> kolk</code>' "use step must contain only the final kolk command"
-contains index.html 'Installer ships with v1.1.14' "current installer release status is missing"
+contains index.html 'Installer ships with v1.2.0' "current installer release status is missing"
 contains index.html 'https://github.com/onembyte/kolkrabbi' "GitHub link is wrong"
 contains index.html 'Apache-2.0 License' "license link or label does not match LICENSE"
 contains index.html 'Chat, code, and agent' "landing page does not name all three modes"
@@ -82,7 +82,7 @@ contains capabilities.html 'Planned' "capability status legend is missing the pl
 contains capabilities.html 'data-status="available"' "catalog has no available capability rows"
 contains capabilities.html 'data-status="designed"' "catalog has no designed capability rows"
 contains capabilities.html 'data-status="planned"' "catalog has no planned capability rows"
-for section in working access continuity workflows safety interfaces videos; do
+for section in working access continuity workflows safety interfaces reach videos; do
   contains capabilities.html "id=\"$section\"" "capabilities page is missing the $section section"
 done
 contains capabilities.html 'Chat, code, and agent modes' "catalog does not cover all three modes"
@@ -96,6 +96,13 @@ contains capabilities.html 'best-rated eligible configured model' "catalog does 
 contains capabilities.html 'Ask before free fallback' "catalog does not state the safe free-fallback default"
 contains capabilities.html 'Automatic switching' "catalog does not state the opt-in automatic policy"
 contains capabilities.html 'Themes' "catalog does not cover theme choices"
+contains capabilities.html 'Orchestrated agent runs' "catalog does not cover the shipped orchestrator"
+contains capabilities.html 'Careful long-running progression' "catalog does not cover the saga loop"
+contains capabilities.html 'Permission rules and path jail' "catalog does not cover permission rules"
+contains capabilities.html 'Local model dashboard' "catalog does not cover the local dashboard"
+contains capabilities.html 'Attachable local service' "catalog does not cover the event service"
+contains capabilities.html 'One revocable token per device' "catalog does not cover per-device tokens"
+excludes capabilities.html 'yolo' "catalog names a permission surface that no longer exists"
 contains capabilities.html 'data-language="en"' "English explainer slot is missing"
 contains capabilities.html 'data-language="es"' "Spanish explainer slot is missing"
 contains capabilities.html 'English explainer' "English explainer label is missing"

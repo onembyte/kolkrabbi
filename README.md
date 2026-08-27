@@ -23,8 +23,9 @@ Go, zero external dependencies, single ~5MB static binary, ~2ms startup.
 /mode chat    plain conversation, no tools — cheap and instant
 /mode code    the coding loop: read/write/edit files, run commands,
               iterate until done (Claude-Code style)
-/mode agent   ordered orchestration: plan the work, run isolated
-              subagents one by one, then synthesize one answer
+/mode agent   orchestration: plan the work as tasks with real
+              dependencies, route each one to a model slot, run the
+              independent ones concurrently, then synthesize one answer
 ```
 
 Code is the default, so plain `kolk` is ready for file and command work. Switch
@@ -34,18 +35,19 @@ benefits from decomposition and isolated working contexts.
 ## The effort dial
 
 ```
-/effort quick | standard | deep | ultra
+/effort low | medium | high | max
 ```
 
-Claude Code's `ultrathink` scales thinking on one Anthropic model. Kolkrabbi's
-effort scales across providers: each level maps to a model tier you choose. In
-agent mode it also caps orchestration width: quick 2 tasks, standard 3, deep 4,
-and ultra 6.
+`ultrathink` scales thinking on one vendor's model. Kolkrabbi's effort scales
+across providers: each level maps to a model tier you choose, and it also sets
+the tool-round limit per turn, the shell timeout, and how many tasks an
+orchestrated run may open (low 1, medium 2, high 4, max 6). The older
+`quick/standard/deep/ultra` words and the numbers `1..4` are still accepted.
 
 ```bash
-kolk config set-tier quick    google/gemini-2.5-flash   # pennies
-kolk config set-tier standard anthropic/claude-sonnet-4.6
-kolk config set-tier deep     anthropic/claude-opus-4.6  # frontier
+kolk config set-tier low    google/gemini-2.5-flash   # pennies
+kolk config set-tier medium anthropic/claude-sonnet-4.6
+kolk config set-tier high   anthropic/claude-opus-4.6  # frontier
 ```
 
 Zero-config still works: unset tiers fall back to the session model, so
@@ -104,14 +106,21 @@ kolk --permission auto-approve "run the tests and fix failures"   # edits flow, 
 kolk -r                       # resume the most recent session
 kolk --base-url http://localhost:11434/v1 -m qwen2.5-coder:14b "..."  # Ollama
 kolk stats                    # the dashboard
-kolk sessions                 # list / resume / delete saved conversations
+kolk dash                     # the same numbers as a loopback-only page
+kolk sessions                 # list / search / fork / export saved conversations
 kolk models claude            # browse models with $/1M pricing
+kolk saga "goal"              # the careful-progression loop, gated on your tests
+kolk localia                  # what this machine could run locally
+kolk serve --addr 127.0.0.1:7777   # stream this session's events to a client
 ```
 
-In-session: `/mode`, `/effort`, `/model`, `/rate 1-5`, `/changes`, `/rewind`,
-`/new`, `/permissions [ask|auto-approve|full-auto]`, `/help`. `/permissions`
-without an argument lists the three tiers and marks the active one; `/ask`,
-`/auto-approve` and `/full-auto` switch straight to one.
+In-session: `/mode`, `/effort`, `/model`, `/rate 1-5`, `/diff`, `/changes`,
+`/undo`, `/rewind`, `/plan`, `/compact`, `/remember`, `/new`,
+`/permissions [ask|auto-approve|full-auto]`, `/help` — `/help` lists all of
+them. `/permissions` without an argument lists the three tiers and marks the
+active one; `/ask`, `/auto-approve` and `/full-auto` switch straight to one.
+`@` completes a file path against the project, and the status line carries
+mode, model, effort, context use, and what the session has cost.
 In the interactive TUI, ↑ reloads the last message; one Ctrl+C clears only the
 composer, while a second consecutive Ctrl+C exits. Single-shot Ctrl+C still
 aborts that run.
@@ -119,13 +128,21 @@ aborts that run.
 ## Sessions, checkpoints, project memory
 
 - **Sessions** auto-save after every step (atomic writes) to
-  `~/.config/kolk/sessions/`; resume with `-r`/`-s <id>`. Interrupted tool
-  calls are repaired on resume so the history stays API-valid.
+  `~/.config/kolk/sessions/`; resume with `-r`/`-s <id>`. `-r` resumes the work
+  done in *this* directory, and says so when it reaches into another project.
+  Interrupted tool calls are repaired on resume so the history stays API-valid.
+  `kolk sessions search|rename|fork|export` covers the rest.
+- **Context** is measured from provider-reported tokens and shown in the status
+  line. A filling session compacts at a turn boundary and says what it gave up;
+  `/compact` forces it, `/compact undo` puts the conversation back, and a turn
+  refused for length is recovered rather than lost.
 - **Checkpoints** snapshot files before every `write_file`/`edit_file`;
-  `/changes` lists them, `/rewind` restores the last turn's files (repeatable,
-  survives restarts). `bash` changes aren't tracked.
+  `/changes` lists them, `/diff` shows them as diffs, `/rewind` restores the last
+  turn's files and `/undo` takes back the files *and* the conversation
+  (repeatable, survives restarts). `bash` changes aren't tracked.
 - **Project memory**: `KOLKRABBI.md` or `AGENTS.md` in the working directory
-  is added to the system prompt, like CLAUDE.md.
+  is added to the system prompt. `/remember` adds one line of personal guidance
+  beneath it, without editing a project file.
 
 ## Sandbox testing (no network, no key, no cost)
 
@@ -136,14 +153,14 @@ chunks. For manual rehearsal:
 
 ```bash
 go run ./cmd/kolk-mock       # prints its URL; scripted demo session inside
-kolk --base-url <url> -y "create the hello file"
+kolk --base-url <url> --permission full-auto "create the hello file"
 ```
 
 ## What the model can do
 
 | Tool | Purpose | Confirmed? | Checkpointed? |
 |---|---|---|---|
-| `bash` | run a shell command (120s timeout) | yes | no |
+| `bash` | run a shell command (30s–600s, set by effort) | yes | no |
 | `read_file` | read a file with line numbers | no | — |
 | `write_file` | create/overwrite a file | yes | yes |
 | `edit_file` | unique exact find/replace | yes | yes |
@@ -174,14 +191,22 @@ running.
 ## Architecture
 
 ```
-cmd/kolk               flags, REPL, subcommands (config/models/sessions/stats)
+cmd/kolk               flags, REPL, subcommands (config/models/sessions/stats…)
+cmd/kolkd              headless daemon over the same event protocol
 cmd/kolk-mock          standalone mock for manual sandbox runs
+protocol/, spec/       the versioned event envelope and its golden frames
 internal/provider      streaming SSE client, tool-call reassembly, usage/cost
-internal/engine        chat/code/agent modes, effort tiers, and orchestration
+internal/engine        chat/code/agent modes, effort tiers, orchestration, saga
 internal/tools         tool schemas + execution, confirm gating, ckpt hook
-internal/session       persistent conversations (atomic JSON)
+internal/session       persistent conversations (atomic JSON), compaction
 internal/checkpoint    pre-change snapshots, per-turn rewind
 internal/stats         local JSONL store + aggregation (the dashboard)
+internal/dash          server-rendered, loopback-only usage dashboard
+internal/bus, serve    event bus and the NDJSON / stdio / SSE surfaces
+internal/devices       pairing codes and per-device tokens for remote access
+internal/local         managed local-model runtime, hardware probe, fit planner
+internal/tui, term     persistent composer, status line, terminal facts
+internal/redact, secret, keystore   scrubbing and credential storage
 internal/enginetest    scripted fake OpenRouter for offline e2e testing
 ```
 
@@ -195,11 +220,18 @@ Go module path: `github.com/onembyte/kolkrabbi`. Binary: `kolk`.
 
 ## Known limitations / next steps
 
-- No context compaction yet: very long sessions eventually hit token limits.
 - Ratings inform *you* via the dashboard; auto-routing by rating ("send
-  chat turns to my best-rated cheap model") is the phase-3 flywheel.
+  chat turns to my best-rated cheap model") is still ahead.
 - `bash` changes aren't checkpointed; a git-stash snapshot per turn would
   cover repos.
-- Agent-mode subagents currently run in a fixed order; concurrency is future
-  work.
-- Unix-only in practice (bash tool, ANSI colors). Single-line REPL input.
+- Subagents run concurrently but share the working tree: worktree isolation and
+  a dedicated critic are not built yet.
+- A session still expects a gateway key even when a subscription plan will
+  answer the turns.
+- Installing a managed local runtime refuses to run without a pinned checksum,
+  and this build pins none — `localia` can report and plan, not yet install.
+- No MCP, skills, commands, or hooks yet, and no execution sandbox.
+- A remote device can watch a session and answer its permission prompts; it
+  cannot yet send a turn.
+- Unix-only in practice (bash tool, ANSI colors); Windows is cross-built and
+  advisory in CI, not supported.

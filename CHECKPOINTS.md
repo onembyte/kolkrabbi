@@ -82,6 +82,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **R1.1 v1.1.0 installer-upgrade release** — publish the owner-requested three-part SemVer
   release, verify all signed assets and latest-version discovery, then exercise the public installer
   over an existing v0.1.0 installation.
+- [~] **R1.2 v1.2.0 capability release** — publish the 74 commits since v1.1.14 as one minor
+  release, and bring the public capability catalog back in line with what the binary does.
 - [x] **U0.1 explicit auto-approve command** — add a discoverable, session-only
   `/auto-approve [on|off]` control while preserving `-y` and `/yolo` compatibility.
 - [x] **U0.1b mode-prefixed prompt** — identify Kolkrabbi and the active mode as `kolk-<mode>`
@@ -3265,6 +3267,43 @@ Acceptance checklist:
   discovery, and the public updater/install path are independently verified.
 - [x] the build log records red, green, rehearsal, commit/tag, public verification, and owner
   handoff evidence.
+
+### R1.2 v1.2.0 capability release — active detail
+
+Scope:
+
+- Publish everything merged since `v1.1.14` as `v1.2.0`: sessions/context/memory (C12), the local
+  dashboard (D17), tools and permissions (E13), orchestration and per-task routing (F14), the code
+  and TUI surface (G11, G15), remote access (I26), and the managed local-model planner (L13).
+- Re-review `site/capabilities.html` against the source and move every card that shipped out of
+  "designed"/"planned", add a REACH section for item 26, and delete the claims that stopped being
+  true — `--yolo` above all, which E13.2 removed.
+- Ratchet the new page claims in `scripts/test-site.sh` so the catalog cannot drift back silently.
+- Correct the statements in the shipped `README.md` that the same commits made false.
+- Move the release line — the installer badge and the GoReleaser snapshot template — to 1.2.0.
+
+Non-goals:
+
+- No protocol-version bump, Windows artifact, package-manager distribution, desktop bundle, or
+  installer algorithm change.
+- No new product capability in this leaf: it publishes and describes what is already tested.
+- No clean-machine rehearsal; `T0.5` stays open and is not implied by this release.
+- No major version, though `--yolo`/`-y` were removed: the owner chose the minor line on
+  2026-08-26, and the release notes say the flag is gone.
+
+Acceptance checklist:
+
+- [x] every "Available now" card on the capability page names behavior present in the current source
+  and covered by the offline suite; anything gated (localia's unpinned runtime, the gateway key a
+  subscription session still expects, steering from a device) says so on the card.
+- [x] `scripts/test-site.sh` fails on a catalog that drops the shipped orchestrator, saga,
+  permission rules, dashboard, event service, or per-device tokens, and on any return of `yolo`.
+- [x] the complete repository gate passes before the tag: 1992 tests, all site, installer, release
+  and spec contracts green.
+- [ ] only the reviewed files are committed and pushed to `main`; unrelated dirty files untouched.
+- [ ] tag `v1.2.0` points to that exact commit, its release workflow succeeds, and the signed
+  manifest plus four archives pass the independent verifier.
+- [ ] the build log records the review, the gate, the commit/tag, and the published assets.
 
 ### R1.1 v1.1.0 installer-upgrade release — active detail
 

@@ -51,28 +51,31 @@
         <p class="section-number">01 / WORKING</p>
         <div>
           <h2 id="working-title">Useful already.</h2>
-          <p>These capabilities exist in the current binary. Public installer availability is a
-            separate release checkpoint and is not implied here.</p>
+          <p>These capabilities exist in the current binary and are covered by the offline test
+            suite. Anything a release has not yet carried to the installer is marked below.</p>
         </div>
       </div>
       <div class="spec-grid">
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>MODES</span></div>
           <h3>Chat, code, and agent modes</h3>
-          <p>Chat stays tool-free. Code runs the focused tool loop. Agent plans, runs isolated
-            subagents in a fixed order, then synthesizes one answer.</p>
+          <p>Chat stays tool-free. Code runs the focused tool loop. Agent plans the work as tasks
+            with real dependencies, routes each one, runs the independent ones concurrently, and
+            synthesizes a single answer that says what failed.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>EFFORT</span></div>
           <h3>One effort dial</h3>
-          <p>Quick, standard, deep, and ultra select model tiers. Agent mode also uses effort to
-            bound the number of planned tasks.</p>
+          <p><code>low</code>, <code>medium</code>, <code>high</code>, and <code>max</code> select the
+            model tier and set the tool-round limit, the shell timeout, and how many tasks an
+            orchestrated run may open. The older quick/standard/deep/ultra words still work.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>MODELS</span></div>
-          <h3>Gateway or local models</h3>
-          <p>OpenRouter works today. An OpenAI-compatible base URL can also point Kolkrabbi at
-            Ollama, LiteLLM, vLLM, or another compatible endpoint.</p>
+          <h3>Gateway, subscription, or local</h3>
+          <p>OpenRouter works today, and an OpenAI-compatible base URL points Kolkrabbi at Ollama,
+            LiteLLM, vLLM, or another compatible endpoint. A Claude plan answers turns through the
+            user's own vendor CLI, and <code>/model</code> moves the provider with the model.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>KEY</span></div>
@@ -83,28 +86,45 @@
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>TOOLS</span></div>
           <h3>Five focused tools</h3>
-          <p>Read, list, write, edit, and shell execution cover the first code loop. File paths are
-            confined to the project, and three permission tiers — ask, auto-approve, full-auto —
-            decide how much happens without a prompt. None of them removes the floor: credential
-            files, system directories and unrecoverable commands are refused in all three.</p>
+          <p>Read, list, write, edit, and shell execution cover the code loop. File paths are
+            confined to the project, three permission tiers — ask, auto-approve, full-auto — decide
+            how much happens without a prompt, and a binary is described rather than sent while a
+            large file says how to page through the rest.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>SESSIONS</span></div>
-          <h3>Local sessions and memory</h3>
-          <p>Conversations save atomically and can resume. Project instructions come from
-            <code>KOLKRABBI.md</code> or <code>AGENTS.md</code> in the working directory.</p>
+          <h3>Sessions you can find again</h3>
+          <p>Conversations save atomically and resume. <code>kolk -r</code> resumes the work done in
+            this directory, and sessions can be searched, renamed, forked, and exported. A session
+            earns a readable name on its own once enough has happened.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>CONTEXT</span></div>
+          <h3>A long session that does not fall over</h3>
+          <p>The context window is measured from provider-reported tokens. Compaction fires at a turn
+            boundary and says what it gave up, <code>/compact undo</code> puts the conversation back,
+            and a turn refused for length is recovered instead of lost.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>MEMORY</span></div>
+          <h3>Standing notes, in layers</h3>
+          <p><code>KOLKRABBI.md</code> or <code>AGENTS.md</code> in the working directory carries
+            project instructions, and <code>/remember</code> writes one line of personal guidance
+            beneath it — only when asked, never as a silent edit to a project file.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>UNDO</span></div>
-          <h3>File checkpoints</h3>
-          <p>Writes and edits snapshot their previous state. <code>/changes</code> shows touched files
-            and <code>/rewind</code> restores the latest turn's file changes.</p>
+          <h3>Take a turn back</h3>
+          <p>Writes and edits snapshot their previous state. <code>/diff</code> shows what this
+            session changed, <code>/undo</code> takes back a turn's files and its conversation
+            together, and <code>/rewind</code> restores the files alone.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>LOCAL</span></div>
           <h3>Private usage history</h3>
-          <p>Token, cost, latency, mode, effort, and optional 1–5 ratings stay in local JSONL. The
-            <code>kolk stats</code> table sends no telemetry.</p>
+          <p>Token, cost, latency, mode, effort, and optional 1–5 ratings stay in local JSONL.
+            <code>kolk stats</code> prints the table and <code>kolk dash</code> serves the same
+            numbers to a loopback-only page. Neither sends telemetry.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>CORE</span></div>
@@ -120,22 +140,25 @@
         <p class="section-number">02 / ACCESS</p>
         <div>
           <h2 id="access-title">Your account, your key, your choice.</h2>
-          <p>Additional authentication paths are designed around a hard boundary: Kolkrabbi should
-            not capture or reuse a subscription credential owned by another tool.</p>
+          <p>Every authentication path is built around a hard boundary: Kolkrabbi does not capture or
+            reuse a subscription credential owned by another tool.</p>
         </div>
       </div>
       <div class="spec-grid">
-        <article class="spec-card" data-status="designed">
-          <div class="spec-meta"><span class="status-badge">Designed</span><span>ANY KEY</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>ANY KEY</span></div>
           <h3>Any supported API key</h3>
-          <p>The provider-agnostic command will infer supported key shapes where safe, ask once when
-            ambiguous, and support explicit provider input for CI or uncommon formats.</p>
+          <p><code>kolk key &lt;key&gt;</code> infers the provider from the key's own shape, and
+            <code>kolk key &lt;provider&gt; &lt;key&gt;</code> states it outright for CI or an uncommon
+            format. Reading the key from stdin keeps it out of shell history.</p>
         </article>
-        <article class="spec-card" data-status="designed">
-          <div class="spec-meta"><span class="status-badge">Designed</span><span>CLAUDE</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>CLAUDE</span></div>
           <h3>Claude Agent subscription</h3>
-          <p>Kolkrabbi will hand sign-in to the user's own unmodified <code>claude</code> CLI and run
-            it as a backend. The vendor owns authentication; Kolkrabbi stores no subscription token.</p>
+          <p>Kolkrabbi hands sign-in to the user's own unmodified <code>claude</code> CLI and runs it
+            as a backend: one persistent process per session, scrubbed frames, per-turn cost, and an
+            effort level that steps down to what the plan actually offers. No subscription token is
+            stored. Starting a session still expects a gateway key; removing that is an open decision.</p>
         </article>
         <article class="spec-card" data-status="planned">
           <div class="spec-meta"><span class="status-badge">Planned</span><span>CODEX</span></div>
@@ -143,23 +166,27 @@
           <p>Codex will use the same external-agent seam after its policy review, offline fixtures,
             login handoff, capability mapping, and redaction gates are complete.</p>
         </article>
-        <article class="spec-card" data-status="designed">
-          <div class="spec-meta"><span class="status-badge">Designed</span><span>ONE SESSION</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>ONE SESSION</span></div>
           <h3>Backends in the same Kolkrabbi session</h3>
-          <p>Switching between API and subscription backends will retain the local transcript and
-            project context. Provider-owned history is replayed with an explicit label.</p>
+          <p>Switching between a gateway model and a subscription plan mid-session keeps the local
+            transcript and project context, moves the provider with the model, and releases the one
+            it retires. An unusable plan model refuses with its reason instead of failing quietly.</p>
         </article>
-        <article class="spec-card" data-status="designed">
-          <div class="spec-meta"><span class="status-badge">Designed</span><span>LOGIN</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>LOGIN</span></div>
           <h3>Login without lock-in</h3>
-          <p>Optional browser login and vendor CLI handoff complement paste-a-key onboarding. Neither
-            replaces the zero-config path or makes a config file mandatory.</p>
+          <p><code>kolk plans</code> lists what each provider plan exposes and <code>/plogin</code>
+            filters them as you type. Login is handed to the provider's own CLI, never spawned while
+            Kolkrabbi owns the keyboard, and a clean exit is recorded as unverified until a real turn
+            proves it. Optional browser login is still planned.</p>
         </article>
         <article class="spec-card" data-status="designed">
           <div class="spec-meta"><span class="status-badge">Designed</span><span>SECRETS</span></div>
           <h3>Inspectable credential sources</h3>
-          <p>Environment, provider environment, and one named store follow a visible first-hit chain.
-            Optional OS keychain storage and source explanations remain opt-in.</p>
+          <p>Keys live in a locked, permission-checked manifest outside config today. The wider chain —
+            environment, provider environment, one named store, a visible first-hit order, and opt-in
+            OS keychain storage — is settled design that is not built yet.</p>
         </article>
       </div>
     </section>
@@ -169,11 +196,18 @@
         <p class="section-number">03 / CONTINUITY</p>
         <div>
           <h2 id="continuity-title">When a limit hits, the work stays.</h2>
-          <p>This target policy is planned and not active today. It will prefer explicit, explainable
-            continuation over a silent change in model or billing path.</p>
+          <p>Only the narrow part of this policy ships today. The rest will prefer explicit,
+            explainable continuation over a silent change in model or billing path.</p>
         </div>
       </div>
       <div class="spec-grid">
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>RETRY</span></div>
+          <h3>Survive a temporary refusal</h3>
+          <p>A provider failure before the stream starts is classified, a temporary <code>429</code> is
+            retried on a bounded schedule, and a free model that is out of capacity rotates to the
+            next eligible one. Nothing silently changes the model you are paying for.</p>
+        </article>
         <article class="spec-card" data-status="designed">
           <div class="spec-meta"><span class="status-badge">Designed</span><span>DETECT</span></div>
           <h3>Know which limit stopped work</h3>
@@ -222,35 +256,49 @@
         </div>
       </div>
       <div class="spec-grid">
-        <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Planned</span><span>ROUTING</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>ROUTING</span></div>
           <h3>Task-aware model routing</h3>
-          <p>Planner, editor, researcher, tester, synthesizer, and critic roles can choose different
-            models using capability, price, latency, and the user's own ratings.</p>
+          <p>A planned task carries a kind, the kind resolves to a named model slot, and the slot to a
+            model — printed with the plan before anything runs. The orchestrator itself takes a slot
+            too, so planning and synthesis need not use the model that does the work.</p>
         </article>
-        <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Planned</span><span>FREE</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>AGENTS</span></div>
+          <h3>Orchestrated agent runs</h3>
+          <p>Independent readers run three at a time across the dependency graph while anything that
+            may write is serialised. A failed task is reported instead of discarding the run, the
+            answer says what is missing, and the spend is shown as it goes against an optional
+            ceiling. Worktree isolation and a dedicated critic are still planned.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>FREE</span></div>
           <h3>Computed free-model defaults</h3>
-          <p>A refreshed catalog will rank eligible free models and map effort levels automatically,
-            with account limits distinguished from endpoint capacity.</p>
+          <p>A cached live catalog ranks zero-cost, tool-capable models and prefers the strongest
+            coding-oriented one for a session that names no model. A saved model, a flag, or a real
+            effort-tier map still wins, because those are explicit choices.</p>
         </article>
-        <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Planned</span><span>SAGA</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>SAGA</span></div>
           <h3>Careful long-running progression</h3>
-          <p>Saga advances one bounded chapter at a time: plan, act, verify, checkpoint, report, and
-            decide whether to continue under explicit time, cost, and progress limits.</p>
+          <p><code>kolk saga</code> advances one bounded chapter at a time — plan, act, verify,
+            checkpoint, report — with the project's own tests as the gate, a commit only on green,
+            and a chapter limit, dollar budget, timeout, and doom-loop detector around it.</p>
         </article>
-        <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Planned</span><span>CODE</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>CODE</span></div>
           <h3>Deeper code mode</h3>
-          <p>Repository awareness, diff previews, multi-hunk edits, formatters, automatic test loops,
-            plan mode, conversation undo, and commit assistance extend the focused code loop.</p>
+          <p>An edit shows its diff before you approve it, <code>@</code> completes file mentions
+            against the project, <code>/plan</code> is a read-only mode built out of the permission
+            rules rather than a second system, and the status line carries context and cost.</p>
         </article>
-        <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Planned</span><span>AGENTS</span></div>
-          <h3>Routed agent teams</h3>
-          <p>Parallel-capable subagents, optional worktree isolation, role-specific models, retries,
-            a critic, and clear partial-failure synthesis build on today's ordered agent mode.</p>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>LOCALIA</span></div>
+          <h3>Local models, planned before pulled</h3>
+          <p><code>kolk localia</code> reports what this machine can actually run — accelerators, RAM,
+            free disk — and shows every number behind a fit decision, refusing what does not fit
+            instead of degrading into swap. A pull asks first. Installing the managed runtime waits on
+            a reviewed upstream build with a pinned checksum.</p>
         </article>
         <article class="spec-card" data-status="planned">
           <div class="spec-meta"><span class="status-badge">Planned</span><span>EXTEND</span></div>
@@ -273,32 +321,39 @@
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>CONFIRM</span></div>
           <h3>Confirm side effects</h3>
-          <p>Shell, write, and edit operations ask before running. Yolo mode is an explicit session
-            choice rather than a hidden default.</p>
+          <p>Three tiers are the whole model: ask confirms every change and command, auto-approve
+            edits inside the project but still asks before commands, and full-auto stops asking. No
+            tier removes the floor — credential files, system directories, and unrecoverable commands
+            are refused in all three.</p>
         </article>
-        <article class="spec-card" data-status="designed">
-          <div class="spec-meta"><span class="status-badge">Designed</span><span>REDACT</span></div>
-          <h3>Secrets stay out of model context</h3>
-          <p>Opaque secret handles, restricted store imports, sink-specific scrubbing, safe masks,
-            and child-process environment subtraction form the settled credential boundary.</p>
-        </article>
-        <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Planned</span><span>RULES</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>RULES</span></div>
           <h3>Permission rules and path jail</h3>
-          <p>Allow, ask, and deny rules will apply by tool and pattern, with project-root boundaries,
-            hardline destructive-command blocks, and visible scope.</p>
+          <p>File tools resolve against the project root, symlinks first, and reaching outside asks.
+            Rules such as <code>allow bash(git *)</code> apply by tool and pattern with last match
+            winning, kept for this session, this project, or everywhere — and the prompt shows the
+            rule it would keep before keeping it.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>REDACT</span></div>
+          <h3>Secrets stay out of model context</h3>
+          <p>Every tool result is scrubbed at one chokepoint, including secrets that carry no vendor
+            prefix, and credentials move through opaque handles that cannot be printed by accident.
+            Orchestrated work never prompts: what its tier would ask about is refused, with the way
+            to allow it.</p>
         </article>
         <article class="spec-card" data-status="planned">
           <div class="spec-meta"><span class="status-badge">Planned</span><span>SANDBOX</span></div>
           <h3>Optional execution sandboxes</h3>
           <p>Platform isolation and container paths will let unattended work run inside declared
-            boundaries. Yolo inside a sandbox stays different from unrestricted host access.</p>
+            boundaries. Full-auto inside a sandbox stays different from unrestricted host access.</p>
         </article>
-        <article class="spec-card" data-status="designed">
-          <div class="spec-meta"><span class="status-badge">Designed</span><span>PROTOCOL</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>PROTOCOL</span></div>
           <h3>Language-neutral event protocol</h3>
-          <p>Versioned schemas, typed payloads, golden frames, forward-compatible fields, and one
-            envelope prepare identical CLI, daemon, desktop, and mobile streams.</p>
+          <p>One versioned envelope, typed payloads, golden frames, and a CI guard that fails a
+            contract change without a changelog entry. CLI, daemon, and future clients read the same
+            bytes; the event vocabulary keeps growing under those rules.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>GATES</span></div>
@@ -323,44 +378,102 @@
           <div class="spec-meta"><span class="status-badge">Available now</span><span>CLI</span></div>
           <h3>Interactive and scripted terminal</h3>
           <p>Run a REPL, pass a one-shot prompt, resume a session, select mode/model/effort, or point
-            at a compatible endpoint from one command.</p>
+            at a compatible endpoint from one command. Scripts get strict exit codes, a streaming
+            JSON output mode, and generated completions for bash, zsh, and fish.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>TUI</span></div>
+          <h3>Full terminal UI</h3>
+          <p>A persistent multiline composer, live tool and activity status, streamed replies, diffs
+            rendered line by line before you approve them, <code>@</code> file completion, and a
+            status line carrying mode, model, effort, context, and session cost.</p>
         </article>
         <article class="spec-card" data-status="planned">
           <div class="spec-meta"><span class="status-badge">Planned</span><span>THEME</span></div>
           <h3>Themes</h3>
-          <p>Multiple terminal themes, a quiet presentation, and <code>NO_COLOR</code> support will
-            change appearance without changing behavior or requiring setup.</p>
+          <p><code>NO_COLOR</code> is already honored. Multiple terminal themes and a quieter
+            presentation will change appearance without changing behavior or requiring setup.</p>
         </article>
-        <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Planned</span><span>TUI</span></div>
-          <h3>Full terminal UI</h3>
-          <p>Multiline input, history, completions, streaming Markdown, diffs, collapsible tool calls,
-            clear reasoning controls, and a mode/model/context/cost status line.</p>
-        </article>
-        <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Planned</span><span>DASH</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>DASH</span></div>
           <h3>Local model dashboard</h3>
-          <p>Session analysis, ratings, cost, speed, task categories, comparisons, and routing insight
-            will stay in a local database with no hosted telemetry service.</p>
+          <p><code>kolk dash</code> serves a loopback-only page rendered entirely on the server — no
+            script, no assets, no network — showing spend, tokens, latency, ratings, and recent
+            sessions with what each one cost. The store stays a plain local file.</p>
         </article>
-        <article class="spec-card" data-status="designed">
-          <div class="spec-meta"><span class="status-badge">Designed</span><span>DAEMON</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>DAEMON</span></div>
           <h3>Attachable local service</h3>
-          <p>NDJSON, child stdio, and HTTP plus server-sent events will carry byte-identical event
-            envelopes so a client can attach, replay, and cancel turns consistently.</p>
+          <p><code>kolk serve</code> carries byte-identical event frames over NDJSON, child stdio, and
+            HTTP server-sent events, with replay from a last-seen event id and a conformance test that
+            proves the three surfaces agree.</p>
         </article>
         <article class="spec-card" data-status="planned">
           <div class="spec-meta"><span class="status-badge">Planned</span><span>DEVICES</span></div>
           <h3>Desktop, iPad, Android, and Windows</h3>
           <p>Thin desktop and mobile clients plus complete Windows support arrive as additive
-            frontends and platform ports after the protocol and service surfaces are stable.</p>
+            frontends and platform ports on top of the protocol and service surfaces above.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="reach" aria-labelledby="reach-title">
+      <div class="catalog-heading">
+        <p class="section-number">07 / REACH</p>
+        <div>
+          <h2 id="reach-title">Off the machine that started it.</h2>
+          <p>Remote access begins with the bind and the credential, not with the feature. A session
+            you can reach from your phone is a session someone else could reach too.</p>
+        </div>
+      </div>
+      <div class="spec-grid">
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>BIND</span></div>
+          <h3>No open port without a credential</h3>
+          <p>A wildcard address is not loopback, and serving one without a token is refused before the
+            socket opens. Every route needs the token except two that say nothing, and widening that
+            set now fails a test.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>PAIR</span></div>
+          <h3>Pair a device with a short code</h3>
+          <p>A six-digit code is armed for a couple of minutes, used once, and capped in attempts, on
+            a route that does not exist the rest of the time.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>TOKENS</span></div>
+          <h3>One revocable token per device</h3>
+          <p>Each paired device gets its own token, stored only as a hash, revocable one at a time.
+            A device token ranks below the operator's: it can read the stream, and steering is a
+            separate, higher grant.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>REACHABILITY</span></div>
+          <h3>Say who can reach this port</h3>
+          <p>Starting a server prints how to reach it and who else can — the tailnet address first
+            when there is one, the local network named as such when there is not, and the one-line SSH
+            tunnel for a loopback bind.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>APPROVE</span></div>
+          <h3>Answer a prompt from elsewhere</h3>
+          <p>A paired device follows the live event stream and resolves the permission requests a
+            running session raises, so unattended work does not stall on a keyboard you walked away
+            from.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>MANY</span></div>
+          <h3>Many sessions, one view</h3>
+          <p>A client that lists every session on the machine, steers any of them by sending a turn,
+            and reports what source control and the running workspace are doing is the next stretch of
+            this road.</p>
         </article>
       </div>
     </section>
 
     <section class="catalog-section video-section" id="videos" aria-labelledby="videos-title">
       <div class="catalog-heading">
-        <p class="section-number">07 / WATCH</p>
+        <p class="section-number">08 / WATCH</p>
         <div>
           <h2 id="videos-title">See the whole flow.</h2>
           <p>Two short walkthroughs will live here. Their media sources have not been supplied yet,
