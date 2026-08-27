@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **L32.1 the shadow store** — a git object store outside the work tree, so a change made by `bash` is visible and the user's own repository is never written to.
 - [x] **L21.4 every action is pinned by commit SHA** — a tag is whatever that account publishes next, which is a credential decision wearing a version number.
 - [x] **L31.1 the driver list grew by evidence, not by import** — approving `goreleaser check` must not write a rule that allows `goreleaser release`.
 - [x] **L19.2 three platform claims corrected** — `desktop/`, `bind/` and `tools/` were never carved, and SQLite was never added.
@@ -2109,6 +2110,53 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### L32.1 built — the shadow store
+
+Built to item 32's decision rather than re-deciding it: a bare git object store outside the work
+tree, every command carrying an explicit `GIT_DIR` and `GIT_WORK_TREE`, `objects/info/alternates`
+pointing at the project's own object database, and the five configuration settings the design named.
+
+**Paths never enter the command line.** `shell.Cmd.Command` is interpreted by the platform shell, so
+a project directory containing a space or a quote would be a bug waiting for the right folder name.
+The store passes `GIT_DIR` and `GIT_WORK_TREE` as environment instead, where they are data. Identity
+is fixed to `kolk@localhost` for the same class of reason: a snapshot is machinery, not authorship,
+and reading the user's `user.email` would fail on a machine where it was never set.
+
+**One thing the design did not anticipate**, found by the tests: `git init` refuses to run with
+`GIT_WORK_TREE` in the environment — *"GIT_WORK_TREE not allowed without specifying GIT_DIR"* — even
+when `GIT_DIR` is also set. Creation is the one command that must not see a work tree, and there is
+nothing to work on at that point anyway, so it takes the directory as an argument and no `GIT_*`
+environment at all.
+
+**The four tests, and which one matters most.** That a `sed`-style change made outside kolk shows up
+in the store. That the alternates file points at the project's objects. That a directory with no
+`.git` is refused, so the caller falls back to copying. And
+`TestShadowNeverTouchesTheUsersOwnGitState`, which takes three snapshots over a dirty tree and
+asserts the user's reflog, stash list and index are unchanged — with a guard that fails if the test
+never dirtied the tree, because a test that proves nothing passes very reliably. Its comment says it
+must not be deleted, and it means it: if that test ever fails, kolk is writing into somebody's
+repository behind their back.
+
+**The measured numbers held.** Run against this repository through the built code rather than by
+hand: **54 ms** first snapshot, **21 ms** after, **78 KB** store — against the design's 63/15/148 from
+the hand-run experiment. Same shape, and the store is smaller than predicted.
+
+**The dead-export ratchet fired, correctly.** `OpenShadow` has no caller until L32.2 selects between
+the two stores, and the rule offered its three options: wire it, delete it, or allowlist it with a
+reason. It is allowlisted with the reason and a deadline — the rot test fails the build the moment
+`OpenShadow` gains a real caller, so the entry cannot outlive its purpose by more than one
+checkpoint. That is the allowlist working as designed rather than accumulating, which is the
+distinction item 19 drew when it deleted the SQLite allowance.
+
+Acceptance checklist:
+
+- [x] four tests written first, all failing on an undefined `OpenShadow`.
+- [x] built to the hardened decision — no re-deciding of cadence, alternates or the version question.
+- [x] the git-init constraint found by a test rather than by a user.
+- [x] the cost re-measured through the built code and recorded against the design's estimate.
+- [x] the never-delete test carries a guard against being vacuously green.
+- [x] full `make check` green: 2,089 tests, 0 lint issues.
 
 ### L21.4 built — every action pinned by commit SHA
 

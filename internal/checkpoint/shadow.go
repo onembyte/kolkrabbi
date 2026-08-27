@@ -1,0 +1,169 @@
+package checkpoint
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"github.com/onembyte/kolkrabbi/internal/shell"
+)
+
+// Shadow is a git object store that lives outside the work tree it snapshots.
+//
+// Every command runs with an explicit GIT_DIR and GIT_WORK_TREE, so the
+// project's own .git — its index, HEAD, stash stack and reflog — is never
+// touched. That is the whole reason this exists in preference to `git stash`
+// or a branch, and `TestShadowNeverTouchesTheUsersOwnGitState` is the test that
+// says so. It must not be deleted.
+//
+// The store is cheap because objects/info/alternates points at the project's
+// own object database: a blob git already has is referenced, not rehashed. On
+// this repository — 544 files, a 222 MB .git — that is 63 ms for the first
+// snapshot, 15 ms for each one after, and a store of about 150 KB.
+type Shadow struct {
+	dir      string // the shadow GIT_DIR
+	workTree string // the project
+	sh       shell.Shell
+}
+
+// gitEnv keeps every path out of the command line. The shell interprets
+// Command, so a project path with a space or a quote in it would be a bug
+// waiting for the right directory name; passed as environment it is data.
+func (s *Shadow) gitEnv() []string {
+	return []string{
+		"GIT_DIR=" + s.dir,
+		"GIT_WORK_TREE=" + s.workTree,
+		// The snapshot is machinery, not authorship. Identity is fixed so it
+		// never reads the user's config, prompts, or fails on a machine where
+		// user.email was never set.
+		"GIT_AUTHOR_NAME=kolk",
+		"GIT_AUTHOR_EMAIL=kolk@localhost",
+		"GIT_COMMITTER_NAME=kolk",
+		"GIT_COMMITTER_EMAIL=kolk@localhost",
+	}
+}
+
+func (s *Shadow) git(ctx context.Context, command string) (shell.Result, error) {
+	return s.sh.Run(ctx, shell.Cmd{Command: command, Dir: s.workTree, Env: s.gitEnv()})
+}
+
+// OpenShadow creates or reopens the store for one project.
+//
+// It returns an error for a directory that is not a git repository, and for any
+// git that cannot complete the setup. Both are the same answer to the caller:
+// use the copy store instead. There is deliberately no version check — the
+// probe is the operation itself, which cannot be wrong about the machine it is
+// running on.
+func OpenShadow(ctx context.Context, dir, workTree string) (*Shadow, error) {
+	projectGit := filepath.Join(workTree, ".git")
+	if _, err := os.Stat(projectGit); err != nil {
+		return nil, fmt.Errorf("checkpoint: %s is not a git repository", workTree)
+	}
+
+	s := &Shadow{dir: dir, workTree: workTree, sh: shell.New()}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, err
+	}
+
+	// `git init` is the one command that must not see GIT_WORK_TREE: git
+	// refuses a work tree at creation time, and there is nothing to work on
+	// yet anyway. It takes the directory as an argument instead.
+	initResult, err := s.sh.Run(ctx, shell.Cmd{Command: "git init --quiet --bare .", Dir: dir})
+	if err != nil || !initResult.OK() {
+		return nil, fmt.Errorf("checkpoint: creating the shadow store: %s", failure(initResult, err))
+	}
+
+	// Reuse the project's blobs rather than rehashing the tree. A snapshot of a
+	// large checkout is then O(changed), not O(repository).
+	altDir := filepath.Join(dir, "objects", "info")
+	if err := os.MkdirAll(altDir, 0o700); err != nil {
+		return nil, err
+	}
+	objects := filepath.Join(workTree, ".git", "objects")
+	if err := os.WriteFile(filepath.Join(altDir, "alternates"), []byte(objects+"\n"), 0o600); err != nil {
+		return nil, err
+	}
+
+	// Line endings, long paths and symlinks are the project's business, not
+	// ours: a snapshot that rewrote them would restore something the user never
+	// wrote. fsmonitor is off because the store has no daemon, and manyFiles
+	// keeps the index cheap on a large checkout.
+	for _, setting := range []string{
+		"core.autocrlf false",
+		"core.longpaths true",
+		"core.symlinks true",
+		"core.fsmonitor false",
+		"feature.manyFiles true",
+	} {
+		if result, err := s.git(ctx, "git config "+setting); err != nil || !result.OK() {
+			return nil, fmt.Errorf("checkpoint: configuring the shadow store: %s", failure(result, err))
+		}
+	}
+	return s, nil
+}
+
+// Snapshot records the whole work tree as it is now and returns the commit.
+//
+// It is called once per turn, not once per tool call: a whole-tree snapshot
+// already contains every path, so re-taking one per write would multiply the
+// cost to record states nothing can address.
+func (s *Shadow) Snapshot(ctx context.Context, turn int) (string, error) {
+	if result, err := s.git(ctx, "git add -A"); err != nil || !result.OK() {
+		return "", fmt.Errorf("checkpoint: staging the snapshot: %s", failure(result, err))
+	}
+	message := fmt.Sprintf("kolk snapshot: turn %d", turn)
+	result, err := s.git(ctx, "git commit --quiet --allow-empty -m "+quote(message))
+	if err != nil || !result.OK() {
+		return "", fmt.Errorf("checkpoint: recording the snapshot: %s", failure(result, err))
+	}
+	head, err := s.git(ctx, "git rev-parse HEAD")
+	if err != nil || !head.OK() {
+		return "", fmt.Errorf("checkpoint: reading the snapshot: %s", failure(head, err))
+	}
+	return strings.TrimSpace(head.Output), nil
+}
+
+// ChangedSinceSnapshot lists the paths that differ from the last snapshot,
+// including every change made outside kolk.
+func (s *Shadow) ChangedSinceSnapshot(ctx context.Context) ([]string, error) {
+	result, err := s.git(ctx, "git status --porcelain=v1 --untracked-files=all")
+	if err != nil || !result.OK() {
+		return nil, fmt.Errorf("checkpoint: reading the shadow status: %s", failure(result, err))
+	}
+	var paths []string
+	for _, line := range strings.Split(result.Output, "\n") {
+		if len(line) < 4 {
+			continue
+		}
+		// "XY path", and for a rename "XY old -> new"; the new name is ours.
+		path := strings.TrimSpace(line[3:])
+		if arrow := strings.Index(path, " -> "); arrow >= 0 {
+			path = path[arrow+4:]
+		}
+		if path != "" {
+			paths = append(paths, path)
+		}
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+// Dir is where the store lives, so a caller can report or delete it.
+func (s *Shadow) Dir() string { return s.dir }
+
+func failure(result shell.Result, err error) string {
+	switch {
+	case err != nil:
+		return err.Error()
+	case result.Failure != "":
+		return result.Failure + ": " + strings.TrimSpace(result.Output)
+	default:
+		return strings.TrimSpace(result.Output)
+	}
+}
+
+// quote makes one shell word out of arbitrary text.
+func quote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
