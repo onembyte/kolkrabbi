@@ -2033,6 +2033,51 @@ Acceptance checklist:
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
 
+### X4 the rule the linter cannot provide — verified detail
+
+Pass 6 proved by experiment that `golangci-lint` cannot see dead exported code inside `internal/`:
+an obviously uncalled exported function produced `0 issues`. `unused` treats an exported identifier
+as a package's public API, which is right for a library and wrong where nothing outside the module
+can call it. That blind spot is how `FileGateDetector` and `ChapterVerifier` survived with green
+tests.
+
+`internal/arch/arch_test.go` already parses the tree with `go/ast` for the layer rules, so the rule
+belongs beside them rather than in a new tool.
+
+**The first version of the rule was wrong, and usefully so.** It asked "is this symbol used outside
+its own directory?" and produced 214 findings — including all 36 of `internal/tui`'s exported keys
+and constructors, every one deliberate. A package exporting an API its own tests exercise is a style
+choice; a rule that calls it a defect is a rule people turn off. Narrowed to the thing that actually
+matters: **nothing but tests refers to it.** A declaration contributes exactly one identifier, so
+"non-test uses ≤ 1" means test-only. That gave 22.
+
+**Then it missed the case it was written for.** `FileGateDetector` did not appear, because
+`func (FileGateDetector) Detect(...)` counts the receiver as a use — and a method receiver is part of
+a type's own definition, not a use of it. Excluding receivers brought the motivating case back and
+the count to 26.
+
+Proved the ratchet works by adding `ProbeOnly` to `internal/netaddr` and watching it fail, then
+removing it — the same technique that showed the old verb guardrail could not fail.
+
+**Two of the 26 are mine, from two days ago.** `session.Overview` was built for I26.7 and never
+wired; `engine.ParseRules` is a plural nobody needed, because the CLI parses rules line by line so
+one bad rule costs one rule. I criticised exactly this pattern in three earlier leaves and then did
+it twice.
+
+The allowlist is committed **as a backlog, not as justification**: three entries have a real reason,
+five are explained, and eighteen say `untriaged 2026-08-27` in as many words. Dressing them up would
+have made the list look settled and stopped anyone reading it. The ratchet is live for new code
+today, which is the part that compounds.
+
+Acceptance checklist:
+
+- [x] the rule reads the tree with go/ast rather than grep.
+- [x] narrowed from 214 style findings to 26 real ones, with the reason recorded.
+- [x] method receivers excluded, restoring the case the rule exists for.
+- [x] proved it fails on new dead code, then removed the probe.
+- [x] the allowlist cannot rot: a symbol that gains callers or disappears fails a test.
+- [x] full `make check` green: 2,028 tests, 0 lint issues.
+
 ### Verification pass 6 — my own week's work, by mutation — recorded detail
 
 E13, F14, G11, G15, I26 and I27 are leaves I wrote, including the claims about them, so reading my
