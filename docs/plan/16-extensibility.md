@@ -103,8 +103,11 @@ until two things are true, and both are real work rather than schedule:
 mean something before a server's tools can be governed, and until it does the only honest posture is
 the current one — ask every time, which makes a twelve-tool server unusable.
 
-**Tool schemas have to stop being free.** The five built-in schemas are already about 5 KB of every
-request. A single MCP server can add a dozen more, and the research notes this exact failure in
+**Tool schemas have to stop being free.** The five built-in schemas are **2,816 bytes** of every
+request — measured on 2026-08-27 by G16.5, which is also when this sentence stopped saying "about
+5 KB". The estimate was wrong by nearly a factor of two, in the direction that would have justified
+more mechanism than the problem needs; the search-and-load bridge is still the right shape, but it is
+less urgent than a guessed number made it look. A single MCP server can add a dozen more, and the research notes this exact failure in
 Hermes and Goose: schemas devour the window before the work starts. The answer the ecosystem has
 converged on is a search-and-load bridge rather than a full manifest, and that is a design, not a
 line of config.
@@ -119,7 +122,7 @@ stdlib, so the module budget is not the obstacle. `kolk mcp add/list/rm`, namesp
 - **G16.2 hook events and the confirmation** — three post-events, confirmed once per command, floor applies, failures reported not fatal.
 - **G16.3 project hooks are shown before they run** — cloning a repository executes nothing.
 - **G16.4 `mcp(...)` permission rules** — the blocker above, buildable on its own and useful without MCP.
-- **G16.5 tool-schema budget** — measure what schemas cost a request before adding a mechanism that multiplies them.
+- **G16.5 tool-schema budget** — ✓ measured (2,816 bytes for five tools), bounded by a failing budget, and reported by `kolk doctor`.
 
 ## Open questions
 

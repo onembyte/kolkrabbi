@@ -13,6 +13,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/redact"
 	"github.com/onembyte/kolkrabbi/internal/term"
+	"github.com/onembyte/kolkrabbi/internal/tools"
 )
 
 // runDoctor reports what kolk can see of the machine it is running on.
@@ -58,6 +59,10 @@ func (a *app) runDoctor(ctx context.Context, args []string) error {
 
 	fmt.Fprintln(a.stdout, "\nterminal")
 	a.doctorTerminal()
+
+	fmt.Fprintln(a.stdout, "\ntools")
+	total, perTool := tools.SchemaCost()
+	fmt.Fprintf(a.stdout, "  · %d tools, %s of schema on every request\n", len(perTool), humanBytes(int64(total)))
 
 	fmt.Fprintln(a.stdout, "\nnetwork")
 	a.doctorNetwork(ctx)

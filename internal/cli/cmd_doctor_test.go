@@ -89,3 +89,20 @@ func TestDoctorDoesNotLeakTheUsersName(t *testing.T) {
 		t.Errorf("doctor printed an absolute home path:\n%s", stdout.String())
 	}
 }
+
+// Tool schemas are sent on every request of every turn — the one cost paid per
+// turn forever — so a diagnostic that lists what this machine is spending
+// should say what they cost.
+func TestDoctorReportsWhatSchemasCost(t *testing.T) {
+	a, stdout, _ := newTestApp(t, "")
+	if err := a.runDoctor(context.Background(), nil); err != nil {
+		t.Fatalf("runDoctor: %v", err)
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "of schema on every request") {
+		t.Errorf("doctor does not report the schema cost:\n%s", out)
+	}
+	if !strings.Contains(out, "5 tools") {
+		t.Errorf("doctor does not say how many tools are sent:\n%s", out)
+	}
+}

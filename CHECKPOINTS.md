@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **G16.5 tool schemas stop being free** — measured at 2,816 bytes, bounded by a failing budget, and reported by `kolk doctor`; the doc's estimate was nearly double.
 - [x] **I27.6 the view** — the dash renders the cards, blocked first, and a prediction I27.4 made about the catalogue turned out to be false.
 - [x] **I29.1 listening-port discovery** — a `bash` call that starts a server says where it is, and only a loopback port gets a link.
 - [x] **I28.3 `/pr` drafts and hands over** — item 28 is complete; three copies of shell quoting became one on the way.
@@ -2131,6 +2132,55 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### G16.5 built — tool schemas stop being free, and the estimate was wrong
+
+Item 16 named this leaf as the thing to do **before** designing a mechanism that multiplies schemas:
+*measure what schemas cost a request.* The measurement is the leaf, and it changed the answer.
+
+**The doc said "about 5 KB". They are 2,816 bytes** for five tools — wrong by nearly a factor of two,
+in the direction that would have justified more mechanism than the problem needs. The search-and-load
+bridge for MCP tools is still the right shape, but it is less urgent than a guessed number made it
+look, and the doc now carries the measured figure with a note saying when it stopped being an
+estimate. This is the third time this loop that a written claim failed against the code, and the
+second where the wrong number would have justified building more than was needed.
+
+**The budget is a failing test, not a note.** Tool schemas are the one cost in this codebase paid per
+turn, per request, forever — a single MCP server can add a dozen at once, and the research records
+exactly that failure in Hermes and Goose, where schemas devour the window before the work starts. So
+there is a total budget (4 KB, against 2,816 today) and a **per-tool** budget (1,536 bytes, against
+769 for the largest), because one verbose description is how the total grows without anyone
+deciding to grow it. Both were mutation-tested by lowering them until they failed.
+
+**Reported, not just enforced.** `SchemaCost` returns the total and the per-tool breakdown, and
+`kolk doctor` prints "5 tools, 2 KB of schema on every request" — so anything that adds tools can say
+what it costs before it is switched on, which is what the leaf was for.
+
+Acceptance checklist:
+
+- [x] the number measured before anything was built on it.
+- [x] the doc's estimate corrected in place, with the date it stopped being a guess.
+- [x] a per-tool budget as well as a total, because one description can grow the total quietly.
+- [x] both budgets mutation-tested by lowering them until they bit.
+- [x] surfaced in `kolk doctor`, so it is not an export with no caller.
+- [x] full `make check` green: 2,259 tests, 0 lint issues.
+
+### What is actually left, audited rather than assumed
+
+The phase table above is rewritten to match the tree as of this checkpoint. Phases C, D, E, F, I and
+J are complete. What remains, honestly:
+
+- **G16.1–G16.4** — markdown commands, hook events and their confirmation, project hooks shown before
+  they run, and `mcp(...)` permission rules. All four are real build work, and item 16's doc has the
+  decisions already made. G16.4 is the one worth doing first: it is described as the blocker for MCP
+  and is useful without it.
+- **T0.5 clean-machine rehearsal** — install, first run, key addition and a first model response from
+  a machine with no Go toolchain and no prior Kolkrabbi files. This cannot be honestly closed from
+  inside the machine that has been building it; it needs a clean one, and it is owner work.
+- **B12.13** (a subscription-only OpenRouter key) and **L13.5b4** (pinning a managed runtime release
+  with its checksum) — both parked on the owner, both unchanged.
+- **Phase A's failure-path tests** and **phase E's OS sandbox matrix** — recorded as open and
+  deferred respectively, neither picked up since.
 
 ### I27.6 built — the view, and a correction to what I27.4 predicted
 
@@ -6941,10 +6991,10 @@ phase must close without leaving this file.
 | D the local dashboard | 17 | doc ✓, D17.1–D17.3 ✓; A12.2–A12.4 superseded | complete |
 | E tools, permissions, sandboxing | 13 | doc ✓, E13.1–E13.7 ✓ | complete; OS sandbox matrix deferred |
 | F orchestration & per-task routing | 14 | doc ✓, F14.1–F14.6 ✓ | complete |
-| G the surface | 11, 15, 16 | docs ✓ for all three, G11.1–G11.6 ✓, G15.1–G15.3 ✓ | item 16 hardened, G16 leaves queued |
-| I reach | 26–29 | docs ✓ for all four, I26.1–I26.6 ✓, I27.1–I27.2 ✓ | I26.7 and the I27–I29 leaves queued |
-| H ship it for real | T0.5, 19–23 | all five docs ✓, L19.1–L19.2 ✓, L20.1–L20.2 ✓, L21.0 ✓, L22.1–L22.2 ✓, L23.1–L23.2 ✓ | T0.5 and L21.1–L21.4 remain |
-| J borrowed hardening | 30, 31, 32 | all three docs ✓, L31.1 ✓ | the L30 and L32 leaves are queued |
+| G the surface | 11, 15, 16 | docs ✓, G11.1–G11.6 ✓, G15.1–G15.3 ✓, G16.5 ✓ | G16.1–G16.4 queued (commands, hooks, mcp rules) |
+| I reach | 26–29 | docs ✓, I26.1–I26.7 ✓, I27.1–I27.6 ✓, I28.1–I28.3 ✓, I29.1 ✓ | complete |
+| H ship it for real | T0.5, 19–23 | all five docs ✓, L19.1–L19.2 ✓, L20.1–L20.2 ✓, L21.0–L21.4 ✓, L22.1–L22.2 ✓, L23.1–L23.2 ✓ | T0.5 remains, and it needs a real clean machine |
+| J borrowed hardening | 30, 31, 32 | all three docs ✓, L30.1–L30.4 ✓, L31.1 ✓, L32.1–L32.5 ✓ | complete |
 
 **Every item in PLAN.md is hardened as of 2026-08-27.** Items 1, 24 and 25 stay `[~]` by design — each tracks something the world keeps changing — and everything from 2 to 32 has a document, a tick, and a ratchet that fails the build if those two ever disagree. What is left is build work, not decisions.
 
