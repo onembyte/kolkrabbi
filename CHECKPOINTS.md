@@ -188,6 +188,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **I27.2 the session overview** — a card list that can be polled: header-only reads, liveness that neither steals nor creates a lock.
 - [x] **I27.1 a session says it is running** — an advisory lock, so liveness is observed rather than reported.
 - [x] **I26.6 read and steer tiers** — a device token means less than the operator's, and the store no longer races.
 - [x] **I26.5 reachability** — `kolk serve` says how to reach it and who else can, Tailscale first.
@@ -1933,6 +1934,51 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### I27.2 the session overview — verified detail
+
+`session.List` loads every message of every session. For `kolk sessions` that is fine; for a list a
+dashboard polls it is the wrong shape, and measuring it said so: 27 ms and 3.3 MB of garbage per call
+across the 549 sessions on this machine, none of which a card displays.
+
+`Card` is deliberately not a `*Session`. Its decode struct has no `Messages` field, so
+`encoding/json` walks the transcript and allocates none of it — and a type that cannot carry a
+transcript cannot accidentally leak one into a view.
+
+**Then the benchmark caught me making it twenty times worse.** The first version called `lock.Try`
+per session for liveness, and `Try` opens, chmods, writes a PID and closes. Across 549 sessions that
+turned a 27 ms listing into **553 ms** — and, because `Try` creates the file it locks, it left **549
+stray lock files in the real sessions directory**, which I ran it against. I deleted them; no session
+data was touched, only the `.lock` files created seconds earlier.
+
+That is the second time today measurement changed a decision rather than confirming one, and the
+first time it caught damage rather than slowness.
+
+`lock.Held` is the fix: open without `O_CREATE`, probe, release. A missing file means nobody has ever
+held it, which is the common case and now costs one failed `open`. Existence alone is not the answer —
+the file outlives the lock, so a session that ran and exited leaves one behind — but it is the cheap
+first filter. The result is 26.5 ms, *faster than `List` while doing more*, 45% less garbage, and
+nothing created.
+
+**A session mid-write looks exactly like a corrupt one** for a few milliseconds, so an unparseable
+file is skipped rather than failing the listing: a dashboard that blanks during a save is worse than
+one that shows a session late.
+
+Verified in an isolated export of HEAD plus these files, because another agent is editing this
+working tree concurrently and its in-progress TUI changes fail a test here. Confirmed the failure is
+theirs by testing HEAD alone, then HEAD plus only these files: 2,010 tests, 0 lint issues, every
+script contract.
+
+Acceptance checklist:
+
+- [x] a card carries id, title, model, cwd, updated and state, and cannot carry messages.
+- [x] the listing is newest first and says which sessions are running.
+- [x] corrupt files, non-JSON files and directories are skipped without failing the list.
+- [x] a missing directory is empty, not an error.
+- [x] an untitled session still has a usable name.
+- [x] probing liveness creates no file and steals no lock.
+- [x] measured: 26.5 ms and 1.8 MB against 549 real sessions, versus 32.6 ms and 3.3 MB for List.
+- [x] full `make check` green in an isolated export: 2,010 tests, 0 lint issues.
 
 ### I27.1 a session says it is running — verified detail
 
