@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,7 +25,7 @@ func diffFixture(t *testing.T) (*app, *checkpoint.Store, string, *bytes.Buffer) 
 
 func recordEdit(t *testing.T, store *checkpoint.Store, path, after string) {
 	t.Helper()
-	store.BeginTurn()
+	store.BeginTurn(context.Background())
 	if err := store.Record("edit_file", path); err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +78,7 @@ func TestDiffIsAgainstTheStartOfTheSessionNotTheLastEdit(t *testing.T) {
 func TestACreatedFileIsShownAsNew(t *testing.T) {
 	a, store, work, out := diffFixture(t)
 	path := filepath.Join(work, "new.go")
-	store.BeginTurn()
+	store.BeginTurn(context.Background())
 	if err := store.Record("write_file", path); err != nil {
 		t.Fatal(err)
 	}

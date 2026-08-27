@@ -1,6 +1,7 @@
 package checkpoint
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,7 +16,7 @@ func TestRewindRestoresEditedFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.BeginTurn()
+	s.BeginTurn(context.Background())
 	if err := s.Record("edit_file", p); err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +45,7 @@ func TestRewindDeletesCreatedFile(t *testing.T) {
 	p := filepath.Join(work, "new.txt")
 
 	s, _ := Open(store)
-	s.BeginTurn()
+	s.BeginTurn(context.Background())
 	if err := s.Record("write_file", p); err != nil { // file does not exist yet
 		t.Fatal(err)
 	}
@@ -65,11 +66,11 @@ func TestRewindIsPerTurnAndOrdered(t *testing.T) {
 
 	s, _ := Open(store)
 
-	s.BeginTurn() // turn 1
+	s.BeginTurn(context.Background()) // turn 1
 	s.Record("edit_file", p)
 	os.WriteFile(p, []byte("turn1"), 0o644)
 
-	s.BeginTurn() // turn 2: two changes to the same file
+	s.BeginTurn(context.Background()) // turn 2: two changes to the same file
 	s.Record("edit_file", p)
 	os.WriteFile(p, []byte("turn2a"), 0o644)
 	s.Record("edit_file", p)
@@ -100,7 +101,7 @@ func TestStorePersistsAcrossReopen(t *testing.T) {
 	os.WriteFile(p, []byte("v1"), 0o644)
 
 	s1, _ := Open(store)
-	s1.BeginTurn()
+	s1.BeginTurn(context.Background())
 	s1.Record("edit_file", p)
 	os.WriteFile(p, []byte("v2"), 0o644)
 

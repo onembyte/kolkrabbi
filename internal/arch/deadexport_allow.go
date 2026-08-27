@@ -51,12 +51,6 @@ var DeadExportAllowlist = map[string]string{
 	"NewManagedRuntime": "managed runtime, blocked on L13.5b4 pinning a release",
 	"NewRuntimeSpec":    "managed runtime, blocked on L13.5b4 pinning a release",
 
-	// L32.1 landed the shadow store; L32.2 selects between it and the copy
-	// store at session start and will delete this line — the rot test above
-	// fails the build the moment OpenShadow has a real caller, so this entry
-	// cannot outlive its reason by more than one checkpoint.
-	"OpenShadow": "L32.1's store, wired by L32.2",
-
 	// A7.4's event-to-text path, built ahead of the thing that will read it.
 	// I26.7's remote client needs exactly this — protocol events rendered as
 	// terminal text — so it is waiting for a consumer, not left over from one.

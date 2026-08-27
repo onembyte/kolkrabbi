@@ -1,6 +1,7 @@
 package enginetest
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -104,7 +105,7 @@ type FakeCheckpointer struct {
 	RewoundPaths []string
 }
 
-func (c *FakeCheckpointer) BeginTurn() {
+func (c *FakeCheckpointer) BeginTurn(context.Context) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.Turns++

@@ -952,7 +952,7 @@ func (a *Agent) contextUsage(lastPromptTokens int) ContextUsage {
 func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 	a.lastTurnID = xid.New(xid.Turn)
 	if a.Ckpt != nil {
-		a.Ckpt.BeginTurn()
+		a.Ckpt.BeginTurn(ctx)
 	}
 	if a.Sess != nil {
 		a.Sess.SetTitleFromInput(userInput)

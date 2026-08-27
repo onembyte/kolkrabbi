@@ -1,6 +1,7 @@
 package checkpoint
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -25,14 +26,14 @@ func TestOriginalIsTheStateBeforeTheSessionTouchedIt(t *testing.T) {
 
 	// Two turns editing the same file. The session diff has to be against what
 	// was there before any of it, not before the most recent edit.
-	store.BeginTurn()
+	store.BeginTurn(context.Background())
 	if err := store.Record("edit_file", path); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte("second\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	store.BeginTurn()
+	store.BeginTurn(context.Background())
 	if err := store.Record("edit_file", path); err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +57,7 @@ func TestAFileTheSessionCreatedHasNoOriginal(t *testing.T) {
 	store, work := storeWith(t)
 	path := filepath.Join(work, "new.go")
 
-	store.BeginTurn()
+	store.BeginTurn(context.Background())
 	if err := store.Record("write_file", path); err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +89,7 @@ func TestChangedPathsAreListedOnceInOrder(t *testing.T) {
 		if err := os.WriteFile(path, []byte("x\n"), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		store.BeginTurn()
+		store.BeginTurn(context.Background())
 		if err := store.Record("edit_file", path); err != nil {
 			t.Fatal(err)
 		}

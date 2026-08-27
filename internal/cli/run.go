@@ -189,6 +189,14 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		fmt.Fprintf(a.stderr, "warning: checkpoints disabled: %v\n", err)
 		ckpt = nil
 	}
+	if ckpt != nil {
+		// The same root the file tools are confined to, so the snapshot and the
+		// path jail cannot disagree about what the project is.
+		ckpt.UseShadow(ctx, projectRoot())
+		if notice := ckpt.Notice(); notice != "" {
+			fmt.Fprintf(a.stderr, "%s\n", notice)
+		}
+	}
 
 	// Marks the session live for as long as this process runs it. Advisory,
 	// and deliberately not fatal: a platform without file locks still runs

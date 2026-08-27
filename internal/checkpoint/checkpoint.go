@@ -5,6 +5,7 @@
 package checkpoint
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -35,6 +36,12 @@ type Store struct {
 	turn    int
 	seq     int
 	entries []Entry
+
+	// shadow is the whole-tree snapshot store, when the project qualifies for
+	// one. nil means this session captures turns by copying files before they
+	// are written, which misses everything `bash` does.
+	shadow   *Shadow
+	fellBack string
 }
 
 // Open creates or reopens a checkpoint store at dir.
@@ -71,7 +78,15 @@ func (s *Store) saveManifest() error {
 }
 
 // BeginTurn marks the start of a new user turn; subsequent Records belong to it.
-func (s *Store) BeginTurn() { s.turn++ }
+// BeginTurn opens a new turn and, when a shadow store is attached, snapshots
+// the whole work tree as it is before anything in this turn runs. Per turn is
+// the cadence item 32 chose: a whole-tree snapshot already contains every path,
+// so re-taking one per tool call would multiply the cost to record states
+// nothing can address.
+func (s *Store) BeginTurn(ctx context.Context) {
+	s.turn++
+	s.snapshotTurn(ctx, s.turn)
+}
 
 // Record snapshots the current state of path before it is modified. Call it
 // after user confirmation but before the actual write/edit.

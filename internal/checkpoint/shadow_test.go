@@ -155,3 +155,99 @@ func TestShadowRefusesADirectoryThatIsNotARepository(t *testing.T) {
 		t.Fatal("OpenShadow accepted a directory with no .git, so nothing would fall back to copying")
 	}
 }
+
+func TestStoreChoosesTheShadowStoreInARepository(t *testing.T) {
+	gitOr(t, "git is required for the shadow store")
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.UseShadow(context.Background(), newProject(t))
+	if store.Strategy() != StrategyShadow {
+		t.Errorf("strategy = %q, want %q", store.Strategy(), StrategyShadow)
+	}
+	if store.Notice() != "" {
+		t.Errorf("a working shadow store said something: %q", store.Notice())
+	}
+}
+
+// Not a repository, no git, a store that will not open: all one answer to the
+// caller, because the alternative to falling back is failing the turn.
+func TestStoreFallsBackToCopyingOutsideARepository(t *testing.T) {
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.UseShadow(context.Background(), t.TempDir()) // no .git
+	if store.Strategy() != StrategyCopy {
+		t.Errorf("strategy = %q, want %q", store.Strategy(), StrategyCopy)
+	}
+	if store.Notice() == "" {
+		t.Error("kolk silently gave up on snapshotting what bash does; it must say so once")
+	}
+}
+
+// A snapshot that fails mid-session must not fail the turn, and must not be
+// retried every turn for the rest of the session.
+func TestAFailingShadowStoreDropsToCopyingForTheRestOfTheSession(t *testing.T) {
+	gitOr(t, "git is required for the shadow store")
+	project := newProject(t)
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.UseShadow(context.Background(), project)
+	if store.Strategy() != StrategyShadow {
+		t.Fatalf("setup did not select the shadow store: %q", store.Strategy())
+	}
+
+	// The store goes away underneath us — a cleaner, a full disk, a bug.
+	if err := os.RemoveAll(store.shadow.Dir()); err != nil {
+		t.Fatal(err)
+	}
+	store.BeginTurn(context.Background())
+
+	if store.Strategy() != StrategyCopy {
+		t.Errorf("a broken shadow store was kept: %q", store.Strategy())
+	}
+	if store.Notice() == "" {
+		t.Error("the fallback happened silently")
+	}
+	first := store.Notice()
+	store.BeginTurn(context.Background())
+	if store.Notice() != first {
+		t.Errorf("the notice changed on a later turn: %q then %q", first, store.Notice())
+	}
+}
+
+// Until L32.3 teaches rewind to read the shadow store, the copy store keeps
+// recording. A snapshot layer that silently disabled /undo would be a
+// regression wearing a feature's name.
+func TestRecordKeepsWorkingWhileTheShadowStoreIsActive(t *testing.T) {
+	gitOr(t, "git is required for the shadow store")
+	project := newProject(t)
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.UseShadow(context.Background(), project)
+	store.BeginTurn(context.Background())
+
+	target := filepath.Join(project, "kept.txt")
+	if err := store.Record("edit_file", target); err != nil {
+		t.Fatalf("Record: %v", err)
+	}
+	if err := os.WriteFile(target, []byte("changed\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := store.RewindLastTurn()
+	if err != nil {
+		t.Fatalf("RewindLastTurn: %v", err)
+	}
+	if len(restored) != 1 {
+		t.Fatalf("restored %v, want one path", restored)
+	}
+	if content, _ := os.ReadFile(target); string(content) != "one\n" {
+		t.Errorf("the file was not put back: %q", content)
+	}
+}

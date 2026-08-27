@@ -135,6 +135,12 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		if err != nil {
 			ckpt = nil
 		}
+		if ckpt != nil {
+			// A new session in the same project gets its own store. The notice
+			// is not reprinted: whatever the answer is here, the session this
+			// one replaced already said it.
+			ckpt.UseShadow(ctx, projectRoot())
+		}
 		opts := ag.Options
 		opts.Sess = sess
 		opts.Ckpt = ckpt

@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **L32.2 which store captures a turn** — a repository gets whole-tree snapshots, everything else gets copies, and a store that breaks mid-session says so once and stops trying.
 - [x] **L32.1 the shadow store** — a git object store outside the work tree, so a change made by `bash` is visible and the user's own repository is never written to.
 - [x] **L21.4 every action is pinned by commit SHA** — a tag is whatever that account publishes next, which is a credential decision wearing a version number.
 - [x] **L31.1 the driver list grew by evidence, not by import** — approving `goreleaser check` must not write a rule that allows `goreleaser release`.
@@ -2110,6 +2111,48 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### L32.2 built — strategy selection, fail-closed
+
+`Store.UseShadow` attaches the shadow store when the project qualifies and says nothing when it does
+not qualify for a reason nobody can act on. Selection uses `projectRoot()` — the same root the file
+tools are confined to — so the snapshot and the path jail cannot disagree about what the project is.
+There is no git version check, as item 32 decided: opening the store *is* the probe.
+
+**Three failure modes, one answer.** Not a repository, no git on `PATH`, a store that will not open:
+all fall back to copying, because the alternative to snapshotting is never failing the turn. A
+failure *after* selection — a cleaner, a full disk, a bug — drops the session to copying for the rest
+of its life rather than retrying every turn, and the notice is set once and never rewritten: a
+fallback that re-announced itself each turn would be noise about a decision already made. Both
+properties are tested, including that the notice does not change on a later turn.
+
+**Record deliberately stays a copying Record.** Item 32 says it becomes a no-op under the shadow
+strategy, and it will — but not until L32.3 teaches rewind to read the shadow store. Making it a
+no-op now would leave `/undo` restoring nothing between two checkpoints, which is a regression
+wearing a feature's name. `TestRecordKeepsWorkingWhileTheShadowStoreIsActive` pins that until L32.3
+removes it.
+
+**The architecture rules did two useful things in this leaf.** The dead-export rot test fired the
+moment `OpenShadow` gained a real caller, forcing the allowlist entry L32.1 added to be deleted —
+exactly the one-checkpoint deadline it was given. And `TestNoInventedContexts` rejected the
+`context.Background()` inside `snapshotTurn`, which was the right call rather than an inconvenience:
+`BeginTurn()` had no context because nothing in it had ever needed one, and a snapshot is I/O that a
+cancelled turn should be able to abandon. The port is now `BeginTurn(context.Context)`, threaded from
+the turn's own context through the engine, both fakes and five test files.
+
+Verified afterwards that the suite left no `shadow.git` anywhere in the real data directory — the
+lesson from the benchmark that once wrote 549 lock files into the user's sessions.
+
+Acceptance checklist:
+
+- [x] four tests written first, all failing on an undefined `UseShadow`.
+- [x] the same project-root test as the path jail, not a second opinion about the project.
+- [x] fallback proven for both timings — at selection, and mid-session — with the notice pinned as write-once.
+- [x] the `/undo` regression avoided rather than accepted, with a test naming why.
+- [x] the allowlist entry deleted by the rot test on schedule, not by memory.
+- [x] the invented context replaced by a real one instead of silenced.
+- [x] no stray stores left in the user's own data directory.
+- [x] full `make check` green: 2,093 tests, 0 lint issues.
 
 ### L32.1 built — the shadow store
 

@@ -167,3 +167,65 @@ func failure(result shell.Result, err error) string {
 
 // quote makes one shell word out of arbitrary text.
 func quote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
+
+// The two ways a turn's file state can be captured.
+const (
+	StrategyCopy   = "copy"   // a backup file per write, before the write
+	StrategyShadow = "shadow" // a whole-tree snapshot per turn, in a git store outside the tree
+)
+
+// UseShadow attaches a shadow store to s when the project qualifies, and says
+// nothing when it does not qualify for a reason the user cannot act on.
+//
+// There is no git version check here on purpose (item 32): opening the store is
+// itself the probe, and a probe cannot be wrong about the machine it runs on.
+// Not a repository, no git on PATH, a store that will not open — one answer, so
+// that the alternative to snapshotting is never failing the turn.
+func (s *Store) UseShadow(ctx context.Context, workTree string) {
+	shadow, err := OpenShadow(ctx, filepath.Join(s.dir, "shadow.git"), workTree)
+	if err != nil {
+		s.fellBack = "Snapshots cover kolk's own edits only: " + reasonOf(err) +
+			". `/undo` will not restore changes made by bash."
+		return
+	}
+	s.shadow = shadow
+}
+
+// Strategy reports which store is capturing turns.
+func (s *Store) Strategy() string {
+	if s.shadow != nil {
+		return StrategyShadow
+	}
+	return StrategyCopy
+}
+
+// Notice is the one sentence a session prints when it could not snapshot the
+// whole tree, or stopped being able to. It is empty when the shadow store is
+// working, and it never changes after it is set: a fallback that re-announced
+// itself every turn would be noise about a decision already made.
+func (s *Store) Notice() string { return s.fellBack }
+
+// snapshotTurn is called from BeginTurn. A failure here is never fatal — it
+// costs this session its whole-tree snapshots and nothing else, and the copy
+// store carries on underneath.
+func (s *Store) snapshotTurn(ctx context.Context, turn int) {
+	if s.shadow == nil {
+		return
+	}
+	if _, err := s.shadow.Snapshot(ctx, turn); err != nil {
+		s.shadow = nil
+		s.fellBack = "Whole-tree snapshots stopped working and this session will not retry them: " +
+			reasonOf(err) + ". `/undo` still restores kolk's own edits."
+	}
+}
+
+// reasonOf trims the layered prefixes off an error so the sentence a user reads
+// is about their machine rather than about our call stack.
+func reasonOf(err error) string {
+	text := strings.TrimSpace(err.Error())
+	text = strings.TrimPrefix(text, "checkpoint: ")
+	if line, _, found := strings.Cut(text, "\n"); found {
+		text = line
+	}
+	return strings.TrimSpace(text)
+}

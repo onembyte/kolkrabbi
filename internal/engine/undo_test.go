@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -15,7 +16,7 @@ type fakeCheckpointer struct {
 	calls    int
 }
 
-func (f *fakeCheckpointer) BeginTurn()                     {}
+func (f *fakeCheckpointer) BeginTurn(context.Context)      {}
 func (f *fakeCheckpointer) Record(tool, path string) error { return nil }
 func (f *fakeCheckpointer) RewindLastTurn() ([]string, error) {
 	f.calls++

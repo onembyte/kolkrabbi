@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -28,7 +29,7 @@ type SessionPort interface {
 
 // Checkpointer is the pre-write snapshot port.
 type Checkpointer interface {
-	BeginTurn()
+	BeginTurn(context.Context)
 	Record(tool, path string) error
 	RewindLastTurn() ([]string, error)
 }
