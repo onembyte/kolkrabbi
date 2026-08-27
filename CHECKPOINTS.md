@@ -2033,6 +2033,40 @@ Acceptance checklist:
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
 
+### Verification pass 7 — the migration queue — recorded detail
+
+The A-series and the phase table. Two findings, and the second is the worst-placed instance of the
+pattern the whole audit has been tracking.
+
+**A13 is accurate**, which is worth saying because it would be easy to fudge. Windows stubs exist in
+`atomicfile`, `lock`, `paths`, `shell` and `term`; CI marks the Windows build advisory and its comment
+cites the migration step that will make it required. An honest `[ ]` on work genuinely not done.
+
+**A14 was open for work that shipped.** It reads "TUI, external agent adapters, and saga, separately"
+and all three exist — `internal/tui`, `internal/provider/agentcli`, the saga loop. But reading it as
+simply done would be wrong: this is the *migration* queue, so the row means "re-check these against
+the layer rules as a group", and nobody has. Marked `[~]` with that distinction written down, because
+"it exists" and "it obeys the architecture" are different claims and only the first is proven.
+
+**The phase table was four phases out of date.** It called E "building — blocks F", F and G "queued",
+and did not mention phase I at all. In fact E13.1–E13.7, F14.1–F14.6, G11.1–G11.6, G15.1–G15.3,
+D17.1–D17.3, C12 and I26.1–I27.2 have all closed — 42 leaves the table did not know about.
+
+That table is the first thing anyone reads about where the project stands, and it was the least
+accurate thing in either document. The audit has now found this same failure in a leaf (U0.1
+promising a removed flag), a plan row (item 24 listing shipped work as open), a checkpoint group
+(A12 promising SQLite after SQLite was refused), and now the summary itself. **Four instances is not
+carelessness, it is a missing step**: nothing in the checkpoint contract says "when you close a leaf,
+find what claimed it was coming". That belongs in the final pass.
+
+Acceptance checklist:
+
+- [x] A13's Windows claim verified against the stubs and the CI workflow.
+- [x] A14's three subjects verified to exist, and the row's real meaning separated from that.
+- [x] every phase's leaf states counted rather than assumed.
+- [x] the phase table rewritten from those counts, with phase I added.
+- [x] full `make check` green: 2,028 tests, 0 lint issues.
+
 ### X4 the rule the linter cannot provide — verified detail
 
 Pass 6 proved by experiment that `golangci-lint` cannot see dead exported code inside `internal/`:
@@ -4899,14 +4933,21 @@ phase must close without leaving this file.
 
 | Phase | Items | Leaves | State |
 |---|---|---|---|
-| A finish the subscription path | 4, 24 | P11.7 ✓, B12.12 ✓, B12.14 ✓ | B12.13 needs the owner |
+| A finish the subscription path | 4, 24 | P11.7 ✓, B12.12 ✓, B12.14 ✓ | B12.13 needs the owner; failure-path tests open |
 | B managed local models | 25 | L13.4 ✓, L13.5a–c ✓, L13.5b3 ✓ | L13.5b4 needs the owner |
-| C sessions, context, memory | 12 | doc ✓, C12.1–C12.7 ✓ | complete |
-| D the local dashboard | 17 | doc ✓; A12.2/A12.5 superseded | building |
-| E tools, permissions, sandboxing | 13 | doc ✓, leaves next | building — blocks F |
-| F orchestration & per-task routing | 14 | doc first, then leaves | queued |
-| G the surface | 11, 15, 16 | doc per item | queued |
+| C sessions, context, memory | 12 | doc ✓, C12.1–C12.7 ✓ (9 leaves) | complete |
+| D the local dashboard | 17 | doc ✓, D17.1–D17.3 ✓; A12.2–A12.4 superseded | complete |
+| E tools, permissions, sandboxing | 13 | doc ✓, E13.1–E13.7 ✓ | complete; OS sandbox matrix deferred |
+| F orchestration & per-task routing | 14 | doc ✓, F14.1–F14.6 ✓ | complete |
+| G the surface | 11, 15, 16 | docs ✓ for 11 and 15, G11.1–G11.6 ✓, G15.1–G15.3 ✓ | item 16 not started |
+| I reach | 26–29 | doc ✓ for 26, I26.1–I26.6 ✓, I27.1–I27.2 ✓ | I26.7 blocked on I27; items 27–29 undocced |
 | H ship it for real | T0.5, 19–23 | T0.5 then doc per item | queued |
+
+This table was four phases out of date until an audit on 2026-08-27 rewrote it: it still called E
+"building — blocks F", F and G "queued", and did not mention phase I at all, while E, F, G's built
+half, D and I26.1–I27.2 had all closed. It is the first thing anyone reads about where the project
+is, and it was the least accurate — the same "nothing walks back" failure the audit found in a leaf
+(U0.1), a plan row (item 24) and a checkpoint group (A12), now found in the summary itself.
 
 The ordering rule is recorded in PLAN.md: finish what is half-built before starting what is unbuilt,
 put correctness before the surface that displays it, and put permissions before autonomy. Phase D
@@ -4957,7 +4998,12 @@ proceed without changing repository visibility, tags, releases, or deployments.
   - [ ] **A12.5 budget & arch verification** — measure binary size and cold start and verify `make check`.
   The dependency ceiling is **no longer raised**: item 17 keeps the store dependency-free.
 - [ ] **A13 Windows** — replace every honest stub and make Windows CI required.
-- [ ] **A14 additive product leaves** — TUI, external agent adapters, and saga, separately.
+- [~] **A14 additive product leaves** — TUI, external agent adapters, and saga, separately.
+  All three shipped: `internal/tui` (U0.4, G11), `internal/provider/agentcli` (B12), and the saga
+  loop (S10). What this row still means, and did not say, is the *migration* half — each was built
+  additively and none has been re-checked against the layer rules as a group. Marked in progress
+  2026-08-27 rather than closed, because "it exists" and "it obeys the architecture" are different
+  claims and only the first is proven.
 - [ ] **A15 generated client proof** — nested tools module and TypeScript protocol client.
 - [ ] **A16 platform clients** — desktop and mobile directories without root-module rewrites.
 
