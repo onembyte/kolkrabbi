@@ -267,6 +267,7 @@ func TestRewindLeavesTheUsersGitStateAlone(t *testing.T) {
 	project := newProject(t)
 	beforeLog := gitOut(t, project, "reflog", "--all")
 	beforeHead := gitOut(t, project, "rev-parse", "HEAD")
+	beforeStash := gitOut(t, project, "stash", "list")
 
 	store, err := Open(t.TempDir())
 	if err != nil {
@@ -286,6 +287,11 @@ func TestRewindLeavesTheUsersGitStateAlone(t *testing.T) {
 	}
 	if got := gitOut(t, project, "rev-parse", "HEAD"); got != beforeHead {
 		t.Errorf("a rewind moved the user's HEAD: %q then %q", beforeHead, got)
+	}
+	// `git stash` is the obvious wrong way to build this feature, so the test
+	// that says we did not use it belongs on both halves, not just the snapshot.
+	if got := gitOut(t, project, "stash", "list"); got != beforeStash {
+		t.Errorf("a rewind changed the user's stash stack: %q then %q", beforeStash, got)
 	}
 	if status := gitOut(t, project, "status", "--porcelain"); strings.TrimSpace(status) != "" {
 		t.Errorf("the tree was restored but the user's index is dirty: %q", status)

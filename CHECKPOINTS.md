@@ -214,6 +214,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **L32.5 a snapshot store is visible and mortal** — `kolk sessions` shows what it costs, and deleting the session deletes it.
+- [x] **L32.4 the user's git is untouched, permanently** — closed by the snapshot and rewind guards rather than a third test.
 - [x] **L32.3 `/undo` finally covers what `bash` did** — a rewind restores the whole tree to the turn's opening snapshot, and the manifest says which store captured each turn.
 - [x] **L32.2 which store captures a turn** — a repository gets whole-tree snapshots, everything else gets copies, and a store that breaks mid-session says so once and stops trying.
 - [x] **L32.1 the shadow store** — a git object store outside the work tree, so a change made by `bash` is visible and the user's own repository is never written to.
@@ -2112,6 +2114,38 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### L32.4 closed and L32.5 built — the store is visible, mortal, and still nobody else's business
+
+**L32.4 was already satisfied, and saying so was the work.** Item 32 asked for a permanent test that
+the user's own git state is untouched. L32.1 added one over three snapshots (reflog, stash list,
+index) and L32.3 added one over a rewind (reflog, HEAD, working status). Between them both halves of
+the dangerous surface are covered, so a third test would have been ceremony. The audit did find one
+asymmetry: the rewind guard checked HEAD but not the stash stack. `git stash` is the obvious wrong
+way to build this feature, so the test that says we did not use it belongs on both halves — the
+assertion was added rather than a new file.
+
+**L32.5's deletion half turned out to be true by construction.** `session.Delete` already
+`RemoveAll`s the whole `<id>.ckpt` directory, and the store lives inside it at `shadow.git`. That is
+the right shape and it was luck rather than design, so it now has a test whose comment says what it
+is protecting against: someone later replacing `RemoveAll` with a list of known filenames, at which
+point a store would quietly outlive the session it belonged to.
+
+**The size column reports only when there is something to report.** `snap:78KB` appears beside a
+session that has snapshots and nothing appears beside one that does not, because a column of
+`snap:0B` on every row teaches people to stop reading the line. One `os.Stat` decides which case a
+session is in before any directory is walked — most sessions have no store, and a listing that walked
+a directory per session would be the *second* time a convenience made a command slow here. The first
+was the benchmark that turned `Overview` 20× slower and left 549 lock files in the user's real
+sessions directory; that lesson is why the stat comes first.
+
+Acceptance checklist:
+
+- [x] L32.4 audited against what the two existing tests actually assert, not against their names.
+- [x] the one real gap found by that audit — stash on the rewind side — closed in place.
+- [x] the deletion guarantee pinned by a test, though the code already had it by accident.
+- [x] the size column silent when empty, and gated behind a single stat.
+- [x] full `make check` green: 2,099 tests, 0 lint issues.
 
 ### L32.3 built — rewind from either store
 

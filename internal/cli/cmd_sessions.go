@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/session"
@@ -69,8 +71,9 @@ func (a *app) runSessions(_ context.Context, args []string) error {
 		return nil
 	}
 	for _, s := range all {
-		fmt.Fprintf(a.stdout, "%-22s %s  %-32s msgs:%-4d %s\n",
-			s.ID, s.UpdatedAt.Format("2006-01-02 15:04"), s.Model, len(s.Messages), s.Title)
+		fmt.Fprintf(a.stdout, "%-22s %s  %-32s msgs:%-4d %s%s\n",
+			s.ID, s.UpdatedAt.Format("2006-01-02 15:04"), s.Model, len(s.Messages),
+			snapshotSize(s), s.Title)
 	}
 	fmt.Fprintln(a.stdout, "\nresume the latest with `kolk -r`, or a specific one with `kolk -s <id>`")
 	return nil
@@ -191,4 +194,49 @@ func loadSession(dir, id string) (*session.Session, error) {
 		return nil, err
 	}
 	return loaded, nil
+}
+
+// snapshotSize reports what this session's whole-tree snapshots are costing on
+// disk, and reports nothing when there are none.
+//
+// A per-turn snapshot layer is the first thing to suspect when a data directory
+// grows and the last thing anyone would guess, so it is worth a column. It is
+// worth a column only when it exists: a row of "snap:0B" on every session
+// teaches people to stop reading the line.
+//
+// One stat decides that, before any walking. Most sessions have no store, and a
+// listing that walked a directory per session would be the second time a
+// convenience made this command slow.
+func snapshotSize(s *session.Session) string {
+	store := filepath.Join(s.CkptDir(), "shadow.git")
+	if info, err := os.Stat(store); err != nil || !info.IsDir() {
+		return ""
+	}
+	var total int64
+	err := filepath.WalkDir(store, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil //nolint:nilerr // an unreadable entry costs its own size, not the total
+		}
+		if info, err := d.Info(); err == nil {
+			total += info.Size()
+		}
+		return nil
+	})
+	if err != nil {
+		return ""
+	}
+	return "snap:" + humanBytes(total) + " "
+}
+
+func humanBytes(n int64) string {
+	switch {
+	case n >= 1<<30:
+		return fmt.Sprintf("%.1fGB", float64(n)/(1<<30))
+	case n >= 1<<20:
+		return fmt.Sprintf("%.1fMB", float64(n)/(1<<20))
+	case n >= 1<<10:
+		return fmt.Sprintf("%dKB", n/(1<<10))
+	default:
+		return fmt.Sprintf("%dB", n)
+	}
 }
