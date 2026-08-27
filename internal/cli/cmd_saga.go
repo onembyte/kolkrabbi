@@ -22,7 +22,7 @@ func (a *app) runSaga(ctx context.Context, args []string) error {
 	case "status":
 		return a.printSagaStatus()
 	case "resume":
-		return a.resumeSaga()
+		return a.resumeSaga(ctx)
 	case "stop":
 		return a.stopSaga()
 	case "rewind":
@@ -92,19 +92,27 @@ func (a *app) loadSaga() (*engine.SagaState, string, bool, error) {
 	return state, path, true, nil
 }
 
-func (a *app) resumeSaga() error {
+// resumeSaga continues a saga from its artifact.
+//
+// docs/plan/10-saga-loop.md calls SAGA.md "the authoritative resume anchor
+// (`kolk saga resume`)", so this is the spec's verb for continuing and `run` is
+// the alias. Both work whatever chapters are outstanding — the loop is
+// idempotent, so starting and resuming are the same act.
+//
+// Until S10.6 this printed "the saga loop is not wired to this command yet".
+// S10.6 wired it and nothing walked back to the sentence saying otherwise,
+// which is precisely the failure gate 8 exists to catch — written the day
+// before, and broken by the next checkpoint.
+func (a *app) resumeSaga(ctx context.Context) error {
 	state, _, found, err := a.loadSaga()
 	if err != nil {
 		return err
 	}
-	if !found {
-		fmt.Fprintln(a.stdout, "no saga to resume")
-		return nil
+	if found && state.Goal != "" {
+		fmt.Fprintf(a.stdout, "saga %q is %s at chapter %d of %d\n",
+			state.Goal, state.Status, state.ActiveChapter, state.MaxChapters)
 	}
-	fmt.Fprintf(a.stdout, "saga %q is %s at chapter %d of %d\n",
-		state.Goal, state.Status, state.ActiveChapter, state.MaxChapters)
-	fmt.Fprintln(a.stdout, "the saga loop is not wired to this command yet; `kolk saga status` shows the artifact")
-	return nil
+	return a.runSagaLoop(ctx)
 }
 
 func (a *app) rewindSaga() error {

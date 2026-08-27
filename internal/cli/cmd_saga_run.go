@@ -23,7 +23,7 @@ func (a *app) runSagaLoop(ctx context.Context) error {
 		return err
 	}
 	if !found {
-		fmt.Fprintln(a.stdout, "no saga here. `kolk saga <goal>` starts one, then write its chapters into SAGA.md.")
+		fmt.Fprintln(a.stdout, "no saga to resume. `kolk saga <goal>` starts one.")
 		return nil
 	}
 	if len(state.Chapters) == 0 {

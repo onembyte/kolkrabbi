@@ -153,6 +153,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **S10.2 quality gate & git checkpointer** — automated test discovery, verification execution, and commit-on-green.
 - [x] **S10.3 budget & doom-loop guardrails** — chapter limit, dollar budget, timeout, and consecutive failure detection.
 - [x] **S10.4 CLI & slash command surface** — `kolk saga [goal|resume|status|stop|rewind]` and REPL twin `/saga`.
+- [x] **S10.7 resume is the resume anchor** — `kolk saga resume` works the chapters instead of saying the loop is unwired, which stopped being true the moment S10.6 landed.
 - [x] **S10.6 the chapter executor** — `kolk saga run` walks the chapters: work, verify, record, repeat until a budget stops it.
 - [x] **S10.5 saga artifact ownership & honest subcommands** — `SAGA.md` belongs to the project root, and `resume`/`stop`/`rewind` report the real saga instead of always denying one.
 - [x] **P11.1 provider plan registry & search** — static plan matrix with case-insensitive filtering behind `kolk plans` / `/plans`.
@@ -2049,6 +2050,51 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### S10.7 resume is the resume anchor — verified detail
+
+A review-before-building tick. Three things were on the list and only one needed code.
+
+**`kolk saga resume` was lying, and I made it lie.** It printed "the saga loop is not wired to this
+command yet"; S10.6 wired it the checkpoint before, and nothing walked back to the sentence claiming
+otherwise. That is exactly the failure gate 8 was added for — **written the day before, and broken by
+the next checkpoint I wrote.** The gate is not automatic and this is what that costs.
+
+`docs/plan/10-saga-loop.md` settles which verb is which: it calls `SAGA.md` "the authoritative resume
+anchor (`kolk saga resume`)". So `resume` is the spec's verb and `run` is the alias. Both work
+whatever is outstanding, because the loop is idempotent — starting and resuming are the same act, and
+two commands that differ only in name would be worse than one.
+
+**`kolk saga rewind` was left alone, because its message is true.** It says rewinding is not wired,
+and it is not. A test now pins that sentence, so whoever builds rewind has to delete a failing
+assertion rather than leave the claim behind — gate 8 made mechanical for the one case where it can
+be.
+
+**The larger finding needs no code yet, and is recorded rather than acted on.** The doc's own napkin
+test is:
+
+    $ kolk saga "migrate sqlite store to modernc.org/sqlite and verify tests"
+    chapter 1: audit existing database package and list dependencies
+      ✓ chapter 1 committed [cost: $0.02 · 18s]
+    chapter 2: replace cgo sqlite import with modernc.org/sqlite
+
+So the spec's saga **decides each chapter as it goes** — one bounded change at a time, chosen with the
+previous chapter's result in hand. It never asks anyone to write chapters into `SAGA.md` by hand,
+which is what S10.6's executor requires today, and `kolk saga <goal>` is meant to start the loop
+rather than only record the goal.
+
+That is the next checkpoint, and it is a feature rather than a fix: a next-chapter planner, and
+`kolk saga <goal>` starting the run. Left unbuilt this tick deliberately — the instruction was to
+build only if necessary, and a false message was necessary while a missing feature is a decision.
+
+Acceptance checklist:
+
+- [x] resume works the chapters and no longer claims the loop is unwired.
+- [x] resume with no saga still says so.
+- [x] rewind's honest limit is preserved and pinned by a test.
+- [x] which verb the spec prefers established from the doc, not guessed.
+- [x] the planner gap analysed, recorded, and deliberately not built.
+- [x] full `make check` green: 2,045 tests, 0 lint issues.
 
 ### S10.6 the chapter executor — verified detail
 
