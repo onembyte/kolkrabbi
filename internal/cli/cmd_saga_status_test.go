@@ -12,7 +12,7 @@ func TestSagaStatusPrintsSAGAArtifact(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	code := a.main(context.Background(), []string{"saga", "status"})
 	if code != ExitOK {
 		t.Fatalf("kolk saga status exit = %d (stderr: %s)", code, errOut.String())

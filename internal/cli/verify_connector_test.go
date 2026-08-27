@@ -29,7 +29,7 @@ func unverifiedClaude(t *testing.T) (*app, provider.PlanModel) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	a, _, _ := newTestApp("")
+	a, _, _ := newTestApp(t, "")
 	return a, provider.PlanModel{
 		Provider: "anthropic", Plan: "Claude Max", Connector: "claude", Model: "claude-opus",
 	}

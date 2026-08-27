@@ -17,7 +17,7 @@ const cliKeyCanary = "sk-or-v1-0123456789abcdef0123456789abcdef"
 
 func TestKeyCommandInfersVerifiesAndStoresOpenRouter(t *testing.T) {
 	d := isolateHome(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	remaining := 74.5
 	var verified int
 	a.verifyOpenRouter = func(_ context.Context, key secret.Secret) (provider.KeyStatus, error) {
@@ -63,7 +63,7 @@ func TestKeyCommandInfersVerifiesAndStoresOpenRouter(t *testing.T) {
 
 func TestKeyCommandStoresWhenVerificationIsOffline(t *testing.T) {
 	d := isolateHome(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	a.verifyOpenRouter = func(context.Context, secret.Secret) (provider.KeyStatus, error) {
 		return provider.KeyStatus{}, fmt.Errorf("offline while checking %s", cliKeyCanary)
 	}
@@ -100,7 +100,7 @@ func TestKeyCommandDenialsAndUnknownShapesHaveNoSideEffects(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := isolateHome(t)
-			a, _, errOut := newTestApp("")
+			a, _, errOut := newTestApp(t, "")
 			var verified, stored int
 			a.verifyOpenRouter = func(context.Context, secret.Secret) (provider.KeyStatus, error) {
 				verified++
@@ -129,7 +129,7 @@ func TestKeyCommandDenialsAndUnknownShapesHaveNoSideEffects(t *testing.T) {
 func TestKeyCommandRefusesArgvInCIAndAcceptsStdin(t *testing.T) {
 	d := isolateHome(t)
 	t.Setenv("CI", "1")
-	a, _, errOut := newTestApp("")
+	a, _, errOut := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"key", cliKeyCanary}); code != ExitUsage {
 		t.Fatalf("positional key in CI exit = %d, want %d", code, ExitUsage)
 	}
@@ -140,7 +140,7 @@ func TestKeyCommandRefusesArgvInCIAndAcceptsStdin(t *testing.T) {
 		t.Errorf("CI refusal created a manifest: %v", err)
 	}
 
-	a, out, errOut := newTestApp(cliKeyCanary + "\n")
+	a, out, errOut := newTestApp(t, cliKeyCanary+"\n")
 	a.verifyOpenRouter = func(context.Context, secret.Secret) (provider.KeyStatus, error) {
 		return provider.KeyStatus{}, nil
 	}
@@ -160,7 +160,7 @@ func TestKeyCommandRefusesArgvInCIAndAcceptsStdin(t *testing.T) {
 func TestKeyCommandCIGuidancePreservesAnExplicitProvider(t *testing.T) {
 	isolateHome(t)
 	t.Setenv("CI", "true")
-	a, _, errOut := newTestApp("")
+	a, _, errOut := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"key", "mistral", "0123456789abcdef0123456789abcdef"}); code != ExitUsage {
 		t.Fatalf("explicit positional key in CI exit = %d, want %d", code, ExitUsage)
 	}
@@ -172,7 +172,7 @@ func TestKeyCommandCIGuidancePreservesAnExplicitProvider(t *testing.T) {
 func TestKeyCommandExplicitProviderIsTheUnknownShapeEscape(t *testing.T) {
 	d := isolateHome(t)
 	const key = "0123456789abcdef0123456789abcdef"
-	a, out, errOut := newTestApp(key + "\n")
+	a, out, errOut := newTestApp(t, key+"\n")
 	var verified int
 	a.verifyOpenRouter = func(context.Context, secret.Secret) (provider.KeyStatus, error) {
 		verified++
@@ -198,7 +198,7 @@ func TestKeyCommandExplicitProviderIsTheUnknownShapeEscape(t *testing.T) {
 
 func TestKeyCommandStoreFailureNamesAWorkingRecoveryWithoutLeaking(t *testing.T) {
 	isolateHome(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	a.verifyOpenRouter = func(context.Context, secret.Secret) (provider.KeyStatus, error) {
 		return provider.KeyStatus{}, nil
 	}
@@ -217,7 +217,7 @@ func TestKeyCommandStoreFailureNamesAWorkingRecoveryWithoutLeaking(t *testing.T)
 func TestKeyCommandStoreFailureScrubsAnUnknownShape(t *testing.T) {
 	isolateHome(t)
 	const unknownKey = "0123456789abcdef0123456789abcdef"
-	a, out, errOut := newTestApp(unknownKey + "\n")
+	a, out, errOut := newTestApp(t, unknownKey+"\n")
 	a.setCredential = func(context.Context, string, keystore.Ref, secret.Secret, keystore.WriteMetadata) error {
 		return fmt.Errorf("disk rejected %s", unknownKey)
 	}
@@ -232,7 +232,7 @@ func TestKeyCommandStoreFailureScrubsAnUnknownShape(t *testing.T) {
 func TestKeyCommandUsageDoesNotReadOrWrite(t *testing.T) {
 	isolateHome(t)
 	for _, args := range [][]string{{"key"}, {"key", "one", "two", "three"}} {
-		a, _, _ := newTestApp("")
+		a, _, _ := newTestApp(t, "")
 		if code := a.main(context.Background(), args); code != ExitUsage {
 			t.Errorf("kolk %v exit = %d, want %d", args, code, ExitUsage)
 		}
@@ -241,7 +241,7 @@ func TestKeyCommandUsageDoesNotReadOrWrite(t *testing.T) {
 
 func TestLegacyConfigSetKeyIsAHardRedirectWithoutSideEffects(t *testing.T) {
 	d := isolateHome(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"config", "set-key", cliKeyCanary}); code != ExitUsage {
 		t.Fatalf("legacy set-key exit = %d, want %d", code, ExitUsage)
 	}

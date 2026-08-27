@@ -12,7 +12,7 @@ import (
 func TestDashRefusesANonLoopbackAddress(t *testing.T) {
 	isolateConnectorState(t)
 	for _, addr := range []string{"0.0.0.0:8080", "192.168.1.10:8080", ":8080", "example.com:80"} {
-		a, _, errOut := newTestApp("")
+		a, _, errOut := newTestApp(t, "")
 		if code := a.main(context.Background(), []string{"dash", "--addr", addr}); code == ExitOK {
 			t.Fatalf("%s was accepted", addr)
 		}
@@ -41,7 +41,7 @@ func TestDashServesThePageFromTheUsageLog(t *testing.T) {
 	if err := os.WriteFile(dirs.StatsFile(), []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	a, _, _ := newTestApp("")
+	a, _, _ := newTestApp(t, "")
 
 	server := httptest.NewServer(a.dashHandler(dirs.Data))
 	defer server.Close()
@@ -67,7 +67,7 @@ func TestDashServesThePageFromTheUsageLog(t *testing.T) {
 
 func TestDashUnknownPathIsNotFound(t *testing.T) {
 	dirs := isolateConnectorState(t)
-	a, _, _ := newTestApp("")
+	a, _, _ := newTestApp(t, "")
 	server := httptest.NewServer(a.dashHandler(dirs.Data))
 	defer server.Close()
 
@@ -83,7 +83,7 @@ func TestDashUnknownPathIsNotFound(t *testing.T) {
 
 func TestDashOnAnEmptyMachineStillServes(t *testing.T) {
 	dirs := isolateConnectorState(t)
-	a, _, _ := newTestApp("")
+	a, _, _ := newTestApp(t, "")
 	server := httptest.NewServer(a.dashHandler(dirs.Data))
 	defer server.Close()
 

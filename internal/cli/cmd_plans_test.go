@@ -11,7 +11,7 @@ import (
 )
 
 func TestPlansListsAndFiltersProviderPlans(t *testing.T) {
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"plans", "gemini"}); code != ExitOK {
 		t.Fatalf("plans exit = %d, stderr = %q", code, errOut.String())
 	}
@@ -48,7 +48,7 @@ func TestPlansShowsEnabledConnectorStatus(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"plans", "gemini"}); code != ExitOK {
 		t.Fatalf("plans exit = %d, stderr = %q", code, errOut.String())
 	}
@@ -62,7 +62,7 @@ func TestPlansLoginUsesHandoverAndPersistsMetadata(t *testing.T) {
 	t.Setenv(paths.EnvDataDir, filepath.Join(base, "data"))
 	t.Setenv(paths.EnvConfigDir, filepath.Join(base, "config"))
 	t.Setenv(paths.EnvCacheDir, filepath.Join(base, "cache"))
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	var gotExecutable string
 	a.handover = func(_ context.Context, executable string, args []string, dir string) error {
 		gotExecutable = executable
@@ -89,7 +89,7 @@ func TestPlansLoginUsesHandoverAndPersistsMetadata(t *testing.T) {
 
 func TestPlansLoginRefusesHandoverWhileKolkrabbiOwnsTheTerminal(t *testing.T) {
 	dirs := isolateConnectorState(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	a.terminalOwned = func() bool { return true }
 	a.handover = func(context.Context, string, []string, string) error {
 		t.Fatal("a provider login must never be spawned while Kolkrabbi owns the terminal")
@@ -154,7 +154,7 @@ func isolateConnectorState(t *testing.T) paths.Dirs {
 // hopes happened.
 func TestPlansLoginRecordsAnUnverifiedConnector(t *testing.T) {
 	dirs := isolateConnectorState(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	a.handover = func(context.Context, string, []string, string) error { return nil }
 
 	if code := a.main(context.Background(), []string{"plans", "login", "anthropic", "Claude", "Max"}); code != ExitOK {
@@ -185,7 +185,7 @@ func TestPlansMarksAnUnverifiedConnectorAsSuch(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 
 	if code := a.main(context.Background(), []string{"plans", "claude"}); code != ExitOK {
 		t.Fatalf("plans exit = %d, stderr = %q", code, errOut.String())

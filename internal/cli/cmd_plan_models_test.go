@@ -7,7 +7,7 @@ import (
 )
 
 func TestPlanModelsListsAndFilters(t *testing.T) {
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"pmodels", "gemini"}); code != ExitOK {
 		t.Fatalf("pmodels exit = %d, stderr = %q", code, errOut.String())
 	}

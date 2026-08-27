@@ -24,7 +24,7 @@ func enablePlanConnector(t *testing.T, dirs interface{ ConnectorsFile() string }
 func TestSessionUsesTheClaudeBackendForAnEnabledPlanModel(t *testing.T) {
 	dirs := storeFirstRunKey(t)
 	enablePlanConnector(t, dirs)
-	a, _, _ := newTestApp("")
+	a, _, _ := newTestApp(t, "")
 
 	agent, err := a.newAgent(context.Background(), &options{model: "claude-opus"})
 	if err != nil {
@@ -41,7 +41,7 @@ func TestSessionUsesTheClaudeBackendForAnEnabledPlanModel(t *testing.T) {
 
 func TestSessionRefusesAPlanModelWhoseConnectorIsNotEnabled(t *testing.T) {
 	storeFirstRunKey(t)
-	a, _, _ := newTestApp("")
+	a, _, _ := newTestApp(t, "")
 
 	_, err := a.newAgent(context.Background(), &options{model: "claude-opus"})
 	if err == nil {
@@ -55,7 +55,7 @@ func TestSessionRefusesAPlanModelWhoseConnectorIsNotEnabled(t *testing.T) {
 func TestSessionKeepsTheDefaultBackendForAnOrdinaryModel(t *testing.T) {
 	dirs := storeFirstRunKey(t)
 	enablePlanConnector(t, dirs)
-	a, _, _ := newTestApp("")
+	a, _, _ := newTestApp(t, "")
 
 	agent, err := a.newAgent(context.Background(), &options{model: "vendor/ordinary-model"})
 	if err != nil {
@@ -74,7 +74,7 @@ func TestSessionRefusesAPlanModelWithNoAdapterYet(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	a, _, _ := newTestApp("")
+	a, _, _ := newTestApp(t, "")
 
 	_, err := a.newAgent(context.Background(), &options{model: "o3"})
 	if err == nil {
@@ -137,7 +137,7 @@ func TestSlashModelRefusesAnUnusablePlanModelWithoutChangingTheSession(t *testin
 func TestSessionStepsEffortDownToWhatThePlanOffers(t *testing.T) {
 	dirs := storeFirstRunKey(t)
 	enablePlanConnector(t, dirs)
-	a, _, errOut := newTestApp("")
+	a, _, errOut := newTestApp(t, "")
 
 	agent, err := a.newAgent(context.Background(), &options{model: "claude-sonnet", effort: "max"})
 	if err != nil {
@@ -163,7 +163,7 @@ func TestSessionStepsEffortDownToWhatThePlanOffers(t *testing.T) {
 func TestSessionKeepsAnEffortThePlanOffers(t *testing.T) {
 	dirs := storeFirstRunKey(t)
 	enablePlanConnector(t, dirs)
-	a, _, errOut := newTestApp("")
+	a, _, errOut := newTestApp(t, "")
 
 	agent, err := a.newAgent(context.Background(), &options{model: "claude-opus", effort: "max"})
 	if err != nil {
@@ -181,7 +181,7 @@ func TestSessionKeepsAnEffortThePlanOffers(t *testing.T) {
 func TestSessionNormalisesALegacyEffortBeforeCheckingThePlan(t *testing.T) {
 	dirs := storeFirstRunKey(t)
 	enablePlanConnector(t, dirs)
-	a, _, errOut := newTestApp("")
+	a, _, errOut := newTestApp(t, "")
 
 	// "ultra" is the legacy spelling of max; Claude Pro still stops at high.
 	agent, err := a.newAgent(context.Background(), &options{model: "claude-sonnet", effort: "ultra"})

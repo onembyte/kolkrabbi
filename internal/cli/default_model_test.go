@@ -117,7 +117,7 @@ func TestDiscoverDefaultModelUsesRankedCatalogAndSafeFreeRouterFallback(t *testi
 func TestNewAgentDiscoversOnlyWhenNoUserOrSessionModelExists(t *testing.T) {
 	t.Run("new session uses discovered free coding model", func(t *testing.T) {
 		storeFirstRunKey(t)
-		a, _, errOut := newTestApp("")
+		a, _, errOut := newTestApp(t, "")
 		calls := 0
 		a.chooseDefault = func(context.Context, *provider.Client) defaultModelChoice {
 			calls++
@@ -137,7 +137,7 @@ func TestNewAgentDiscoversOnlyWhenNoUserOrSessionModelExists(t *testing.T) {
 		if err := config.Save(dirs.ConfigFile(), &config.Config{Model: "user/chosen"}); err != nil {
 			t.Fatal(err)
 		}
-		a, _, _ := newTestApp("")
+		a, _, _ := newTestApp(t, "")
 		calls := 0
 		a.chooseDefault = func(context.Context, *provider.Client) defaultModelChoice {
 			calls++
@@ -154,7 +154,7 @@ func TestNewAgentDiscoversOnlyWhenNoUserOrSessionModelExists(t *testing.T) {
 
 	t.Run("paid fallback is visible before any turn", func(t *testing.T) {
 		storeFirstRunKey(t)
-		a, _, errOut := newTestApp("")
+		a, _, errOut := newTestApp(t, "")
 		a.chooseDefault = func(context.Context, *provider.Client) defaultModelChoice {
 			return defaultModelChoice{Model: "paid/cheap", Warning: "no free model; charges may apply"}
 		}
@@ -175,7 +175,7 @@ func TestNewAgentDiscoversOnlyWhenNoUserOrSessionModelExists(t *testing.T) {
 		if err := config.Save(dirs.ConfigFile(), &config.Config{Model: legacyFreePreset, Tiers: legacyTiers}); err != nil {
 			t.Fatal(err)
 		}
-		a, _, errOut := newTestApp("")
+		a, _, errOut := newTestApp(t, "")
 		a.chooseDefault = func(context.Context, *provider.Client) defaultModelChoice {
 			return defaultModelChoice{Model: "free/current-code", Free: true}
 		}

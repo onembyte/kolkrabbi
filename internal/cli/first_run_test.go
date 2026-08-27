@@ -43,7 +43,7 @@ func writeCorruptCredentialManifest(t *testing.T, path string) {
 
 func TestStoredCredentialBuildsComputedDefaultAgent(t *testing.T) {
 	storeFirstRunKey(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 
 	ag, err := a.newAgent(context.Background(), &options{})
 	if err != nil {
@@ -78,8 +78,12 @@ func TestModeAgentFlagRunsTheOrchestratedPipeline(t *testing.T) {
 	if err := config.Save(d.ConfigFile(), &config.Config{BaseURL: srv.URL}); err != nil {
 		t.Fatal(err)
 	}
+	// Also through the environment, because isolateHome points that at a
+	// closed port so a stray provider call cannot reach the real API, and the
+	// environment beats the saved config by design.
+	t.Setenv("OPENROUTER_BASE_URL", srv.URL)
 
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	args := []string{"--mode", "agent", "-p", "inspect and answer"}
 	if code := a.main(context.Background(), args); code != ExitOK {
 		t.Fatalf("kolk %v exit = %d, stderr:\n%s", args, code, errOut)
@@ -102,7 +106,7 @@ func TestEnvironmentCredentialWinsWithoutReadingCorruptManifest(t *testing.T) {
 	writeCorruptCredentialManifest(t, d.CredentialsFile())
 	const envKey = "sk-or-v1-fedcba9876543210fedcba9876543210"
 	t.Setenv("OPENROUTER_API_KEY", envKey)
-	a, _, _ := newTestApp("")
+	a, _, _ := newTestApp(t, "")
 
 	ag, err := a.newAgent(context.Background(), &options{})
 	if err != nil {
@@ -116,7 +120,7 @@ func TestEnvironmentCredentialWinsWithoutReadingCorruptManifest(t *testing.T) {
 func TestCorruptManifestIsNotReportedAsMissingCredential(t *testing.T) {
 	d := isolateHome(t)
 	writeCorruptCredentialManifest(t, d.CredentialsFile())
-	a, _, errOut := newTestApp("")
+	a, _, errOut := newTestApp(t, "")
 
 	if code := a.main(context.Background(), nil); code != ExitError {
 		t.Errorf("exit = %d, want %d", code, ExitError)
@@ -134,7 +138,7 @@ func TestCanceledCredentialReadStopsTheRun(t *testing.T) {
 	isolateHome(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	a, _, errOut := newTestApp("")
+	a, _, errOut := newTestApp(t, "")
 
 	if code := a.main(ctx, nil); code != ExitInterrupt {
 		t.Errorf("exit = %d, want %d", code, ExitInterrupt)
@@ -180,7 +184,11 @@ func TestStoredCredentialCompletesOfflineDefaultTurn(t *testing.T) {
 	if err := config.Save(d.ConfigFile(), &config.Config{BaseURL: srv.URL}); err != nil {
 		t.Fatal(err)
 	}
-	a, out, errOut := newTestApp("")
+	// Also through the environment, because isolateHome points that at a
+	// closed port so a stray provider call cannot reach the real API, and the
+	// environment beats the saved config by design.
+	t.Setenv("OPENROUTER_BASE_URL", srv.URL)
+	a, out, errOut := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"-p", "hello"}); code != ExitOK {
 		t.Fatalf("exit = %d, stderr:\n%s", code, errOut)
 	}

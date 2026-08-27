@@ -25,7 +25,7 @@ func TestSlashModelTextFiltersCatalog(t *testing.T) {
 	defer srv.Close()
 	client := provider.NewClient("test-key")
 	client.BaseURL = srv.URL
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	ag := engine.New(engine.Options{Client: client, Model: "current/model", Sess: session.New(t.TempDir(), "current/model"), Out: io.Discard})
 
 	if a.slash(context.Background(), ag, "/model kim") {

@@ -18,7 +18,17 @@ import (
 
 // newTestApp builds an app whose streams are buffers, so a whole kolk
 // invocation can be run and asserted on in-process.
-func newTestApp(stdin string) (*app, *bytes.Buffer, *bytes.Buffer) {
+// newTestApp builds an app already pointed away from the developer's real
+// state.
+//
+// It takes *testing.T solely so it can isolate: it could not before, so
+// isolation was something each test had to remember, and 44 of the 100 tests
+// using this helper did not. One of them reached OpenRouter during `make check`
+// and came back rate-limited against the owner's real quota. Isolation someone
+// can forget is isolation that will be forgotten.
+func newTestApp(t *testing.T, stdin string) (*app, *bytes.Buffer, *bytes.Buffer) {
+	t.Helper()
+	isolateHome(t)
 	var out, errOut bytes.Buffer
 	a := newApp()
 	a.chooseDefault = func(context.Context, *provider.Client) defaultModelChoice {
@@ -31,6 +41,10 @@ func newTestApp(stdin string) (*app, *bytes.Buffer, *bytes.Buffer) {
 	return a, &out, &errOut
 }
 
+// unroutableBaseURL is a loopback port nothing listens on. Any provider call a
+// test makes without pointing at its own mock lands here and fails at once.
+const unroutableBaseURL = "http://127.0.0.1:1"
+
 // isolateHome points kolk at a temp directory so tests never read or write the
 // developer's real state, and clears the env key so a key in the shell running
 // the tests cannot change the outcome.
@@ -40,6 +54,17 @@ func newTestApp(stdin string) (*app, *bytes.Buffer, *bytes.Buffer) {
 // the unix layout.
 func isolateHome(t *testing.T) paths.Dirs {
 	t.Helper()
+	// Idempotent: a second call returns the isolation the first one set up,
+	// rather than pointing the process at a fresh temp directory the caller
+	// has never heard of. newTestApp isolates unconditionally, so any test
+	// that also isolates explicitly calls this twice.
+	if existing := os.Getenv(paths.EnvConfigDir); existing != "" {
+		return paths.Dirs{
+			Config: existing,
+			Data:   os.Getenv(paths.EnvDataDir),
+			Cache:  os.Getenv(paths.EnvCacheDir),
+		}
+	}
 	base := t.TempDir()
 	d := paths.Dirs{
 		Config: filepath.Join(base, "config"),
@@ -50,13 +75,17 @@ func isolateHome(t *testing.T) paths.Dirs {
 	t.Setenv(paths.EnvDataDir, d.Data)
 	t.Setenv(paths.EnvCacheDir, d.Cache)
 	t.Setenv("OPENROUTER_API_KEY", "")
-	t.Setenv("OPENROUTER_BASE_URL", "")
+	// Not blank: blank means "use the real API". A test that reaches a
+	// provider by accident should fail in milliseconds against a closed port,
+	// not succeed against openrouter.ai and spend somebody's quota — which is
+	// what happened on 2026-08-27 before this line said this.
+	t.Setenv("OPENROUTER_BASE_URL", unroutableBaseURL)
 	t.Setenv("CI", "")
 	return d
 }
 
 func TestHelpDocumentsEveryCommandAndFlag(t *testing.T) {
-	a, out, _ := newTestApp("")
+	a, out, _ := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"help"}); code != ExitOK {
 		t.Fatalf("kolk help exit = %d, want %d", code, ExitOK)
 	}
@@ -83,7 +112,7 @@ func TestHelpDocumentsEveryCommandAndFlag(t *testing.T) {
 func TestHelpFlagsAreEquivalent(t *testing.T) {
 	var first string
 	for _, args := range [][]string{{"help"}, {"-h"}, {"--help"}} {
-		a, out, _ := newTestApp("")
+		a, out, _ := newTestApp(t, "")
 		if code := a.main(context.Background(), args); code != ExitOK {
 			t.Fatalf("kolk %v exit = %d", args, code)
 		}
@@ -99,7 +128,7 @@ func TestHelpFlagsAreEquivalent(t *testing.T) {
 
 func TestTopLevelUpdateNeedsNoKeyOrState(t *testing.T) {
 	d := isolateHome(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	a.currentVersion = func() string { return "1.0.0" }
 	calls := 0
 	a.update = func(context.Context) (selfupdate.Result, error) {
@@ -136,7 +165,7 @@ func TestTopLevelUpdateNeedsNoKeyOrState(t *testing.T) {
 }
 
 func TestTopLevelUpdateRejectsArgumentsBeforeCallingUpdater(t *testing.T) {
-	a, _, errOut := newTestApp("")
+	a, _, errOut := newTestApp(t, "")
 	calls := 0
 	a.update = func(context.Context) (selfupdate.Result, error) {
 		calls++
@@ -152,7 +181,7 @@ func TestTopLevelUpdateRejectsArgumentsBeforeCallingUpdater(t *testing.T) {
 
 func TestTopLevelUpdateReportsUnchangedFailureAndWarning(t *testing.T) {
 	t.Run("unchanged", func(t *testing.T) {
-		a, out, _ := newTestApp("")
+		a, out, _ := newTestApp(t, "")
 		a.currentVersion = func() string { return "1.2.3" }
 		a.update = func(context.Context) (selfupdate.Result, error) {
 			return selfupdate.Result{Current: "1.2.3", Latest: "1.2.3"}, nil
@@ -166,7 +195,7 @@ func TestTopLevelUpdateReportsUnchangedFailureAndWarning(t *testing.T) {
 	})
 
 	t.Run("newer than release", func(t *testing.T) {
-		a, out, _ := newTestApp("")
+		a, out, _ := newTestApp(t, "")
 		a.currentVersion = func() string { return "2.0.0" }
 		a.update = func(context.Context) (selfupdate.Result, error) {
 			return selfupdate.Result{Current: "2.0.0", Latest: "1.2.3"}, nil
@@ -180,7 +209,7 @@ func TestTopLevelUpdateReportsUnchangedFailureAndWarning(t *testing.T) {
 	})
 
 	t.Run("failure", func(t *testing.T) {
-		a, out, errOut := newTestApp("")
+		a, out, errOut := newTestApp(t, "")
 		a.currentVersion = func() string { return "1.2.3" }
 		a.update = func(context.Context) (selfupdate.Result, error) {
 			return selfupdate.Result{}, errors.New("release unavailable")
@@ -197,7 +226,7 @@ func TestTopLevelUpdateReportsUnchangedFailureAndWarning(t *testing.T) {
 	})
 
 	t.Run("durability warning", func(t *testing.T) {
-		a, out, errOut := newTestApp("")
+		a, out, errOut := newTestApp(t, "")
 		a.currentVersion = func() string { return "1.0.0" }
 		a.update = func(context.Context) (selfupdate.Result, error) {
 			return selfupdate.Result{
@@ -245,7 +274,7 @@ func TestUnknownWordIsAPromptNotACommand(t *testing.T) {
 
 func TestFirstRunWithoutAKeyIsExactAndReadOnly(t *testing.T) {
 	d := isolateHome(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 
 	code := a.main(context.Background(), nil)
 	if code != ExitUsage {
@@ -279,7 +308,7 @@ func TestBadFlagIsAUsageError(t *testing.T) {
 		{"--model"},
 		{"--yolo=please"},
 	} {
-		a, _, errOut := newTestApp("")
+		a, _, errOut := newTestApp(t, "")
 		code := a.main(context.Background(), args)
 		if code != ExitUsage {
 			t.Errorf("kolk %v exit = %d, want %d (usage)", args, code, ExitUsage)
@@ -293,7 +322,7 @@ func TestBadFlagIsAUsageError(t *testing.T) {
 func TestSessionsAndStatsRunOnAnEmptyMachine(t *testing.T) {
 	isolateHome(t)
 
-	a, out, _ := newTestApp("")
+	a, out, _ := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"sessions"}); code != ExitOK {
 		t.Fatalf("kolk sessions exit = %d", code)
 	}
@@ -301,7 +330,7 @@ func TestSessionsAndStatsRunOnAnEmptyMachine(t *testing.T) {
 		t.Errorf("kolk sessions on a fresh machine printed %q", out.String())
 	}
 
-	a, out, _ = newTestApp("")
+	a, out, _ = newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"stats"}); code != ExitOK {
 		t.Fatalf("kolk stats exit = %d", code)
 	}
@@ -313,12 +342,12 @@ func TestSessionsAndStatsRunOnAnEmptyMachine(t *testing.T) {
 func TestConfigSettingsRoundTripWithoutACredentialField(t *testing.T) {
 	isolateHome(t)
 
-	a, _, _ := newTestApp("")
+	a, _, _ := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"config", "set-tier", "quick", "google/gemini-2.5-flash"}); code != ExitOK {
 		t.Fatalf("config set-tier exit = %d", code)
 	}
 
-	a, out, _ := newTestApp("")
+	a, out, _ := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"config", "show"}); code != ExitOK {
 		t.Fatalf("config show exit = %d", code)
 	}
@@ -341,7 +370,7 @@ func TestConfigWriteEvacuatesALegacyKeyBeforeSaving(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	a, _, errOut := newTestApp("")
+	a, _, errOut := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"config", "set-model", "new/model"}); code != ExitOK {
 		t.Fatalf("config write exit = %d, stderr: %s", code, errOut)
 	}
@@ -366,7 +395,7 @@ func TestConfigWriteEvacuatesALegacyKeyBeforeSaving(t *testing.T) {
 		t.Errorf("config write lost the requested setting: %s", body)
 	}
 
-	a, _, errOut = newTestApp("")
+	a, _, errOut = newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"config", "set-base-url", "https://second.test"}); code != ExitOK {
 		t.Fatalf("second config write exit = %d, stderr: %s", code, errOut)
 	}
@@ -385,7 +414,7 @@ func TestInvalidConfigWriteDoesNotTriggerLegacyMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	a, _, _ := newTestApp("")
+	a, _, _ := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"config", "set-tier", "bogus", "some/model"}); code != ExitUsage {
 		t.Fatalf("invalid config write exit = %d, want %d", code, ExitUsage)
 	}
@@ -403,7 +432,7 @@ func TestInvalidConfigWriteDoesNotTriggerLegacyMigration(t *testing.T) {
 
 func TestConfigRejectsAnUnknownEffortTier(t *testing.T) {
 	isolateHome(t)
-	a, _, _ := newTestApp("")
+	a, _, _ := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"config", "set-tier", "bogus", "some/model"}); code != ExitUsage {
 		t.Errorf("set-tier bogus exit = %d, want %d", code, ExitUsage)
 	}
@@ -423,7 +452,7 @@ func TestFormatPricing(t *testing.T) {
 }
 
 func TestHelpForACommandShowsItsGrammar(t *testing.T) {
-	a, out, _ := newTestApp("")
+	a, out, _ := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"help", "config"}); code != ExitOK {
 		t.Fatalf("kolk help config exit = %d", code)
 	}
@@ -437,7 +466,7 @@ func TestHelpForACommandShowsItsGrammar(t *testing.T) {
 }
 
 func TestHelpForAnUnknownCommandIsAUsageError(t *testing.T) {
-	a, _, _ := newTestApp("")
+	a, _, _ := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"help", "nope"}); code != ExitUsage {
 		t.Errorf("kolk help nope exit = %d, want %d", code, ExitUsage)
 	}
@@ -459,7 +488,7 @@ func TestUsageLineIsGeneratedForEveryCommand(t *testing.T) {
 
 func TestBadSubcommandPrintsTheGeneratedUsage(t *testing.T) {
 	isolateHome(t)
-	a, _, errOut := newTestApp("")
+	a, _, errOut := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"config", "set-everything"}); code != ExitUsage {
 		t.Fatalf("exit = %d, want %d", code, ExitUsage)
 	}
@@ -473,7 +502,7 @@ func TestBadSubcommandPrintsTheGeneratedUsage(t *testing.T) {
 func TestStateAndConfigAreSeparateOnDisk(t *testing.T) {
 	d := isolateHome(t)
 
-	a, _, _ := newTestApp("")
+	a, _, _ := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"config", "set-model", "openrouter/auto"}); code != ExitOK {
 		t.Fatalf("config set-model exit = %d", code)
 	}
@@ -482,7 +511,7 @@ func TestStateAndConfigAreSeparateOnDisk(t *testing.T) {
 	}
 
 	const mistralKey = "0123456789abcdef0123456789abcdef"
-	a, _, _ = newTestApp(mistralKey + "\n")
+	a, _, _ = newTestApp(t, mistralKey+"\n")
 	if code := a.main(context.Background(), []string{"key", "mistral", "-"}); code != ExitOK {
 		t.Fatalf("kolk key exit = %d", code)
 	}
@@ -507,7 +536,7 @@ func TestHelpAndVersionNeedNoDirectories(t *testing.T) {
 	t.Setenv(paths.EnvCacheDir, "")
 
 	for _, verb := range []string{"help", "version"} {
-		a, out, _ := newTestApp("")
+		a, out, _ := newTestApp(t, "")
 		if code := a.main(context.Background(), []string{verb}); code != ExitOK {
 			t.Errorf("kolk %s exit = %d with no resolvable home directory", verb, code)
 		}
@@ -521,7 +550,7 @@ func TestConfigSetGetUnsetDottedEffortModel(t *testing.T) {
 	isolateHome(t)
 
 	// 1. Initial get is unset
-	a, out, _ := newTestApp("")
+	a, out, _ := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"config", "get", "effort.high.model"}); code != ExitOK {
 		t.Fatalf("config get unset exit = %d, want ExitOK", code)
 	}
@@ -530,7 +559,7 @@ func TestConfigSetGetUnsetDottedEffortModel(t *testing.T) {
 	}
 
 	// 2. Set effort.high.model
-	a, out, _ = newTestApp("")
+	a, out, _ = newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"config", "set", "effort.high.model", "anthropic/claude-opus-4.5"}); code != ExitOK {
 		t.Fatalf("config set effort.high.model exit = %d, want ExitOK", code)
 	}
@@ -539,7 +568,7 @@ func TestConfigSetGetUnsetDottedEffortModel(t *testing.T) {
 	}
 
 	// 3. Get effort.high.model returns set value
-	a, out, _ = newTestApp("")
+	a, out, _ = newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"config", "get", "effort.high.model"}); code != ExitOK {
 		t.Fatalf("config get exit = %d", code)
 	}
@@ -548,7 +577,7 @@ func TestConfigSetGetUnsetDottedEffortModel(t *testing.T) {
 	}
 
 	// 4. Also accessible via numeric alias: get effort.3.model
-	a, out, _ = newTestApp("")
+	a, out, _ = newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"config", "get", "effort.3.model"}); code != ExitOK {
 		t.Fatalf("config get effort.3.model exit = %d", code)
 	}
@@ -557,7 +586,7 @@ func TestConfigSetGetUnsetDottedEffortModel(t *testing.T) {
 	}
 
 	// 5. Unset effort.high.model
-	a, out, _ = newTestApp("")
+	a, out, _ = newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"config", "unset", "effort.high.model"}); code != ExitOK {
 		t.Fatalf("config unset exit = %d", code)
 	}
@@ -566,7 +595,7 @@ func TestConfigSetGetUnsetDottedEffortModel(t *testing.T) {
 	}
 
 	// 6. Verify unset
-	a, out, _ = newTestApp("")
+	a, out, _ = newTestApp(t, "")
 	_ = a.main(context.Background(), []string{"config", "get", "effort.high.model"})
 	if !strings.Contains(out.String(), "unset") {
 		t.Errorf("config get after unset output = %q, want unset note", out.String())

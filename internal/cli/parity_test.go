@@ -2,6 +2,9 @@ package cli
 
 import (
 	"context"
+	"github.com/onembyte/kolkrabbi/internal/paths"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -103,10 +106,16 @@ func TestTopLevelAndSlashParity(t *testing.T) {
 // TestModelAndEffortTopLevelCommandsWork verifies that `kolk model` and
 // `kolk effort` operate as first-class CLI verbs.
 func TestModelAndEffortTopLevelCommandsWork(t *testing.T) {
-	isolateHome(t)
+	d := isolateHome(t)
+
+	// `kolk model` lists the catalog, which means fetching it. Without a
+	// catalog to fetch this test reached the real provider — quietly, until
+	// isolateHome started pointing stray calls at a closed port. Seeding the
+	// cache keeps the test about the command rather than about the network.
+	seedModelCatalog(t, d)
 
 	// 1. kolk model bare lists catalog
-	a, out, errOut := newTestApp("test-key")
+	a, out, errOut := newTestApp(t, "test-key")
 	if code := a.main(context.Background(), []string{"model"}); code != ExitOK {
 		t.Fatalf("kolk model exit = %d, stderr = %q", code, errOut.String())
 	}
@@ -115,7 +124,7 @@ func TestModelAndEffortTopLevelCommandsWork(t *testing.T) {
 	}
 
 	// 2. kolk model <alias> sets model
-	a, out, errOut = newTestApp("test-key")
+	a, out, errOut = newTestApp(t, "test-key")
 	if code := a.main(context.Background(), []string{"model", "sonnet"}); code != ExitOK {
 		t.Fatalf("kolk model sonnet exit = %d, stderr = %q", code, errOut.String())
 	}
@@ -124,7 +133,7 @@ func TestModelAndEffortTopLevelCommandsWork(t *testing.T) {
 	}
 
 	// 3. kolk effort bare shows effort
-	a, out, errOut = newTestApp("")
+	a, out, errOut = newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"effort"}); code != ExitOK {
 		t.Fatalf("kolk effort exit = %d, stderr = %q", code, errOut.String())
 	}
@@ -133,7 +142,7 @@ func TestModelAndEffortTopLevelCommandsWork(t *testing.T) {
 	}
 
 	// 4. kolk effort <level> sets effort
-	a, out, errOut = newTestApp("")
+	a, out, errOut = newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"effort", "high"}); code != ExitOK {
 		t.Fatalf("kolk effort high exit = %d, stderr = %q", code, errOut.String())
 	}
@@ -210,5 +219,20 @@ func TestTheSessionOnlyListDoesNotRot(t *testing.T) {
 		if cliVerbs[name] {
 			t.Errorf("/%s has a CLI twin now and no longer needs to be listed as session-only", name)
 		}
+	}
+}
+
+// seedModelCatalog writes a cached catalog so a command that lists models has
+// something to list without asking a provider.
+func seedModelCatalog(t *testing.T, d paths.Dirs) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(d.CatalogFile()), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"fetched_at":"2099-01-01T00:00:00Z","models":[` +
+		`{"id":"anthropic/claude-sonnet-4","name":"Sonnet","context_length":200000},` +
+		`{"id":"vendor/free-model","name":"Free","context_length":8192}]}`
+	if err := os.WriteFile(d.CatalogFile(), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
 	}
 }

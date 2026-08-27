@@ -9,7 +9,7 @@ import (
 )
 
 func TestServeHelpAndUsage(t *testing.T) {
-	a, out, _ := newTestApp("")
+	a, out, _ := newTestApp(t, "")
 	if err := a.runHelp(context.Background(), []string{"serve"}); err != nil {
 		t.Fatalf("runHelp serve: %v", err)
 	}
@@ -19,7 +19,7 @@ func TestServeHelpAndUsage(t *testing.T) {
 }
 
 func TestServeStdioShutdownCleanly(t *testing.T) {
-	a, _, _ := newTestApp("")
+	a, _, _ := newTestApp(t, "")
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 

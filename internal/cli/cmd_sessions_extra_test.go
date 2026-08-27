@@ -37,7 +37,7 @@ func seedSessions(t *testing.T) (paths.Dirs, *session.Session) {
 
 func TestSessionsSearchMatchesTitleAndContent(t *testing.T) {
 	seedSessions(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 
 	if code := a.main(context.Background(), []string{"sessions", "search", "tokenizer"}); code != ExitOK {
 		t.Fatalf("search exit = %d, stderr = %q", code, errOut.String())
@@ -53,7 +53,7 @@ func TestSessionsSearchMatchesTitleAndContent(t *testing.T) {
 
 func TestSessionsSearchIsCaseInsensitiveAndSaysWhenNothingMatches(t *testing.T) {
 	seedSessions(t)
-	a, out, _ := newTestApp("")
+	a, out, _ := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"sessions", "search", "FLAKY"}); code != ExitOK {
 		t.Fatal("search must succeed")
 	}
@@ -61,7 +61,7 @@ func TestSessionsSearchIsCaseInsensitiveAndSaysWhenNothingMatches(t *testing.T) 
 		t.Fatalf("output = %q, want a case-insensitive match", out.String())
 	}
 
-	a, out, _ = newTestApp("")
+	a, out, _ = newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"sessions", "search", "nothing-like-this"}); code != ExitOK {
 		t.Fatal("a search with no matches is not a failure")
 	}
@@ -72,7 +72,7 @@ func TestSessionsSearchIsCaseInsensitiveAndSaysWhenNothingMatches(t *testing.T) 
 
 func TestSessionsRenameReplacesTheTitle(t *testing.T) {
 	dirs, first := seedSessions(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 
 	if code := a.main(context.Background(), []string{"sessions", "rename", first.ID, "config", "parser"}); code != ExitOK {
 		t.Fatalf("rename exit = %d, stderr = %q", code, errOut.String())
@@ -91,7 +91,7 @@ func TestSessionsRenameReplacesTheTitle(t *testing.T) {
 
 func TestSessionsForkLeavesTheOriginalUntouched(t *testing.T) {
 	dirs, first := seedSessions(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 
 	if code := a.main(context.Background(), []string{"sessions", "fork", first.ID}); code != ExitOK {
 		t.Fatalf("fork exit = %d, stderr = %q", code, errOut.String())
@@ -128,7 +128,7 @@ func TestSessionsForkLeavesTheOriginalUntouched(t *testing.T) {
 
 func TestSessionsExportRendersAReadableTranscript(t *testing.T) {
 	_, first := seedSessions(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 
 	if code := a.main(context.Background(), []string{"sessions", "export", first.ID}); code != ExitOK {
 		t.Fatalf("export exit = %d, stderr = %q", code, errOut.String())
@@ -143,7 +143,7 @@ func TestSessionsExportRendersAReadableTranscript(t *testing.T) {
 
 func TestSessionsExportJSONIsTheStoredRecord(t *testing.T) {
 	_, first := seedSessions(t)
-	a, out, _ := newTestApp("")
+	a, out, _ := newTestApp(t, "")
 
 	if code := a.main(context.Background(), []string{"sessions", "export", first.ID, "--json"}); code != ExitOK {
 		t.Fatal("export --json must succeed")
@@ -163,7 +163,7 @@ func TestSessionsSubcommandsRejectAnUnknownID(t *testing.T) {
 		{"sessions", "fork", "no-such-session"},
 		{"sessions", "export", "no-such-session"},
 	} {
-		a, _, errOut := newTestApp("")
+		a, _, errOut := newTestApp(t, "")
 		if code := a.main(context.Background(), args); code == ExitOK {
 			t.Fatalf("%v succeeded against a session that does not exist", args)
 		}
@@ -194,7 +194,7 @@ func TestResumePrefersASessionFromThisDirectory(t *testing.T) {
 	}
 
 	t.Chdir(here)
-	a, _, _ := newTestApp("")
+	a, _, _ := newTestApp(t, "")
 	resumed, err := a.resolveSession(&options{resume: true})
 	if err != nil {
 		t.Fatal(err)
@@ -218,7 +218,7 @@ func TestResumeSaysWhenItReachesIntoAnotherProject(t *testing.T) {
 	}
 
 	t.Chdir(t.TempDir())
-	a, out, _ := newTestApp("")
+	a, out, _ := newTestApp(t, "")
 	if _, err := a.resolveSession(&options{resume: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +237,7 @@ func TestStatsSaysWhenItsTotalsAreIncomplete(t *testing.T) {
 	if err := os.WriteFile(dirs.StatsFile(), []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	a, out, _ := newTestApp("")
+	a, out, _ := newTestApp(t, "")
 
 	if code := a.main(context.Background(), []string{"stats"}); code != ExitOK {
 		t.Fatal("a damaged line must not stop stats from reporting what it can")
@@ -260,7 +260,7 @@ func TestStatsIsSilentWhenNothingWasSkipped(t *testing.T) {
 		[]byte(`{"kind":"call","turn":"t1","model":"vendor/model","prompt_tokens":10,"cost":0.5}`+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	a, out, _ := newTestApp("")
+	a, out, _ := newTestApp(t, "")
 
 	if code := a.main(context.Background(), []string{"stats"}); code != ExitOK {
 		t.Fatal("stats must succeed")

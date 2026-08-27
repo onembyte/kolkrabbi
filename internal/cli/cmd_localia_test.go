@@ -29,7 +29,7 @@ func fakeHardware() local.Hardware {
 
 func TestLocaliaReportsHardwareAndStorage(t *testing.T) {
 	isolateConnectorState(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 
 	if code := a.main(context.Background(), []string{"localia"}); code != ExitOK {
@@ -50,7 +50,7 @@ func TestLocaliaReportsHardwareAndStorage(t *testing.T) {
 
 func TestLocaliaNamesTheDirectoryItManages(t *testing.T) {
 	dirs := isolateConnectorState(t)
-	a, out, _ := newTestApp("")
+	a, out, _ := newTestApp(t, "")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 
 	if code := a.main(context.Background(), []string{"localia"}); code != ExitOK {
@@ -63,7 +63,7 @@ func TestLocaliaNamesTheDirectoryItManages(t *testing.T) {
 
 func TestLocaliaSaysNoModelIsInstalledYet(t *testing.T) {
 	isolateConnectorState(t)
-	a, out, _ := newTestApp("")
+	a, out, _ := newTestApp(t, "")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 
 	if code := a.main(context.Background(), []string{"localia"}); code != ExitOK {
@@ -91,7 +91,7 @@ func TestLocaliaNeedsNoGpuOrOllama(t *testing.T) {
 	// The default probe must run on a machine with neither, and still print a
 	// usable report rather than failing.
 	isolateConnectorState(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 
 	if code := a.main(context.Background(), []string{"localia"}); code != ExitOK {
 		t.Fatalf("localia exit = %d, stderr = %q", code, errOut.String())
@@ -103,7 +103,7 @@ func TestLocaliaNeedsNoGpuOrOllama(t *testing.T) {
 
 func TestLocaliaModelsListsTheCatalogWithSizes(t *testing.T) {
 	isolateConnectorState(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 
 	if code := a.main(context.Background(), []string{"localia", "models"}); code != ExitOK {
 		t.Fatalf("localia models exit = %d, stderr = %q", code, errOut.String())
@@ -118,7 +118,7 @@ func TestLocaliaModelsListsTheCatalogWithSizes(t *testing.T) {
 
 func TestLocaliaPlanShowsEveryNumberTheDecisionRestedOn(t *testing.T) {
 	isolateConnectorState(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 
 	if code := a.main(context.Background(), []string{"localia", "plan", "qwen2.5-coder:7b"}); code != ExitOK {
@@ -138,7 +138,7 @@ func TestLocaliaPlanShowsEveryNumberTheDecisionRestedOn(t *testing.T) {
 
 func TestLocaliaPlanRefusesWithItsReason(t *testing.T) {
 	isolateConnectorState(t)
-	a, _, errOut := newTestApp("")
+	a, _, errOut := newTestApp(t, "")
 	a.probeHardware = func(context.Context, string) local.Hardware {
 		tiny := fakeHardware()
 		tiny.SystemRAM = local.Capacity{Bytes: 2 << 30, Known: true}
@@ -169,7 +169,7 @@ func TestLocaliaPlanUsesTheConfiguredHeadroom(t *testing.T) {
 	if err := config.Save(dirs.ConfigFile(), cfg); err != nil {
 		t.Fatal(err)
 	}
-	a, _, errOut := newTestApp("")
+	a, _, errOut := newTestApp(t, "")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 
 	// 32 GiB with 28 reserved leaves 4, which cannot hold a 14B model.
@@ -180,7 +180,7 @@ func TestLocaliaPlanUsesTheConfiguredHeadroom(t *testing.T) {
 
 func TestLocaliaPlanReservesHeadroomByDefault(t *testing.T) {
 	isolateConnectorState(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 
 	if code := a.main(context.Background(), []string{"localia", "plan", "qwen2.5-coder:7b"}); code != ExitOK {
@@ -208,7 +208,7 @@ func TestLocaliaPlanHonoursADeliberateZeroReserve(t *testing.T) {
 	if err := config.Save(dirs.ConfigFile(), cfg); err != nil {
 		t.Fatal(err)
 	}
-	a, out, _ := newTestApp("")
+	a, out, _ := newTestApp(t, "")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 
 	if code := a.main(context.Background(), []string{"localia", "plan", "qwen2.5-coder:7b"}); code != ExitOK {
@@ -222,7 +222,7 @@ func TestLocaliaPlanHonoursADeliberateZeroReserve(t *testing.T) {
 func pullFixture(t *testing.T, stdin string) (*app, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
 	isolateConnectorState(t)
-	a, out, errOut := newTestApp(stdin)
+	a, out, errOut := newTestApp(t, stdin)
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 	return a, out, errOut
 }
@@ -260,7 +260,7 @@ func TestLocaliaPullTreatsSilenceAsNo(t *testing.T) {
 
 func TestLocaliaPullRefusesBeforeAskingWhenTheModelCannotFit(t *testing.T) {
 	isolateConnectorState(t)
-	a, out, errOut := newTestApp("y\n")
+	a, out, errOut := newTestApp(t, "y\n")
 	a.probeHardware = func(context.Context, string) local.Hardware {
 		cramped := fakeHardware()
 		cramped.DiskFree = local.Capacity{Bytes: 5 << 30, Known: true}
@@ -301,7 +301,7 @@ func TestLocaliaPullYesSkipsTheQuestion(t *testing.T) {
 
 func TestLocaliaPullWritesNothingWhenDeclined(t *testing.T) {
 	dirs := isolateConnectorState(t)
-	a, _, _ := newTestApp("n\n")
+	a, _, _ := newTestApp(t, "n\n")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 
 	_ = a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:7b"})
@@ -312,7 +312,7 @@ func TestLocaliaPullWritesNothingWhenDeclined(t *testing.T) {
 
 func TestLocaliaPullDoesNotPromptWhileKolkrabbiOwnsTheTerminal(t *testing.T) {
 	isolateConnectorState(t)
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 	a.terminalOwned = func() bool { return true }
 
@@ -333,7 +333,7 @@ func TestLocaliaPullDoesNotPromptWhileKolkrabbiOwnsTheTerminal(t *testing.T) {
 
 func TestLocaliaPullWithYesStillWorksInSession(t *testing.T) {
 	isolateConnectorState(t)
-	a, _, errOut := newTestApp("")
+	a, _, errOut := newTestApp(t, "")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 	a.terminalOwned = func() bool { return true }
 
@@ -347,7 +347,7 @@ func TestLocaliaPullWithYesStillWorksInSession(t *testing.T) {
 
 func TestHardwareProbeIsBounded(t *testing.T) {
 	isolateConnectorState(t)
-	a, _, _ := newTestApp("")
+	a, _, _ := newTestApp(t, "")
 	var deadline time.Time
 	var hasDeadline bool
 	a.probeHardware = func(ctx context.Context, _ string) local.Hardware {

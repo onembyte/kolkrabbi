@@ -35,7 +35,7 @@ func TestKeyFromStdinIsRefusedWhileKolkrabbiOwnsTheTerminal(t *testing.T) {
 
 func TestKeyFromStdinStillWorksOutsideASession(t *testing.T) {
 	isolateConnectorState(t)
-	a, out, errOut := newTestApp("sk-or-v1-" + strings.Repeat("a", 64) + "\n")
+	a, out, errOut := newTestApp(t, "sk-or-v1-"+strings.Repeat("a", 64)+"\n")
 
 	if code := a.main(context.Background(), []string{"key", "-"}); code != ExitOK {
 		t.Fatalf("key - exit = %d, stderr = %q", code, errOut.String())

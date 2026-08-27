@@ -9,7 +9,7 @@ import (
 
 func TestSagaGoalPersistsSAGAArtifact(t *testing.T) {
 	t.Chdir(t.TempDir())
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	code := a.main(context.Background(), []string{"saga", "fix", "all", "tests"})
 	if code != ExitOK {
 		t.Fatalf("kolk saga goal exit = %d (stderr: %s)", code, errOut.String())

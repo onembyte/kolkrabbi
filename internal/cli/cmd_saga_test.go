@@ -10,7 +10,7 @@ import (
 
 func TestSagaStatusNoActiveSaga(t *testing.T) {
 	t.Chdir(t.TempDir())
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	code := a.main(context.Background(), []string{"saga", "status"})
 	if code != ExitOK {
 		t.Fatalf("kolk saga status exit = %d (stderr: %s)", code, errOut.String())
@@ -23,7 +23,7 @@ func TestSagaStatusNoActiveSaga(t *testing.T) {
 }
 
 func TestSagaNoArgsReturnsUsage(t *testing.T) {
-	a, _, errOut := newTestApp("")
+	a, _, errOut := newTestApp(t, "")
 	code := a.main(context.Background(), []string{"saga"})
 	if code != ExitUsage {
 		t.Fatalf("kolk saga exit = %d, want ExitUsage", code)
@@ -35,7 +35,7 @@ func TestSagaNoArgsReturnsUsage(t *testing.T) {
 
 func TestSagaGoalSetsGoal(t *testing.T) {
 	t.Chdir(t.TempDir())
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	code := a.main(context.Background(), []string{"saga", "fix", "all", "tests"})
 	if code != ExitOK {
 		t.Fatalf("kolk saga goal exit = %d (stderr: %s)", code, errOut.String())
@@ -59,7 +59,7 @@ func TestSagaSubcommands(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		a, out, errOut := newTestApp("")
+		a, out, errOut := newTestApp(t, "")
 		code := a.main(context.Background(), []string{"saga", tt.subcommand})
 		if code != ExitOK {
 			t.Fatalf("kolk saga %s exit = %d (stderr: %s)", tt.subcommand, code, errOut.String())
@@ -89,7 +89,7 @@ func projectTree(t *testing.T) (root, nested string) {
 
 func TestSagaGoalWritesTheArtifactAtTheProjectRoot(t *testing.T) {
 	root, nested := projectTree(t)
-	a, _, errOut := newTestApp("")
+	a, _, errOut := newTestApp(t, "")
 
 	if code := a.main(context.Background(), []string{"saga", "fix", "all", "tests"}); code != ExitOK {
 		t.Fatalf("saga goal exit = %d, stderr = %q", code, errOut.String())
@@ -108,7 +108,7 @@ func TestSagaStatusReadsTheProjectRootArtifactFromAnySubdirectory(t *testing.T) 
 	if err := os.WriteFile(filepath.Join(root, "SAGA.md"), []byte("# SAGA: ship it\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 
 	if code := a.main(context.Background(), []string{"saga", "status"}); code != ExitOK {
 		t.Fatalf("saga status exit = %d, stderr = %q", code, errOut.String())
@@ -120,7 +120,7 @@ func TestSagaStatusReadsTheProjectRootArtifactFromAnySubdirectory(t *testing.T) 
 
 func TestSagaSubcommandsReportTheRealStateOfAnActiveSaga(t *testing.T) {
 	root, _ := projectTree(t)
-	a, _, errOut := newTestApp("")
+	a, _, errOut := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"saga", "ship", "the", "thing"}); code != ExitOK {
 		t.Fatalf("saga goal exit = %d, stderr = %q", code, errOut.String())
 	}
@@ -134,7 +134,7 @@ func TestSagaSubcommandsReportTheRealStateOfAnActiveSaga(t *testing.T) {
 		{"status", "ship the thing"},
 		{"rewind", "ship the thing"},
 	} {
-		a, out, errOut := newTestApp("")
+		a, out, errOut := newTestApp(t, "")
 		if code := a.main(context.Background(), []string{"saga", tt.subcommand}); code != ExitOK {
 			t.Fatalf("saga %s exit = %d, stderr = %q", tt.subcommand, code, errOut.String())
 		}
@@ -143,7 +143,7 @@ func TestSagaSubcommandsReportTheRealStateOfAnActiveSaga(t *testing.T) {
 		}
 	}
 
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	if code := a.main(context.Background(), []string{"saga", "stop"}); code != ExitOK {
 		t.Fatalf("saga stop exit = %d, stderr = %q", code, errOut.String())
 	}

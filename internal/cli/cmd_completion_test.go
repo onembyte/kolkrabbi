@@ -7,7 +7,7 @@ import (
 )
 
 func TestCompletionBashGeneratesValidScript(t *testing.T) {
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	code := a.main(context.Background(), []string{"completion", "bash"})
 	if code != ExitOK {
 		t.Fatalf("kolk completion bash exit = %d (stderr: %s)", code, errOut.String())
@@ -21,7 +21,7 @@ func TestCompletionBashGeneratesValidScript(t *testing.T) {
 }
 
 func TestCompletionZshGeneratesValidScript(t *testing.T) {
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	code := a.main(context.Background(), []string{"completion", "zsh"})
 	if code != ExitOK {
 		t.Fatalf("kolk completion zsh exit = %d (stderr: %s)", code, errOut.String())
@@ -35,7 +35,7 @@ func TestCompletionZshGeneratesValidScript(t *testing.T) {
 }
 
 func TestCompletionFishGeneratesValidScript(t *testing.T) {
-	a, out, errOut := newTestApp("")
+	a, out, errOut := newTestApp(t, "")
 	code := a.main(context.Background(), []string{"completion", "fish"})
 	if code != ExitOK {
 		t.Fatalf("kolk completion fish exit = %d (stderr: %s)", code, errOut.String())
@@ -49,7 +49,7 @@ func TestCompletionFishGeneratesValidScript(t *testing.T) {
 }
 
 func TestCompletionUnknownShellReturnsUsageError(t *testing.T) {
-	a, _, errOut := newTestApp("")
+	a, _, errOut := newTestApp(t, "")
 	code := a.main(context.Background(), []string{"completion", "powershell"})
 	if code != ExitUsage {
 		t.Fatalf("kolk completion powershell exit = %d, want ExitUsage", code)
@@ -60,7 +60,7 @@ func TestCompletionUnknownShellReturnsUsageError(t *testing.T) {
 }
 
 func TestCompletionNoArgReturnsUsageError(t *testing.T) {
-	a, _, errOut := newTestApp("")
+	a, _, errOut := newTestApp(t, "")
 	code := a.main(context.Background(), []string{"completion"})
 	if code != ExitUsage {
 		t.Fatalf("kolk completion exit = %d, want ExitUsage", code)

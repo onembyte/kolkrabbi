@@ -154,7 +154,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **S10.3 budget & doom-loop guardrails** — chapter limit, dollar budget, timeout, and consecutive failure detection.
 - [x] **S10.4 CLI & slash command surface** — `kolk saga [goal|resume|status|stop|rewind]` and REPL twin `/saga`.
 - [x] **S10.8 the next-chapter planner** — the saga decides one chapter at a time from what the last one achieved, as the doc's napkin test shows.
-- [!] **S10.9 the test suite can reach a provider** — `make check` made a live OpenRouter call; the OS keychain is not isolated by `KOLK_*_DIR`. Needs its own checkpoint.
+- [x] **S10.9 the test suite cannot reach a provider** — isolation is no longer something a test can forget, and a stray call now hits a closed port instead of the real API.
 - [x] **S10.7 resume is the resume anchor** — `kolk saga resume` works the chapters instead of saying the loop is unwired, which stopped being true the moment S10.6 landed.
 - [x] **S10.6 the chapter executor** — `kolk saga run` walks the chapters: work, verify, record, repeat until a budget stops it.
 - [x] **S10.5 saga artifact ownership & honest subcommands** — `SAGA.md` belongs to the project root, and `resume`/`stop`/`rewind` report the real saga instead of always denying one.
@@ -2052,6 +2052,92 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### S10.8 the next-chapter planner — verified detail
+
+`docs/plan/10-saga-loop.md` §1.1 asks the saga to "select exactly one discrete, manageable task that
+moves closer to the goal", having read what the previous chapters achieved. Built in three
+checkpoints; two shipped and the third was reverted, which is the more useful half of this record.
+
+**A: the planner port.** `ChapterPlanner` returns one title, or `""` when the goal is met. The loop
+asks for a chapter only when nothing is pending, appends it, and works it. Tested entirely with a
+fake — the budget ceiling, the sequential numbering, a failing planner, and the planner seeing the
+previous chapters' outcomes, all without a provider.
+
+Two distinctions that fall out of having a planner. **`no-work` now means different things.** Without
+a planner, running out of chapters means the hand-written list ended, which says nothing about the
+goal; with one, it means the planner judged the goal met. The loop reports `StopNoWork` and
+`StopGoalComplete` accordingly, because a saga claiming success for running out of plan would be the
+worst possible lie for it to tell. And **a failing planner is an error, not a stop** — a planner that
+cannot answer is a broken saga, not a finished one.
+
+**B: the agent planner.** Runs on the fast lane, not the session model: choosing one next step from a
+short list is a cheap judgement, and paying the coding model for it once per chapter is how a saga's
+cost drifts away from the work it is doing. Failed chapters go into the prompt *with their
+verification message*, because repeating a chapter that just failed the same way is precisely the
+loop the doom detector exists to stop, and the planner is the only thing that can avoid it. A
+multi-line answer is cut to its first line: "exactly one discrete task" is the rule, and the title
+ends up in a commit message.
+
+**C was reverted, and that is the finding.** The napkin test shows `kolk saga "<goal>"` starting the
+run, so I made it do that — and the suite hung. Recording a goal now required a model, a key and a
+network, and with no key it hung in catalog discovery rather than refusing. Setting down an intention
+is a cheap local act and should stay one, so the verb records the goal and says
+`start it with kolk saga resume`. The doc's napkin test is aspirational on this point and the code
+now disagrees with it deliberately.
+
+Acceptance checklist:
+
+- [x] a goal with no chapters plans one, works it, and stops as goal-complete.
+- [x] the planner sees the previous chapters and their outcomes.
+- [x] chapters are numbered in sequence; planning respects the chapter ceiling.
+- [x] a failing planner stops the run rather than looping.
+- [x] hand-written chapters still work with no planner, reporting no-work.
+- [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
+- [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### S10.9 the test suite cannot reach a provider — verified detail
+
+**First, a correction.** The previous entry said the leak was the OS keychain, "which no environment
+variable redirects". That was wrong and I stated it as fact.
+`resolveOpenRouterCredential` reads exactly two things: `OPENROUTER_API_KEY` and the file manifest
+under the isolated data directory. No keychain is involved. I inferred a mechanism instead of reading
+the function, which is the failure this whole audit has been correcting in other people's work.
+
+**The real mechanism was simpler and worse.** `newTestApp` took no `*testing.T`, so it *could not*
+isolate — isolation was a separate call each test had to remember, and **44 of the 100 tests using it
+did not**. Those ran against the developer's real config, data and cache directories, and the real
+`OPENROUTER_API_KEY` from the shell running `make check`.
+
+**Isolation someone can forget is isolation that will be forgotten.** `newTestApp(t, stdin)` now
+isolates unconditionally, which required making `isolateHome` idempotent: a second call returns the
+isolation the first set up rather than pointing the process at a fresh temp directory the caller has
+never heard of.
+
+**And a stray call now fails instead of succeeding.** `isolateHome` used to blank
+`OPENROUTER_BASE_URL`, and blank means "use the real API". It now points at `127.0.0.1:1`, a closed
+port, so a test that reaches a provider by accident fails in milliseconds rather than spending
+somebody's quota.
+
+That guard immediately found three more tests making live calls, none of which anyone knew about:
+two first-run tests that configured their mock through the config file while the environment beat it,
+and `TestModelAndEffortTopLevelCommandsWork`, which listed a model catalog by fetching it from
+openrouter.ai every run. The first two now point at their mock through the environment; the third
+seeds a cached catalog, which keeps it a test about the command rather than about the network.
+
+**The evidence is in the clock.** `internal/cli` took **126 seconds** before this checkpoint and takes
+**0.46 seconds** after. That two minutes was real network I/O in a suite the project describes as
+offline.
+
+Acceptance checklist:
+
+- [x] the wrong keychain diagnosis corrected in the record, not quietly dropped.
+- [x] isolation moved into the constructor so it cannot be omitted.
+- [x] isolateHome made idempotent so double isolation is safe.
+- [x] a stray provider call now hits a closed port, not the real API.
+- [x] the three tests that guard exposed fixed to work offline.
+- [x] suite time for internal/cli: 126s → 0.46s.
+- [x] full `make check` green: 2,056 tests, 0 lint issues.
 
 ### S10.8 the next-chapter planner — verified detail
 
