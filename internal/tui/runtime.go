@@ -31,6 +31,9 @@ type RuntimeOptions struct {
 	Plans    []PlanSpec
 	Files    []string
 	Turn     func(context.Context, string) error
+	// CyclePermission advances to the next permission tier and returns the
+	// one now in effect. Nil leaves Shift+Tab inert.
+	CyclePermission func() string
 }
 
 // Runtime serializes all terminal presentation through one controller. Model
@@ -45,6 +48,7 @@ type Runtime struct {
 	width      func() int
 	height     func() int
 	turn       func(context.Context, string) error
+	cyclePerm  func() string
 	spinClock  spinnerClock
 
 	baseContext context.Context
@@ -82,6 +86,7 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 		input: options.Input, controller: controller,
 		renderer: NewRenderer(options.Output), decoder: NewDecoder(),
 		width: options.Width, height: options.Height, turn: options.Turn,
+		cyclePerm: options.CyclePermission,
 		spinClock: realSpinnerClock{},
 		quit:      make(chan struct{}),
 	}
@@ -174,6 +179,12 @@ func (r *Runtime) HandleKey(key Key) Effect {
 		r.approval <- effect.Decision
 		r.approval = nil
 	}
+	if effect.CyclePermission && r.cyclePerm != nil {
+		if tier := r.cyclePerm(); tier != "" {
+			r.controller.SetApproval(tier)
+			r.renderLocked()
+		}
+	}
 	if effect.Submit != "" {
 		r.startTurnLocked(effect.Submit)
 	}
@@ -198,16 +209,18 @@ func (r *Runtime) Write(p []byte) (int, error) {
 // Start implements the engine activity port. Loading is one replaceable
 // spinner cell, never transcript output, so repeated phases cannot flood the
 // terminal or move the user's draft.
-func (r *Runtime) Start(ctx context.Context, _ string) func() {
-	return r.startActivity(ctx)
+func (r *Runtime) Start(ctx context.Context, phase string) func() {
+	return r.startActivity(ctx, phase)
 }
 
-// StartWork implements the engine's local-tool activity port.
+// StartWork implements the engine's local-tool activity port. Its argument is
+// the tool's own description, which is too specific for the status row; local
+// work is reported as work.
 func (r *Runtime) StartWork(ctx context.Context, _ string) func() {
-	return r.startActivity(ctx)
+	return r.startActivity(ctx, "working")
 }
 
-func (r *Runtime) startActivity(ctx context.Context) func() {
+func (r *Runtime) startActivity(ctx context.Context, phase string) func() {
 	activityContext, cancel := context.WithCancel(ctx)
 	r.mu.Lock()
 	if r.spinClock == nil {
@@ -215,12 +228,12 @@ func (r *Runtime) startActivity(ctx context.Context) func() {
 	}
 	r.activityID++
 	id := r.activityID
-	r.controller.SetActivity(spinnerFrames[0])
+	r.controller.SetActivity(activityLine(0, phase))
 	r.renderLocked()
 	r.mu.Unlock()
 
 	done := make(chan struct{})
-	go r.animateActivity(activityContext, id, done)
+	go r.animateActivity(activityContext, id, phase, done)
 	var once sync.Once
 	return func() {
 		once.Do(func() {
@@ -230,7 +243,7 @@ func (r *Runtime) startActivity(ctx context.Context) func() {
 	}
 }
 
-func (r *Runtime) animateActivity(ctx context.Context, id uint64, done chan<- struct{}) {
+func (r *Runtime) animateActivity(ctx context.Context, id uint64, phase string, done chan<- struct{}) {
 	defer close(done)
 	defer r.clearActivity(id)
 	frame := 1
@@ -249,10 +262,10 @@ func (r *Runtime) animateActivity(ctx context.Context, id uint64, done chan<- st
 			r.mu.Unlock()
 			return
 		}
-		r.controller.SetActivity(spinnerFrames[frame])
+		r.controller.SetActivity(activityLine(frame, phase))
 		r.renderLocked()
 		r.mu.Unlock()
-		frame = (frame + 1) % len(spinnerFrames)
+		frame = (frame + 1) % len(wheelFrames)
 	}
 }
 

@@ -26,6 +26,10 @@ type Effect struct {
 	Interrupt bool
 	Exit      bool
 	Decision  Decision
+	// CyclePermission asks the surface to advance the permission tier. The
+	// controller cannot do it itself: what the tiers are, and what changing
+	// one means, belongs to the engine rather than to a screen.
+	CyclePermission bool
 }
 
 // Approval is the independent permission overlay. Input never shares storage
@@ -77,6 +81,11 @@ func (c *Controller) HandleKey(key Key) Effect {
 		return c.handleInterrupt()
 	}
 	c.disarmInterrupt()
+	// Shift+Tab cycles the tier whether or not a completion list is open:
+	// Tab completes, Shift+Tab never does, so there is nothing to disturb.
+	if key.Kind == KeyShiftTab {
+		return Effect{CyclePermission: true}
+	}
 	if effect, handled := c.handleSuggestionKey(key); handled {
 		return effect
 	}
@@ -338,6 +347,12 @@ func (c *Controller) resolveApproval(decision Decision, interrupt, exit bool) Ef
 	c.setLifecycle(c.beforeApproval)
 	c.beforeApproval = ""
 	return Effect{Decision: decision, Interrupt: interrupt, Exit: exit}
+}
+
+// SetApproval updates only the permission tier shown in the footer.
+func (c *Controller) SetApproval(approval string) {
+	c.status.Approval = approval
+	c.screen.SetStatus(c.status)
 }
 
 func (c *Controller) setLifecycle(lifecycle string) {

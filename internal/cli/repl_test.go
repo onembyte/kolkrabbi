@@ -78,25 +78,32 @@ func TestReplPrefixesEveryModePromptWithKolk(t *testing.T) {
 			if err := a.repl(context.Background(), ag); err != nil {
 				t.Fatalf("repl returned %v", err)
 			}
-			want := "\033[1mkolk-" + mode + ">\033[0m "
+			// Every mode opens a line the same way. The mode itself is in
+			// the banner and in /mode, not repeated on every prompt.
+			want := "\033[1m❯\033[0m "
 			if !strings.Contains(out.String(), want) {
 				t.Fatalf("%s prompt = %q, want %q", mode, out.String(), want)
+			}
+			if strings.Contains(out.String(), "kolk-"+mode+">") {
+				t.Fatalf("%s prompt kept the old label: %q", mode, out.String())
 			}
 		})
 	}
 }
 
-func TestReplModeChangeUpdatesTheNextPromptPrefix(t *testing.T) {
+func TestReplModeChangeKeepsOneMarkerAndReportsTheMode(t *testing.T) {
 	a, ag, out := replFixture(t, "/mode chat\n/exit\n")
 	ag.Mode = engine.ModeCode
 	if err := a.repl(context.Background(), ag); err != nil {
 		t.Fatalf("repl returned %v", err)
 	}
 	got := out.String()
-	for _, want := range []string{"\033[1mkolk-code>\033[0m ", "\033[1mkolk-chat>\033[0m "} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("mode-changing prompt omitted %q: %q", want, got)
-		}
+	if strings.Count(got, "\033[1m❯\033[0m ") < 2 {
+		t.Fatalf("prompt marker did not survive a mode change: %q", got)
+	}
+	// The mode still has to be sayable: it moved, it did not disappear.
+	if !strings.Contains(got, "mode: chat") {
+		t.Fatalf("mode change went unreported: %q", got)
 	}
 }
 

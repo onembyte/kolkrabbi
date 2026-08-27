@@ -15,6 +15,9 @@ import (
 // repl is the interactive loop. It returns nil on EOF (Ctrl+D) or /exit; a
 // failed turn is reported and the loop continues, because losing a session to
 // one transport hiccup is the wrong trade.
+// replPrompt opens a line in the plain REPL, matching the composer.
+const replPrompt = "❯"
+
 func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 	resumedNote := ""
 	if ag.Sess != nil {
@@ -31,7 +34,9 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 	fmt.Fprintln(a.stdout, "Type your request, or /help for commands. Ctrl+C interrupts a turn, /exit quits.")
 
 	for {
-		fmt.Fprintf(a.stdout, "\n\033[1mkolk-%s>\033[0m ", ag.Mode)
+		// The same marker the persistent composer draws. Mode moved into the
+		// banner and /mode rather than being repeated on every prompt.
+		fmt.Fprintf(a.stdout, "\n\033[1m%s\033[0m ", replPrompt)
 		line, err := a.in.ReadString('\n')
 		// ReadString returns the final line AND io.EOF together when input ends
 		// without a trailing newline, so returning on err would silently drop

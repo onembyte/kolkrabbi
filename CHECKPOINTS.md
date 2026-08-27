@@ -215,7 +215,62 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **C12.7 fast-lane session naming** — a session earns a real name once enough has happened, without delaying the answer or overwriting a name a person chose.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
+### G11.4–G11.6 the composer frame, the icon, and shift+tab — verified detail
+
+Scope:
+
+- Draw both composer rules unbroken. The label in the middle of the opening rule said
+  `kolk-<mode> · <folder>`, which the footer can say without costing a glance mid-rule.
+- Open the draft with `❯` in both the persistent composer and the plain REPL, replacing `> ` and
+  `kolk-<mode]>`.
+- Lead the footer with the permission tier and the key that changes it: one chevron per step away
+  from stopping to ask.
+- Replace the three-row animated pixel sprite with a one-row icon beside a braille wheel and the
+  phase word. The icon does not animate.
+- Decode `CSI Z` as Shift+Tab and cycle ask → auto-approve → full-auto → ask.
+
+Non-goals:
+
+- No change to what any tier permits, or to the floor beneath all three. The key reaches the same
+  three tiers `/permissions` already sets, and lasts exactly as long as the session.
+- No colour, theme, or renderer change; no new dependency.
+- No change to the approval overlay, which keeps its labelled rule and stays text-only.
+
+Decisions worth recording:
+
+- **Two pixel rows is the budget for a one-row icon.** Quadrant blocks carry 2x2 pixels per cell, so
+  four cells is an 8x2 grid. Eyes cannot be drawn filled at that height; they are cut out of the
+  dome instead, and those notches are what keep it reading as the website's octopus. Braille was
+  tried first — 2x4 pixels per cell, more vertical room — and rejected: it renders as a dotted
+  smudge at terminal size. Braille kept the job it is good at, which is the wheel.
+- **The hint is `(shift+tab)`, not `(shift+tab to cycle)`.** Nine more columns on every row forever,
+  and at 72 columns those nine are the working folder.
+- **Mode, folder and the tier moved into the footer** rather than being dropped with the rule label.
+  `context` and `cost` moved to the shorter row, because the tier lead had pushed the two numbers
+  that decide whether to compact off a normal-width terminal.
+- **The engine already reported the phase** — `thinking`, `planning`, `working`, `synthesizing` — and
+  the runtime was discarding it. The activity row now says which one.
+
+Acceptance checklist:
+
+- [x] both rules are unbroken at every width, and the frame carries no `kolk-<mode>` label.
+- [x] the icon is one row of four single-width cells; a newline or a wide rune fails a test.
+- [x] only the wheel advances between frames; the octopus is byte-identical across them.
+- [x] an unknown phase becomes `working` rather than reaching the lifecycle the controller reads
+  back out of the row.
+- [x] `CSI Z` decodes as its own key, still completes nothing, and reaches the surface with a
+  completion list open.
+- [x] every tier the cycle produces is one `engine.NormalizePermission` accepts.
+- [x] a runtime with no cycle seam is inert rather than pretending the tier changed.
+- [x] `make check` green: 2022 tests, all gates.
+
 ### E7.1 effort vocabulary normalization & canonical levels — verified detail
+- [x] **G11.4 the composer frame** — the rules carry no label, `❯` opens the draft, and the tier leads
+  the footer with the key that changes it.
+- [x] **G11.5 the octopus at icon size** — one row, four cells of quadrant blocks, beside a braille
+  wheel and the phase the engine already reports.
+- [x] **G11.6 shift+tab cycles the tier** — `CSI Z` becomes a key instead of being swallowed, and the
+  surface owns what the next tier is.
 
 Scope:
 

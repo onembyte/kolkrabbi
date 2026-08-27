@@ -121,6 +121,12 @@ const (
 )
 
 const (
+	// promptMarker opens the draft. statusIndent aligns the footer under it.
+	promptMarker = "❯"
+	statusIndent = "  "
+)
+
+const (
 	purpleANSI      = "\x1b[38;5;141m"
 	purpleMutedANSI = "\x1b[38;5;103m"
 	resetANSI       = "\x1b[0m"
@@ -232,14 +238,10 @@ func joinViewRows(rows []viewRow, styled bool) string {
 }
 
 func (m *Model) composerLines(width, cursor int) []string {
-	prompt := "kolk"
-	if m.status.Mode != "" {
-		prompt += "-" + sanitizeTerminalLine(m.status.Mode)
-	}
-	if folder := sanitizeTerminalLine(m.status.Folder); folder != "" {
-		prompt += " · " + folder
-	}
-	lines := []string{horizontalRule(prompt, width)}
+	// The rules are unbroken on purpose. A label in the middle of one costs a
+	// glance to read and says what the footer below already says; the frame's
+	// only job is to show where the draft starts and stops.
+	lines := []string{strings.Repeat("─", max(0, width))}
 	contentWidth := max(1, width-2)
 	draft := m.draft
 	if cursor >= 0 {
@@ -256,7 +258,7 @@ func (m *Model) composerLines(width, cursor int) []string {
 		for _, wrapped := range wrapLine(line, contentWidth) {
 			prefix := "  "
 			if first {
-				prefix = "> "
+				prefix = promptMarker + " "
 				first = false
 			}
 			lines = append(lines, prefix+wrapped)
@@ -353,21 +355,32 @@ func formatStatus(status Status) []string {
 		value string
 	}
 	groups := [][]statusField{
-		{{label: "session", value: sessionLabel}, {label: "model", value: status.Model}},
 		{
+			{label: "mode", value: status.Mode},
 			{label: "effort", value: status.Effort},
+			// Last in this group, so a narrow terminal clips these before the
+			// mode or the tier.
 			{label: "folder", value: status.Folder},
-			{label: "approval", value: status.Approval},
 			{label: "state", value: status.Lifecycle},
-			// Last, so a narrow terminal clips these before the model or the
-			// state — those cannot be recovered by running a command.
+		},
+		{
+			{label: "session", value: sessionLabel},
+			{label: "model", value: status.Model},
+			// The two numbers that decide whether to compact or stop live on
+			// the shorter row, where a normal terminal still shows them. They
+			// are last within it, so the model clips after them, never before.
 			{label: "context", value: status.Context},
 			{label: "cost", value: status.Cost},
 		},
 	}
 	lines := make([]string, 0, len(groups))
-	for _, fields := range groups {
-		visible := make([]string, 0, len(fields))
+	for index, fields := range groups {
+		visible := make([]string, 0, len(fields)+1)
+		if index == 0 {
+			if lead := permissionLead(status.Approval); lead != "" {
+				visible = append(visible, lead)
+			}
+		}
 		for _, field := range fields {
 			value := sanitizeTerminalLine(field.value)
 			if value != "" {
@@ -375,10 +388,31 @@ func formatStatus(status Status) []string {
 			}
 		}
 		if len(visible) > 0 {
-			lines = append(lines, strings.Join(visible, " · "))
+			lines = append(lines, statusIndent+strings.Join(visible, " · "))
 		}
 	}
 	return lines
+}
+
+// permissionLead is the tier at a glance, with the key that changes it. One
+// chevron per step away from stopping to ask: a tier nobody can see is a tier
+// nobody remembers leaving on.
+func permissionLead(approval string) string {
+	approval = sanitizeTerminalLine(approval)
+	if approval == "" {
+		return ""
+	}
+	marker := "⏵"
+	switch approval {
+	case "auto-approve":
+		marker = "⏵⏵"
+	case "full-auto":
+		marker = "⏵⏵⏵"
+	}
+	// The key, not a sentence about the key. "(shift+tab to cycle)" costs
+	// nine more columns on every row forever, and at 72 columns those nine
+	// are the working folder.
+	return marker + " " + approval + " (shift+tab)"
 }
 
 func appendTranscriptBounded(transcript []byte, chunk string, limit int) []byte {

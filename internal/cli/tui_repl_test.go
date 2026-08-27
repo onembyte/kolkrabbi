@@ -54,7 +54,7 @@ func TestTUIReplOwnsAndRestoresOneInteractiveTerminal(t *testing.T) {
 	}
 	got := output.String()
 	for _, want := range []string{
-		"\x1b[?2004h", "\x1b[?25l", "kolk-code", "mock/model", "Up arrow recalls history",
+		"\x1b[?2004h", "\x1b[?25l", "mode code", "mock/model", "Up arrow recalls history",
 		"twice exits", "\x1b[?25h", "\x1b[?2004l",
 	} {
 		if !strings.Contains(got, want) {

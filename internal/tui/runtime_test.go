@@ -126,16 +126,20 @@ func TestRuntimeToolWorkUsesOnlyTheEphemeralActivityRegion(t *testing.T) {
 	runtime.spinClock = clock
 	stop := runtime.StartWork(context.Background(), "Reading file — PLAN.md")
 	got := runtime.Snapshot()
-	if got.Activity != spinnerFrames[0] || got.Transcript != "" || got.Status.Lifecycle != "working" {
+	if got.Activity != activityLine(0, "working") || got.Transcript != "" || got.Status.Lifecycle != "working" {
 		t.Fatalf("tool activity regions = %#v", got)
 	}
-	if strings.Contains(got.Activity, "⠋") || strings.Contains(got.Activity, "thinking") ||
-		strings.Contains(got.Activity, "Reading file") {
-		t.Fatalf("activity leaked an old spinner or label: %q", got.Activity)
+	if !strings.HasPrefix(got.Activity, OctopusIcon+" ") {
+		t.Fatalf("activity row lost the octopus: %q", got.Activity)
+	}
+	// A tool's own description is too specific for the status row, and
+	// "thinking" would claim a model call that is not happening.
+	if strings.Contains(got.Activity, "thinking") || strings.Contains(got.Activity, "Reading file") {
+		t.Fatalf("activity leaked a label it should not carry: %q", got.Activity)
 	}
 	timer := nextSpinnerTimer(t, clock, spinnerInterval)
 	timer.fire()
-	waitForActivity(t, runtime, spinnerFrames[1])
+	waitForActivity(t, runtime, activityLine(1, "working"))
 	stop()
 	if got := runtime.Snapshot(); got.Activity != "" || got.Transcript != "" {
 		t.Fatalf("stopped tool activity leaked into transcript: %#v", got)

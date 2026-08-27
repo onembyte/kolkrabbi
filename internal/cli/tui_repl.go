@@ -58,6 +58,12 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 		// Listed once at startup: a walk per keystroke would be the completion
 		// making the composer feel slow, which is the opposite of the point.
 		Files: projectfiles.List(projectRoot(), mentionCandidates),
+		// Shift+Tab walks the same three tiers /permissions lists, in the same
+		// order, and lasts exactly as long as this session does.
+		CyclePermission: func() string {
+			ag.Permission = nextPermission(ag.Permission)
+			return string(ag.Permission)
+		},
 		Turn: func(turnContext context.Context, prompt string) error {
 			if strings.HasPrefix(strings.TrimSpace(prompt), "/") {
 				shouldExit := a.slash(turnContext, ag, strings.TrimSpace(prompt))
@@ -221,4 +227,24 @@ func (d tuiDecider) Decide(ctx context.Context, confirmation engine.Confirmation
 	default:
 		return protocol.PermissionDecisionDeny
 	}
+}
+
+// permissionCycle is the order Shift+Tab walks: least to most autonomous, then
+// back to asking. Wrapping to `ask` rather than stopping at `full-auto` means
+// the key can always undo itself without the user reaching for a command.
+var permissionCycle = [...]engine.Permission{
+	engine.PermissionAsk,
+	engine.PermissionAutoApprove,
+	engine.PermissionFullAuto,
+}
+
+func nextPermission(current engine.Permission) engine.Permission {
+	for index, tier := range permissionCycle {
+		if tier == current {
+			return permissionCycle[(index+1)%len(permissionCycle)]
+		}
+	}
+	// An unset or unrecognised tier is treated as the default, so the first
+	// press moves somewhere predictable instead of somewhere arbitrary.
+	return permissionCycle[1]
 }

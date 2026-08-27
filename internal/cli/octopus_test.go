@@ -11,6 +11,7 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/session"
+	"github.com/onembyte/kolkrabbi/internal/tui"
 )
 
 type fakeAnimationTimer struct {
@@ -65,13 +66,13 @@ func TestOctopusActivityUsesGraceFramesAndExactCleanup(t *testing.T) {
 	}
 	first.fire()
 	second := nextAnimationTimer(t, clock, 120*time.Millisecond)
-	wantFirst := "\x1b7\x1b[95m⠋\x1b[0m"
+	wantFirst := "\x1b7\x1b[95m" + tui.OctopusIcon + " ⠋\x1b[0m"
 	if out.String() != wantFirst {
 		t.Fatalf("first frame = %q, want %q", out.String(), wantFirst)
 	}
 	second.fire()
 	_ = nextAnimationTimer(t, clock, 120*time.Millisecond)
-	wantSecond := wantFirst + "\x1b8\x1b[K\x1b[95m⠙\x1b[0m"
+	wantSecond := wantFirst + "\x1b8\x1b[K\x1b[95m" + tui.OctopusIcon + " ⠙\x1b[0m"
 	if out.String() != wantSecond {
 		t.Fatalf("second frame = %q, want %q", out.String(), wantSecond)
 	}

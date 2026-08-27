@@ -25,6 +25,7 @@ const (
 	KeyInterrupt
 	KeyEOF
 	KeyTab
+	KeyShiftTab
 )
 
 // Key carries text only for KeyText and KeyPaste.
@@ -364,6 +365,9 @@ func decodeEscape(input []byte) (consumed int, kind KeyKind, complete bool) {
 		{[]byte("\x1b[H"), KeyHome},
 		{[]byte("\x1b[F"), KeyEnd},
 		{[]byte("\x1b[3~"), KeyDelete},
+		// Shift+Tab. Without this it is swallowed by the unknown-CSI branch
+		// below, which is indistinguishable from the key doing nothing.
+		{[]byte("\x1b[Z"), KeyShiftTab},
 	}
 	for _, sequence := range sequences {
 		if bytes.HasPrefix(input, sequence.bytes) {

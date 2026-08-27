@@ -102,11 +102,11 @@ func TestControllerViewKeepsTheVirtualCursorInsideTheDraftAcrossOutput(t *testin
 	controller.AppendTranscript("assistant token")
 
 	view := controller.View(40, 10)
-	if want := "> abc▌d"; !strings.Contains(view, want) {
+	if want := "❯ abc▌d"; !strings.Contains(view, want) {
 		t.Fatalf("view omitted cursor-bearing draft %q:\n%s", want, view)
 	}
 	controller.AppendTranscript(" stream")
-	if view = controller.View(40, 10); !strings.Contains(view, "> abc▌d") {
+	if view = controller.View(40, 10); !strings.Contains(view, "❯ abc▌d") {
 		t.Fatalf("stream repaint moved the draft cursor:\n%s", view)
 	}
 }
@@ -147,12 +147,12 @@ func TestControllerViewSeparatesApprovalFromTheMainComposer(t *testing.T) {
 	controller.HandleKey(Key{Kind: KeyText, Text: "y"})
 
 	view := controller.View(50, 12)
-	for _, want := range []string{"> next draft▌", "Run shell command", "go test ./...", "Allow? [y/N]: y▌"} {
+	for _, want := range []string{"❯ next draft▌", "Run shell command", "go test ./...", "Allow? [y/N]: y▌"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("approval view omitted %q:\n%s", want, view)
 		}
 	}
-	if strings.Index(view, "> next draft▌") >= strings.Index(view, "Run shell command") {
+	if strings.Index(view, "❯ next draft▌") >= strings.Index(view, "Run shell command") {
 		t.Fatalf("approval was not a separate focused region:\n%s", view)
 	}
 }
@@ -173,9 +173,13 @@ func TestControllerApprovalUsesTextOnlyHorizontalRules(t *testing.T) {
 			t.Fatalf("approval omitted %q:\n%s", want, view)
 		}
 	}
+	// Scoped to the overlay: the composer legitimately draws ❯, and the
+	// footer draws ⏵. The rule under test is that the question itself is
+	// plain text, not that the screen has no glyphs anywhere.
+	overlay := view[strings.Index(view, horizontalRule("approval", 50)):]
 	for _, decorative := range []string{"╭", "╰", "│", "❯", "✦", "⚡", "▸", "⏵", "🐙"} {
-		if strings.Contains(view, decorative) {
-			t.Fatalf("approval contains decorative token %q:\n%s", decorative, view)
+		if strings.Contains(overlay, decorative) {
+			t.Fatalf("approval contains decorative token %q:\n%s", decorative, overlay)
 		}
 	}
 }
@@ -192,7 +196,7 @@ func TestControllerShowsRecentAndLiveFilteredSlashCommands(t *testing.T) {
 	controller.HandleKey(Key{Kind: KeyText, Text: "/"})
 
 	view := controller.View(60, 12)
-	assertOrdered(t, view, "/model [id]", "/update", "/mode <name>", "kolk-code")
+	assertOrdered(t, view, "/model [id]", "/update", "/mode <name>", "mode code")
 	controller.HandleKey(Key{Kind: KeyText, Text: "mo"})
 	view = controller.View(60, 12)
 	if !strings.Contains(view, "/model [id]") || !strings.Contains(view, "/mode <name>") ||
