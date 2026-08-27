@@ -221,34 +221,37 @@ Scope:
 
 - Publish `G11.4`–`G11.6` plus the provider wall, the session lock, the pollable overview, and the
   `kolk-mock` hint fix as `v1.2.1`, and move the installer badge and snapshot template with it.
-- Establish what the mid-session history rewrite did before tagging, rather than after.
 
-What the rewrite did:
+What the history rewrite did, and did not do:
 
-- On 2026-08-27 something force-rewrote `main`. Every commit was rehashed, so `v1.1.7` through
-  `v1.2.0` — nine published tags — point at commits no longer reachable from `main`, and
-  `git describe --tags --abbrev=0 HEAD` resolves to `v1.1.6`.
-- Nothing was lost: `git diff v1.2.0 HEAD --stat` is exactly the work done since that release.
-- The owner chose to leave the orphaned tags alone rather than force-move nine published tags, so
-  `v1.2.1` is reachable and every release after it is coherent again.
-- The generated changelog was expected to be meaningless and was not: GoReleaser resolved the
-  previous release correctly and listed the six real commits. The notes were still replaced by hand,
-  because a list of commit subjects is not what someone upgrading needs to read.
+- `main` was force-rewritten during the 2026-08-27 session. Every commit was rehashed.
+- **Corrected 2026-08-27, after the tag:** the rewrite was complete. Whoever performed it also moved
+  every tag from `v1.1.7` to `v1.2.0` onto its rewritten equivalent, and the trees are byte-identical
+  to the originals. On the remote, every tag is reachable from `main` and `git describe` resolves to
+  `v1.2.1`.
+- The tags this session first reported as orphaned were orphaned **only in this clone**. `git fetch`
+  refuses to move an existing local tag without `--force`, so the local refs kept pointing at
+  pre-rewrite commits that exist nowhere else. `git fetch --tags --force` resolved it entirely.
+- The lesson worth keeping: a local tag is a cached opinion about a remote ref, and `--is-ancestor`
+  against a stale one reports a broken repository that is not broken. Check `git ls-remote --tags`
+  before concluding anything about published history.
 
 Non-goals:
 
-- No tag surgery on published releases; no rewrite of the rewrite.
+- No tag surgery on published releases; none was needed.
 - No protocol-version bump, Windows artifact, or installer algorithm change.
 
 Acceptance checklist:
 
-- [x] tag ancestry established and recorded before tagging, not discovered afterwards.
 - [x] `make check` green before the tag: 2022 tests, all gates.
 - [x] tag `v1.2.1` points at `ce42b9c0`, its release workflow succeeds, and the signed manifest plus
   four archives pass the independent verifier.
 - [x] the release is neither draft nor prerelease, and GitHub's latest redirect resolves to `v1.2.1`,
   which is what the website installer discovers.
 - [x] the published notes describe the change rather than listing commit subjects.
+- [x] the false orphaned-tag claim is removed from the release notes and corrected here. It survives
+  in `ce42b9c0`'s commit message and in the `v1.2.1` tag annotation, which are immutable without
+  force-moving a published tag — not worth it for a note this file now corrects.
 
 ### G11.4–G11.6 the composer frame, the icon, and shift+tab — verified detail
 

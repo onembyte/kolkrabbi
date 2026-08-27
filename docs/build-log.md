@@ -3929,13 +3929,6 @@ are public, the release is neither draft nor prerelease, and GitHub's latest red
 
 ### R1.3 v1.2.1 composer release
 
-**Before the tag:** `git merge-base --is-ancestor v1.2.0 HEAD` failed. `main` had been force-rewritten
-during the session; every commit was rehashed and nine published tags — `v1.1.7` through `v1.2.0` —
-were left pointing at unreachable commits, with `git describe --tags --abbrev=0 HEAD` resolving to
-`v1.1.6`. `git diff v1.2.0 HEAD --stat` confirmed no code was lost: the difference was exactly the
-composer work, the provider wall, the session lock and the overview. The owner chose to leave the
-orphaned tags rather than force-move published ones.
-
 **Gate:** `make check` green before the tag — 2022 root-module tests, 0 lint issues, cold start
 3.3 ms p50, site 137, release 24, and every other contract.
 
@@ -3944,6 +3937,16 @@ both jobs, including the independent verifier over the published assets. Four Da
 amd64/arm64 archives plus the Cosign-signed `checksums.txt` are public, the release is neither draft
 nor prerelease, and the latest redirect resolves to `v1.2.1`.
 
-**Note against the prediction:** the generated changelog was expected to span `v1.1.6..v1.2.1` and be
-useless. It did not — GoReleaser resolved the previous release correctly and listed the six real
-commits. The notes were replaced by hand anyway; commit subjects are not what an upgrader reads.
+**A wrong diagnosis, corrected the same day.** Before tagging, `git merge-base --is-ancestor v1.2.0
+HEAD` failed and `git describe --tags --abbrev=0 HEAD` resolved to `v1.1.6`, so this session reported
+that a force-rewrite had orphaned nine published tags, and said so in the release notes. It had not.
+The rewrite moved every tag onto its rewritten equivalent, and `git diff` proves the trees are
+byte-identical. The stale refs were local: `git fetch` will not move an existing local tag without
+`--force`, so this clone kept pointing at pre-rewrite commits that exist in no other repository.
+`git fetch --tags --force` fixed it; `git describe` then reported `v1.2.1` and every tag was
+reachable. The check that would have caught it in one command is `git ls-remote --tags origin`,
+which reads the published refs instead of the cached ones.
+
+**Also predicted wrongly:** the generated changelog was expected to span `v1.1.6..v1.2.1` and be
+useless. GoReleaser resolved the previous release correctly and listed the six real commits. The
+notes were replaced by hand anyway; commit subjects are not what an upgrader reads.
