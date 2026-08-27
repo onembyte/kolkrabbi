@@ -26,7 +26,9 @@ var DeadExportAllowlist = map[string]string{
 
 	// ChapterVerifier and FileGateDetector left this list on 2026-08-27: the
 	// owner chose wire-and-drop, so they are now the live path and the ad-hoc
-	// one is deleted.
+	// one is deleted. SagaBudget left it the same day, when `kolk saga run`
+	// finally gave the budget guards something to guard — the rot test caught
+	// that, rather than the entry sitting here claiming otherwise.
 
 	// Mine, and the reason this rule earns its place: I built both two days ago
 	// and wired neither. Overview is what I26.7's remote client will render;
@@ -50,7 +52,6 @@ var DeadExportAllowlist = map[string]string{
 	"NewPlainRenderer":  "untriaged 2026-08-27",
 	"NewRuntimeSpec":    "untriaged 2026-08-27",
 	"NewSessionDecider": "untriaged 2026-08-27",
-	"SagaBudget":        "untriaged 2026-08-27",
 	"Quote":             "untriaged 2026-08-27",
 	"VerifySagaChapter": "untriaged 2026-08-27",
 	"WriteJSON":         "untriaged 2026-08-27",

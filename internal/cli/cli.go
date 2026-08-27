@@ -172,7 +172,7 @@ func commandTable() []command {
 		{"dash", "[--addr 127.0.0.1:0]", "open the local usage dashboard in a browser", (*app).runDash},
 		{"serve", "[--addr <addr>] [--token <tok>] [--stdio]", "start headless event server or stdio bridge", (*app).runServe},
 		{"version", "[--json]", "print the running build", (*app).runVersion},
-		{"saga", "[goal | resume | status | stop | rewind]", "careful-progression autonomous loop", (*app).runSaga},
+		{"saga", "[goal | run | resume | status | stop | rewind]", "careful-progression autonomous loop", (*app).runSaga},
 		{"completion", "<bash|zsh|fish>", "generate shell completions", (*app).runCompletion},
 		{"help", "", "show this help", (*app).runHelp},
 	}

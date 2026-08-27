@@ -13,9 +13,9 @@ import (
 )
 
 // runSaga is the top-level `kolk saga` command dispatcher.
-func (a *app) runSaga(_ context.Context, args []string) error {
+func (a *app) runSaga(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return usagef("usage: kolk saga <goal | resume | status | stop | rewind>")
+		return usagef("usage: kolk saga <goal | run | resume | status | stop | rewind>")
 	}
 
 	switch args[0] {
@@ -27,6 +27,8 @@ func (a *app) runSaga(_ context.Context, args []string) error {
 		return a.stopSaga()
 	case "rewind":
 		return a.rewindSaga()
+	case "run":
+		return a.runSagaLoop(ctx)
 	default:
 		goal := strings.Join(args, " ")
 		if err := a.saveSagaGoal(goal); err != nil {

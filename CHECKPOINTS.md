@@ -153,6 +153,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **S10.2 quality gate & git checkpointer** — automated test discovery, verification execution, and commit-on-green.
 - [x] **S10.3 budget & doom-loop guardrails** — chapter limit, dollar budget, timeout, and consecutive failure detection.
 - [x] **S10.4 CLI & slash command surface** — `kolk saga [goal|resume|status|stop|rewind]` and REPL twin `/saga`.
+- [x] **S10.6 the chapter executor** — `kolk saga run` walks the chapters: work, verify, record, repeat until a budget stops it.
 - [x] **S10.5 saga artifact ownership & honest subcommands** — `SAGA.md` belongs to the project root, and `resume`/`stop`/`rewind` report the real saga instead of always denying one.
 - [x] **P11.1 provider plan registry & search** — static plan matrix with case-insensitive filtering behind `kolk plans` / `/plans`.
 - [x] **P11.2 credential-free connector manifest** — versioned `connectors.json` with atomic, locked upsert and no credential fields.
@@ -2048,6 +2049,56 @@ Acceptance checklist:
 - [x] the TUI overlay shows the rule and returns its own decision.
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
+
+### S10.6 the chapter executor — verified detail
+
+The half X5 found missing. The state machine, quality gates, budget guards and artifact writer all
+existed and nothing walked the chapters, so none of it could run and `kolk saga` could only set a
+goal and print status.
+
+**`ChapterWorker` is a port, and that is the whole shape of it.** The loop that spends a budget and
+counts failures has no idea a model exists; `AgentWorker` is the only place the saga meets one. That
+is what let the budget ceiling, the cost ceiling, the doom-loop guard and cancellation all be tested
+without a provider, and it is what would let a chapter later be worked by a subagent or a different
+model without touching the loop.
+
+**Cost is a difference, not a total.** `AgentWorker` reads the session's spend before and after its
+turn. Charging a chapter the session's running total would make every chapter look dearer than the
+last and stop a saga early for money it had already counted — the same mistake B12.11 fixed for
+turns, arriving again one level up.
+
+**Cost is recorded even when the work fails.** A failed attempt still spent money, and a budget that
+only counts successes cannot stop a saga that is failing expensively — which is precisely the case
+the doom-loop guard exists for.
+
+**A failed chapter is not verified.** Running gates on work that was never done would commit whatever
+happened to be in the tree and call it the chapter. The chapter goes to `failed` and the loop moves
+on, or stops if failures have piled up.
+
+**`no-work` is not `goal-complete`.** A plan that ran out of chapters is a different ending from one
+whose acceptance criteria are met, and reporting the first as the second would be a saga claiming
+success for stopping.
+
+**The git check happens before the first turn**, because every chapter ends in a commit and finding
+out there is no repository after a chapter's tokens are spent is the wrong moment. Verified through
+the binary: a directory with no `.git` refuses with that sentence, and a saga whose chapters are all
+finished says so without starting a model.
+
+**The dead-export rot test caught its first real drift**, unprompted: `SagaBudget` had been sitting in
+the allowlist as untriaged, and `kolk saga run` gave it a caller. The test failed rather than letting
+the exemption quietly become a lie. That is the ratchet earning its place a day after being written.
+
+Acceptance checklist:
+
+- [x] a chapter is worked, then verified, and its cost lands on the chapter and the total.
+- [x] a chapter that cannot be worked fails without committing anything.
+- [x] SAGA.md is written after every chapter, and a write failure does not discard the work.
+- [x] the run stops at the chapter ceiling, the cost ceiling and the doom-loop threshold.
+- [x] cancellation stops the run and is not reported as a budget stop.
+- [x] a run with nothing to do says so instead of starting a turn.
+- [x] the agent worker charges only its own turn, and a failed turn fails the chapter.
+- [x] verified through the binary: no repository, and nothing left to work.
+- [x] full `make check` green: 2,042 tests, 0 lint issues.
 
 ### X5 one saga verification path, the ports one — verified detail
 

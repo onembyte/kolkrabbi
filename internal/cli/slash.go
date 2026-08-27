@@ -46,7 +46,7 @@ var slashCommandTable = []slashCommand{
 	{"changes", "", "list files modified by this session"},
 	{"diff", "[path]", "show what this session changed, as a diff"},
 	{"plan", "[off]", "read-only: explore and propose, without writing or running anything"},
-	{"saga", "[goal | resume | status | stop | rewind]", "careful-progression autonomous loop"},
+	{"saga", "[goal | run | resume | status | stop | rewind]", "careful-progression autonomous loop"},
 	{"undo", "", "take back the last turn: its file changes and its conversation"},
 	{"rewind", "", "restore the last turn's files only, leaving the conversation"},
 	{"help", "", "show all slash commands"},
