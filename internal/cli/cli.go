@@ -49,6 +49,7 @@ type app struct {
 	// sessionHold marks this session live while the process runs it, so a
 	// dashboard can tell which sessions are actually going.
 	sessionHold *lock.File
+	debugLog    *debugLog
 	// sessionRules are permission rules the user added for this process only.
 	// They are deliberately not written anywhere: a rule that outlives the
 	// session someone scoped it to is a rule nobody consented to.

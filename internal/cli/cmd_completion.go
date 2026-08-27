@@ -12,7 +12,7 @@ _kolk_completions() {
     _init_completion || return
 
     local verbs="key model effort mode config update stats serve version doctor help completion"
-    local flags="-m --model -e --effort --mode -p --print -P --permission -r --resume -s --session --output-format"
+    local flags="-m --model -e --effort --mode -p --print -P --permission -r --resume -s --session --output-format --debug"
     local efforts="low medium high max 1 2 3 4"
     local models="sonnet haiku opus gpt flash pro deepseek coder free auto"
     local modes="chat code agent"

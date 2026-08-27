@@ -91,12 +91,12 @@ width, TTY), and the writable directories. The rule it must follow: it prints wh
 what it found *with* — no key material, masked or otherwise, beyond the last four characters that
 `kolk key` already shows.
 
-**`--debug` log file with redaction — accepted, queued as L21.2.** Off unless asked for, one file
+**`--debug` log file with redaction — built (L21.2).** Off unless asked for, one file
 per session under the state directory, every line through `redact.Scrub` before it is written, and
 the path printed at the end so a bug report can attach it. The redaction is not optional and not a
 flag: a debug log is the single most likely place for a key to end up in a public issue.
 
-`--debug` is still queued. `kolk doctor` was built on 2026-08-27, and the transport advice in
+Both were built on 2026-08-27. `kolk doctor` and the transport advice in
 `provider.Advise` now names it — it was deliberately worded around it while it did not exist, which
 is the same rule item 22 later turned into a test.
 
@@ -139,7 +139,7 @@ would be a new item, and it should be written as one before anyone claims kolk r
 - **L21.0 the error matrix** — `provider.Advise`, wired at all three failure sites, with the
   overflow detector moved down a layer to be shared. *Built.*
 - **L21.1 `kolk doctor`** — keys, directories, terminal capabilities and reachability. *Built.*
-- **L21.2 `--debug`** — a per-session log file, scrubbed on the way in, path printed at the end.
+- **L21.2 `--debug`** — a per-session log file, scrubbed on the way in, path printed at the end. *Built.*
 - **L21.3 fuzz the SSE reader and tool-argument decoding** — the two places third-party bytes become
   control flow.
 - **L21.4 pin ci.yml's actions by digest** — the release and smoke workflows already do.

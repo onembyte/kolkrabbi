@@ -19,6 +19,7 @@ type options struct {
 	prompt       string
 	permission   string
 	resume       bool
+	debug        bool
 	outputFormat string
 	rest         []string // positional words, joined into the prompt
 }
@@ -54,6 +55,8 @@ var flagTable = []flagDef{
 		set:     func(o *options, v string) { o.permission = v }},
 	{long: "base-url", arg: "<url>", summary: "any OpenAI-compatible endpoint (Ollama, LiteLLM, vLLM, mock)",
 		set: func(o *options, v string) { o.baseURL = v }},
+	{long: "debug", summary: "write a scrubbed diagnostic log for this session, and say where",
+		set: func(o *options, _ string) { o.debug = true }},
 }
 
 func lookupFlag(arg string) *flagDef {

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 
 	"github.com/onembyte/kolkrabbi/internal/atomicfile"
+	"github.com/onembyte/kolkrabbi/internal/buildinfo"
 	"github.com/onembyte/kolkrabbi/internal/bus"
 	"github.com/onembyte/kolkrabbi/internal/checkpoint"
 	"github.com/onembyte/kolkrabbi/internal/config"
@@ -35,7 +36,19 @@ func (a *app) runDefault(ctx context.Context, args []string) (err error) {
 	if err != nil {
 		return err
 	}
+	// Written here rather than beside the rest of the header, because these are
+	// the values the run *resolved* — a flag left unset reads as empty, and a
+	// diagnostic that reports "mode " has recorded the one thing it must not
+	// get wrong.
+	a.debugLog.Printf("session %s, model %s, mode %s, effort %s, permission %s",
+		ag.Sess.SessionID(), ag.Model, ag.Mode, ag.Effort, ag.Permission)
 	defer func() {
+		// Named last, after everything else has had its say, so the line a
+		// person needs to attach to a bug report is the final thing on screen.
+		if path := a.debugLog.Path(); path != "" {
+			_ = a.debugLog.Close()
+			fmt.Fprintf(a.stderr, "debug log: %s\n", path)
+		}
 		// Released before the backend so a crash in Close still frees the
 		// session for the next process.
 		if a.sessionHold != nil {
@@ -203,6 +216,21 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	// sessions, it just cannot report which are running.
 	if held, err := session.Hold(d.Sessions(), sess.ID); err == nil {
 		a.sessionHold = held
+	}
+
+	if o.debug {
+		path := filepath.Join(d.Sessions(), sess.ID+".debug.log")
+		if log, err := openDebugLog(path); err == nil {
+			a.debugLog = log
+			// The header is the half of a bug report people forget to include.
+			// Everything here is a fact about this machine and this run; the
+			// scrubber runs over it like every other line.
+			info := buildinfo.Get()
+			a.debugLog.Printf("kolk %s (%s) %s/%s, go %s", info.Version, info.Commit, info.OS, info.Arch, info.Go)
+			a.debugLog.Printf("base url %s", client.BaseURL)
+		} else {
+			fmt.Fprintf(a.stderr, "warning: --debug could not open %s: %v\n", path, err)
+		}
 	}
 
 	var eventBus *bus.Bus

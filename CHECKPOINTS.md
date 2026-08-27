@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **L21.2 `--debug`** — off unless asked, scrubbed on the way in, and it names its own file at the end.
 - [x] **L21.1 `kolk doctor`** — prints what it found, never what it found with.
 - [x] **L21.3 fuzzing where third-party bytes become control flow** — the SSE reader and tool dispatch, with invariants rather than "does not panic".
 - [x] **L30.3 one vocabulary for one failure** — the turn-level stop and the saga's chapter-level stop share a phrase that a test keeps shared.
@@ -2120,6 +2121,49 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### L21.2 built — `--debug`, and item 21 is complete
+
+**The first question was whether to build it at all**, because every session already writes a
+per-session NDJSON log of protocol events — and checking found that the bus scrubs every event
+through `redact.ScrubJSON` at `Publish`, before it reaches a subscriber or the spill file. So the
+"one file per session, redacted" half of the decision was already true for events.
+
+`--debug` is therefore for what the event stream **cannot** say: which model was chosen, what the
+effort dial resolved to, where the key came from, what the base URL is. Diagnostics for whoever
+maintains kolk, not a record for a client to replay. Duplicating protocol events into it would have
+been a second copy of the same facts, which is the version of this feature worth refusing.
+
+**Two rules, and one design choice that protects both.** Off unless asked for — a diagnostic that
+writes itself on every run is a second copy of the session nobody chose to keep. And every line is
+scrubbed **on the way in**, inside `Printf`, not by its callers: a scrubber a caller can forget is a
+scrubber that will be forgotten. The choice that holds them: **a nil `*debugLog` is the off state and
+every method tolerates it**, so no call site needs an `if` beside it — which is how `--debug` avoids
+growing a branch next to every interesting line and then losing one.
+
+The test asserts not merely that a key is absent but that **no twenty-character prefix** survives,
+the same bar `kolk doctor` set, because a prefix is searchable in a leaked log.
+
+**Running it found the defect the tests did not.** The header recorded `mode `, `effort `,
+`permission ` — empty — because it was logging the *flag* values, and a flag left unset is empty
+while the run is not. A diagnostic that misreports the settings the run actually used has failed at
+the one thing it exists for. The line moved to after the agent is built and now reads
+`mode code, effort medium, permission ask`. This is the second leaf running where reading the
+binary's real output found what the unit tests could not.
+
+With this, **item 21 is complete**: the error matrix (L21.0), `kolk doctor` (L21.1), `--debug`
+(L21.2), fuzzing (L21.3) and digest-pinned actions (L21.4). Of the two gaps that item recorded, one —
+floating CI action pins — is now closed; the other, prompt injection, remains documented rather than
+defended, which is what it said.
+
+Acceptance checklist:
+
+- [x] the existing event log checked before building, and found already scrubbed.
+- [x] the overlap decided rather than duplicated: this file records what events cannot.
+- [x] four tests written first, including the searchable-prefix bar.
+- [x] the nil-log off state made the default so no call site needs a branch.
+- [x] the binary run and its output read, which found the empty-settings defect.
+- [x] full `make check` green: 2,183 tests, 0 lint issues.
 
 ### L21.1 built — `kolk doctor`
 
