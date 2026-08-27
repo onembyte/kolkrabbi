@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **L21.3 fuzzing where third-party bytes become control flow** — the SSE reader and tool dispatch, with invariants rather than "does not panic".
 - [x] **L30.3 one vocabulary for one failure** — the turn-level stop and the saga's chapter-level stop share a phrase that a test keeps shared.
 - [x] **L30.2 who is there to ask decides what happens** — the call is never made a third time; the tier decides whether that means a question, a stop, or a refusal.
 - [x] **L30.4 the ceiling is no longer the detector** — a repeated call stops on the third round, not the fifty-first.
@@ -2118,6 +2119,51 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### L21.3 built — fuzzing the two places bytes become control flow
+
+Item 21 accepted this and named the reason: the SSE reader and tool-argument decoding are where a
+third party's bytes turn into control flow, and every hand-written fragmentation test encodes a
+fragmentation somebody thought of.
+
+**The reader needed a seam first.** The stream loop lived inside `streamChat`, between an HTTP
+response and a timer, so it could only be exercised through a test server — far too slow to fuzz.
+It is now `readStream(body, meta, onToken)`, a behaviour-preserving extraction with the existing
+provider tests as the net; they passed unchanged before anything new was written.
+
+**The invariants are the point, not the absence of a panic.** A fuzz target that only asserts "did
+not crash" would have passed on the day this reader dropped a token. What is asserted instead:
+every token handed to the caller reconstructs the final content exactly, in order and once — a
+streaming UI that shows something the message does not contain is lying, and one that drops a token
+loses work; no empty token is ever streamed, since it paints nothing and costs a redraw; and a tool
+call that survives is normalised, with an index of zero and a type, because callers downstream branch
+on both. A second target asserts the one reordering the reader is allowed to do: deltas arriving out
+of order come out sorted by index, which is what makes a two-tool turn execute in the order the model
+meant.
+
+**For tool dispatch the invariants are about what must not happen**, because the interesting failures
+there are silent. The guard in the fuzz target refuses everything, so any tool reporting success has
+run without permission. Malformed arguments must be refused rather than decoded into zero values and
+acted on — an edit whose path failed to parse would otherwise write to `""` — and a name the
+catalogue does not have must never run anything.
+
+**Seeds are the real shapes**, including the fragmentations the hand-written tests already cover:
+split content deltas, a tool call assembled across chunks, out-of-order indices, keep-alives,
+usage-only chunks, a truncated final line, and an error chunk.
+
+Run for 45 seconds each: **573k executions** on the reader, **194k** on the ordering target, **694k**
+on tool dispatch. No failures. The generated corpus lives in the build cache rather than the
+repository, and nothing was added to `.gitignore` — a *failing* input is written to `testdata/fuzz/`
+and belongs in git, because that is a regression seed and not litter.
+
+Acceptance checklist:
+
+- [x] the reader extracted behaviour-preserving, with the existing tests green before new ones were written.
+- [x] invariants asserted, not merely absence of panic — a dropped or invented token fails.
+- [x] tool dispatch fuzzed against a guard that refuses everything, so an escape is a failure.
+- [x] seeds taken from the fragmentations the hand-written tests already encode.
+- [x] over 1.4 million executions across three targets, no failures.
+- [x] full `make check` green: 2,174 tests, 0 lint issues.
 
 ### L30.3 built — item 30 is complete
 

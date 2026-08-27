@@ -228,11 +228,26 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []Messag
 		return Message{}, meta, secret.ScrubError(newHTTPError(resp.StatusCode, resp.Header, b))
 	}
 
+	msg, err := readStream(resp.Body, &meta, onToken)
+	if err != nil {
+		return Message{}, meta, err
+	}
+	meta.Elapsed = time.Since(start)
+	return msg, meta, nil
+}
+
+// readStream turns a server-sent event body into one message.
+//
+// It is a function of its own so it can be fuzzed: this is one of the two
+// places where bytes from a third party become control flow, and every
+// hand-written fragmentation test here encodes a fragmentation somebody thought
+// of (docs/plan/21-quality-testing-security.md).
+func readStream(body io.Reader, meta *Meta, onToken func(string)) (Message, error) {
 	var contentBuilder strings.Builder
 	toolCalls := map[int]*ToolCall{}
 	var toolCallOrder []int
 
-	scanner := bufio.NewScanner(resp.Body)
+	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024) // allow long lines (big tool args)
 
 	for scanner.Scan() {
@@ -250,7 +265,7 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []Messag
 			continue // ignore malformed keep-alive/comment lines
 		}
 		if chunk.Error != nil {
-			return Message{}, meta, fmt.Errorf("openrouter: %s", chunk.Error.Message)
+			return Message{}, fmt.Errorf("openrouter: %s", chunk.Error.Message)
 		}
 		if chunk.Model != "" {
 			meta.Model = chunk.Model
@@ -293,9 +308,8 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []Messag
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return Message{}, meta, err
+		return Message{}, err
 	}
-	meta.Elapsed = time.Since(start)
 
 	msg := Message{Role: "assistant", Content: contentBuilder.String()}
 	if len(toolCalls) > 0 {
@@ -309,7 +323,7 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []Messag
 			msg.ToolCalls = append(msg.ToolCalls, tc)
 		}
 	}
-	return msg, meta, nil
+	return msg, nil
 }
 
 // ModelInfo is a partial view of GET /models, enough for `kolk models`.
