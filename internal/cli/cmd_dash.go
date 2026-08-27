@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/dash"
 	"github.com/onembyte/kolkrabbi/internal/netaddr"
+	"github.com/onembyte/kolkrabbi/internal/session"
 	"github.com/onembyte/kolkrabbi/internal/stats"
 )
 
@@ -111,7 +113,8 @@ func (a *app) dashHandler(dataDir string) http.Handler {
 		// The page embeds nothing and loads nothing; say so to the browser too.
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
 		w.Header().Set("Cache-Control", "no-store")
-		_, _ = w.Write([]byte(dash.Page(records, skipped)))
+		cards, shared := a.sessionCards(dataDir)
+		_, _ = w.Write([]byte(dash.Page(records, skipped, cards, shared)))
 	})
 	return mux
 }
@@ -137,4 +140,57 @@ func dashAddrFrom(args []string) (string, error) {
 		}
 	}
 	return addr, nil
+}
+
+// sessionCards gathers what the page renders.
+//
+// The gathering lives here rather than in internal/dash because each source was
+// built with its own cost decision — a header-only session read, an advisory
+// lock probed without taking it, a 64 KiB journal tail read only for live
+// sessions, and one pass over the usage log for the sessions being shown — and
+// re-reading them from inside a template would undo all four.
+func (a *app) sessionCards(dataDir string) ([]dash.SessionCard, []dash.SharedCheckout) {
+	sessionsDir := filepath.Join(dataDir, "sessions")
+	overview, err := session.Overview(sessionsDir)
+	if err != nil || len(overview) == 0 {
+		return nil, nil
+	}
+
+	wanted := make(map[string]bool, len(overview))
+	for _, card := range overview {
+		wanted[card.ID] = true
+	}
+	costs, err := stats.CostForSessions(dataDir, wanted)
+	if err != nil {
+		costs = nil
+	}
+
+	cards := make([]dash.SessionCard, 0, len(overview))
+	for _, card := range overview {
+		live := card.State == session.StateLive
+		view := dash.SessionCard{
+			ID:    card.ID,
+			Name:  card.Name(),
+			Model: card.Model,
+			CWD:   card.CWD,
+			Live:  live,
+		}
+		if cost, recorded := costs[card.ID]; recorded {
+			view.Cost, view.CostKnown = cost, true
+		}
+		// Only live sessions: an idle one cannot be blocked, so there is
+		// nothing to look for and nothing to pay for looking.
+		if live {
+			if blocked, waiting := session.BlockedOn(sessionsDir, card.ID); waiting {
+				view.BlockedOn = blocked.Tool
+			}
+		}
+		cards = append(cards, view)
+	}
+
+	var shared []dash.SharedCheckout
+	for _, s := range session.SharedCheckouts(overview) {
+		shared = append(shared, dash.SharedCheckout{Dir: s.Dir, Sessions: s.Sessions})
+	}
+	return cards, shared
 }

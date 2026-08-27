@@ -26,7 +26,7 @@ func sampleRecords() []stats.Record {
 }
 
 func TestPageShowsTheLeaderboardAndSpend(t *testing.T) {
-	page := Page(sampleRecords(), 0)
+	page := Page(sampleRecords(), 0, nil, nil)
 
 	for _, want := range []string{"vendor/big", "vendor/small", "$1.76", "kolk dash"} {
 		if !strings.Contains(page, want) {
@@ -46,7 +46,7 @@ func TestPageShowsTheLeaderboardAndSpend(t *testing.T) {
 func TestPageIsWellFormedMarkup(t *testing.T) {
 	// A hand-built page is easy to get subtly wrong; browsers hide that and
 	// screenshots do not.
-	decoder := xml.NewDecoder(strings.NewReader(Page(sampleRecords(), 0)))
+	decoder := xml.NewDecoder(strings.NewReader(Page(sampleRecords(), 0, nil, nil)))
 	decoder.Strict = false
 	decoder.AutoClose = xml.HTMLAutoClose
 	decoder.Entity = xml.HTMLEntity
@@ -67,7 +67,7 @@ func TestPageEscapesModelNames(t *testing.T) {
 		Model: `vendor/<img src=x onerror=alert(1)>`, Mode: "code", Cost: 0.1,
 	}}
 
-	page := Page(records, 0)
+	page := Page(records, 0, nil, nil)
 
 	// A model id comes from a provider catalog, which is not something
 	// Kolkrabbi controls.
@@ -80,7 +80,7 @@ func TestPageEscapesModelNames(t *testing.T) {
 }
 
 func TestPageWithNoDataExplainsWhatWillAppear(t *testing.T) {
-	page := Page(nil, 0)
+	page := Page(nil, 0, nil, nil)
 
 	if strings.Contains(page, "<svg") {
 		t.Fatal("an empty dashboard drew an axis with no line on it")
@@ -93,7 +93,7 @@ func TestPageWithNoDataExplainsWhatWillAppear(t *testing.T) {
 }
 
 func TestPageDeclaresIncompleteTotals(t *testing.T) {
-	page := Page(sampleRecords(), 3)
+	page := Page(sampleRecords(), 3, nil, nil)
 
 	if !strings.Contains(page, "incomplete") || !strings.Contains(page, "3") {
 		t.Fatalf("skipped lines were not surfaced: %q", page)
@@ -101,7 +101,7 @@ func TestPageDeclaresIncompleteTotals(t *testing.T) {
 }
 
 func TestPageShowsEffortAndMode(t *testing.T) {
-	page := Page(sampleRecords(), 0)
+	page := Page(sampleRecords(), 0, nil, nil)
 	for _, want := range []string{"high", "low", "code", "chat"} {
 		if !strings.Contains(page, want) {
 			t.Fatalf("page is missing the %q breakdown", want)
@@ -119,7 +119,7 @@ func TestEffortBreakdownFoldsLegacyNames(t *testing.T) {
 		{Kind: "call", Time: day(1), Turn: "t3", Model: "m", Effort: "ultra", Cost: 4},
 	}
 
-	page := Page(records, 0)
+	page := Page(records, 0, nil, nil)
 
 	if strings.Contains(page, ">standard<") || strings.Contains(page, ">ultra<") {
 		t.Fatalf("legacy effort spellings were shown as separate levels: %q", page)
@@ -138,7 +138,7 @@ func TestPageListsRecentSessions(t *testing.T) {
 		stats.Record{Kind: "call", Time: day(3), Session: "sess-a", Turn: "t9",
 			Model: "vendor/big", Mode: "code", Cost: 0.75, PromptTokens: 900})
 
-	page := Page(records, 0)
+	page := Page(records, 0, nil, nil)
 
 	if !strings.Contains(page, "sess-a") {
 		t.Fatalf("recent sessions are missing: %q", page)
@@ -151,7 +151,7 @@ func TestPageListsRecentSessions(t *testing.T) {
 func TestSessionsWithoutAnIDAreNotListed(t *testing.T) {
 	// Records from before sessions were tagged carry no id. A blank row in a
 	// session table is a row nobody can act on.
-	page := Page(sampleRecords(), 0)
+	page := Page(sampleRecords(), 0, nil, nil)
 	if strings.Contains(page, "<h2>Recent sessions</h2>") {
 		t.Fatalf("an untagged history produced an empty session table: %q", page)
 	}

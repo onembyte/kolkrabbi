@@ -19,7 +19,7 @@ import (
 // Page renders the whole dashboard from records already loaded, reporting how
 // many log lines could not be read so a total is never presented as complete
 // when it is not.
-func Page(records []stats.Record, skipped int) string {
+func Page(records []stats.Record, skipped int, cards []SessionCard, shared []SharedCheckout) string {
 	var b strings.Builder
 	b.WriteString(`<!doctype html><html lang="en"><head><meta charset="utf-8">`)
 	b.WriteString(`<meta name="viewport" content="width=device-width,initial-scale=1">`)
@@ -32,9 +32,17 @@ func Page(records []stats.Record, skipped int) string {
 		fmt.Fprintf(&b, `<p class="warn">%d unreadable line(s) in the usage log were skipped, so these totals are incomplete.</p>`, skipped)
 	}
 
+	// Sessions first, and blocked sessions first within that. The usage
+	// history is what happened; a blocked session is what is happening, and it
+	// is the only thing on this page that is waiting for the person reading it.
+	b.WriteString(renderSharedCheckouts(shared))
+	b.WriteString(renderSessionCards(cards))
+
 	rows := stats.Aggregate(records)
 	if len(rows) == 0 {
-		b.WriteString(emptyState)
+		if len(cards) == 0 {
+			b.WriteString(emptyState)
+		}
 		b.WriteString("</body></html>")
 		return b.String()
 	}
@@ -198,6 +206,13 @@ func count(n int) string {
 }
 
 const pageCSS = `
+.cards{display:flex;flex-wrap:wrap;gap:.75rem}
+.card{border:1px solid #d8d8d8;border-radius:6px;padding:.6rem .8rem;min-width:14rem}
+.card.blocked{border-color:#b45309;border-width:2px;background:#fffbeb}
+.card h3{margin:0 0 .25rem;font-size:1rem}
+.card .state{margin:0 0 .2rem;font-size:.85rem}
+.card .meta{margin:0;font-size:.8rem;color:#555}
+
 :root{color-scheme:light dark}
 body{font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;margin:2rem auto;max-width:56rem;padding:0 1rem}
 h1{font-size:1.4rem;margin:0}
