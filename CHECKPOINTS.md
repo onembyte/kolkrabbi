@@ -154,6 +154,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **S10.3 budget & doom-loop guardrails** — chapter limit, dollar budget, timeout, and consecutive failure detection.
 - [x] **S10.4 CLI & slash command surface** — `kolk saga [goal|resume|status|stop|rewind]` and REPL twin `/saga`.
 - [x] **S10.8 the next-chapter planner** — the saga decides one chapter at a time from what the last one achieved, as the doc's napkin test shows.
+- [~] **X6 the dead-export backlog** — seven of the sixteen deleted, one kept with a real reason, nine still to judge.
 - [x] **S10.11 the repair turn** — a chapter whose gates fail gets one attempt to fix itself before its work is discarded, as the doc specifies.
 - [x] **S10.10 the provider guard, everywhere and pinned** — every package audited for the same gap, the guard applied independently of directory isolation, and the property itself under test.
 - [x] **S10.9 the test suite cannot reach a provider** — isolation is no longer something a test can forget, and a stray call now hits a closed port instead of the real API.
@@ -2097,6 +2098,43 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### X6 the dead-export backlog — in progress
+
+X4 left sixteen exported symbols reachable only from tests, marked `untriaged 2026-08-27` in as many
+words rather than dressed up as justified. This is the first pass at judging them.
+
+**Deleted, seven.** The four legacy effort aliases — `EffortQuick`, `EffortStandard`, `EffortDeep`,
+`EffortUltra` — were constants nothing read: `NormalizeEffort` matches the *strings* `"quick"`,
+`"standard"` and so on, and so does the `Efforts` list, so the constants were documentation with a
+compiler behind them. Also `atomicfile.WriteJSON`, `shell.Have` and `shell.Quote`, none of which any
+caller had ever wanted. Their tests went with them; a test for a function nobody calls tests nothing.
+
+**Kept with a real reason, one.** `MaxTasksForEffort` is an exported wrapper around `maxTasksFor`, and
+deleting it broke a test that asserts orchestration width per effort — behaviour worth pinning, and
+unreachable from an external test package any other way. It stays, and the allowlist now says that
+rather than "untriaged".
+
+**Three investigated and found not to be defects**, which is worth recording because each looked like
+one:
+
+- `NewSessionDecider` appeared to mean session-scoped permission retention was never wired. It is
+  superseded instead: E13.7 replaced caching an approved *action* with keeping a visible *rule*, which
+  is strictly better — a user can see and revoke a rule.
+- `NewClaudeSession` is bypassed by `ClaudeBackend`, which builds a `ClaudeSession` directly. That
+  looked like a constructor being ignored; the backend deliberately pairs the session with its own
+  cancel/release so the process outlives the turn, which B12.7 required and the constructor does not
+  do.
+- `shell.Quote` looked like a duplicate of the `shellQuote` written for saga commits. It is not:
+  `shell.Quote` formats a command for display (`dir $ cmd`), while the saga one escapes a title for a
+  shell. Same name, unrelated jobs.
+
+**Nine remain**, and they divide into two kinds. `InstallRuntime`, `NewManagedRuntime` and
+`NewRuntimeSpec` are unreachable *on purpose* — the managed runtime cannot start until `L13.5b4`
+pins a release, which is blocked on the owner. The rest — `Dist`, `NewPlainRenderer`,
+`NewSessionDecider`, `NewClaudeSession`, `VerifySagaChapter` — are leftovers of superseded designs
+and need deleting rather than deciding. Left for the next checkpoint rather than rushed at the end of
+this one.
 
 ### S10.11 the repair turn — verified detail
 

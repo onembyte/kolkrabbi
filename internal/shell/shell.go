@@ -171,18 +171,5 @@ func LookPath(file string) (string, error) {
 }
 
 // Have reports whether an executable is available. It is the question callers
-// actually ask before offering a feature that depends on one.
-func Have(file string) bool {
-	_, err := LookPath(file)
-	return err == nil
-}
 
 // Quote renders a command line for display. It is for humans — a confirmation
-// prompt, a log line — and is never fed back to a shell.
-func Quote(c Cmd) string {
-	s := strings.TrimSpace(c.Command)
-	if c.Dir != "" {
-		return c.Dir + " $ " + s
-	}
-	return "$ " + s
-}

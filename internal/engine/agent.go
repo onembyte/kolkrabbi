@@ -49,12 +49,6 @@ const (
 	EffortMedium = "medium"
 	EffortHigh   = "high"
 	EffortMax    = "max"
-
-	// Legacy aliases preserved for backward compatibility
-	EffortQuick    = EffortLow
-	EffortStandard = EffortMedium
-	EffortDeep     = EffortHigh
-	EffortUltra    = EffortMax
 )
 
 var CanonicalEfforts = []string{EffortLow, EffortMedium, EffortHigh, EffortMax}

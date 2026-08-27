@@ -104,14 +104,14 @@ func TestTUIStatusUsesSessionTitleEffortModelAndWorkingFolder(t *testing.T) {
 	sess := session.New(t.TempDir(), "base/model")
 	sess.Title = "continue the purple TUI"
 	ag := engine.New(engine.Options{
-		Model: "base/model", Mode: engine.ModeCode, Effort: engine.EffortUltra,
+		Model: "base/model", Mode: engine.ModeCode, Effort: engine.EffortMax,
 		Sess: sess, Out: io.Discard,
-		Tiers: map[string]string{engine.EffortUltra: "frontier/ultra-model"},
+		Tiers: map[string]string{engine.EffortMax: "frontier/ultra-model"},
 	})
 
 	got := tuiStatus(ag, "working", "~/kolkrabbi")
 	if got.Session != sess.ID || got.SessionName != sess.Title || got.Folder != "~/kolkrabbi" ||
-		got.Model != "frontier/ultra-model" || got.Effort != engine.EffortUltra ||
+		got.Model != "frontier/ultra-model" || got.Effort != engine.EffortMax ||
 		got.Mode != engine.ModeCode || got.Lifecycle != "working" {
 		t.Fatalf("TUI status did not reflect the live agent: %#v", got)
 	}

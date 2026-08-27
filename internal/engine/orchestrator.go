@@ -13,10 +13,13 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/tools"
 )
 
-// MaxTasksForEffort maps effort to orchestration width.
-func MaxTasksForEffort(effort string) int {
-	return maxTasksFor(effort)
-}
+// MaxTasksForEffort is orchestration width for one effort level.
+//
+// Exported solely so the external test package can assert the width table,
+// which is behaviour worth pinning and unreachable from outside otherwise. It
+// is listed in arch.DeadExportAllowlist for exactly that reason rather than
+// being mistaken for something production calls.
+func MaxTasksForEffort(effort string) int { return maxTasksFor(effort) }
 
 func maxTasksFor(effort string) int {
 	eff, ok := NormalizeEffort(effort)

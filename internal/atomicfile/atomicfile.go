@@ -97,11 +97,3 @@ func Write(path string, data []byte, perm os.FileMode) error {
 
 // WriteJSON is the shape almost every caller wants: marshal, then replace.
 // It exists so that a caller cannot accidentally truncate a good file and then
-// discover the value would not marshal.
-func WriteJSON(path string, v any, perm os.FileMode, marshal func(any) ([]byte, error)) error {
-	b, err := marshal(v)
-	if err != nil {
-		return err
-	}
-	return Write(path, b, perm)
-}

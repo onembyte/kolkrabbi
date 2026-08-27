@@ -180,18 +180,3 @@ func TestWriteReportsAMissingDirectory(t *testing.T) {
 		t.Errorf("err = %v, should say where it got stuck", err)
 	}
 }
-
-func TestWriteJSONDoesNotTruncateOnAMarshalFailure(t *testing.T) {
-	p := filepath.Join(t.TempDir(), "x.json")
-	if err := Write(p, []byte("good"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	boom := func(any) ([]byte, error) { return nil, fmt.Errorf("cannot marshal") }
-	if err := WriteJSON(p, struct{}{}, 0o600, boom); err == nil {
-		t.Fatal("WriteJSON should report a marshal failure")
-	}
-	if b, _ := os.ReadFile(p); string(b) != "good" {
-		t.Errorf("the existing file was damaged by a failed marshal: %q", b)
-	}
-}

@@ -37,22 +37,17 @@ var DeadExportAllowlist = map[string]string{
 	"Overview":   "built for I26.7, which has not landed yet",
 	"ParseRules": "the CLI uses ParseRule per line so one bad rule costs one rule",
 
-	// Untriaged, found 2026-08-27. Each needs a look: some are surface built
-	// ahead of its caller, some are probably deletable.
+	// Triaged 2026-08-27. Seven were deleted outright: the four legacy effort
+	// aliases (NormalizeEffort matches the strings, so the constants were
+	// documentation), atomicfile.WriteJSON, shell.Have and shell.Quote. What
+	// remains is here with a reason.
+	"MaxTasksForEffort": "exported only so the external test package can assert orchestration width",
 	"Dist":              "untriaged 2026-08-27",
-	"EffortDeep":        "untriaged 2026-08-27",
-	"EffortQuick":       "untriaged 2026-08-27",
-	"EffortStandard":    "untriaged 2026-08-27",
-	"EffortUltra":       "untriaged 2026-08-27",
-	"Have":              "untriaged 2026-08-27",
 	"InstallRuntime":    "untriaged 2026-08-27",
-	"MaxTasksForEffort": "untriaged 2026-08-27",
 	"NewClaudeSession":  "untriaged 2026-08-27",
 	"NewManagedRuntime": "untriaged 2026-08-27",
 	"NewPlainRenderer":  "untriaged 2026-08-27",
 	"NewRuntimeSpec":    "untriaged 2026-08-27",
 	"NewSessionDecider": "untriaged 2026-08-27",
-	"Quote":             "untriaged 2026-08-27",
 	"VerifySagaChapter": "untriaged 2026-08-27",
-	"WriteJSON":         "untriaged 2026-08-27",
 }

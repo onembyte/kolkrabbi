@@ -148,25 +148,6 @@ func TestLookPathExplainsItself(t *testing.T) {
 	}
 }
 
-func TestHave(t *testing.T) {
-	known := "go" // the toolchain running this test is on PATH by definition
-	if !Have(known) {
-		t.Errorf("Have(%q) = false, but the tests are running under it", known)
-	}
-	if Have("kolk-definitely-not-installed") {
-		t.Error("Have reported a command that does not exist")
-	}
-}
-
-func TestQuoteIsForHumans(t *testing.T) {
-	if got := Quote(Cmd{Command: "ls -la"}); got != "$ ls -la" {
-		t.Errorf("Quote = %q", got)
-	}
-	if got := Quote(Cmd{Command: "ls", Dir: "/tmp"}); got != "/tmp $ ls" {
-		t.Errorf("Quote = %q", got)
-	}
-}
-
 func TestNameReportsTheInterpreter(t *testing.T) {
 	name := New().Name()
 	if name == "" {

@@ -58,8 +58,8 @@ func TestStoredCredentialBuildsComputedDefaultAgent(t *testing.T) {
 	if ag.Mode != engine.ModeCode {
 		t.Errorf("mode = %q, want computed default %q", ag.Mode, engine.ModeCode)
 	}
-	if ag.Effort != engine.EffortStandard {
-		t.Errorf("effort = %q, want computed default %q", ag.Effort, engine.EffortStandard)
+	if ag.Effort != engine.EffortMedium {
+		t.Errorf("effort = %q, want computed default %q", ag.Effort, engine.EffortMedium)
 	}
 	if strings.Contains(out.String()+errOut.String(), firstRunStoredKey) {
 		t.Fatal("constructing an agent printed the stored credential")
