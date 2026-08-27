@@ -704,7 +704,10 @@ All three are small: they are here because they are cheap, not because they are 
 
 ### [ ] 30. The doom-loop guard
 **Scope:** stop a turn that is repeating itself before it spends the budget.
-**Today:** nothing. A model that calls the same tool with the same arguments forever is bounded only
+**Today:** nothing at the *turn* level, which is what this item is about. Note the saga already has a
+chapter-level doom guard — `StopDoomLoop` in `internal/engine/saga_budget.go`, threshold 3 — so the
+vocabulary and the stop-reason plumbing exist; what is missing is detection inside one turn's tool
+rounds. A model that calls the same tool with the same arguments forever is bounded only
 by the effort dial's tool-round limit, which is a ceiling, not a detector — and every round before
 that ceiling is paid for.
 **Prior art:** OpenCode raises a permission request instead of running the call when the last three
@@ -725,23 +728,37 @@ reset scope are written down with the interaction against item 13's permission t
 
 ### [ ] 31. Command-prefix patterns — making "always allow" mean something
 **Scope:** turning a shell command into the pattern a permission answer is stored against.
-**Today:** item 13 specifies allow/ask/deny rules with last-match-wins and an `always` tier, but
-nothing says how `git status --porcelain` becomes a rule. Storing the literal string is useless the
-moment an argument changes; storing `bash` is dangerous.
+**Today:** more than this row assumed when it was written. **E13.7 shipped a structural derivation**
+in `internal/engine/suggest.go`: `generaliseCommand` takes the first token, or the first two when the
+first is one of eighteen known drivers (`git`, `npm`, `cargo`, `docker`…), so `git status --porcelain`
+is already offered as `allow bash(git status *)`. A compound command — anything containing `|`, `&&`,
+`;`, `>` or a subshell — is never generalised and is offered verbatim, and a destructive first word
+(`rm`, `mv`, `chmod`, `dd`…) is never generalised either. `generalisePath` does the same job for
+path-taking tools by widening to the directory. The prompt shows the derived rule in full before it
+is kept, which is what makes generalising honest.
+
+So the open question is narrower than it looks: **do we replace an eighteen-entry heuristic with a
+139-entry table?** — not "how does a command become a rule".
 **Prior art:** OpenCode ships a 139-entry prefix→arity table (`permission/arity.ts`) where flags never
 count as tokens and the longest matching prefix wins — `git`→2, `npm run`→3, `docker compose`→3,
 `cat`→1 — so an approval can offer `git status *` honestly. The table was LLM-generated and the
 generating prompt is left in the file.
 **Decide:**
-- Whether we carry a table at all, or derive the prefix structurally (first token, plus a second when
-  the first is a known multiplexer). A table is data we must maintain; a heuristic is wrong more often.
+- ~~Whether we carry a table at all, or derive the prefix structurally~~ **Provisionally answered by
+  E13.7: structural, eighteen drivers.** What remains is whether a table beats it — measure how often
+  the heuristic produces a prefix a user would not have chosen, before importing 139 rows of data
+  somebody else generated with an LLM and has to keep correct.
 - Where it lives: `//go:embed`ed JSON, or Go source. Size budget consequences either way.
-- What the confirm prompt offers: the exact command, the derived prefix, the bare tool, or all three.
+- ~~What the confirm prompt offers~~ **Answered by E13.7**: the derived prefix, shown in full, as the
+  `a` option beside `y`/`N`. The bare tool is never offered — `allow bash(*)` from one approval is not
+  something anyone means. Still open: whether the *exact* command should also be offered as a third
+  choice for someone who wants exactly it and nothing more.
 - Pipelines, `&&` chains, subshells, and redirection — which token is "the command", and whether a
   compound command may ever be stored as an `always` rule at all. This is where the hardline blocklist
   and this feature meet, and the blocklist wins.
-- Whether the same mechanism produces patterns for path-taking tools (`read_file`, `edit_file`) or
-  those stay glob-based.
+- ~~Whether the same mechanism produces patterns for path-taking tools~~ **Answered by E13.7**: it
+  does, via `generalisePath`, which widens to the containing directory and leaves a top-level file
+  alone because `write(*)` from one approval is the whole project.
 **Hardened when:** the derivation rule, the compound-command refusal, the storage format, and the
 prompt copy are fixed, and the interaction with item 13's blocklist is stated.
 **Inputs:** `docs/research/opencode.md` §C.1, `docs/plan/13-tools-permissions-sandboxing.md`
