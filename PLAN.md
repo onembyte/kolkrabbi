@@ -186,6 +186,23 @@ engine phases: each of these is a surface over something the phases above decide
 doc before starting the next.
 ```
 
+### Phase H — ship it for real · T0.5, items 19–23
+
+The owner trial gate still has two open boxes, both of them the same missing evidence: nobody has
+proved the flow on a machine with no Go toolchain and no prior Kolkrabbi state. Everything else in
+this phase is distribution, quality, onboarding and the roadmap that records what was refused.
+
+**Exit:** T0.5 closed with a recorded clean-machine rehearsal, both trial-gate boxes green, and the
+owner told the app is ready to try.
+
+```
+/loop close T0.5 of CHECKPOINTS.md: rehearse install, first run, key addition and first model
+response on a machine with no Go toolchain and no prior Kolkrabbi files, record the evidence, then
+harden items 20, 21, 22, 23 and 19 one per iteration.
+```
+
+---
+
 ### Phase I — reach · items 26–29
 
 Kolkrabbi is pinned to the terminal that started it. This phase unpins it, in the shape a two-module
@@ -203,23 +220,6 @@ workspace services is one cheap useful piece (port discovery) attached to two ex
 /loop harden item 26 of PLAN.md, fixing the wildcard-bind hole as its first leaf, then items 27, 28
 and 29 in that order, one item per iteration, writing each doc before starting the next.
 ```
-
-### Phase H — ship it for real · T0.5, items 19–23
-
-The owner trial gate still has two open boxes, both of them the same missing evidence: nobody has
-proved the flow on a machine with no Go toolchain and no prior Kolkrabbi state. Everything else in
-this phase is distribution, quality, onboarding and the roadmap that records what was refused.
-
-**Exit:** T0.5 closed with a recorded clean-machine rehearsal, both trial-gate boxes green, and the
-owner told the app is ready to try.
-
-```
-/loop close T0.5 of CHECKPOINTS.md: rehearse install, first run, key addition and first model
-response on a machine with no Go toolchain and no prior Kolkrabbi files, record the evidence, then
-harden items 20, 21, 22, 23 and 19 one per iteration.
-```
-
----
 
 ## 0. Ground truth — what exists today (verified 2026-08-21)
 
@@ -474,6 +474,118 @@ backend only.
 **Hardened when:** which of the three ship in v0.x, the file formats, and the permission story for third-party tools.
 **Inputs:** `docs/research/ecosystem.md`
 
+## C. Data
+
+### [x] 17. The local dashboard
+**Hardened 2026-08-26** ([`docs/plan/17-local-dashboard.md`](docs/plan/17-local-dashboard.md)): `stats.jsonl` stays the store — a heavy user's year aggregates in 578 ms, so SQLite would cost the third module and the budget gate to buy imperceptible speed; `kolk dash` serves loopback-only, server-rendered SVG with no JavaScript library. — model efficiency, session by session (Braintrust, but local and yours)
+**Scope:** what we record, how we score, what we show, where it lives. 100% local, zero telemetry.
+**Today:** `stats.jsonl` (per call: model, mode, effort, role, tokens, cost, ms, tool_calls) + `/rate` rows; `kolk stats` per-model table (calls, tokens, cost, avg ms, rating, modes).
+**Decide:**
+- Data model: SQLite (pure-Go driver, WAL) vs JSONL + derived views; tables sessions / turns / spans (llm_call, tool_call, subagent) / scores / tags; mirror OpenTelemetry GenAI attributes so OTLP export is trivial later; price snapshots per model over time. *Research recommendation:* `modernc.org/sqlite` + keep `stats.jsonl` as raw log; start from the 7-table schema in `docs/research/dashboard.md` §4 — confirm or amend it.
+- Signals to capture automatically: tokens (incl. cached), cost, latency (TTFT + total), tool calls/errors, rounds per turn, rewinds (negative), tests passed after edit (positive), user re-asks, interruptions.
+- Scoring: manual `/rate`, implicit signals, optional LLM-judge via the fast lane (off by default; cost shown), custom scorers per session.
+- "Session by session, depending on the user's needs": per-session goal/tags, choose which scorers apply, compare models on the same prompt (A/B / `kolk compare`), per-mode/effort/role breakdowns, cost per accepted edit, rating per $, latency percentiles, trend over time.
+- Delivery: `kolk stats` (table, now) → `kolk dash` (embedded web UI on localhost, single binary, light charting) → export CSV/JSON/OTLP; TUI view optional.
+- Operations: retention/pruning, DB size, schema migrations, privacy guarantees written down (nothing leaves the machine; redaction of prompts optional).
+**Hardened when:** schema DDL, signal list, v1 views (top 5), dashboard delivery decision, migration from `stats.jsonl`.
+**Inputs:** `docs/research/dashboard.md`
+
+### [x] 18. Config system — **hardened → [`docs/plan/18-config.md`](docs/plan/18-config.md)**
+**Decision:** a closed, typed key registry in `internal/config` resolved through five links (flag > env > project > user > computed default) where every default is computed and no key is required. The file is `paths.Config()/config.json`: flat depth-one JSONC (comments + trailing commas), read via a blanking pass + stdlib, written by a byte-splice that never reserializes so `kolk config set` cannot eat a comment; no dependency added. Eight string keys in v0.1; credentials are never settings (arch rule S5 extended). Project config ships the ratchet boundary first (`Kind`/`ProjectOK`/`Tighter`, can only tighten), loader deferred to v0.2 behind item 13's `permission.rules`. Prototype migration: sessions/stats move (`paths.Migrate`), key evacuates (`keystore.MigrateLegacyConfig`), nested `tiers` flatten through an alias table with the quick→low vocabulary rename — idempotent, crash-safe, no write-back under old names.
+**Scope:** formats, locations, precedence, UX.
+**Today:** `~/.config/kolk/config.json` {api_key, model, base_url, tiers}; env overrides; `kolk config set-* | show`.
+**Decide:**
+- Format: JSON (now) vs TOML/YAML/JSON5 (comments!) — and a schema with validation + `kolk config doctor`.
+- Layers & precedence: flags > env > project `.kolk/config.*` > user > defaults; per-mode and per-profile sections; secrets separated from config (item 5).
+- UX: `kolk config get/set/unset/edit/path/show`, dotted keys (`code.effort.high.model`), `/config` in-REPL read-only view.
+- Migration of the prototype's file; versioned config with auto-upgrade.
+**Hardened when:** config schema document + precedence table + migration note.
+**Inputs:** `docs/research/ecosystem.md`
+
+## D. Platform & delivery
+
+### [ ] 19. Desktop & iPad path (decided early, built later)
+**Scope:** don't block the future; pick the shape now, build after CLI v1.
+**Today:** nothing (CLI only).
+**Decide:**
+- Desktop: Wails v3 (Go-native webview; **in Beta**, beta.12 2026-08-21) vs Tauri v2 + Go sidecar vs Electron + sidecar; what desktop adds (dashboard, session browser, multiple parallel sessions, notifications). Shared protocol = the daemon API from item 2; defer the shell choice until that protocol exists.
+- iPad: iPadOS apps can't spawn shells/toolchains → code mode on iPad means **remote execution** (kolk daemon on a Mac/Linux box over Tailscale/SSH) or chat-only local; Swift client vs gomobile-bound core; App Store constraints. Pragmatic v1: run kolk on your Mac, use it from iPad via a terminal app (Blink/Termius + mosh) + the web dashboard over Tailscale.
+- Protocol requirements these impose on the core *now*: streaming events, session multiplexing, auth on localhost, versioning.
+**Hardened when:** a one-page platform strategy with the chosen stacks, what ships when, and the protocol constraints list.
+**Inputs:** `docs/research/platform-strategy.md`
+
+### [ ] 20. Distribution, updates & CI
+**Scope:** how people get and update kolk.
+**Decide:**
+- Install paths: `curl | sh` script, Homebrew tap, `go install`, GitHub Releases (goreleaser), later scoop/winget/AUR; checksums/signing; macOS notarization (needed once there's a desktop app; CLI maybe).
+- `kolk update` self-update vs package managers only; version check (opt-in, local-only otherwise).
+- CI: test matrix (macOS/Linux), lint (golangci-lint), release on tag, size/startup budget checks, weekly live smoke test against free models (opt-in secret).
+**Hardened when:** release pipeline spec + install docs + budget checks in CI.
+**Inputs:** —
+
+### [ ] 21. Quality, testing & security
+**Scope:** how we stay correct as it grows.
+**Today:** 22 offline tests incl. e2e via `mockrouter`; SSE fragmentation covered.
+**Decide:**
+- Test pyramid: unit, `mockrouter` e2e per mode/effort/saga, golden output tests for the TUI, fuzzing the SSE/tool-arg parsers, property tests for edit tool; optional live tests.
+- Error UX matrix: 401/402/404/408/429/5xx, network drop mid-stream, model lacking tool support, context overflow — each with a clear message and a next action.
+- Observability for us: `--debug` log file with redaction, `kolk doctor` (keys, network, model access, terminal caps).
+- Security review checklist: secrets, command injection via tool args, path traversal, prompt injection from files/web, supply chain (deps policy, pinned actions).
+**Hardened when:** test plan + error matrix + security checklist committed.
+**Inputs:** —
+
+### [ ] 22. Onboarding & docs
+**Scope:** the first 60 seconds and the reference.
+**Decide:**
+- First run: no key → offer "login with OpenRouter" or paste; free models preloaded and mapped to efforts; pick a default mode; show `/help` once; a 3-line "how to switch mode/effort/model".
+- Docs: README (vision + quickstart), `docs/` (commands, config, modes, effort, saga, dashboard, providers, subscriptions policy), demo GIFs (vhs), CHANGELOG.
+- Built-in help: `kolk help <topic>` generated from the command table; `/help` contextual per mode.
+**Hardened when:** onboarding flow script + docs outline + README rewrite.
+**Inputs:** `docs/research/orcli.md`, `docs/research/ecosystem.md`
+
+### [ ] 23. Roadmap, phasing & explicit non-goals
+**Scope:** order of work and what we refuse to do (for now).
+**Decide:**
+- Phases (proposal): **v0.1** polish prototype → module path/CI, `model`/`effort` verbs, free-model defaults, effort per mode, stats kept; **v0.2** TUI + multiline, sessions/compaction, `saga`; **v0.3** dashboard (SQLite + `kolk dash`), MCP, parallel agent mode + routing; **v0.4** subscription backends if permitted, sandboxing; **v1.0** daemon API frozen, desktop; **later** iPad.
+- Definition of done per phase; what's measured (startup, binary size, test count, cost per task on the dashboard).
+- Non-goals for now: Windows polish, plugins in Go, cloud sync, telemetry of any kind, a hosted service.
+**Hardened when:** phased roadmap with DoD and the non-goals list, reflected in README and GitHub milestones.
+**Inputs:** all of the above
+
+### [~] 24. Subscription provider matrix and login backends
+**Scope:** make subscription and plan coverage explicit without conflating consumer accounts with API access.
+The inventory and acceptance gates live in [`docs/plan/24-subscription-provider-matrix.md`](docs/plan/24-subscription-provider-matrix.md).
+
+- [~] Anthropic Claude Free/Pro/Max/Team/Enterprise via the user's own CLI handover — shipped
+  2026-08-26 as checkpoints P11 (plans, connectors, `kolk plans login`) and B12 (persistent
+  `ClaudeBackend` over `claude -p --output-format stream-json`). Still open: proof the provider
+  actually authenticated, connector→backend selection for a new session, and failure-path tests.
+- [ ] OpenAI ChatGPT Free/Plus/Pro/Business/Enterprise via a permitted Codex/first-party CLI path.
+- [ ] Google Gemini Free/AI Pro/AI Ultra/Workspace via documented API access.
+- [ ] xAI Grok consumer/business plans.
+- [ ] Perplexity Pro/Max/Enterprise.
+- [ ] Mistral Le Chat Free/Pro/Team/Enterprise.
+- [ ] DeepSeek, Qwen/Alibaba, GitHub Copilot, and Cohere plans.
+- [ ] For every provider: terms review, capability matrix, billing-mode labeling,
+  offline fixtures, and credential-redaction tests.
+
+### [~] 25. Managed local models
+**Scope:** first-party local inference that never touches a host-owned Ollama install.
+The contract lives in [`docs/plan/25-managed-local-models.md`](docs/plan/25-managed-local-models.md).
+
+- [x] Kolk-owned versioned sidecar, private endpoint, and a model store inside Kolk's data directory.
+- [x] Runtime lifecycle: validate before start, start at most once, close with the session.
+- [ ] Hardware probe with the fixed `{accelerators, system_ram_bytes, disk_free_bytes}` shape that
+  fails closed to "unknown" and never lets a missing probe authorize a pull.
+- [ ] Fit planner: show size, required VRAM/RAM, reserved headroom, and fallback before any pull;
+  refuse what does not fit instead of degrading into swap.
+- [ ] `/localia` and its CLI twin, with parity tests that need neither a GPU nor Ollama.
+**Hardened when:** the contract doc's five TDD checkpoints are closed and a manual GPU smoke test is
+recorded as separate evidence.
+**Inputs:** items 3, 8, 13, 18
+
+---
+
 ## E. Reach — the machine is not the only place you are
 
 These four came from reading [t3code](https://github.com/pingdotgg/t3code) (2026-08-26), which is a
@@ -553,118 +665,6 @@ PR provider list is decided — including the refusals.
   Decide whether it earns its place or is cut.
 **Hardened when:** port discovery specified, the supervise-or-report line drawn, and telemetry either
 justified or refused in writing.
-
-## C. Data
-
-### [x] 17. The local dashboard
-**Hardened 2026-08-26** ([`docs/plan/17-local-dashboard.md`](docs/plan/17-local-dashboard.md)): `stats.jsonl` stays the store — a heavy user's year aggregates in 578 ms, so SQLite would cost the third module and the budget gate to buy imperceptible speed; `kolk dash` serves loopback-only, server-rendered SVG with no JavaScript library. — model efficiency, session by session (Braintrust, but local and yours)
-**Scope:** what we record, how we score, what we show, where it lives. 100% local, zero telemetry.
-**Today:** `stats.jsonl` (per call: model, mode, effort, role, tokens, cost, ms, tool_calls) + `/rate` rows; `kolk stats` per-model table (calls, tokens, cost, avg ms, rating, modes).
-**Decide:**
-- Data model: SQLite (pure-Go driver, WAL) vs JSONL + derived views; tables sessions / turns / spans (llm_call, tool_call, subagent) / scores / tags; mirror OpenTelemetry GenAI attributes so OTLP export is trivial later; price snapshots per model over time. *Research recommendation:* `modernc.org/sqlite` + keep `stats.jsonl` as raw log; start from the 7-table schema in `docs/research/dashboard.md` §4 — confirm or amend it.
-- Signals to capture automatically: tokens (incl. cached), cost, latency (TTFT + total), tool calls/errors, rounds per turn, rewinds (negative), tests passed after edit (positive), user re-asks, interruptions.
-- Scoring: manual `/rate`, implicit signals, optional LLM-judge via the fast lane (off by default; cost shown), custom scorers per session.
-- "Session by session, depending on the user's needs": per-session goal/tags, choose which scorers apply, compare models on the same prompt (A/B / `kolk compare`), per-mode/effort/role breakdowns, cost per accepted edit, rating per $, latency percentiles, trend over time.
-- Delivery: `kolk stats` (table, now) → `kolk dash` (embedded web UI on localhost, single binary, light charting) → export CSV/JSON/OTLP; TUI view optional.
-- Operations: retention/pruning, DB size, schema migrations, privacy guarantees written down (nothing leaves the machine; redaction of prompts optional).
-**Hardened when:** schema DDL, signal list, v1 views (top 5), dashboard delivery decision, migration from `stats.jsonl`.
-**Inputs:** `docs/research/dashboard.md`
-
-### [x] 18. Config system — **hardened → [`docs/plan/18-config.md`](docs/plan/18-config.md)**
-**Decision:** a closed, typed key registry in `internal/config` resolved through five links (flag > env > project > user > computed default) where every default is computed and no key is required. The file is `paths.Config()/config.json`: flat depth-one JSONC (comments + trailing commas), read via a blanking pass + stdlib, written by a byte-splice that never reserializes so `kolk config set` cannot eat a comment; no dependency added. Eight string keys in v0.1; credentials are never settings (arch rule S5 extended). Project config ships the ratchet boundary first (`Kind`/`ProjectOK`/`Tighter`, can only tighten), loader deferred to v0.2 behind item 13's `permission.rules`. Prototype migration: sessions/stats move (`paths.Migrate`), key evacuates (`keystore.MigrateLegacyConfig`), nested `tiers` flatten through an alias table with the quick→low vocabulary rename — idempotent, crash-safe, no write-back under old names.
-**Scope:** formats, locations, precedence, UX.
-**Today:** `~/.config/kolk/config.json` {api_key, model, base_url, tiers}; env overrides; `kolk config set-* | show`.
-**Decide:**
-- Format: JSON (now) vs TOML/YAML/JSON5 (comments!) — and a schema with validation + `kolk config doctor`.
-- Layers & precedence: flags > env > project `.kolk/config.*` > user > defaults; per-mode and per-profile sections; secrets separated from config (item 5).
-- UX: `kolk config get/set/unset/edit/path/show`, dotted keys (`code.effort.high.model`), `/config` in-REPL read-only view.
-- Migration of the prototype's file; versioned config with auto-upgrade.
-**Hardened when:** config schema document + precedence table + migration note.
-**Inputs:** `docs/research/ecosystem.md`
-
-## D. Platform & delivery
-
-### [ ] 19. Desktop & iPad path (decided early, built later)
-**Scope:** don't block the future; pick the shape now, build after CLI v1.
-**Today:** nothing (CLI only).
-**Decide:**
-- Desktop: Wails v3 (Go-native webview; **in Beta**, beta.12 2026-08-21) vs Tauri v2 + Go sidecar vs Electron + sidecar; what desktop adds (dashboard, session browser, multiple parallel sessions, notifications). Shared protocol = the daemon API from item 2; defer the shell choice until that protocol exists.
-- iPad: iPadOS apps can't spawn shells/toolchains → code mode on iPad means **remote execution** (kolk daemon on a Mac/Linux box over Tailscale/SSH) or chat-only local; Swift client vs gomobile-bound core; App Store constraints. Pragmatic v1: run kolk on your Mac, use it from iPad via a terminal app (Blink/Termius + mosh) + the web dashboard over Tailscale.
-- Protocol requirements these impose on the core *now*: streaming events, session multiplexing, auth on localhost, versioning.
-**Hardened when:** a one-page platform strategy with the chosen stacks, what ships when, and the protocol constraints list.
-**Inputs:** `docs/research/platform-strategy.md`
-
-### [ ] 20. Distribution, updates & CI
-**Scope:** how people get and update kolk.
-**Decide:**
-- Install paths: `curl | sh` script, Homebrew tap, `go install`, GitHub Releases (goreleaser), later scoop/winget/AUR; checksums/signing; macOS notarization (needed once there's a desktop app; CLI maybe).
-- `kolk update` self-update vs package managers only; version check (opt-in, local-only otherwise).
-- CI: test matrix (macOS/Linux), lint (golangci-lint), release on tag, size/startup budget checks, weekly live smoke test against free models (opt-in secret).
-**Hardened when:** release pipeline spec + install docs + budget checks in CI.
-**Inputs:** —
-
-### [ ] 21. Quality, testing & security
-**Scope:** how we stay correct as it grows.
-**Today:** 22 offline tests incl. e2e via `mockrouter`; SSE fragmentation covered.
-**Decide:**
-- Test pyramid: unit, `mockrouter` e2e per mode/effort/saga, golden output tests for the TUI, fuzzing the SSE/tool-arg parsers, property tests for edit tool; optional live tests.
-- Error UX matrix: 401/402/404/408/429/5xx, network drop mid-stream, model lacking tool support, context overflow — each with a clear message and a next action.
-- Observability for us: `--debug` log file with redaction, `kolk doctor` (keys, network, model access, terminal caps).
-- Security review checklist: secrets, command injection via tool args, path traversal, prompt injection from files/web, supply chain (deps policy, pinned actions).
-**Hardened when:** test plan + error matrix + security checklist committed.
-**Inputs:** —
-
-### [ ] 22. Onboarding & docs
-**Scope:** the first 60 seconds and the reference.
-**Decide:**
-- First run: no key → offer "login with OpenRouter" or paste; free models preloaded and mapped to efforts; pick a default mode; show `/help` once; a 3-line "how to switch mode/effort/model".
-- Docs: README (vision + quickstart), `docs/` (commands, config, modes, effort, saga, dashboard, providers, subscriptions policy), demo GIFs (vhs), CHANGELOG.
-- Built-in help: `kolk help <topic>` generated from the command table; `/help` contextual per mode.
-**Hardened when:** onboarding flow script + docs outline + README rewrite.
-**Inputs:** `docs/research/orcli.md`, `docs/research/ecosystem.md`
-
-### [ ] 23. Roadmap, phasing & explicit non-goals
-**Scope:** order of work and what we refuse to do (for now).
-**Decide:**
-- Phases (proposal): **v0.1** polish prototype → module path/CI, `model`/`effort` verbs, free-model defaults, effort per mode, stats kept; **v0.2** TUI + multiline, sessions/compaction, `saga`; **v0.3** dashboard (SQLite + `kolk dash`), MCP, parallel agent mode + routing; **v0.4** subscription backends if permitted, sandboxing; **v1.0** daemon API frozen, desktop; **later** iPad.
-- Definition of done per phase; what's measured (startup, binary size, test count, cost per task on the dashboard).
-- Non-goals for now: Windows polish, plugins in Go, cloud sync, telemetry of any kind, a hosted service.
-**Hardened when:** phased roadmap with DoD and the non-goals list, reflected in README and GitHub milestones.
-**Inputs:** all of the above
-
-### [ ] 24. Subscription provider matrix and login backends
-**Scope:** make subscription and plan coverage explicit without conflating consumer accounts with API access.
-The inventory and acceptance gates live in [`docs/plan/24-subscription-provider-matrix.md`](docs/plan/24-subscription-provider-matrix.md).
-
-- [~] Anthropic Claude Free/Pro/Max/Team/Enterprise via the user's own CLI handover — shipped
-  2026-08-26 as checkpoints P11 (plans, connectors, `kolk plans login`) and B12 (persistent
-  `ClaudeBackend` over `claude -p --output-format stream-json`). Still open: proof the provider
-  actually authenticated, connector→backend selection for a new session, and failure-path tests.
-- [ ] OpenAI ChatGPT Free/Plus/Pro/Business/Enterprise via a permitted Codex/first-party CLI path.
-- [ ] Google Gemini Free/AI Pro/AI Ultra/Workspace via documented API access.
-- [ ] xAI Grok consumer/business plans.
-- [ ] Perplexity Pro/Max/Enterprise.
-- [ ] Mistral Le Chat Free/Pro/Team/Enterprise.
-- [ ] DeepSeek, Qwen/Alibaba, GitHub Copilot, and Cohere plans.
-- [ ] For every provider: terms review, capability matrix, billing-mode labeling,
-  offline fixtures, and credential-redaction tests.
-
-### [~] 25. Managed local models
-**Scope:** first-party local inference that never touches a host-owned Ollama install.
-The contract lives in [`docs/plan/25-managed-local-models.md`](docs/plan/25-managed-local-models.md).
-
-- [x] Kolk-owned versioned sidecar, private endpoint, and a model store inside Kolk's data directory.
-- [x] Runtime lifecycle: validate before start, start at most once, close with the session.
-- [ ] Hardware probe with the fixed `{accelerators, system_ram_bytes, disk_free_bytes}` shape that
-  fails closed to "unknown" and never lets a missing probe authorize a pull.
-- [ ] Fit planner: show size, required VRAM/RAM, reserved headroom, and fallback before any pull;
-  refuse what does not fit instead of degrading into swap.
-- [ ] `/localia` and its CLI twin, with parity tests that need neither a GPU nor Ollama.
-**Hardened when:** the contract doc's five TDD checkpoints are closed and a manual GPU smoke test is
-recorded as separate evidence.
-**Inputs:** items 3, 8, 13, 18
-
----
 
 ## Appendix A — research inputs (2026-08-21)
 

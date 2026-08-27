@@ -2027,6 +2027,49 @@ Acceptance checklist:
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
 
+### Plan and ledger audit, 2026-08-27 — recorded detail
+
+A read-only pass over PLAN.md and CHECKPOINTS.md looking for claims that had drifted from the tree.
+Six things were out of place; none was a false completion claim, which is the finding that would have
+mattered most.
+
+**Every Go file the ledger names exists**, except three — `internal/dash/handler.go`, `ingest.go` and
+`query.go` — and all three sit inside boxes that were never ticked. Nothing claims work that is not
+there.
+
+**Two of the six were mine, from inserting new material without reading around it.** Section E (Reach)
+went in before "## C. Data", so the plan read A, B, E, C, D. Phase I went in before Phase H for the
+same reason. Both moved.
+
+**Item 24 was `[ ]` while carrying a linked doc and shipped work.** The legend at the top of the plan
+says `[~]` is in progress and `[x]` is hardened with a doc, and item 24's own Anthropic row is `[~]`
+with two named checkpoints. Corrected to `[~]`.
+
+**A12 promised a store the plan had already refused.** Its headline still read "SQLite ingest and
+measured size/startup budget changes" while its own child A12.2 recorded the measurement that killed
+SQLite — 578 ms for a heavy user's year from `stats.jsonl`, against a third module the budget gate
+hard-fails on. A12.3 and A12.4 described the same dead shape and are now marked superseded with the
+same reason, keeping the parts that survive: live bus ingest is still unbuilt and still wanted, and
+whether `/v1/stats/*` belongs on `kolk serve` is a question for item 26.
+
+**A12.1 was done and unticked.** `internal/dash/dist/index.html` and `internal/dash/embed.go` both
+exist. An unticked box that is actually finished is the cheaper of the two errors, but it still makes
+the ledger lie about how much is left.
+
+Not changed, and worth naming rather than quietly fixing: **every hardened item's "Today:" line is
+stale.** Item 11 still says "single-line stdin REPL" beneath a Hardened line describing 3,600 lines of
+TUI. They read as a snapshot from when the item was written and the Hardened line supersedes them, so
+rewriting twenty of them would be churn — but a new reader will trip over it.
+
+Acceptance checklist:
+
+- [x] every Go path named in a ticked leaf exists.
+- [x] the three missing paths sit in unticked boxes, not completed ones.
+- [x] section and phase ordering corrected.
+- [x] item states match the legend the plan defines.
+- [x] leaves describing refused work are marked superseded, not left open.
+- [x] full `make check` green after the edits.
+
 ### I27.2 the session overview — verified detail
 
 `session.List` loads every message of every session. For `kolk sessions` that is fine; for a list a
@@ -4587,14 +4630,14 @@ proceed without changing repository visibility, tags, releases, or deployments.
   - [x] **A11.5 listeners & architecture registration** — implement `listen.go`, and register `internal/serve` & `cmd/kolkd` in `internal/arch/layers.go`.
   - [x] **A11.6 stream conformance test** — implement `internal/serve/conform_test.go` verifying byte-identical JSON bodies between NDJSON and SSE against `spec/testdata/streams/*.ndjson`.
   - [x] **A11.7 cli serve & daemon binary** — implement `kolk serve` in `internal/cli/cmd_serve.go` and daemon entrypoint `cmd/kolkd/main.go`.
-- [ ] **A12 local dashboard store** — SQLite ingest and measured size/startup budget changes.
-  - [ ] **A12.1 embedded assets & sentinel** — commit `internal/dash/dist/index.html` placeholder sentinel and `internal/dash/embed.go`.
+- [~] **A12 local dashboard store** — the SQLite half is superseded by `docs/plan/17-local-dashboard.md`; `stats.jsonl` stays the store. What remains here is the embedded-asset work, and A12.3/A12.4 below describe a store this project decided not to build.
+  - [x] **A12.1 embedded assets & sentinel** — `internal/dash/dist/index.html` and `internal/dash/embed.go` both exist; ticked 2026-08-27 during a plan audit that found the work done and the box unchecked.
   - [~] **A12.2 sqlite store & migrations** — **superseded 2026-08-26 by `docs/plan/17-local-dashboard.md`.**
   A heavy user's year aggregates from `stats.jsonl` in 578 ms, so SQLite would spend the third
   third-party module — a hard budget-gate failure — to buy imperceptible speed. Revisit only when a
   real `kolk stats` run exceeds 2 s.
-  - [ ] **A12.3 jsonl ingestion & event ingest** — implement `internal/dash/ingest.go` importing existing `stats.jsonl` into SQLite and subscribing to live bus events.
-  - [ ] **A12.4 queries & handler endpoints** — implement `internal/dash/query.go` and `internal/dash/handler.go` mounting `/dash/*` and `/v1/stats/*`.
+  - [~] **A12.3 jsonl ingestion & event ingest** — **superseded 2026-08-27, same reason as A12.2**: there is no SQLite to import into. `stats.jsonl` is read directly. Live bus ingest is not superseded and remains unbuilt.
+  - [~] **A12.4 queries & handler endpoints** — **partly superseded 2026-08-27**: `internal/dash/page.go` serves the dashboard from `stats.jsonl`, so `query.go` and `handler.go` describe a shape that was not built. Whether `/v1/stats/*` should exist on `kolk serve` is still open and belongs to item 26.
   - [ ] **A12.5 budget & arch verification** — measure binary size and cold start and verify `make check`.
   The dependency ceiling is **no longer raised**: item 17 keeps the store dependency-free.
 - [ ] **A13 Windows** — replace every honest stub and make Windows CI required.
