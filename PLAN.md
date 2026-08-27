@@ -463,7 +463,8 @@ backend only.
 **Hardened when:** code-mode feature list by version, edit-tool spec, plan-mode flow.
 **Inputs:** `docs/research/ecosystem.md`
 
-### [ ] 16. Extensibility — MCP, skills/commands, hooks
+### [x] 16. Extensibility — MCP, skills/commands, hooks
+**Hardened 2026-08-27** ([`docs/plan/16-extensibility.md`](docs/plan/16-extensibility.md)): markdown commands ship first because they add no dependency, no process and no permission surface — a `/name` that expands to a prompt is a prompt, and Claude Code's `.claude/commands` are read as a fallback rather than imported. Hooks ship second with the permission story as the design: three post-events only, confirmed once per command like a rule, floor applies, failures reported not fatal, and **no `pre-tool` hook** because a hook that can veto a tool call is a second permission system. MCP is deferred with two named blockers — `ruleFamilies` cannot name an MCP tool, so governing one is impossible today, and tool schemas already cost ~5 KB per request before a server adds a dozen more. No dynamic Go loading, ever: a plugin in the agent's address space shares its credentials and its floor.
 **Scope:** how users add capabilities without forking.
 **Today:** none.
 **Decide:**

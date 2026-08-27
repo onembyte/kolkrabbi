@@ -2099,6 +2099,51 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### Item 16 hardened — recorded detail
+
+The last item blocking phase G, and the one item 15 deliberately pushed work into: formatter hooks
+were sent here on the grounds that "the permission story is the design". It is.
+
+**The order is forced, not chosen.** Markdown commands first because they add no dependency, no
+process and no permission surface — a `/name` that expands to a prompt *is* a prompt, judged exactly
+as if the user had typed it. Hooks second because they are the opposite: a shell command running with
+nobody at the prompt, which is the single thing E13 spent a phase making impossible by accident. MCP
+last because it cannot be governed yet.
+
+**Two things the tree already provides made this easier to write than expected.** `Permission.Judge`
+ends in `default: return VerdictAsk, "unrecognised tool"` — a tool nobody has heard of already asks
+rather than runs, which is exactly the right posture for a third-party tool and is already there. And
+`internal/shell` being the only package allowed `os/exec` means every extension's subprocess goes
+through one audited door.
+
+**One thing it does not provide is MCP's blocker.** `ruleFamilies` knows `bash`, `read` and `write`.
+A tool named `github__create_issue` belongs to none of them, so `allow mcp(github__*)` means nothing
+and the only honest posture is asking every time — which makes a twelve-tool server unusable. That is
+a real gap with a shape, so MCP is deferred *with a named blocker* rather than "later". The second
+blocker is measured rather than asserted: the five built-in schemas are already about 5 KB of every
+request, and the research records exactly this failure in Hermes and Goose.
+
+**Refusals, written down rather than left implicit.** No dynamic Go loading, ever — a plugin in the
+agent's address space shares its filesystem access, its credentials and its floor. No `pre-tool` hook,
+because a hook that can veto a tool call is a second permission system and E13 exists so there is
+exactly one. No executable markdown commands, which would be a hook wearing a friendlier name. And no
+project hook running unseen: a `.kolk/hooks.json` in a cloned repository is a shell command a stranger
+wrote, so cloning must not be enough to execute anything.
+
+**Claude Code's `.claude/commands` are read, not imported.** Someone who already wrote them should not
+have to move them to try Kolkrabbi, and a conversion step would make every future divergence our
+problem to explain.
+
+Acceptance checklist:
+
+- [x] every "Decide" bullet resolved, including which of the three ship and in what order.
+- [x] the file formats specified for commands and hooks.
+- [x] the permission story for third-party tools written down, and the existing safe default found rather than invented.
+- [x] MCP deferred with two named, checkable blockers instead of a date.
+- [x] four refusals recorded with their reasons.
+- [x] five build leaves named, one of which (`mcp(...)` rules) is useful before MCP exists.
+- [x] full `make check` green: 2,057 tests, 0 lint issues.
+
 ### X6 the dead-export backlog — verified detail
 
 X4 left sixteen exported symbols reachable only from tests, marked `untriaged 2026-08-27` in as many
@@ -5455,7 +5500,7 @@ phase must close without leaving this file.
 | D the local dashboard | 17 | doc ✓, D17.1–D17.3 ✓; A12.2–A12.4 superseded | complete |
 | E tools, permissions, sandboxing | 13 | doc ✓, E13.1–E13.7 ✓ | complete; OS sandbox matrix deferred |
 | F orchestration & per-task routing | 14 | doc ✓, F14.1–F14.6 ✓ | complete |
-| G the surface | 11, 15, 16 | docs ✓ for 11 and 15, G11.1–G11.6 ✓, G15.1–G15.3 ✓ | item 16 not started |
+| G the surface | 11, 15, 16 | docs ✓ for all three, G11.1–G11.6 ✓, G15.1–G15.3 ✓ | item 16 hardened, G16 leaves queued |
 | I reach | 26–29 | doc ✓ for 26, I26.1–I26.6 ✓, I27.1–I27.2 ✓ | I26.7 blocked on I27; items 27–29 undocced |
 | H ship it for real | T0.5, 19–23 | T0.5 then doc per item | queued |
 
