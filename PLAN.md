@@ -221,6 +221,25 @@ workspace services is one cheap useful piece (port discovery) attached to two ex
 and 29 in that order, one item per iteration, writing each doc before starting the next.
 ```
 
+### Phase J — borrowed hardening · items 30, 31, 32
+
+Added 2026-08-27. Three small items lifted from a source-level read of OpenCode
+([`docs/research/opencode.md`](docs/research/opencode.md)), each closing a gap an already-hardened doc
+left open. They are ordered cheapest-first and none of them blocks another phase. Items 30 and 31 are
+amendments to item 13's model and should be hardened together; item 32 is independent and can be
+built as soon as it is hardened.
+
+**Exit:** `docs/plan/30-doom-loop.md`, `docs/plan/31-command-prefix-patterns.md` and
+`docs/plan/32-shadow-git-snapshots.md` written, all three items ticked, no production code before
+the docs exist.
+
+```
+/loop harden items 30 and 31 of PLAN.md together in one iteration each, then item 32: read the item,
+its prior-art section in docs/research/opencode.md, and the hardened doc it amends (13 for 30 and 31,
+15 and 12 for 32); resolve every "Decide" bullet; write docs/plan/NN-slug.md from the template in
+docs/plan/README.md; tick the item with a one-line decision. Stop when all three are hardened.
+```
+
 ## 0. Ground truth — what exists today (verified 2026-08-21)
 
 Extracted from `kolkrabbi.tar` into this directory. Go 1.22 module `kolkrabbi` (built here with
@@ -465,6 +484,7 @@ backend only.
 
 ### [x] 16. Extensibility — MCP, skills/commands, hooks
 **Hardened 2026-08-27** ([`docs/plan/16-extensibility.md`](docs/plan/16-extensibility.md)): markdown commands ship first because they add no dependency, no process and no permission surface — a `/name` that expands to a prompt is a prompt, and Claude Code's `.claude/commands` are read as a fallback rather than imported. Hooks ship second with the permission story as the design: three post-events only, confirmed once per command like a rule, floor applies, failures reported not fatal, and **no `pre-tool` hook** because a hook that can veto a tool call is a second permission system. MCP is deferred with two named blockers — `ruleFamilies` cannot name an MCP tool, so governing one is impossible today, and tool schemas already cost ~5 KB per request before a server adds a dozen more. No dynamic Go loading, ever: a plugin in the agent's address space shares its credentials and its floor.
+**Later evidence (2026-08-27, [`docs/research/opencode.md`](docs/research/opencode.md) §C.4):** a source-level read of OpenCode arrived after this item was hardened and confirms rather than reopens it — their `.claude` compatibility is exactly "read it natively, never import", and the one hook we refused, a `pre-tool` veto, is the one they shipped (`permission.ask`) and then had to reconcile with their permission engine. Two things it leaves for later: their scan also reads `.claude/skills/**/SKILL.md` and `.agents/skills/**/SKILL.md`, which this item's spec does not cover because it ships commands and not skills; and `auth` is one of their hook points, which belongs to item 24 and is recorded there.
 **Scope:** how users add capabilities without forking.
 **Today:** none.
 **Decide:**
@@ -473,7 +493,7 @@ backend only.
 - Hooks: pre/post tool-call shell hooks (lint after edit, notify on stop), config format, safety.
 - Plugin boundary: keep the core small; plugins = MCP + markdown + hooks, no dynamic Go loading.
 **Hardened when:** which of the three ship in v0.x, the file formats, and the permission story for third-party tools.
-**Inputs:** `docs/research/ecosystem.md`
+**Inputs:** `docs/research/ecosystem.md`, `docs/research/opencode.md` §C.4
 
 ## C. Data
 
@@ -555,6 +575,7 @@ backend only.
 
 ### [~] 24. Subscription provider matrix and login backends
 **Scope:** make subscription and plan coverage explicit without conflating consumer accounts with API access.
+**Evidence (2026-08-27, [`docs/research/opencode.md`](docs/research/opencode.md) §C.4):** OpenCode carries ten consumer/subscription logins — Codex, Copilot, GitLab, Poe, Cloudflare, Azure, DigitalOcean, xAI, Cerebras, Snowflake — with no special case in its core, because every one is a plugin behind a single `auth` hook. Whether this matrix grows a connector per provider or one seam that connectors plug into is the decision that sets its cost, and it should be made before the second provider, not the fifth.
 The inventory and acceptance gates live in [`docs/plan/24-subscription-provider-matrix.md`](docs/plan/24-subscription-provider-matrix.md).
 
 - [~] Anthropic Claude Free/Pro/Max/Team/Enterprise via the user's own CLI handover — shipped
@@ -674,6 +695,86 @@ PR provider list is decided — including the refusals.
 **Hardened when:** port discovery specified, the supervise-or-report line drawn, and telemetry either
 justified or refused in writing.
 
+## F. Borrowed hardening — three behaviors the field already proved
+
+Added 2026-08-27 after a source-level read of `anomalyco/opencode` @ `5f5ea53` (MIT), recorded in
+[`docs/research/opencode.md`](docs/research/opencode.md). Each of these closes a gap that an existing
+hardened doc left open, so each gets its own item rather than a silent amendment to a `[x]` file.
+All three are small: they are here because they are cheap, not because they are grand.
+
+### [ ] 30. The doom-loop guard
+**Scope:** stop a turn that is repeating itself before it spends the budget.
+**Today:** nothing. A model that calls the same tool with the same arguments forever is bounded only
+by the effort dial's tool-round limit, which is a ceiling, not a detector — and every round before
+that ceiling is paid for.
+**Prior art:** OpenCode raises a permission request instead of running the call when the last three
+settled parts are the same tool with byte-identical input (`DOOM_LOOP_THRESHOLD = 3`,
+`session/processor.ts:29,355`), with `doom_loop` defaulting to `ask` (`agent/agent.ts:121`).
+**Decide:**
+- The trigger: N identical `(tool, args)` calls in a row, and whether N is fixed at 3 or scales with
+  effort. Identity by exact argument match, or normalized (trimmed paths, ordered keys)?
+- Whether a repeat that *succeeded* counts. Re-reading one file three times is waste; re-running a
+  failing test three times is the job.
+- What happens on trigger: a confirm prompt, an injected system notice telling the model it is
+  looping, or a hard turn abort. Only the first is safe in `full-auto`, and it must not deadlock a
+  subagent (item 13 auto-denies in children — decide what auto-deny means here).
+- Whether the counter resets per turn or per session, and whether "always allow this tool" is offered.
+**Hardened when:** the trigger rule, the response, the `full-auto` and subagent behavior, and the
+reset scope are written down with the interaction against item 13's permission tiers.
+**Inputs:** `docs/research/opencode.md` §C.2, `docs/plan/13-tools-permissions-sandboxing.md`
+
+### [ ] 31. Command-prefix patterns — making "always allow" mean something
+**Scope:** turning a shell command into the pattern a permission answer is stored against.
+**Today:** item 13 specifies allow/ask/deny rules with last-match-wins and an `always` tier, but
+nothing says how `git status --porcelain` becomes a rule. Storing the literal string is useless the
+moment an argument changes; storing `bash` is dangerous.
+**Prior art:** OpenCode ships a 139-entry prefix→arity table (`permission/arity.ts`) where flags never
+count as tokens and the longest matching prefix wins — `git`→2, `npm run`→3, `docker compose`→3,
+`cat`→1 — so an approval can offer `git status *` honestly. The table was LLM-generated and the
+generating prompt is left in the file.
+**Decide:**
+- Whether we carry a table at all, or derive the prefix structurally (first token, plus a second when
+  the first is a known multiplexer). A table is data we must maintain; a heuristic is wrong more often.
+- Where it lives: `//go:embed`ed JSON, or Go source. Size budget consequences either way.
+- What the confirm prompt offers: the exact command, the derived prefix, the bare tool, or all three.
+- Pipelines, `&&` chains, subshells, and redirection — which token is "the command", and whether a
+  compound command may ever be stored as an `always` rule at all. This is where the hardline blocklist
+  and this feature meet, and the blocklist wins.
+- Whether the same mechanism produces patterns for path-taking tools (`read_file`, `edit_file`) or
+  those stay glob-based.
+**Hardened when:** the derivation rule, the compound-command refusal, the storage format, and the
+prompt copy are fixed, and the interaction with item 13's blocklist is stated.
+**Inputs:** `docs/research/opencode.md` §C.1, `docs/plan/13-tools-permissions-sandboxing.md`
+
+### [ ] 32. Shadow-git snapshots — checkpoint what `bash` did too
+**Scope:** the storage layer under `/undo`, `/rewind`, `/changes` and `/diff`. Not their semantics,
+which item 15 already fixed.
+**Today:** `internal/checkpoint` snapshots files before `write_file` and `edit_file`. A change made by
+`bash` — a formatter, a codegen step, a `rm` — is invisible to `/undo`, and the README says so.
+**Prior art:** OpenCode keeps a **separate git dir** at `<data>/snapshot/<project>/<hash(worktree)>`
+and drives it with `git --git-dir <store> --work-tree <project>`, so the user's own `.git`, index,
+stash stack and reflog are never touched (`snapshot/index.ts:71,75`). It writes
+`objects/info/alternates` pointing at the real repository's object store so a snapshot of a huge
+checkout reuses existing blobs instead of rehashing (`:224`), reuses the project's `info/exclude`
+(`:173`), and configures the store `core.autocrlf=false`, `core.longpaths=true`, `core.symlinks=true`,
+`core.fsmonitor=false`, `feature.manyFiles=true` (`:328-333`).
+**Decide:**
+- Whether we adopt the shadow store or keep copying files. Copying is dependency-free and works
+  outside a repo; the shadow store is O(changed blobs) and covers `bash`. Probably both, chosen by
+  whether the project is a git repository — which is already how item 13's path jail decides its root.
+- Whether `git` is allowed to become a runtime requirement, and what happens when it is missing or
+  is a version without `--path-format`. Failing closed to the copy strategy is the obvious answer;
+  say it in writing.
+- Snapshot cadence: per turn, or per tool call. Per turn is cheaper and matches `/rewind`'s unit.
+- Retention and disk: how many snapshots a session keeps, when the store is garbage-collected, and
+  what `kolk sessions` reports about its size.
+- Whether the shadow store is ever exposed directly (`/diff --since`, a branch the user can check
+  out) or stays an implementation detail.
+**Hardened when:** the strategy split (repo vs not, git present vs not), the cadence, the retention
+policy, and the failure modes are written down, with the migration path for existing checkpoints.
+**Inputs:** `docs/research/opencode.md` §C.3, `docs/plan/15-code-mode.md`,
+`docs/plan/12-sessions-context-memory.md`, `internal/checkpoint`
+
 ## Appendix A — research inputs (2026-08-21)
 
 Filled in from the research agents; full reports in `docs/research/`.
@@ -689,6 +790,26 @@ Filled in from the research agents; full reports in `docs/research/`.
   of the `reasoning` field. Better references found: charmbracelet/crush (Go, 27.6k★),
   charmbracelet/mods, sigoden/aichat, simonw/llm (SQLite call log — dashboard data-model
   reference), lwlee2608/tokentop (Go OpenRouter usage TUI).
+- `docs/research/opencode.md` (2026-08-27, later than the rest of this appendix) — source-level read
+  of `anomalyco/opencode` @ `5f5ea53` (MIT), cloned and read, nothing built or run.
+  Takeaways: (1) a **139-entry command-prefix arity table** is what makes an "always allow" bash
+  answer honest — item 31; (2) a **doom-loop guard** at three identical settled tool calls, raised as
+  a permission request rather than an abort — item 30; (3) **shadow-git snapshots** in a separate git
+  dir with `objects/info/alternates` borrowed from the real repo, which checkpoints `bash` changes
+  without touching the user's index or stash — item 32; (4) the **plugin hook interface** as one typed
+  object of ~20 advisory `(input, output)` points, with `auth` among them, which is how they support
+  ten subscription logins with no core special cases — items 16 and 24; (5) compaction constants worth
+  a second opinion (prune tool outputs at 2k chars, `PRUNE_MINIMUM` 20k / `PRUNE_PROTECT` 40k,
+  preserve-recent clamped 2k–15k, split on turn boundaries) — item 12. Confirmations rather than
+  ideas: their `serve` binds `127.0.0.1` by default with basic auth and an explicit CORS allowlist
+  (item 26's floor, reached independently), and their TUI is only a client, which is why "steer from
+  another device" and "many sessions in one view" were never features there. Refusals recorded: they
+  ship **no sandbox at all** (no `sandbox-exec`, `bwrap`, `seccomp` or `landlock` in 3,270 files) and
+  no non-bypassable rule, so our hardline blocklist is a stronger claim than the market leader's;
+  their `/share` uploads conversations to `opncd.ai`, which item 26 refuses; and nobody has built
+  port discovery, so item 29 is uncontested. Weight for the record: 99 direct dependencies in the CLI
+  package, 3,236 in the lockfile, 15 patched, on an `effect` 4.0 beta under Bun — against our
+  two-module gate.
 - `docs/research/ecosystem.md` — OpenCode, Crush, Goose, Hermes Agent, Codex CLI, Aider, Gemini CLI, Cline, Kilo, Amp…: features worth borrowing, loop/autonomy patterns.
   Takeaways (top of the ranked list): (1) **named model slots** — Hermes configures
   `auxiliary.<task>.{provider,model,reasoning_effort}` per task (vision, compression, approval,

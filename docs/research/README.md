@@ -14,4 +14,5 @@ specific number or rule. Each file lists its sources.
 | `platform-strategy.md` | 2, 11, 19 | Go verdict; core/daemon/frontends architecture; desktop (Wails/Tauri) and iPad (remote execution) paths |
 | `constraints/go-layout.md` | 2 | `internal/` import rule, go.work vs single module, `//go:embed` limits, build tags — claims built and run on go1.26.4 |
 | `constraints/desktop-packaging.md` | 2, 19 | What Wails v3 / Tauri v2 sidecar impose on repo layout; signing, notarization, goreleaser limits |
+| `opencode.md` | 12–17, 19, 20, 24, 26–32 | Source-level read of anomalyco/opencode @ `5f5ea53` (MIT): permission ruleset + bash-arity table, doom-loop guard, shadow-git snapshots, plugin hook interface, compaction constants; what not to copy |
 | `constraints/mobile-binding.md` | 2, 19 | gomobile `bind` export vocabulary, iPadOS 2.5.2 consequences, thin-client-over-daemon path, Tailscale interim |
