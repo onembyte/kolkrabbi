@@ -2108,6 +2108,74 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### Item 30 hardened — recorded detail
+
+The item's `Today` line says "nothing at the *turn* level". Reading the code first turned up an
+exception worth recording: `RunTurn` already ends a turn after two consecutive empty completions.
+That is a loop guard — it catches a model that has stopped producing anything. The gap is the
+opposite failure, where the model produces plenty and none of it changes anything.
+
+**Four guards exist, and the shape of the hole between them is exact.** `MaxRoundsFor` bounds a turn
+at 4/12/24/50 rounds by effort in code mode — a **ceiling, not a detector**, which is the entire
+item: at max effort a model repeating one useless call is stopped on round 51 having been paid for
+fifty. The saga's `StopDoomLoop` (threshold 3) is the right shape at the wrong altitude, counting
+failed *chapters*, so a chapter that spends its whole budget spinning inside one turn never registers
+a failure to count. Two empty completions and 429 rotation cover their own narrow cases.
+
+**The rule: three consecutive calls with identical canonical arguments *and* identical results.**
+Both halves required. The results half is the load-bearing one and it answers the item's hardest
+question — whether a repeat that succeeded counts. Success is the wrong discriminator: a test that
+fails *differently* each run is progress, because the error is moving; a read that succeeds
+identically three times is waste even though every call returned fine. What separates progress from
+repetition is whether anything changed, and the observable form of that is the result bytes.
+
+It also disposes of the obvious false positive without a special case. A model that runs a test, edits
+a file and runs the test again has not made three *consecutive* identical calls — the edit is between
+them. Only a model repeating a call with nothing in between trips the guard, and that model is not
+testing anything.
+
+**Only canonical re-serialization is normalized** — sorted keys, no insignificant whitespace, because
+providers re-serialize the same call differently. Not trimmed paths, not lower-cased strings, not
+"similar" arguments. An edit whose `old_string` differs by one space is a different edit, and merging
+it with its neighbour would fire the guard on work that is progressing. Over-normalizing turns a
+safety device into a source of false stops, which is how safety devices end up switched off.
+
+**Three, and not scaled with effort.** Effort buys more work, not more permission to repeat the same
+work; a threshold rising with effort means the larger the budget, the longer kolk will burn it
+achieving nothing. Three also matches the saga's default, so there is one vocabulary and one knob.
+
+**The response is tiered, and the full-auto case is the interesting one.** The call is never executed.
+Interactive tiers ask, and "run it again" resets the counter. `/full-auto` **aborts the turn** rather
+than proceeding: its contract is that it does not stop to ask, but "proceed anyway" is precisely what
+the guard exists to prevent, and a guard that yields in the mode with the largest budget is
+decoration. It is logged with tool, arguments and count, the same shape item 13 gave path confinement
+in full-auto. A subagent gets an auto-denial naming the loop — item 13 auto-denies in children what
+the tier would ask about — and a second trigger ends the child's turn, because a child that loops, is
+told, and loops again is not recovering.
+
+**An injected "you appear to be looping" notice was rejected as the primary response:** it costs a
+round trip, it is advice a looping model is by construction bad at taking, and it leaves the call
+executed. It belongs as the *text of the denial*, where the model has to react to it.
+
+**Two refusals.** No "always allow this tool" — it would mean "always allow me to spend your budget
+achieving nothing", and would disable the guard for every future loop in the session to get past one
+call; the one-time "run it again" costs the user a decision instead of the guard. And the guard is
+**not a permission rule and must not be expressible as one**: `allow bash(*)` answers "is this
+dangerous?", while this answers "is this futile?" — collapsing them would let a reasonable permission
+rule silently remove a spending guard.
+
+Four build leaves queued (L30.1–L30.4), including one that exists to prove the ceiling is no longer
+doing the detector's job.
+
+Acceptance checklist:
+
+- [x] the existing guards read from code first; the item's `Today` line corrected by what was found.
+- [x] the hard question (does a successful repeat count) answered with a signal, not a heuristic.
+- [x] the false positive the naive rule produces shown to be excluded by the rule itself.
+- [x] every tier's behaviour decided, including the two where nobody is there to ask.
+- [x] two refusals recorded with the reasoning that makes them hold.
+- [x] full `make check` green.
+
 ### Item 32 hardened — recorded detail
 
 The first of the three borrowed items, and the one that fixes a hole rather than adding surface:
