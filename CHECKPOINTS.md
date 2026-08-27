@@ -86,6 +86,9 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   release, and bring the public capability catalog back in line with what the binary does.
 - [x] **U0.1 explicit auto-approve command** — add a discoverable, session-only
   `/auto-approve [on|off]` control while preserving `-y` and `/yolo` compatibility.
+  **Half superseded 2026-08-27 by E13.2**: `/auto-approve` survives as one of three tiers, but
+  `-y` and `/yolo` were removed and no longer exist to be compatible with. The `Agent.Yolo` field
+  this leaf toggled is gone too, replaced by `Permission` plus a floor no tier can cross.
 - [x] **U0.1b mode-prefixed prompt** — identify Kolkrabbi and the active mode as `kolk-<mode>`
   at every interactive prompt.
 - [x] **U0.1c in-session model catalog** — make bare `/model` show the current selection and the
@@ -2030,6 +2033,40 @@ Acceptance checklist:
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
 
+### Verification pass 2 — the U0 group — recorded detail
+
+Twenty leaves covering auto-approve, the prompt, the model catalog, rate-limit recovery, the updater,
+the octopus and the persistent TUI. Verified against code, not the boxes.
+
+**Holds.** `U0.1b`'s `kolk-<mode>` prompt is `responseLabel()`. `U0.1e` classifies specifically —
+`internal/engine/retry.go` retries only a `429`, not every HTTP error. `U0.2b` and `U0.2c` are the
+ones worth checking carefully and they are right: `fetchVerifiedArtifact` compares a SHA-256 against
+the signed manifest *before* returning any bytes, there is a cancellation check between verification
+and replacement, and the replace runs at `0o755`. Nothing exposes an unverified binary.
+
+**One finding: U0.1 describes a surface that no longer exists.** It claims to preserve `-y` and
+`/yolo` compatibility, and E13.2 deleted both along with the `Agent.Yolo` boolean the leaf toggled.
+The only `-y` left in the tree is `kolk localia --yes`, unrelated. Marked half-superseded in both the
+leaf and its detail entry — `/auto-approve` is still real, as the middle of three tiers.
+
+This is the same shape as the A12/SQLite finding from the plan audit: a later decision invalidated an
+earlier leaf and nothing walked back to say so. Two instances is a pattern worth naming — **when a
+checkpoint removes something, the leaves that promised it do not know.** Nothing in the contract
+requires checking, and the ledger is now long enough that nobody will notice by reading.
+
+**Not a finding, though it looked like one.** `U0.3` added a loading octopus and `U0.4e` removed it,
+yet the tree has one again. That history is coherent: the other agent's `G11.5` brought it back at
+icon size, recorded properly. Removed and later restored is a real sequence, not a contradiction.
+
+Acceptance checklist:
+
+- [x] the updater verifies before exposing bytes, and replaces at 0755.
+- [x] rate-limit recovery is specific to 429, not blanket retry.
+- [x] the prompt, model catalog and TUI status claims hold in code.
+- [x] the one stale claim is marked superseded in both places it appears.
+- [x] the octopus sequence traced across U0.3, U0.4e and G11.5 before judging it.
+- [x] full `make check` green.
+
 ### Verification pass 1 — T0, W0, R0, R1 — recorded detail
 
 First of a series re-verifying ticked checkpoints against the tree rather than trusting the box.
@@ -3611,6 +3648,11 @@ Acceptance checklist:
 - [x] the build log records red, green, rehearsal, commit/tag, workflow, assets, and live handoff.
 
 ### U0.1 explicit auto-approve command — active detail
+
+**Superseded in part, 2026-08-27.** E13.2 removed `--yolo`/`-y` and `Agent.Yolo`; the scope below
+describes toggling a boolean that no longer exists. `/auto-approve` itself is still real, as the
+middle of three permission tiers. Read this entry as history, and `docs/plan/13-tools-permissions-sandboxing.md`
+for what the surface is now.
 
 Scope:
 
