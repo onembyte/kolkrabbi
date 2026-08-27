@@ -2030,6 +2030,48 @@ Acceptance checklist:
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
 
+### Verification pass 1 — T0, W0, R0, R1 — recorded detail
+
+First of a series re-verifying ticked checkpoints against the tree rather than trusting the box.
+Method: take each leaf's falsifiable claim and check it in code or by running the binary.
+
+**T0.1 credential store** holds on all four claims: `lock.Acquire` around the manifest,
+`atomicfile.Write`, `0o600` on both the write and a repair chmod, and `Secret.String`/`GoString`
+redacting so a `%v` or `%#v` cannot print a key.
+
+**T0.2 key command** verified by running it: `kolk key not-a-key` refuses rather than guessing a
+provider, and the refusal does not echo the input back.
+
+**T0.3 first-run path** verified by running with empty config, data and cache directories: three
+lines, exactly as claimed.
+
+**R0.1 / R0.2** verified from `kolk help`: chat, code and agent all present, code the default.
+
+**R1.2 was overstated, and this is the pass's one real finding.** It claimed to "bring the public
+capability catalog back in line with what the binary does". Comparing every command in `kolk help`
+against `site/capabilities.html` found two absent: `pmodels`, which is a sub-browser and arguably
+covered by the plans card, and **`update`, which is not covered by anything**. Self-update shipped as
+four checkpoints — U0.2a discovery, U0.2b artifact verification, U0.2c atomic replacement, U0.2d
+command surface — and the catalog that was re-reviewed for the release does not mention it at all.
+
+Worth noting how it slipped: `scripts/test-site.sh` had 44 capability assertions and none covered
+update, so the ratchet meant to stop the catalog drifting only pinned what somebody remembered to
+add. A ratchet is not a check that the set is complete. Added the card and the assertion; the site
+contract is 138 checks now.
+
+Also worth recording as a lesson about this audit itself: my first comparison ran against
+`site/index.html` and reported eighteen missing capabilities, which looked alarming and was wrong —
+the claim names `capabilities.html`. Reading the leaf's own detail before judging it is the
+difference between an audit and a false alarm.
+
+Acceptance checklist:
+
+- [x] T0.1's four properties each verified in code.
+- [x] T0.2, T0.3, R0.1, R0.2 verified by running the binary, not by grep.
+- [x] every `kolk help` command compared against the capability catalog.
+- [x] the one genuine gap closed and ratcheted so it cannot return.
+- [x] full `make check` green: 2,022 tests, 0 lint issues, site 138 checks.
+
 ### Plan and ledger audit, 2026-08-27 — recorded detail
 
 A read-only pass over PLAN.md and CHECKPOINTS.md looking for claims that had drifted from the tree.

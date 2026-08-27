@@ -123,6 +123,10 @@ contains capabilities.html 'Ask before free fallback' "catalog does not state th
 contains capabilities.html 'Automatic switching' "catalog does not state the opt-in automatic policy"
 contains capabilities.html 'Themes' "catalog does not cover theme choices"
 contains capabilities.html 'Orchestrated agent runs' "catalog does not cover the shipped orchestrator"
+# Self-update shipped as U0.2a-d and was the one capability the catalog forgot,
+# found by an audit comparing `kolk help` against the page rather than trusting
+# the release checkpoint that said the two were in line.
+contains capabilities.html 'kolk update' "catalog does not cover self-update"
 contains capabilities.html 'Careful long-running progression' "catalog does not cover the saga loop"
 contains capabilities.html 'Permission rules and path jail' "catalog does not cover permission rules"
 contains capabilities.html 'Local model dashboard' "catalog does not cover the local dashboard"
