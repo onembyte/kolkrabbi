@@ -1051,7 +1051,7 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 			fmt.Fprintln(a.Out)
 			// A refusal for length is recoverable exactly once: compact what the
 			// session is carrying and ask again, rather than losing the turn.
-			if a.Sess != nil && !overflowRecovered && IsContextOverflow(err) {
+			if a.Sess != nil && !overflowRecovered && provider.IsContextOverflow(err) {
 				overflowRecovered = true
 				if a.recoverFromOverflow(ctx) {
 					requestMessages = a.Sess.GetMessages()

@@ -11,7 +11,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/provider"
 )
 
-func TestIsContextOverflowRecognisesTheUsualRefusals(t *testing.T) {
+func TestProviderContextOverflowRecognisesTheUsualRefusals(t *testing.T) {
 	for _, message := range []string{
 		"This model's maximum context length is 128000 tokens",
 		"context_length_exceeded",
@@ -20,13 +20,13 @@ func TestIsContextOverflowRecognisesTheUsualRefusals(t *testing.T) {
 		"input length exceeds context window",
 	} {
 		err := &provider.HTTPError{StatusCode: http.StatusBadRequest, Message: message}
-		if !IsContextOverflow(err) {
+		if !provider.IsContextOverflow(err) {
 			t.Fatalf("%q was not recognised as an over-long request", message)
 		}
 	}
 }
 
-func TestIsContextOverflowIgnoresOtherFailures(t *testing.T) {
+func TestProviderContextOverflowIgnoresOtherFailures(t *testing.T) {
 	for _, err := range []error{
 		errors.New("network is unreachable"),
 		&provider.HTTPError{StatusCode: http.StatusTooManyRequests, Message: "rate limited"},
@@ -34,26 +34,26 @@ func TestIsContextOverflowIgnoresOtherFailures(t *testing.T) {
 		&provider.HTTPError{StatusCode: http.StatusBadRequest, Message: "unknown model"},
 		&provider.HTTPError{StatusCode: http.StatusInternalServerError, Message: "context length is fine"},
 	} {
-		if IsContextOverflow(err) {
+		if provider.IsContextOverflow(err) {
 			t.Fatalf("%v was mistaken for an over-long request", err)
 		}
 	}
 }
 
-func TestIsContextOverflowReadsTheResponseBodyToo(t *testing.T) {
+func TestProviderContextOverflowReadsTheResponseBodyToo(t *testing.T) {
 	// Some providers put the reason only in the raw body.
 	err := &provider.HTTPError{
 		StatusCode:   http.StatusBadRequest,
 		ResponseBody: `{"error":{"code":"context_length_exceeded"}}`,
 	}
-	if !IsContextOverflow(err) {
+	if !provider.IsContextOverflow(err) {
 		t.Fatal("the reason was in the body and was missed")
 	}
 }
 
-func TestIsContextOverflowAcceptsPayloadTooLarge(t *testing.T) {
+func TestProviderContextOverflowAcceptsPayloadTooLarge(t *testing.T) {
 	err := &provider.HTTPError{StatusCode: http.StatusRequestEntityTooLarge, Message: "request too large"}
-	if !IsContextOverflow(err) {
+	if !provider.IsContextOverflow(err) {
 		t.Fatal("413 with a size complaint is the same problem")
 	}
 }

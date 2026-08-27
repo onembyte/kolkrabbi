@@ -77,6 +77,7 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 			screen.SetStatus(tuiStatus(ag, "working", folder))
 			if err != nil && !errors.Is(err, context.Canceled) {
 				_, _ = fmt.Fprintf(screen, "\nerror: %v\n", err)
+				writeAdvice(screen, err)
 			}
 			return err
 		},

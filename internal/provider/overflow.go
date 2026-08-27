@@ -1,11 +1,9 @@
-package engine
+package provider
 
 import (
 	"errors"
 	"net/http"
 	"strings"
-
-	"github.com/onembyte/kolkrabbi/internal/provider"
 )
 
 // overflowPhrases are how providers say "your request does not fit". There is
@@ -28,8 +26,12 @@ var overflowPhrases = []string{
 
 // IsContextOverflow reports whether a provider refused a request because it did
 // not fit the model's window.
+//
+// It lives beside HTTPError rather than in the engine because two callers need
+// it now: the engine, which compacts and retries, and Advise, which has to say
+// something better than "the request was rejected" about the same 400.
 func IsContextOverflow(err error) bool {
-	var httpErr *provider.HTTPError
+	var httpErr *HTTPError
 	if !errors.As(err, &httpErr) {
 		return false
 	}

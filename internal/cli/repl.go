@@ -72,6 +72,7 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 			fmt.Fprintln(a.stdout, "\033[2m(interrupted)\033[0m")
 		case err != nil:
 			fmt.Fprintf(a.stderr, "\033[31merror:\033[0m %v\n", err)
+			writeAdvice(a.stderr, err)
 		}
 		if eof {
 			return nil

@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **L21.0 the error matrix is code, not a table** — every provider failure arrives with a next action, at all three places a turn can fail.
 - [x] **L20.1 the weekly live smoke test** — the one test that is allowed to cost money: opt-in, fork-proof, never on a push, and pinned to the free model the offline catalogue promises.
 - [x] **L20.2 the install section says how people actually install** — three paths instead of one, and the one that was there could not have worked.
 - [x] **I27.2 the session overview** — a card list that can be polled: header-only reads, liveness that neither steals nor creates a lock.
@@ -2100,6 +2101,69 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### Item 21 hardened — recorded detail
+
+The plan's `Today` line for this item said "22 offline tests incl. e2e via mockrouter". There are
+2,078 across 170 files and no package called mockrouter — the e2e path is 38 `httptest` sites. That
+staleness is the item in miniature: the testing question stopped being "write more" a long time ago
+and became "which kinds are worth having".
+
+**Two refusals, and they are the useful part.** Golden output tests for the TUI: a golden frame
+asserts every pixel of a layout that is still moving, so it fails on every deliberate change and
+trains the reviewer to regenerate without reading — coverage-shaped, and worse than nothing. The TUI
+is tested on properties that do not move instead, and this project has already been bitten by the
+alternative: three TUI tests were vacuously green because the overlay flattened the diff onto one
+row. Property tests for the edit tool: "applying an edit does what the edit says" is the
+implementation restated. The invariants that matter are specific — a non-matching edit changes
+nothing, a rune is never split, a path outside the root is refused before the file opens, a write is
+atomic — and each is already asserted directly. Fuzzing the SSE reader and tool-argument decoding is
+accepted, because those are the two places bytes from a third party become control flow.
+
+**L21.0 — the error matrix, built rather than tabulated.** A matrix in a document that nothing
+executes is a wish. `provider.Advise(err) (Advice, bool)` maps 401, 402, 403, 404, 408/504, 429, 5xx,
+a 400 that is really a context overflow, a 400 that is really a model without tool support, and a
+mid-stream disconnection onto a summary and a next action — and returns false for everything else,
+so an unrelated error does not grow vague commentary. The tests assert shape as well as content: a
+summary that ends in a full stop or runs past 90 characters fails, because these lines are read by
+someone who is already annoyed.
+
+Three design points are load-bearing. Advice never displaces a `GuidedError`'s own hints — the
+command knows more than a status-code table does. Advice prints at **all three** places a turn can
+fail: the one-shot command, the plain REPL and the TUI, through one `writeAdvice`, with a test that
+fails if a fourth site appears without it. The interactive paths are where a person actually meets a
+401, and wiring only the one-shot path would have missed the common case; removing the wiring was
+run as a mutation and four tests caught it. And building this moved `IsContextOverflow` from the
+engine down into `internal/provider`, so the phrase list has two callers rather than two copies.
+
+**One near-miss worth recording.** The transport advice originally said "and `kolk doctor` if it
+looks fine from here" — a command this very document queues as unbuilt. Caught before commit and
+reworded to name `--base-url`, which exists. Advice that recommends a command the binary does not
+have is worse than no advice.
+
+**The checklist names what holds each line, including the two that nothing holds.** `ci.yml`'s
+actions still float on `@v5`/`@v6` while the release and smoke workflows pin by digest — bounded,
+since those jobs can only read, but real, and queued as L21.4. And prompt injection is undefended:
+nothing detects text addressed to the model inside a file it reads. What limits the damage is the
+permission floor, not detection — an injected instruction still has to get a tool call past it — and
+`/full-auto` is exactly where that stops being true, which is why it logs what it reaches for. The
+doc says this instead of claiming resistance, and provenance tracking is named as a future item
+rather than an implied one.
+
+Three claims were corrected against the code before committing: there is no OS keychain backend
+(keys are a 0600 manifest written atomically under a lock, with the prototype's `config.json` key
+migrated out manifest-first), the module budget fails above two rather than at three, and item 33
+does not exist.
+
+Acceptance checklist:
+
+- [x] `Advise` written test-first: nine failure classes, shape assertions, and silence for the rest.
+- [x] the wiring mutation-tested — disabling it fails four tests, not zero.
+- [x] all three failure sites covered, with a test that catches a fourth being added without advice.
+- [x] every Decide bullet resolved: two refusals, one acceptance queued, one built.
+- [x] the security checklist's two gaps named rather than papered over.
+- [x] `kolk doctor` referenced by nothing shipping, so no unbuilt command is promised.
+- [x] full `make check` green: 2,078 tests, 0 lint issues.
 
 ### Item 20 hardened — recorded detail
 
@@ -5606,7 +5670,7 @@ phase must close without leaving this file.
 | F orchestration & per-task routing | 14 | doc ✓, F14.1–F14.6 ✓ | complete |
 | G the surface | 11, 15, 16 | docs ✓ for all three, G11.1–G11.6 ✓, G15.1–G15.3 ✓ | item 16 hardened, G16 leaves queued |
 | I reach | 26–29 | docs ✓ for all four, I26.1–I26.6 ✓, I27.1–I27.2 ✓ | I26.7 and the I27–I29 leaves queued |
-| H ship it for real | T0.5, 19–23 | item 20 doc ✓, L20.1–L20.2 ✓ | 19, 21, 22, 23 and T0.5 remain |
+| H ship it for real | T0.5, 19–23 | items 20 and 21 docs ✓, L20.1–L20.2 ✓, L21.0 ✓ | 19, 22, 23, T0.5 and L21.1–L21.4 remain |
 
 This table was four phases out of date until an audit on 2026-08-27 rewrote it: it still called E
 "building — blocks F", F and G "queued", and did not mention phase I at all, while E, F, G's built

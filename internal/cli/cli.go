@@ -120,7 +120,13 @@ func Main(ctx context.Context, args []string) int {
 func (a *app) main(ctx context.Context, args []string) int {
 	err := a.dispatch(ctx, args)
 	code := exitCode(err)
+	a.printFailure(err, code)
+	return code
+}
 
+// printFailure is the one place a failure becomes words. It is separate from
+// main so the error matrix can be tested without dispatching a command.
+func (a *app) printFailure(err error, code int) {
 	var guided *GuidedError
 	switch {
 	case err == nil:
@@ -136,11 +142,15 @@ func (a *app) main(ctx context.Context, args []string) int {
 		fmt.Fprintln(a.stderr, "(interrupted)")
 	default:
 		fmt.Fprintf(a.stderr, "error: %v\n", err)
+		// A provider failure is the one class of error where the raw message
+		// is rarely enough: 401, 402, 404 and 429 all read as "it broke" to
+		// someone who did not write the client. Advise adds the sentence that
+		// says which of them it was and what to do about it.
+		writeAdvice(a.stderr, err)
 		if code == ExitUsage {
 			fmt.Fprintln(a.stderr, "run `kolk help` for usage.")
 		}
 	}
-	return code
 }
 
 // command is one top-level verb. This table is the single source for dispatch,
