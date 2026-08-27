@@ -119,7 +119,7 @@ So a refactor that changes `Foo(ids []string)` to a map, or adds a `time.Time` f
 `cmd/gomobile/bind.go:287` builds the generated Go package into a **separate module literally named `gobind`** (`f.AddModuleStmt("gobind")`) with `replace` directives back to local dirs. Go's `internal/` visibility rule is import-path based, so `gobind/...` cannot import `kolkrabbi/internal/...`. Reproduced locally (2026-08-22, Go 1.26.4):
 
 ```
-module gobind + replace kolkrabbi => /Users/francomichetti/kolkrabbi
+module gobind + replace kolkrabbi => <repo>
 import _ "kolkrabbi/internal/api"
 → main.go:3:8: use of internal package kolkrabbi/internal/api not allowed
 ```

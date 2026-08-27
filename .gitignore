@@ -17,6 +17,8 @@
 # Builds
 dist/
 build/
+# local Go + golangci-lint caches. NOT covered by 'build/' -- the leading dot matters
+.build/
 bin/
 obj/
 

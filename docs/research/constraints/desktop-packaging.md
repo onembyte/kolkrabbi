@@ -3,7 +3,7 @@
 
 # Facts: what a desktop shell imposes on kolkrabbi's repo structure
 
-Read first: `/Users/francomichetti/kolkrabbi/PLAN.md` (items 1, 2, 19, 20), `/Users/francomichetti/kolkrabbi/docs/research/platform-strategy.md`, `ecosystem.md`, `dashboard.md`, plus `main.go` (root `package main`, imports `kolkrabbi/internal/{agent,api,checkpoint,config,session,stats}`) and `go.mod` (`module kolkrabbi`, `go 1.22.2`, zero deps).
+Read first: `<repo>/PLAN.md` (items 1, 2, 19, 20), `<repo>/docs/research/platform-strategy.md`, `ecosystem.md`, `dashboard.md`, plus `main.go` (root `package main`, imports `kolkrabbi/internal/{agent,api,checkpoint,config,session,stats}`) and `go.mod` (`module kolkrabbi`, `go 1.22.2`, zero deps).
 
 ---
 

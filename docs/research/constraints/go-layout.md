@@ -1,7 +1,7 @@
 <!-- Verified constraint report produced 2026-08-22 by the item-2 architecture workflow.
      Source of truth for docs/plan/02-architecture.md. Re-verify before relying on version-specific claims. -->
 
-All verification below ran on **go1.26.4 darwin/arm64, 2026-08-22**. "Verified" = I built it and read the output; scratch modules are in `/private/tmp/claude-501/-Users-francomichetti-kolkrabbi/ad3c5961-9590-428b-9018-d8a22cb8ea4a/scratchpad/{lab,lab2,lab3,wk,proxy,gobindsim}`.
+All verification below ran on **go1.26.4 darwin/arm64, 2026-08-22**. "Verified" = I built it and read the output; scratch modules are in `<scratch>`.
 
 ---
 
