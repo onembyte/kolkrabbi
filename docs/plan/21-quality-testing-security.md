@@ -114,7 +114,7 @@ Each line names what holds it. Two lines name nothing, and say so.
 | Command injection via tool args | commands are never assembled by string interpolation — `shellQuote` for the saga's git calls, and `bash` invocations are a confirmed surface, not a hidden one |
 | Permission floor | `hardline` refusals cannot be lifted by any tier, rule, or subagent; the subagent path auto-denies rather than prompting (E13.4) |
 | Remote surface | loopback-only by default, a wildcard bind refused before the socket opens, every route token-gated except two that say nothing, and widening that set fails a test (I26.1–I26.6) |
-| Supply chain — dependencies | two third-party modules, enforced by a budget that fails the build above two; `tools/` keeps codegen deps out of the root graph entirely |
+| Supply chain — dependencies | two third-party modules, enforced by a budget that fails the build above two, and a layer table where every allowance must be imported by the package it names *(the `tools/` claim this line first made was inherited from item 2 and untrue — see item 19)* |
 | Supply chain — CI actions | the release and smoke workflows pin every action by digest; **the ci.yml jobs still float on `@v5`/`@v6`** |
 | Release integrity | keyless Cosign over `checksums.txt`, verified from outside by `scripts/verify-release.sh` after every publish; the fast install paths verify SHA-256 only (item 20 is explicit about what that does and does not prove) |
 | Prompt injection from files and web | **nothing** |

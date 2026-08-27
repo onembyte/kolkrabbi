@@ -580,3 +580,41 @@ func TestKnownViolationsNameTheirFix(t *testing.T) {
 		}
 	}
 }
+
+// TestTheThirdPartyAllowListDoesNotRot is the reverse direction of
+// TestThirdPartyAllowList, and it exists for the same reason the dead-export
+// allowlist has a rot test: an allowance nobody uses is a decision nobody
+// re-reads.
+//
+// The specific case that prompted it: `internal/dash` was allowed
+// modernc.org/sqlite on the strength of item 2's claim that it is "the one
+// heavy dependency" of the dashboard. The dashboard then shipped rendering
+// entirely on the server with no database at all, and the allowance stayed —
+// quietly pre-approving a 400-file dependency for a package that had decided it
+// did not want one.
+//
+// A budget that pre-approves what nobody asked for is not a budget.
+func TestTheThirdPartyAllowListDoesNotRot(t *testing.T) {
+	used := map[string]bool{}
+	for _, f := range parseTree(t) {
+		for _, imp := range imports(f) {
+			if isStdlib(imp) || internalPkg(imp) != "" {
+				continue
+			}
+			for _, prefix := range thirdParty[f.pkg] {
+				if imp == strings.TrimSuffix(prefix, "/") || strings.HasPrefix(imp, prefix+"/") {
+					used[f.pkg+" "+prefix] = true
+				}
+			}
+		}
+	}
+
+	for pkg, allowances := range thirdParty {
+		for _, allowance := range allowances {
+			if !used[pkg+" "+allowance] {
+				t.Errorf("layers.go allows %s to import %s, and nothing does — "+
+					"wire it or drop the allowance", pkg, allowance)
+			}
+		}
+	}
+}

@@ -214,6 +214,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **L19.2 three platform claims corrected** — `desktop/`, `bind/` and `tools/` were never carved, and SQLite was never added.
+- [x] **L19.1 the third-party allowance list cannot rot** — an allowance nothing imports fails the build, because a budget that pre-approves what nobody asked for is not a budget.
 - [x] **L23.2 the README carries the refusals** — someone deciding whether to use kolk needs the non-goals more than the phases.
 - [x] **L23.1 the plan's bookkeeping is checked** — a tick must have the document it claims, and the document must not claim more than the tick.
 - [x] **L22.2 documentation cannot describe what does not exist** — the README's commands and the welcome's slash commands are checked against the tables that define them.
@@ -2105,6 +2107,72 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### Item 19 hardened — the last unhardened item — recorded detail
+
+The only item where almost nothing was built, which made it the only one that was a decision rather
+than a record. **No desktop app and no iPad app** — and not for the reason the item assumed. It
+frames desktop as a stack choice deferred until the daemon protocol exists; the protocol exists now,
+and the stack was never the hard part.
+
+**Three of the four things a desktop shell would add already shipped.** A dashboard (`kolk dash`,
+server-rendered, no script, no assets), a session browser (`kolk sessions`), several sessions at once
+(item 27's overview with advisory locks). The fourth, OS notifications, is real and is the entire
+remaining case — and it argues for a 200-line notifier watching the event stream, not a second
+application with a webview runtime, a signing identity, notarization (which item 20 refuses precisely
+until this day) and its own update path. The condition for revisiting is written down so it can be
+met rather than argued: more than one person running several sessions at once who says the terminal
+is where the work gets lost. Not "a GUI would be nice".
+
+**The stack was decided anyway**, because leaving it open is how a project gets the default instead
+of the choice: Tauri v2 with `kolk serve --stdio` as a sidecar. The cgo rule decides it — Wails v3
+sets `CGO_ENABLED=1` on darwin and linux and wants gtk4/webkitgtk, putting a toolchain inside the Go
+build, while a sidecar keeps the Go binary exactly what it is and talks over an exit that already
+exists, is tested and is versioned. Wails being in beta is the smaller objection. Electron is the
+sidecar model with a larger runtime and no compensating benefit.
+
+**iPad: refused, with a sharper reason than item 26's.** Native mobile apps already cost two release
+trains between a fix and its users, but the decisive point is that iPadOS cannot spawn a shell or a
+toolchain, so code mode cannot exist locally at all — a native app could only ever be chat, the
+weakest thing kolk does. The built answer is kolk on a real machine, reachable over Tailscale, with
+the iPad as a client. That is not a lesser iPad app; it is the version where the code runs on a
+machine that can compile it.
+
+**Of the four protocol constraints the item asks about, three are met and one is not.** Streaming
+with resumption, loopback auth with paired devices, and versioning are all built. **Session
+multiplexing is not**: `bus.New` takes a session, `kolk serve` serves exactly one, and there is no
+way to follow several over one connection. Item 27 answered "many sessions, one view" by reading
+session headers and taking an advisory lock instead — right for a viewer, wrong for an application
+holding a socket. It stays unbuilt deliberately: its only justifying consumer is the application this
+item just declined, and building it now would be building for a hypothetical client. It is recorded
+as the first thing anyone reopening the desktop question must do.
+
+**Three claims in the plan turned out to be fiction, and were found by looking at the tree rather
+than reading the document.** Item 2 said three nested modules were "pre-carved and empty" —
+`desktop/`, `bind/` and `tools/` do not exist. Item 2 said `modernc.org/sqlite` is "the one heavy
+dependency" — it was never added; the dashboard shipped with no database and `internal/dash` is one
+file. And item 21, written yesterday by me, repeated the `tools/` claim without checking it. All
+three are corrected in place with a dated note rather than quietly edited, because a document that
+silently revises itself teaches nobody anything.
+
+**L19.1** turns that last finding into a control. The layer table had allowed `internal/dash` to
+import `modernc.org/sqlite` and `modernc.org/libc` on the strength of a claim that never became
+true — quietly pre-approving a 400-file dependency for a package that had decided against one. The
+allowance is gone, and a rot test now fails on any allowance nothing imports: the same shape as the
+dead-export allowlist's rot test, for the same reason. It failed on exactly the two stale entries
+when written, which is the red step arriving for free.
+
+With this, **every item from 1 to 29 is hardened or part-done by design**, and only the borrowed
+items 30–32 remain.
+
+Acceptance checklist:
+
+- [x] the desktop question answered on evidence — three of four benefits already shipped — rather than deferred again.
+- [x] a stack chosen despite the refusal, so the decision is not left to a future default.
+- [x] the one unmet protocol constraint named, and deliberately left unbuilt with the reason.
+- [x] three false claims in the plan found by inspection and corrected with dated notes.
+- [x] the rot test written against the stale entries it found, then the entries removed.
+- [x] full `make check` green: 2,083 tests, 0 lint issues, plan 86 checks.
 
 ### Item 23 hardened — recorded detail
 
@@ -5785,7 +5853,7 @@ phase must close without leaving this file.
 | F orchestration & per-task routing | 14 | doc ✓, F14.1–F14.6 ✓ | complete |
 | G the surface | 11, 15, 16 | docs ✓ for all three, G11.1–G11.6 ✓, G15.1–G15.3 ✓ | item 16 hardened, G16 leaves queued |
 | I reach | 26–29 | docs ✓ for all four, I26.1–I26.6 ✓, I27.1–I27.2 ✓ | I26.7 and the I27–I29 leaves queued |
-| H ship it for real | T0.5, 19–23 | items 20–23 docs ✓, L20.1–L20.2 ✓, L21.0 ✓, L22.1–L22.2 ✓, L23.1–L23.2 ✓ | 19, T0.5 and L21.1–L21.4 remain |
+| H ship it for real | T0.5, 19–23 | all five docs ✓, L19.1–L19.2 ✓, L20.1–L20.2 ✓, L21.0 ✓, L22.1–L22.2 ✓, L23.1–L23.2 ✓ | T0.5 and L21.1–L21.4 remain; items 1–29 are all hardened |
 
 This table was four phases out of date until an audit on 2026-08-27 rewrote it: it still called E
 "building — blocks F", F and G "queued", and did not mention phase I at all, while E, F, G's built

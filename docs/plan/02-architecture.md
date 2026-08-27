@@ -17,10 +17,14 @@ iPad, Android) additions of a directory rather than refactors of the tree.
 Everything else lives in `internal/`, which is a **same-repo fence, not a same-module fence**: a
 nested module whose path is `github.com/onembyte/kolkrabbi/<sub>` may legally import
 `github.com/onembyte/kolkrabbi/internal/...`, so `desktop/` and `bind/` get full access to the
-engine while no foreign repository ever can. Three nested modules are pre-carved and empty:
-`desktop/` (Wails **or** Tauri — same directory either way), `bind/` (gomobile facade), `tools/`
-(codegen deps). They exist so the CLI's `go.mod` never acquires cgo, `golang.org/x/mobile`, or a
-webview toolchain.
+engine while no foreign repository ever can. Three nested module *names* are reserved for that
+purpose — `desktop/` (a shell), `bind/` (a gomobile facade), `tools/` (codegen deps) — so that the
+CLI's `go.mod` never acquires cgo, `golang.org/x/mobile`, or a webview toolchain.
+
+*Corrected 2026-08-27 (item 19):* an earlier version of this paragraph said the three modules were
+"pre-carved and empty". None of the directories exists. The fence is real without them — it follows
+from the module-path rule the moment anyone creates one — but nothing was carved, and item 19 chose
+Tauri over Wails, which makes `desktop/` a sidecar consumer rather than a Go module at all.
 
 Layering is enforced by `internal/arch/arch_test.go` — a data-driven layer table plus a per-package
 third-party allow-list — with **no `//arch:allow` escape hatch**. Migration keeps
@@ -82,11 +86,15 @@ exceptions, both outside the root module:
   cgo is not enabled`. `gomobile` sets `CGO_ENABLED=1` itself. Confined to `bind/go.mod`, which
   is never in the required CI matrix. An iOS build is an Xcode build by definition.
 
-`modernc.org/sqlite` is the one heavy dependency, chosen precisely because it is **pure Go** and
-therefore does not break the cgo rule; it is confined to `internal/dash` so a future `cmd/kolk-dash`
-split is a 20-line `main.go`. Note its supported-platform table lists darwin/freebsd/linux/netbsd/
-openbsd/windows and **neither ios nor android** — which is why the dashboard can never travel into
-a gomobile build, and why `bind/` is chat-only forever.
+`modernc.org/sqlite` was planned as the one heavy dependency, chosen because it is **pure Go** and
+therefore does not break the cgo rule.
+
+*Corrected 2026-08-27 (item 19):* it was never added. The dashboard shipped rendering entirely on
+the server, with no database and no script, and `internal/dash` is one file. The layer table's
+allowance for it has been removed and a rot test now fails on any allowance nothing imports. The
+conclusion it supported survives on its own terms: a gomobile build cannot host a dashboard that
+depends on a database, and more decisively, iPadOS cannot spawn a shell — so `bind/` would be
+chat-only, which is why item 19 refuses it.
 
 ---
 

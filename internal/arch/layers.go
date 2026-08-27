@@ -136,11 +136,14 @@ var commandPackages = map[string]bool{
 // The honest claim this buys is not "zero dependencies" but "zero dependencies
 // below the surface layer, mechanically verified" — which is a claim that
 // survives the product growing.
+// Every entry must be imported by the package it names: TestTheThirdPartyAllowListDoesNotRot
+// deletes speculative allowances, because a budget that pre-approves what
+// nobody asked for is not a budget. internal/dash held one for
+// modernc.org/sqlite until 2026-08-27 — the dashboard shipped rendering on the
+// server with no database at all, and the allowance sat there pre-approving a
+// dependency the package had decided against.
 var thirdParty = map[string][]string{
-	// Arrive with their packages at later steps; listed now so the budget is
-	// a decision on the record rather than a surprise in a diff.
 	"internal/term": {"golang.org/x/sys", "golang.org/x/term"},
-	"internal/dash": {"modernc.org/sqlite", "modernc.org/libc"},
 }
 
 // osOwner names the single package allowed to touch each piece of the OS.
