@@ -2108,6 +2108,65 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### Item 32 hardened — recorded detail
+
+The first of the three borrowed items, and the one that fixes a hole rather than adding surface:
+`/undo` restores what kolk's own file tools changed and nothing else. A formatter, a codegen step or
+an `rm` run through `bash` is invisible to it. The README says so, which is honest and is not a fix —
+the user's model is "kolk changed my files, kolk can put them back", and the carve-out sits exactly
+where a destructive turn lands.
+
+**Both stores, and not as a hedge.** The item guesses "probably both"; the answer is definitely both,
+because each covers what the other cannot. The copy store is the only one that works in a directory
+that is not a repository, or on a machine without `git`. The shadow store — a git object store
+outside the work tree, driven with an explicit `GIT_DIR` and `GIT_WORK_TREE` — is the only one that
+sees what `bash` did.
+
+**Measured, not guessed.** On this repository (544 tracked files, a 222 MB `.git`, git 2.55.0) with
+`objects/info/alternates` pointing at the real object store: the first snapshot costs **63 ms**,
+every later one **15 ms**, and the store is **148 KB**. The alternates trick is what makes the last
+number possible — blobs already in the project's store are referenced rather than rehashed. Against a
+turn that takes seconds, 15 ms is not a cost worth arguing about.
+
+**Two properties were verified rather than assumed, because they are the entire reason to do this.**
+A `sed -i` against `README.md` — the shape of a formatter or a codegen step — appeared in the shadow
+store as `M README.md`. And the user's own `git status --short` reported zero lines throughout: no
+index entry, no stash, no reflog motion. That second one is the property the whole design exists to
+protect, and it is written down as a test that must never be deleted.
+
+**No git version is checked**, and the doc says why: a version comparison is a guess about which
+release added what, made once and never revisited. The probe is the operation itself — create the
+store, configure it, snapshot once — and any failure, on any git, for any reason, drops the session
+to the copy store and says so once. A feature test cannot be wrong about the machine it is on.
+
+**Cadence is per turn**, which is what `/undo` and `/rewind` already mean and what the existing port's
+`BeginTurn` already provides; a per-tool-call snapshot would multiply the cost to record intermediate
+states nothing can address. `Record(tool, path)` stays meaningful for the copy store and becomes a
+no-op for the shadow one, because a whole-tree snapshot already contains every path.
+
+**Three refusals.** No background `git gc` — a daemon collecting garbage in a store the user cannot
+see, on a schedule they did not choose, is the surprise this project refuses everywhere else; the
+bound is session deletion, and if that proves too generous the fix is a visible number in config. No
+exposure of the store as a branch or through `/diff --since` — that would promote a storage strategy
+to an interface, and there is no branch to offer in a directory that is not a repository. And no
+commits in the user's history, which would contradict item 28's refusal of branch-per-session and of
+a `/commit` that commits.
+
+**Nothing migrates**, deliberately: existing sessions keep their `.bak` files and keep rewinding from
+them, and the manifest records which strategy captured each turn — so a session that gains `git`
+halfway through rewinds each turn the way that turn was captured.
+
+Five build leaves are queued (L32.1–L32.5); this item's bar was the strategy, cadence, retention and
+failure modes in writing, and that is what landed.
+
+Acceptance checklist:
+
+- [x] the cost measured on a real repository instead of estimated.
+- [x] the safety property — the user's git untouched — verified experimentally, and named as a permanent test.
+- [x] the invented "git ≥ 2.20" floor in the first draft replaced by a feature test, with the reasoning.
+- [x] every Decide bullet resolved, including three refusals and the migration answer.
+- [x] full `make check` green.
+
 ### Item 19 hardened — the last unhardened item — recorded detail
 
 The only item where almost nothing was built, which made it the only one that was a decision rather
