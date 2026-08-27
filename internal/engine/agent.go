@@ -1158,9 +1158,9 @@ func appendMessage(messages []provider.Message, message provider.Message) []prov
 
 // Rewind undoes the file changes of the most recent turn (files only; the
 // conversation itself is untouched). Returns the restored paths.
-func (a *Agent) Rewind() ([]string, error) {
+func (a *Agent) Rewind(ctx context.Context) ([]string, error) {
 	if a.Ckpt == nil {
 		return nil, fmt.Errorf("checkpointing is not enabled")
 	}
-	return a.Ckpt.RewindLastTurn()
+	return a.Ckpt.RewindLastTurn(ctx)
 }

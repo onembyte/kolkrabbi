@@ -212,10 +212,21 @@ func (s *Store) snapshotTurn(ctx context.Context, turn int) {
 	if s.shadow == nil {
 		return
 	}
-	if _, err := s.shadow.Snapshot(ctx, turn); err != nil {
+	commit, err := s.shadow.Snapshot(ctx, turn)
+	if err != nil {
 		s.shadow = nil
 		s.fellBack = "Whole-tree snapshots stopped working and this session will not retry them: " +
 			reasonOf(err) + ". `/undo` still restores kolk's own edits."
+		return
+	}
+	s.snapshots[turn] = commit
+	// The commit is worthless without the index that names it: a snapshot the
+	// manifest does not record is one no rewind can ever find.
+	if err := s.saveManifest(); err != nil {
+		s.shadow = nil
+		delete(s.snapshots, turn)
+		s.fellBack = "The snapshot index could not be written, so this session will not snapshot " +
+			"the whole tree: " + reasonOf(err) + ". `/undo` still restores kolk's own edits."
 	}
 }
 
@@ -228,4 +239,78 @@ func reasonOf(err error) string {
 		text = line
 	}
 	return strings.TrimSpace(text)
+}
+
+// ChangedSince lists what differs between the work tree and one snapshot.
+// It is read before a restore, so a rewind can say what it put back.
+func (s *Shadow) ChangedSince(ctx context.Context, commit string) ([]string, error) {
+	result, err := s.git(ctx, "git diff --name-only "+quote(commit))
+	if err != nil || !result.OK() {
+		return nil, fmt.Errorf("checkpoint: comparing against the snapshot: %s", failure(result, err))
+	}
+	seen := map[string]bool{}
+	var paths []string
+	for _, line := range strings.Split(result.Output, "\n") {
+		if path := strings.TrimSpace(line); path != "" && !seen[path] {
+			seen[path] = true
+			paths = append(paths, path)
+		}
+	}
+	// A file created since the snapshot is untracked in the shadow index, so
+	// `diff` cannot see it, and it is precisely the case /undo must report.
+	untracked, err := s.git(ctx, "git ls-files --others --exclude-standard")
+	if err != nil || !untracked.OK() {
+		return nil, fmt.Errorf("checkpoint: listing new files: %s", failure(untracked, err))
+	}
+	for _, line := range strings.Split(untracked.Output, "\n") {
+		if path := strings.TrimSpace(line); path != "" && !seen[path] {
+			seen[path] = true
+			paths = append(paths, path)
+		}
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+// RestoreTo puts the work tree back to one snapshot.
+//
+// This is the most destructive operation in the package, and two things bound
+// it. Everything runs with GIT_WORK_TREE set to the project, so git cannot
+// reach outside it whatever the snapshot contains. And `clean` runs without
+// `-x`, so a file the project ignores — build output, a local .env — is left
+// alone: the snapshot never held it, so putting the tree "back" cannot mean
+// deleting it.
+func (s *Shadow) RestoreTo(ctx context.Context, commit string) error {
+	if result, err := s.git(ctx, "git reset --hard --quiet "+quote(commit)); err != nil || !result.OK() {
+		return fmt.Errorf("checkpoint: restoring the snapshot: %s", failure(result, err))
+	}
+	if result, err := s.git(ctx, "git clean -fdq"); err != nil || !result.OK() {
+		return fmt.Errorf("checkpoint: removing files created since the snapshot: %s", failure(result, err))
+	}
+	return nil
+}
+
+// rewindSnapshot puts the whole work tree back to the snapshot taken at the
+// start of one turn, which is what makes `/undo` cover a change kolk never made
+// itself.
+//
+// The paths are read before the restore, not after: afterwards there is by
+// construction nothing left to compare.
+func (s *Store) rewindSnapshot(ctx context.Context, turn int, commit string) ([]string, error) {
+	if s.shadow == nil {
+		return nil, fmt.Errorf("checkpoint: turn %d was captured as a whole-tree snapshot, "+
+			"and this session can no longer read the store that holds it", turn)
+	}
+	changed, err := s.shadow.ChangedSince(ctx, commit)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.shadow.RestoreTo(ctx, commit); err != nil {
+		return nil, err
+	}
+	delete(s.snapshots, turn)
+	if err := s.saveManifest(); err != nil {
+		return changed, err
+	}
+	return changed, nil
 }

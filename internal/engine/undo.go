@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -26,12 +27,12 @@ type UndoResult struct {
 // conversation is left exactly as it was: a half-undo that rewinds history
 // while leaving the edits in place is the same divergence in the other
 // direction, and the one that silently loses work.
-func (a *Agent) Undo() (UndoResult, error) {
+func (a *Agent) Undo(ctx context.Context) (UndoResult, error) {
 	if a.Ckpt == nil {
 		return UndoResult{}, fmt.Errorf("checkpointing is not enabled, so there is no file half to undo")
 	}
 
-	restored, err := a.Ckpt.RewindLastTurn()
+	restored, err := a.Ckpt.RewindLastTurn(ctx)
 	if err != nil {
 		return UndoResult{Files: restored}, err
 	}

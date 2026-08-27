@@ -118,7 +118,7 @@ func (c *FakeCheckpointer) Record(tool, path string) error {
 	return nil
 }
 
-func (c *FakeCheckpointer) RewindLastTurn() ([]string, error) {
+func (c *FakeCheckpointer) RewindLastTurn(context.Context) ([]string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.RewoundPaths, nil

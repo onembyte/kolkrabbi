@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **L32.3 `/undo` finally covers what `bash` did** — a rewind restores the whole tree to the turn's opening snapshot, and the manifest says which store captured each turn.
 - [x] **L32.2 which store captures a turn** — a repository gets whole-tree snapshots, everything else gets copies, and a store that breaks mid-session says so once and stops trying.
 - [x] **L32.1 the shadow store** — a git object store outside the work tree, so a change made by `bash` is visible and the user's own repository is never written to.
 - [x] **L21.4 every action is pinned by commit SHA** — a tag is whatever that account publishes next, which is a credential decision wearing a version number.
@@ -2111,6 +2112,55 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### L32.3 built — rewind from either store
+
+The leaf the whole item was for. `/undo` now puts back a change kolk never made: a formatter, a
+codegen step, an `rm`.
+
+**The manifest records which store captured each turn.** `Snapshots` maps a turn to its shadow
+commit, and a turn appears there or in `Entries`, never both — so a session that gained or lost `git`
+half-way through rewinds each turn the way that turn was recorded. That is item 32's migration answer
+made real, and it is why `Record` could finally become a no-op under the shadow strategy: the opening
+snapshot already contains every path, and recording both ways would make one turn recoverable twice,
+which is how two stores come to disagree.
+
+**A rewind is the most destructive thing in this package, and two bounds hold it.** Everything runs
+with `GIT_WORK_TREE` set to the project, so git cannot reach outside it whatever the snapshot holds.
+And `git clean` runs **without `-x`**, so a file the project ignores — build output, a local `.env` —
+is left alone: the snapshot never held it, so putting the tree "back" cannot mean deleting it. That
+one has its own test, because losing a build directory to an `/undo` would be a surprise nobody asked
+for.
+
+Paths are read *before* the restore, not after — afterwards there is by construction nothing left to
+compare — and the listing unions `diff --name-only` with `ls-files --others`, because a file created
+since the snapshot is untracked in the shadow index and is exactly the case `/undo` must report.
+
+**Four tests replaced the interim guard L32.2 left.** A `bash`-made edit is undone and a `bash`-made
+file is deleted; the user's reflog, HEAD and index are untouched *after a rewind* as well as after a
+snapshot; ignored files survive; and a session outside a repository still rewinds through the copy
+store. The first of those failed for exactly the right reasons before the code existed.
+
+**`TestNoInventedContexts` fired again**, and again it was right. `rewindSnapshot` reached for
+`context.Background()` because `RewindLastTurn()` had no context — but a rewind now shells out to
+git, so a cancelled `/undo` should be able to stop. The port is `RewindLastTurn(context.Context)`,
+and `Agent.Undo` and `Agent.Rewind` take one too. Two leaves in a row, this rule has caught a real
+design gap rather than a style nit: both times the missing context marked exactly the place where
+cheap bookkeeping had quietly become I/O.
+
+**One ordering care worth recording:** the snapshot commit is written to the manifest before the turn
+proceeds, and if that write fails the snapshot is dropped from the index and the session falls back.
+A commit the manifest does not name is one no rewind can find, so keeping it would be worse than not
+taking it.
+
+Acceptance checklist:
+
+- [x] four tests written first; the headline one failed on all three of its assertions.
+- [x] the destructive path bounded twice — work tree confinement, and no `-x` on clean — each tested.
+- [x] `Record` became a no-op only once rewind could read the other store, not before.
+- [x] the manifest records the strategy per turn, so a mixed session rewinds correctly.
+- [x] the invented context replaced by a real one through the port, engine and slash callers.
+- [x] full `make check` green: 2,096 tests, 0 lint issues.
 
 ### L32.2 built — strategy selection, fail-closed
 

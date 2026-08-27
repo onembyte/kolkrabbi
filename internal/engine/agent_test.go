@@ -139,7 +139,7 @@ func TestE2E_ToolLoopWithPersistenceAndRewind(t *testing.T) {
 	}
 
 	// 7. rewind restores the filesystem (created file is removed)
-	restored, err := ag.Rewind()
+	restored, err := ag.Rewind(context.Background())
 	if err != nil {
 		t.Fatalf("Rewind: %v", err)
 	}

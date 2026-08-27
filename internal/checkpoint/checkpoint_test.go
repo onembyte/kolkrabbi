@@ -22,7 +22,7 @@ func TestRewindRestoresEditedFile(t *testing.T) {
 	}
 	os.WriteFile(p, []byte("v2"), 0o644) // the "edit"
 
-	restored, err := s.RewindLastTurn()
+	restored, err := s.RewindLastTurn(context.Background())
 	if err != nil {
 		t.Fatalf("rewind: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestRewindRestoresEditedFile(t *testing.T) {
 		t.Errorf("file = %q, want v1", string(b))
 	}
 	// second rewind: nothing left
-	restored, err = s.RewindLastTurn()
+	restored, err = s.RewindLastTurn(context.Background())
 	if err != nil || restored != nil {
 		t.Errorf("second rewind = (%v,%v), want (nil,nil)", restored, err)
 	}
@@ -51,7 +51,7 @@ func TestRewindDeletesCreatedFile(t *testing.T) {
 	}
 	os.WriteFile(p, []byte("hello"), 0o644) // the "write"
 
-	if _, err := s.RewindLastTurn(); err != nil {
+	if _, err := s.RewindLastTurn(context.Background()); err != nil {
 		t.Fatalf("rewind: %v", err)
 	}
 	if _, err := os.Stat(p); !os.IsNotExist(err) {
@@ -77,7 +77,7 @@ func TestRewindIsPerTurnAndOrdered(t *testing.T) {
 	os.WriteFile(p, []byte("turn2b"), 0o644)
 
 	// rewinding must undo only turn 2, restoring the pre-turn-2 state
-	if _, err := s.RewindLastTurn(); err != nil {
+	if _, err := s.RewindLastTurn(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(p)
@@ -86,7 +86,7 @@ func TestRewindIsPerTurnAndOrdered(t *testing.T) {
 	}
 
 	// and rewinding again undoes turn 1
-	if _, err := s.RewindLastTurn(); err != nil {
+	if _, err := s.RewindLastTurn(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	b, _ = os.ReadFile(p)
@@ -113,7 +113,7 @@ func TestStorePersistsAcrossReopen(t *testing.T) {
 	if len(s2.Changes()) != 1 {
 		t.Fatalf("reopened store has %d entries, want 1", len(s2.Changes()))
 	}
-	if _, err := s2.RewindLastTurn(); err != nil {
+	if _, err := s2.RewindLastTurn(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(p)

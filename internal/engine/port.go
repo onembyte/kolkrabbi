@@ -31,7 +31,7 @@ type SessionPort interface {
 type Checkpointer interface {
 	BeginTurn(context.Context)
 	Record(tool, path string) error
-	RewindLastTurn() ([]string, error)
+	RewindLastTurn(context.Context) ([]string, error)
 }
 
 // CallRecord is the un-marshaled usage record passed to Recorder.

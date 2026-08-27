@@ -188,7 +188,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		}
 		a.printSessionDiff(store, strings.TrimSpace(arg))
 	case "/undo":
-		result, err := ag.Undo()
+		result, err := ag.Undo(ctx)
 		if err != nil {
 			fmt.Fprintf(a.stderr, "undo failed: %v\n", err)
 			if len(result.Files) > 0 {
@@ -213,7 +213,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			fmt.Fprintln(a.stdout, "  "+p)
 		}
 	case "/rewind":
-		restored, err := ag.Rewind()
+		restored, err := ag.Rewind(ctx)
 		if err != nil {
 			fmt.Fprintf(a.stderr, "rewind failed: %v\n", err)
 			break

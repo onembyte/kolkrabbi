@@ -18,7 +18,7 @@ type fakeCheckpointer struct {
 
 func (f *fakeCheckpointer) BeginTurn(context.Context)      {}
 func (f *fakeCheckpointer) Record(tool, path string) error { return nil }
-func (f *fakeCheckpointer) RewindLastTurn() ([]string, error) {
+func (f *fakeCheckpointer) RewindLastTurn(context.Context) ([]string, error) {
 	f.calls++
 	return f.restored, f.err
 }
@@ -48,7 +48,7 @@ func TestUndoTakesBackBothTheFilesAndTheConversation(t *testing.T) {
 	ckpt := &fakeCheckpointer{restored: []string{"a.go"}}
 	agent := undoFixture(t, ckpt, conversation()...)
 
-	result, err := agent.Undo()
+	result, err := agent.Undo(context.Background())
 	if err != nil {
 		t.Fatalf("undo: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestAFailedFileRestoreLeavesTheConversationAlone(t *testing.T) {
 	ckpt := &fakeCheckpointer{err: errors.New("missing backup for a.go")}
 	agent := undoFixture(t, ckpt, conversation()...)
 
-	if _, err := agent.Undo(); err == nil {
+	if _, err := agent.Undo(context.Background()); err == nil {
 		t.Fatal("a failed restore reported success")
 	}
 
@@ -93,7 +93,7 @@ func TestATurnThatChangedNoFilesIsStillATurn(t *testing.T) {
 		provider.Message{Role: "assistant", Content: "a language"},
 	)
 
-	result, err := agent.Undo()
+	result, err := agent.Undo(context.Background())
 	if err != nil {
 		t.Fatalf("undo: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestATurnThatChangedNoFilesIsStillATurn(t *testing.T) {
 func TestUndoingWithNothingToUndoSaysSo(t *testing.T) {
 	agent := undoFixture(t, &fakeCheckpointer{}, provider.Message{Role: "system", Content: "s"})
 
-	result, err := agent.Undo()
+	result, err := agent.Undo(context.Background())
 	if err != nil {
 		t.Fatalf("undo: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestUndoingWithNothingToUndoSaysSo(t *testing.T) {
 func TestUndoNeedsCheckpointing(t *testing.T) {
 	agent := undoFixture(t, nil, conversation()...)
 
-	if _, err := agent.Undo(); err == nil {
+	if _, err := agent.Undo(context.Background()); err == nil {
 		t.Fatal("undo ran without a checkpoint store")
 	}
 	// Without the file half there is no undo, only a history edit that would
@@ -134,10 +134,10 @@ func TestUndoOnlyTakesBackOneTurn(t *testing.T) {
 	ckpt := &fakeCheckpointer{}
 	agent := undoFixture(t, ckpt, conversation()...)
 
-	if _, err := agent.Undo(); err != nil {
+	if _, err := agent.Undo(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := agent.Undo(); err != nil {
+	if _, err := agent.Undo(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 

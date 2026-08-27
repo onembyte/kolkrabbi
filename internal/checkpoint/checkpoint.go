@@ -29,6 +29,11 @@ type manifest struct {
 	Turn    int     `json:"turn"`
 	Seq     int     `json:"seq"`
 	Entries []Entry `json:"entries"`
+	// Snapshots maps a turn to the shadow commit taken at its start. A turn
+	// appears here or in Entries, never both: which one says how it was
+	// captured, so a session that gained or lost `git` half-way through still
+	// rewinds each turn the way that turn was recorded.
+	Snapshots map[int]string `json:"snapshots,omitempty"`
 }
 
 type Store struct {
@@ -40,8 +45,9 @@ type Store struct {
 	// shadow is the whole-tree snapshot store, when the project qualifies for
 	// one. nil means this session captures turns by copying files before they
 	// are written, which misses everything `bash` does.
-	shadow   *Shadow
-	fellBack string
+	shadow    *Shadow
+	fellBack  string
+	snapshots map[int]string
 }
 
 // Open creates or reopens a checkpoint store at dir.
@@ -49,7 +55,7 @@ func Open(dir string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	s := &Store{dir: dir}
+	s := &Store{dir: dir, snapshots: map[int]string{}}
 	b, err := os.ReadFile(s.manifestPath())
 	if os.IsNotExist(err) {
 		return s, nil
@@ -61,14 +67,17 @@ func Open(dir string) (*Store, error) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, fmt.Errorf("corrupt checkpoint manifest: %w", err)
 	}
-	s.turn, s.seq, s.entries = m.Turn, m.Seq, m.Entries
+	s.turn, s.seq, s.entries, s.snapshots = m.Turn, m.Seq, m.Entries, m.Snapshots
+	if s.snapshots == nil {
+		s.snapshots = map[int]string{}
+	}
 	return s, nil
 }
 
 func (s *Store) manifestPath() string { return filepath.Join(s.dir, "manifest.json") }
 
 func (s *Store) saveManifest() error {
-	b, err := json.MarshalIndent(manifest{Turn: s.turn, Seq: s.seq, Entries: s.entries}, "", " ")
+	b, err := json.MarshalIndent(manifest{Turn: s.turn, Seq: s.seq, Entries: s.entries, Snapshots: s.snapshots}, "", " ")
 	if err != nil {
 		return err
 	}
@@ -91,6 +100,13 @@ func (s *Store) BeginTurn(ctx context.Context) {
 // Record snapshots the current state of path before it is modified. Call it
 // after user confirmation but before the actual write/edit.
 func (s *Store) Record(tool, path string) error {
+	// Under the shadow strategy the turn's opening snapshot already contains
+	// every path, so copying one file before it is written records a state
+	// nothing can address — and would make the same turn recoverable two ways,
+	// which is how the two stores could disagree.
+	if s.shadow != nil {
+		return nil
+	}
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		abs = path
@@ -115,15 +131,23 @@ func (s *Store) Record(tool, path string) error {
 // RewindLastTurn restores every file changed in the most recent turn that has
 // recorded changes, newest change first, and drops those entries. Returns the
 // restored paths, or (nil, nil) if there is nothing to rewind.
-func (s *Store) RewindLastTurn() ([]string, error) {
+func (s *Store) RewindLastTurn(ctx context.Context) ([]string, error) {
 	last := -1
 	for _, e := range s.entries {
 		if e.Turn > last {
 			last = e.Turn
 		}
 	}
+	for turn := range s.snapshots {
+		if turn > last {
+			last = turn
+		}
+	}
 	if last == -1 {
 		return nil, nil
+	}
+	if commit, ok := s.snapshots[last]; ok {
+		return s.rewindSnapshot(ctx, last, commit)
 	}
 
 	var keep, undo []Entry

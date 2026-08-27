@@ -220,12 +220,116 @@ func TestAFailingShadowStoreDropsToCopyingForTheRestOfTheSession(t *testing.T) {
 	}
 }
 
-// Until L32.3 teaches rewind to read the shadow store, the copy store keeps
-// recording. A snapshot layer that silently disabled /undo would be a
-// regression wearing a feature's name.
-func TestRecordKeepsWorkingWhileTheShadowStoreIsActive(t *testing.T) {
+// The whole point of item 32, finally reachable: a change kolk never made
+// through a file tool is put back by /undo.
+func TestRewindRestoresWhatBashChanged(t *testing.T) {
 	gitOr(t, "git is required for the shadow store")
 	project := newProject(t)
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.UseShadow(context.Background(), project)
+	if store.Strategy() != StrategyShadow {
+		t.Fatalf("setup did not select the shadow store: %q", store.Strategy())
+	}
+	store.BeginTurn(context.Background())
+
+	// No Record call anywhere: this is what a formatter or a codegen step does.
+	kept := filepath.Join(project, "kept.txt")
+	if err := os.WriteFile(kept, []byte("mangled by a formatter\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	made := filepath.Join(project, "generated.go")
+	if err := os.WriteFile(made, []byte("package x\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	restored, err := store.RewindLastTurn(context.Background())
+	if err != nil {
+		t.Fatalf("RewindLastTurn: %v", err)
+	}
+	if content, _ := os.ReadFile(kept); string(content) != "one\n" {
+		t.Errorf("the edit made outside kolk was not undone: %q", content)
+	}
+	if _, err := os.Stat(made); !os.IsNotExist(err) {
+		t.Errorf("the file created outside kolk survived the rewind")
+	}
+	if len(restored) == 0 {
+		t.Error("the rewind reported nothing, so /undo would say it did nothing")
+	}
+}
+
+// A rewind rewrites the work tree, which is the most destructive thing in this
+// package. It still must not touch the repository the user is working in.
+func TestRewindLeavesTheUsersGitStateAlone(t *testing.T) {
+	gitOr(t, "git is required for the shadow store")
+	project := newProject(t)
+	beforeLog := gitOut(t, project, "reflog", "--all")
+	beforeHead := gitOut(t, project, "rev-parse", "HEAD")
+
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.UseShadow(context.Background(), project)
+	store.BeginTurn(context.Background())
+	if err := os.WriteFile(filepath.Join(project, "kept.txt"), []byte("x\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.RewindLastTurn(context.Background()); err != nil {
+		t.Fatalf("RewindLastTurn: %v", err)
+	}
+
+	if got := gitOut(t, project, "reflog", "--all"); got != beforeLog {
+		t.Errorf("a rewind moved the user's reflog:\nbefore %q\nafter %q", beforeLog, got)
+	}
+	if got := gitOut(t, project, "rev-parse", "HEAD"); got != beforeHead {
+		t.Errorf("a rewind moved the user's HEAD: %q then %q", beforeHead, got)
+	}
+	if status := gitOut(t, project, "status", "--porcelain"); strings.TrimSpace(status) != "" {
+		t.Errorf("the tree was restored but the user's index is dirty: %q", status)
+	}
+}
+
+// A file the snapshot never contained, because the project ignores it, is not
+// the agent's to delete. Build output is the usual case and losing it to an
+// /undo would be a surprise nobody asked for.
+func TestRewindDoesNotDeleteIgnoredFiles(t *testing.T) {
+	gitOr(t, "git is required for the shadow store")
+	project := newProject(t)
+	if err := os.WriteFile(filepath.Join(project, ".gitignore"), []byte("build/\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(project, "build"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	artefact := filepath.Join(project, "build", "app")
+	if err := os.WriteFile(artefact, []byte("binary\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.UseShadow(context.Background(), project)
+	store.BeginTurn(context.Background())
+	if err := os.WriteFile(filepath.Join(project, "kept.txt"), []byte("x\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.RewindLastTurn(context.Background()); err != nil {
+		t.Fatalf("RewindLastTurn: %v", err)
+	}
+	if _, err := os.Stat(artefact); err != nil {
+		t.Errorf("the rewind deleted an ignored file the snapshot never held: %v", err)
+	}
+}
+
+// A session that started before git existed, or outside a repository, still
+// rewinds the way its turns were captured.
+func TestRewindUsesWhicheverStoreCapturedTheTurn(t *testing.T) {
+	project := t.TempDir() // not a repository: the copy store
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -234,13 +338,16 @@ func TestRecordKeepsWorkingWhileTheShadowStoreIsActive(t *testing.T) {
 	store.BeginTurn(context.Background())
 
 	target := filepath.Join(project, "kept.txt")
+	if err := os.WriteFile(target, []byte("one\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if err := store.Record("edit_file", target); err != nil {
 		t.Fatalf("Record: %v", err)
 	}
 	if err := os.WriteFile(target, []byte("changed\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	restored, err := store.RewindLastTurn()
+	restored, err := store.RewindLastTurn(context.Background())
 	if err != nil {
 		t.Fatalf("RewindLastTurn: %v", err)
 	}
@@ -248,6 +355,6 @@ func TestRecordKeepsWorkingWhileTheShadowStoreIsActive(t *testing.T) {
 		t.Fatalf("restored %v, want one path", restored)
 	}
 	if content, _ := os.ReadFile(target); string(content) != "one\n" {
-		t.Errorf("the file was not put back: %q", content)
+		t.Errorf("the copy store did not put the file back: %q", content)
 	}
 }
