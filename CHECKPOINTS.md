@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **G16.4 `mcp(...)` permission rules** — a server's tools become governable by prefix, and the widest rule stops quietly excluding them.
 - [x] **G16.5 tool schemas stop being free** — measured at 2,816 bytes, bounded by a failing budget, and reported by `kolk doctor`; the doc's estimate was nearly double.
 - [x] **I27.6 the view** — the dash renders the cards, blocked first, and a prediction I27.4 made about the catalogue turned out to be false.
 - [x] **I29.1 listening-port discovery** — a `bash` call that starts a server says where it is, and only a loopback port gets a link.
@@ -2132,6 +2133,47 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### G16.4 built — `mcp(...)` rules, and a hole the widest rule already had
+
+Item 16 calls this the blocker: without it, "ask every time" is the only honest posture, "which makes
+a twelve-tool server unusable". Building it made the problem concrete rather than theoretical — an
+MCP tool has **no path and no command**, so `Rule.targets` had nothing to try a pattern against and
+every server tool matched no rule at all.
+
+**`mcp` is a family, not a pattern inside an existing one**, and the reason is that the other families
+are *lists of built-in tool names*, which works because those are a closed set. A server's tools are
+not, so `mcp`'s membership has to be a **test**, and the test is the namespace separator. That is
+what item 16's `<server>__<tool>` choice buys: `allow mcp(github__*)` means one server and nothing
+else, and a name clash cannot make it mean another.
+
+**Two directions of leakage are closed, each with its own test.** An `mcp` rule never covers a
+built-in — `allow mcp(*)` matching `bash` would be a permission rule wearing somebody else's name.
+And a built-in rule never covers a server tool: `allow bash(*)` governing `github__delete_repo` would
+grant something the user never saw. A tool name without the separator is not a server tool, which is
+what makes "one server's tools" a decidable set at all.
+
+**A hole that already existed turned up on the way.** `any` and `*` are documented as *every* tool,
+and they did not cover MCP tools — the same missing-target bug, hidden because nothing produced such
+a tool yet. A user who wrote the widest rule the system has would have found one class of call quietly
+excluded from it. Fixed with the family, and pinned by its own test.
+
+**The floor is unreachable from here**, tested with `allow mcp(*)` plus `allow bash(*)` in full-auto
+against a piped-curl command: still denied. `hardline` runs before rules, and this changes nothing
+about that.
+
+Useful without MCP existing, exactly as the item promised: the rules parse, match and are tested today
+against synthetic namespaced names, so the transport work lands into a permission model that is
+already right.
+
+Acceptance checklist:
+
+- [x] seven tests written first, two of them for leakage in each direction.
+- [x] `mcp` made a family with a membership test, because a server's tools are not a closed set.
+- [x] the pre-existing `any`/`*` hole found and closed rather than worked around.
+- [x] the floor proven unreachable from an mcp rule.
+- [x] the family vocabulary comment updated so the type still lists what it accepts.
+- [x] full `make check` green: 2,266 tests, 0 lint issues.
 
 ### G16.5 built — tool schemas stop being free, and the estimate was wrong
 

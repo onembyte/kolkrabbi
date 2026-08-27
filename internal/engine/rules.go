@@ -20,7 +20,7 @@ import (
 //	ask   write(*)
 type Rule struct {
 	Decision Verdict
-	Family   string // bash | read | write | *
+	Family   string // bash | read | write | mcp | *
 	Pattern  string
 	Source   string // the line as written, so a message can quote it back
 }
@@ -38,8 +38,30 @@ var ruleFamilies = map[string][]string{
 	"read":  {"read_file", "list_dir"},
 	"write": {"write_file", "edit_file"},
 	"edit":  {"write_file", "edit_file"},
-	"any":   nil, // nil means every tool
+	"mcp":   {mcpFamilyMarker}, // any namespaced server tool; see mcpFamilyMarker
+	"any":   nil,               // nil means every tool
 	"*":     nil,
+}
+
+// mcpFamilyMarker stands in for "every tool a server provides".
+//
+// The other families are lists of built-in tool names, which works because
+// those are a closed set. A server's tools are not: `mcp` has to be a
+// membership *test*, and the test is the namespace separator — item 16 chose
+// `<server>__<tool>` precisely so a clash is impossible and a rule can match a
+// prefix, which makes `allow mcp(github__*)` mean one server and nothing else.
+const mcpFamilyMarker = "\x00mcp"
+
+// mcpNamespaceSeparator is what makes a tool a server's tool.
+const mcpNamespaceSeparator = "__"
+
+// isMCPTool reports whether a tool name came from a server.
+//
+// A name without the separator is a built-in, and treating it as a server tool
+// would let `allow mcp(*)` govern `bash` — a permission rule wearing somebody
+// else's name.
+func isMCPTool(tool string) bool {
+	return strings.Contains(tool, mcpNamespaceSeparator)
 }
 
 // ParseRules reads a whole list, reporting the first line that does not parse.
@@ -123,8 +145,19 @@ func expandHome(pattern string) string {
 // match reports whether this rule covers the request.
 func (r Rule) match(request tools.Request) bool {
 	names := ruleFamilies[r.Family]
-	if names != nil && !contains(names, request.Tool) {
+	switch {
+	case len(names) == 1 && names[0] == mcpFamilyMarker:
+		// An mcp rule covers server tools and only those.
+		if !isMCPTool(request.Tool) {
+			return false
+		}
+	case names != nil && !contains(names, request.Tool):
 		return false
+	case names == nil && isMCPTool(request.Tool):
+		// `any` and `*` mean every tool, and a server's tool is a tool. Without
+		// this a user who wrote the widest rule there is would find one class
+		// of call quietly excluded from it.
+		return globMatch(r.Pattern, request.Tool)
 	}
 	for _, target := range r.targets(request) {
 		if target != "" && globMatch(r.Pattern, target) {
@@ -138,6 +171,11 @@ func (r Rule) match(request tools.Request) bool {
 // against both spellings of the path so that `write(src/*)` written the way the
 // user sees it and `write(/home/me/p/src/*)` both work.
 func (r Rule) targets(request tools.Request) []string {
+	// A server tool has no path and no command: its name is the only thing a
+	// pattern can be about, which is why the namespacing had to come first.
+	if isMCPTool(request.Tool) {
+		return []string{request.Tool}
+	}
 	if request.Command != "" {
 		if r.Family == "bash" || ruleFamilies[r.Family] == nil {
 			return []string{request.Command}
