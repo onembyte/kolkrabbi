@@ -2033,6 +2033,51 @@ Acceptance checklist:
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
 
+### Verification pass 6 — my own week's work, by mutation — recorded detail
+
+E13, F14, G11, G15, I26 and I27 are leaves I wrote, including the claims about them, so reading my
+own tests proves nothing. Instead: break each feature in the source and check the suite notices.
+Eight mutations, each reverted immediately.
+
+| Mutation | Caught by |
+|---|---|
+| path confinement never reports `outside` | 3 tests in `internal/tools` |
+| tool-output scrubbing discarded | `TestToolOutputIsScrubbedBeforeItIsKept`, and the bash one |
+| pairing attempt cap removed | `TestTooManyWrongCodesDisarmsIt` |
+| device tier ignored, read may act | `TestAReadDeviceCanWatchButNotAct` |
+| diff truncates the tail, not the middle | tests in both `diff` and `tools` |
+| subagent guard allows what it should refuse | 3 subagent tests |
+| the permission floor stops refusing | 4 tests |
+| `/undo` trims history when the file restore failed | `TestAFailedFileRestoreLeavesTheConversationAlone` |
+
+Eight for eight. After pass 3 found a guardrail that could not fail and this session produced two
+vacuously-green tests of my own, that result is worth having rather than assuming.
+
+One note on method: mutation 8 first appeared to survive, because I filtered with `-run Undo` and the
+test that catches it is named `TestAFailedFileRestore…`. A mutation that "survives" is a claim about
+the suite, so it deserves the same scepticism as a test that passes — I re-ran unfiltered before
+believing it.
+
+**Finding: the linter cannot see dead exported code, and `internal/` is where that matters most.**
+Added `func DefinitelyNobodyCallsThis` to `internal/netaddr`, ran `make lint`, got `0 issues`.
+`unused` treats an exported identifier as part of a package's API, which is right for a library and
+wrong for `internal/`, where nothing outside the module can ever call it. The blind spot is the size
+of every exported name in the tree — and it is exactly how `FileGateDetector` and `ChapterVerifier`
+survived with passing tests, as pass 4 found.
+
+A text sweep cannot close it: `grep` cannot tell a declaration and its doc comment from a use, which
+my first two attempts demonstrated. The remedy that fits this project is an architecture test —
+`internal/arch/arch_test.go` already parses the tree with `go/ast` for the layer rules, so "an
+exported symbol in `internal/` must be used outside its own package, or be unexported" belongs beside
+them. Next checkpoint.
+
+Acceptance checklist:
+
+- [x] eight features mutated, each caught, each reverted.
+- [x] an apparently-surviving mutation re-checked before being believed.
+- [x] the linter's blind spot proved by experiment, not inferred.
+- [x] the remedy identified in machinery the project already has.
+
 ### Verification pass 5 — C12, D17, L13 — recorded detail
 
 Twenty leaves across sessions and context, the dashboard, and the managed local-model planner. Every
