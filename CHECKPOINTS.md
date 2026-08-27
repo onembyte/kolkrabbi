@@ -154,6 +154,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **S10.3 budget & doom-loop guardrails** — chapter limit, dollar budget, timeout, and consecutive failure detection.
 - [x] **S10.4 CLI & slash command surface** — `kolk saga [goal|resume|status|stop|rewind]` and REPL twin `/saga`.
 - [x] **S10.8 the next-chapter planner** — the saga decides one chapter at a time from what the last one achieved, as the doc's napkin test shows.
+- [x] **S10.10 the provider guard, everywhere and pinned** — every package audited for the same gap, the guard applied independently of directory isolation, and the property itself under test.
 - [x] **S10.9 the test suite cannot reach a provider** — isolation is no longer something a test can forget, and a stray call now hits a closed port instead of the real API.
 - [x] **S10.7 resume is the resume anchor** — `kolk saga resume` works the chapters instead of saying the loop is unwired, which stopped being true the moment S10.6 landed.
 - [x] **S10.6 the chapter executor** — `kolk saga run` walks the chapters: work, verify, record, repeat until a budget stops it.
@@ -2095,6 +2096,48 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### S10.10 the provider guard, everywhere and pinned — verified detail
+
+S10.9 closed the gap in `internal/cli`. This asked whether the rest of the tree had it too, and then
+found the guard itself had a hole.
+
+**No other package reaches a provider.** Checked three ways rather than assumed: per-package test
+times (the slowest are `arch` at 3.9s parsing the tree and `shell` at 1.1s spawning processes — both
+explicable, neither network-shaped); every test constructing a `provider.Client`; and every test
+calling `paths.Resolve()`. One client is built without a `BaseURL` — `backend_test.go` — and it only
+compares pointers, never calling. Four tests resolve real directories and all four set the three
+`KOLK_*` variables first.
+
+**But those four exposed a hole in yesterday's guard.** They isolate their directories by hand rather
+than through `isolateHome`, and `isolateHome` returns early when the directories are already set — so
+the base-URL guard was skipped for exactly the tests that had opted out of the helper. The guard is
+now applied first and separately, before that early return, and those tests call it explicitly.
+
+**The guard only fires when nothing else has aimed the client.** A test already pointing at its own
+mock keeps it. That matters more than it sounds: a guard that clobbers legitimate setups is a
+nuisance, and a nuisance is what gets deleted six months later by someone making an unrelated change
+work.
+
+**The property is now under test, not just the line.** `TestIsolationLeavesNoRouteToARealProvider`
+asserts that after isolation the base URL is non-blank and points at loopback, and that no key
+survived. A one-line guard inside a helper is precisely the sort of thing a future edit removes
+silently; this fails instead.
+
+One process note worth recording: I probed the guard by editing `cli_test.go` and then ran
+`git checkout` on it — which discarded the refactor in the same file, uncommitted. Restored it, and
+re-ran the probe against an exported copy of HEAD instead. Testing a change by mutating the file that
+holds the change is a way to lose the change.
+
+Acceptance checklist:
+
+- [x] every package checked for network reachability by time, by client construction, and by real-path resolution.
+- [x] the one unpointed client verified never to call.
+- [x] the guard applied before the idempotency short-circuit, not after.
+- [x] hand-isolating tests routed through the guard.
+- [x] a test's own mock is never clobbered.
+- [x] the guard's property pinned by two tests.
+- [x] full `make check` green: 2,058 tests, 0 lint issues.
 
 ### S10.9 the test suite cannot reach a provider — verified detail
 

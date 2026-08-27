@@ -41,6 +41,21 @@ func newTestApp(t *testing.T, stdin string) (*app, *bytes.Buffer, *bytes.Buffer)
 	return a, &out, &errOut
 }
 
+// blockProviderAccess points any provider call that has not been aimed
+// somewhere else at a closed port.
+//
+// Only when nothing has aimed it yet: a test already pointing kolk at its own
+// mock keeps that, and one that has not gets connection-refused in microseconds
+// instead of a real request to openrouter.ai. Blank is not neutral — blank
+// means "use the real API", which is how `make check` came back rate-limited
+// against the owner's account on 2026-08-27.
+func blockProviderAccess(t *testing.T) {
+	t.Helper()
+	if os.Getenv("OPENROUTER_BASE_URL") == "" {
+		t.Setenv("OPENROUTER_BASE_URL", unroutableBaseURL)
+	}
+}
+
 // unroutableBaseURL is a loopback port nothing listens on. Any provider call a
 // test makes without pointing at its own mock lands here and fails at once.
 const unroutableBaseURL = "http://127.0.0.1:1"
@@ -58,6 +73,12 @@ func isolateHome(t *testing.T) paths.Dirs {
 	// rather than pointing the process at a fresh temp directory the caller
 	// has never heard of. newTestApp isolates unconditionally, so any test
 	// that also isolates explicitly calls this twice.
+	// The guard is applied first and separately from the directories, because
+	// the two can already be half-done: several tests point kolk at their own
+	// directories without going through this helper, and they used to skip the
+	// guard entirely on the early return below.
+	blockProviderAccess(t)
+
 	if existing := os.Getenv(paths.EnvConfigDir); existing != "" {
 		return paths.Dirs{
 			Config: existing,
@@ -75,11 +96,7 @@ func isolateHome(t *testing.T) paths.Dirs {
 	t.Setenv(paths.EnvDataDir, d.Data)
 	t.Setenv(paths.EnvCacheDir, d.Cache)
 	t.Setenv("OPENROUTER_API_KEY", "")
-	// Not blank: blank means "use the real API". A test that reaches a
-	// provider by accident should fail in milliseconds against a closed port,
-	// not succeed against openrouter.ai and spend somebody's quota — which is
-	// what happened on 2026-08-27 before this line said this.
-	t.Setenv("OPENROUTER_BASE_URL", unroutableBaseURL)
+	blockProviderAccess(t)
 	t.Setenv("CI", "")
 	return d
 }
@@ -599,5 +616,38 @@ func TestConfigSetGetUnsetDottedEffortModel(t *testing.T) {
 	_ = a.main(context.Background(), []string{"config", "get", "effort.high.model"})
 	if !strings.Contains(out.String(), "unset") {
 		t.Errorf("config get after unset output = %q, want unset note", out.String())
+	}
+}
+
+// TestIsolationLeavesNoRouteToARealProvider pins the guard itself.
+//
+// The guard is one line in a helper, and a helper's line is exactly the kind of
+// thing a future change removes while making something else work. This asserts
+// the property rather than the line: after isolation, nothing points at a real
+// provider, and a call would fail rather than succeed.
+func TestIsolationLeavesNoRouteToARealProvider(t *testing.T) {
+	isolateHome(t)
+
+	base := os.Getenv("OPENROUTER_BASE_URL")
+	if base == "" {
+		t.Fatal("base URL is blank after isolation, which means the real API")
+	}
+	if !strings.Contains(base, "127.0.0.1") && !strings.Contains(base, "localhost") {
+		t.Fatalf("base URL = %q after isolation; tests must not be able to reach a real host", base)
+	}
+	if key := os.Getenv("OPENROUTER_API_KEY"); key != "" {
+		t.Fatalf("a key survived isolation: tests would run with the developer's credentials")
+	}
+}
+
+// TestIsolationDoesNotOverrideATestsOwnMock keeps the guard from being a
+// nuisance, which is how guards get deleted.
+func TestIsolationDoesNotOverrideATestsOwnMock(t *testing.T) {
+	t.Setenv("OPENROUTER_BASE_URL", "http://127.0.0.1:65535/mine")
+
+	isolateHome(t)
+
+	if got := os.Getenv("OPENROUTER_BASE_URL"); got != "http://127.0.0.1:65535/mine" {
+		t.Fatalf("isolation clobbered the test's own mock: %q", got)
 	}
 }

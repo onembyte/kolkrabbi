@@ -18,6 +18,7 @@ func TestPipedStdinRunsSingleShot(t *testing.T) {
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	blockProviderAccess(t)
 	// HOME alone isolates nothing on a desktop Linux machine: XDG_DATA_HOME is
 	// usually set and wins, so this test used to write sessions, event spills
 	// and usage records into the developer's own Kolkrabbi state. The KOLK_*
