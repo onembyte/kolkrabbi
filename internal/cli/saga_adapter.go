@@ -27,5 +27,5 @@ func VerifySagaChapter(ctx context.Context, sh shell.Shell, repoDir string, stat
 	if sh == nil {
 		return fmt.Errorf("saga: shell is required")
 	}
-	return engine.VerifyChapterAndPersist(ctx, sagaCommandRunner{shell: sh}, repoDir, state, chapterIndex, engine.DetectQualityGates(repoDir), atomicfile.Write)
+	return engine.VerifyChapterAndPersist(ctx, sagaCommandRunner{shell: sh}, repoDir, state, chapterIndex, engine.FileGateDetector{}, atomicfile.Write)
 }

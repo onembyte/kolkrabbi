@@ -3,11 +3,20 @@ package engine
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 // VerifyChapter runs the active chapter's gates and applies the resulting
 // lifecycle transition to durable saga state.
-func VerifyChapter(ctx context.Context, runner CommandRunner, repoDir string, state *SagaState, chapterIndex int, gates []string) error {
+// VerifyChapter runs one chapter's gates and records the outcome in the saga
+// state.
+//
+// The detector is a parameter rather than a fixed FileGateDetector so a caller
+// can say which gates apply — a test, and one day a project that configures its
+// own. It replaced a pre-computed []string: with the ports design the detector
+// is the thing that decides, and passing both meant two sources of truth for
+// one answer.
+func VerifyChapter(ctx context.Context, runner CommandRunner, repoDir string, state *SagaState, chapterIndex int, detector QualityGateDetector) error {
 	if state == nil {
 		return fmt.Errorf("saga: state is required")
 	}
@@ -24,7 +33,18 @@ func VerifyChapter(ctx context.Context, runner CommandRunner, repoDir string, st
 		}
 	}
 
-	commit, err := VerifyAndCommitResult(ctx, runner, repoDir, gates, *chapter)
+	if detector == nil {
+		// A nil port would panic on the first Detect. Defaulting to the file
+		// detector says the useful thing instead: no detector given means
+		// "work it out from the repository".
+		detector = FileGateDetector{}
+	}
+	verifier := &ChapterVerifier{
+		Detector:     detector,
+		Runner:       NewCommandGateRunner(ctx, runner),
+		Checkpointer: NewCommandCheckpointer(ctx, runner),
+	}
+	commit, err := verifyThroughPorts(verifier, repoDir, *chapter)
 	if err != nil {
 		if strikeErr := RecordGateFailure(state); strikeErr != nil {
 			return strikeErr
@@ -50,8 +70,8 @@ func VerifyChapter(ctx context.Context, runner CommandRunner, repoDir string, st
 // VerifyChapterAndPersist applies the chapter result and persists the updated
 // saga artifact even when verification fails, preserving the failure/strike
 // state needed for resume.
-func VerifyChapterAndPersist(ctx context.Context, runner CommandRunner, repoDir string, state *SagaState, chapterIndex int, gates []string, write ArtifactWriter) error {
-	verifyErr := VerifyChapter(ctx, runner, repoDir, state, chapterIndex, gates)
+func VerifyChapterAndPersist(ctx context.Context, runner CommandRunner, repoDir string, state *SagaState, chapterIndex int, detector QualityGateDetector, write ArtifactWriter) error {
+	verifyErr := VerifyChapter(ctx, runner, repoDir, state, chapterIndex, detector)
 	artifactErr := SaveSagaArtifact(repoDir, state, write)
 	if artifactErr != nil {
 		if verifyErr != nil {
@@ -68,4 +88,31 @@ func transitionChapter(chapter *Chapter, to ChapterStatus) error {
 	}
 	chapter.Status = to
 	return nil
+}
+
+// verifyThroughPorts adapts ChapterVerifier's result to the commit-or-error
+// shape the lifecycle state machine works in.
+//
+// The verifier reports a failed chapter as a result rather than an error,
+// because "the gates failed" is an outcome and not a malfunction. The state
+// machine needs the distinction the other way round — it records a strike and
+// a message — so the translation happens here rather than in either of them.
+func verifyThroughPorts(verifier *ChapterVerifier, repoDir string, chapter Chapter) (string, error) {
+	result, err := verifier.Verify(repoDir, chapter)
+	if err != nil {
+		return "", err
+	}
+	if result.Passed {
+		return result.Commit, nil
+	}
+	var failed []string
+	for _, run := range result.GateRuns {
+		if !run.Passed {
+			failed = append(failed, fmt.Sprintf("%s: %s", run.Gate.Name, strings.TrimSpace(run.Output)))
+		}
+	}
+	if len(failed) == 0 {
+		return "", fmt.Errorf("saga: quality gates failed")
+	}
+	return "", fmt.Errorf("saga: quality gates failed — %s", strings.Join(failed, "; "))
 }

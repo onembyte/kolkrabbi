@@ -2049,6 +2049,57 @@ Acceptance checklist:
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
 
+### X5 one saga verification path, the ports one — verified detail
+
+The owner chose wire-and-drop on the duplication pass 4 found. Doing it turned up something the audit
+had not: **neither path was reachable**. `kolk saga` sets a goal, prints status, resumes, stops and
+rewinds; it never executes or verifies a chapter. `VerifySagaChapter`, the CLI boundary of the
+supposedly live path, has no caller either — it was sitting in the dead-export allowlist marked
+untriaged. So this was not "one live implementation and one dead one". It was two unreachable ones,
+and the saga's execution half has never been built.
+
+That is worth stating plainly because it changes what "wire it" could mean. Wiring `ChapterVerifier`
+into a chapter executor that does not exist would have meant inventing the executor. What is done
+here is the part that is unambiguous: **one implementation, behind the ports, with the duplicate
+deleted.** Whether `kolk saga` should run chapters is a separate decision and stays open.
+
+**Built the two port implementations that never existed.** `ChapterVerifier` was written against
+`QualityGateRunner` and `GitCheckpointer` and only fakes ever satisfied them, which is exactly why an
+ad-hoc copy grew beside it: there was nothing real to call. `NewCommandGateRunner` and
+`NewCommandCheckpointer` are those implementations, over the `CommandRunner` port the engine already
+had, so nothing new reaches for the platform layer.
+
+**Added cancellation the ports were missing.** `RunGates` and the checkpointer methods took no
+context, which would have meant a quality gate nobody could interrupt — and `kolk saga stop` exists.
+A `make check` that runs for two minutes has to be stoppable, so both carry a context and a cancelled
+one stops before the next gate rather than after it.
+
+**Two behaviours improved on the way, both from the ports design being better.** Gates now all run
+even after one fails, because naming gates individually is pointless if a run only reports the first
+broken one. And a chapter that changed nothing is no longer committed: the old path always committed,
+the new one asks `git status --porcelain` first. An empty commit is a revision nobody can learn
+anything from.
+
+**One thing preserved deliberately**: the old path quoted a chapter title for the shell, and a title
+is model-written text arriving on a command line. `shellQuote` carries that forward with a test that
+tries to break out of it.
+
+Net: 124 lines added, 322 deleted, across nine files. `DetectQualityGates`, `VerifyAndCommit`,
+`VerifyAndCommitResult`, `gateFailure` and their two test files are gone; `VerifyChapter` takes a
+`QualityGateDetector` instead of a pre-computed `[]string`, because with a detector in the design
+passing both meant two sources of truth for one answer.
+
+Acceptance checklist:
+
+- [x] traced both paths to their callers before deleting either.
+- [x] production implementations of both unimplemented ports, with tests.
+- [x] cancellation added where a long gate would otherwise be uninterruptible.
+- [x] every gate runs, and its output survives, even after an earlier failure.
+- [x] a clean worktree is completed without an empty commit, pinned by a test.
+- [x] shell quoting of model-written titles preserved and tested.
+- [x] the two symbols left `DeadExportAllowlist`; `SagaBudget` stayed, being untouched by this.
+- [x] full `make check` green: 2,026 tests, 0 lint issues.
+
 ### Final pass — what the audit found, and what to do about it — recorded detail
 
 Eight passes over 1,208 ticked leaves, verified against code or by running the binary rather than by

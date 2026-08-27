@@ -24,12 +24,9 @@ var DeadExportAllowlist = map[string]string{
 	// The rule's own allowlist. Only its test reads it, necessarily.
 	"DeadExportAllowlist": "read by the rule that uses this list",
 
-	// A parallel saga-verification path that nothing calls. Pass 4 traced it
-	// end to end: the live path is DetectQualityGates via saga_adapter.go.
-	// Kept because the dead one is the better design — ports only, no shell —
-	// so the choice is wire it or drop it, and that is the owner's.
-	"ChapterVerifier":  "unreachable parallel design, see pass 4; wire or drop is a decision",
-	"FileGateDetector": "unreachable parallel design, see pass 4; wire or drop is a decision",
+	// ChapterVerifier and FileGateDetector left this list on 2026-08-27: the
+	// owner chose wire-and-drop, so they are now the live path and the ad-hoc
+	// one is deleted.
 
 	// Mine, and the reason this rule earns its place: I built both two days ago
 	// and wired neither. Overview is what I26.7's remote client will render;
@@ -53,9 +50,8 @@ var DeadExportAllowlist = map[string]string{
 	"NewPlainRenderer":  "untriaged 2026-08-27",
 	"NewRuntimeSpec":    "untriaged 2026-08-27",
 	"NewSessionDecider": "untriaged 2026-08-27",
-	"Quote":             "untriaged 2026-08-27",
 	"SagaBudget":        "untriaged 2026-08-27",
-	"VerifyAndCommit":   "untriaged 2026-08-27",
+	"Quote":             "untriaged 2026-08-27",
 	"VerifySagaChapter": "untriaged 2026-08-27",
 	"WriteJSON":         "untriaged 2026-08-27",
 }
