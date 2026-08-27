@@ -2033,6 +2033,56 @@ Acceptance checklist:
 - [x] `a` with nothing to keep refuses rather than allowing.
 - [x] full `make check` green: 1,826 tests, 0 lint issues, every script contract.
 
+### Verification pass 4 — S10, P11, B12 — recorded detail
+
+Twenty-five leaves across the saga loop, provider plans and the Claude subscription backend. Every
+claim checked held, which is the first pass where that is true — and the two findings are about
+things around the leaves rather than in them.
+
+**Verified.** S10.2's `VerifyAndCommit` really does run gates, commit only on green, and restore the
+worktree on failure; its "automated test discovery" is real, in `DetectQualityGates`, probing for
+`package.json`, a Makefile and friends. S10.3's `SagaBudget` carries the chapter limit, cost limit and
+a `StopDoomLoop` reason. B12.9's `planBackendFor` selects the provider from the connector and refuses
+an unusable plan model with its reason. P11.7's `unverified` state exists and says what it does not
+prove. S10.5's honesty claim holds in the direction that matters: `kolk saga rewind` reports the real
+saga and then says rewinding is not wired, rather than pretending.
+
+**Finding 1: PLAN item 24 still listed as open two things that had shipped.** Its Anthropic row said
+"still open: proof the provider actually authenticated, connector→backend selection for a new
+session, and failure-path tests". The first two are B12.9 and P11.7a/b, both ticked, both verified
+here. Only failure-path tests remain, plus B12.13's product decision. Corrected, with the
+checkpoints named so the next reader can check rather than trust.
+
+That is the *inverse* of the pattern the earlier passes found: not a leaf outliving its feature, but a
+plan row that never learned its work was done. Same root cause — nothing walks back — and it cuts
+both ways, making the plan look further behind than it is.
+
+**Finding 2: a whole verification path exists that nothing calls.** `ChapterVerifier`
+(`chapter_verify.go`) and `FileGateDetector` (`gates.go`) are referenced only by their own tests —
+134 lines of implementation and 249 of test. The live saga path is a different implementation
+entirely: `saga_adapter.go` → `VerifyChapterAndPersist` → `DetectQualityGates`. Two answers to one
+question, one of them unreachable.
+
+Two things make this worth recording rather than deleting on sight. First, **the dead one is the
+better design** — its own comment says it depends only on ports and never on shell, which is the
+architecture the rest of the project aims for. So the real choice is *wire it or drop it*, and that is
+a decision, not a cleanup. Second, **its tests pass**, which is exactly why it survived: green tests
+read as live code, and `golangci-lint`'s `unused` check does not flag exported symbols even inside
+`internal/`, where nothing outside the module could ever use them.
+
+Both files now carry an UNREACHABLE note naming the live path, so nobody reads them as load-bearing
+while the decision waits. Carried to the final pass as the first optimisation candidate, along with a
+systematic sweep for other exported-but-unreachable code in `internal/`.
+
+Acceptance checklist:
+
+- [x] every S10, P11 and B12 claim checked against code.
+- [x] the saga's gate discovery, budget and doom-loop guard verified to exist.
+- [x] item 24's stale open list corrected and its evidence named.
+- [x] the unreachable verification path traced end to end before judging it.
+- [x] both dead files marked in place rather than deleted unilaterally.
+- [x] full `make check` green: 2,023 tests, 0 lint issues.
+
 ### Verification pass 3 — E7, M8, C9 — recorded detail
 
 **E7.1 is the cleanest leaf audited so far.** Ran all twelve spellings through the binary: `low`,

@@ -2,6 +2,17 @@ package engine
 
 import "fmt"
 
+// UNREACHABLE as of 2026-08-27, found by a checkpoint audit. Nothing outside
+// this package's own tests refers to it, and `internal/` means nothing outside
+// the module can. The saga's live path is DetectQualityGates in
+// quality_gates.go, called from internal/cli/saga_adapter.go, which does the
+// same job with a different shape.
+//
+// Kept rather than deleted because this is the better design of the two — it
+// depends only on ports and never on shell — so the choice is whether to wire
+// it or drop it, and that is worth deciding rather than defaulting. Its tests
+// pass, which is exactly why the duplication survived: green tests read as
+// live code.
 // ChapterVerifier orchestrates the verify-then-checkpoint cycle for a single
 // saga chapter. It depends only on engine ports (QualityGateRunner,
 // GitCheckpointer, QualityGateDetector), never on shell or platform packages.

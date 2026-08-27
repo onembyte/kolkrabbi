@@ -558,8 +558,12 @@ The inventory and acceptance gates live in [`docs/plan/24-subscription-provider-
 
 - [~] Anthropic Claude Free/Pro/Max/Team/Enterprise via the user's own CLI handover — shipped
   2026-08-26 as checkpoints P11 (plans, connectors, `kolk plans login`) and B12 (persistent
-  `ClaudeBackend` over `claude -p --output-format stream-json`). Still open: proof the provider
-  actually authenticated, connector→backend selection for a new session, and failure-path tests.
+  `ClaudeBackend` over `claude -p --output-format stream-json`). Two of the three items this row
+  listed as open have since shipped and the row did not know: connector→backend selection is B12.9
+  (`planBackendFor` picks the provider and refuses an unusable plan model with its reason), and proof
+  of authentication is P11.7a/P11.7b (a clean exit records `unverified` and says what that does not
+  prove; the first answered turn confirms it). **Still open: failure-path tests**, and B12.13, the
+  product decision about whether a subscription session still needs an OpenRouter key.
 - [ ] OpenAI ChatGPT Free/Plus/Pro/Business/Enterprise via a permitted Codex/first-party CLI path.
 - [ ] Google Gemini Free/AI Pro/AI Ultra/Workspace via documented API access.
 - [ ] xAI Grok consumer/business plans.
