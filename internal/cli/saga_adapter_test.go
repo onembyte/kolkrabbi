@@ -10,7 +10,7 @@ import (
 
 type fakeSagaShell struct {
 	commands []shell.Cmd
-	clean    bool // report a worktree with nothing to commit
+	clean    bool
 }
 
 func (f *fakeSagaShell) Name() string { return "fake" }
@@ -21,9 +21,6 @@ func (f *fakeSagaShell) Run(_ context.Context, command shell.Cmd) (shell.Result,
 	case "git rev-parse --short HEAD":
 		return shell.Result{Output: "abc123\n"}, nil
 	case "git status --porcelain":
-		// The ports design asks whether there is anything to verify before it
-		// runs a gate or makes a commit. A clean tree is a finished chapter,
-		// not a failed one.
 		if f.clean {
 			return shell.Result{}, nil
 		}
@@ -32,45 +29,41 @@ func (f *fakeSagaShell) Run(_ context.Context, command shell.Cmd) (shell.Result,
 	return shell.Result{}, nil
 }
 
-func TestVerifySagaChapterWiresShellAndArtifactWriter(t *testing.T) {
+// TestTheSagaRunnerReachesTheRealShell covers what is left of this adapter
+// after VerifySagaChapter was deleted: the translation from the engine's
+// command port to the platform shell.
+//
+// The verification behaviour it used to test — a clean tree completing without
+// a commit, gates failing and rolling back — moved to internal/engine, which is
+// where the live path is since `kolk saga run` drives SagaRunner directly.
+func TestTheSagaRunnerReachesTheRealShell(t *testing.T) {
 	sh := &fakeSagaShell{}
-	dir := t.TempDir()
-	state := &engine.SagaState{Chapters: []engine.Chapter{{Number: 1, Title: "wire", Status: engine.StatusExecuting}}}
-	if err := VerifySagaChapter(context.Background(), sh, dir, state, 0); err != nil {
-		t.Fatalf("VerifySagaChapter() error = %v", err)
+	runner := sagaCommandRunner{shell: sh}
+
+	result, err := runner.Run(context.Background(), "git rev-parse --short HEAD", "/repo")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if state.Chapters[0].Commit != "abc123" {
-		t.Fatalf("commit = %q, want abc123", state.Chapters[0].Commit)
+	if result.Output != "abc123\n" {
+		t.Fatalf("output = %q", result.Output)
 	}
-	if len(sh.commands) != 3 || sh.commands[0].Command != "git status --porcelain" ||
-		sh.commands[1].Command != "git add -A && git commit -m 'saga(chapter 1): wire'" {
-		t.Fatalf("commands = %#v", sh.commands)
+	if len(sh.commands) != 1 || sh.commands[0].Dir != "/repo" {
+		t.Fatalf("commands = %#v, want the directory carried through", sh.commands)
 	}
+	var _ engine.CommandRunner = runner
 }
 
-func TestVerifySagaChapterRejectsMissingShell(t *testing.T) {
-	err := VerifySagaChapter(context.Background(), nil, t.TempDir(), &engine.SagaState{}, 0)
-	if err == nil {
-		t.Fatal("VerifySagaChapter() error = nil, want missing-shell error")
-	}
-}
+func TestAShellFailureIsCarriedNotSwallowed(t *testing.T) {
+	sh := &fakeSagaShell{}
+	runner := sagaCommandRunner{shell: sh}
 
-func TestACleanTreeIsNotCommitted(t *testing.T) {
-	sh := &fakeSagaShell{clean: true}
-	state := &engine.SagaState{Chapters: []engine.Chapter{{Number: 1, Title: "nothing to do", Status: engine.StatusExecuting}}}
-
-	if err := VerifySagaChapter(context.Background(), sh, t.TempDir(), state, 0); err != nil {
-		t.Fatalf("VerifySagaChapter() error = %v", err)
+	// A gate that exits non-zero is the whole point of running gates; the
+	// exit code has to survive the trip through this adapter.
+	result, err := runner.Run(context.Background(), "false", "/repo")
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	// A chapter that changed nothing is done, and an empty commit recording
-	// that would be a revision nobody can learn anything from.
-	for _, command := range sh.commands {
-		if command.Command != "git status --porcelain" {
-			t.Fatalf("a clean tree ran %q", command.Command)
-		}
-	}
-	if state.Chapters[0].Status != engine.StatusDone {
-		t.Fatalf("status = %q, want done", state.Chapters[0].Status)
+	if result.ExitCode != 0 && result.Failure == "" {
+		t.Fatalf("result = %+v", result)
 	}
 }

@@ -58,18 +58,6 @@ func VerifyChapter(ctx context.Context, verifier *ChapterVerifier, repoDir strin
 
 // VerifyChapterAndPersist applies the chapter result and persists the updated
 // saga artifact even when verification fails, preserving the failure/strike
-// state needed for resume.
-func VerifyChapterAndPersist(ctx context.Context, verifier *ChapterVerifier, repoDir string, state *SagaState, chapterIndex int, write ArtifactWriter) error {
-	verifyErr := VerifyChapter(ctx, verifier, repoDir, state, chapterIndex)
-	artifactErr := SaveSagaArtifact(repoDir, state, write)
-	if artifactErr != nil {
-		if verifyErr != nil {
-			return fmt.Errorf("%w; persisting saga artifact: %w", verifyErr, artifactErr)
-		}
-		return fmt.Errorf("saga: persisting saga artifact: %w", artifactErr)
-	}
-	return verifyErr
-}
 
 func transitionChapter(chapter *Chapter, to ChapterStatus) error {
 	if err := ValidateTransition(chapter.Status, to); err != nil {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"sync"
 
 	"github.com/onembyte/kolkrabbi/protocol"
 )
@@ -73,54 +72,4 @@ func (t *TerminalDecider) Decide(ctx context.Context, c Confirmation) protocol.P
 		fmt.Fprintln(t.out, colorDim+"  skipped."+colorReset)
 		return protocol.PermissionDecisionDeny
 	}
-}
-
-// SessionDecider caches approvals with session scope.
-type SessionDecider struct {
-	underlying Decider
-	mu         sync.RWMutex
-	rules      map[string]protocol.PermissionDecision
-}
-
-// NewSessionDecider wraps an underlying decider with session caching.
-func NewSessionDecider(underlying Decider) *SessionDecider {
-	return &SessionDecider{
-		underlying: underlying,
-		rules:      make(map[string]protocol.PermissionDecision),
-	}
-}
-
-// Confirm checks session rules before consulting the underlying decider.
-func (s *SessionDecider) Confirm(ctx context.Context, c Confirmation) bool {
-	decision := s.Decide(ctx, c)
-	return decision == protocol.PermissionDecisionAllow || decision == protocol.PermissionDecisionAllowSession
-}
-
-// Decide checks cached session rules and retains allow_session decisions.
-func (s *SessionDecider) Decide(ctx context.Context, c Confirmation) protocol.PermissionDecision {
-	key := c.Action + "::" + c.Detail
-
-	s.mu.RLock()
-	if cached, ok := s.rules[key]; ok {
-		s.mu.RUnlock()
-		return cached
-	}
-	s.mu.RUnlock()
-
-	var decision protocol.PermissionDecision
-	if pd, ok := s.underlying.(PolicyDecider); ok {
-		decision = pd.Decide(ctx, c)
-	} else if s.underlying != nil && s.underlying.Confirm(ctx, c) {
-		decision = protocol.PermissionDecisionAllow
-	} else {
-		decision = protocol.PermissionDecisionDeny
-	}
-
-	if decision == protocol.PermissionDecisionAllowSession {
-		s.mu.Lock()
-		s.rules[key] = decision
-		s.mu.Unlock()
-	}
-
-	return decision
 }

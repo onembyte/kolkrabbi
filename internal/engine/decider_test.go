@@ -108,25 +108,6 @@ func TestEngineFailsClosedWithoutDecider(t *testing.T) {
 	}
 }
 
-func TestSessionDeciderCachesApproval(t *testing.T) {
-	underlying := &recordingDecider{allow: true}
-	sessionDecider := NewSessionDecider(underlying)
-
-	c := Confirmation{Action: "bash", Detail: "go test ./..."}
-
-	// Manually set rule to allow_session
-	sessionDecider.rules[c.Action+"::"+c.Detail] = protocol.PermissionDecisionAllowSession
-
-	if !sessionDecider.Confirm(context.Background(), c) {
-		t.Fatal("expected cached rule to allow action")
-	}
-
-	// Underlying decider should NOT have been consulted
-	if underlying.calls != 0 {
-		t.Fatalf("expected 0 calls to underlying decider, got %d", underlying.calls)
-	}
-}
-
 func TestTerminalDeciderAlwaysReturnsAllowSession(t *testing.T) {
 	var out strings.Builder
 	in := bufio.NewReader(strings.NewReader("a\n"))

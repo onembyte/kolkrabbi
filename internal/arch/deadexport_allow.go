@@ -37,17 +37,22 @@ var DeadExportAllowlist = map[string]string{
 	"Overview":   "built for I26.7, which has not landed yet",
 	"ParseRules": "the CLI uses ParseRule per line so one bad rule costs one rule",
 
-	// Triaged 2026-08-27. Seven were deleted outright: the four legacy effort
-	// aliases (NormalizeEffort matches the strings, so the constants were
-	// documentation), atomicfile.WriteJSON, shell.Have and shell.Quote. What
-	// remains is here with a reason.
+	// Triaged 2026-08-27, and nothing here says "untriaged" any more. Eleven of
+	// the sixteen were deleted: four legacy effort aliases, atomicfile.WriteJSON,
+	// shell.Have, shell.Quote, dash.Dist, NewClaudeSession, NewSessionDecider
+	// and VerifySagaChapter. The five below each earn their place.
 	"MaxTasksForEffort": "exported only so the external test package can assert orchestration width",
-	"Dist":              "untriaged 2026-08-27",
-	"InstallRuntime":    "untriaged 2026-08-27",
-	"NewClaudeSession":  "untriaged 2026-08-27",
-	"NewManagedRuntime": "untriaged 2026-08-27",
-	"NewPlainRenderer":  "untriaged 2026-08-27",
-	"NewRuntimeSpec":    "untriaged 2026-08-27",
-	"NewSessionDecider": "untriaged 2026-08-27",
-	"VerifySagaChapter": "untriaged 2026-08-27",
+
+	// Built and unreachable on purpose: the managed local runtime cannot start
+	// until L13.5b4 pins a reviewed release with its checksum, which is blocked
+	// on the owner. Deleting them would mean rebuilding them the day that
+	// decision is made.
+	"InstallRuntime":    "managed runtime, blocked on L13.5b4 pinning a release",
+	"NewManagedRuntime": "managed runtime, blocked on L13.5b4 pinning a release",
+	"NewRuntimeSpec":    "managed runtime, blocked on L13.5b4 pinning a release",
+
+	// A7.4's event-to-text path, built ahead of the thing that will read it.
+	// I26.7's remote client needs exactly this — protocol events rendered as
+	// terminal text — so it is waiting for a consumer, not left over from one.
+	"NewPlainRenderer": "A7.4's event renderer, waiting on I26.7's remote client",
 }

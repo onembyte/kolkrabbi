@@ -2,8 +2,6 @@ package engine_test
 
 import (
 	"context"
-	"os"
-	"strings"
 	"testing"
 
 	"github.com/onembyte/kolkrabbi/internal/engine"
@@ -39,32 +37,6 @@ func verifierOver(runner engine.CommandRunner, gates fixedGates) *engine.Chapter
 		Detector:     gates,
 		Runner:       engine.NewCommandGateRunner(ctx, runner),
 		Checkpointer: engine.NewCommandCheckpointer(ctx, runner),
-	}
-}
-
-func TestVerifyChapterAndPersistWritesCompletedState(t *testing.T) {
-	runner := &recordingRunner{
-		results: map[string]engine.CommandResult{
-			"git status --porcelain": {Output: " M main.go\n"},
-			"git add -A && git commit -m 'saga(chapter 1): first chapter'": {},
-			"git rev-parse --short HEAD":                                   {Output: "abc123"},
-		},
-		errs: map[string]error{},
-	}
-
-	var artifact string
-	state := &engine.SagaState{Chapters: []engine.Chapter{{Number: 1, Title: "first chapter", Status: engine.StatusVerifying}}}
-	err := engine.VerifyChapterAndPersist(context.Background(), verifierOver(runner, fixedGates{}), t.TempDir(), state, 0,
-		func(_ string, data []byte, _ os.FileMode) error {
-			artifact = string(data)
-			return nil
-		})
-	if err != nil {
-		t.Fatalf("VerifyChapterAndPersist() error = %v", err)
-	}
-
-	if !strings.Contains(artifact, "**Status**: completed") || !strings.Contains(artifact, "abc123") {
-		t.Fatalf("artifact does not contain completed chapter: %q", artifact)
 	}
 }
 
@@ -127,29 +99,5 @@ func TestVerifyChapterRejectsInvalidChapter(t *testing.T) {
 	err := engine.VerifyChapter(context.Background(), verifierOver(&recordingRunner{}, fixedGates{}), t.TempDir(), state, 0)
 	if err == nil {
 		t.Fatal("VerifyChapter() error = nil, want invalid-status error")
-	}
-}
-
-func TestVerifyChapterAndPersistWritesFailedState(t *testing.T) {
-	runner := &recordingRunner{
-		results: map[string]engine.CommandResult{
-			"git status --porcelain": {Output: " M main.go\n"},
-			"make check":             {ExitCode: 1, Failure: "check failed"},
-			"git checkout -- .":      {},
-		},
-		errs: map[string]error{},
-	}
-	var artifact string
-	state := &engine.SagaState{Chapters: []engine.Chapter{{Number: 1, Title: "broken chapter", Status: engine.StatusVerifying}}}
-	err := engine.VerifyChapterAndPersist(context.Background(), verifierOver(runner, fixedGates{{Name: "make", Command: "make check"}}), t.TempDir(), state, 0,
-		func(_ string, data []byte, _ os.FileMode) error {
-			artifact = string(data)
-			return nil
-		})
-	if err == nil {
-		t.Fatal("VerifyChapterAndPersist() error = nil, want gate failure")
-	}
-	if !strings.Contains(artifact, "**Status**: failed") || !strings.Contains(artifact, "Strikes") {
-		t.Fatalf("artifact does not contain failed state: %q", artifact)
 	}
 }

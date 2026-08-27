@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
-	"github.com/onembyte/kolkrabbi/internal/shell"
 )
 
 type lineProcess interface {
@@ -44,13 +43,6 @@ func (s *ClaudeSession) Unusable() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.unusable
-}
-
-// NewClaudeSession starts one provider-owned Claude process.
-func NewClaudeSession(ctx context.Context, effort string) (*ClaudeSession, error) {
-	return newClaudeSession(ctx, effort, func(ctx context.Context, executable string, args []string) (lineProcess, error) {
-		return shell.StartLinesProcess(ctx, executable, args)
-	})
 }
 
 func newClaudeSession(ctx context.Context, effort string, start startLineProcess) (*ClaudeSession, error) {

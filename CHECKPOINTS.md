@@ -154,7 +154,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **S10.3 budget & doom-loop guardrails** — chapter limit, dollar budget, timeout, and consecutive failure detection.
 - [x] **S10.4 CLI & slash command surface** — `kolk saga [goal|resume|status|stop|rewind]` and REPL twin `/saga`.
 - [x] **S10.8 the next-chapter planner** — the saga decides one chapter at a time from what the last one achieved, as the doc's napkin test shows.
-- [~] **X6 the dead-export backlog** — seven of the sixteen deleted, one kept with a real reason, nine still to judge.
+- [x] **X6 the dead-export backlog** — twelve deleted, four kept with reasons that name what they are waiting for; nothing says "untriaged".
 - [x] **S10.11 the repair turn** — a chapter whose gates fail gets one attempt to fix itself before its work is discarded, as the doc specifies.
 - [x] **S10.10 the provider guard, everywhere and pinned** — every package audited for the same gap, the guard applied independently of directory isolation, and the property itself under test.
 - [x] **S10.9 the test suite cannot reach a provider** — isolation is no longer something a test can forget, and a stray call now hits a closed port instead of the real API.
@@ -2099,7 +2099,7 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
-### X6 the dead-export backlog — in progress
+### X6 the dead-export backlog — verified detail
 
 X4 left sixteen exported symbols reachable only from tests, marked `untriaged 2026-08-27` in as many
 words rather than dressed up as justified. This is the first pass at judging them.
@@ -2129,12 +2129,27 @@ one:
   `shell.Quote` formats a command for display (`dir $ cmd`), while the saga one escapes a title for a
   shell. Same name, unrelated jobs.
 
-**Nine remain**, and they divide into two kinds. `InstallRuntime`, `NewManagedRuntime` and
-`NewRuntimeSpec` are unreachable *on purpose* — the managed runtime cannot start until `L13.5b4`
-pins a release, which is blocked on the owner. The rest — `Dist`, `NewPlainRenderer`,
-`NewSessionDecider`, `NewClaudeSession`, `VerifySagaChapter` — are leftovers of superseded designs
-and need deleting rather than deciding. Left for the next checkpoint rather than rushed at the end of
-this one.
+**The second pass finished it. Twelve deleted, four kept, none untriaged.**
+
+Deleted in this pass: `dash.Dist` and its embedded `dist` directory, which served assets the
+dashboard stopped having when D17.2 made it server-rendered; `NewClaudeSession`; `NewSessionDecider`
+and the whole `SessionDecider` type; and `VerifySagaChapter`. Deleting the last of those orphaned
+`VerifyChapterAndPersist`, and **the rule caught the cascade on the next run** — its only production
+caller had been the function just removed, and the runner persists separately. That is the ratchet
+doing the thing a manual sweep cannot: noticing what a deletion makes dead.
+
+**The review changed one verdict, which is why the review happens.** The instruction said to delete
+`NewPlainRenderer`, and it should not be deleted. It is A7.4's event-to-text renderer, built ahead of
+its consumer — and I26.7's remote client is exactly that consumer: protocol events rendered as
+terminal text. It is waiting for something, not left over from something. Kept, with that written
+down.
+
+The three managed-runtime symbols are kept for the same shape of reason: `InstallRuntime`,
+`NewManagedRuntime` and `NewRuntimeSpec` cannot run until `L13.5b4` pins a reviewed release, which is
+blocked on the owner. Deleting them would mean rebuilding them the day that decision is made.
+
+Net across both passes: **207 lines removed, 46 added**, and every remaining exemption names what it
+is waiting for rather than admitting nobody looked.
 
 ### S10.11 the repair turn — verified detail
 
