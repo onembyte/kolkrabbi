@@ -150,7 +150,7 @@ func adviseTransport(err error) (Advice, bool) {
 	if errors.As(err, &netErr) {
 		return Advice{
 			Summary:    "could not reach the provider",
-			NextAction: "Check the network. A proxy, a VPN, or a `--base-url` pointing at something that is not running are the usual causes.",
+			NextAction: "Run `kolk doctor` to see what it can reach. A proxy, a VPN, or a `--base-url` pointing at something that is not running are the usual causes.",
 		}, true
 	}
 	// A stream that stops early is not a refusal: nothing said no, the bytes

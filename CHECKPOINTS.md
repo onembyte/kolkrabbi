@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **L21.1 `kolk doctor`** — prints what it found, never what it found with.
 - [x] **L21.3 fuzzing where third-party bytes become control flow** — the SSE reader and tool dispatch, with invariants rather than "does not panic".
 - [x] **L30.3 one vocabulary for one failure** — the turn-level stop and the saga's chapter-level stop share a phrase that a test keeps shared.
 - [x] **L30.2 who is there to ask decides what happens** — the call is never made a third time; the tier decides whether that means a question, a stop, or a refusal.
@@ -2119,6 +2120,52 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### L21.1 built — `kolk doctor`
+
+Keys, directories, terminal and reachability, with the rule item 21 set: **it prints what it found,
+never what it found with.** A diagnostic exists to be pasted into a bug report, so the useful thing —
+sharing it — must not also be the dangerous thing.
+
+Four properties are tested, and three of them are about restraint. A key appears as `redact.Mask`
+renders it, and the test asserts not merely that the whole key is absent but that **no twenty-character
+prefix** survives either, since a prefix is something a person can search a leaked log for. Home
+paths are collapsed through `compactWorkingFolder`, the shortener the TUI already uses, so a report
+does not name whoever ran it. And doctor **never fails the command**: someone runs it because
+something is already wrong, so exiting at the first failed check would hide the rest of the report
+exactly when it is wanted. A test drives it with the network pointed at a dead port and asserts the
+terminal section still prints.
+
+**The parity rule did its job the moment the verb landed.** Adding `doctor` to the command table made
+`TestTopLevelAndSlashParity` fail for want of a `/doctor` twin — the property is by construction, and
+it noticed within one test run. `kolk help` and the completion verb list follow from the same table.
+
+**Running the binary found the flaw the tests could not.** The first version marked "interactive
+terminal" and "colour" with ✓/✗, so a piped `kolk doctor` reported two failures. A piped kolk is not
+a broken kolk, and a ✗ beside a fact sends someone looking for a fault that is not there — which is
+the specific way a diagnostic wastes an evening. Those lines are now neutral facts: *output is
+redirected, not a terminal*; *colour off while redirected*. Verdict marks are reserved for things
+that are actually wrong.
+
+**Two claims elsewhere were true and are now false, so they were fixed.** Item 21 said `kolk doctor`
+was queued; item 21 also recorded that `provider.Advise` had been deliberately worded around it while
+it did not exist. The transport advice now names it, which is what it wanted to say in the first
+place — and that whole episode is the reason item 22 later turned "never document a command that does
+not exist" into a test.
+
+The network check asks whether OpenRouter answers, not whether a model does: five-second timeout,
+`GET /models`, no turn spent. "Can this machine reach the provider" is the question; a model call
+would answer a different one at a price.
+
+Acceptance checklist:
+
+- [x] five tests written first, four of them about what must not appear in the output.
+- [x] key material bounded to the last four characters, with a prefix search asserted absent.
+- [x] the report finishes when a check fails, proven with a dead network.
+- [x] the parity rule satisfied through the table, not by hand.
+- [x] the binary run and its output read, which is what found the ✗-on-a-fact flaw.
+- [x] the two now-stale claims about doctor corrected where they were written.
+- [x] full `make check` green: 2,179 tests, 0 lint issues.
 
 ### L21.3 built — fuzzing the two places bytes become control flow
 

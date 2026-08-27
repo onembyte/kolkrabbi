@@ -85,7 +85,7 @@ list now has two callers instead of one copy each.
 
 ### 3. Observability for us
 
-**`kolk doctor` — accepted, queued as L21.1.** Keys (present, shape, which store), network (can it
+**`kolk doctor` — built (L21.1).** Keys (present, shape, which store), network (can it
 reach OpenRouter), model access (does the configured model answer), terminal capabilities (colour,
 width, TTY), and the writable directories. The rule it must follow: it prints what it found, never
 what it found *with* — no key material, masked or otherwise, beyond the last four characters that
@@ -96,10 +96,9 @@ per session under the state directory, every line through `redact.Scrub` before 
 the path printed at the end so a bug report can attach it. The redaction is not optional and not a
 flag: a debug log is the single most likely place for a key to end up in a public issue.
 
-Both are queued rather than built because this item's hardening bar is the plan and the checklist,
-and both are ordinary work once the shape is settled. Neither is referenced by anything shipping —
-`Advise` was written to name `--base-url`, not `kolk doctor`, so nothing promises a command that
-does not exist.
+`--debug` is still queued. `kolk doctor` was built on 2026-08-27, and the transport advice in
+`provider.Advise` now names it — it was deliberately worded around it while it did not exist, which
+is the same rule item 22 later turned into a test.
 
 ### 4. Security checklist
 
@@ -139,7 +138,7 @@ would be a new item, and it should be written as one before anyone claims kolk r
 
 - **L21.0 the error matrix** — `provider.Advise`, wired at all three failure sites, with the
   overflow detector moved down a layer to be shared. *Built.*
-- **L21.1 `kolk doctor`** — keys, network, model access, terminal capabilities, directories.
+- **L21.1 `kolk doctor`** — keys, directories, terminal capabilities and reachability. *Built.*
 - **L21.2 `--debug`** — a per-session log file, scrubbed on the way in, path printed at the end.
 - **L21.3 fuzz the SSE reader and tool-argument decoding** — the two places third-party bytes become
   control flow.

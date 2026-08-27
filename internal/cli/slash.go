@@ -49,6 +49,7 @@ var slashCommandTable = []slashCommand{
 	{"saga", "[goal | run | resume | status | stop | rewind]", "careful-progression autonomous loop"},
 	{"undo", "", "take back the last turn: its file changes and its conversation"},
 	{"rewind", "", "restore the last turn's files only, leaving the conversation"},
+	{"doctor", "", "check keys, directories, terminal and network"},
 	{"help", "", "show all slash commands"},
 	{"exit", "", "quit Kolkrabbi"},
 	{"quit", "", "alias for /exit"},
@@ -88,6 +89,10 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 	switch cmd {
 	case "/exit", "/quit":
 		return true
+	case "/doctor":
+		if err := a.runDoctor(ctx, nil); err != nil {
+			fmt.Fprintln(a.stdout, err)
+		}
 	case "/help":
 		printSlashHelp(a.stdout)
 		fmt.Fprintln(a.stdout, "\nKeys: ↑ last message · Shift+Enter newline · Ctrl+C clear input (twice exits)")

@@ -184,6 +184,7 @@ func commandTable() []command {
 		{"version", "[--json]", "print the running build", (*app).runVersion},
 		{"saga", "[goal | run | resume | status | stop | rewind]", "careful-progression autonomous loop", (*app).runSaga},
 		{"completion", "<bash|zsh|fish>", "generate shell completions", (*app).runCompletion},
+		{"doctor", "", "check keys, directories, terminal and network", (*app).runDoctor},
 		{"help", "", "show this help", (*app).runHelp},
 	}
 }
