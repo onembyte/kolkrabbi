@@ -3898,3 +3898,31 @@ then applies deterministic coding/context/ID ordering. Rotation tests cover
 per-turn candidate bounds and pinned-model protection. Focused race tests for
 provider, engine, and CLI packages and the full `go test ./... -count=1` suite
 passed on 2026-08-26.
+
+### R1.2 v1.2.0 capability release
+
+**Review:** `site/capabilities.html` was re-checked card by card against the source, not against
+`PLAN.md`. The page had last been touched at E13.2 and still named `yolo` as the way to skip a
+confirmation — a surface `--yolo is gone` had removed — while listing as planned or designed the
+work of phases C, D, E, F, G and I. Cards moved to "available now" only where the behavior exists in
+the current binary and the offline suite covers it; the gated half is stated on the card instead of
+being quietly dropped (localia's unpinned runtime, the gateway key a subscription session still
+expects, a paired device that watches and approves but cannot send a turn). A REACH section was added
+for item 26, which the page had never covered.
+
+**Ratchet:** `scripts/test-site.sh` now requires the reach section and the six shipped claims most
+likely to be lost in a future rewrite — orchestrated runs, saga, permission rules, the dashboard, the
+event service, per-device tokens — and excludes `yolo` from the catalog outright. The site contract
+went from 110 to 118 checks. `README.md` lost the same class of stale claim: no compaction,
+sequential subagents, a `-y` flag, quick/standard/deep/ultra widths, and a fixed 120 s bash timeout.
+
+**Gate:** `make check` green before the tag — 1992 root-module tests, binary 8.65 MB, cold start
+3.2 ms p50, two third-party modules, site 118, surface 15, installer 72, spec 29, release 24,
+workflow 41, verifier 30.
+
+**Publication:** commit `792a53c4` on `main`, tag `v1.2.0` on that exact commit. The release workflow
+(run 33027192164) passed both jobs: tag validation, the complete repository gate, GoReleaser
+validation and a four-archive rehearsal, then publication and the independent verifier over the
+published assets. `checksums.txt`, its Cosign bundle, and the four Darwin/Linux amd64/arm64 archives
+are public, the release is neither draft nor prerelease, and GitHub's latest redirect resolves to
+`v1.2.0`, which is what the website installer discovers.

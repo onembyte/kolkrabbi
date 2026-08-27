@@ -82,7 +82,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **R1.1 v1.1.0 installer-upgrade release** — publish the owner-requested three-part SemVer
   release, verify all signed assets and latest-version discovery, then exercise the public installer
   over an existing v0.1.0 installation.
-- [~] **R1.2 v1.2.0 capability release** — publish the 74 commits since v1.1.14 as one minor
+- [x] **R1.2 v1.2.0 capability release** — publish the 74 commits since v1.1.14 as one minor
   release, and bring the public capability catalog back in line with what the binary does.
 - [x] **U0.1 explicit auto-approve command** — add a discoverable, session-only
   `/auto-approve [on|off]` control while preserving `-y` and `/yolo` compatibility.
@@ -3268,7 +3268,7 @@ Acceptance checklist:
 - [x] the build log records red, green, rehearsal, commit/tag, public verification, and owner
   handoff evidence.
 
-### R1.2 v1.2.0 capability release — active detail
+### R1.2 v1.2.0 capability release — verified detail
 
 Scope:
 
@@ -3300,10 +3300,10 @@ Acceptance checklist:
   permission rules, dashboard, event service, or per-device tokens, and on any return of `yolo`.
 - [x] the complete repository gate passes before the tag: 1992 tests, all site, installer, release
   and spec contracts green.
-- [ ] only the reviewed files are committed and pushed to `main`; unrelated dirty files untouched.
-- [ ] tag `v1.2.0` points to that exact commit, its release workflow succeeds, and the signed
+- [x] only the reviewed files are committed and pushed to `main`; unrelated dirty files untouched.
+- [x] tag `v1.2.0` points to commit `792a53c4`, its release workflow succeeds, and the signed
   manifest plus four archives pass the independent verifier.
-- [ ] the build log records the review, the gate, the commit/tag, and the published assets.
+- [x] the build log records the review, the gate, the commit/tag, and the published assets.
 
 ### R1.1 v1.1.0 installer-upgrade release — active detail
 
