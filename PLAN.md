@@ -644,7 +644,8 @@ steerable side by side.
 **Hardened when:** discovery-versus-ownership decided, the session card specified, and the
 concurrency story for two sessions editing one repository written down.
 
-### [ ] 28. Source control — branches, commits, pull requests
+### [x] 28. Source control — branches, commits, pull requests
+**Hardened 2026-08-27** ([`docs/plan/28-source-control.md`](docs/plan/28-source-control.md)): Kolkrabbi does itself only what must be atomic with something it already owns — the saga's chapter commit — and everything else goes through `bash` under the same confirmation as any command. Branch-per-session is refused: it moves the user's HEAD, has no good ending, and solves a problem checkpoints already solve outside a repository too. Pull requests are GitHub-only through `gh`; Bitbucket and Azure DevOps are refused in writing, each being another REST client, auth flow and set of fixtures for a user Kolkrabbi does not have. `/commit` and `/pr` draft and hand over, never run — a `/commit` that commits without a confirmation is a shell command wearing a costume. The valuable piece is dirty-tree awareness: a session that cannot see uncommitted changes advises on a tree that no longer exists.
 **Scope:** the git work around a coding session, not inside it.
 **Today:** checkpoints, `/changes`, `/diff`, `/undo`. Nothing touches git.
 **Decide:**
