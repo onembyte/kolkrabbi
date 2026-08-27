@@ -17,6 +17,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/checkpoint"
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/engine"
+	"github.com/onembyte/kolkrabbi/internal/hooks"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/provider/agentcli"
 	"github.com/onembyte/kolkrabbi/internal/session"
@@ -40,6 +41,22 @@ func (a *app) runDefault(ctx context.Context, args []string) (err error) {
 	// 6.7 ms on a 215 MiB repository with 544 files, which is nothing against a
 	// turn — but it is per turn, so it was measured rather than assumed.
 	ag.DirtyFiles = uncommittedFiles(projectRoot())
+	// The user's own hooks, confirmed once per command. Project hooks are
+	// G16.3's: a .kolk/hooks.json in a cloned repository is a shell command a
+	// stranger wrote, and cloning must not be enough to execute anything.
+	if runner := a.newHookRunner(ag.Sess.SessionID(), ag.Effort); runner != nil {
+		ag.PostWrite = func(tool, path string) {
+			event := hooks.PostWrite
+			if tool == "edit_file" {
+				event = hooks.PostEdit
+			}
+			for _, result := range runner.Run(ctx, event, path) {
+				if result.Failure != "" {
+					fmt.Fprintf(a.stderr, "hook %q: %s\n", result.Command, result.Failure)
+				}
+			}
+		}
+	}
 	// Written here rather than beside the rest of the header, because these are
 	// the values the run *resolved* — a flag left unset reads as empty, and a
 	// diagnostic that reports "mode " has recorded the one thing it must not

@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **G16.2 hook events and the confirmation** — a hook is a shell command somebody agreed to once, bounded, scrubbed, and unable to fail the edit it followed.
 - [x] **G16.1 markdown commands** — a file in a directory becomes a slash command, and it cannot become one that already exists.
 - [x] **G16.4 `mcp(...)` permission rules** — a server's tools become governable by prefix, and the widest rule stops quietly excluding them.
 - [x] **G16.5 tool schemas stop being free** — measured at 2,816 bytes, bounded by a failing budget, and reported by `kolk doctor`; the doc's estimate was nearly double.
@@ -2134,6 +2135,57 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### G16.2 built — hook events, and the confirmation that is the point
+
+Item 15 sent formatter-after-edit to this leaf rather than building it there, and the reason is the
+whole design: *a formatter that runs silently after every edit is a shell command executing with
+nobody at the prompt.* So the confirmation is not a wrapper around the feature; it is the feature.
+
+**Three post-events, and no `pre-tool`.** `post-edit`, `post-write`, `session-end` — each names
+something that has *already happened*, so a hook can react and cannot arbitrate. A hook that could
+veto a tool call would be a second permission system, and E13 exists so there is exactly one. A test
+asserts the vocabulary is three and that none of them begins with `pre-`, which is the shape of the
+mistake rather than the name of it.
+
+**Confirmed once per distinct command per session**, keyed by the command text — not per event and
+not per file, so a formatter approved for one edit is not re-asked on the next hundred. **A decline
+is remembered too**, and that is the half worth naming: being asked again on every edit is how a
+person ends up saying yes to make it stop.
+
+**The floor refuses without asking.** A hook is judged by `hardline` like any other command, and a
+refusal is never offered as a question — asking would imply the floor is a thing a prompt can lift.
+Tested by driving a runner whose allow-check refuses and asserting the user was never consulted.
+
+**A broken hook cannot cost anyone their work.** `Run` returns results and never an error: a
+formatter that is not installed, a shell that cannot start, a command that exits 127 — each is
+reported and the edit that already happened stands. That is what makes *post* events the safe ones.
+Bounded by the effort dial like `bash`, so a hook that hangs cannot hang the session, and its output
+is scrubbed like any tool result because a hook prints whatever it prints.
+
+**Two environment variables and nothing else.** `$KOLK_FILE` and `$KOLK_SESSION`, asserted by a test
+that counts them — not the user's whole environment, and never a credential. A hook is somebody's
+one-line script, and the blast radius of handing it everything is the blast radius of that script
+being wrong.
+
+**Deliberately the user's file only.** `~/.config/kolk/hooks.json` is wired; a project's is not.
+A `.kolk/hooks.json` in a cloned repository is a shell command a stranger wrote, and showing and
+confirming it before the first one runs is G16.3's decision, not something to slip in here. A
+malformed hooks file costs its hooks and not the session, so somebody mid-edit on their own config
+can still work.
+
+The seam is `tools.Options.PostWrite`, mirroring `PreWrite` exactly: one seam in, one seam out, and
+the outbound one returns nothing — which is the type system saying a hook cannot veto.
+
+Acceptance checklist:
+
+- [x] eleven tests written first, covering each row of the item's rule table.
+- [x] the decline remembered as well as the approval, so nobody is nagged into yes.
+- [x] the floor proven to refuse without consulting the user.
+- [x] every failure path proven non-fatal, including a shell that cannot run at all.
+- [x] the environment asserted to be exactly two variables.
+- [x] project hooks left to G16.3 rather than folded in.
+- [x] full `make check` green: 2,286 tests, 0 lint issues.
 
 ### G16.1 built — markdown commands
 

@@ -56,6 +56,18 @@ type Options struct {
 	Root     string
 	Guard    Guard
 	PreWrite PreWrite
+	// PostWrite is called after a file-modifying tool succeeded, so a hook can
+	// react to work that is already done. It mirrors PreWrite deliberately:
+	// one seam in, one seam out, and neither can veto — a hook that could stop
+	// a tool call would be a second permission system.
+	PostWrite PostWrite
+}
+
+// postWrite fires the after-the-fact seam, if there is one.
+func (o Options) postWrite(tool, path string) {
+	if o.PostWrite != nil {
+		o.PostWrite(tool, path)
+	}
 }
 
 func (o Options) allow(r Request) bool {
@@ -81,6 +93,10 @@ func (o Options) fileRequest(tool, path, detail string) (Request, error) {
 		Detail:  detail,
 	}, nil
 }
+
+// PostWrite is called after a file-modifying tool has changed something. It
+// returns nothing: a hook reports and never fails the edit that happened.
+type PostWrite func(tool, path string)
 
 // PreWrite is called for file-modifying tools (write_file, edit_file) after
 // the user has confirmed but before the file is touched — the checkpoint
@@ -297,6 +313,7 @@ func Execute(ctx context.Context, name, argsJSON string, o Options) (string, err
 		if err := os.WriteFile(request.Path, []byte(a.Content), 0o644); err != nil {
 			return "", err
 		}
+		o.postWrite("write_file", request.Path)
 		return fmt.Sprintf("wrote %d bytes to %s", len(a.Content), request.Display), nil
 
 	case "edit_file":
@@ -337,6 +354,7 @@ func Execute(ctx context.Context, name, argsJSON string, o Options) (string, err
 		if err := os.WriteFile(request.Path, []byte(updated), 0o644); err != nil {
 			return "", err
 		}
+		o.postWrite("edit_file", request.Path)
 		return fmt.Sprintf("edited %s", request.Display), nil
 
 	case "list_dir":

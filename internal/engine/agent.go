@@ -210,6 +210,11 @@ type Options struct {
 	// guesses one, because compaction is destructive and a guessed limit would
 	// throw away conversation on no evidence.
 	ContextWindow int
+	// PostWrite is called after a file-modifying tool succeeded, so the host
+	// can run hooks. It cannot veto: the work is already done, which is what
+	// keeps a hook from being a second permission system.
+	PostWrite func(tool, path string)
+
 	// DirtyFiles reports paths with uncommitted changes, or nil when this
 	// project is not a repository and nil when the host supplies no way to
 	// look. The engine touches no OS, so the host provides this.
@@ -876,9 +881,10 @@ func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, out i
 		defer cancel()
 	}
 	result, err := tools.Execute(toolCtx, tc.Function.Name, tc.Function.Arguments, tools.Options{
-		Root:     a.Root,
-		Guard:    guard(toolCtx, out),
-		PreWrite: a.preWrite,
+		Root:      a.Root,
+		Guard:     guard(toolCtx, out),
+		PreWrite:  a.preWrite,
+		PostWrite: a.PostWrite,
 	})
 	// One chokepoint for every tool. A result goes into the conversation, the
 	// session file on disk and every later request to the provider, so a
