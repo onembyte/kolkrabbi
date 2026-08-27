@@ -75,6 +75,7 @@ func (a *app) runSessions(_ context.Context, args []string) error {
 			s.ID, s.UpdatedAt.Format("2006-01-02 15:04"), s.Model, len(s.Messages),
 			snapshotSize(s), s.Title)
 	}
+	a.reportBlockedSessions(sdir)
 	a.warnAboutSharedCheckouts(sdir)
 	fmt.Fprintln(a.stdout, "\nresume the latest with `kolk -r`, or a specific one with `kolk -s <id>`")
 	return nil
@@ -261,4 +262,41 @@ func (a *app) warnAboutSharedCheckouts(dir string) {
 			len(shared.Sessions), shared.Dir, strings.Join(shared.Sessions, ", "))
 		fmt.Fprintln(a.stdout, "  they will edit each other's files, and an /undo in one takes back what the other did.")
 	}
+}
+
+// reportBlockedSessions says which live sessions have stopped and are waiting
+// for a person.
+//
+// A blocked session is not slow, it has stopped, and it stays stopped until
+// somebody answers — which is why item 27 calls this the decisive field on a
+// card. Only live sessions are read, and only the tail of each journal: I27.2
+// made this listing cheap on purpose and a full decode per session would undo
+// it.
+func (a *app) reportBlockedSessions(dir string) {
+	cards, err := session.Overview(dir)
+	if err != nil {
+		return
+	}
+	for _, card := range cards {
+		if card.State != session.StateLive {
+			continue
+		}
+		blocked, waiting := session.BlockedOn(dir, card.ID)
+		if !waiting {
+			continue
+		}
+		fmt.Fprintf(a.stdout, "\n… %s is waiting for you: %s\n", card.Name(), blocked.Tool)
+		if detail := strings.TrimSpace(blocked.Detail); detail != "" {
+			fmt.Fprintf(a.stdout, "  %s\n", firstLine(detail))
+		}
+		fmt.Fprintf(a.stdout, "  resume it with `kolk -s %s` to answer.\n", card.ID)
+	}
+}
+
+// firstLine keeps a prompt's detail to the one line a listing can spare.
+func firstLine(text string) string {
+	if line, _, found := strings.Cut(text, "\n"); found {
+		return line
+	}
+	return text
 }

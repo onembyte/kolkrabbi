@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **I27.3 blocked cards** — a session waiting on a prompt has stopped, and the listing says so; the tail read was measured and made 17× cheaper before it shipped.
 - [x] **I27.5 a shared checkout says so** — two live sessions in one directory is a thing people do on purpose and a thing they should be told once.
 - [x] **I26.7b the route, and what it refuses** — token, steer tier, the command's own rules, and an honest 501 where there is no session to ask.
 - [x] **I26.7a the `turn.start` command** — the protocol half of letting a paired device ask for something rather than only watch.
@@ -2124,6 +2125,49 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### I27.3 built — blocked cards, and a cost that had to be measured twice
+
+"Blocked" is the decisive field on a card: a session waiting on a permission prompt is not slow, it
+has **stopped**, and it stays stopped until a person answers. The rule is the doc's — the last
+`permission.requested` with no matching `permission.resolved` — and requests are correlated **by id**
+rather than by position, because answering one prompt does not unblock a later one. That has its own
+test, with a resolution arriving for the first request while the second is still open.
+
+**The measurement was the leaf.** Item 27 was explicit that I27.2 made this listing cheap on purpose,
+so the tail read was measured rather than assumed, over 559 journals of 440 KB — the shape of a
+working machine:
+
+| Version | Per journal | 559 journals |
+| --- | --- | --- |
+| First working version | 2.60 ms | **1.45 s** |
+| Reject non-permission lines before decoding | 328 µs | 184 ms |
+| Reject the whole tail before splitting it | **150 µs** | **84 ms** |
+
+The first number would have shipped a listing nobody polls, which is exactly the failure item 27
+names: *a listing that is expensive is a listing that gets called less often than it should.* The fix
+was not a smaller window but a cheaper rejection — a permission event is a rare line in a journal
+full of message deltas, so a substring scan discards the rest for almost nothing, and one scan of the
+whole tail answers the common case (no permission event at all) without splitting it into lines. 17×,
+with the 64 KiB window unchanged.
+
+**Robustness came from what the format actually is.** A journal is appended to by a live process, so
+the first line of a tail read is usually a fragment and the last can be half-written. A line that
+does not decode costs itself and nothing else — tested with a deliberately truncated final line that
+must not hide an open request above it.
+
+Surfaced in `kolk sessions` beside I27.5's warning, naming the tool, the first line of the detail, and
+the command that resumes the session to answer. Only live sessions are read, because an idle session
+cannot be blocked and there is nothing to look for.
+
+Acceptance checklist:
+
+- [x] six tests written first, including id-correlation and the half-written line.
+- [x] the cost measured on a realistic fixture, not estimated.
+- [x] the first measurement rejected the implementation, and the second and third proved the fix.
+- [x] the window kept at 64 KiB — the saving came from cheaper rejection, not a smaller read.
+- [x] surfaced in the listing, so it is a feature rather than another uncalled export.
+- [x] full `make check` green: 2,217 tests, 0 lint issues.
 
 ### I27.5 built — a shared checkout says so, and an allowlist entry came due
 

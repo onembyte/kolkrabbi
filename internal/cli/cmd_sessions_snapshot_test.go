@@ -135,3 +135,42 @@ func TestSessionsWarnsAboutASharedCheckout(t *testing.T) {
 		t.Errorf("the listing does not warn about a shared checkout:\n%s", out)
 	}
 }
+
+// A session that has stopped at a prompt is the one thing worth seeing when
+// scanning a list, so the listing says it before anything else.
+func TestSessionsReportsABlockedSession(t *testing.T) {
+	a, stdout, _ := newTestApp(t, "")
+	d, err := a.resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := d.Sessions()
+
+	sess := session.New(dir, "test/model")
+	sess.Title = "the blocked one"
+	if err := sess.Save(); err != nil {
+		t.Fatal(err)
+	}
+	held, err := session.Hold(dir, sess.ID)
+	if err != nil {
+		t.Skipf("advisory locks unavailable here: %v", err)
+	}
+	t.Cleanup(func() { _ = held.Close() })
+
+	line := `{"seq":1,"ts":"2026-08-27T18:00:00Z","session":"` + sess.ID +
+		`","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"permission.requested",` +
+		`"data":{"id":"p1","tool":"bash","detail":"rm -rf ./build"}}`
+	if err := os.WriteFile(filepath.Join(dir, sess.ID+".events.ndjson"), []byte(line+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := a.runSessions(context.Background(), nil); err != nil {
+		t.Fatalf("runSessions: %v", err)
+	}
+	out := stdout.String()
+	for _, want := range []string{"waiting for you", "bash", "rm -rf ./build", sess.ID} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the listing omits %q:\n%s", want, out)
+		}
+	}
+}
