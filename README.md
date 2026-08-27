@@ -76,12 +76,34 @@ token-based elsewhere.
 ## Install & setup
 
 ```bash
-go build -ldflags="-s -w" -o kolk .      # Go 1.22+, no dependencies
-kolk key sk-or-v1-...                    # or export OPENROUTER_API_KEY=...
+curl -fsSL https://kolkrabbi.francomichetti.com/install.sh | sh   # macOS and Linux, amd64 and arm64
+kolk key sk-or-v1-...                                             # or export OPENROUTER_API_KEY=...
 kolk
 ```
 
 That's the whole setup. Everything else is optional.
+
+The install script picks a writable directory on your `PATH` (override with
+`KOLK_INSTALL_DIR`), pins a version with `KOLK_VERSION`, and verifies the download's
+SHA-256 against the release's `checksums.txt` before it installs anything.
+
+Two other ways in, if you prefer them:
+
+```bash
+go install github.com/onembyte/kolkrabbi/cmd/kolk@latest   # Go 1.25+, two dependencies
+git clone https://github.com/onembyte/kolkrabbi && cd kolkrabbi && go build -o kolk ./cmd/kolk
+```
+
+`kolk update` replaces the running binary with the current release, verifying its
+checksum first. Nothing checks for updates on its own — no background poll, no startup
+nudge. kolk contacts the release server when you ask it to and not otherwise.
+
+Every release ships four archives with a `checksums.txt` signed by keyless Cosign. If
+you want signature-level assurance rather than checksum-level, `scripts/verify-release.sh
+v1.2.3` verifies the signature against the release workflow's identity. One wrinkle worth
+knowing: an archive downloaded from the Releases page **in a browser** is quarantined by
+macOS and needs `xattr -d com.apple.quarantine kolk` before it will run. The install
+script's downloads are not quarantined, so this only bites manual downloads.
 
 ### Start free automatically
 

@@ -214,6 +214,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **L20.1 the weekly live smoke test** — the one test that is allowed to cost money: opt-in, fork-proof, never on a push, and pinned to the free model the offline catalogue promises.
+- [x] **L20.2 the install section says how people actually install** — three paths instead of one, and the one that was there could not have worked.
 - [x] **I27.2 the session overview** — a card list that can be polled: header-only reads, liveness that neither steals nor creates a lock.
 - [x] **I27.1 a session says it is running** — an advisory lock, so liveness is observed rather than reported.
 - [x] **I26.6 read and steer tiers** — a device token means less than the operator's, and the store no longer races.
@@ -2098,6 +2100,64 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### Item 20 hardened — recorded detail
+
+Item 20 is the clearest case yet of a plan item that had been built without being decided. The
+installer, four signed archives, `kolk update`, the two-OS matrix, lint, the failing budgets, the
+tag-only release workflow and the public verifier were all already in the tree; the doc's first job
+was to write down what exists, and its second was to answer three questions that had never been
+settled.
+
+**Three answers, two of them refusals.** No Homebrew tap yet — GoReleaser's `brews:` block makes it
+a ten-line change, which is precisely why it can wait, and a tap that lags the release teaches people
+that `brew upgrade` does not get them the current kolk. No macOS notarization for the CLI — `curl`
+does not set `com.apple.quarantine`, so Gatekeeper never evaluates the binary the install script
+places; it becomes mandatory the day item 19 ships something with an icon. And no automatic version
+check, ever: it is a phone-home by another name, it fires on a schedule the user did not choose, and
+it leaks *when someone is working*. Confirmed in code rather than assumed — `a.update` is reachable
+only from `runUpdate`/`applyUpdate`, and no startup path nudges.
+
+**One honest gap written down rather than papered over.** Both fast paths — `install.sh` and
+`kolk update` — verify SHA-256 against a `checksums.txt` fetched from the same origin as the archive.
+That catches a corrupted download and a single swapped artifact; it is not evidence against a
+compromised origin. The signature would be, and verifying a Sigstore bundle costs either a `cosign`
+users do not have or a module tree that breaks the two-module gate. So `scripts/verify-release.sh`
+is named as the signature-level path instead of pretending a checksum is a signature.
+
+**L20.1 — the weekly live smoke test.** The genuine gap. Every other test in this repo is offline by
+construction, which is a good property and also a blind spot: a week of drift in OpenRouter's API
+would have been found by a user. `scripts/smoke.sh --real` already existed and nothing had ever run
+it. The workflow runs it Mondays at 07:00 UTC and on demand, and four properties keep a live key in
+CI defensible — never on a push, opt-in (no secret ⇒ a notice and a green run, not a red build),
+fork-proof via a repository guard, and holding the key as tightly as it can: `permissions: {}` by
+default, `contents: read` on the job, no `id-token`, the secret referenced exactly once through an
+`env` mapping, and both actions pinned by digest like the release workflow's.
+
+The contract came first and failed 15 of 16 checks before the workflow existed. It grew an
+eighteenth check worth naming: `smoke.sh --real` defaults to `openrouter/auto`, which **bills**, so
+the workflow pins the free model `internal/provider/catalog.go` seeds as the offline fallback — the
+weekly run then exercises exactly what a keyless user meets first. Because that id lives in YAML,
+nothing but a check stops it drifting, so the test extracts the `--model` argument and fails if it is
+not a `:free` id or is not in the catalogue. Both mutations were run: swapping in an unseeded model
+and swapping in `openrouter/auto` each fail with the right message.
+
+**L20.2 — the README install section, which was wrong.** It documented one install path (`go build`)
+out of three, and documented it incorrectly: `go build -o kolk .` cannot work, because the repository
+root holds no main package — it is `./cmd/kolk`. Anyone following the README's first line got an
+error. It now covers the install script with its `KOLK_INSTALL_DIR`/`KOLK_VERSION` knobs,
+`go install …/cmd/kolk@latest`, a source build, `kolk update` and the refusal to poll, what the
+checksum does and does not prove, and the one place quarantine does bite — an archive pulled from the
+Releases page in a browser.
+
+Acceptance checklist:
+
+- [x] contract test written first and red (15 of 16) before the workflow existed.
+- [x] model-drift ratchet proved by two mutations, each caught with the right message.
+- [x] the workflow wired into `make check` and the CI guardrails job, not only into a script.
+- [x] every Decide bullet answered, including the two refusals and the one gap.
+- [x] the README's broken build command found and fixed; `go build -o kolk ./cmd/kolk` run to confirm.
+- [x] full `make check` green: 2,057 tests, 0 lint issues, smoke workflow 18 checks.
 
 ### Items 27, 28 and 29 hardened — recorded detail
 
@@ -5546,7 +5606,7 @@ phase must close without leaving this file.
 | F orchestration & per-task routing | 14 | doc ✓, F14.1–F14.6 ✓ | complete |
 | G the surface | 11, 15, 16 | docs ✓ for all three, G11.1–G11.6 ✓, G15.1–G15.3 ✓ | item 16 hardened, G16 leaves queued |
 | I reach | 26–29 | docs ✓ for all four, I26.1–I26.6 ✓, I27.1–I27.2 ✓ | I26.7 and the I27–I29 leaves queued |
-| H ship it for real | T0.5, 19–23 | T0.5 then doc per item | queued |
+| H ship it for real | T0.5, 19–23 | item 20 doc ✓, L20.1–L20.2 ✓ | 19, 21, 22, 23 and T0.5 remain |
 
 This table was four phases out of date until an audit on 2026-08-27 rewrote it: it still called E
 "building — blocks F", F and G "queued", and did not mention phase I at all, while E, F, G's built
