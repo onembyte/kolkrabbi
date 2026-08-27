@@ -2,6 +2,7 @@ package engine_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -215,6 +216,12 @@ func TestMaxTasksForEffort(t *testing.T) {
 func TestTurnExceedsMaxToolRounds(t *testing.T) {
 	// EffortLow allows 4 tool rounds in code mode.
 	// We simulate 5 consecutive rounds of tool calls to trigger the limit.
+	//
+	// Each round reads a different file on purpose. Since L30.1 the doom-loop
+	// guard stops three identical calls that return identical results, so a
+	// fixture repeating one call would now be caught by that guard three rounds
+	// before the ceiling — and this test would pass while testing the wrong
+	// thing. The ceiling is for work that is varied and simply too long.
 	var steps []enginetest.Step
 	for i := 0; i < 5; i++ {
 		steps = append(steps, enginetest.Step{
@@ -223,7 +230,7 @@ func TestTurnExceedsMaxToolRounds(t *testing.T) {
 				ID: fmt.Sprintf("call_%d", i+1),
 				Function: provider.FunctionCall{
 					Name:      "read_file",
-					Arguments: `{"path":"does_not_exist.txt"}`,
+					Arguments: fmt.Sprintf(`{"path":"does_not_exist_%d.txt"}`, i),
 				},
 			}},
 		})
@@ -243,5 +250,43 @@ func TestTurnExceedsMaxToolRounds(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "exceeded maximum tool rounds (4) for low effort") {
 		t.Errorf("error = %q, want 'exceeded maximum tool rounds (4) for low effort'", err.Error())
+	}
+}
+
+// The ceiling is not the detector. A model repeating one useless call at max
+// effort in code mode would otherwise run fifty rounds and be paid for every
+// one of them; it now stops on the third.
+func TestADoomLoopStopsLongBeforeTheRoundCeiling(t *testing.T) {
+	var steps []enginetest.Step
+	for i := 0; i < 12; i++ {
+		steps = append(steps, enginetest.Step{
+			Text: "again",
+			ToolCalls: []provider.ToolCall{{
+				ID: fmt.Sprintf("call_%d", i+1),
+				Function: provider.FunctionCall{
+					Name:      "read_file",
+					Arguments: `{"path":"does_not_exist.txt"}`,
+				},
+			}},
+		})
+	}
+	srv := enginetest.New(steps...)
+	defer srv.Close()
+
+	ag, _, _, _ := newTestAgent(t, srv, engine.ModeCode)
+	if err := ag.SetEffort(engine.EffortMax); err != nil {
+		t.Fatal(err)
+	}
+
+	err := ag.RunTurn(context.Background(), "read the same missing file forever")
+	var loop *engine.DoomLoopError
+	if !errors.As(err, &loop) {
+		t.Fatalf("error = %v, want a DoomLoopError", err)
+	}
+	if loop.Tool != "read_file" {
+		t.Errorf("the stop names %q rather than the tool that was repeated", loop.Tool)
+	}
+	if strings.Contains(err.Error(), "maximum tool rounds") {
+		t.Error("the round ceiling stopped the turn, so the detector did nothing")
 	}
 }

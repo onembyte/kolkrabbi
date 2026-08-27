@@ -1030,6 +1030,9 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 		}
 	}
 	emptyCompletions := 0
+	// One turn, one counter: asking for the same thing in two different turns
+	// is a person repeating themselves, which is allowed.
+	var loop doomLoop
 	overflowRecovered := false
 	toolRounds := 0
 	maxRounds := MaxRoundsFor(a.Mode, a.Effort)
@@ -1122,6 +1125,10 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 			if err != nil {
 				result = "Error: " + err.Error()
 			}
+			// Observed after the call settles, because the result is half the
+			// rule: the same arguments returning the same bytes three times in
+			// a row is not a fourth attempt.
+			looping := loop.observe(tc.Function.Name, tc.Function.Arguments, result)
 			if a.Bus != nil {
 				outData, _ := json.Marshal(protocol.ToolOutputData{
 					ID:       tc.ID,
@@ -1140,6 +1147,16 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 					ToolCallID: tc.ID,
 					Content:    result,
 				})
+			}
+			if looping {
+				// L30.2 replaces this with the tiered response the item
+				// describes: ask in the interactive tiers, abort in full-auto,
+				// auto-deny in a subagent. Until then every tier gets full
+				// auto's answer, which is the safe one — stopping a turn that
+				// has proved it is achieving nothing is strictly better than
+				// the status quo, where it runs to the round ceiling and is
+				// paid for every round on the way.
+				return &DoomLoopError{Tool: tc.Function.Name, Repeats: doomThreshold}
 			}
 		}
 		if a.Sess != nil {

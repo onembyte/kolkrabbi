@@ -214,6 +214,8 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **L30.4 the ceiling is no longer the detector** — a repeated call stops on the third round, not the fifty-first.
+- [x] **L30.1 the doom-loop detector** — three identical calls with identical results are a loop; either half differing is progress.
 - [x] **L32.5 a snapshot store is visible and mortal** — `kolk sessions` shows what it costs, and deleting the session deletes it.
 - [x] **L32.4 the user's git is untouched, permanently** — closed by the snapshot and rewind guards rather than a third test.
 - [x] **L32.3 `/undo` finally covers what `bash` did** — a rewind restores the whole tree to the turn's opening snapshot, and the manifest says which store captured each turn.
@@ -2114,6 +2116,48 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### L30.1 built, and L30.4 arrived with it — the doom-loop detector
+
+Built to item 30's rule: a loop is three consecutive tool calls with identical **canonical**
+arguments *and* identical results. Nine unit tests were written first, one per property, and they are
+the specification in executable form — a changing failure is progress, a succeeding repeat is still
+waste, an edit between two test runs is not a loop, three spellings of one call are one call, and
+three edits differing by a space are three edits.
+
+**Canonicalisation goes exactly as far as the decision said and no further.** JSON is re-serialized
+with sorted keys and no insignificant whitespace, because providers spell the same call differently
+and a formatting difference is not a different intention. Nothing else is normalized. Arguments that
+are not valid JSON are compared as the text they are, since a model sending the same malformed blob
+three times is looping too — a case the doc did not raise and the tests now pin.
+
+**One property the doc implies but does not state, added because the tests forced the question:** a
+loop is reported *once*. Without that, a stuck model produces a prompt per round while the user is
+deciding what to do about the first one.
+
+**L30.4 arrived early, as a failure.** `TestTurnExceedsMaxToolRounds` drove five identical calls to
+reach the round ceiling, and the new guard caught it on the third — so the test failed with the wrong
+error. That is the leaf's own thesis demonstrating itself: the ceiling was never a detector, and a
+fixture that repeated one call was measuring the wrong thing. The fixture now varies its path so it
+tests the ceiling for the reason the ceiling exists (work that is varied and simply too long), and a
+new test asserts a repeated call at **max effort** stops on round three rather than round fifty-one.
+Both tests now fail for their own reason, which is what L30.4 asked for.
+
+**The interim response is full-auto's, in every tier, and it is named as interim.** L30.2 brings the
+tiered answers — ask, abort, auto-deny. Until then a detected loop ends the turn with a
+`DoomLoopError`. That is strictly better than the status quo it replaces, where the same loop runs to
+the ceiling and is paid for every round, and it is the safe direction to be wrong in. The comment at
+the call site says which leaf replaces it.
+
+Acceptance checklist:
+
+- [x] nine unit tests written first, each naming one property of the rule.
+- [x] the malformed-arguments case decided and pinned, though the doc did not raise it.
+- [x] report-once added because the tests exposed the prompt-per-round consequence.
+- [x] the existing ceiling test found to be measuring the wrong thing, and fixed rather than adjusted.
+- [x] L30.4's assertion built while its subject was in hand.
+- [x] the interim tier behaviour marked at the call site with the leaf that replaces it.
+- [x] full `make check` green: 2,109 tests, 0 lint issues.
 
 ### L32.4 closed and L32.5 built — the store is visible, mortal, and still nobody else's business
 
