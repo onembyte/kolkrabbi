@@ -214,6 +214,7 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **E13.4 subagent auto-deny** — orchestrated work never prompts; anything its tier would ask about is refused with the way to allow it.
 - [x] **E13.5 readable output** — binaries are described rather than sent, and a large file says how to page through the rest.
 - [x] **E13.6 permission rules with scopes** — `allow bash(git *)` and friends, last match wins, kept for this session, this project, or everywhere.
+- [x] **I27.6 the view** — the dash renders the cards, blocked first, and a prediction I27.4 made about the catalogue turned out to be false.
 - [x] **I29.1 listening-port discovery** — a `bash` call that starts a server says where it is, and only a loopback port gets a link.
 - [x] **I28.3 `/pr` drafts and hands over** — item 28 is complete; three copies of shell quoting became one on the way.
 - [x] **I28.2 `/commit` drafts and stops** — the message, the command that would use it, and the plain statement that nothing was committed.
@@ -2130,6 +2131,55 @@ Acceptance checklist:
 - [x] hand-written chapters still work with no planner, reporting no-work.
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
+
+### I27.6 built — the view, and a correction to what I27.4 predicted
+
+The four sources were already in place, so this leaf was rendering rather than gathering: session
+headers (I27.2), the advisory lock (I27.1), the journal tail (I27.3), the usage log (I27.4) and the
+shared-checkout rule (I27.5), assembled in the CLI and handed to `internal/dash` as a view model. The
+gathering deliberately stayed out of the page: each source was built with its own cost decision, and
+re-reading them from inside a template would have undone all four.
+
+**Blocked sessions sort to the front, and that ordering is the feature.** Item 27's words: a session
+waiting on a permission prompt has stopped, is spending nothing, and needs a person — and it looks
+exactly like a session thinking hard. A view that cannot tell those apart lets work sit unnoticed for
+an hour, and a view that can but puts it on row nine is the same view. The card is outlined and
+tinted too, so it is visible without being read.
+
+**One vocabulary, not two.** The page says *live*, *idle* and *blocked* because that is what
+`kolk sessions` says, and a test asserts it. Cost follows I27.4's rule on both surfaces: recorded
+prints, absent prints nothing, `$0.00` reserved for a session that really did run free.
+
+**Every value is escaped**, because a session title is whatever the fast lane named it after reading
+a user's words and a working directory is whatever the filesystem holds. An existing test parses the
+whole page as XML, so malformed markup fails the build rather than the browser.
+
+**I27.4's prediction was wrong, and correcting it was the most useful thing here.** That leaf refused
+context-per-card and wrote the condition that would change the answer: the dash page would have the
+model windows "because it renders from a process that has the catalogue in memory". It does not.
+`kolk dash` reads the usage log and serves; nothing in it fetches or caches a catalogue. Context
+stays refused on **both** surfaces, and the doc now states the honest condition — somewhere that
+already knows each model's window without a network call. A prediction about a process nobody had
+opened was the wrong kind of condition to write down: it would have quietly justified building the
+wrong thing next time.
+
+Rendering 500 cards costs 1.3 ms and 93 KB of HTML, which is the whole page.
+
+**One process note, recorded because it nearly cost the record.** The script that was to apply this
+doc correction and this entry asserted on text it had mis-transcribed, failed, and the commit went
+ahead with the code alone. Caught immediately by reading the commit's file list — the entry that
+would have been lost is this one — and repaired in a follow-up. An assertion that fails is doing its
+job; a commit that proceeds anyway is the part to watch.
+
+Acceptance checklist:
+
+- [x] seven tests written first, including the ordering that makes blocked unmissable.
+- [x] gathering kept in the CLI so four measured cost decisions survive.
+- [x] the listing's vocabulary asserted, not assumed.
+- [x] every user-controlled value escaped, with the page still parsing as XML.
+- [x] I27.4's condition checked against the code and corrected where it was false.
+- [x] the half-committed record noticed and repaired rather than left.
+- [x] full `make check` green: 2,256 tests, 0 lint issues.
 
 ### I29.1 built — listening-port discovery, which is all item 29 kept
 

@@ -30,7 +30,7 @@ where each field can honestly come from.
 | live / idle / unknown | the advisory lock, probed without taking or creating it | ✓ I27.1 |
 | **blocked** | the last `permission.requested` in the event journal with no matching `permission.resolved` | ✓ I27.3 |
 | **cost** | `stats.jsonl` rows carrying this session's id | ✓ I27.4 |
-| **context** | the most recent `usage.reported` event | **refused, see below** |
+| **context** | the most recent `usage.reported` event | **refused on both surfaces, see below** |
 
 **Blocked is the field that makes this a control plane rather than a list.** A session waiting on a
 permission prompt has stopped, is spending nothing, and needs a person — and it looks exactly like a
@@ -47,8 +47,14 @@ per model to show a number in a column.
 The raw count without the window is exactly what item 29 refused when it dropped resource telemetry:
 a number nobody can act on, which teaches its reader to skip the panel. Cost is the opposite — a
 session that has quietly spent four dollars is one somebody stops — so cost shipped and context did
-not. What would change the answer: a card that already carries the model's window, which the dash
-page (I27.6) will have because it renders from a process that has the catalogue in memory.
+not. What would change the answer: a card that already carries the model's window.
+
+*Corrected 2026-08-27 by I27.6:* this predicted the dash page would have it, "because it renders from
+a process that has the catalogue in memory". It does not — `kolk dash` reads the usage log and
+serves, and nothing in it fetches or caches a catalogue. Context stays refused on **both** surfaces,
+and the condition is now the honest one: somewhere that already knows each model's window without a
+network call. A prediction about a process nobody had opened was the wrong kind of condition to write
+down, because it would have quietly justified building the wrong thing next time.
 
 **`unknown` stays a state.** Windows and the fallback build return `ErrUnsupported` for advisory
 locks, so liveness genuinely cannot be observed there. A dashboard that reports "idle" for every
@@ -94,7 +100,7 @@ thing discovered when an undo restores someone else's work.
 - **I27.3 blocked cards** — the journal tail says which live sessions are waiting on a prompt.
 - **I27.4 cost and context per card** — from `stats.jsonl` and the last usage event.
 - **I27.5 shared-checkout warning** — two live cards in one directory say so.
-- **I27.6 the view** — `kolk sessions` and the dash page render cards; steering is item 26's tiers.
+- **I27.6 the view** — ✓ the dash renders cards, blocked first; steering is item 26's tiers.
 
 ## Open questions
 
