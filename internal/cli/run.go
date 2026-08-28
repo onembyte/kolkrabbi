@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/atomicfile"
 	"github.com/onembyte/kolkrabbi/internal/buildinfo"
@@ -64,6 +65,9 @@ func (a *app) runDefault(ctx context.Context, args []string) (err error) {
 	a.debugLog.Printf("session %s, model %s, mode %s, effort %s, permission %s",
 		ag.Sess.SessionID(), ag.Model, ag.Mode, ag.Effort, ag.Permission)
 	defer func() {
+		// Every goroutine this run started is joined before it returns; a
+		// background refresh is cancelled rather than waited for.
+		a.joinBackground()
 		// Named last, after everything else has had its say, so the line a
 		// person needs to attach to a bug report is the final thing on screen.
 		if path := a.debugLog.Path(); path != "" {
@@ -192,6 +196,14 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	client := provider.NewClient(apiKey.Reveal())
 	client.BaseURL = config.ResolveBaseURL(o.baseURL, cfg)
 
+	// One catalog load for the whole startup, and it never waits on the network
+	// while any cache exists: a fresh cache is used, a stale one is used and
+	// refreshed behind the prompt, and only a first run with no cache at all
+	// fetches, bounded so a slow network cannot hold the prompt hostage. 1.2.2
+	// made two catalog requests here, one of them uncached and unbounded, and
+	// the blank screen it produced was timed at ten seconds.
+	catalog := a.loadCatalog(ctx, client, d.CatalogFile())
+
 	// Model precedence: -m flag > the resumed session's model > config > the
 	// live zero-cost coding choice. Explicit user choices never cause a catalog
 	// request and a resumed session never changes models behind the user's back.
@@ -205,7 +217,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	if model == "" {
 		choice := defaultModelChoice{Model: defaultModel, Free: true}
 		if a.chooseDefault != nil {
-			choice = a.chooseDefault(ctx, client)
+			choice = a.chooseDefault(catalog)
 		}
 		model = choice.Model
 		if model == "" {
@@ -261,12 +273,8 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		eventBus = b
 	}
 
-	catalog, err := client.ListModelsCached(ctx, d.CatalogFile(), provider.DefaultCatalogTTL, false)
-	if err != nil {
-		catalog = provider.FallbackCatalogSeed()
-	}
-	// Kept in memory so a later /model switch can resolve the new model's
-	// window without a network call.
+	// Kept in memory so a later /model switch and the TUI's model picker
+	// resolve against the snapshot startup used, with no further read or request.
 	a.catalog = catalog
 	freeModels := provider.RankFreeModels(catalog)
 	if len(freeModels) == 0 {
@@ -314,6 +322,37 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	// permission that was not actually stored.
 	a.applyRules(ag)
 	return ag, nil
+}
+
+// firstRunCatalogTimeout bounds the only catalog request startup may wait on:
+// the one a machine with no cache at all has to make. Every later start reads
+// the cache and refreshes it off the critical path.
+const (
+	firstRunCatalogTimeout = 4 * time.Second
+	// catalogRefreshTimeout bounds the background refresh of a stale cache.
+	catalogRefreshTimeout = 30 * time.Second
+)
+
+// loadCatalog returns the catalog startup will use and never blocks on the
+// network while any cache exists. A stale cache is refreshed in the background;
+// a failed first fetch falls back to the built-in seed, silently, because the
+// model chooser already reports what it fell back to and a second warning for
+// the same fact is noise.
+func (a *app) loadCatalog(ctx context.Context, client *provider.Client, path string) []provider.ModelInfo {
+	snapCtx, cancel := context.WithTimeout(ctx, firstRunCatalogTimeout)
+	defer cancel()
+	catalog, stale, err := client.CatalogSnapshot(snapCtx, path, provider.DefaultCatalogTTL)
+	if err != nil || len(catalog) == 0 {
+		return provider.FallbackCatalogSeed()
+	}
+	if stale {
+		a.startBackground(ctx, func(ctx context.Context) {
+			refreshCtx, cancel := context.WithTimeout(ctx, catalogRefreshTimeout)
+			defer cancel()
+			_ = client.RefreshCatalog(refreshCtx, path)
+		})
+	}
+	return catalog
 }
 
 // planBackend selects a provider-owned CLI backend when the session's model

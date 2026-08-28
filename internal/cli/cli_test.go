@@ -31,7 +31,7 @@ func newTestApp(t *testing.T, stdin string) (*app, *bytes.Buffer, *bytes.Buffer)
 	isolateHome(t)
 	var out, errOut bytes.Buffer
 	a := newApp()
-	a.chooseDefault = func(context.Context, *provider.Client) defaultModelChoice {
+	a.chooseDefault = func([]provider.ModelInfo) defaultModelChoice {
 		return defaultModelChoice{Model: defaultModel, Free: true}
 	}
 	a.stdout = &out

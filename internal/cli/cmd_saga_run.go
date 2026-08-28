@@ -47,6 +47,9 @@ func (a *app) runSagaLoop(ctx context.Context) error {
 		return err
 	}
 	defer func() { _ = agent.Close() }()
+	// A saga can run for an hour; the catalog refresh newAgent may have started
+	// is joined here like everywhere else an agent is built.
+	defer a.joinBackground()
 
 	runner := &engine.SagaRunner{
 		Planner:  engine.AgentPlanner{Agent: agent},

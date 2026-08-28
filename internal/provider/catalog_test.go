@@ -192,3 +192,97 @@ func TestCatalogForceRefreshBypassesCache(t *testing.T) {
 		t.Errorf("network hits = %d, want 1", hits)
 	}
 }
+
+func snapshotServer(t *testing.T, hits *int32) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(hits, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": []provider.ModelInfo{{ID: "network/model", ContextLength: 128000}},
+		})
+	}))
+}
+
+func TestCatalogSnapshotServesAStaleCacheWithoutTheNetwork(t *testing.T) {
+	var hits int32
+	srv := snapshotServer(t, &hits)
+	defer srv.Close()
+	client := provider.NewClient("test-key")
+	client.BaseURL = srv.URL
+
+	cacheFile := filepath.Join(t.TempDir(), "models.json")
+	seed := provider.CatalogCache{
+		Version: 1, CachedAt: time.Now().Add(-2 * time.Hour),
+		Models: []provider.ModelInfo{{ID: "cached/model", ContextLength: 64000}},
+	}
+	body, err := json.Marshal(seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cacheFile, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	models, stale, err := client.CatalogSnapshot(context.Background(), cacheFile, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !stale {
+		t.Fatal("a two-hour-old cache under a one-hour TTL must report stale")
+	}
+	if len(models) != 1 || models[0].ID != "cached/model" {
+		t.Fatalf("models = %#v, want the stale cache served as-is", models)
+	}
+	if n := atomic.LoadInt32(&hits); n != 0 {
+		t.Fatalf("network hits = %d; a stale cache must be served without a request", n)
+	}
+
+	// The refresh is the caller's decision, off the startup path.
+	if err := client.RefreshCatalog(context.Background(), cacheFile); err != nil {
+		t.Fatal(err)
+	}
+	models, stale, err = client.CatalogSnapshot(context.Background(), cacheFile, time.Hour)
+	if err != nil || stale || len(models) != 1 || models[0].ID != "network/model" {
+		t.Fatalf("after refresh: models=%#v stale=%v err=%v", models, stale, err)
+	}
+	if n := atomic.LoadInt32(&hits); n != 1 {
+		t.Fatalf("network hits = %d, want exactly the one refresh", n)
+	}
+}
+
+func TestCatalogSnapshotFetchesOnlyWhenNothingIsCached(t *testing.T) {
+	var hits int32
+	srv := snapshotServer(t, &hits)
+	defer srv.Close()
+	client := provider.NewClient("test-key")
+	client.BaseURL = srv.URL
+	cacheFile := filepath.Join(t.TempDir(), "models.json")
+
+	models, stale, err := client.CatalogSnapshot(context.Background(), cacheFile, time.Hour)
+	if err != nil || stale || len(models) != 1 || models[0].ID != "network/model" {
+		t.Fatalf("first run: models=%#v stale=%v err=%v", models, stale, err)
+	}
+	if _, err := os.Stat(cacheFile); err != nil {
+		t.Fatalf("the first fetch must write the cache so the next start is instant: %v", err)
+	}
+	if _, _, err := client.CatalogSnapshot(context.Background(), cacheFile, time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	if n := atomic.LoadInt32(&hits); n != 1 {
+		t.Fatalf("network hits = %d, want 1: the second start must be a cache hit", n)
+	}
+}
+
+func TestCatalogSnapshotReportsAnOutageWhenNothingIsCached(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+	client := provider.NewClient("test-key")
+	client.BaseURL = srv.URL
+
+	if _, _, err := client.CatalogSnapshot(context.Background(), filepath.Join(t.TempDir(), "models.json"), time.Hour); err == nil {
+		t.Fatal("no cache and a 503 must surface an error so the caller falls back to the seed")
+	}
+}

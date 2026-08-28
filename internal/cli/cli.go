@@ -15,6 +15,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"text/tabwriter"
 	"time"
 
@@ -49,7 +50,18 @@ type app struct {
 	// sessionHold marks this session live while the process runs it, so a
 	// dashboard can tell which sessions are actually going.
 	sessionHold *lock.File
-	debugLog    *debugLog
+
+	// background owns every goroutine the CLI starts that outlives the call
+	// that started it — today, the catalog refresh. One owner, joined at exit,
+	// per docs/plan/02-architecture.md §10. Its parent context is detached from
+	// the run's cancellation so a Ctrl+C that ends a turn cannot tear a
+	// half-written cache out from under a refresh; joinBackground cancels it
+	// instead, so exit never waits on a provider's clock.
+	backgroundMu     sync.Mutex
+	backgroundCtx    context.Context
+	backgroundCancel context.CancelFunc
+	background       sync.WaitGroup
+	debugLog         *debugLog
 	// projectHooksApproved remembers this session's answer per hooks-file
 	// fingerprint. Session-scoped on purpose: see approveProjectHooks.
 	projectHooksApproved map[string]bool
@@ -78,7 +90,7 @@ type app struct {
 	now              func() time.Time
 	canAnimate       func() bool
 	newActivity      func(io.Writer) engine.ActivityIndicator
-	chooseDefault    func(context.Context, *provider.Client) defaultModelChoice
+	chooseDefault    func([]provider.ModelInfo) defaultModelChoice
 	enterRaw         func(*os.File) (func() error, error)
 	terminalOwned    func() bool
 	probeHardware    func(context.Context, string) local.Hardware
@@ -101,7 +113,7 @@ func newApp() *app {
 	a.newActivity = func(out io.Writer) engine.ActivityIndicator {
 		return newOctopusActivity(out, term.Color())
 	}
-	a.chooseDefault = discoverDefaultModel
+	a.chooseDefault = chooseDefaultModel
 	a.enterRaw = term.EnterRaw
 	a.terminalSize = term.Size
 	a.isStdinPiped = func() bool {
@@ -351,4 +363,33 @@ func orDefault(s, def string) string {
 		return def
 	}
 	return s
+}
+
+// startBackground runs fn on a goroutine the app owns. ctx is the caller's:
+// its values carry over, its cancellation does not.
+func (a *app) startBackground(ctx context.Context, fn func(context.Context)) {
+	a.backgroundMu.Lock()
+	if a.backgroundCtx == nil {
+		a.backgroundCtx, a.backgroundCancel = context.WithCancel(context.WithoutCancel(ctx))
+	}
+	parent := a.backgroundCtx
+	a.backgroundMu.Unlock()
+	a.background.Add(1)
+	go func() {
+		defer a.background.Done()
+		fn(parent)
+	}()
+}
+
+// joinBackground cancels and then waits for everything startBackground
+// started. Cancel first: a refresh that has not finished by exit is abandoned,
+// and the stale cache it would have replaced still serves the next start.
+func (a *app) joinBackground() {
+	a.backgroundMu.Lock()
+	cancel := a.backgroundCancel
+	a.backgroundMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	a.background.Wait()
 }

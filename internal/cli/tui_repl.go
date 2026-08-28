@@ -100,16 +100,15 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 	return errors.Join(runErr, restoreErr)
 }
 
-func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
+// tuiModels feeds the picker from the snapshot startup already loaded. It used
+// to re-read the catalog here, which on a stale cache meant a second network
+// wait before the first prompt could be drawn.
+func tuiModels(_ context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 	if ag.Client == nil {
 		return nil
 	}
-	d, err := a.locate()
-	if err != nil {
-		return nil
-	}
-	models, err := ag.Client.ListModelsCached(ctx, d.CatalogFile(), provider.DefaultCatalogTTL, false)
-	if err != nil {
+	models := a.catalog
+	if len(models) == 0 {
 		models = provider.FallbackCatalogSeed()
 	}
 	out := make([]tui.ModelSpec, 0, len(models))

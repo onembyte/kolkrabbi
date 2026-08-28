@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"time"
@@ -102,4 +103,51 @@ func saveCatalog(path string, models []ModelInfo) error {
 		return err
 	}
 	return atomicfile.Write(path, b, 0o600)
+}
+
+// CatalogSnapshot returns the best catalog available without waiting on the
+// network while any cache exists. A fresh cache is returned as-is; a stale one
+// is returned with stale=true so the caller can refresh it off the critical
+// path. Only when no cache exists at all is the provider contacted, and then
+// only for as long as ctx allows.
+//
+// This is the startup path. The user is looking at an empty prompt while it
+// runs, so a catalog that is an hour old beats one that is ten seconds away.
+func (c *Client) CatalogSnapshot(ctx context.Context, path string, ttl time.Duration) (models []ModelInfo, stale bool, err error) {
+	if ttl <= 0 {
+		ttl = DefaultCatalogTTL
+	}
+	if path != "" {
+		if cached, loadErr := loadCatalog(path); loadErr == nil && len(cached.Models) > 0 {
+			return cached.Models, time.Since(cached.CachedAt) > ttl, nil
+		}
+	}
+	models, err = c.ListModels(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(models) == 0 {
+		return nil, false, errors.New("provider returned an empty model catalog")
+	}
+	if path != "" {
+		_ = saveCatalog(path, models)
+	}
+	return models, false, nil
+}
+
+// RefreshCatalog fetches the catalog and rewrites the cache at path. It exists
+// to run in the background after CatalogSnapshot reports a stale cache; nothing
+// on the startup path waits for it.
+func (c *Client) RefreshCatalog(ctx context.Context, path string) error {
+	models, err := c.ListModels(ctx)
+	if err != nil {
+		return err
+	}
+	if len(models) == 0 {
+		return errors.New("provider returned an empty model catalog")
+	}
+	if path == "" {
+		return nil
+	}
+	return saveCatalog(path, models)
 }

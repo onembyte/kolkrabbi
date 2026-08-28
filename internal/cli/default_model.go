@@ -1,46 +1,43 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 )
 
-const (
-	legacyFreePreset      = "stealth/ox-alpha"
-	modelDiscoveryTimeout = 5 * time.Second
-)
+const legacyFreePreset = "stealth/ox-alpha"
 
 // defaultModelChoice records enough policy for startup to be transparent when
-// a provider exposes no zero-cost model. Model discovery itself never blocks a
-// first run: the official free router remains the outage fallback.
+// a provider exposes no zero-cost model. The official free router remains the
+// fallback whenever the catalog cannot say better.
 type defaultModelChoice struct {
 	Model   string
 	Free    bool
 	Warning string
 }
 
-func discoverDefaultModel(ctx context.Context, client *provider.Client) defaultModelChoice {
-	discoveryContext, cancel := context.WithTimeout(ctx, modelDiscoveryTimeout)
-	defer cancel()
-	models, err := client.ListModelsRanked(discoveryContext)
-	if err != nil {
+// chooseDefaultModel picks the session's model from the catalog startup already
+// loaded. It is pure: the catalog comes from the one startup snapshot (cache
+// first, network only when no cache exists), so choosing a model never adds a
+// request of its own. Until 1.2.2 this function made a second, uncached
+// catalog fetch, and the prompt waited on it.
+func chooseDefaultModel(catalog []provider.ModelInfo) defaultModelChoice {
+	if len(catalog) == 0 {
 		return defaultModelChoice{
 			Model: defaultModel, Free: true,
-			Warning: "could not rank the live model catalog; using OpenRouter's free router",
+			Warning: "could not load the model catalog; using OpenRouter's free router",
 		}
 	}
-	choice, ok := chooseBestDefaultModel(models)
+	choice, ok := chooseBestDefaultModel(catalog)
 	if !ok {
 		return defaultModelChoice{
 			Model: defaultModel, Free: true,
-			Warning: "the live catalog listed no usable model; using OpenRouter's free router",
+			Warning: "the catalog listed no usable model; using OpenRouter's free router",
 		}
 	}
 	if !choice.Free {
@@ -74,7 +71,6 @@ func retireLegacyFreeConfig(cfg *config.Config) bool {
 
 type defaultCandidate struct {
 	model       provider.ModelInfo
-	index       int
 	free        bool
 	codingScore int
 	cost        float64
@@ -84,12 +80,12 @@ type defaultCandidate struct {
 func chooseBestDefaultModel(models []provider.ModelInfo) (defaultModelChoice, bool) {
 	verifiedTools := make([]defaultCandidate, 0, len(models))
 	unknownTools := make([]defaultCandidate, 0, len(models))
-	for index, model := range models {
+	for _, model := range models {
 		if strings.TrimSpace(model.ID) == "" || model.ID == legacyFreePreset {
 			continue
 		}
 		candidate := defaultCandidate{
-			model: model, index: index, free: modelIsFree(model), codingScore: codingSuitability(model),
+			model: model, free: modelIsFree(model), codingScore: codingSuitability(model),
 		}
 		candidate.cost, candidate.costKnown = estimatedModelCost(model)
 		switch toolCapability(model) {
@@ -149,11 +145,8 @@ func betterFreeCandidate(left, right defaultCandidate) bool {
 	if left.codingScore != right.codingScore {
 		return left.codingScore > right.codingScore
 	}
-	// The endpoint is requested in intelligence order, so retain its order
-	// before using context and ID as deterministic fallbacks.
-	if left.index != right.index {
-		return left.index < right.index
-	}
+	// The catalog is a cache with no meaningful order, so ties resolve on the
+	// data alone: a larger window, then the ID, both deterministic.
 	if left.model.ContextLength != right.model.ContextLength {
 		return left.model.ContextLength > right.model.ContextLength
 	}
@@ -170,7 +163,10 @@ func betterPaidCandidate(left, right defaultCandidate) bool {
 	if left.codingScore != right.codingScore {
 		return left.codingScore > right.codingScore
 	}
-	return left.index < right.index
+	if left.model.ContextLength != right.model.ContextLength {
+		return left.model.ContextLength > right.model.ContextLength
+	}
+	return left.model.ID < right.model.ID
 }
 
 func toolCapability(model provider.ModelInfo) int {

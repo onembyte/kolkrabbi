@@ -2,11 +2,16 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -76,42 +81,79 @@ func TestChooseBestDefaultModelFallsBackInSafeOrder(t *testing.T) {
 	})
 }
 
-func TestDiscoverDefaultModelUsesRankedCatalogAndSafeFreeRouterFallback(t *testing.T) {
-	t.Run("ranked free coding model", func(t *testing.T) {
-		var query string
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			query = r.URL.RawQuery
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = io.WriteString(w, `{"data":[{"id":"cohere/north-code:free","name":"North Code","description":"agentic coding and terminal tasks","context_length":256000,"supported_parameters":["tools"],"pricing":{"prompt":"0","completion":"0","request":"0"}}]}`)
-		}))
-		defer srv.Close()
-
-		client := provider.NewClient("test-key")
-		client.BaseURL = srv.URL
-		choice := discoverDefaultModel(context.Background(), client)
-		if choice.Model != "cohere/north-code:free" || !choice.Free || choice.Warning != "" {
-			t.Fatalf("discovered choice = %#v", choice)
+func TestChooseDefaultModelIsPureAndFallsBackToTheFreeRouter(t *testing.T) {
+	t.Run("free coding model from the catalog, no request made", func(t *testing.T) {
+		catalog := []provider.ModelInfo{
+			catalogModel("cohere/north-code:free", "North Code", "agentic coding and terminal tasks", "0", "0", true),
 		}
-		for _, want := range []string{"sort=intelligence-high-to-low", "supported_parameters=tools"} {
-			if !strings.Contains(query, want) {
-				t.Fatalf("ranked catalog query %q omitted %q", query, want)
-			}
+		choice := chooseDefaultModel(catalog)
+		if choice.Model != "cohere/north-code:free" || !choice.Free || choice.Warning != "" {
+			t.Fatalf("choice = %#v", choice)
 		}
 	})
 
-	t.Run("catalog outage stays free", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			http.Error(w, "unavailable", http.StatusServiceUnavailable)
-		}))
-		defer srv.Close()
-
-		client := provider.NewClient("test-key")
-		client.BaseURL = srv.URL
-		choice := discoverDefaultModel(context.Background(), client)
+	t.Run("empty catalog stays free", func(t *testing.T) {
+		choice := chooseDefaultModel(nil)
 		if choice.Model != defaultModel || !choice.Free || !strings.Contains(choice.Warning, "free router") {
 			t.Fatalf("outage fallback = %#v", choice)
 		}
 	})
+}
+
+// TestNewAgentNeverWaitsOnTheNetworkWhenACatalogCacheExists pins the fix for
+// the ten-second blank prompt: with any catalog on disk, even an expired one,
+// startup must serve it immediately and refresh behind the prompt.
+func TestNewAgentNeverWaitsOnTheNetworkWhenACatalogCacheExists(t *testing.T) {
+	dirs := storeFirstRunKey(t)
+
+	stale := provider.CatalogCache{
+		Version:  1,
+		CachedAt: time.Now().Add(-48 * time.Hour),
+		Models: []provider.ModelInfo{
+			catalogModel("cached/coder:free", "Cached Coder", "agentic coding for terminal tasks", "0", "0", true),
+		},
+	}
+	body, err := json.Marshal(stale)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(dirs.CatalogFile()), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dirs.CatalogFile(), body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// A provider that answers slowly. Before the fix this delay was paid on
+	// the startup path, in full, twice.
+	var hits int32
+	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		select {
+		case <-time.After(700 * time.Millisecond):
+		case <-r.Context().Done():
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"data":[{"id":"network/newer:free","context_length":128000,"supported_parameters":["tools"],"pricing":{"prompt":"0","completion":"0"}}]}`)
+	}))
+	defer slow.Close()
+
+	a, _, _ := newTestApp(t, "")
+	t.Cleanup(a.joinBackground)
+	a.chooseDefault = chooseDefaultModel
+	started := time.Now()
+	agent, err := a.newAgent(context.Background(), &options{baseURL: slow.URL})
+	elapsed := time.Since(started)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if agent.Model != "cached/coder:free" {
+		t.Fatalf("model = %q, want the cached catalog's choice", agent.Model)
+	}
+	if elapsed > 400*time.Millisecond {
+		t.Fatalf("startup took %v with a catalog on disk; it must not wait on the network", elapsed)
+	}
 }
 
 func TestNewAgentDiscoversOnlyWhenNoUserOrSessionModelExists(t *testing.T) {
@@ -119,7 +161,7 @@ func TestNewAgentDiscoversOnlyWhenNoUserOrSessionModelExists(t *testing.T) {
 		storeFirstRunKey(t)
 		a, _, errOut := newTestApp(t, "")
 		calls := 0
-		a.chooseDefault = func(context.Context, *provider.Client) defaultModelChoice {
+		a.chooseDefault = func([]provider.ModelInfo) defaultModelChoice {
 			calls++
 			return defaultModelChoice{Model: "free/best-code", Free: true}
 		}
@@ -139,7 +181,7 @@ func TestNewAgentDiscoversOnlyWhenNoUserOrSessionModelExists(t *testing.T) {
 		}
 		a, _, _ := newTestApp(t, "")
 		calls := 0
-		a.chooseDefault = func(context.Context, *provider.Client) defaultModelChoice {
+		a.chooseDefault = func([]provider.ModelInfo) defaultModelChoice {
 			calls++
 			return defaultModelChoice{Model: "free/ignored", Free: true}
 		}
@@ -155,7 +197,7 @@ func TestNewAgentDiscoversOnlyWhenNoUserOrSessionModelExists(t *testing.T) {
 	t.Run("paid fallback is visible before any turn", func(t *testing.T) {
 		storeFirstRunKey(t)
 		a, _, errOut := newTestApp(t, "")
-		a.chooseDefault = func(context.Context, *provider.Client) defaultModelChoice {
+		a.chooseDefault = func([]provider.ModelInfo) defaultModelChoice {
 			return defaultModelChoice{Model: "paid/cheap", Warning: "no free model; charges may apply"}
 		}
 		if _, err := a.newAgent(context.Background(), &options{}); err != nil {
@@ -176,7 +218,7 @@ func TestNewAgentDiscoversOnlyWhenNoUserOrSessionModelExists(t *testing.T) {
 			t.Fatal(err)
 		}
 		a, _, errOut := newTestApp(t, "")
-		a.chooseDefault = func(context.Context, *provider.Client) defaultModelChoice {
+		a.chooseDefault = func([]provider.ModelInfo) defaultModelChoice {
 			return defaultModelChoice{Model: "free/current-code", Free: true}
 		}
 		agent, err := a.newAgent(context.Background(), &options{})
