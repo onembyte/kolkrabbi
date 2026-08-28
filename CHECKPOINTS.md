@@ -2137,6 +2137,51 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### Item 33 queued — agentic mode, one leaf per tick
+
+The build order below is not the order the asks were given. It is cheapest-first among things that
+stand alone, so every tick ends with something a person can see, and the two that change *what a run
+costs* come before the two that change *which models it opens* — a wrong model choice is easy to
+watch once the count and the costs are visible, and hard to debug before.
+
+Each leaf: red first, focused verify, full `make check`, record here, commit. Push when the set is
+done.
+
+- [ ] **A33.1 publish subagent lifecycle events** — the orchestrator emits `subagent.started` and
+      `subagent.finished` with task index, kind and model. The protocol already defines both and the
+      conformance test already covers them, so this is a publisher, not a contract change. Verify by
+      driving an orchestrated run against the mock and reading the events off the bus.
+- [ ] **A33.2 the live agent count** — the TUI shows how many subagents are running, above the
+      composer, beside the existing status. Started minus finished, the kinds in flight, nothing
+      else. Must not become a progress bar (item 29's test: name the decision it changes). Verify
+      the count returns to zero when a run ends, including when a task fails.
+- [ ] **A33.3 free fast lane** — delete the clause that refuses a free model when the main model is
+      paid. A free tool-capable model wins fast-lane and boilerplate work whenever one exists;
+      `slot.fast` still overrides. Test the exact case that is wrong today: paid main model, free
+      model available, mechanical task → free model chosen.
+- [ ] **A33.4 per-slot model selection** — an empty slot resolves from the live catalogue by what
+      the slot is for (strongest / tool-capable / cheap-and-high-context / free) instead of
+      collapsing to the effort model. Printed with the plan before anything runs, as the orchestrator
+      already prints its routing. Measure the selection: it runs once per plan, not per task.
+- [ ] **A33.5 ratings inform the choice** — this machine's own 1–5 ratings from `stats.jsonl` weight
+      the selection, so a model somebody rated badly stops being chosen for them. The one ranking
+      signal no vendor benchmark has. Reuse `CostForSessions`' cheap-read lesson: one pass, not one
+      per slot.
+- [ ] **A33.6 subscriptions first** — a verified subscription connector outranks a metered model for
+      any slot it can fill. Refuse to invent capability: a connector that is `listed` rather than
+      `enabled` is not a candidate, which is the distinction v1.2.3 just made honest.
+- [ ] **A33.7 the limit decision** — `routing.on_subscription_limit` with `ask` (default), `switch`,
+      `stop`. Wired to the existing retry path, reported in the transcript, and never a default that
+      spends money without being asked. Test all three, including that `ask` in `/full-auto` cannot
+      hang a run with nobody there.
+- [ ] **A33.8 a snapshot per writing subagent** — item 32's store, taken before a writing task and
+      rewindable alone, so one bad task does not cost the whole turn. Only writing kinds: research
+      and explain change nothing.
+
+Two questions the doc leaves open, to be answered when the code makes them concrete rather than
+guessed at now: whether the orchestrator may re-slot a failing model mid-run, and how many subagents
+on one free model is too many before a free tier's rate limit turns width into waiting.
+
 ### G16.3 built — project hooks are shown first, and the last named leaf closes
 
 *A `.kolk/hooks.json` in a cloned repository is a shell command a stranger wrote.* The leaf is one
