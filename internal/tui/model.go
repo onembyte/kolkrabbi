@@ -223,7 +223,14 @@ func (m *Model) viewRows(width, height, cursor int) []viewRow {
 
 	rows := make([]viewRow, 0, len(transcriptText)+len(activity)+len(statusLine)+len(suggestions)+len(composer))
 	for _, line := range transcriptText {
-		rows = append(rows, viewRow{text: line})
+		// A request the user sent is theirs, and reads as theirs: the same
+		// purple the composer uses, so the eye can find "what did I ask" in a
+		// long transcript without reading it.
+		style := styleNone
+		if strings.HasPrefix(line, promptMarker+" ") {
+			style = stylePurple
+		}
+		rows = append(rows, viewRow{text: line, style: style})
 	}
 	rows = append(rows, activity...)
 	rows = append(rows, suggestions...)

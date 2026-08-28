@@ -370,6 +370,10 @@ func (r *Runtime) Approval() *Approval {
 func (r *Runtime) Controller() *Controller { return r.controller }
 
 func (r *Runtime) startTurnLocked(prompt string) {
+	// The request joins the transcript before the answer does. Without it the
+	// draft vanished on Enter and the scrollback held only replies, so a
+	// session read as a monologue and there was no record of what was asked.
+	r.controller.AppendTranscript(promptEcho(prompt))
 	if r.turn == nil {
 		r.controller.FinishTurn("ready")
 		return

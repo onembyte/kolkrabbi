@@ -36,7 +36,9 @@ func TestRuntimeStreamsWhileRetainingTypeAheadAndCancelsOneTurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := runtime.Snapshot()
-	if got.Draft != "" || got.Transcript != "assistant streaming" {
+	// The request is echoed into the transcript ahead of the reply, so the
+	// scrollback records both halves of the exchange.
+	if got.Draft != "" || got.Transcript != "❯ first request\nassistant streaming" {
 		t.Fatalf("runtime mixed draft/output: %#v", got)
 	}
 	if got.Status.Lifecycle != "interrupted" {

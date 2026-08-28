@@ -65,3 +65,24 @@ type realSpinnerTimer struct{ timer *time.Timer }
 
 func (t *realSpinnerTimer) C() <-chan time.Time { return t.timer.C }
 func (t *realSpinnerTimer) Stop()               { t.timer.Stop() }
+
+// promptEcho renders a submitted request for the transcript. The marker is the
+// composer's own, so a request reads the same after it is sent as while it was
+// being typed, and model.go styles any line carrying it as the user's.
+func promptEcho(prompt string) string {
+	prompt = strings.TrimRight(prompt, "\n")
+	if prompt == "" {
+		return ""
+	}
+	lines := strings.Split(prompt, "\n")
+	for index, line := range lines {
+		if index == 0 {
+			lines[index] = promptMarker + " " + line
+			continue
+		}
+		// Continuation rows align under the first, exactly as the composer
+		// indents them.
+		lines[index] = "  " + line
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
