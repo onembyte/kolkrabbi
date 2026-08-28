@@ -131,9 +131,6 @@ func TestRuntimeToolWorkUsesOnlyTheEphemeralActivityRegion(t *testing.T) {
 	if got.Activity != activityLine(0, "working") || got.Transcript != "" || got.Status.Lifecycle != "working" {
 		t.Fatalf("tool activity regions = %#v", got)
 	}
-	if !strings.HasPrefix(got.Activity, OctopusIcon+" ") {
-		t.Fatalf("activity row lost the octopus: %q", got.Activity)
-	}
 	// A tool's own description is too specific for the status row, and
 	// "thinking" would claim a model call that is not happening.
 	if strings.Contains(got.Activity, "thinking") || strings.Contains(got.Activity, "Reading file") {

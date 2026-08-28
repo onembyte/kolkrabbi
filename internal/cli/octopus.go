@@ -5,8 +5,6 @@ import (
 	"io"
 	"sync"
 	"time"
-
-	"github.com/onembyte/kolkrabbi/internal/tui"
 )
 
 const (
@@ -120,10 +118,10 @@ func (a *octopusActivity) render(ctx context.Context, done chan<- struct{}) {
 	}
 }
 
-// frame is the octopus and the turning wheel, the same pair the persistent
-// composer shows. The octopus is static: only the wheel carries the motion.
+// frame is the turning wheel, the same indicator the persistent composer
+// shows. It carried a block-drawn octopus beside it until 1.2.5.
 func (a *octopusActivity) frame(index int) string {
-	icon := tui.OctopusIcon + " " + spinnerFrames[index]
+	icon := spinnerFrames[index]
 	if a.color {
 		icon = brightMagenta + icon + colorReset
 	}

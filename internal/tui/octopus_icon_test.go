@@ -5,24 +5,7 @@ import (
 	"testing"
 )
 
-// The icon is four cells of quadrant blocks. If it ever grows a newline it has
-// stopped being a one-row icon, which is the whole constraint it was drawn to.
-func TestOctopusIconIsOneRowOfFourCells(t *testing.T) {
-	if strings.Contains(OctopusIcon, "\n") {
-		t.Fatalf("icon spans more than one row: %q", OctopusIcon)
-	}
-	if got := cellWidth(OctopusIcon); got != 4 {
-		t.Fatalf("icon is %d cells wide, want 4: %q", got, OctopusIcon)
-	}
-	for _, r := range OctopusIcon {
-		if runeCellWidth(r) != 1 {
-			t.Fatalf("icon uses a non-single-width rune %q; the composer's wrap math assumes cells", r)
-		}
-	}
-}
-
-// Only the wheel moves. An animated logo reads as a fault rather than progress,
-// and it was a wiggling three-row sprite that this replaced.
+// The wheel is the whole indicator now, so it has to actually turn.
 func TestActivityLineTurnsOnlyTheWheel(t *testing.T) {
 	first := activityLine(0, "thinking")
 	second := activityLine(1, "thinking")
@@ -30,15 +13,13 @@ func TestActivityLineTurnsOnlyTheWheel(t *testing.T) {
 		t.Fatalf("wheel did not advance between frames: %q", first)
 	}
 	for _, line := range []string{first, second} {
-		if !strings.HasPrefix(line, OctopusIcon+" ") {
-			t.Fatalf("activity row lost the octopus: %q", line)
-		}
 		if !strings.HasSuffix(line, " thinking…") {
 			t.Fatalf("activity row lost its phase: %q", line)
 		}
-	}
-	if strings.TrimPrefix(first, OctopusIcon) == strings.TrimPrefix(second, OctopusIcon) {
-		t.Fatalf("frames differ outside the wheel")
+		// Nothing precedes the wheel: the row opens with the spinner itself.
+		if !strings.HasPrefix(line, wheelFrames[0]) && !strings.HasPrefix(line, wheelFrames[1]) {
+			t.Fatalf("activity row does not start with the wheel: %q", line)
+		}
 	}
 }
 
