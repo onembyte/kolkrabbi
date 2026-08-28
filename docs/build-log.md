@@ -4164,3 +4164,74 @@ neither draft nor prerelease, and the latest redirect resolves to `v1.2.16`.
 **What v1.2.15 got wrong.** It published a feature that could not fire. The lesson is narrow and
 worth keeping: a tool is reachable only if the prompt invites it, and a test that calls the tool
 directly proves nothing about whether the model ever will.
+
+## A35 three things a person hit while using it (2026-08-28)
+
+### A35.1 the composer sat at the top and jumped on resize
+
+Reported from a 125×57 window: the composer near the top, fifty empty rows below it, and the box
+moving upward whenever the window was resized.
+
+The frame was only as tall as its content. With a full transcript that already came to exactly the
+terminal height — the transcript is clipped to `height − chrome` — so the composer sat on the last
+row and looked right. With little or no output the frame was four rows, drawn wherever the cursor
+happened to be, anchored to nothing. So the composer started near the top of a fresh session, crept
+down as output arrived, and on a resize appeared to jump: a terminal adds its new rows *below*.
+
+The frame is now padded above to the terminal's full height, always. One height, one position, from
+the first frame on. `TestTheComposerDoesNotMoveAsOutputArrives` walks sixty lines of output past a
+twenty-row frame and fails if the composer moves a single row.
+
+Three tests had encoded the old layout by reading `view[0]` — the composer rule is no longer the
+first line. They were rewritten to find what they were looking for rather than to assume where it
+falls, which is what they meant in the first place.
+
+### A35.2 `/plogin` opened Claude Code instead of a login
+
+`runConnectorLogin` called `handover(ctx, selected.Connector, nil, "")`. Nil arguments: it ran the
+bare `claude`, which is Claude Code itself. Someone asking kolk to sign in to their Max plan got
+another agent's entire interface in place of the one they were using, with no indication of how to
+get back, and the login they wanted somewhere inside it.
+
+A connector's login is a subcommand: `claude auth login`, `codex login`. Both verified against the
+installed CLIs rather than assumed — `claude auth --help` and `codex login --help`.
+
+`gemini` is deliberately absent from the table. Its subcommand could not be verified because the CLI
+is not installed here, and an unknown connector falls back to the bare executable: the fallback runs
+the program the user named, while a wrong guess fails in a way that sounds like a broken
+subscription. `claude setup-token` was also rejected — it issues a long-lived credential kolk would
+then be responsible for, and the point of a provider-CLI connector is that the provider keeps it.
+
+**A gate that had to be re-read rather than re-pointed.** `TestPlansLoginUsesHandoverAndPersistsMetadata`
+asserted `len(args) != 0` under the message "want no provider credential inputs". The rule it was
+protecting is that kolk passes no credential to the provider CLI — not that it passes no arguments.
+It now checks the arguments for anything credential- or path-shaped and requires the login subcommand
+by name.
+
+### A35.3 there was no way to uninstall
+
+Asked directly: how do I uninstall? There was no answer. No command, no script, nothing in the
+README — an install path with one command and an uninstall path with none.
+
+`kolk uninstall` lists every path it will remove, what each holds and how big it is, then asks once.
+`--keep-data` spares the API key, settings and sessions, which is the difference between "I am done
+with this" and "I am reinstalling". `--yes` skips the question for scripts.
+
+The directories come from the same resolver the rest of kolk uses, so an install steered by
+`KOLK_DATA_DIR` is removed from where it actually is. A directory that does not exist is not listed:
+a list of paths that were never kolk's reads as a threat to delete them. The binary goes last, so a
+directory that cannot be removed leaves the command that reported it still on disk.
+
+Anything that is not an explicit yes is a no, end of input included —
+`TestUninstallTreatsAClosedStdinAsNo` exists because a closed stdin must never delete an API key.
+
+**Three surface gates fired, all correctly.** The verb is nine letters against a six-letter rule, so
+it joins `longVerbs` with its reason: uninstall is the one verb people look for while frustrated, and
+a short alias nobody guesses is worse than nine letters. The parity gate wanted a `/uninstall` slash
+twin; it is in `batchOnly` instead, because removing the running binary and the session's own state
+mid-session would delete the sessions file being written to. And the two length gates were checking
+the same rule from two lists — they now share `longVerbs`, so they cannot disagree.
+
+**Verified by running it**, not only by unit tests: a throwaway install under `KOLK_*_DIR` with a
+fixture key, a config, a cache and a session. Refused with no answer, then accepted with `--yes`, and
+every path was gone including the binary, which unlinks itself cleanly on Unix.

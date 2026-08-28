@@ -210,6 +210,7 @@ func commandTable() []command {
 		{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors", (*app).runPlanModels},
 		{"localia", "[models [filter] | plan <model> | pull [--yes] <model>]", "local hardware, model catalog, fit plans, and pulls", (*app).runLocalia},
 		{"update", "", "install the latest verified release", (*app).runUpdate},
+		{"uninstall", "[--keep-data] [--yes]", "remove kolk and everything it stored", (*app).runUninstall},
 		{"sessions", "[search <text> | rename <id> <title> | fork <id> | export <id> [--json] | rm <id> | clear]", "list, search, fork, export or delete saved sessions", (*app).runSessions},
 		{"stats", "[--json]", "100% local usage and rating dashboard", (*app).runStats},
 		{"dash", "[--addr 127.0.0.1:0]", "open the local usage dashboard in a browser", (*app).runDash},

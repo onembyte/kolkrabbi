@@ -9,7 +9,10 @@ func renderTranscript(t *testing.T, chunk string, width int) []string {
 	t.Helper()
 	m := New(Status{Mode: "code", Lifecycle: "ready"})
 	m.AppendTranscript(chunk)
-	return strings.Split(m.View(width, 24), "\n")
+	// Unbounded height: a bounded frame is padded to fill the terminal so the
+	// composer sits on its last row, and these tests are about what the
+	// markdown renderer produces, not where the layout puts it.
+	return strings.Split(m.View(width, 0), "\n")
 }
 
 func TestMarkdownRendersHeadingsListsAndQuotes(t *testing.T) {

@@ -134,8 +134,15 @@ func (a *app) runPlanLogin(ctx context.Context, args []string) error {
 // the connector afterwards. The caller must already own an unshared terminal:
 // in a session that means after the screen is down.
 func (a *app) runConnectorLogin(ctx context.Context, connectorsFile string, selected provider.Plan) error {
+	// The login subcommand, never the bare executable: running `claude` with no
+	// arguments opens Claude Code itself, which is how a person asking to sign
+	// in ended up inside another agent's full interface instead.
+	loginArgs, known := provider.LoginArgs(selected.Connector)
+	if !known {
+		fmt.Fprintf(a.stdout, "kolk does not know how %s signs in; running it as-is.\n", selected.Connector)
+	}
 	fmt.Fprintf(a.stdout, "starting %s login in this terminal; Kolkrabbi will not see credentials\n", selected.Connector)
-	if err := a.handover(ctx, selected.Connector, nil, ""); err != nil {
+	if err := a.handover(ctx, selected.Connector, loginArgs, ""); err != nil {
 		return err
 	}
 	// A provider CLI that quits without signing in also exits 0, so a clean exit

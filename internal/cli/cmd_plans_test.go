@@ -65,10 +65,20 @@ func TestPlansLoginUsesHandoverAndPersistsMetadata(t *testing.T) {
 	t.Setenv(paths.EnvCacheDir, filepath.Join(base, "cache"))
 	a, out, errOut := newTestApp(t, "")
 	var gotExecutable string
+	var gotArgs []string
 	a.handover = func(_ context.Context, executable string, args []string, dir string) error {
 		gotExecutable = executable
-		if len(args) != 0 || dir != "" {
-			t.Fatalf("handover args=%v dir=%q, want no provider credential inputs", args, dir)
+		gotArgs = args
+		// The rule is that kolk hands over no credential input, not that it
+		// hands over no arguments: it must name the login subcommand, or the
+		// bare executable opens the provider's whole application instead.
+		for _, arg := range args {
+			if strings.ContainsAny(arg, "=/\\") || len(arg) > 16 {
+				t.Fatalf("handover arg %q looks like a credential or a path", arg)
+			}
+		}
+		if dir != "" {
+			t.Fatalf("handover dir=%q, want the user's own working directory", dir)
 		}
 		return nil
 	}
@@ -77,6 +87,11 @@ func TestPlansLoginUsesHandoverAndPersistsMetadata(t *testing.T) {
 	}
 	if gotExecutable != "claude" || !strings.Contains(out.String(), "Claude Max recorded") {
 		t.Fatalf("handover/output = %q, executable=%q", out.String(), gotExecutable)
+	}
+	// `claude` alone opens Claude Code. The login has to be the subcommand that
+	// signs in and exits, which is the whole point of this hand-off.
+	if strings.Join(gotArgs, " ") != "auth login" {
+		t.Fatalf("handover args = %v, want the login subcommand", gotArgs)
 	}
 	dirs, err := paths.Resolve()
 	if err != nil {

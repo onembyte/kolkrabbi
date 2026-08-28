@@ -270,7 +270,10 @@ func TestCommandNamesAreUniqueAndTypeable(t *testing.T) {
 		if c.name != strings.ToLower(c.name) || strings.ContainsAny(c.name, " -_") {
 			t.Errorf("command %q must be one lowercase word", c.name)
 		}
-		if c.name != "completion" && len(c.name) > 8 {
+		// The exceptions are named in parity_test.go's longVerbs, with the
+		// reason each one earns. Keeping one list rather than two is what stops
+		// the two gates from disagreeing about the same command.
+		if _, allowed := longVerbs[c.name]; !allowed && len(c.name) > 8 {
 			t.Errorf("command %q is %d letters; the surface is meant to be typeable", c.name, len(c.name))
 		}
 		if c.summary == "" {

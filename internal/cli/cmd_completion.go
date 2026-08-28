@@ -11,7 +11,7 @@ _kolk_completions() {
     local cur prev words cword
     _init_completion || return
 
-    local verbs="key model effort mode config update stats serve version doctor help completion"
+    local verbs="key model effort mode config update uninstall stats serve version doctor help completion"
     local flags="-m --model -e --effort --mode -p --print -P --permission -r --resume -s --session --output-format --debug"
     local efforts="low medium high max 1 2 3 4"
     local models="sonnet haiku opus gpt flash pro deepseek coder free auto"
@@ -65,6 +65,7 @@ _kolk() {
         'mode:set default operational mode'
         'config:read and write saved settings'
         'update:install the latest verified release'
+        'uninstall:remove kolk and everything it stored'
         'stats:local usage and rating dashboard'
         'serve:start headless event server'
         'version:print running build'
@@ -114,7 +115,7 @@ _kolk "$@"
 
 const fishCompletion = `# kolk fish completions
 
-set -l verbs key model effort mode config update stats serve version help completion
+set -l verbs key model effort mode config update uninstall stats serve version help completion
 
 complete -c kolk -f -n "not __fish_seen_subcommand_from $verbs" -a "key" -d "add an API key"
 complete -c kolk -f -n "not __fish_seen_subcommand_from $verbs" -a "model" -d "switch model or list catalog"
@@ -122,6 +123,7 @@ complete -c kolk -f -n "not __fish_seen_subcommand_from $verbs" -a "effort" -d "
 complete -c kolk -f -n "not __fish_seen_subcommand_from $verbs" -a "mode" -d "set default operational mode"
 complete -c kolk -f -n "not __fish_seen_subcommand_from $verbs" -a "config" -d "read and write settings"
 complete -c kolk -f -n "not __fish_seen_subcommand_from $verbs" -a "update" -d "install latest release"
+complete -c kolk -f -n "not __fish_seen_subcommand_from $verbs" -a "uninstall" -d "remove kolk and its files"
 complete -c kolk -f -n "not __fish_seen_subcommand_from $verbs" -a "stats" -d "view usage dashboard"
 complete -c kolk -f -n "not __fish_seen_subcommand_from $verbs" -a "serve" -d "start event server"
 complete -c kolk -f -n "not __fish_seen_subcommand_from $verbs" -a "version" -d "print build version"

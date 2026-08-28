@@ -266,7 +266,7 @@ func assertOrdered(t *testing.T, text string, parts ...string) {
 
 func TestComposerTopRuleCarriesTheModeAndName(t *testing.T) {
 	m := New(Status{Mode: "code", Lifecycle: "ready"})
-	top := strings.Split(m.View(60, 8), "\n")[0]
+	top := topRule(m.View(60, 8))
 
 	if !strings.HasSuffix(top, " code ──── kolkrabbi ─") {
 		t.Fatalf("top rule = %q, want the mode and name set into its right end", top)
@@ -292,13 +292,26 @@ func TestComposerTopRuleCarriesTheModeAndName(t *testing.T) {
 
 	// A mode switch is visible without reading the footer.
 	m.SetStatus(Status{Mode: "agent", Lifecycle: "ready"})
-	if got := strings.Split(m.View(60, 8), "\n")[0]; !strings.Contains(got, " agent ") {
+	if got := topRule(m.View(60, 8)); !strings.Contains(got, " agent ") {
 		t.Fatalf("top rule did not follow the mode: %q", got)
 	}
 
 	// Too narrow for the label: a plain rule beats a clipped name.
-	narrow := strings.Split(m.View(20, 8), "\n")[0]
+	narrow := topRule(m.View(20, 8))
 	if strings.Contains(narrow, "kolk") || utf8.RuneCountInString(narrow) != 20 {
 		t.Fatalf("narrow rule = %q, want an unbroken 20-cell rule", narrow)
 	}
+}
+
+// topRule is the composer's opening rule. The frame is padded to the terminal's
+// full height so the composer always sits on its last row, which means the rule
+// is no longer the first line of the view: find it by what it is rather than by
+// where it happens to fall.
+func topRule(view string) string {
+	for _, line := range strings.Split(view, "\n") {
+		if strings.HasPrefix(line, "────") {
+			return line
+		}
+	}
+	return ""
 }

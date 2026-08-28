@@ -24,6 +24,7 @@ var longVerbs = map[string]string{
 	"devices":    "plural because it lists, like `sessions`; `device` reads as a flag for one",
 	"sessions":   "plural because it lists; `sess` was judged worse to read",
 	"version":    "what every other CLI calls it, and muscle memory beats the rule",
+	"uninstall":  "the one verb people look for while frustrated; a short alias nobody guesses is worse than nine letters",
 }
 
 // TestCommandNameLengthGuardrail enforces the naming rules in
@@ -85,6 +86,10 @@ func TestTopLevelAndSlashParity(t *testing.T) {
 	batchOnly := map[string]bool{
 		"serve":      true, // daemon/stdio server
 		"completion": true, // shell script generator
+		// uninstall removes the running binary and the session's own state.
+		// Offering it mid-session would mean deleting the sessions file being
+		// written to and the executable currently reading the keyboard.
+		"uninstall": true,
 	}
 
 	for _, cmd := range commandTable() {

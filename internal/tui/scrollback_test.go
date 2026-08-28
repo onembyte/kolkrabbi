@@ -120,3 +120,61 @@ func stripANSI(text string) string {
 	}
 	return out.String()
 }
+
+// Reported from a 125x57 window: the composer sat near the top with the rest of
+// the screen empty, and resizing made it jump upward. The frame was only as
+// tall as its content, so it was not anchored to anything -- and a terminal adds
+// its new rows below, not above.
+func TestTheFrameFillsTheTerminalSoTheComposerStaysAtTheBottom(t *testing.T) {
+	controller := NewController(Status{Mode: "code", Lifecycle: "ready"}, defaultDraftSize)
+	for _, height := range []int{8, 24, 57, 80} {
+		lines := strings.Split(controller.View(80, height), "\n")
+		if len(lines) != height {
+			t.Errorf("a %d-row terminal got a %d-row frame: the composer is not at the bottom",
+				height, len(lines))
+		}
+	}
+}
+
+// Adding output must not move the composer. Before the fix it climbed from the
+// top of the screen to the bottom as the transcript grew past the fold, so the
+// layout shifted under the reader while they were using it.
+func TestTheComposerDoesNotMoveAsOutputArrives(t *testing.T) {
+	controller := NewController(Status{Mode: "code", Lifecycle: "ready"}, defaultDraftSize)
+	const width, height = 80, 20
+
+	position := func() int {
+		lines := strings.Split(controller.View(width, height), "\n")
+		for index, line := range lines {
+			if strings.HasPrefix(line, "────") {
+				return index
+			}
+		}
+		return -1
+	}
+
+	first := position()
+	if first < 0 {
+		t.Fatal("the composer rule is not in the frame at all")
+	}
+	for line := range 60 {
+		controller.AppendTranscript(fmt.Sprintf("output line %d\n", line))
+		controller.CommitOverflow(width, height)
+		if got := position(); got != first {
+			t.Fatalf("after %d lines the composer moved from row %d to row %d", line+1, first, got)
+		}
+	}
+}
+
+// A terminal too short for the chrome must not be handed a frame taller than it
+// is: that is what pushes the composer off the screen entirely.
+func TestAVeryShortTerminalIsNeverGivenMoreRowsThanItHas(t *testing.T) {
+	controller := NewController(Status{Mode: "code", Lifecycle: "ready"}, defaultDraftSize)
+	controller.AppendTranscript(strings.Repeat("line\n", 50))
+	for _, height := range []int{1, 2, 3, 4, 5} {
+		lines := strings.Split(controller.View(40, height), "\n")
+		if len(lines) > height {
+			t.Errorf("a %d-row terminal got %d rows", height, len(lines))
+		}
+	}
+}

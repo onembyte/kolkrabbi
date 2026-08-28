@@ -270,6 +270,18 @@ func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 			transcriptText = nil
 		} else if len(transcriptText) > available {
 			transcriptText = transcriptText[len(transcriptText)-available:]
+		} else if len(transcriptText) < available {
+			// Pad above, so the frame is always exactly the height of the
+			// terminal and the composer is always on its last row.
+			//
+			// Without this the frame was only as tall as its content, which
+			// meant the composer sat near the top of an empty session and
+			// dropped to the bottom the moment enough output arrived to fill
+			// the screen -- and on a resize it appeared to jump upward, because
+			// the terminal adds its new rows below a frame that is not anchored
+			// to anything. One height, one position, from the first frame on.
+			padded := make([]string, available-len(transcriptText), available)
+			transcriptText = append(padded, transcriptText...)
 		}
 	}
 
