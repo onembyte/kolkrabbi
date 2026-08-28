@@ -1,11 +1,13 @@
 package projectfiles
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func tree(t *testing.T, files map[string]string) string {
@@ -123,5 +125,36 @@ func TestAnUnreadableRootIsNotAnError(t *testing.T) {
 	// cannot start.
 	if got := List(filepath.Join(t.TempDir(), "nope"), 10); len(got) != 0 {
 		t.Fatalf("got %v", got)
+	}
+}
+
+func TestListStopsAtTheWalkBudgetInsteadOfTraversingAHomeDirectory(t *testing.T) {
+	root := t.TempDir()
+	// A tree far larger than the budget, shaped like the deep-and-wide trees
+	// that make a home directory expensive: the walk must return anyway.
+	for dir := range 60 {
+		sub := filepath.Join(root, fmt.Sprintf("d%02d", dir))
+		if err := os.MkdirAll(sub, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for file := range 500 {
+			name := filepath.Join(sub, fmt.Sprintf("f%03d.txt", file))
+			if err := os.WriteFile(name, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	start := time.Now()
+	files := List(root, 400)
+	elapsed := time.Since(start)
+
+	if len(files) != 400 {
+		t.Fatalf("files = %d, want the requested 400", len(files))
+	}
+	// 30,060 entries against a 20,000 budget: without the cap this walks the
+	// whole tree. The bound is the assertion; the timing is the reason for it.
+	if elapsed > 5*time.Second {
+		t.Fatalf("listing took %v; the walk budget is not bounding it", elapsed)
 	}
 }

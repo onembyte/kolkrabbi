@@ -230,6 +230,26 @@ func TestNewAgentDiscoversOnlyWhenNoUserOrSessionModelExists(t *testing.T) {
 			t.Fatalf("legacy migration model/tiers/stderr = %q/%v/%q", agent.Model, agent.Tiers, errOut.String())
 		}
 
+		// Once. The migrated config is saved, so a second session neither
+		// migrates again nor repeats the warning.
+		saved, err := config.Load(dirs.ConfigFile())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if saved.Model != "" || len(saved.Tiers) != 0 {
+			t.Fatalf("migrated config was not saved: %#v", saved)
+		}
+		again, _, againErr := newTestApp(t, "")
+		again.chooseDefault = func([]provider.ModelInfo) defaultModelChoice {
+			return defaultModelChoice{Model: "free/current-code", Free: true}
+		}
+		if _, err := again.newAgent(context.Background(), &options{}); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(againErr.String(), "no longer guaranteed free") {
+			t.Fatalf("the migration warning repeated on the second run: %q", againErr.String())
+		}
+
 		mixed := &config.Config{Model: legacyFreePreset, Tiers: map[string]string{"quick": "user/custom"}}
 		if retireLegacyFreeConfig(mixed) || mixed.Model != legacyFreePreset || mixed.Tiers["quick"] != "user/custom" {
 			t.Fatalf("mixed custom routing was changed: %#v", mixed)

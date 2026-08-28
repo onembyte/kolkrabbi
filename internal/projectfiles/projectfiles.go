@@ -28,6 +28,16 @@ var skipDirs = map[string]bool{
 
 // List walks a project and returns its files as slash-separated paths relative
 // to root, sorted, at most limit of them.
+// walkBudget bounds how many directory entries a listing may visit.
+//
+// The walk is unbounded work on an unknown tree: run in a home directory it
+// visits six figures of entries before returning a list of 400, and it does so
+// before the first frame is drawn, so the screen stays empty for seconds and
+// looks hung. 20,000 entries is roughly a third of a second on a warm cache
+// and covers any real project; past it the completion list is merely
+// incomplete, which is a fair trade for a prompt that appears.
+const walkBudget = 20_000
+
 func List(root string, limit int) []string {
 	if limit <= 0 {
 		limit = 500
@@ -35,9 +45,13 @@ func List(root string, limit int) []string {
 	ignore := readIgnore(root)
 
 	var files []string
+	visited := 0
 	_ = filepath.WalkDir(root, func(full string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return skipUnreadable(entry)
+		}
+		if visited++; visited > walkBudget {
+			return fs.SkipAll
 		}
 		rel, relErr := filepath.Rel(root, full)
 		if relErr != nil {

@@ -40,6 +40,15 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 	models := tuiModels(ctx, a, ag)
 	originalStdout, originalStderr := a.stdout, a.stderr
 	folder := workingFolderLabel()
+	// The screen follows the window for as long as this runtime owns it. Until
+	// now the layout was probed once and a widened terminal kept an 80-column
+	// prompt in its left third.
+	var resize <-chan struct{}
+	if a.resizeNotifier != nil {
+		changes, stop := a.resizeNotifier(a.terminalOutput)
+		defer stop()
+		resize = changes
+	}
 	var screen *tui.Runtime
 	screen = tui.NewRuntime(tui.RuntimeOptions{
 		Input: a.terminalInput, Output: originalStdout,
@@ -51,6 +60,7 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 			_, height := a.terminalSize(a.terminalOutput)
 			return height
 		},
+		Resize:   resize,
 		Status:   tuiStatus(ag, "ready", folder),
 		Commands: slashSuggestions(),
 		Models:   models,

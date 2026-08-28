@@ -97,6 +97,7 @@ type app struct {
 	catalog          []provider.ModelInfo
 	dashURL          string
 	terminalSize     func(*os.File) (int, int)
+	resizeNotifier   func(*os.File) (<-chan struct{}, func())
 	isStdinPiped     func() bool
 	handover         func(context.Context, string, []string, string) error
 }
@@ -116,6 +117,7 @@ func newApp() *app {
 	a.chooseDefault = chooseDefaultModel
 	a.enterRaw = term.EnterRaw
 	a.terminalSize = term.Size
+	a.resizeNotifier = term.ResizeNotifier
 	a.isStdinPiped = func() bool {
 		stat, err := os.Stdin.Stat()
 		if err != nil {

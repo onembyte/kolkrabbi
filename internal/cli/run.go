@@ -172,6 +172,11 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 			"warning: %s is no longer guaranteed free; replacing the old free preset with live free-model discovery\n",
 			legacyFreePreset,
 		)
+		// Persisted, so the migration and its warning happen once. Rewriting the
+		// config only in memory made this line the first thing every session said.
+		if err := config.Save(d.ConfigFile(), cfg); err != nil {
+			fmt.Fprintf(a.stderr, "warning: could not save the migrated config: %v\n", err)
+		}
 	}
 
 	apiKey, err := resolveOpenRouterCredential(ctx, d.CredentialsFile())

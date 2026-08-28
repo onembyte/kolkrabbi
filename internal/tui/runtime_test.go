@@ -249,3 +249,106 @@ func waitForApproval(t *testing.T, runtime *Runtime) {
 		time.Sleep(time.Millisecond)
 	}
 }
+
+// stagedInput releases each chunk on its own gate, so a test can hold the
+// session open while asserting on a turn that is still running. gatedInput
+// shares one gate across every chunk, which makes "type this, then quit later"
+// impossible to express.
+type stagedInput struct {
+	mu     sync.Mutex
+	chunks [][]byte
+	gates  []<-chan struct{}
+	index  int
+}
+
+func (s *stagedInput) Read(p []byte) (int, error) {
+	s.mu.Lock()
+	index := s.index
+	s.index++
+	s.mu.Unlock()
+	if index >= len(s.chunks) {
+		return 0, io.EOF
+	}
+	if gate := s.gates[index]; gate != nil {
+		<-gate
+	}
+	return copy(p, s.chunks[index]), nil
+}
+
+func TestRuntimeQueuesEnterDuringATurnAndSendsItWhenTheTurnFinishes(t *testing.T) {
+	firstStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	bothSeen := make(chan struct{})
+
+	var mu sync.Mutex
+	var prompts []string
+
+	input := &stagedInput{
+		chunks: [][]byte{[]byte("one\r"), []byte("two\r"), []byte("\x04")},
+		// "two" is typed once the first turn is running; Ctrl+D waits until the
+		// queued turn has been observed, so shutdown never races the queue.
+		gates: []<-chan struct{}{nil, firstStarted, bothSeen},
+	}
+
+	runtime := NewRuntime(RuntimeOptions{
+		Input: input, Output: io.Discard,
+		Status: Status{Mode: "code", Lifecycle: "ready"},
+		Turn: func(_ context.Context, prompt string) error {
+			mu.Lock()
+			prompts = append(prompts, prompt)
+			count := len(prompts)
+			mu.Unlock()
+			if count == 1 {
+				close(firstStarted)
+				<-releaseFirst
+			}
+			return nil
+		},
+	})
+
+	done := make(chan error, 1)
+	go func() { done <- runtime.Run(context.Background()) }()
+
+	<-firstStarted
+	// Enter during the turn must queue the draft, not drop it.
+	waitFor(t, 2*time.Second, "the draft to be queued", func() bool {
+		runtime.mu.Lock()
+		defer runtime.mu.Unlock()
+		return runtime.controller.Queued() == "two"
+	})
+	close(releaseFirst)
+
+	// The queue drains on its own, with no further keypress.
+	waitFor(t, 3*time.Second, "the queued request to be sent", func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(prompts) == 2
+	})
+	close(bothSeen)
+
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(prompts) != 2 || prompts[0] != "one" || prompts[1] != "two" {
+		t.Fatalf("prompts = %#v, want [one two] in order", prompts)
+	}
+}
+
+// waitFor polls until condition holds, so a test never depends on a sleep
+// being long enough on a loaded machine.
+func waitFor(t *testing.T, limit time.Duration, what string, condition func() bool) {
+	t.Helper()
+	deadline := time.After(limit)
+	for {
+		if condition() {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for %s", what)
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+}

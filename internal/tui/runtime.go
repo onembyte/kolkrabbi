@@ -21,10 +21,13 @@ const (
 // interactive event loop. The CLI owns command dispatch and model work; the
 // runtime owns only input decoding, screen repainting, and concurrency.
 type RuntimeOptions struct {
-	Input    io.Reader
-	Output   io.Writer
-	Width    func() int
-	Height   func() int
+	Input  io.Reader
+	Output io.Writer
+	Width  func() int
+	Height func() int
+	// Resize fires when the terminal changes size. The runtime probes Width and
+	// Height again and repaints; a nil channel means the size never changes.
+	Resize   <-chan struct{}
 	Status   Status
 	Commands []CommandSpec
 	Models   []ModelSpec
@@ -59,7 +62,12 @@ type Runtime struct {
 	approval    chan Decision
 	quit        chan struct{}
 	quitOnce    sync.Once
-	renderErr   error
+	resize      <-chan struct{}
+	// closing is set once the read loop has exited. A queued request must not
+	// start after that: turns.Wait has begun, so Add would race it, and a
+	// session that is ending should not send one more message.
+	closing   bool
+	renderErr error
 }
 
 // NewRuntime creates a normal-screen runtime. Terminal raw mode remains a CLI
@@ -85,7 +93,7 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 	return &Runtime{
 		input: options.Input, controller: controller,
 		renderer: NewRenderer(options.Output), decoder: NewDecoder(),
-		width: options.Width, height: options.Height, turn: options.Turn,
+		width: options.Width, height: options.Height, resize: options.Resize, turn: options.Turn,
 		cyclePerm: options.CyclePermission,
 		spinClock: realSpinnerClock{},
 		quit:      make(chan struct{}),
@@ -138,6 +146,8 @@ readLoop:
 			break readLoop
 		case <-r.quit:
 			break readLoop
+		case <-r.resize:
+			r.Resize()
 		case result := <-reads:
 			for _, key := range r.decoder.Feed(result.data) {
 				if r.HandleKey(key).Exit {
@@ -154,6 +164,7 @@ readLoop:
 	}
 
 	r.mu.Lock()
+	r.closing = true
 	if r.activeStop != nil {
 		r.activeStop()
 	}
@@ -165,6 +176,22 @@ readLoop:
 	renderErr := r.renderErr
 	r.mu.Unlock()
 	return errors.Join(readErr, renderErr, closeErr)
+}
+
+// Resize repaints for the terminal's current size. The renderer is told first,
+// so the rows it erases are the rows the re-flowed previous frame occupies.
+func (r *Runtime) Resize() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.renderErr != nil {
+		return
+	}
+	width := r.width()
+	if width <= 0 {
+		width = defaultWidth
+	}
+	r.renderer.Resized(width)
+	r.renderLocked()
 }
 
 // HandleKey applies one already-decoded input event and performs its runtime
@@ -376,6 +403,17 @@ func (r *Runtime) startTurnLocked(prompt string) {
 				r.quitOnce.Do(func() { close(r.quit) })
 			}
 			r.controller.FinishTurn(lifecycle)
+			// A request queued while this turn ran starts now, on the same
+			// goroutine's lock, so the queue drains without the user pressing
+			// anything again. Not after an exit, and not after an interrupt:
+			// Ctrl+C means stop, and sending the queued request then would be
+			// the opposite of what was asked.
+			if lifecycle == "ready" && !errors.Is(err, ErrExit) && !r.closing {
+				if queued := r.controller.TakeQueued(); queued != "" {
+					r.controller.BeginTurn()
+					r.startTurnLocked(queued)
+				}
+			}
 			r.renderLocked()
 		}
 		r.mu.Unlock()

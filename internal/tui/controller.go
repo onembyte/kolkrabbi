@@ -46,10 +46,14 @@ type Approval struct {
 
 // Controller applies terminal and engine events to one screen and editor.
 type Controller struct {
-	screen          *Model
-	editor          *Editor
-	status          Status
-	busy            bool
+	screen *Model
+	editor *Editor
+	status Status
+	busy   bool
+	// queued holds a request submitted while a turn was still running. The
+	// engine session is stateful, so two turns cannot run at once; the request
+	// waits here and starts the moment the running one finishes.
+	queued          string
 	approval        *Approval
 	approvalEditor  *Editor
 	beforeApproval  string
@@ -89,9 +93,21 @@ func (c *Controller) HandleKey(key Key) Effect {
 	if effect, handled := c.handleSuggestionKey(key); handled {
 		return effect
 	}
-	// A second request may be drafted while a turn streams, but it is not
-	// submitted concurrently into the stateful engine session.
+	// A second request may be drafted while a turn streams. It cannot be
+	// submitted concurrently into the stateful engine session, so Enter queues
+	// it instead of doing nothing: the draft is taken, acknowledged on the
+	// activity row, and started when the running turn finishes. Swallowing the
+	// key silently was indistinguishable from a frozen terminal.
 	if c.busy && key.Kind == KeyEnter {
+		draft := strings.TrimSpace(c.editor.Draft())
+		if draft == "" {
+			return Effect{}
+		}
+		c.queued = c.editor.Draft()
+		c.editor.clearDraft()
+		c.screen.SetDraft("")
+		c.clearSuggestions()
+		c.screen.SetActivity(queuedNotice)
 		return Effect{}
 	}
 	result := c.editor.Update(key)
@@ -191,6 +207,29 @@ func (c *Controller) SetStatus(status Status) {
 }
 
 // FinishTurn makes the editor ready without altering a type-ahead draft.
+// queuedNotice tells the user the key was received and what will happen. A
+// queued request that looks identical to a dropped one is a bug report.
+const queuedNotice = "queued — sends when this turn finishes"
+
+// BeginTurn puts the controller into the same state a submitted key does. The
+// runtime uses it when it starts a queued request, so a queued turn is
+// indistinguishable from a typed one: busy, working, no stale activity row.
+func (c *Controller) BeginTurn() {
+	c.busy = true
+	c.screen.SetActivity("")
+	c.setLifecycle("working")
+}
+
+// TakeQueued returns and clears any request queued during the last turn.
+func (c *Controller) TakeQueued() string {
+	queued := c.queued
+	c.queued = ""
+	return queued
+}
+
+// Queued reports the request waiting to be sent, if any.
+func (c *Controller) Queued() string { return c.queued }
+
 func (c *Controller) FinishTurn(lifecycle string) {
 	c.busy = false
 	c.screen.SetActivity("")
