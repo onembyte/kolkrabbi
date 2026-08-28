@@ -115,9 +115,13 @@
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>UNDO</span></div>
           <h3>Take a turn back</h3>
-          <p>Writes and edits snapshot their previous state. <code>/diff</code> shows what this
-            session changed, <code>/undo</code> takes back a turn's files and its conversation
-            together, and <code>/rewind</code> restores the files alone.</p>
+          <p>In a git repository every turn snapshots the whole working tree into a store outside
+            it, so <code>/undo</code> takes back a formatter, a codegen step or an <code>rm</code>
+            that ran through <code>bash</code> — not only Kolkrabbi's own edits. Your index, HEAD,
+            stash and reflog are never touched. Outside a repository it falls back to copying files
+            before they change. <code>/diff</code> shows what this session changed, <code>/undo</code>
+            takes back a turn's files and its conversation together, and <code>/rewind</code>
+            restores the files alone.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>LOCAL</span></div>
@@ -132,6 +136,35 @@
           <p><code>kolk update</code> finds the newest release, checks its signed checksum before
             trusting a byte of it, and replaces the running binary atomically, so an interrupted
             update leaves the old one working.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>LOOP GUARD</span></div>
+          <h3>A turn that is going nowhere stops</h3>
+          <p>Three identical tool calls returning identical results are a loop, not a fourth attempt.
+            The call is never made a third time: you are asked whether to run it again, and in
+            <code>/full-auto</code> the turn stops and says what it stopped. A failing test whose
+            output keeps changing is progress and is left alone.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>GIT</span></div>
+          <h3>It knows what you have not committed</h3>
+          <p>A turn begins knowing which files differ from the last commit, so advice is about the
+            tree you actually have. <code>/commit</code> drafts a message from the staged diff and
+            <code>/pr</code> drafts a title and body — both hand you the command and neither runs it.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>DOCTOR</span></div>
+          <h3>Ask what it can see</h3>
+          <p><code>kolk doctor</code> reports keys, directories, terminal and reachability — what it
+            found, never what it found with. <code>--debug</code> writes a scrubbed log for one
+            session and tells you where it is, so a bug report can carry it.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>SESSIONS</span></div>
+          <h3>See which session is waiting for you</h3>
+          <p><code>kolk sessions</code> and the dashboard mark a session stopped at a permission
+            prompt, warn when two live sessions share a directory, and show what each has spent. A
+            <code>bash</code> command that starts a server says which port it took.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>CORE</span></div>
@@ -307,11 +340,30 @@
             instead of degrading into swap. A pull asks first. Installing the managed runtime waits on
             a reviewed upstream build with a pinned checksum.</p>
         </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>COMMANDS</span></div>
+          <h3>A file is a command</h3>
+          <p>Drop <code>review.md</code> in <code>.kolk/commands/</code> and <code>/review</code>
+            exists. The body is the prompt, <code>$ARGUMENTS</code> is placed or appended, the
+            project's file beats your own, and a command cannot take the name of a built-in. An
+            existing <code>.claude/commands</code> directory is read as-is, so command files you
+            already wrote work without being moved or converted.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>HOOKS</span></div>
+          <h3>Hooks you agreed to</h3>
+          <p>Run a formatter after an edit, a notification at the end of a session. Each command is
+            confirmed once, the permission floor refuses what it always refuses, and a hook that
+            fails or hangs is reported without costing the edit it followed. Hooks declared by a
+            repository are listed in full and confirmed before any of them runs — cloning is never
+            enough to execute anything.</p>
+        </article>
         <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Planned</span><span>EXTEND</span></div>
-          <h3>MCP, skills, commands, and hooks</h3>
-          <p>Namespaced external tools, Markdown commands, reusable skills, and lifecycle hooks will
-            extend Kolkrabbi under the same permission and provenance rules.</p>
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>MCP</span></div>
+          <h3>External tool servers</h3>
+          <p>Permission rules already name them — <code>allow mcp(github__*)</code> governs one
+            server and nothing else — and the cost of tool schemas is measured and budgeted. The
+            transports themselves are still to come.</p>
         </article>
       </div>
     </section>

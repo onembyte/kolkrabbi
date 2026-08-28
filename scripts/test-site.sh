@@ -61,7 +61,7 @@ contains index.html 'https://kolkrabbi.francomichetti.com/install.sh' "install U
 contains index.html 'kolk key &lt;API_KEY&gt;' "API-key command drifted"
 contains index.html '<code class="key-command"><span class="prompt" aria-hidden="true">$</span> kolk key &lt;API_KEY&gt;</code>' "API-key command is not in the run step"
 contains index.html '<code class="use-command"><span class="prompt" aria-hidden="true">$</span> kolk</code>' "use step must contain only the final kolk command"
-contains index.html 'Installer ships with v1.2.1' "current installer release status is missing"
+contains index.html 'Installer ships with v1.2.2' "current installer release status is missing"
 contains index.html 'https://github.com/onembyte/kolkrabbi' "GitHub link is wrong"
 contains index.html 'Apache-2.0 License' "license link or label does not match LICENSE"
 contains index.html 'Chat, code, and agent' "landing page does not name all three modes"
@@ -108,6 +108,16 @@ contains capabilities.html 'Planned' "capability status legend is missing the pl
 contains capabilities.html 'data-status="available"' "catalog has no available capability rows"
 contains capabilities.html 'data-status="designed"' "catalog has no designed capability rows"
 contains capabilities.html 'data-status="planned"' "catalog has no planned capability rows"
+
+# A capability claimed here has to be one the binary has. These four shipped on
+# 2026-08-27 and the page says so, which makes each line a promise the suite is
+# responsible for. MCP is deliberately still Planned: its permission rules and
+# schema budget exist, its transports do not.
+contains capabilities.html '>LOOP GUARD<' "catalog does not mention the doom-loop guard"
+contains capabilities.html '>DOCTOR<' "catalog does not mention kolk doctor and --debug"
+contains capabilities.html '>COMMANDS<' "catalog does not mention markdown commands"
+contains capabilities.html '>HOOKS<' "catalog does not mention hooks and their confirmation"
+excludes capabilities.html 'status-badge">Available now</span><span>MCP<' "MCP is claimed as shipped; only its permission rules and schema budget are"
 for section in working access continuity workflows safety interfaces reach videos; do
   contains capabilities.html "id=\"$section\"" "capabilities page is missing the $section section"
 done
