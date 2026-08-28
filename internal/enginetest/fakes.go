@@ -10,14 +10,15 @@ import (
 
 // FakeSession is an in-memory session.
 type FakeSession struct {
-	mu         sync.Mutex
-	id         string
-	model      string
-	title      string
-	autoTitled bool
-	effort     string
-	connector  string
-	messages   []provider.Message
+	mu            sync.Mutex
+	id            string
+	model         string
+	title         string
+	autoTitled    bool
+	effort        string
+	connector     string
+	providerState string
+	messages      []provider.Message
 }
 
 // NewFakeSession creates an in-memory session.
@@ -74,6 +75,18 @@ func (s *FakeSession) SetConnector(n string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.connector = n
+}
+
+func (s *FakeSession) ProviderStateName() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.providerState
+}
+
+func (s *FakeSession) SetProviderStateName(v string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.providerState = v
 }
 
 func (s *FakeSession) SetTitleFromInput(t string) {

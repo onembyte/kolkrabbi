@@ -58,6 +58,12 @@ type Session struct {
 	// it ran on one. A plan model re-derives its connector from its name, so
 	// this is display state, never routing state.
 	Connector string `json:"connector,omitempty"`
+	// ProviderState is opaque provider-side state worth resuming: for Claude,
+	// the vendor conversation handle. Kolk mints the handle itself, so a later
+	// Kolkrabbi process can --resume the same vendor conversation without the
+	// child having ever reported anything secret. Names a conversation, never
+	// a credential.
+	ProviderState string `json:"provider_state,omitempty"`
 	// TitleAuto marks a title Kolkrabbi derived rather than one the user chose.
 	TitleAuto bool      `json:"title_auto,omitempty"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -246,14 +252,16 @@ func trimTitle(t string) string {
 	return cut + "…"
 }
 
-func (s *Session) SessionID() string      { return s.ID }
-func (s *Session) SessionTitle() string   { return s.Title }
-func (s *Session) ModelName() string      { return s.Model }
-func (s *Session) SetModelName(m string)  { s.Model = m }
-func (s *Session) SessionEffort() string  { return s.Effort }
-func (s *Session) SetEffort(level string) { s.Effort = level }
-func (s *Session) ConnectorName() string  { return s.Connector }
-func (s *Session) SetConnector(n string)  { s.Connector = n }
+func (s *Session) SessionID() string             { return s.ID }
+func (s *Session) SessionTitle() string          { return s.Title }
+func (s *Session) ModelName() string             { return s.Model }
+func (s *Session) SetModelName(m string)         { s.Model = m }
+func (s *Session) SessionEffort() string         { return s.Effort }
+func (s *Session) SetEffort(level string)        { s.Effort = level }
+func (s *Session) ConnectorName() string         { return s.Connector }
+func (s *Session) SetConnector(n string)         { s.Connector = n }
+func (s *Session) ProviderStateName() string     { return s.ProviderState }
+func (s *Session) SetProviderStateName(v string) { s.ProviderState = v }
 func (s *Session) GetMessages() []provider.Message {
 	out := make([]provider.Message, len(s.Messages))
 	for i, m := range s.Messages {

@@ -22,6 +22,7 @@ const (
 type Event struct {
 	Kind          EventKind
 	Model         string
+	SessionID     string
 	Text          string
 	InputTokens   int
 	OutputTokens  int
@@ -37,7 +38,12 @@ type wireFrame struct {
 	Type    string `json:"type"`
 	Subtype string `json:"subtype"`
 	Model   string `json:"model"`
-	Message *struct {
+	// SessionID is the vendor's own conversation handle, echoed by
+	// system/init and by the result frame. It is the --resume handle, the only
+	// piece of vendor state worth keeping — and it names a conversation, not
+	// a credential.
+	SessionID string `json:"session_id"`
+	Message   *struct {
 		Model   string `json:"model"`
 		Content []struct {
 			Type  string          `json:"type"`
@@ -73,7 +79,7 @@ func Translate(line []byte) ([]Event, error) {
 		if frame.Subtype != "init" {
 			return nil, nil
 		}
-		return []Event{{Kind: EventInit, Model: frame.Model}}, nil
+		return []Event{{Kind: EventInit, Model: frame.Model, SessionID: frame.SessionID}}, nil
 	case "assistant":
 		if frame.Message == nil {
 			return nil, nil
@@ -95,7 +101,9 @@ func Translate(line []byte) ([]Event, error) {
 		}
 		return events, nil
 	case "result":
-		events := []Event{{Kind: EventMessageCompleted, Text: secret.Scrub(frame.Result)}}
+		events := []Event{{
+			Kind: EventMessageCompleted, Text: secret.Scrub(frame.Result), SessionID: frame.SessionID,
+		}}
 		if frame.Usage != nil || frame.TotalCostUSD != 0 {
 			events = append(events, usageEvent(frame.Model, frame.Usage, frame.TotalCostUSD))
 		}

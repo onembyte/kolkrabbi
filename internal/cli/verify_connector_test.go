@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -39,7 +40,7 @@ func unverifiedClaude(t *testing.T) (*app, provider.PlanModel) {
 // answered. That is a turn the user wanted anyway, so it costs nothing extra.
 func TestAnsweredTurnVerifiesTheConnector(t *testing.T) {
 	a, planModel := unverifiedClaude(t)
-	backend := a.verifyingBackend(stubBackend{}, planModel, "high")
+	backend := a.verifyingBackend(stubBackend{}, planModel, "high", nil)
 
 	if _, _, err := backend.StreamChat(context.Background(), "claude-opus", nil, nil, nil); err != nil {
 		t.Fatal(err)
@@ -62,7 +63,7 @@ func TestAFailedTurnOnAnUnverifiedConnectorExplainsTheLikelyCause(t *testing.T) 
 	a, planModel := unverifiedClaude(t)
 	var errOut strings.Builder
 	a.stderr = &errOut
-	backend := a.verifyingBackend(stubBackend{err: errors.New("provider process exited unsuccessfully")}, planModel, "high")
+	backend := a.verifyingBackend(stubBackend{err: errors.New("provider process exited unsuccessfully")}, planModel, "high", nil)
 
 	if _, _, err := backend.StreamChat(context.Background(), "claude-opus", nil, nil, nil); err == nil {
 		t.Fatal("the underlying failure must still reach the caller")
@@ -83,7 +84,7 @@ func TestAFailedTurnOnAnUnverifiedConnectorExplainsTheLikelyCause(t *testing.T) 
 
 func TestAVerifiedConnectorIsNotReWrittenOnEveryTurn(t *testing.T) {
 	a, planModel := unverifiedClaude(t)
-	backend := a.verifyingBackend(stubBackend{}, planModel, "high")
+	backend := a.verifyingBackend(stubBackend{}, planModel, "high", nil)
 
 	for range 3 {
 		if _, _, err := backend.StreamChat(context.Background(), "claude-opus", nil, nil, nil); err != nil {
@@ -101,12 +102,84 @@ func TestAFailedTurnExplainsOnlyOnce(t *testing.T) {
 	a, planModel := unverifiedClaude(t)
 	var errOut strings.Builder
 	a.stderr = &errOut
-	backend := a.verifyingBackend(stubBackend{err: errors.New("boom")}, planModel, "high")
+	backend := a.verifyingBackend(stubBackend{err: errors.New("boom")}, planModel, "high", nil)
 
 	for range 3 {
 		_, _, _ = backend.StreamChat(context.Background(), "claude-opus", nil, nil, nil)
 	}
 	if strings.Count(errOut.String(), "kolk plans login") != 1 {
 		t.Fatalf("stderr = %q, want the hint exactly once", errOut.String())
+	}
+}
+
+// stubHandleBackend wraps a stub and reports the vendor conversation it owns,
+// the way agentcli.ClaudeBackend does.
+type stubHandleBackend struct {
+	stubBackend
+	handle string
+}
+
+func (b stubHandleBackend) ProviderHandle() string { return b.handle }
+
+// The vendor conversation handle is noted on every successful turn — it exists
+// from the moment kolk mints it, before the vendor ever confirms it — so a
+// /model switch or a later Kolkrabbi run lands on the same conversation.
+func TestAnAnsweredTurnNotesTheVendorHandle(t *testing.T) {
+	a, planModel := unverifiedClaude(t)
+	noted := ""
+	var mu sync.Mutex
+	backend := a.verifyingBackend(stubHandleBackend{handle: "vendor-conv-1"}, planModel, "high", func(state string) {
+		mu.Lock()
+		defer mu.Unlock()
+		noted = state
+	})
+
+	if _, _, err := backend.StreamChat(context.Background(), "claude-opus", nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := backend.StreamChat(context.Background(), "claude-opus", nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if noted != "vendor-conv-1" {
+		t.Fatalf("noted provider state = %q, want the vendor handle", noted)
+	}
+	if handle := backend.ProviderHandle(); handle != "vendor-conv-1" {
+		t.Fatalf("ProviderHandle() = %q, want the wrapped backend's handle", handle)
+	}
+}
+
+// A failed turn must not note anything: a handle learned from a turn that died
+// half-way is exactly the kind of state a resume should not trust.
+func TestAFailedTurnNotesNothing(t *testing.T) {
+	a, planModel := unverifiedClaude(t)
+	noted := ""
+	backend := a.verifyingBackend(stubHandleBackend{stubBackend: stubBackend{err: errors.New("boom")}, handle: "vendor-conv-1"}, planModel, "high", func(state string) {
+		noted = state
+	})
+
+	if _, _, err := backend.StreamChat(context.Background(), "claude-opus", nil, nil, nil); err == nil {
+		t.Fatal("the underlying failure must reach the caller")
+	}
+	if noted != "" {
+		t.Fatalf("a failed turn noted %q", noted)
+	}
+}
+
+// A plain backend with no vendor state stays silent through the same path.
+func TestABackendWithoutAHandleNotesNothing(t *testing.T) {
+	a, planModel := unverifiedClaude(t)
+	noted := ""
+	backend := a.verifyingBackend(stubBackend{}, planModel, "high", func(state string) {
+		noted = state
+	})
+
+	if _, _, err := backend.StreamChat(context.Background(), "claude-opus", nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if noted != "" {
+		t.Fatalf("noted %q from a backend that owns no vendor state", noted)
 	}
 }

@@ -46,6 +46,85 @@ func TestResumeRestoresEffortAndConnectorFromTheSession(t *testing.T) {
 	}
 }
 
+// A session that ran on a subscription remembers the vendor conversation it
+// was in, and the resume continues that conversation instead of opening an
+// empty one — the context the previous process had does not vanish because
+// Kolkrabbi restarted.
+func TestResumeCarriesTheVendorConversationHandle(t *testing.T) {
+	dirs := storeFirstRunKey(t)
+	if err := dirs.EnsureData(); err != nil {
+		t.Fatal(err)
+	}
+	enablePlanConnector(t, dirs)
+	resumed := session.New(dirs.Sessions(), "claude-opus")
+	resumed.SetEffort("high")
+	resumed.SetConnector("claude")
+	resumed.SetProviderStateName("vendor-conv-carried")
+	if err := resumed.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	a, _, _ := newTestApp(t, "")
+	ag, err := a.newAgent(context.Background(), &options{session: resumed.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapped, ok := ag.Backend.(*verifyingBackend)
+	if !ok {
+		t.Fatalf("backend = %T, want the verifying wrapper", ag.Backend)
+	}
+	inner, ok := wrapped.inner.(*agentcli.ClaudeBackend)
+	if !ok {
+		t.Fatalf("inner = %T, want the claude backend", wrapped.inner)
+	}
+	if handle := inner.ProviderHandle(); handle != "vendor-conv-carried" {
+		t.Fatalf("ProviderHandle() = %q, want the stored vendor conversation", handle)
+	}
+}
+
+// A model switch mid-session resumes the same vendor conversation on the new
+// model, and new provider state lands back in the session file.
+func TestSwitchingPlanModelsCarriesTheVendorConversationHandle(t *testing.T) {
+	dirs := storeFirstRunKey(t)
+	if err := dirs.EnsureData(); err != nil {
+		t.Fatal(err)
+	}
+	enablePlanConnector(t, dirs)
+	stored := session.New(dirs.Sessions(), "claude-opus")
+	stored.SetProviderStateName("vendor-conv-carried")
+	if err := stored.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	a, _, _ := newTestApp(t, "")
+	ag, err := a.newAgent(context.Background(), &options{session: stored.ID, model: "vendor/model"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	label, err := a.switchModel(ag, "claude-opus")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(label, "Claude Max") {
+		t.Fatalf("switch label = %q, want the plan named", label)
+	}
+	wrapped, ok := ag.Backend.(*verifyingBackend)
+	if !ok {
+		t.Fatalf("backend = %T, want the verifying wrapper", ag.Backend)
+	}
+	inner, ok := wrapped.inner.(*agentcli.ClaudeBackend)
+	if !ok {
+		t.Fatalf("inner = %T, want the claude backend", wrapped.inner)
+	}
+	if handle := inner.ProviderHandle(); handle != "vendor-conv-carried" {
+		t.Fatalf("ProviderHandle() = %q, want the same vendor conversation across the switch", handle)
+	}
+	if got := ag.Sess.ConnectorName(); got != "claude" {
+		t.Fatalf("connector = %q, want claude after the switch", got)
+	}
+}
+
 // A session dial the -e flag overrides stays overridden: the flag is the
 // session's model choice's equal, not its inferior.
 func TestEffortFlagBeatsTheStoredSessionEffort(t *testing.T) {

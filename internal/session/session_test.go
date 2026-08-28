@@ -17,6 +17,7 @@ func TestEffortAndConnectorRoundtrip(t *testing.T) {
 	s := New(dir, "claude-opus")
 	s.SetEffort("high")
 	s.SetConnector("claude")
+	s.SetProviderStateName("vendor-conv-carried")
 	if err := s.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -29,6 +30,26 @@ func TestEffortAndConnectorRoundtrip(t *testing.T) {
 	}
 	if got.SessionEffort() != "high" || got.ConnectorName() != "claude" {
 		t.Fatalf("accessors do not agree with the fields")
+	}
+	if got.ProviderStateName() != "vendor-conv-carried" {
+		t.Fatalf("provider state = %q, want the vendor conversation handle", got.ProviderStateName())
+	}
+}
+
+// The provider-state field sits next to effort and connector in the same
+// compatibility class: absent in old files, empty rather than fatal on load.
+func TestOldSessionFileWithoutProviderStateLoadsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	body := `{"id":"old-one","model":"claude-opus","title":"t","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","messages":[]}`
+	if err := os.WriteFile(filepath.Join(dir, "old-one.json"), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(dir, "old-one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ProviderState != "" {
+		t.Fatalf("absent provider state must stay absent, got %q", got.ProviderState)
 	}
 }
 

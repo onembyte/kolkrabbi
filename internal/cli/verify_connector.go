@@ -25,18 +25,31 @@ type verifyingBackend struct {
 	// effort is the level the provider process was started with. It cannot
 	// change without restarting that process, so the session has to be able to
 	// say what the provider is actually running at.
-	effort    string
+	effort string
+	// note records provider-side state worth resuming — for Claude, the vendor
+	// conversation handle — into the session file, so /model switches and later
+	// Kolkrabbi runs land on the same conversation.
+	note      func(string)
 	confirm   func(context.Context)
 	explain   func()
 	confirmed sync.Once
 	explained sync.Once
 }
 
-func (a *app) verifyingBackend(inner engine.ChatBackend, plan provider.PlanModel, effort string) *verifyingBackend {
+// providerHandleBackend is what a backend that owns vendor state reports.
+type providerHandleBackend interface {
+	ProviderHandle() string
+}
+
+func (a *app) verifyingBackend(inner engine.ChatBackend, plan provider.PlanModel, effort string, note func(string)) *verifyingBackend {
+	if note == nil {
+		note = func(string) {}
+	}
 	return &verifyingBackend{
 		inner:  inner,
 		plan:   plan,
 		effort: effort,
+		note:   note,
 		confirm: func(ctx context.Context) {
 			dirs, err := a.resolve()
 			if err != nil {
@@ -63,7 +76,24 @@ func (b *verifyingBackend) StreamChat(ctx context.Context, model string, message
 		return message, meta, err
 	}
 	b.confirmed.Do(func() { b.confirm(ctx) })
+	// The handle exists before the first turn (kolk mints it), so it is noted
+	// whether or not the vendor has confirmed it yet: a backend switched to
+	// mid-session resumes the same conversation it left.
+	if handleBackend, ok := b.inner.(providerHandleBackend); ok {
+		if handle := handleBackend.ProviderHandle(); handle != "" {
+			b.note(handle)
+		}
+	}
 	return message, meta, nil
+}
+
+// ProviderHandle reports the vendor conversation the wrapped backend drives,
+// so the session can pick it up on a /model switch without a turn in between.
+func (b *verifyingBackend) ProviderHandle() string {
+	if handleBackend, ok := b.inner.(providerHandleBackend); ok {
+		return handleBackend.ProviderHandle()
+	}
+	return ""
 }
 
 // Close releases the provider this decorator wraps.

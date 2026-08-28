@@ -20,6 +20,11 @@ type SessionPort interface {
 	SetConnector(string)
 	SessionEffort() string
 	ConnectorName() string
+	// ProviderState carries the provider-side state worth resuming across
+	// Kolkrabbi restarts — for Claude, the vendor conversation handle. Empty
+	// means "start a fresh one".
+	ProviderStateName() string
+	SetProviderStateName(string)
 	SetTitleFromInput(string)
 	// TitleIsAuto reports whether the title is still Kolkrabbi's own guess, and
 	// so may be improved. It is asked before the improvement is generated,

@@ -21,6 +21,8 @@ func (s *failingSaveSession) SessionEffort() string            { return "" }
 func (s *failingSaveSession) SetEffort(string)                 {}
 func (s *failingSaveSession) ConnectorName() string            { return "" }
 func (s *failingSaveSession) SetConnector(string)              {}
+func (s *failingSaveSession) ProviderStateName() string        { return "" }
+func (s *failingSaveSession) SetProviderStateName(string)      {}
 func (s *failingSaveSession) SetTitleFromInput(string)         {}
 func (s *failingSaveSession) TitleIsAuto() bool                { return false }
 func (s *failingSaveSession) SetAutoTitle(string) bool         { return false }

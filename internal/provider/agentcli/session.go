@@ -29,6 +29,15 @@ type ClaudeSession struct {
 	effort   string
 	closed   bool
 	unusable bool
+	// providerID is the vendor's own conversation handle, reported on
+	// system/init and on the result frame. It is the --resume handle and the
+	// only piece of vendor state worth carrying across process boundaries.
+	providerID string
+	// resumed records that this process opened the conversation with --resume
+	// rather than claiming a --session-id: a resume that produces nothing
+	// before dying usually means the vendor no longer keeps the handle, which
+	// the caller wants to know before retrying with the same dead one.
+	resumed bool
 	// The provider reports usage for the whole session, so the running totals
 	// already charged are kept to turn each report into one turn's own cost.
 	spentCost          float64
@@ -36,6 +45,14 @@ type ClaudeSession struct {
 	spentOutput        int
 	spentCacheRead     int
 	spentCacheCreation int
+}
+
+// ProviderHandle reports the vendor conversation this process has been
+// driving, or "" before the vendor has confirmed one.
+func (s *ClaudeSession) ProviderHandle() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.providerID
 }
 
 // Unusable reports that the provider stream can no longer be trusted, so the
@@ -46,8 +63,20 @@ func (s *ClaudeSession) Unusable() bool {
 	return s.unusable
 }
 
+// Resumed reports whether this process opened a conversation the vendor was
+// already keeping (--resume) rather than claiming a fresh one.
+func (s *ClaudeSession) Resumed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.resumed
+}
+
+// newClaudeSession mints a fresh conversation name and opens the persistent
+// process with it. Backends that own a resume flow spawn through getSession
+// instead, which can reuse a handle the session file carried.
 func newClaudeSession(ctx context.Context, model, effort string, start startLineProcess) (*ClaudeSession, error) {
-	args, err := BuildClaudeSessionArgs(model, effort)
+	handle := NewVendorHandle()
+	args, err := BuildClaudeSessionArgs(model, effort, handle, false)
 	if err != nil {
 		return nil, err
 	}
@@ -62,8 +91,10 @@ func newClaudeSession(ctx context.Context, model, effort string, start startLine
 // model is part of the spawn contract, not a per-turn request field: a
 // stream-json process replays no argv, so a different model means a different
 // process, and the effort dial's own restart rule follows from the same fact.
-func BuildClaudeSessionArgs(model, effort string) ([]string, error) {
-	return claudeArgs(model, effort, true)
+// A handle either claims a new conversation (--session-id) or resumes a known
+// one (--resume).
+func BuildClaudeSessionArgs(model, effort, handle string, resume bool) ([]string, error) {
+	return claudeArgs(model, effort, handle, resume, true)
 }
 
 // resyncGrace bounds how long Kolkrabbi waits for the tail of an interrupted
@@ -106,6 +137,13 @@ func (s *ClaudeSession) Turn(ctx context.Context, messages []provider.Message, m
 		translated, err := Translate(line)
 		if err != nil {
 			return provider.Message{}, provider.Meta{Model: model, Elapsed: time.Since(start)}, s.abandonTurn(ctx, err)
+		}
+		for _, event := range translated {
+			// init and result both carry the conversation handle; the result
+			// frame is the latest word, and either arriving first still lands.
+			if event.SessionID != "" {
+				s.providerID = event.SessionID
+			}
 		}
 		// The whole frame is consumed before collecting: a result frame carries
 		// its usage *after* the completion event, so returning on sight of the

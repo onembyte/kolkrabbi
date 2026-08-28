@@ -326,7 +326,12 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		freeModels = provider.RankFreeModels(provider.FallbackCatalogSeed())
 	}
 
-	backend, err := a.planBackend(model, effort)
+	backend, err := a.planBackend(model, effort, sess.ProviderStateName(), func(state string) {
+		// The vendor conversation handle is noted the moment the backend owns
+		// one, and the engine's next save writes it to disk; a failed save only
+		// costs the resume, never the turn.
+		sess.SetProviderStateName(state)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -426,18 +431,21 @@ func (a *app) loadCatalog(ctx context.Context, client *provider.Client, path str
 }
 
 // planBackend selects a provider-owned CLI backend when the session's model
-// belongs to a subscription plan the user has already signed into. An ordinary
+// belongs to a subscription plan the user has already signed into. State is the
+// provider-side state carried from the session file (for Claude, the vendor
+// conversation handle: empty starts one fresh, non-empty resumes it), and note
+// receives new state as the backend learns it. An ordinary
 // model keeps the default provider client, and a plan model the user cannot use
 // yet stops the session with the reason rather than quietly answering from a
 // different provider than the one they asked for.
-func (a *app) planBackend(model, effort string) (engine.ChatBackend, error) {
-	backend, _, err := a.planBackendFor(model, effort)
+func (a *app) planBackend(model, effort, state string, note func(string)) (engine.ChatBackend, error) {
+	backend, _, err := a.planBackendFor(model, effort, state, note)
 	return backend, err
 }
 
 // planBackendFor reports the provider that must answer for one model. A nil
 // backend with a nil error means "an ordinary model, use the default client".
-func (a *app) planBackendFor(model, effort string) (engine.ChatBackend, provider.PlanModel, error) {
+func (a *app) planBackendFor(model, effort, state string, note func(string)) (engine.ChatBackend, provider.PlanModel, error) {
 	d, err := a.resolve()
 	if err != nil {
 		return nil, provider.PlanModel{}, err
@@ -456,9 +464,12 @@ func (a *app) planBackendFor(model, effort string) (engine.ChatBackend, provider
 	switch planModel.Connector {
 	case "claude":
 		// Wrapped so the first answered turn confirms the connector the user
-		// signed into in another terminal.
+		// signed into in another terminal. A stored handle resumes the vendor
+		// conversation the session left off in; the vendor replays no argv on
+		// resume, so model and effort ride along every time.
 		resolved := a.planEffort(effort, planModel)
-		return a.verifyingBackend(agentcli.NewClaudeBackend(planModel.Model, resolved), planModel, resolved), planModel, nil
+		inner := agentcli.NewClaudeBackendFromHandle(planModel.Model, resolved, state, state != "")
+		return a.verifyingBackend(inner, planModel, resolved, note), planModel, nil
 	default:
 		return nil, provider.PlanModel{}, fmt.Errorf("the %s connector is enabled but Kolkrabbi has no adapter for it yet, so %s cannot run a session",
 			planModel.Connector, planModel.Model)
@@ -566,7 +577,16 @@ func (a *app) contextWindowFor(model string) int {
 // a subscription plan, at the provider that can actually answer it. Without
 // this the status line names one model while a different provider replies.
 func (a *app) switchModel(ag *engine.Agent, ref string) (string, error) {
-	backend, planModel, err := a.planBackendFor(ref, ag.Effort)
+	// The vendor conversation continues across a model switch: the stored
+	// handle (from this run or a previous one) resumes the same conversation on
+	// the model the user just chose, and new provider state lands back in the
+	// session file the same way it does at startup.
+	state, note := "", func(string) {}
+	if ag.Sess != nil {
+		state = ag.Sess.ProviderStateName()
+		note = func(state string) { ag.Sess.SetProviderStateName(state) }
+	}
+	backend, planModel, err := a.planBackendFor(ref, ag.Effort, state, note)
 	if err != nil {
 		return "", err
 	}

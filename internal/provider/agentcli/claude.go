@@ -4,6 +4,7 @@ package agentcli
 
 import (
 	"context"
+	cryptorand "crypto/rand"
 	"fmt"
 	"io"
 	"strings"
@@ -47,7 +48,7 @@ func BuildClaudeInvocation(model, effort, prompt string) (ClaudeInvocation, erro
 	if strings.TrimSpace(prompt) == "" {
 		return ClaudeInvocation{}, fmt.Errorf("claude prompt cannot be empty")
 	}
-	args, err := claudeArgs(model, effort, false)
+	args, err := claudeArgs(model, effort, "", false, false)
 	if err != nil {
 		return ClaudeInvocation{}, err
 	}
@@ -90,10 +91,27 @@ func ClaudeVendorModel(model string) string {
 	return model
 }
 
+// NewVendorHandle mints the conversation handle a claude session is opened
+// under. Kolk mints it so it owns the resume handle before the process
+// starts — a child that dies before its first init frame still leaves a name
+// for the next one to resume, or for the session file to record.
+func NewVendorHandle() string {
+	uuid := make([]byte, 16)
+	if _, err := cryptorand.Read(uuid); err != nil {
+		return ""
+	}
+	uuid[6] = (uuid[6] & 0x0f) | 0x40
+	uuid[8] = (uuid[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", uuid[0:4], uuid[4:6], uuid[6:8], uuid[8:10], uuid[10:16])
+}
+
 // claudeArgs builds the flags common to both one-shot and persistent sessions.
 // The one-shot form appends the prompt positionally; the persistent one keeps
 // reading stream-json on stdin, which streamOnly expresses with --input-format.
-func claudeArgs(model, effort string, streamOnly bool) ([]string, error) {
+// A handle either opens one named conversation (--session-id) or resumes it
+// (--resume); the vendor replays no flag vector on resume, so the model and
+// effort flags are re-passed alongside it every time.
+func claudeArgs(model, effort, handle string, resume, streamOnly bool) ([]string, error) {
 	effort = strings.ToLower(strings.TrimSpace(effort))
 	if !ClaudeEffortValid(effort) {
 		return nil, fmt.Errorf("claude has no %q effort level; use low, medium, high, xhigh or max", effort)
@@ -105,6 +123,13 @@ func claudeArgs(model, effort string, streamOnly bool) ([]string, error) {
 	args = append(args, "--safe-mode", "--setting-sources", "")
 	if model = strings.TrimSpace(model); model != "" {
 		args = append(args, "--model", ClaudeVendorModel(model))
+	}
+	if handle != "" {
+		if resume {
+			args = append(args, "--resume", handle)
+		} else {
+			args = append(args, "--session-id", handle)
+		}
 	}
 	if effort != "" {
 		args = append(args, "--effort", effort)

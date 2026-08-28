@@ -17,8 +17,17 @@ type ClaudeBackend struct {
 	// Model and Effort are the values the provider process is started with. A
 	// stream-json process replays no argv, so changing either means a new
 	// process — the backend is rebuilt by the caller, not mutated.
-	Model   string
-	Effort  string
+	Model  string
+	Effort string
+	// handle is the vendor conversation this backend drives: minted by
+	// Kolkrabbi, carried across backends and restarts through the session
+	// file, and reported back through ProviderHandle. resume records that the
+	// handle names a conversation kolk already knows about, and started that
+	// at least one process has opened it, so a later spawn resumes rather
+	// than re-opens.
+	handle  string
+	resume  bool
+	started bool
 	run     lineRunner
 	start   startLineProcess
 	mu      sync.Mutex
@@ -26,16 +35,32 @@ type ClaudeBackend struct {
 	release context.CancelFunc
 }
 
-// NewClaudeBackend creates a backend that lazily owns one persistent provider
-// process for its lifetime.
-func NewClaudeBackend(model, effort string) *ClaudeBackend {
+// NewClaudeBackendFromHandle creates a backend that resumes one vendor
+// conversation (resume true) or opens a brand-new one kolk has already
+// minted a name for.
+func NewClaudeBackendFromHandle(model, effort, handle string, resume bool) *ClaudeBackend {
 	return &ClaudeBackend{
 		Model:  model,
 		Effort: effort,
+		handle: handle,
+		resume: resume,
 		start: func(ctx context.Context, executable string, args []string) (lineProcess, error) {
 			return shell.StartLinesProcess(ctx, executable, args)
 		},
 	}
+}
+
+// ProviderHandle reports the vendor conversation this backend has driven most
+// recently: a minted handle until the vendor confirms one, then the vendor's
+// own report. It is what the session file stores so a later process can
+// --resume.
+func (b *ClaudeBackend) ProviderHandle() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.session != nil && b.session.ProviderHandle() != "" {
+		return b.session.ProviderHandle()
+	}
+	return b.handle
 }
 
 func (b *ClaudeBackend) StreamChat(ctx context.Context, model string, messages []provider.Message, tools []provider.Tool, onToken func(string)) (provider.Message, provider.Meta, error) {
@@ -69,8 +94,18 @@ func (b *ClaudeBackend) StreamChat(ctx context.Context, model string, messages [
 		message, meta, turnErr := session.Turn(ctx, messages, model, watch)
 		// A session that lost its place in the provider stream is replaced
 		// rather than kept: one unrecoverable interrupt must not end Claude for
-		// the rest of the Kolkrabbi session.
+		// the rest of the Kolkrabbi session. But a process that was opened with
+		// --resume and produced nothing before dying is the signature of a
+		// handle the vendor no longer keeps (the transcripts expire after 30
+		// days, or the process died before its conversation was created), so
+		// the handle is dropped along with the process: the retry below
+		// mints a fresh one instead of resuming the same dead one, and the
+		// stale handle never wedges the rest of the Kolkrabbi session.
 		if session.Unusable() {
+			retrying := turnErr != nil && !streamed && ctx.Err() == nil
+			if retrying && session.Resumed() {
+				b.forgetHandle()
+			}
 			b.dropSession(session)
 			// The process was already gone when this turn began — the previous
 			// turn ended it, which is what an expired login looks like from
@@ -79,7 +114,7 @@ func (b *ClaudeBackend) StreamChat(ctx context.Context, model string, messages [
 			// trouble; only the turn after that works. Nothing was streamed, so
 			// one attempt on a fresh process is invisible and costs a turn
 			// that had already failed.
-			if turnErr != nil && !streamed && ctx.Err() == nil {
+			if retrying {
 				if replacement, startErr := b.getSession(ctx); startErr == nil {
 					message, meta, turnErr = replacement.Turn(ctx, messages, model, watch)
 					if replacement.Unusable() {
@@ -125,7 +160,14 @@ func (b *ClaudeBackend) getSession(ctx context.Context) (*ClaudeSession, error) 
 	// needed it. Inheriting the turn context would let one cancelled turn kill
 	// Claude for every later turn. Close is the only thing that ends it.
 	sessionContext, release := context.WithCancel(context.WithoutCancel(ctx))
-	args, err := BuildClaudeSessionArgs(b.Model, b.Effort)
+	// Kolkrabbi mints the handle before the process exists, so a child that
+	// dies before its first init frame still leaves a name the next one can
+	// resume.
+	if b.handle == "" {
+		b.handle = NewVendorHandle()
+	}
+	resume := b.started || b.resume
+	args, err := BuildClaudeSessionArgs(b.Model, b.Effort, b.handle, resume)
 	if err != nil {
 		release()
 		return nil, err
@@ -135,9 +177,26 @@ func (b *ClaudeBackend) getSession(ctx context.Context) (*ClaudeSession, error) 
 		release()
 		return nil, err
 	}
-	b.session = &ClaudeSession{process: process, model: b.Model, effort: b.Effort}
+	b.session = &ClaudeSession{
+		process: process,
+		model:   b.Model,
+		effort:  b.Effort,
+		resumed: resume,
+	}
 	b.release = release
+	b.started = true
 	return b.session, nil
+}
+
+// forgetHandle retires the vendor conversation handle: the next process mints
+// a fresh one under --session-id instead of resuming a conversation the
+// vendor has already forgotten.
+func (b *ClaudeBackend) forgetHandle() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.handle = ""
+	b.resume = false
+	b.started = false
 }
 
 // dropSession retires one session so the next turn starts a fresh provider
