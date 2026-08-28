@@ -13,9 +13,10 @@ func (a *app) runPlans(ctx context.Context, args []string) error {
 	if len(args) > 0 && args[0] == "login" {
 		return a.runPlanLogin(ctx, args[1:])
 	}
-	if len(args) > 1 {
-		return usagef("%s", usageLine("plans"))
-	}
+	// A filter is one search string, and the next line joins these with
+	// spaces — so refusing more than one word rejected exactly the
+	// multi-word filter this command was written to accept.
+	// `pmodels claude max` reported a usage error.
 	dirs, err := a.resolve()
 	if err != nil {
 		return err
