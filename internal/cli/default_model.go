@@ -17,8 +17,13 @@ const legacyFreePreset = "stealth/ox-alpha"
 // a provider exposes no zero-cost model. The official free router remains the
 // fallback whenever the catalog cannot say better.
 type defaultModelChoice struct {
-	Model   string
-	Free    bool
+	Model string
+	Free  bool
+	// Refused means no model was chosen and none should be substituted — the
+	// `stop` policy. Distinct from an empty Model, which startup otherwise
+	// fills in with the free router, because "nothing suitable" and "do not
+	// start" are different answers and only one of them may be papered over.
+	Refused bool
 	Warning string
 }
 
@@ -71,6 +76,7 @@ func applyFreeExhausted(choice defaultModelChoice, policy string) defaultModelCh
 		return choice
 	case engine.OnFreeExhaustedStop:
 		return defaultModelChoice{
+			Refused: true,
 			Warning: "the provider listed no free tool-capable model and routing.on_free_exhausted is `stop`; " +
 				"name a model with `-m`, or set routing.on_free_exhausted to free or paid",
 		}

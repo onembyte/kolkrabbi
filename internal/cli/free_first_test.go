@@ -1,8 +1,11 @@
 package cli
 
 import (
+	"context"
 	"strings"
 	"testing"
+
+	"github.com/onembyte/kolkrabbi/internal/config"
 
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -71,4 +74,45 @@ func TestEveryPolicyStillPrefersAFreeModel(t *testing.T) {
 			t.Errorf("policy %q chose the billed model %q while a free one was listed", policy, choice.Model)
 		}
 	}
+}
+
+// B12.13b/c. The order end to end: free first, a subscription only once one is
+// actually available, and free again when there is not. These run through
+// newAgent rather than the choice function, because that is where an earlier
+// version of this quietly undid itself.
+func TestTheStartingOrderHoldsEndToEnd(t *testing.T) {
+	t.Run("no subscription leaves the session free", func(t *testing.T) {
+		storeFirstRunKey(t)
+		a, _, _ := newTestApp(t, "")
+		a.chooseDefault = func([]provider.ModelInfo) defaultModelChoice {
+			return defaultModelChoice{Model: "vendor/free:free", Free: true}
+		}
+		agent, err := a.newAgent(context.Background(), &options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if agent.Model != "vendor/free:free" {
+			t.Fatalf("with no subscription the session chose %q, want the free model", agent.Model)
+		}
+	})
+
+	t.Run("stop actually stops rather than substituting the router", func(t *testing.T) {
+		dirs := storeFirstRunKey(t)
+		if err := config.Save(dirs.ConfigFile(), &config.Config{
+			Routing: config.RoutingSettings{OnFreeExhausted: engine.OnFreeExhaustedStop},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		a, _, _ := newTestApp(t, "")
+		a.chooseDefault = func([]provider.ModelInfo) defaultModelChoice {
+			return defaultModelChoice{Model: "paid/cheap"}
+		}
+		_, err := a.newAgent(context.Background(), &options{})
+		if err == nil {
+			t.Fatal("`stop` started a session anyway; a policy that silently substitutes is not a policy")
+		}
+		if !strings.Contains(err.Error(), "routing.on_free_exhausted") {
+			t.Errorf("refusal %q does not name the setting that changes it", err)
+		}
+	})
 }

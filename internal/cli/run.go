@@ -254,6 +254,12 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		}
 		model = choice.Model
 		if model == "" {
+			// `stop` returns no model on purpose. Falling back to the router
+			// here would substitute exactly what the policy refused, which is
+			// how a setting becomes decoration.
+			if choice.Refused {
+				return nil, fmt.Errorf("%s", choice.Warning)
+			}
 			model = defaultModel
 		}
 		if choice.Warning != "" {

@@ -2137,6 +2137,30 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### B12.13b/c built — the order proven end to end, and a policy that was decoration
+
+The owner's order is free first, a subscription only once one is actually available, free again when
+there is not. Reading `run.go` showed the order was already right — `chooseDefault` prefers free,
+the free-exhausted policy governs any paid substitution, and A33.6's subscription check runs after
+both, per session, from a connectors file re-read at every startup rather than remembered from
+install.
+
+**What was not right was something I had just built.** Testing the order through `newAgent` instead
+of through the choice function showed `stop` did not stop: `applyFreeExhausted` returned no model,
+and twelve lines later startup filled the blank in with the free router. The policy printed its
+refusal and then started the session anyway.
+
+The fix distinguishes two things an empty model can mean. "Nothing suitable was found" may be papered
+over with the router; **"do not start" may not**, so the choice now carries `Refused` and startup
+fails with the sentence the policy wrote. A setting that announces a decision and then does the
+opposite is worse than not having it, because it is believed.
+
+That is the second time this week a unit test passed while the behaviour it described did not reach
+the surface — the same shape as an export with no caller, and found the same way: by testing where
+the user stands rather than where the function does.
+
+`make check` green at 2,445 tests.
+
 ### B12.13d built — the same policy where free actually runs out
 
 `routing.on_free_exhausted` now governs the mid-run path too: every free model rate-limited, which is
@@ -2577,10 +2601,10 @@ is one, free again when there is not*, and the switch is configurable rather tha
 
 - [x] **B12.13a first run stands up on free models alone** — an OpenRouter key with no credit is
       enough to start. Nothing may demand a paid model to reach a first answer.
-- [ ] **B12.13b a subscription becomes the default only once it is available** — enabled and
+- [x] **B12.13b a subscription becomes the default only once it is available** — enabled and
       verified, per A33.6, and not before. Availability is a fact about this machine, so it is
       re-checked rather than remembered from install.
-- [ ] **B12.13c falling back the other way** — no subscription available means free models again,
+- [x] **B12.13c falling back the other way** — no subscription available means free models again,
       not a metered one.
 - [x] **B12.13d `routing.on_free_exhausted`** — `free` (default), `paid`, `stop`. The same shape as
       `routing.on_subscription_limit` (A33.7) and for the same reason: nothing starts spending
