@@ -344,7 +344,9 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		// What to do when the plan behind the session runs out: ask (the
 		// default), switch to the metered model below, or stop (A33.7).
 		OnSubscriptionLimit: cfg.Routing.OnSubscriptionLimit,
-		MeteredModel:        func() string { return meteredFallback },
+		// And what to do when no free model will answer (B12.13).
+		OnFreeExhausted: cfg.Routing.OnFreeExhausted,
+		MeteredModel:    func() string { return meteredFallback },
 		// The catalogue the session already fetched, so an unset slot can be
 		// resolved by what each role needs instead of collapsing to the effort
 		// model (A33.4). Already in memory: this costs nothing to pass.

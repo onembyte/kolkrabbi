@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -79,6 +80,17 @@ func (a *Agent) streamChat(ctx context.Context, phase, model string, messages []
 			return provider.Message{}, meta, err
 		}
 
+		// `stop` substitutes nothing: no rotation, no metered fallback. Someone
+		// who set it would rather see this error than find out afterwards that
+		// three models answered one question.
+		onFree, freeErr := NormalizeFreeExhausted(a.OnFreeExhausted)
+		if freeErr != nil {
+			onFree = OnFreeExhaustedFree
+		}
+		if onFree == OnFreeExhaustedStop && provider.ModelIsFree(provider.ModelInfo{ID: model}) {
+			return provider.Message{}, meta, fmt.Errorf("%s is rate-limited and routing.on_free_exhausted is `stop`, so nothing was substituted; set it to free or paid to keep going: %w", model, err)
+		}
+
 		if !a.PinnedModel && provider.ModelIsFree(provider.ModelInfo{ID: model}) && len(a.FreeModels) > 1 {
 			var nextCandidate string
 			for _, cand := range a.FreeModels {
@@ -101,6 +113,23 @@ func (a *Agent) streamChat(ctx context.Context, phase, model string, messages []
 		}
 
 		if retry >= len(rateLimitRetryDelays) {
+			// Only now is free genuinely exhausted: every free model has been
+			// tried and the last one has had its bounded retries. Doing this
+			// any earlier would skip the backoff that a transient rate limit
+			// usually clears within — which is what rotation exists to give it.
+			if provider.ModelIsFree(provider.ModelInfo{ID: model}) && allFreeModelsTried(a.FreeModels, tried) {
+				if onFree == OnFreeExhaustedPaid {
+					if metered := a.meteredFallback(model); metered != "" {
+						fmt.Fprintf(a.Out, "◆ every free model is rate-limited; continuing on %s, billed per token\n", metered)
+						a.moveToMetered(metered)
+						model = metered
+						tried[metered] = true
+						retry = -1
+						continue
+					}
+				}
+				return provider.Message{}, meta, fmt.Errorf("every free model is rate-limited and routing.on_free_exhausted is `%s`; `kolk config set routing.on_free_exhausted paid` allows a metered fallback, or use `/model`: %w", onFree, err)
+			}
 			return provider.Message{}, meta, fmt.Errorf("model %s remains rate-limited after %d attempts; use `/model` to select another model: %w", model, retry+1, err)
 		}
 
@@ -115,4 +144,33 @@ func (a *Agent) streamChat(ctx context.Context, phase, model string, messages []
 			return provider.Message{}, meta, err
 		}
 	}
+}
+
+// allFreeModelsTried reports that this run has already asked every free model
+// it knows about. An empty list is not "all tried": it means the run never had
+// a free rotation to exhaust, and treating that as exhaustion would turn a
+// single 429 on a free model into a billed one.
+func allFreeModelsTried(free []string, tried map[string]bool) bool {
+	if len(free) == 0 {
+		return false
+	}
+	for _, model := range free {
+		if !tried[model] {
+			return false
+		}
+	}
+	return true
+}
+
+// meteredFallback names the per-token model to continue on, refusing one that
+// is the model that just failed.
+func (a *Agent) meteredFallback(current string) string {
+	if a.MeteredModel == nil {
+		return ""
+	}
+	metered := strings.TrimSpace(a.MeteredModel())
+	if metered == current {
+		return ""
+	}
+	return metered
 }

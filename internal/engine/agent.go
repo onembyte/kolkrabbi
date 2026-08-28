@@ -205,6 +205,9 @@ type Options struct {
 	Ask Chooser
 	// Tiers maps effort level -> model id. Missing tiers fall back to Model,
 	// so everything works zero-config and tiers are a pure optimization.
+	// OnFreeExhausted is free (default), paid or stop: what a run does when no
+	// free model it can reach will answer (B12.13).
+	OnFreeExhausted string
 	// OnSubscriptionLimit is ask (default), switch or stop: what a run does
 	// when the subscription behind it runs out of allowance mid-turn.
 	OnSubscriptionLimit string

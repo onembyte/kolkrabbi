@@ -2137,6 +2137,31 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### B12.13d built — the same policy where free actually runs out
+
+`routing.on_free_exhausted` now governs the mid-run path too: every free model rate-limited, which is
+what an exhausted free tier looks like from inside a turn. `free` stops, `paid` moves to the metered
+model and says so, `stop` refuses to rotate at all.
+
+**I nearly shipped a regression and an existing test caught it.** The first placement checked the
+policy *before* the bounded backoff, which skipped the retries that a transient rate limit usually
+clears within — the whole reason rotation gives the last model those retries.
+`TestFreeModelRotationUsesEachCandidateOncePerTurn` failed immediately. The check now fires only
+after every free model has been tried *and* the last one has had its retries, and a new test pins
+that ordering so the mistake cannot come back quietly.
+
+**A mutation that did not kill found a real hole.** Removing `allFreeModelsTried` failed nothing,
+because rotation had already tried everything by the time the branch ran — the guard was
+unfalsifiable. The case it actually protects is a **pinned** model, which never rotates: without it,
+a pinned *free* model silently becomes a billed one, the sharpest version of the surprise this
+setting exists to prevent. Pinning is a decision, and `paid` does not overrule it. With that test the
+mutation kills.
+
+An empty `FreeModels` list is deliberately not "all tried": a run that never had a rotation has not
+exhausted one, and reading it that way would turn a single 429 into a bill.
+
+`make check` green at 2,442 tests.
+
 ### B12.13a built — a first run stops being able to bill you by accident
 
 `routing.on_free_exhausted` takes `free` (the default), `paid` or `stop`, and governs the one place
@@ -2557,7 +2582,7 @@ is one, free again when there is not*, and the switch is configurable rather tha
       re-checked rather than remembered from install.
 - [ ] **B12.13c falling back the other way** — no subscription available means free models again,
       not a metered one.
-- [ ] **B12.13d `routing.on_free_exhausted`** — `free` (default), `paid`, `stop`. The same shape as
+- [x] **B12.13d `routing.on_free_exhausted`** — `free` (default), `paid`, `stop`. The same shape as
       `routing.on_subscription_limit` (A33.7) and for the same reason: nothing starts spending
       because a limit was reached. Consolidate with it rather than growing a second vocabulary.
 
