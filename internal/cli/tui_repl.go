@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/engine"
@@ -15,9 +16,45 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/projectfiles"
 	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/term"
 	"github.com/onembyte/kolkrabbi/internal/tui"
 	"github.com/onembyte/kolkrabbi/protocol"
 )
+
+// paletteTier maps the terminal's own colour declarations to the TUI's escape
+// tiers. Truecolor and 256-color terminals get the full palette; a plain
+// 16-color one gets its nearest equivalents rather than garbage or nothing.
+func paletteTier() string {
+	colorTerm := strings.TrimSpace(strings.ToLower(os.Getenv("COLORTERM")))
+	if strings.Contains(colorTerm, "truecolor") || strings.Contains(colorTerm, "24bit") {
+		return "256"
+	}
+	termName := strings.TrimSpace(strings.ToLower(os.Getenv("TERM")))
+	if strings.Contains(termName, "256color") ||
+		strings.Contains(termName, "kitty") ||
+		strings.Contains(termName, "alacritty") ||
+		strings.Contains(termName, "wezterm") ||
+		strings.Contains(termName, "ghostty") {
+		return "256"
+	}
+	return "16"
+}
+
+// idempotentRestore wraps the CLI's raw-mode restore so every exit path — the
+// happy path, a panic, and the defers — collapses to one actual restore. The
+// screen hands back the terminal once; a second restore on an already-restored
+// fd is at best redundant and at worst races a shell already reading it.
+func idempotentRestore(restore func() error, err error) (func() error, error) {
+	if err != nil {
+		return nil, err
+	}
+	var once sync.Once
+	return func() error {
+		var restoreErr error
+		once.Do(func() { restoreErr = restore() })
+		return restoreErr
+	}, nil
+}
 
 func (a *app) canUseTUI() bool {
 	return a.terminalInput != nil && a.terminalOutput != nil &&
@@ -29,14 +66,32 @@ func (a *app) canUseTUI() bool {
 // line REPL remains untouched for pipes, redirected output, TERM=dumb, and
 // tests that do not provide real terminal files.
 func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
-	restoreTerminal, err := a.enterRaw(a.terminalInput)
+	restoreTerminal, err := idempotentRestore(a.enterRaw(a.terminalInput))
 	if err != nil {
 		return err
 	}
+	// Raw mode, the hidden cursor, and paste framing are process state the
+	// happy path below restores — but a panic unwinds on some other stack
+	// entirely, and a signal kills the process wherever it happens to be.
+	// Every path out of this function has to give the terminal back, or the
+	// user is left in a shell that echoes nothing until they type `reset`.
+	defer func() {
+		if r := recover(); r != nil {
+			_ = restoreTerminal()
+			panic(r)
+		}
+	}()
+	defer func() { _ = restoreTerminal() }()
 
-	// While the runtime below is live it reads the terminal from its own
-	// goroutine. Anything that would hand the terminal to a child process must
-	// see that Kolkrabbi owns it.
+	// One capability probe, made once: the terminal's colour tier cannot
+	// change while kolk is attached to it, and a NO_COLOR user who opted out
+	// of colour should not find purple SGR on every frame.
+	if term.Color() {
+		tui.SetPalette(paletteTier())
+	} else {
+		tui.SetPalette("none")
+	}
+
 	a.terminalOwned = func() bool { return true }
 	defer func() { a.terminalOwned = nil }()
 
@@ -78,6 +133,10 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 			ag.Permission = nextPermission(ag.Permission)
 			return string(ag.Permission)
 		},
+		// Read on the spinner's tick: context and cost move during a turn, and a
+		// footer that only updates between turns shows both frozen for exactly
+		// as long as the user is watching them change.
+		Meter: func() (string, string) { return contextLabel(ag), sessionCostLabel(ag) },
 		Turn: func(turnContext context.Context, prompt string) error {
 			if strings.HasPrefix(strings.TrimSpace(prompt), "/") {
 				shouldExit := a.slash(turnContext, ag, strings.TrimSpace(prompt))
@@ -210,7 +269,7 @@ func tuiPlans() []tui.PlanSpec {
 
 func tuiWelcome(messageCount int) string {
 	var welcome strings.Builder
-	welcome.WriteString("Type a request or /help. Up arrow recalls history; Ctrl+C clears input, twice exits.\n")
+	welcome.WriteString("Type a request or /help. Up arrow recalls history; Esc stops a running turn; idle, Ctrl+C clears input, twice exits.\n")
 	if messageCount > 1 {
 		_, _ = fmt.Fprintf(&welcome, "Resumed with %d messages.\n", messageCount-1)
 		return welcome.String()

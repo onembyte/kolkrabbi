@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"time"
 )
 
 // ErrExit lets a CLI-owned slash dispatcher request a clean runtime exit
@@ -38,6 +39,11 @@ type RuntimeOptions struct {
 	// CyclePermission advances to the next permission tier and returns the
 	// one now in effect. Nil leaves Shift+Tab inert.
 	CyclePermission func() string
+	// Meter supplies fresh context-window and session-cost labels, read on the
+	// spinner's tick while work is running. Without it the CLI could rebuild the
+	// footer only between turns, so both numbers froze for exactly as long as a
+	// turn ran — which is when the context number is the interesting one.
+	Meter func() (context string, cost string)
 }
 
 // Runtime serializes all terminal presentation through one controller. Model
@@ -51,9 +57,17 @@ type Runtime struct {
 	decoder    *Decoder
 	width      func() int
 	height     func() int
+	spinClock  spinnerClock
 	turn       func(context.Context, string) error
 	cyclePerm  func() string
-	spinClock  spinnerClock
+	meter      func() (string, string)
+	// Frame pacing. Streaming floods Write with a token apiece; repainting on
+	// every token re-renders the whole transcript per byte and makes the frame
+	// chase the model instead of the reader. Frames coalesce to ~30/s, which no
+	// one can tell from instant and which a flood costs one repaint each.
+	frameWindow bool
+	frameTimer  *time.Timer
+	frameDirty  bool
 
 	baseContext context.Context
 	activeID    uint64
@@ -80,7 +94,11 @@ type Runtime struct {
 	// closing is set once the read loop has exited. A queued request must not
 	// start after that: turns.Wait has begun, so Add would race it, and a
 	// session that is ending should not send one more message.
-	closing   bool
+	closing bool
+	// closed is set once the renderer has been shut down. A pacing timer firing
+	// after Run has returned must not paint into a terminal the process no
+	// longer owns; with a closed flag the timer's work collapses to flag care.
+	closed    bool
 	renderErr error
 }
 
@@ -109,7 +127,7 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 		input: options.Input, controller: controller,
 		renderer: NewRenderer(options.Output), decoder: NewDecoder(),
 		width: options.Width, height: options.Height, resize: options.Resize, turn: options.Turn,
-		cyclePerm: options.CyclePermission,
+		cyclePerm: options.CyclePermission, meter: options.Meter,
 		spinClock: realSpinnerClock{},
 		quit:      make(chan struct{}),
 	}
@@ -187,6 +205,10 @@ readLoop:
 	r.turns.Wait()
 
 	r.mu.Lock()
+	// The last frame first: a deferred one pending in the pacing window has to
+	// reach the screen while the renderer can still draw it, not after Close.
+	r.flushFrameLocked()
+	r.closed = true
 	closeErr := r.renderer.Close()
 	renderErr := r.renderErr
 	r.mu.Unlock()
@@ -370,8 +392,18 @@ func (r *Runtime) animateActivities(done, idle chan struct{}) {
 		if r.retireIfIdle() {
 			return
 		}
+		// Labels are read before the screen lock: the meter reaches into the
+		// engine, and the engine must be able to need the screen while answering
+		// without the screen waiting on the engine.
+		var contextLabel, costLabel string
+		if r.meter != nil {
+			contextLabel, costLabel = r.meter()
+		}
 		r.mu.Lock()
 		r.frame = (r.frame + 1) % len(wheelFrames)
+		if r.meter != nil {
+			r.controller.SetUsage(contextLabel, costLabel)
+		}
 		r.showActivityLocked()
 		r.mu.Unlock()
 	}
@@ -558,6 +590,13 @@ func (r *Runtime) startTurnLocked(prompt string) {
 		r.mu.Lock()
 		if r.activeID == id {
 			r.activeStop = nil
+			// The stop has to be visible where the output it stopped is, or
+			// the first thing a person reads against is whether the key did
+			// anything at all. Under the screen lock like every other
+			// transcript mutation: the model has none of its own.
+			if lifecycle == "interrupted" {
+				r.controller.AppendTranscript(interruptedNotice)
+			}
 			if errors.Is(err, ErrExit) {
 				lifecycle = "ready"
 				r.quitOnce.Do(func() { close(r.quit) })
@@ -580,8 +619,32 @@ func (r *Runtime) startTurnLocked(prompt string) {
 	}()
 }
 
+const renderInterval = 33 * time.Millisecond
+
+// renderLocked repaints or defers. Inside an open pacing window a request only
+// marks the frame dirty; the window's timer does the painting, so a burst of
+// twenty writes costs one repaint instead of twenty. Input and resize arrive as
+// single events and a held frame would lag the keys by at most the window, so
+// they take the same path — simplicity here is worth more than a fast path.
 func (r *Runtime) renderLocked() {
 	if r.renderErr != nil {
+		return
+	}
+	if r.frameWindow {
+		r.frameDirty = true
+		return
+	}
+	r.paintLocked()
+}
+
+// paintLocked draws a frame and opens the next pacing window. The window always
+// closes through closeFrameLocked, which runs on the timer's goroutine; the
+// timer is armed under the same lock that set the flag, so a window can neither
+// leak open nor be closed twice.
+func (r *Runtime) paintLocked() {
+	// A frame after close would land on a terminal this process no longer
+	// owns; the pacing timer that could outlive Run is answered with nothing.
+	if r.closed {
 		return
 	}
 	width, height := r.width(), r.height()
@@ -595,6 +658,33 @@ func (r *Runtime) renderLocked() {
 	// write, so a line is never on screen twice and never missing for a frame.
 	committed := r.controller.CommitOverflow(width, height)
 	r.renderErr = r.renderer.Render(committed, r.controller.RenderView(width, height))
+	r.frameWindow = true
+	r.frameTimer = time.AfterFunc(renderInterval, r.closeFrameWindow)
+}
+
+func (r *Runtime) closeFrameWindow() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.frameWindow = false
+	r.frameTimer = nil
+	if r.frameDirty && r.renderErr == nil {
+		r.frameDirty = false
+		r.paintLocked()
+	}
+}
+
+// flushFrameLocked paints any deferred frame now: called on the way out, so a
+// session's last state reaches the screen even if it arrived inside a window.
+func (r *Runtime) flushFrameLocked() {
+	if r.frameTimer != nil {
+		r.frameTimer.Stop()
+		r.frameTimer = nil
+	}
+	r.frameWindow = false
+	if r.frameDirty && r.renderErr == nil {
+		r.frameDirty = false
+		r.paintLocked()
+	}
 }
 
 type emptyReader struct{}

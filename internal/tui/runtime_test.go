@@ -36,9 +36,10 @@ func TestRuntimeStreamsWhileRetainingTypeAheadAndCancelsOneTurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := runtime.Snapshot()
-	// The request is echoed into the transcript ahead of the reply, so the
-	// scrollback records both halves of the exchange.
-	if got.Draft != "" || got.Transcript != "❯ first request\nassistant streaming" {
+	// The request is echoed into the transcript ahead of the reply, a cancelled
+	// turn commits its marker where the output it stopped is, and the type-ahead
+	// draft survives the interrupt that ended the turn.
+	if got.Draft != "next draft" || got.Transcript != "❯ first request\nassistant streaming"+interruptedNotice {
 		t.Fatalf("runtime mixed draft/output: %#v", got)
 	}
 	if got.Status.Lifecycle != "interrupted" {
@@ -106,8 +107,9 @@ func TestRuntimeApprovalBlocksTheTurnWithoutConsumingMainDraft(t *testing.T) {
 		})
 	}()
 	waitForApproval(t, runtime)
+	// One keypress answers; there is no Enter for the approval to consume, and
+	// the main draft must survive both the overlay and the decision.
 	runtime.HandleKey(Key{Kind: KeyText, Text: "y"})
-	runtime.HandleKey(Key{Kind: KeyEnter})
 
 	select {
 	case allowed := <-result:
@@ -210,6 +212,45 @@ func TestRuntimeTurnCanExitWithoutWaitingForAnotherKey(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("runtime waited for another key after /exit")
+	}
+}
+
+// writeRecounts how many repaints reached the output: every paint after the
+// first has to move the cursor up before erasing, and that carriage return is
+// the seam between frames.
+func writeRepaints(output *bytes.Buffer) int { return bytes.Count(output.Bytes(), []byte("\r\x1b[")) }
+
+func TestRuntimeCoalescesAStreamFloodIntoAFewRepaints(t *testing.T) {
+	var output bytes.Buffer
+	runtime := NewRuntime(RuntimeOptions{
+		Input: bytes.NewReader([]byte("\x04")), Output: &output,
+		Width: func() int { return 60 }, Height: func() int { return 12 },
+	})
+	done := make(chan error, 1)
+	go func() { done <- runtime.Run(context.Background()) }()
+
+	// Two hundred writes is far more than one pacing window holds. Unpaced this
+	// paints two hundred frames; paced, the flood costs one repaint plus the
+	// window-close and shutdown flushes.
+	var writeErr error
+	for range 200 {
+		if _, err := runtime.Write([]byte("token ")); err != nil {
+			writeErr = err
+			break
+		}
+	}
+	if writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if got := writeRepaints(&output); got > 10 {
+		t.Fatalf("a 200-write flood produced %d repaints, want coalescing to a few", got)
+	}
+	// And the flood's last token must still be visible after the flush on exit.
+	if !strings.Contains(output.String(), "token") {
+		t.Fatalf("coalescing dropped the streamed content: %q", output.String())
 	}
 }
 
