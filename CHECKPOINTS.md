@@ -2137,6 +2137,34 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### B12.13a built — a first run stops being able to bill you by accident
+
+`routing.on_free_exhausted` takes `free` (the default), `paid` or `stop`, and governs the one place
+kolk used to substitute a billed model on its own.
+
+**The behaviour this replaces was real, not hypothetical.** `chooseDefaultModel` preferred free, and
+when a catalogue listed no free tool-capable model it fell through to "the cheapest available coding
+model (charges may apply)" — a warning printed before the first turn, on a first run, to someone who
+by definition has no idea what anything costs. That fallthrough is now the opt-in.
+
+The order never changes: **free is preferred under every policy.** The setting decides only what
+happens when there is no free model to prefer — stay on the free router and name what was passed
+over, take the cheapest billed one and say it will charge, or refuse and name the setting.
+
+**The vocabulary is deliberately not A33.7's.** `on_subscription_limit` asks, because a person is
+usually there when a plan lapses. Free models rate-limit mid-sentence and repeatedly, so a prompt
+each time would be an interruption rather than a decision. What the two share is the rule that
+matters, and it is written down in both: the default never bills.
+
+It applies to the choice already made rather than re-deriving it, because startup injects its own
+chooser — the seam A33.6 first broke by calling past it.
+
+**One existing test changed its meaning and was rewritten rather than deleted.** "paid fallback is
+visible before any turn" proved the fallback *warned*; the fallback is now the opt-in, so the default
+case proves it does not happen and a new case proves the opt-in still warns.
+
+`make check` green at 2,436 tests.
+
 ### B12.15 built — the failure tests found a bug, and unbuilt one of their own premises
 
 Phase A's happy path was green and its failures were guesses. Writing the tests changed two things
@@ -2522,7 +2550,7 @@ wording, and it is these tests that widen the list from something real rather th
 Rejected: dropping the key requirement outright. The order is *free first, subscription when there
 is one, free again when there is not*, and the switch is configurable rather than assumed.
 
-- [ ] **B12.13a first run stands up on free models alone** — an OpenRouter key with no credit is
+- [x] **B12.13a first run stands up on free models alone** — an OpenRouter key with no credit is
       enough to start. Nothing may demand a paid model to reach a first answer.
 - [ ] **B12.13b a subscription becomes the default only once it is available** — enabled and
       verified, per A33.6, and not before. Availability is a fact about this machine, so it is

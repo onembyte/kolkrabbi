@@ -232,6 +232,10 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		if a.chooseDefault != nil {
 			choice = a.chooseDefault(catalog)
 		}
+		// A first run must not start on a billed model because the catalogue
+		// happened to list no free coding one (B12.13). The policy governs the
+		// substitution, never the preference: free is preferred either way.
+		choice = applyFreeExhausted(choice, cfg.Routing.OnFreeExhausted)
 		// A subscription that is signed in and has answered before outranks any
 		// gateway model: it is already paid for, and billing metered credit
 		// while it sits idle is the plainest waste there is (A33.6). Only a

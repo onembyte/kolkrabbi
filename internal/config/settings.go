@@ -38,6 +38,7 @@ func (c *Config) settingRows(defaultModel, defaultBaseURL string) []Setting {
 	baseURL, baseURLDefault := text(c.BaseURL, defaultBaseURL)
 	mode, modeDefault := text(c.Mode, "code")
 	onLimit, onLimitDefault := text(c.Routing.OnSubscriptionLimit, "ask")
+	onFree, onFreeDefault := text(c.Routing.OnFreeExhausted, "free")
 	effort, effortDefault := text(c.Effort, "medium")
 
 	cost, costDefault := "no ceiling", true
@@ -60,6 +61,8 @@ func (c *Config) settingRows(defaultModel, defaultBaseURL string) []Setting {
 		{"max_concurrent_tasks", tasks, tasksDefault, "how many orchestrated tasks may run at once"},
 		{"routing.on_subscription_limit", onLimit, onLimitDefault,
 			"when a subscription runs out: ask · switch to a metered model · stop"},
+		{"routing.on_free_exhausted", onFree, onFreeDefault,
+			"when no free model can serve: free (stay free) · paid · stop"},
 	}
 }
 

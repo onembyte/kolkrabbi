@@ -77,6 +77,12 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 			} else {
 				fmt.Fprintf(a.stdout, "(unset — inherits %s)\n", engine.OnLimitAsk)
 			}
+		case key == "routing.on_free_exhausted":
+			if cfg.Routing.OnFreeExhausted != "" {
+				fmt.Fprintln(a.stdout, cfg.Routing.OnFreeExhausted)
+			} else {
+				fmt.Fprintf(a.stdout, "(unset — inherits %s)\n", engine.OnFreeExhaustedFree)
+			}
 		case strings.HasPrefix(key, "effort.") || strings.HasPrefix(key, "tier."):
 			canonical, err := parseEffortKey(key)
 			if err != nil {
@@ -140,6 +146,16 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintf(a.stdout, "routing.on_subscription_limit → %s\n", policy)
+		case key == "routing.on_free_exhausted":
+			policy, err := engine.NormalizeFreeExhausted(val)
+			if err != nil {
+				return usagef("routing.on_free_exhausted: %v", err)
+			}
+			cfg.Routing.OnFreeExhausted = policy
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "routing.on_free_exhausted → %s\n", policy)
 		case strings.HasPrefix(key, "effort.") || strings.HasPrefix(key, "tier."):
 			canonical, err := parseEffortKey(key)
 			if err != nil {
@@ -190,6 +206,12 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintln(a.stdout, "removed routing.on_subscription_limit; back to asking")
+		case key == "routing.on_free_exhausted":
+			cfg.Routing.OnFreeExhausted = ""
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintln(a.stdout, "removed routing.on_free_exhausted; back to staying free")
 		case strings.HasPrefix(key, "effort.") || strings.HasPrefix(key, "tier."):
 			canonical, err := parseEffortKey(key)
 			if err != nil {

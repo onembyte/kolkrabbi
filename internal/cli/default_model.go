@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/config"
+	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 )
 
@@ -47,6 +48,43 @@ func chooseDefaultModel(catalog []provider.ModelInfo) defaultModelChoice {
 		)
 	}
 	return choice
+}
+
+// applyFreeExhausted governs chooseDefaultModel's paid fallthrough (B12.13).
+//
+// The order never changes — free is always preferred — and the policy decides
+// only what happens when there is no free tool-capable model to prefer. It takes
+// the choice already made rather than re-deriving it, because startup injects
+// its own chooser and calling the real one from here would ignore that seam,
+// which is exactly how A33.6 first broke two tests.
+//
+// The previous behaviour was the `paid` branch for everybody: a first run on a
+// catalogue with no free coding model quietly started billing, with a warning
+// nobody reads before the first turn. A first run is exactly when someone has
+// no idea what anything costs.
+func applyFreeExhausted(choice defaultModelChoice, policy string) defaultModelChoice {
+	if choice.Free {
+		return choice
+	}
+	switch policy {
+	case engine.OnFreeExhaustedPaid:
+		return choice
+	case engine.OnFreeExhaustedStop:
+		return defaultModelChoice{
+			Warning: "the provider listed no free tool-capable model and routing.on_free_exhausted is `stop`; " +
+				"name a model with `-m`, or set routing.on_free_exhausted to free or paid",
+		}
+	default:
+		// Free: the router is free and answers, which is a better first run
+		// than a bill. Naming the model that was passed over matters — the
+		// difference between the two is the whole reason someone would change
+		// this setting.
+		return defaultModelChoice{
+			Model: defaultModel, Free: true,
+			Warning: fmt.Sprintf("the provider listed no free tool-capable model; staying free on %s rather than billing for %s "+
+				"(`kolk config set routing.on_free_exhausted paid` allows the swap)", defaultModel, choice.Model),
+		}
+	}
 }
 
 // retireLegacyFreeConfig recognizes only the exact preset previously printed

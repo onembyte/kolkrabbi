@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/config"
+	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 )
 
@@ -194,14 +195,44 @@ func TestNewAgentDiscoversOnlyWhenNoUserOrSessionModelExists(t *testing.T) {
 		}
 	})
 
-	t.Run("paid fallback is visible before any turn", func(t *testing.T) {
+	// B12.13 changed what this asserts. It used to prove the paid fallback
+	// *warned*; the fallback itself is now the opt-in, so the default proves it
+	// does not happen and the opt-in proves it still warns.
+	t.Run("no free model does not mean a billed one by default", func(t *testing.T) {
 		storeFirstRunKey(t)
 		a, _, errOut := newTestApp(t, "")
 		a.chooseDefault = func([]provider.ModelInfo) defaultModelChoice {
 			return defaultModelChoice{Model: "paid/cheap", Warning: "no free model; charges may apply"}
 		}
-		if _, err := a.newAgent(context.Background(), &options{}); err != nil {
+		agent, err := a.newAgent(context.Background(), &options{})
+		if err != nil {
 			t.Fatal(err)
+		}
+		if agent.Model == "paid/cheap" {
+			t.Fatal("a first run started on a billed model with nothing configured")
+		}
+		if !strings.Contains(errOut.String(), "staying free") {
+			t.Fatalf("the session did not say it passed over a billed model: %q", errOut.String())
+		}
+	})
+
+	t.Run("the paid opt-in still says it will charge", func(t *testing.T) {
+		dirs := storeFirstRunKey(t)
+		if err := config.Save(dirs.ConfigFile(), &config.Config{
+			Routing: config.RoutingSettings{OnFreeExhausted: engine.OnFreeExhaustedPaid},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		a, _, errOut := newTestApp(t, "")
+		a.chooseDefault = func([]provider.ModelInfo) defaultModelChoice {
+			return defaultModelChoice{Model: "paid/cheap", Warning: "no free model; charges may apply"}
+		}
+		agent, err := a.newAgent(context.Background(), &options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if agent.Model != "paid/cheap" {
+			t.Fatalf("with the paid policy the session chose %q, want the billed model", agent.Model)
 		}
 		if !strings.Contains(errOut.String(), "charges may apply") {
 			t.Fatalf("paid fallback warning = %q", errOut.String())
