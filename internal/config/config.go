@@ -37,6 +37,9 @@ type Config struct {
 	// Zero means the default of three; one makes a run sequential.
 	MaxConcurrentTasks int           `json:"max_concurrent_tasks,omitempty"`
 	Local              LocalSettings `json:"local,omitempty"`
+	// Routing decides what happens when the model behind the session stops
+	// being able to answer — today, when a subscription runs out mid-run.
+	Routing RoutingSettings `json:"routing,omitempty"`
 	// AutoRestartAfterUpdate re-executes kolk into the new version once an
 	// in-session `kolk update` succeeds, resuming the same session. A pointer
 	// so "never set" is distinguishable from "set to off": the default is off,

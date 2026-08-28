@@ -651,3 +651,49 @@ func TestIsolationDoesNotOverrideATestsOwnMock(t *testing.T) {
 		t.Fatalf("isolation clobbered the test's own mock: %q", got)
 	}
 }
+
+// TestConfigSetsTheSubscriptionLimitPolicy covers the setting a person reaches
+// for after a plan runs out mid-run (A33.7). The default has to be visible
+// without setting anything: a policy nobody can see is one nobody chose.
+func TestConfigSetsTheSubscriptionLimitPolicy(t *testing.T) {
+	isolateHome(t)
+
+	a, out, _ := newTestApp(t, "")
+	if code := a.main(context.Background(), []string{"config"}); code != ExitOK {
+		t.Fatalf("config exit = %d, want ExitOK", code)
+	}
+	if !strings.Contains(out.String(), "routing.on_subscription_limit") || !strings.Contains(out.String(), "ask") {
+		t.Errorf("config listing %q does not show the default policy", out.String())
+	}
+
+	a, out, _ = newTestApp(t, "")
+	if code := a.main(context.Background(), []string{"config", "set", "routing.on_subscription_limit", "switch"}); code != ExitOK {
+		t.Fatalf("config set exit = %d, want ExitOK", code)
+	}
+	if !strings.Contains(out.String(), "routing.on_subscription_limit → switch") {
+		t.Errorf("config set output = %q", out.String())
+	}
+
+	// A typo must not silently become a policy: "continue" reads like an
+	// answer and is not one, and guessing which way it meant is how a run
+	// starts spending money nobody agreed to.
+	a, _, errOut := newTestApp(t, "")
+	if code := a.main(context.Background(), []string{"config", "set", "routing.on_subscription_limit", "continue"}); code == ExitOK {
+		t.Fatal("config set continue exit = ExitOK, want a rejection")
+	}
+	if !strings.Contains(errOut.String(), "ask, switch or stop") {
+		t.Errorf("rejection %q does not name the policies that do work", errOut.String())
+	}
+
+	a, _, _ = newTestApp(t, "")
+	if code := a.main(context.Background(), []string{"config", "unset", "routing.on_subscription_limit"}); code != ExitOK {
+		t.Fatalf("config unset exit = %d, want ExitOK", code)
+	}
+	a, out, _ = newTestApp(t, "")
+	if code := a.main(context.Background(), []string{"config", "get", "routing.on_subscription_limit"}); code != ExitOK {
+		t.Fatalf("config get exit = %d", code)
+	}
+	if !strings.Contains(out.String(), "ask") {
+		t.Errorf("after unset, get = %q, want the inherited default", out.String())
+	}
+}

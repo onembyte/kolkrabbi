@@ -58,6 +58,22 @@ func (a *Agent) streamChat(ctx context.Context, phase, model string, messages []
 		if err == nil {
 			return msg, meta, nil
 		}
+		// An exhausted allowance is checked before the rate-limit gate below:
+		// waiting never clears it, and two of its shapes — 402, and a vendor
+		// CLI's prose — do not reach that gate at all.
+		if subscriptionLimited(err) {
+			next, ok := a.resolveSubscriptionLimit(ctx, model)
+			if !ok {
+				return provider.Message{}, meta, fmt.Errorf("%s is out of allowance and the run stopped; `kolk config set routing.on_subscription_limit switch` to continue on a metered model instead: %w", model, err)
+			}
+			a.moveToMetered(next)
+			fmt.Fprintf(a.Out, "◆ subscription out of allowance; continuing on %s, billed per token\n", next)
+			model = next
+			tried[next] = true
+			retry = -1
+			continue
+		}
+
 		var httpErr *provider.HTTPError
 		if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusTooManyRequests {
 			return provider.Message{}, meta, err

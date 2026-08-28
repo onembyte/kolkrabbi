@@ -2137,6 +2137,33 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### A33.7 built — running out of allowance is now a decision, not a dead end
+
+`routing.on_subscription_limit` takes `ask` (the default), `switch` or `stop`, settable and
+gettable through `kolk config` and visible in the listing without being set — a policy nobody can
+see is one nobody chose. A typo is refused rather than guessed at: `continue` reads like an answer
+and is not one.
+
+**The default is `ask` on purpose.** Switching to a metered model spends money. A run that starts
+billing because a plan ran out is a surprise on a card statement rather than a decision anybody
+made, so the only way to reach the metered model unattended is to have said `switch` in advance.
+
+Three things the code corrected on the way:
+
+- **Waiting never clears an exhausted allowance**, so the check sits *before* the rate-limit gate,
+  not inside it. Two of its shapes — 402, and a vendor CLI's prose — never reached that gate at all,
+  because it returns early on anything that is not a 429.
+- **The limit belongs to the session, not the task.** Subagents run as methods on the agent that
+  spawned them and share its `Ask`, so the answer is settled once and remembered.
+- **Detection is partial and says so.** Only 402 and a gateway's `limit_source` are structured; a
+  subscription answered by a CLI returns prose, matched on a deliberately narrow wording list. A
+  miss costs nothing — the error surfaces as it does today — while a false positive would stop a
+  healthy run.
+
+Three mutations checked the guards bite: nobody-there becoming a yes, a declined question
+continuing anyway, and every 429 being read as an exhausted plan. All three fail the tests.
+`make check` green at 2,413 tests before this leaf's own additions.
+
 ### A33.6 built — a paid-for subscription stops sitting idle, and the plan is corrected again
 
 Model selection knew nothing about connectors. A machine with a signed-in Claude plan still started
@@ -2396,10 +2423,11 @@ done.
 - [x] **A33.6 subscriptions first** — a verified subscription connector outranks a metered model for
       any slot it can fill. Refuse to invent capability: a connector that is `listed` rather than
       `enabled` is not a candidate, which is the distinction v1.2.3 just made honest.
-- [ ] **A33.7 the limit decision** — `routing.on_subscription_limit` with `ask` (default), `switch`,
+- [x] **A33.7 the limit decision** — `routing.on_subscription_limit` with `ask` (default), `switch`,
       `stop`. Wired to the existing retry path, reported in the transcript, and never a default that
-      spends money without being asked. Test all three, including that `ask` in `/full-auto` cannot
-      hang a run with nobody there.
+      spends money without being asked. `ask` with nobody to ask is a stop, not a yes, and the stop
+      names the setting that changes it. Settled once per session, because subagents share one
+      `Agent` and eight of them would otherwise raise eight questions for one terminal.
 - [ ] **A33.8 a snapshot per writing subagent** — item 32's store, taken before a writing task and
       rewindable alone, so one bad task does not cost the whole turn. Only writing kinds: research
       and explain change nothing.

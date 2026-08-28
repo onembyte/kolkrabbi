@@ -205,10 +205,18 @@ type Options struct {
 	Ask Chooser
 	// Tiers maps effort level -> model id. Missing tiers fall back to Model,
 	// so everything works zero-config and tiers are a pure optimization.
-	Tiers       map[string]string
-	Bus         *bus.Bus
-	PinnedModel bool
-	FreeModels  []string
+	// OnSubscriptionLimit is ask (default), switch or stop: what a run does
+	// when the subscription behind it runs out of allowance mid-turn.
+	OnSubscriptionLimit string
+	// MeteredModel names the per-token model to fall back to when that
+	// happens. Nil, or an empty answer, means there is no metered fallback and
+	// a limit ends the run. The surface supplies it because only the surface
+	// knows which providers were actually configured.
+	MeteredModel func() string
+	Tiers        map[string]string
+	Bus          *bus.Bus
+	PinnedModel  bool
+	FreeModels   []string
 	// ContextWindow is the active model's advertised context size, or zero when
 	// it is unknown. Surfaces resolve it from the catalog; the engine never
 	// guesses one, because compaction is destructive and a guessed limit would
@@ -267,6 +275,13 @@ type Agent struct {
 	// catalogue once per slot rather than once per task.
 	slotMu     sync.Mutex
 	slotChoice map[string]string
+	// A subscription's allowance belongs to the session, not to a task: eight
+	// subagents hitting the same limit must raise one question, not eight.
+	// limitDecided records that it has been settled and limitModel what was
+	// settled on, empty meaning the run stops.
+	limitMu      sync.Mutex
+	limitDecided bool
+	limitModel   string
 	// lastPromptTokens is what the provider reported reading on the most recent
 	// main turn, which is the only measured view of how full the window is.
 	lastPromptTokens int

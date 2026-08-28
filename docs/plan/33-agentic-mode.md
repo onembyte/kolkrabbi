@@ -147,7 +147,27 @@ everything for anyone who disagrees.
   Per-slot subscription routing is refused: subagents share one backend, so it would need per-task
   backends.
 - **A33.7 the limit decision** — `routing.on_subscription_limit` with `ask` (default), `switch`,
-  `stop`, wired to the retry path and reported in the transcript.
+  `stop`, wired to the retry path and reported in the transcript. **Built.** Two corrections the
+  code forced:
+
+  **The limit is a session fact, not a task fact.** Subagents do not get their own `Agent` — they
+  run as methods on the one that spawned them, sharing `Ask`. Eight subagents hitting one exhausted
+  plan would have raised eight questions racing for one terminal, which is the exact failure
+  `askUser` already refuses for the `ask_user` tool. So the answer is settled once and remembered
+  for the session, and a second limit on the model we moved to stops the run instead of switching
+  in a circle.
+
+  **Detection is partial, and deliberately so.** Only two shapes are structured: HTTP 402, and a
+  gateway that labels `limit_source`. A subscription answered by a vendor CLI returns prose, so
+  that case is matched on wording and will miss phrasings nobody has seen yet. The asymmetry is
+  the point — a miss costs nothing, because the error surfaces exactly as it does today, while a
+  false positive would stop a healthy run. The wording list stays narrow until a real transcript
+  widens it. Nothing here guesses at strings a vendor has not actually sent.
+
+  `ask` with nobody to ask is a **stop**, never a yes: a `--full-auto` run, a cron tick or a pipe
+  must neither hang on a prompt no one will see nor decide alone to start spending. The stop names
+  the setting that changes it, because an error that ends a run without saying what to do about it
+  is a dead end.
 - **A33.8 a snapshot per writing subagent** — a task that makes a mess is rewindable on its own,
   using item 32's store.
 

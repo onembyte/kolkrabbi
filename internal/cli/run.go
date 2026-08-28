@@ -217,6 +217,10 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	// live zero-cost coding choice. Explicit user choices never cause a catalog
 	// request and a resumed session never changes models behind the user's back.
 	model := o.model
+	// meteredFallback is the gateway model a run can continue on when the
+	// subscription it started on runs out. Empty means there is none, and a
+	// limit ends the run rather than quietly starting to bill.
+	meteredFallback := ""
 	if model == "" {
 		model = sess.Model
 	}
@@ -234,7 +238,15 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		// connector that is enabled *and* verified counts — "listed" is a row
 		// in the matrix, not a capability.
 		if connectors, err := provider.LoadConnectors(d.ConnectorsFile()); err == nil {
+			gateway := choice.Model
 			choice = chooseSessionModel(choice, connectors)
+			// Remember what the gateway would have answered with. When the
+			// subscription runs out mid-run, that is the model there is to fall
+			// back to — and it is only a fallback if a subscription was
+			// actually chosen over it (A33.7).
+			if choice.Model != gateway {
+				meteredFallback = gateway
+			}
 		}
 		model = choice.Model
 		if model == "" {
@@ -325,6 +337,10 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		Recorder:   stats.NewStore(d.Data),
 		Tiers:      cfg.Tiers,
 		Slots:      cfg.Slots,
+		// What to do when the plan behind the session runs out: ask (the
+		// default), switch to the metered model below, or stop (A33.7).
+		OnSubscriptionLimit: cfg.Routing.OnSubscriptionLimit,
+		MeteredModel:        func() string { return meteredFallback },
 		// The catalogue the session already fetched, so an unset slot can be
 		// resolved by what each role needs instead of collapsing to the effort
 		// model (A33.4). Already in memory: this costs nothing to pass.

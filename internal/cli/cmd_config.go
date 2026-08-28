@@ -71,6 +71,12 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 			} else {
 				fmt.Fprintln(a.stdout, "(unset — inherits off)")
 			}
+		case key == "routing.on_subscription_limit":
+			if cfg.Routing.OnSubscriptionLimit != "" {
+				fmt.Fprintln(a.stdout, cfg.Routing.OnSubscriptionLimit)
+			} else {
+				fmt.Fprintf(a.stdout, "(unset — inherits %s)\n", engine.OnLimitAsk)
+			}
 		case strings.HasPrefix(key, "effort.") || strings.HasPrefix(key, "tier."):
 			canonical, err := parseEffortKey(key)
 			if err != nil {
@@ -124,6 +130,16 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintf(a.stdout, "auto_restart_after_update → %s\n", val)
+		case key == "routing.on_subscription_limit":
+			policy, err := engine.NormalizeSubscriptionLimit(val)
+			if err != nil {
+				return usagef("routing.on_subscription_limit: %v", err)
+			}
+			cfg.Routing.OnSubscriptionLimit = policy
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "routing.on_subscription_limit → %s\n", policy)
 		case strings.HasPrefix(key, "effort.") || strings.HasPrefix(key, "tier."):
 			canonical, err := parseEffortKey(key)
 			if err != nil {
@@ -168,6 +184,12 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintln(a.stdout, "removed base_url")
+		case key == "routing.on_subscription_limit":
+			cfg.Routing.OnSubscriptionLimit = ""
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintln(a.stdout, "removed routing.on_subscription_limit; back to asking")
 		case strings.HasPrefix(key, "effort.") || strings.HasPrefix(key, "tier."):
 			canonical, err := parseEffortKey(key)
 			if err != nil {
