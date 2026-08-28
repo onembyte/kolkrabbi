@@ -65,7 +65,11 @@ type Controller struct {
 	suggestionLimit int
 	suggestions     []CommandSpec
 	suggestionIndex int
-	interruptArmed  bool
+	// suggestionTop is the first row on screen. The selection moves through the
+	// whole list; this follows it, so a catalog longer than the window is
+	// reachable by holding an arrow key.
+	suggestionTop  int
+	interruptArmed bool
 }
 
 // NewController returns a ready controller with an empty transcript and draft.
@@ -405,6 +409,7 @@ func (c *Controller) updateSuggestions() {
 	if files := SuggestFiles(c.files, c.editor.Draft(), c.suggestionLimit); len(files) > 0 {
 		c.suggestions = files
 		c.suggestionIndex = -1
+		c.suggestionTop = 0
 		c.screen.SetSuggestions(c.suggestions)
 		return
 	}
@@ -421,7 +426,10 @@ func (c *Controller) updateSuggestions() {
 		c.suggestions = SuggestPlanLogins(c.plans, c.editor.Draft(), c.suggestionLimit)
 	}
 	if len(c.suggestions) == 0 {
-		c.suggestions = SuggestCommands(c.commands, c.editor.Draft(), recent, c.suggestionLimit)
+		// Every match, not the first few: the window below decides how many are on
+		// screen, and a list that silently stopped at eight made the other
+		// twenty-seven commands unreachable by scrolling.
+		c.suggestions = SuggestCommands(c.commands, c.editor.Draft(), recent, len(c.commands))
 	}
 	c.suggestionIndex = -1
 	c.screen.SetSuggestions(c.suggestions)
@@ -434,7 +442,7 @@ func (c *Controller) handleSuggestionKey(key Key) (Effect, bool) {
 	switch key.Kind {
 	case KeyDown:
 		c.suggestionIndex = (c.suggestionIndex + 1) % len(c.suggestions)
-		c.screen.SetSuggestionSelection(c.suggestionIndex)
+		c.showSelectedSuggestion()
 		return Effect{}, true
 	case KeyUp:
 		if c.suggestionIndex <= 0 {
@@ -442,7 +450,15 @@ func (c *Controller) handleSuggestionKey(key Key) (Effect, bool) {
 		} else {
 			c.suggestionIndex--
 		}
-		c.screen.SetSuggestionSelection(c.suggestionIndex)
+		c.showSelectedSuggestion()
+		return Effect{}, true
+	case KeyPageDown:
+		c.suggestionIndex = min(len(c.suggestions)-1, max(0, c.suggestionIndex)+c.suggestionLimit)
+		c.showSelectedSuggestion()
+		return Effect{}, true
+	case KeyPageUp:
+		c.suggestionIndex = max(0, max(0, c.suggestionIndex)-c.suggestionLimit)
+		c.showSelectedSuggestion()
 		return Effect{}, true
 	case KeyTab:
 		if c.suggestionIndex < 0 {
@@ -457,6 +473,27 @@ func (c *Controller) handleSuggestionKey(key Key) (Effect, bool) {
 		}
 	}
 	return Effect{}, false
+}
+
+// showSelectedSuggestion scrolls the window the least amount that puts the
+// selection on screen, so holding an arrow key walks the list one row at a
+// time instead of paging under the cursor.
+func (c *Controller) showSelectedSuggestion() {
+	window := c.suggestionLimit
+	if window <= 0 {
+		window = 8
+	}
+	switch {
+	case c.suggestionIndex < c.suggestionTop:
+		c.suggestionTop = c.suggestionIndex
+	case c.suggestionIndex >= c.suggestionTop+window:
+		c.suggestionTop = c.suggestionIndex - window + 1
+	}
+	if c.suggestionTop < 0 {
+		c.suggestionTop = 0
+	}
+	c.screen.SetSuggestionWindow(c.suggestionTop, window, len(c.suggestions))
+	c.screen.SetSuggestionSelection(c.suggestionIndex)
 }
 
 func (c *Controller) completeSuggestion(command CommandSpec) {

@@ -4,6 +4,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -43,12 +44,15 @@ type Snapshot struct {
 // Model, so synchronization belongs at that boundary rather than inside every
 // field mutation.
 type Model struct {
-	transcript  []byte
-	activity    string
-	draft       string
-	status      Status
-	suggestions []CommandSpec
-	selected    int
+	transcript       []byte
+	activity         string
+	draft            string
+	status           Status
+	suggestions      []CommandSpec
+	suggestionTop    int
+	suggestionWindow int
+	suggestionTotal  int
+	selected         int
 }
 
 // New returns an empty screen with the supplied session state.
@@ -75,6 +79,15 @@ func (m *Model) SetStatus(status Status) { m.status = status }
 func (m *Model) SetSuggestions(suggestions []CommandSpec) {
 	m.suggestions = append(m.suggestions[:0], suggestions...)
 	m.selected = -1
+	m.suggestionTop, m.suggestionWindow = 0, 0
+}
+
+// SetSuggestionWindow scrolls the list: top is the first row to draw, window
+// how many fit, and total how many there are so the footer can say what is
+// off screen. A list that shows eight of thirty-five without saying so reads
+// as a list of eight.
+func (m *Model) SetSuggestionWindow(top, window, total int) {
+	m.suggestionTop, m.suggestionWindow, m.suggestionTotal = top, window, total
 }
 
 // SetSuggestionSelection marks one ephemeral command-menu row.
@@ -180,8 +193,16 @@ func (m *Model) viewRows(width, height, cursor int) []viewRow {
 		statusLine[0].rightStyle = stylePurple
 		activity = nil
 	}
-	suggestions := make([]viewRow, 0, len(m.suggestions))
-	for index, suggestion := range m.suggestions {
+	// Only the window is drawn. The selection may sit anywhere in the full
+	// list; the controller keeps top such that it is inside this slice.
+	first, last := 0, len(m.suggestions)
+	if m.suggestionWindow > 0 {
+		first = min(max(0, m.suggestionTop), max(0, len(m.suggestions)-1))
+		last = min(len(m.suggestions), first+m.suggestionWindow)
+	}
+	suggestions := make([]viewRow, 0, last-first+1)
+	for index := first; index < last; index++ {
+		suggestion := m.suggestions[index]
 		marker := "  "
 		style := stylePurpleMuted
 		if index == m.selected {
@@ -193,6 +214,12 @@ func (m *Model) viewRows(width, height, cursor int) []viewRow {
 			line += "  " + sanitizeTerminalLine(suggestion.Summary)
 		}
 		suggestions = append(suggestions, viewRow{text: clipLine(line, width), style: style})
+	}
+	// Say what is off screen, and which way, or scrolling is a feature nobody
+	// discovers.
+	if total := len(m.suggestions); total > len(suggestions) && len(suggestions) > 0 {
+		more := fmt.Sprintf("  %d–%d of %d · ↑↓ to scroll", first+1, last, total)
+		suggestions = append(suggestions, viewRow{text: clipLine(more, width), style: stylePurpleMuted})
 	}
 
 	// An exceptionally short terminal keeps the input tail and its closing

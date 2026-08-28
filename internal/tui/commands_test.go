@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -85,4 +87,54 @@ func suggestionNames(suggestions []CommandSpec) []string {
 		names[i] = suggestion.Name
 	}
 	return names
+}
+
+// The catalog is bigger than the window, so the window has to move — otherwise
+// every command past the eighth is unreachable, which is what it was.
+func TestSuggestionListScrollsThroughTheWholeCatalog(t *testing.T) {
+	catalog := make([]CommandSpec, 0, 30)
+	for i := range 30 {
+		catalog = append(catalog, CommandSpec{Name: fmt.Sprintf("cmd%02d", i), Usage: fmt.Sprintf("/cmd%02d", i)})
+	}
+	c := NewController(Status{Mode: "code", Lifecycle: "ready"}, 0)
+	c.SetCommands(catalog, 8)
+	c.HandleKey(Key{Kind: KeyText, Text: "/cmd"})
+
+	if len(c.suggestions) != 30 {
+		t.Fatalf("offered %d of 30 commands; the catalog must not be truncated", len(c.suggestions))
+	}
+
+	// Walk past the window's edge; the last command must become visible.
+	for range 12 {
+		c.HandleKey(Key{Kind: KeyDown})
+	}
+	view := c.View(100, 40)
+	if !strings.Contains(view, "/cmd11") {
+		t.Fatalf("selection scrolled out of view:\n%s", view)
+	}
+	if strings.Contains(view, "/cmd00") {
+		t.Fatalf("window did not scroll — the first row is still drawn:\n%s", view)
+	}
+	if !strings.Contains(view, "of 30") {
+		t.Fatalf("no indication that the list continues:\n%s", view)
+	}
+
+	// PageDown jumps a window at a time and stops at the end rather than wrapping.
+	for range 10 {
+		c.HandleKey(Key{Kind: KeyPageDown})
+	}
+	if c.suggestionIndex != 29 {
+		t.Fatalf("page-down landed on %d, want the last row 29", c.suggestionIndex)
+	}
+	if view := c.View(100, 40); !strings.Contains(view, "/cmd29") {
+		t.Fatalf("last command never became visible:\n%s", view)
+	}
+
+	// And back to the top.
+	for range 40 {
+		c.HandleKey(Key{Kind: KeyPageUp})
+	}
+	if c.suggestionIndex != 0 {
+		t.Fatalf("page-up landed on %d, want 0", c.suggestionIndex)
+	}
 }

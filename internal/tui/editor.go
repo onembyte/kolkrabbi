@@ -26,6 +26,8 @@ const (
 	KeyEOF
 	KeyTab
 	KeyShiftTab
+	KeyPageUp
+	KeyPageDown
 )
 
 // Key carries text only for KeyText and KeyPaste.
@@ -368,6 +370,16 @@ func decodeEscape(input []byte) (consumed int, kind KeyKind, complete bool) {
 		// Shift+Tab. Without this it is swallowed by the unknown-CSI branch
 		// below, which is indistinguishable from the key doing nothing.
 		{[]byte("\x1b[Z"), KeyShiftTab},
+		{[]byte("\x1b[5~"), KeyPageUp},
+		{[]byte("\x1b[6~"), KeyPageDown},
+		// Wheel up/down in SGR mouse mode. Decoded so a wheel scrolls the
+		// suggestion list where the terminal already reports it; kolk does not
+		// turn mouse reporting ON, because doing so takes click-drag text
+		// selection away from the terminal, and losing copy-paste to gain a
+		// scroll is a bad trade. A terminal configured to send these — or one
+		// where the user holds the modifier their emulator uses — is honoured.
+		{[]byte("\x1b[<64;"), KeyPageUp},
+		{[]byte("\x1b[<65;"), KeyPageDown},
 	}
 	for _, sequence := range sequences {
 		if bytes.HasPrefix(input, sequence.bytes) {
