@@ -4,7 +4,6 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -215,11 +214,12 @@ func (m *Model) viewRows(width, height, cursor int) []viewRow {
 		}
 		suggestions = append(suggestions, viewRow{text: clipLine(line, width), style: style})
 	}
-	// Say what is off screen, and which way, or scrolling is a feature nobody
-	// discovers.
-	if total := len(m.suggestions); total > len(suggestions) && len(suggestions) > 0 {
-		more := fmt.Sprintf("  %d–%d of %d · ↑↓ to scroll", first+1, last, total)
-		suggestions = append(suggestions, viewRow{text: clipLine(more, width), style: stylePurpleMuted})
+	// One arrow, and only while there is something below it. A count and a
+	// key hint are a legend for a list that does not need one; the arrow says
+	// the only thing the reader cannot already see, and disappears the moment
+	// it stops being true.
+	if last < len(m.suggestions) {
+		suggestions = append(suggestions, viewRow{text: clipLine("  ↓", width), style: stylePurpleMuted})
 	}
 
 	// An exceptionally short terminal keeps the input tail and its closing

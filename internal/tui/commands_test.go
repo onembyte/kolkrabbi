@@ -104,6 +104,16 @@ func TestSuggestionListScrollsThroughTheWholeCatalog(t *testing.T) {
 		t.Fatalf("offered %d of 30 commands; the catalog must not be truncated", len(c.suggestions))
 	}
 
+	// The window applies to the first frame too: opening the menu must not
+	// render thirty rows and then snap to eight when a key is pressed.
+	opened := c.View(100, 40)
+	if strings.Contains(opened, "/cmd08") {
+		t.Fatalf("the opening frame ignored the window:\n%s", opened)
+	}
+	if !strings.Contains(opened, "/cmd07") || !strings.Contains(opened, "↓") {
+		t.Fatalf("the opening frame is missing rows or the arrow:\n%s", opened)
+	}
+
 	// Walk past the window's edge; the last command must become visible.
 	for range 12 {
 		c.HandleKey(Key{Kind: KeyDown})
@@ -115,8 +125,8 @@ func TestSuggestionListScrollsThroughTheWholeCatalog(t *testing.T) {
 	if strings.Contains(view, "/cmd00") {
 		t.Fatalf("window did not scroll — the first row is still drawn:\n%s", view)
 	}
-	if !strings.Contains(view, "of 30") {
-		t.Fatalf("no indication that the list continues:\n%s", view)
+	if !strings.Contains(view, "↓") {
+		t.Fatalf("no indication that the list continues below:\n%s", view)
 	}
 
 	// PageDown jumps a window at a time and stops at the end rather than wrapping.
@@ -126,8 +136,13 @@ func TestSuggestionListScrollsThroughTheWholeCatalog(t *testing.T) {
 	if c.suggestionIndex != 29 {
 		t.Fatalf("page-down landed on %d, want the last row 29", c.suggestionIndex)
 	}
-	if view := c.View(100, 40); !strings.Contains(view, "/cmd29") {
+	view = c.View(100, 40)
+	if !strings.Contains(view, "/cmd29") {
 		t.Fatalf("last command never became visible:\n%s", view)
+	}
+	// At the end of the list the arrow has nothing left to point at.
+	if strings.Contains(view, "↓") {
+		t.Fatalf("the arrow outlived the rows it pointed to:\n%s", view)
 	}
 
 	// And back to the top.

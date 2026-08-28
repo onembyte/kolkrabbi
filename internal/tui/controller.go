@@ -432,7 +432,13 @@ func (c *Controller) updateSuggestions() {
 		c.suggestions = SuggestCommands(c.commands, c.editor.Draft(), recent, len(c.commands))
 	}
 	c.suggestionIndex = -1
+	c.suggestionTop = 0
 	c.screen.SetSuggestions(c.suggestions)
+	// The window applies from the first frame, not from the first arrow key.
+	// Without this the list rendered unbounded until someone scrolled, so the
+	// menu opened at whatever height the terminal allowed and then snapped to
+	// eight rows the moment a key was pressed.
+	c.screen.SetSuggestionWindow(0, c.windowSize(), len(c.suggestions))
 }
 
 func (c *Controller) handleSuggestionKey(key Key) (Effect, bool) {
@@ -475,14 +481,19 @@ func (c *Controller) handleSuggestionKey(key Key) (Effect, bool) {
 	return Effect{}, false
 }
 
+// windowSize is how many suggestion rows are on screen at once.
+func (c *Controller) windowSize() int {
+	if c.suggestionLimit > 0 {
+		return c.suggestionLimit
+	}
+	return 8
+}
+
 // showSelectedSuggestion scrolls the window the least amount that puts the
 // selection on screen, so holding an arrow key walks the list one row at a
 // time instead of paging under the cursor.
 func (c *Controller) showSelectedSuggestion() {
-	window := c.suggestionLimit
-	if window <= 0 {
-		window = 8
-	}
+	window := c.windowSize()
 	switch {
 	case c.suggestionIndex < c.suggestionTop:
 		c.suggestionTop = c.suggestionIndex
