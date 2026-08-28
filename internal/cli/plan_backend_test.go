@@ -5,9 +5,69 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/provider/agentcli"
+	"github.com/onembyte/kolkrabbi/internal/session"
 )
+
+// A session that ran at an effort (and on a plan) remembers both: the resume
+// lands where the work left off, not at the configured default.
+func TestResumeRestoresEffortAndConnectorFromTheSession(t *testing.T) {
+	dirs := storeFirstRunKey(t)
+	if err := dirs.EnsureData(); err != nil {
+		t.Fatal(err)
+	}
+	enablePlanConnector(t, dirs)
+	resumed := session.New(dirs.Sessions(), "claude-opus")
+	resumed.SetEffort("high")
+	resumed.SetConnector("claude")
+	if err := resumed.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	a, _, _ := newTestApp(t, "")
+	ag, err := a.newAgent(context.Background(), &options{session: resumed.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ag.Effort != "high" {
+		t.Fatalf("dial effort = %q, want the session's high", ag.Effort)
+	}
+	if got := ag.Sess.ConnectorName(); got != "claude" {
+		t.Fatalf("connector = %q, want claude", got)
+	}
+	if wrapped, ok := ag.Backend.(*verifyingBackend); ok {
+		if inner, ok := wrapped.inner.(*agentcli.ClaudeBackend); !ok || inner.Effort != "high" || inner.Model != "claude-opus" {
+			t.Fatalf("inner = %#v, want the claude backend at the restored effort and model", wrapped.inner)
+		}
+	} else {
+		t.Fatalf("backend = %T, want the verifying wrapper", ag.Backend)
+	}
+}
+
+// A session dial the -e flag overrides stays overridden: the flag is the
+// session's model choice's equal, not its inferior.
+func TestEffortFlagBeatsTheStoredSessionEffort(t *testing.T) {
+	dirs := storeFirstRunKey(t)
+	if err := dirs.EnsureData(); err != nil {
+		t.Fatal(err)
+	}
+	stored := session.New(dirs.Sessions(), "vendor/model")
+	stored.SetEffort("low")
+	if err := stored.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	a, _, _ := newTestApp(t, "")
+	ag, err := a.newAgent(context.Background(), &options{session: stored.ID, effort: "max"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ag.Effort != engine.EffortMax {
+		t.Fatalf("dial effort = %q, want the -e flag's max", ag.Effort)
+	}
+}
 
 func enablePlanConnector(t *testing.T, dirs interface{ ConnectorsFile() string }) {
 	t.Helper()

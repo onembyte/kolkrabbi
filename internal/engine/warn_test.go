@@ -17,6 +17,10 @@ func (s *failingSaveSession) SessionID() string                { return "s1" }
 func (s *failingSaveSession) SessionTitle() string             { return "t" }
 func (s *failingSaveSession) ModelName() string                { return "vendor/model" }
 func (s *failingSaveSession) SetModelName(string)              {}
+func (s *failingSaveSession) SessionEffort() string            { return "" }
+func (s *failingSaveSession) SetEffort(string)                 {}
+func (s *failingSaveSession) ConnectorName() string            { return "" }
+func (s *failingSaveSession) SetConnector(string)              {}
 func (s *failingSaveSession) SetTitleFromInput(string)         {}
 func (s *failingSaveSession) TitleIsAuto() bool                { return false }
 func (s *failingSaveSession) SetAutoTitle(string) bool         { return false }

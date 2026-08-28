@@ -132,6 +132,9 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			fmt.Fprintln(a.stdout, err)
 			break
 		}
+		if ag.Sess != nil {
+			ag.Sess.SetEffort(ag.Effort)
+		}
 		m := ag.ModelForEffort(ag.Effort)
 		fmt.Fprintf(a.stdout, "effort: %s → %s\n", ag.Effort, m)
 		// A provider CLI is started with its effort and replays no argv, so a

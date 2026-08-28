@@ -216,14 +216,20 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	// Model precedence: -m flag > the resumed session's model > config > the
 	// live zero-cost coding choice. Explicit user choices never cause a catalog
 	// request and a resumed session never changes models behind the user's back.
+	// Effort follows the same shape: -e flag > the resumed session's dial, so a
+	// session continues at the width of work it was left running at.
+	effort := o.effort
+	if effort == "" {
+		effort = sess.Effort
+	}
 	model := o.model
+	if model == "" {
+		model = sess.Model
+	}
 	// meteredFallback is the gateway model a run can continue on when the
 	// subscription it started on runs out. Empty means there is none, and a
 	// limit ends the run rather than quietly starting to bill.
 	meteredFallback := ""
-	if model == "" {
-		model = sess.Model
-	}
 	if model == "" {
 		model = cfg.Model
 	}
@@ -320,7 +326,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		freeModels = provider.RankFreeModels(provider.FallbackCatalogSeed())
 	}
 
-	backend, err := a.planBackend(model, o.effort)
+	backend, err := a.planBackend(model, effort)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +343,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		Backend:    backend,
 		Model:      model,
 		Mode:       o.mode,
-		Effort:     o.effort,
+		Effort:     effort,
 		Permission: permission,
 		Root:       projectRoot(),
 		Sess:       sess,
@@ -375,6 +381,16 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	// permission that only takes effect after someone opens /permissions is a
 	// permission that was not actually stored.
 	a.applyRules(ag)
+
+	// What this run actually runs at is what the session remembers: the dial
+	// level, and the connector that answers for it — the same state /effort
+	// and /model keep current as the run goes on.
+	sess.SetEffort(ag.Effort)
+	if wrapped, ok := backend.(*verifyingBackend); ok {
+		sess.SetConnector(wrapped.plan.Connector)
+	} else {
+		sess.SetConnector("")
+	}
 	return ag, nil
 }
 
@@ -580,6 +596,13 @@ func (a *app) switchModel(ag *engine.Agent, ref string) (string, error) {
 	ag.PinnedModel = true
 	if ag.Sess != nil {
 		ag.Sess.SetModelName(resolved)
+		// The connector the session runs on now is session state too, so the
+		// card and a later resume say the same thing the run does.
+		if wrapped, ok := backend.(*verifyingBackend); ok {
+			ag.Sess.SetConnector(wrapped.plan.Connector)
+		} else {
+			ag.Sess.SetConnector("")
+		}
 	}
 	return resolved + label, nil
 }

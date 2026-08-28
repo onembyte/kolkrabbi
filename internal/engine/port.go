@@ -13,6 +13,13 @@ type SessionPort interface {
 	SessionTitle() string
 	ModelName() string
 	SetModelName(string)
+	// SetEffort and SetConnector keep the session file describing the run it
+	// actually is: the dial level, and the subscription connector answering
+	// for it, when one does. A resumed run reads both back.
+	SetEffort(string)
+	SetConnector(string)
+	SessionEffort() string
+	ConnectorName() string
 	SetTitleFromInput(string)
 	// TitleIsAuto reports whether the title is still Kolkrabbi's own guess, and
 	// so may be improved. It is asked before the improvement is generated,

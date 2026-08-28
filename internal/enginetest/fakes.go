@@ -15,6 +15,8 @@ type FakeSession struct {
 	model      string
 	title      string
 	autoTitled bool
+	effort     string
+	connector  string
 	messages   []provider.Message
 }
 
@@ -48,6 +50,30 @@ func (s *FakeSession) SetModelName(m string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.model = m
+}
+
+func (s *FakeSession) SessionEffort() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.effort
+}
+
+func (s *FakeSession) SetEffort(level string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.effort = level
+}
+
+func (s *FakeSession) ConnectorName() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.connector
+}
+
+func (s *FakeSession) SetConnector(n string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.connector = n
 }
 
 func (s *FakeSession) SetTitleFromInput(t string) {

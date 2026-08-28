@@ -50,6 +50,14 @@ type Session struct {
 	// this field existed have none, which is why every match here is explicit
 	// rather than a comparison against the empty string.
 	CWD string `json:"cwd,omitempty"`
+	// Effort is the level the session's dial ran at, persisted so a resume
+	// lands at the same width of effort instead of the configured default.
+	// Written before this field existed are sessions with none.
+	Effort string `json:"effort,omitempty"`
+	// Connector records the subscription connector the session ran on, when
+	// it ran on one. A plan model re-derives its connector from its name, so
+	// this is display state, never routing state.
+	Connector string `json:"connector,omitempty"`
 	// TitleAuto marks a title Kolkrabbi derived rather than one the user chose.
 	TitleAuto bool      `json:"title_auto,omitempty"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -238,10 +246,14 @@ func trimTitle(t string) string {
 	return cut + "…"
 }
 
-func (s *Session) SessionID() string     { return s.ID }
-func (s *Session) SessionTitle() string  { return s.Title }
-func (s *Session) ModelName() string     { return s.Model }
-func (s *Session) SetModelName(m string) { s.Model = m }
+func (s *Session) SessionID() string      { return s.ID }
+func (s *Session) SessionTitle() string   { return s.Title }
+func (s *Session) ModelName() string      { return s.Model }
+func (s *Session) SetModelName(m string)  { s.Model = m }
+func (s *Session) SessionEffort() string  { return s.Effort }
+func (s *Session) SetEffort(level string) { s.Effort = level }
+func (s *Session) ConnectorName() string  { return s.Connector }
+func (s *Session) SetConnector(n string)  { s.Connector = n }
 func (s *Session) GetMessages() []provider.Message {
 	out := make([]provider.Message, len(s.Messages))
 	for i, m := range s.Messages {

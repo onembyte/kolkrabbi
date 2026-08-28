@@ -1,11 +1,52 @@
 package session
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
 )
+
+// A session resumes at the width of effort and on the connector it was left
+// running at: those two lines of state are what "same session" means to a
+// subscription-backed run.
+func TestEffortAndConnectorRoundtrip(t *testing.T) {
+	dir := t.TempDir()
+	s := New(dir, "claude-opus")
+	s.SetEffort("high")
+	s.SetConnector("claude")
+	if err := s.Save(); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(dir, s.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Effort != "high" || got.Connector != "claude" {
+		t.Fatalf("effort = %q connector = %q, want high/claude", got.Effort, got.Connector)
+	}
+	if got.SessionEffort() != "high" || got.ConnectorName() != "claude" {
+		t.Fatalf("accessors do not agree with the fields")
+	}
+}
+
+// Sessions written before these fields existed must load exactly as before.
+func TestOldSessionFileWithoutEffortLoadsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	body := `{"id":"old-one","model":"claude-opus","title":"t","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","messages":[]}`
+	if err := os.WriteFile(filepath.Join(dir, "old-one.json"), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(dir, "old-one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Effort != "" || got.Connector != "" {
+		t.Fatalf("absent fields must stay absent, got effort=%q connector=%q", got.Effort, got.Connector)
+	}
+}
 
 func TestSaveLoadRoundtrip(t *testing.T) {
 	dir := t.TempDir()

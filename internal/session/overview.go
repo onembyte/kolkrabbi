@@ -16,12 +16,14 @@ import (
 // and a type that cannot carry a transcript cannot accidentally leak one into a
 // view.
 type Card struct {
-	ID      string
-	Title   string
-	Model   string
-	CWD     string
-	Updated time.Time
-	State   State
+	ID        string
+	Title     string
+	Model     string
+	Effort    string
+	Connector string
+	CWD       string
+	Updated   time.Time
+	State     State
 }
 
 // Name is what to show for a session, titled or not.
@@ -43,6 +45,8 @@ func (c Card) Name() string {
 type cardFile struct {
 	ID        string    `json:"id"`
 	Model     string    `json:"model"`
+	Effort    string    `json:"effort,omitempty"`
+	Connector string    `json:"connector,omitempty"`
 	Title     string    `json:"title"`
 	CWD       string    `json:"cwd,omitempty"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -82,12 +86,14 @@ func Overview(dir string) ([]Card, error) {
 			id = strings.TrimSuffix(name, ".json")
 		}
 		cards = append(cards, Card{
-			ID:      id,
-			Title:   file.Title,
-			Model:   file.Model,
-			CWD:     file.CWD,
-			Updated: file.UpdatedAt,
-			State:   Live(dir, id),
+			ID:        id,
+			Title:     file.Title,
+			Model:     file.Model,
+			Effort:    file.Effort,
+			Connector: file.Connector,
+			CWD:       file.CWD,
+			Updated:   file.UpdatedAt,
+			State:     Live(dir, id),
 		})
 	}
 
