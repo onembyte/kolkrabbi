@@ -225,7 +225,7 @@ func compactionAgent(t *testing.T, window, lastPromptTokens int) (*Agent, *engin
 		Out: &out, Mode: ModeCode, Sess: session,
 		ContextWindow: window, Backend: &stubSummaryBackend{},
 	}}
-	agent.lastPromptTokens = lastPromptTokens
+	agent.lastPromptTokens.Store(int64(lastPromptTokens))
 	return agent, session, &out
 }
 

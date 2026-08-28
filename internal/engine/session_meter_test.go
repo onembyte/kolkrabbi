@@ -59,7 +59,7 @@ func TestOrchestrationCostCountsTowardTheSession(t *testing.T) {
 func TestContextUsageIsReadableFromOutside(t *testing.T) {
 	agent, _, _, _ := newTestAgentInternal(t, enginetest.New(), ModeCode)
 	agent.ContextWindow = 1000
-	agent.lastPromptTokens = 250
+	agent.lastPromptTokens.Store(250)
 
 	usage := agent.Context()
 

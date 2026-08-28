@@ -222,7 +222,7 @@ func (a *Agent) compactIfNeeded(ctx context.Context) {
 	if a.Sess == nil {
 		return
 	}
-	usage := a.contextUsage(a.lastPromptTokens)
+	usage := a.contextUsage(int(a.lastPromptTokens.Load()))
 	if !usage.ShouldCompact() {
 		return
 	}

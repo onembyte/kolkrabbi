@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -68,6 +69,12 @@ type Session struct {
 	TitleAuto bool      `json:"title_auto,omitempty"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Messages  []Message `json:"messages"`
+
+	// messagesMu guards Messages. The TUI samples context and cost from a
+	// drawing goroutine while a turn appends, so the one field two goroutines
+	// actually share is serialized instead of left to schedule luck.
+	messagesMu sync.Mutex
+	// dir is where this session is stored; not serialized
 
 	dir string // where this session is stored; not serialized
 }
@@ -263,6 +270,8 @@ func (s *Session) SetConnector(n string)         { s.Connector = n }
 func (s *Session) ProviderStateName() string     { return s.ProviderState }
 func (s *Session) SetProviderStateName(v string) { s.ProviderState = v }
 func (s *Session) GetMessages() []provider.Message {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
 	out := make([]provider.Message, len(s.Messages))
 	for i, m := range s.Messages {
 		out[i] = toProvider(m)
@@ -270,13 +279,17 @@ func (s *Session) GetMessages() []provider.Message {
 	return out
 }
 func (s *Session) SetMessages(msgs []provider.Message) {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
 	s.Messages = make([]Message, len(msgs))
 	for i, m := range msgs {
 		s.Messages[i] = fromProvider(m)
 	}
 }
 func (s *Session) AppendMessage(msg provider.Message) {
+	s.messagesMu.Lock()
 	s.Messages = append(s.Messages, fromProvider(msg))
+	s.messagesMu.Unlock()
 }
 
 func Load(dir, id string) (*Session, error) {

@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -288,7 +289,9 @@ type Agent struct {
 	limitModel   string
 	// lastPromptTokens is what the provider reported reading on the most recent
 	// main turn, which is the only measured view of how full the window is.
-	lastPromptTokens int
+	// Atomic because the status footer samples it from a drawing goroutine
+	// while the turn loop writes it (see Agent.Context).
+	lastPromptTokens atomic.Int64
 	preCompact       []provider.Message
 	// runSpend accumulates the cost of the orchestrated run in progress, and
 	// is nil the rest of the time.
@@ -1002,7 +1005,7 @@ func (a *Agent) SessionCostUSD() float64 { return a.sessionSpend.total() }
 // measures it. Exported because the status line is where someone looks before
 // deciding whether to compact, and making them run a command to find out is
 // the surface failing at its one job.
-func (a *Agent) Context() ContextUsage { return a.contextUsage(a.lastPromptTokens) }
+func (a *Agent) Context() ContextUsage { return a.contextUsage(int(a.lastPromptTokens.Load())) }
 
 // contextUsage measures the active model's window against what the provider
 // last reported reading.
@@ -1143,7 +1146,7 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 				Data: completedData,
 			})
 		}
-		a.lastPromptTokens = meta.PromptTokens
+		a.lastPromptTokens.Store(int64(meta.PromptTokens))
 		// A provider that runs its own tool loop returns a message with none of
 		// the calls in it — the backend's meta is the only count there is.
 		toolRuns := len(msg.ToolCalls)
