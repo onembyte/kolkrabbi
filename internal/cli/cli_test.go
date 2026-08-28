@@ -697,3 +697,23 @@ func TestConfigSetsTheSubscriptionLimitPolicy(t *testing.T) {
 		t.Errorf("after unset, get = %q, want the inherited default", out.String())
 	}
 }
+
+// TestUndoTaskIsDiscoverableAndRefusesWhatItCannotDo covers the surface half of
+// A33.8: a per-subagent rewind nobody can find is one nobody uses, and a
+// refusal that does not say what there is instead is a dead end.
+func TestUndoTaskIsDiscoverableAndRefusesWhatItCannotDo(t *testing.T) {
+	isolateHome(t)
+
+	found := false
+	for _, cmd := range slashCommandTable {
+		if cmd.name == "undo" {
+			found = true
+			if !strings.Contains(cmd.args, "task <n>") {
+				t.Errorf("/undo is catalogued as %q, which does not mention the per-subagent form", cmd.args)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("/undo is not in the slash catalogue at all")
+	}
+}

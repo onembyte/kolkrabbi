@@ -230,7 +230,24 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	// is what this function owns.
 	childTurn := xid.New(xid.Turn)
 	a.publishSubagentStarted(tasks, index, childTurn)
+	// A snapshot per writing subagent, so a task that makes a mess is
+	// rewindable on its own rather than by undoing the whole turn (A33.8).
+	// Only writing kinds: research and explain change no files, so a snapshot
+	// for one would record a tree identical to the last.
+	//
+	// Both calls sit inside this function on purpose. The scheduler will not
+	// start another writer until this one returns, which makes the window
+	// between them the only moment when "what changed" means this task alone.
+	snapshot := -1
+	if a.Ckpt != nil && writesFiles(tasks[index].Kind) {
+		snapshot = a.Ckpt.BeginTask(ctx, tasks[index].Title)
+	}
 	result, err := a.runSubagent(ctx, out, model, userInput, tasks, results, index)
+	// Closed on every path out. A task that died half-way is exactly the one
+	// that leaves a tree nobody asked for, and it is the one worth rewinding.
+	if snapshot >= 0 {
+		a.Ckpt.EndTask(ctx, snapshot)
+	}
 	// On every path out, including failure. An event that only fires on success
 	// leaves a count stuck at a number that never comes down, which is worse
 	// than no count at all.

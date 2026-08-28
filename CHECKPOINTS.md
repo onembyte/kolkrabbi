@@ -2137,6 +2137,30 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### A33.8 built — one bad subagent no longer costs the whole turn
+
+`/undo task <n>` takes back one writing subagent's file changes and leaves every other task
+standing. `/undo task` with no number lists what there is to take back.
+
+**Restoring the tree to the snapshot would not have been this.** It would also discard every task
+that ran after it — the whole-turn `/undo` wearing a different name. So a snapshot records the
+commit *and* the paths that task changed: the commit says what to put back, the paths say how much.
+A file the task created is taken back by removing it, because there is no earlier version to put
+there. Two mutations confirm both halves bite — a whole-tree restore loses the later task's work,
+and skipping the removal leaves the created file behind.
+
+**Measured first.** A whole-tree snapshot of this repository is 27 ms mean, 58 ms worst over twelve
+runs. Against a subagent that takes seconds to minutes that is under a percent, which is what makes
+one snapshot per writing task affordable rather than a cadence to economise on.
+
+**The serialisation the design leans on was checked, not assumed.** `nextRunnable` skips a writer
+while one is running and `writing` clears only when that run is received, so the window between
+`BeginTask` and `EndTask` is the only moment where "what changed" means this task alone.
+
+**A per-task rewind tells the model.** It does not trim the conversation — a turn that ran five
+subagents is one turn — but leaving history describing edits that are gone is the divergence
+`/undo` exists to prevent, so the transcript says what went back.
+
 ### A33.7 built — running out of allowance is now a decision, not a dead end
 
 `routing.on_subscription_limit` takes `ask` (the default), `switch` or `stop`, settable and
@@ -2428,7 +2452,7 @@ done.
       spends money without being asked. `ask` with nobody to ask is a stop, not a yes, and the stop
       names the setting that changes it. Settled once per session, because subagents share one
       `Agent` and eight of them would otherwise raise eight questions for one terminal.
-- [ ] **A33.8 a snapshot per writing subagent** — item 32's store, taken before a writing task and
+- [x] **A33.8 a snapshot per writing subagent** — item 32's store, taken before a writing task and
       rewindable alone, so one bad task does not cost the whole turn. Only writing kinds: research
       and explain change nothing.
 

@@ -48,7 +48,7 @@ var slashCommandTable = []slashCommand{
 	{"diff", "[path]", "show what this session changed, as a diff"},
 	{"plan", "[off]", "read-only: explore and propose, without writing or running anything"},
 	{"saga", "[goal | run | resume | status | stop | rewind]", "careful-progression autonomous loop"},
-	{"undo", "", "take back the last turn: its file changes and its conversation"},
+	{"undo", "[task <n>]", "take back the last turn, or one subagent's file changes alone"},
 	{"rewind", "", "restore the last turn's files only, leaving the conversation"},
 	{"commit", "", "draft a commit message from the staged diff, and stop"},
 	{"pr", "", "draft a pull request title and body, and hand over `gh pr create`"},
@@ -209,6 +209,13 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		}
 		a.printSessionDiff(store, strings.TrimSpace(arg))
 	case "/undo":
+		// `/undo task <n>` takes back one writing subagent and leaves the rest
+		// of the turn standing (A33.8). The bare form is unchanged: the whole
+		// turn, files and conversation together.
+		if rest := strings.TrimSpace(arg); strings.HasPrefix(rest, "task") {
+			a.undoTask(ctx, ag, strings.TrimSpace(strings.TrimPrefix(rest, "task")))
+			break
+		}
 		result, err := ag.Undo(ctx)
 		if err != nil {
 			fmt.Fprintf(a.stderr, "undo failed: %v\n", err)

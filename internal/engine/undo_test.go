@@ -18,6 +18,11 @@ type fakeCheckpointer struct {
 
 func (f *fakeCheckpointer) BeginTurn(context.Context)      {}
 func (f *fakeCheckpointer) Record(tool, path string) error { return nil }
+
+// Per-task snapshots are orchestration's business; undo takes back whole turns
+// and never consults them.
+func (f *fakeCheckpointer) BeginTask(context.Context, string) int { return -1 }
+func (f *fakeCheckpointer) EndTask(context.Context, int)          {}
 func (f *fakeCheckpointer) RewindLastTurn(context.Context) ([]string, error) {
 	f.calls++
 	return f.restored, f.err

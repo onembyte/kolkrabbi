@@ -32,6 +32,12 @@ type Checkpointer interface {
 	BeginTurn(context.Context)
 	Record(tool, path string) error
 	RewindLastTurn(context.Context) ([]string, error)
+	// BeginTask and EndTask bracket one writing subagent, so a task that makes
+	// a mess can be taken back without touching the tasks around it (A33.8).
+	// A store that cannot snapshot the whole tree returns -1 and does nothing,
+	// which is why neither returns an error: this must never fail a run.
+	BeginTask(ctx context.Context, title string) int
+	EndTask(ctx context.Context, handle int)
 }
 
 // CallRecord is the un-marshaled usage record passed to Recorder.

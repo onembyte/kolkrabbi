@@ -34,6 +34,10 @@ type manifest struct {
 	// captured, so a session that gained or lost `git` half-way through still
 	// rewinds each turn the way that turn was recorded.
 	Snapshots map[int]string `json:"snapshots,omitempty"`
+	// Tasks are the per-subagent snapshots, so a rewind survives the session
+	// that took them: the commits live in the shadow store either way, and a
+	// list nothing records is a list no rewind can find.
+	Tasks []TaskSnapshot `json:"tasks,omitempty"`
 }
 
 type Store struct {
@@ -48,6 +52,9 @@ type Store struct {
 	shadow    *Shadow
 	fellBack  string
 	snapshots map[int]string
+	// tasks are the per-subagent snapshots of this session, in the order the
+	// run took them (A33.8).
+	tasks []TaskSnapshot
 }
 
 // Open creates or reopens a checkpoint store at dir.
@@ -67,7 +74,7 @@ func Open(dir string) (*Store, error) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, fmt.Errorf("corrupt checkpoint manifest: %w", err)
 	}
-	s.turn, s.seq, s.entries, s.snapshots = m.Turn, m.Seq, m.Entries, m.Snapshots
+	s.turn, s.seq, s.entries, s.snapshots, s.tasks = m.Turn, m.Seq, m.Entries, m.Snapshots, m.Tasks
 	if s.snapshots == nil {
 		s.snapshots = map[int]string{}
 	}
@@ -77,7 +84,7 @@ func Open(dir string) (*Store, error) {
 func (s *Store) manifestPath() string { return filepath.Join(s.dir, "manifest.json") }
 
 func (s *Store) saveManifest() error {
-	b, err := json.MarshalIndent(manifest{Turn: s.turn, Seq: s.seq, Entries: s.entries, Snapshots: s.snapshots}, "", " ")
+	b, err := json.MarshalIndent(manifest{Turn: s.turn, Seq: s.seq, Entries: s.entries, Snapshots: s.snapshots, Tasks: s.tasks}, "", " ")
 	if err != nil {
 		return err
 	}

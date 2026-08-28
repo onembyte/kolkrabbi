@@ -103,6 +103,10 @@ type FakeCheckpointer struct {
 	Turns        int
 	Recorded     []string
 	RewoundPaths []string
+	// Tasks are the subagent titles bracketed by BeginTask, and Ended the
+	// handles returned to EndTask.
+	Tasks []string
+	Ended []int
 }
 
 func (c *FakeCheckpointer) BeginTurn(context.Context) {
@@ -116,6 +120,21 @@ func (c *FakeCheckpointer) Record(tool, path string) error {
 	defer c.mu.Unlock()
 	c.Recorded = append(c.Recorded, tool+":"+path)
 	return nil
+}
+
+// BeginTask records the titles bracketed, so a test can assert which subagents
+// were given a snapshot without needing a git store.
+func (c *FakeCheckpointer) BeginTask(_ context.Context, title string) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.Tasks = append(c.Tasks, title)
+	return len(c.Tasks) - 1
+}
+
+func (c *FakeCheckpointer) EndTask(_ context.Context, handle int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.Ended = append(c.Ended, handle)
 }
 
 func (c *FakeCheckpointer) RewindLastTurn(context.Context) ([]string, error) {

@@ -169,7 +169,32 @@ everything for anyone who disagrees.
   the setting that changes it, because an error that ends a run without saying what to do about it
   is a dead end.
 - **A33.8 a snapshot per writing subagent** — a task that makes a mess is rewindable on its own,
-  using item 32's store.
+  using item 32's store. **Built.** What "on its own" had to mean, and what it cost:
+
+  **Restoring the tree to the snapshot is not rewinding one task.** It would also discard every task
+  that ran after it, which is the whole-turn `/undo` under a new name. So a snapshot records two
+  things: the commit, which says what to put back, and the paths that task changed, which say how
+  much. Only those paths move; a file the task created is taken back by removing it, since there is
+  no earlier version to put there.
+
+  **Measured before shipping.** A whole-tree snapshot of this repository costs **27 ms mean, 58 ms
+  worst** over twelve runs. Against a subagent that takes seconds to minutes that is under a
+  percent, so the cadence is one snapshot per writing task — not one per run, and not one shared
+  between tasks that would have to be untangled afterwards.
+
+  **The window is the writer's own.** The paths are read when the task finishes rather than later,
+  because `nextRunnable` will not launch a writer while one is running (checked, not assumed:
+  `writing && writesFiles(kind)` skips, and `writing` clears only when the run is received). That
+  makes the moment between `BeginTask` and `EndTask` the only one where "what changed" means this
+  task and nothing else.
+
+  **Only writing kinds.** Research and explain change no files, so a snapshot for one would record a
+  tree identical to the last.
+
+  **A rewind tells the model.** `/undo task <n>` does not trim the conversation the way `/undo`
+  does — a turn that ran five subagents is one turn, and trimming it to undo the second would take
+  the other four with it. But leaving history describing edits that are gone is exactly the
+  divergence `/undo` exists to prevent, so the transcript says what went back.
 
 ## Open questions
 
