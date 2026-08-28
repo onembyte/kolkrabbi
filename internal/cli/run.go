@@ -228,6 +228,14 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		if a.chooseDefault != nil {
 			choice = a.chooseDefault(catalog)
 		}
+		// A subscription that is signed in and has answered before outranks any
+		// gateway model: it is already paid for, and billing metered credit
+		// while it sits idle is the plainest waste there is (A33.6). Only a
+		// connector that is enabled *and* verified counts — "listed" is a row
+		// in the matrix, not a capability.
+		if connectors, err := provider.LoadConnectors(d.ConnectorsFile()); err == nil {
+			choice = chooseSessionModel(choice, connectors)
+		}
 		model = choice.Model
 		if model == "" {
 			model = defaultModel

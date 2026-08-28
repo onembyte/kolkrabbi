@@ -2137,6 +2137,40 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### A33.6 built — a paid-for subscription stops sitting idle, and the plan is corrected again
+
+Model selection knew nothing about connectors. A machine with a signed-in Claude plan still started
+on a gateway model and billed metered credit when it wanted something stronger, while the
+subscription it had already paid for sat there. That is the plainest waste this project can produce,
+and it is now the first thing checked when a session names no model.
+
+**Enabled *and* verified, never merely listed.** v1.2.3 made that distinction honest in `kolk plans`:
+`listed` means a row in the matrix with nothing configured here. Routing must not quietly undo it, so
+a connector that has never answered a turn is a promise rather than a capability. All three failing
+shapes are tested — unverified, disabled, and neither.
+
+**The plan said "for any slot it can fill" and that is not buildable as a ranking.** A subscription is
+not a model id in the gateway catalogue; it is a **backend**, chosen for the session. `streamChat`
+takes a model string against the one `a.Backend` that every subagent shares, so per-slot subscription
+routing would need per-task backends — a different and much larger change than the sentence implied.
+The doc is corrected and the smaller true thing shipped: a session-level preference, which is what
+the ask was actually about. That is the fifth documented claim to fail against the code this week and
+the second that was mine.
+
+**The first wiring broke two existing tests, and they were right to break.** Startup injects its own
+model chooser as a seam; my version called the real one again from inside the new path, ignoring the
+injection. The function now takes the choice already made and either replaces it with a subscription
+or hands it back — which is both correct and simpler than what it replaced.
+
+Acceptance checklist:
+
+- [x] six tests written first, three of them the ways a connector must *not* qualify.
+- [x] the enabled-and-verified distinction preserved rather than quietly widened.
+- [x] the plan's slot-shaped claim checked against the code and corrected where it failed.
+- [x] the seam-breaking wiring fixed by taking the existing choice, not by adjusting the tests.
+- [x] stable order, so two runs on one machine choose the same plan.
+- [x] full `make check` green: 2,400 tests, 0 lint issues.
+
 ### A33.5 built — the one signal no benchmark has
 
 A vendor benchmark says whether a model is good. This machine's own ratings say whether it was good
@@ -2359,7 +2393,7 @@ done.
       the selection, so a model somebody rated badly stops being chosen for them. The one ranking
       signal no vendor benchmark has. Reuse `CostForSessions`' cheap-read lesson: one pass, not one
       per slot.
-- [ ] **A33.6 subscriptions first** — a verified subscription connector outranks a metered model for
+- [x] **A33.6 subscriptions first** — a verified subscription connector outranks a metered model for
       any slot it can fill. Refuse to invent capability: a connector that is `listed` rather than
       `enabled` is not a candidate, which is the distinction v1.2.3 just made honest.
 - [ ] **A33.7 the limit decision** — `routing.on_subscription_limit` with `ask` (default), `switch`,

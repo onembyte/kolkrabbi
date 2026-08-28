@@ -84,8 +84,14 @@ chosen for them, which is the one ranking signal no vendor benchmark has.
 Routing has no idea a subscription exists. `kolk plans` lists them and the claude connector can run
 them, but `modelForKind` only knows gateway model ids.
 
-**Order: a configured, verified subscription connector before a metered model, for any slot it can
-fill.** A subscription is already paid for; spending API credit while it sits idle is the plainest
+**Order: a configured, verified subscription connector before a metered model.**
+
+*Corrected 2026-08-28 by A33.6:* this said "for any slot it can fill", and that is not buildable as a
+ranking. A subscription is not a model id in the gateway catalogue — it is a **backend**, chosen for
+the session, and `streamChat` takes a model string against the one `a.Backend` every subagent shares.
+Per-slot subscription routing would need per-task backends, which is a different and much larger
+change than the sentence implied. What ships is the session-level preference, which is what the ask
+was actually about: a signed-in plan is used instead of billing metered credit beside it. A subscription is already paid for; spending API credit while it sits idle is the plainest
 waste this project can produce.
 
 When the subscription refuses — a limit, a 429 that outlives its retry — the next step is **the
@@ -137,8 +143,9 @@ everything for anyone who disagrees.
   for, instead of collapsing to the effort model; printed with the plan.
 - **A33.5 ratings inform the choice** — this machine's own 1–5 ratings weight the selection, so a
   model somebody rated badly stops being chosen for them.
-- **A33.6 subscriptions first** — a verified subscription connector outranks a metered model for any
-  slot it can fill.
+- **A33.6 subscriptions first** — ✓ a verified subscription connector is preferred for the session.
+  Per-slot subscription routing is refused: subagents share one backend, so it would need per-task
+  backends.
 - **A33.7 the limit decision** — `routing.on_subscription_limit` with `ask` (default), `switch`,
   `stop`, wired to the retry path and reported in the transcript.
 - **A33.8 a snapshot per writing subagent** — a task that makes a mess is rewindable on its own,
