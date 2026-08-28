@@ -266,3 +266,74 @@ func TestAWideOpenRuleDoesNotDisableTheGuard(t *testing.T) {
 		t.Fatalf("error = %v — an allow-everything rule silenced a spending guard", err)
 	}
 }
+
+// The failure that got past the guard in the field: an agent-mode subagent
+// alternating two calls — remove-and-recreate, list, remove-and-recreate, list
+// — until the turn was abandoned. Neither call ever followed itself, so a
+// consecutive counter reset every time and the guard never fired.
+func TestAnAlternatingCycleIsALoop(t *testing.T) {
+	var d doomLoop
+	fired := 0
+	for range 6 {
+		if d.observe("bash", `{"command":"rm -rf app && mkdir -p app/src"}`, "ok") {
+			fired++
+		}
+		if d.observe("list_dir", `{"path":"/app"}`, "src") {
+			fired++
+		}
+	}
+	if fired == 0 {
+		t.Fatal("an alternating cycle ran forever without tripping the guard")
+	}
+}
+
+// A three-call rotation is the same failure with one more step.
+func TestAThreeCallRotationIsALoop(t *testing.T) {
+	var d doomLoop
+	fired := false
+	for range 4 {
+		fired = d.observe("read_file", `{"path":"a"}`, "x") || fired
+		fired = d.observe("read_file", `{"path":"b"}`, "y") || fired
+		fired = d.observe("list_dir", `{"path":"."}`, "a b") || fired
+	}
+	if !fired {
+		t.Fatal("a three-call rotation never tripped the guard")
+	}
+}
+
+// The other half: real work alternates too, and must not be stopped. Reading a
+// file, editing it, and reading it back is a rhythm, not a cycle — every result
+// differs, which is what progress looks like.
+func TestAReadEditVerifyRhythmIsNotALoop(t *testing.T) {
+	var d doomLoop
+	for round := range 4 {
+		suffix := string(rune('a' + round))
+		if d.observe("read_file", `{"path":"main.go"}`, "contents-"+suffix) {
+			t.Fatalf("round %d: a read whose contents changed was called a loop", round)
+		}
+		if d.observe("edit_file", `{"path":"main.go","old":"`+suffix+`"}`, "edited") {
+			t.Fatalf("round %d: a distinct edit was called a loop", round)
+		}
+		if d.observe("bash", `{"command":"go test"}`, "FAIL: "+suffix) {
+			t.Fatalf("round %d: a test whose output moved was called a loop", round)
+		}
+	}
+}
+
+// A cycle is reported once, not once per lap: a stuck model must not produce a
+// prompt per round while the caller decides what to do.
+func TestACycleIsReportedOnce(t *testing.T) {
+	var d doomLoop
+	fired := 0
+	for range 8 {
+		if d.observe("bash", `{"command":"x"}`, "same") {
+			fired++
+		}
+		if d.observe("list_dir", `{"path":"."}`, "same") {
+			fired++
+		}
+	}
+	if fired != 1 {
+		t.Fatalf("the guard fired %d times for one cycle, want exactly 1", fired)
+	}
+}

@@ -27,11 +27,29 @@ const doomThreshold = 3
 // because the error is moving, while a read that succeeds identically three
 // times is waste. What separates progress from repetition is whether anything
 // changed, and the observable form of that is the result bytes.
+// cycleWindow is how far back a repeat still counts.
+//
+// Consecutive identity is not the only way to achieve nothing. A model that
+// alternates two calls forever — remove-and-recreate, list, remove-and-recreate,
+// list — resets a consecutive counter on every call and never trips it. That is
+// not hypothetical: it is what an agent-mode run did to a scaffolding task,
+// alternating two calls until the turn was abandoned.
+//
+// To see one call repeat doomThreshold times inside a k-call rotation, the
+// window has to hold k*doomThreshold calls. Nine covers rotations of one, two
+// and three — the shapes a stuck model actually produces. Wider would start
+// calling a legitimate read-edit-verify rhythm a loop, and a guard that stops
+// real work is a guard people disable.
+const cycleWindow = doomThreshold * 3
+
 type doomLoop struct {
 	last     string // tool + canonical arguments + result of the previous call
 	repeats  int    // how many times in a row that same call has been seen
 	reported bool   // whether the caller has already been told about this one
 	denied   bool   // a subagent has been refused this call once already
+	// recent is the last cycleWindow signatures, oldest first. It catches the
+	// cycles `repeats` cannot see.
+	recent []string
 }
 
 // observe records a settled tool call and reports whether it completes a loop.
@@ -41,18 +59,61 @@ type doomLoop struct {
 // model must not produce a prompt per round while that decision is being made.
 func (d *doomLoop) observe(tool, arguments, result string) bool {
 	signature := tool + "\x00" + canonicalJSON(arguments) + "\x00" + result
-	if signature != d.last {
-		d.last = signature
+
+	d.recent = append(d.recent, signature)
+	if len(d.recent) > cycleWindow {
+		d.recent = d.recent[len(d.recent)-cycleWindow:]
+	}
+
+	if signature == d.last {
+		d.repeats++
+	} else {
 		d.repeats = 1
-		d.reported = false
+	}
+	d.last = signature
+
+	// Either shape counts: the same call following itself, or the same call
+	// coming round again inside a rotation.
+	if d.repeats < doomThreshold && !d.cycling(signature) {
+		// The report is only forgotten once nothing in the window is looping
+		// any more. Clearing it on the next differing call would re-report the
+		// same cycle on every lap, which is exactly the prompt-per-round noise
+		// the single report exists to avoid.
+		if !d.anyLooping() {
+			d.reported = false
+		}
 		return false
 	}
-	d.repeats++
-	if d.repeats < doomThreshold || d.reported {
+	if d.reported {
 		return false
 	}
 	d.reported = true
 	return true
+}
+
+// anyLooping reports whether anything in the window has repeated enough to
+// count, not just the call that just settled.
+func (d *doomLoop) anyLooping() bool {
+	counts := make(map[string]int, len(d.recent))
+	for _, past := range d.recent {
+		counts[past]++
+		if counts[past] >= doomThreshold {
+			return true
+		}
+	}
+	return false
+}
+
+// cycling reports whether this exact call has already achieved nothing
+// doomThreshold times inside the window — adjacent or not.
+func (d *doomLoop) cycling(signature string) bool {
+	seen := 0
+	for _, past := range d.recent {
+		if past == signature {
+			seen++
+		}
+	}
+	return seen >= doomThreshold
 }
 
 // wouldRepeat reports whether a call that has not run yet would be the third
@@ -64,10 +125,33 @@ func (d *doomLoop) observe(tool, arguments, result string) bool {
 // results the precondition. A pair that returned different bytes is not
 // two-thirds of a loop.
 func (d *doomLoop) wouldRepeat(tool, arguments string) bool {
+	prefix := tool + "\x00" + canonicalJSON(arguments) + "\x00"
+	// Two settled calls already in the window make this one the third, whether
+	// or not they were adjacent — but only if they returned the SAME bytes.
+	// Both halves of the rule still apply here: a command whose output keeps
+	// moving is progressing, and counting it by arguments alone would stop a
+	// test run that is fixing itself one failure at a time.
+	seen, result := 0, ""
+	for _, past := range d.recent {
+		if !strings.HasPrefix(past, prefix) {
+			continue
+		}
+		body := past[len(prefix):]
+		if seen == 0 {
+			result = body
+		} else if body != result {
+			// The results moved, so these are not repeats of one another.
+			return false
+		}
+		seen++
+	}
+	if seen >= doomThreshold-1 {
+		return true
+	}
 	if d.repeats < doomThreshold-1 {
 		return false
 	}
-	return strings.HasPrefix(d.last, tool+"\x00"+canonicalJSON(arguments)+"\x00")
+	return strings.HasPrefix(d.last, prefix)
 }
 
 // allowRepeat records that a person looked at the loop and said run it anyway.
@@ -81,6 +165,7 @@ func (d *doomLoop) reset() {
 	d.last = ""
 	d.repeats = 0
 	d.reported = false
+	d.recent = nil
 }
 
 // canonicalJSON re-serializes arguments with sorted keys and no insignificant
