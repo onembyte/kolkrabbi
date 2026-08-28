@@ -4085,3 +4085,16 @@ schema still fits.
 **Verification:** all gates green — `fmt-check`, `vet`, `arch`, `purity`, `buildtags`, `budgets`,
 `surface`, `plan-check`, `spec`, and `./scripts/test.sh` at 2356 tests. `internal/tui`,
 `internal/engine` and `internal/cli` additionally under `-race -count=2`.
+
+### R1.4 v1.2.15 agent-mode release
+
+**Gate:** `make check` green before the tag — 2356 tests across all modules, plus `internal/tui`,
+`internal/engine` and `internal/cli` under `-race -count=2`.
+
+**Publication:** commit `b16d1ec` on `main`, tag `v1.2.15` on that exact commit. Release workflow run
+33147365805 passed both jobs, verify and publish. The four Darwin/Linux amd64/arm64 archives and the
+Cosign-signed `checksums.txt` are public, the release is neither draft nor prerelease, and the latest
+redirect resolves to `v1.2.15`, which is what the website installer discovers.
+
+**Version line:** the user chose to stay on `1.2.x` rather than take the minor bump SemVer would
+suggest for the new `ask_user` capability, keeping the agent-mode fixes as one continuous series.
