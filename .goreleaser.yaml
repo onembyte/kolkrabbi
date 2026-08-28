@@ -57,7 +57,7 @@ signs:
 snapshot:
   # The historical prototype tag is `proto-0`, intentionally not SemVer.
   # Keep untagged release rehearsals on the current public release line.
-  version_template: "1.2.15-dev.{{ .ShortCommit }}"
+  version_template: "1.2.16-dev.{{ .ShortCommit }}"
 
 changelog:
   use: github
