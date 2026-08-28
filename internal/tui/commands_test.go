@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -151,5 +152,88 @@ func TestSuggestionListScrollsThroughTheWholeCatalog(t *testing.T) {
 	}
 	if c.suggestionIndex != 0 {
 		t.Fatalf("page-up landed on %d, want 0", c.suggestionIndex)
+	}
+}
+
+// The picker used to show OpenRouter's catalog alone, so a Claude Max
+// subscriber typing /model claude was offered the metered API rows and never
+// the plan they already pay for. Cost is now the first thing each row says,
+// and what bills nothing extra sorts first.
+func TestModelPickerLabelsCostAndListsFreeThingsFirst(t *testing.T) {
+	models := []ModelSpec{
+		{ID: "anthropic/claude-opus-5", Name: "Claude Opus 5", Cost: CostMetered, Rank: ModelRank(CostMetered)},
+		{ID: "claude-opus", Name: "Claude Max · via your claude login", Cost: CostSubscription, Rank: ModelRank(CostSubscription)},
+		{ID: "qwen2.5-coder:14b", Name: "runs on this machine", Cost: CostLocal, Rank: ModelRank(CostLocal)},
+		{ID: "z-ai/glm-5.2:free", Name: "GLM 5.2", Cost: CostFree, Rank: ModelRank(CostFree)},
+	}
+	sort.SliceStable(models, func(i, j int) bool { return models[i].Rank < models[j].Rank })
+
+	got := SuggestModels(models, "/model ", 10)
+	if len(got) != 4 {
+		t.Fatalf("offered %d of 4 models", len(got))
+	}
+	wantOrder := []string{CostSubscription, CostFree, CostLocal, CostMetered}
+	for index, want := range wantOrder {
+		if !strings.HasPrefix(got[index].Summary, "["+want+"]") {
+			t.Fatalf("row %d = %q, want the %s class", index, got[index].Summary, want)
+		}
+	}
+
+	// Typing the class name finds it: "what can I use that is already paid for"
+	// is a question the picker can now answer.
+	subs := SuggestModels(models, "/model sub", 10)
+	if len(subs) != 1 || subs[0].Name != "claude-opus" {
+		t.Fatalf("filtering by cost class returned %#v", subs)
+	}
+
+	// And a subscription model is still reachable by name, ahead of the metered
+	// row that shares the word.
+	byName := SuggestModels(models, "/model claude", 10)
+	if len(byName) < 2 || byName[0].Name != "claude-opus" {
+		t.Fatalf("/model claude offered %#v; the subscription must come first", byName)
+	}
+}
+
+// The settings panel: type /config and filter the list live, instead of
+// leaving the session to run `kolk config` and read it back.
+func TestSettingsPickerFiltersLiveAndCompletesToSet(t *testing.T) {
+	settings := []SettingSpec{
+		{Key: "model", Value: "openrouter/free", Default: true, Summary: "the model a new session starts on"},
+		{Key: "effort", Value: "medium", Default: true, Summary: "model tier and orchestration width"},
+		{Key: "auto_restart_after_update", Value: "on", Summary: "restart into the new version after an update"},
+	}
+
+	all := SuggestSettings(settings, "/config ", 8)
+	if len(all) != 3 {
+		t.Fatalf("bare /config offered %d of 3 settings", len(all))
+	}
+	// The value in effect is on the row, and an inherited one says so.
+	if !strings.Contains(all[0].Usage, "openrouter/free") || !strings.Contains(all[0].Usage, "(default)") {
+		t.Fatalf("row does not show the value in effect: %q", all[0].Usage)
+	}
+
+	// Filtering matches the key, the summary and the value.
+	for _, tc := range []struct{ draft, want string }{
+		{"/config eff", "effort"},
+		{"/config restart", "auto_restart_after_update"},
+		{"/config orchestration", "effort"},
+		{"/config openrouter/free", "model"},
+	} {
+		got := SuggestSettings(settings, tc.draft, 8)
+		if len(got) != 1 || got[0].Name != tc.want {
+			t.Fatalf("%q matched %#v, want just %s", tc.draft, got, tc.want)
+		}
+	}
+
+	// Choosing one leaves the user typing the value, which is the only thing
+	// they opened the list to do next.
+	if got := all[1].Complete; got != "/config set effort " {
+		t.Fatalf("completion = %q, want it ready for a value", got)
+	}
+
+	// Once they are typing that value the picker gets out of the way, rather
+	// than re-offering the list against the words being typed.
+	if got := SuggestSettings(settings, "/config set effort hi", 8); got != nil {
+		t.Fatalf("picker fought the value being typed: %#v", got)
 	}
 }

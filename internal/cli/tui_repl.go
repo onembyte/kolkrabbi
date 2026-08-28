@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
+	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/engine"
+	"github.com/onembyte/kolkrabbi/internal/local"
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/projectfiles"
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -65,6 +68,7 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 		Commands: slashSuggestions(),
 		Models:   models,
 		Plans:    tuiPlans(),
+		Settings: tuiSettings(a),
 		// Listed once at startup: a walk per keystroke would be the completion
 		// making the composer feel slow, which is the opposite of the point.
 		Files: projectfiles.List(projectRoot(), mentionCandidates),
@@ -122,14 +126,47 @@ func tuiModels(_ context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 	if ag.Client == nil {
 		return nil
 	}
+	// Every model the user can actually reach, in one list, each labelled by
+	// what choosing it costs. Ordered so the ones that bill nothing extra come
+	// first: a subscription already paid for, then free, then the user's own
+	// hardware, and only then metered API rows.
+	out := make([]tui.ModelSpec, 0, len(a.catalog)+16)
+
+	// Subscriptions, but only where the provider's CLI is actually installed:
+	// offering Claude Max on a machine with no claude binary is an instruction
+	// that cannot be followed.
+	for _, plan := range provider.PlanModels("") {
+		if !a.connectorInstalled(plan.Connector) {
+			continue
+		}
+		out = append(out, tui.ModelSpec{
+			ID: plan.Model, Cost: tui.CostSubscription, Rank: tui.ModelRank(tui.CostSubscription),
+			Name: plan.Plan + " · via your " + plan.Connector + " login",
+		})
+	}
+
+	// Local models already pulled onto this machine.
+	for _, entry := range local.Catalog("") {
+		out = append(out, tui.ModelSpec{
+			ID: entry.Name, Cost: tui.CostLocal, Rank: tui.ModelRank(tui.CostLocal),
+			Name: entry.Parameters + " " + entry.Quantization + " · runs on this machine",
+		})
+	}
+
 	models := a.catalog
 	if len(models) == 0 {
 		models = provider.FallbackCatalogSeed()
 	}
-	out := make([]tui.ModelSpec, 0, len(models))
 	for _, model := range models {
-		out = append(out, tui.ModelSpec{ID: model.ID, Name: model.Name})
+		cost := tui.CostMetered
+		if provider.ModelIsFree(model) {
+			cost = tui.CostFree
+		}
+		out = append(out, tui.ModelSpec{
+			ID: model.ID, Name: model.Name, Cost: cost, Rank: tui.ModelRank(cost),
+		})
 	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Rank < out[j].Rank })
 	return out
 }
 
@@ -270,4 +307,25 @@ func nextPermission(current engine.Permission) engine.Permission {
 	// An unset or unrecognised tier is treated as the default, so the first
 	// press moves somewhere predictable instead of somewhere arbitrary.
 	return permissionCycle[1]
+}
+
+// tuiSettings feeds the /config picker. Values are the ones in effect, so the
+// list answers "what is kolk doing" without leaving the session.
+func tuiSettings(a *app) []tui.SettingSpec {
+	d, err := a.locate()
+	if err != nil {
+		return nil
+	}
+	cfg, err := config.Load(d.ConfigFile())
+	if err != nil {
+		return nil
+	}
+	rows := cfg.Settings(defaultModel, provider.DefaultBaseURL)
+	out := make([]tui.SettingSpec, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, tui.SettingSpec{
+			Key: row.Key, Value: row.Value, Summary: row.Summary, Default: row.Default,
+		})
+	}
+	return out
 }

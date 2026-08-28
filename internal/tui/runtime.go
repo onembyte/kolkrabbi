@@ -32,6 +32,7 @@ type RuntimeOptions struct {
 	Commands []CommandSpec
 	Models   []ModelSpec
 	Plans    []PlanSpec
+	Settings []SettingSpec
 	Files    []string
 	Turn     func(context.Context, string) error
 	// CyclePermission advances to the next permission tier and returns the
@@ -90,6 +91,7 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 	controller.SetModels(options.Models)
 	controller.SetFiles(options.Files)
 	controller.SetPlans(options.Plans)
+	controller.SetSettings(options.Settings)
 	return &Runtime{
 		input: options.Input, controller: controller,
 		renderer: NewRenderer(options.Output), decoder: NewDecoder(),

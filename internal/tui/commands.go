@@ -15,6 +15,46 @@ type CommandSpec struct {
 type ModelSpec struct {
 	ID   string
 	Name string
+	// Cost is what picking this model does to the user's money, in one word:
+	// sub (already paid for), free, local (their own hardware), or $ (metered).
+	// The picker previously showed OpenRouter's catalog alone, so a Claude Max
+	// subscriber typing /model claude was offered the metered API rows and not
+	// the plan they were already paying for.
+	Cost string
+	// Rank orders the classes: what costs nothing extra comes first.
+	Rank int
+}
+
+// Model cost classes, in the order the picker lists them.
+const (
+	CostSubscription = "sub"
+	CostFree         = "free"
+	CostLocal        = "local"
+	CostMetered      = "$"
+)
+
+// ModelRank maps a cost class to its position. Anything unlabelled sorts with
+// the metered rows: an unknown price is not a reason to promote something.
+func ModelRank(cost string) int {
+	switch cost {
+	case CostSubscription:
+		return 0
+	case CostFree:
+		return 1
+	case CostLocal:
+		return 2
+	default:
+		return 3
+	}
+}
+
+// SettingSpec is one row of the settings picker: the key, the value in
+// effect, and what it does.
+type SettingSpec struct {
+	Key     string
+	Value   string
+	Summary string
+	Default bool
 }
 
 // PlanSpec is the presentation subset used by the provider-login picker.
@@ -123,11 +163,16 @@ func SuggestModels(models []ModelSpec, draft string, limit int) []CommandSpec {
 		}
 		if filter != "" &&
 			!strings.Contains(strings.ToLower(model.ID), filter) &&
-			!strings.Contains(strings.ToLower(model.Name), filter) {
+			!strings.Contains(strings.ToLower(model.Name), filter) &&
+			!strings.Contains(strings.ToLower(model.Cost), filter) {
 			continue
 		}
+		summary := model.Name
+		if model.Cost != "" {
+			summary = "[" + model.Cost + "]  " + summary
+		}
 		suggestions = append(suggestions, CommandSpec{
-			Name: model.ID, Usage: prefix + model.ID, Summary: model.Name,
+			Name: model.ID, Usage: prefix + model.ID, Summary: summary,
 			Complete: prefix + model.ID,
 		})
 		if len(suggestions) == limit {
@@ -156,6 +201,56 @@ func SuggestPlanLogins(plans []PlanSpec, draft string, limit int) []CommandSpec 
 		suggestions = append(suggestions, CommandSpec{
 			Name: label, Usage: prefix + label, Summary: "provider-owned login",
 			Complete: prefix + label,
+		})
+		if len(suggestions) == limit {
+			break
+		}
+	}
+	return suggestions
+}
+
+// SuggestSettings filters the settings list as `/config ` is typed, so the
+// question "what is my effort set to" is answered by typing it rather than by
+// leaving the session to run `kolk config`.
+//
+// Selecting a row completes to `/config set <key> `, which is the only thing a
+// person opens this list to do next.
+func SuggestSettings(settings []SettingSpec, draft string, limit int) []CommandSpec {
+	const prefix = "/config "
+	lower := strings.ToLower(draft)
+	if !strings.HasPrefix(lower, prefix) {
+		return nil
+	}
+	// `/config set …` is already past the picker: the user has chosen a key and
+	// is typing its value, and re-offering the list would fight the typing.
+	rest := strings.TrimSpace(draft[len(prefix):])
+	if strings.HasPrefix(strings.ToLower(rest), "set ") || strings.HasPrefix(strings.ToLower(rest), "get ") {
+		return nil
+	}
+	if limit <= 0 {
+		limit = 8
+	}
+	filter := strings.ToLower(rest)
+	suggestions := make([]CommandSpec, 0, min(limit, len(settings)))
+	for _, setting := range settings {
+		if setting.Key == "" {
+			continue
+		}
+		if filter != "" &&
+			!strings.Contains(strings.ToLower(setting.Key), filter) &&
+			!strings.Contains(strings.ToLower(setting.Summary), filter) &&
+			!strings.Contains(strings.ToLower(setting.Value), filter) {
+			continue
+		}
+		value := setting.Value
+		if setting.Default {
+			value += " (default)"
+		}
+		suggestions = append(suggestions, CommandSpec{
+			Name:     setting.Key,
+			Usage:    setting.Key + "  " + value,
+			Summary:  setting.Summary,
+			Complete: prefix + "set " + setting.Key + " ",
 		})
 		if len(suggestions) == limit {
 			break

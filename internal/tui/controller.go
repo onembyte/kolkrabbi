@@ -69,6 +69,7 @@ type Controller struct {
 	// whole list; this follows it, so a catalog longer than the window is
 	// reachable by holding an arrow key.
 	suggestionTop  int
+	settings       []SettingSpec
 	interruptArmed bool
 }
 
@@ -167,6 +168,12 @@ func (c *Controller) SetCommands(commands []CommandSpec, recentLimit int) {
 // SetFiles installs the project's files for `@` mention completion.
 func (c *Controller) SetFiles(files []string) {
 	c.files = append(c.files[:0], files...)
+	c.updateSuggestions()
+}
+
+// SetSettings installs the settings list used for live /config filtering.
+func (c *Controller) SetSettings(settings []SettingSpec) {
+	c.settings = settings
 	c.updateSuggestions()
 }
 
@@ -421,7 +428,10 @@ func (c *Controller) updateSuggestions() {
 	if c.commandHistory != nil {
 		recent = c.commandHistory.Recent()
 	}
-	c.suggestions = SuggestModels(c.models, c.editor.Draft(), c.suggestionLimit)
+	c.suggestions = SuggestSettings(c.settings, c.editor.Draft(), c.suggestionLimit)
+	if len(c.suggestions) == 0 {
+		c.suggestions = SuggestModels(c.models, c.editor.Draft(), c.suggestionLimit)
+	}
 	if len(c.suggestions) == 0 {
 		c.suggestions = SuggestPlanLogins(c.plans, c.editor.Draft(), c.suggestionLimit)
 	}
