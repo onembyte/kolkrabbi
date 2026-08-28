@@ -114,7 +114,7 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 	// Only now: the renderer has released the screen and the terminal is out of
 	// raw mode, so a failed exec leaves a usable shell rather than a dead one.
 	if runErr == nil && restoreErr == nil {
-		a.performRestart(ag)
+		a.finishSession(ctx, ag)
 	}
 	return errors.Join(runErr, restoreErr)
 }

@@ -83,6 +83,31 @@ func restartArgs(ag *engine.Agent) []string {
 	return args
 }
 
+// finishSession runs whatever the session asked for once the screen is down
+// and the terminal is nobody else's: a provider login, a restart into a new
+// version, or a login followed by coming straight back to the same session.
+//
+// Everything here needs an unshared terminal, which is exactly what a live
+// session cannot offer, and is why these are deferred rather than done in the
+// slash handler that requested them.
+func (a *app) finishSession(ctx context.Context, ag *engine.Agent) {
+	if a.pendingLogin != nil {
+		selected := *a.pendingLogin
+		a.pendingLogin = nil
+		if d, err := a.resolve(); err == nil {
+			if err := a.runConnectorLogin(ctx, d.ConnectorsFile(), selected); err != nil {
+				fmt.Fprintf(a.stderr, "%s login did not complete: %v\n", selected.Connector, err)
+			}
+		}
+		// Back to where they were, with the connector now recorded — the point
+		// of signing in mid-session is not having to start the session again.
+		if a.restartInto == "" {
+			a.restartInto = "this session"
+		}
+	}
+	a.performRestart(ag)
+}
+
 // performRestart replaces this process with the updated binary. It runs only
 // after the terminal has been restored, and any failure is reported rather
 // than swallowed: a restart that silently did not happen would leave the user

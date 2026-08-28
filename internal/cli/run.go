@@ -138,7 +138,7 @@ func (a *app) runDefault(ctx context.Context, args []string) (err error) {
 	a.attachInteractiveActivity(ag, true)
 	replErr := a.repl(ctx, ag)
 	if replErr == nil {
-		a.performRestart(ag)
+		a.finishSession(ctx, ag)
 	}
 	return replErr
 }

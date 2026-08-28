@@ -103,7 +103,12 @@ type app struct {
 	// restored, never from inside the slash handler: replacing the process
 	// image while the renderer owns a raw terminal leaves the shell unusable
 	// if anything goes wrong.
-	restartInto    string
+	restartInto string
+	// pendingLogin is a provider sign-in a session asked for. It cannot run
+	// while the screen is up — the input pump owns the keyboard and would eat
+	// the provider CLI's keystrokes — so it runs once the screen is down, and
+	// the session is resumed afterwards.
+	pendingLogin   *provider.Plan
 	replaceSelf    func(path string, args []string, env []string) error
 	executablePath func() (string, error)
 	isStdinPiped   func() bool

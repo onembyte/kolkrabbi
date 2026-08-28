@@ -65,18 +65,10 @@ func (a *app) runPlans(ctx context.Context, args []string) error {
 		fmt.Fprintf(a.stdout, "%-12s %-20s %-15s %-13s %-13s %-8s %s\n",
 			plan.Provider, plan.Name, plan.Connector, plan.Auth, plan.Billing, sandbox, status)
 	}
-	fmt.Fprint(a.stdout, planColumnLegend)
-	fmt.Fprintln(a.stdout, "listed:     in the provider matrix, with nothing configured for it here.")
+	// One line, not a legend. The table says what it says; a page of prose
+	// under it is read once and skipped forever after.
 	if installed {
-		fmt.Fprintln(a.stdout, "installed:  the provider's CLI is on your PATH. Sign in with that CLI, then:")
-		fmt.Fprintln(a.stdout, "              kolk plans login <provider> <plan>")
-		fmt.Fprintln(a.stdout, "            After that, switch to it mid-session with /model — the backend")
-		fmt.Fprintln(a.stdout, "            changes under the same conversation:")
-		for _, model := range provider.PlanModels("") {
-			if a.connectorInstalled(model.Connector) {
-				fmt.Fprintf(a.stdout, "              /model %-14s %s (%s)\n", model.Model, model.Plan, model.Connector)
-			}
-		}
+		fmt.Fprintln(a.stdout, "\ninstalled: sign in with  kolk plans login <provider> <plan>")
 	}
 	if unverified {
 		fmt.Fprintln(a.stdout, "\nunverified: the provider CLI exited cleanly, which is not proof of a login.")
@@ -126,13 +118,22 @@ func (a *app) runPlanLogin(ctx context.Context, args []string) error {
 	// provider CLI spawned here would fight it for every keystroke. The login
 	// therefore moves to a terminal Kolkrabbi does not own.
 	if a.terminalOwned != nil && a.terminalOwned() {
-		fmt.Fprintf(a.stdout, "%s signs you in from a separate terminal, so its CLI owns the keyboard.\n\n", selected.Name)
-		fmt.Fprintf(a.stdout, "  1. open another terminal\n")
-		fmt.Fprintf(a.stdout, "  2. run: kolk plans login %s %q\n", selected.Provider, selected.Name)
-		fmt.Fprintf(a.stdout, "  3. come back here and run /plans to confirm the connector\n\n")
-		fmt.Fprintf(a.stdout, "Kolkrabbi never sees the credentials either way.\n")
+		// The session steps aside rather than sending the user to another
+		// terminal: the screen comes down, the provider's CLI gets the keyboard
+		// on a terminal nothing else is reading, and kolk comes back on the same
+		// session with the connector recorded. Three manual steps became none.
+		a.pendingLogin = &selected
+		fmt.Fprintf(a.stdout, "Signing in to %s — kolk will hand the keyboard to %s and come back to this session.\n",
+			selected.Name, selected.Connector)
 		return nil
 	}
+	return a.runConnectorLogin(ctx, dirs.ConnectorsFile(), selected)
+}
+
+// runConnectorLogin hands the terminal to the provider's own CLI and records
+// the connector afterwards. The caller must already own an unshared terminal:
+// in a session that means after the screen is down.
+func (a *app) runConnectorLogin(ctx context.Context, connectorsFile string, selected provider.Plan) error {
 	fmt.Fprintf(a.stdout, "starting %s login in this terminal; Kolkrabbi will not see credentials\n", selected.Connector)
 	if err := a.handover(ctx, selected.Connector, nil, ""); err != nil {
 		return err
@@ -140,7 +141,7 @@ func (a *app) runPlanLogin(ctx context.Context, args []string) error {
 	// A provider CLI that quits without signing in also exits 0, so a clean exit
 	// records the connector but proves nothing. Verification happens the first
 	// time it answers.
-	if err := provider.SaveConnector(ctx, dirs.ConnectorsFile(), provider.Connector{
+	if err := provider.SaveConnector(ctx, connectorsFile, provider.Connector{
 		Provider: selected.Provider, Plan: selected.Name, Name: selected.Connector,
 		Sandbox: selected.Sandbox, LoginOwner: "provider-cli", Enabled: true, Verified: false,
 	}); err != nil {
@@ -151,19 +152,3 @@ func (a *app) runPlanLogin(ctx context.Context, args []string) error {
 	fmt.Fprintf(a.stdout, "Kolkrabbi confirms it the first time %s answers a turn.\n", selected.Connector)
 	return nil
 }
-
-// planColumnLegend explains the table's columns. Seven unlabelled columns of
-// jargon is a matrix a person has to decode; the question it should answer is
-// "what can I use, and how".
-const planColumnLegend = `
-PROVIDER   who runs the model.
-PLAN       the subscription or account tier the models come with.
-CONNECTOR  how kolk reaches it: the name of the provider's own CLI, or its API.
-AUTH       "provider CLI" means you sign in with that tool and kolk never sees
-           the credential. "API key" means kolk key <KEY>.
-BILLING    subscription: covered by the plan you already pay for.
-           metered: charged per token against the key you supply.
-SANDBOX    whether that connector runs its own tools in its own sandbox.
-STATUS     what is true on THIS machine, right now:
-
-`

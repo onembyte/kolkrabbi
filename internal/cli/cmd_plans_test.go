@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 )
@@ -87,7 +88,10 @@ func TestPlansLoginUsesHandoverAndPersistsMetadata(t *testing.T) {
 	}
 }
 
-func TestPlansLoginRefusesHandoverWhileKolkrabbiOwnsTheTerminal(t *testing.T) {
+// A login requested from inside a session is deferred, not refused: the
+// provider CLI still must not be spawned while the input pump owns the
+// keyboard, but the user should not have to open a second terminal either.
+func TestPlansLoginDefersTheHandoverWhileKolkrabbiOwnsTheTerminal(t *testing.T) {
 	dirs := isolateConnectorState(t)
 	a, out, errOut := newTestApp(t, "")
 	a.terminalOwned = func() bool { return true }
@@ -99,24 +103,66 @@ func TestPlansLoginRefusesHandoverWhileKolkrabbiOwnsTheTerminal(t *testing.T) {
 	if code := a.main(context.Background(), []string{"plans", "login", "anthropic", "Claude", "Max"}); code != ExitOK {
 		t.Fatalf("plans login exit = %d, stderr = %q", code, errOut.String())
 	}
-
-	got := out.String()
-	if !strings.Contains(got, `kolk plans login anthropic "Claude Max"`) {
-		t.Fatalf("output does not tell the user the exact command to run elsewhere: %q", got)
+	if a.pendingLogin == nil || a.pendingLogin.Name != "Claude Max" {
+		t.Fatalf("login was not armed for after the session: %+v", a.pendingLogin)
 	}
-	if !strings.Contains(got, "separate terminal") {
-		t.Fatalf("output does not explain why the login moves terminals: %q", got)
+	if got := out.String(); !strings.Contains(got, "come back to this session") {
+		t.Fatalf("output does not say the session is resumed: %q", got)
 	}
 	manifest, err := provider.LoadConnectors(dirs.ConnectorsFile())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(manifest.Connectors) != 0 {
-		t.Fatalf("a refused login enabled connectors anyway: %+v", manifest.Connectors)
+		t.Fatalf("a deferred login enabled connectors before signing in: %+v", manifest.Connectors)
 	}
 }
 
-func TestSlashPlanLoginRefusesHandoverWhileKolkrabbiOwnsTheTerminal(t *testing.T) {
+// And once the screen is down, finishSession performs it and records the
+// connector — the whole point of deferring rather than refusing.
+func TestFinishSessionRunsTheDeferredLoginAndComesBack(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	a, _, _ := newTestApp(t, "")
+
+	var spawned string
+	a.handover = func(_ context.Context, executable string, _ []string, _ string) error {
+		spawned = executable
+		return nil
+	}
+	var restarted bool
+	a.executablePath = func() (string, error) { return "/usr/local/bin/kolk", nil }
+	a.replaceSelf = func(string, []string, []string) error { restarted = true; return nil }
+
+	plans := provider.Plans("anthropic")
+	var selected provider.Plan
+	for _, plan := range plans {
+		if plan.Name == "Claude Max" {
+			selected = plan
+		}
+	}
+	a.pendingLogin = &selected
+
+	a.finishSession(context.Background(), &engine.Agent{})
+
+	if spawned != "claude" {
+		t.Fatalf("handover spawned %q, want the claude CLI", spawned)
+	}
+	manifest, err := provider.LoadConnectors(dirs.ConnectorsFile())
+	if err != nil || len(manifest.Connectors) != 1 || !manifest.Connectors[0].Enabled {
+		t.Fatalf("connector after login = %+v, err=%v", manifest.Connectors, err)
+	}
+	if manifest.Connectors[0].Verified {
+		t.Fatal("a clean exit is not proof of a login and must not be recorded as verified")
+	}
+	if !restarted {
+		t.Fatal("the session was not resumed after the login")
+	}
+	if a.pendingLogin != nil {
+		t.Fatal("the pending login outlived the login it described")
+	}
+}
+
+func TestSlashPlanLoginEndsTheSessionSoTheHandoverCanHappen(t *testing.T) {
 	isolateConnectorState(t)
 	a, ag, out := replFixture(t, "")
 	a.terminalOwned = func() bool { return true }
@@ -125,10 +171,13 @@ func TestSlashPlanLoginRefusesHandoverWhileKolkrabbiOwnsTheTerminal(t *testing.T
 		return nil
 	}
 
-	if a.slash(context.Background(), ag, "/plogin anthropic Claude Max") {
-		t.Fatal("/plogin must not exit the session")
+	if !a.slash(context.Background(), ag, "/plogin anthropic Claude Max") {
+		t.Fatal("/plogin must end the session so the provider CLI gets the keyboard")
 	}
-	if got := out.String(); !strings.Contains(got, `kolk plans login anthropic "Claude Max"`) {
+	if a.pendingLogin == nil {
+		t.Fatal("/plogin did not arm the login")
+	}
+	if got := out.String(); !strings.Contains(got, "come back to this session") {
 		t.Fatalf("slash plogin output = %q", got)
 	}
 }

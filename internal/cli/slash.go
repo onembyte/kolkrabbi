@@ -290,9 +290,17 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		if err := a.runPlans(ctx, strings.Fields(arg)); err != nil {
 			fmt.Fprintf(a.stderr, "plans error: %v\n", err)
 		}
+		if a.pendingLogin != nil {
+			// End the session so the provider CLI gets a terminal nobody else
+			// is reading; finishSession signs in and comes back.
+			return true
+		}
 	case "/plogin":
 		if err := a.runPlanLogin(ctx, strings.Fields(arg)); err != nil {
 			fmt.Fprintf(a.stderr, "plan login error: %v\n", err)
+		}
+		if a.pendingLogin != nil {
+			return true
 		}
 	case "/remember":
 		if err := a.runRemember(strings.Fields(arg)); err != nil {
