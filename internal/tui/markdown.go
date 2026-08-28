@@ -19,7 +19,23 @@ const (
 // renderMarkdown renders one transcript chunk as terminal rows. Structural
 // parsing happens after sanitizeTerminalText, so escape sequences cannot
 // masquerade as fences, headings, or diff markers.
+// blockBoundary is a point where the renderer holds no state: no fence is
+// open, so rendering the source up to here produces exactly the prefix that
+// rendering the whole would. That is what makes it safe to cut the transcript
+// here and hand the lines above to the terminal's scrollback.
+type blockBoundary struct {
+	source   int // logical source lines before this point
+	rendered int // rendered lines before this point
+}
+
 func renderMarkdown(text string, width int) []string {
+	lines, _ := renderMarkdownBlocks(text, width)
+	return lines
+}
+
+// renderMarkdownBlocks renders text and reports every point at which the
+// rendering could be cut without changing what either half looks like.
+func renderMarkdownBlocks(text string, width int) ([]string, []blockBoundary) {
 	sanitized := sanitizeTerminalText(text)
 	logical := strings.Split(sanitized, "\n")
 	if len(logical) > 0 && logical[len(logical)-1] == "" {
@@ -27,6 +43,9 @@ func renderMarkdown(text string, width int) []string {
 	}
 
 	var lines []string
+	// The top of this loop is a boundary by construction: every block the body
+	// handles is consumed whole before control returns here.
+	boundaries := []blockBoundary{{}}
 	for index := 0; index < len(logical); {
 		line := strings.TrimRight(logical[index], " \t")
 		if info, ok := fenceInfo(line); ok {
@@ -51,18 +70,25 @@ func renderMarkdown(text string, width int) []string {
 				// a blank prose terminator, or nothing at end of input.
 				index++
 			}
+			// An unclosed fence is still being written, so its rendering can
+			// still change: it is not a boundary.
+			if closed {
+				boundaries = append(boundaries, blockBoundary{source: index, rendered: len(lines)})
+			}
 			continue
 		}
 		if heading, ok := trimHeading(line); ok {
 			lines = append(lines, wrapLine(heading, width)...)
 			lines = append(lines, "")
 			index++
+			boundaries = append(boundaries, blockBoundary{source: index, rendered: len(lines)})
 			continue
 		}
 		lines = append(lines, wrapLine(markdownLine(line), width)...)
 		index++
+		boundaries = append(boundaries, blockBoundary{source: index, rendered: len(lines)})
 	}
-	return lines
+	return lines, boundaries
 }
 
 type fence struct {

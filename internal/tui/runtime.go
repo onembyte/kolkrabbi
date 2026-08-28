@@ -534,7 +534,10 @@ func (r *Runtime) renderLocked() {
 	if height <= 0 {
 		height = defaultHeight
 	}
-	r.renderErr = r.renderer.Render(r.controller.RenderView(width, height))
+	// Order matters: what leaves the frame is printed above it in the same
+	// write, so a line is never on screen twice and never missing for a frame.
+	committed := r.controller.CommitOverflow(width, height)
+	r.renderErr = r.renderer.Render(committed, r.controller.RenderView(width, height))
 }
 
 type emptyReader struct{}

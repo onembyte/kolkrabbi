@@ -201,6 +201,16 @@ func (c *Controller) RememberCommand(line string) {
 // AppendTranscript adds streamed model/tool output above the composer.
 func (c *Controller) AppendTranscript(chunk string) { c.screen.AppendTranscript(chunk) }
 
+// CommitOverflow hands back the transcript that has scrolled out of the frame,
+// already styled, for the caller to put into the terminal's scrollback.
+func (c *Controller) CommitOverflow(width, height int) []string {
+	rows := c.screen.CommitOverflow(width, height)
+	if len(rows) == 0 {
+		return nil
+	}
+	return strings.Split(joinViewRowsWidth(rows, true, width), "\n")
+}
+
 // SetActivity updates only the ephemeral working row and its lifecycle label.
 func (c *Controller) SetActivity(activity string) {
 	c.screen.SetActivity(activity)

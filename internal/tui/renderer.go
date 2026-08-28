@@ -55,13 +55,24 @@ func (r *Renderer) Start() error {
 // of-line, which clears whatever was longer than the new content without ever
 // blanking the row. Only when the new frame is SHORTER than the last does
 // anything get erased below, and by then the new frame is already on screen.
-func (r *Renderer) Render(view string) error {
+// Render replaces the region, first printing any lines that have left it for
+// good. Those go out at the top of the region, so the terminal scrolls by
+// exactly that many rows and they end up above the frame -- in the scrollback,
+// where they can be scrolled back to and copied, which is the whole reason for
+// committing them rather than letting the next repaint overwrite them.
+func (r *Renderer) Render(committed []string, view string) error {
 	var frame strings.Builder
 
 	// Back to the top-left of the region this renderer owns.
 	frame.WriteString("\r")
 	if r.rows > 1 {
 		fmt.Fprintf(&frame, "\x1b[%dA", r.rows-1)
+	}
+
+	for _, line := range committed {
+		frame.WriteString(line)
+		frame.WriteString(eraseToLineEnd)
+		frame.WriteString("\r\n")
 	}
 
 	rows := 0

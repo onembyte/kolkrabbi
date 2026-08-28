@@ -158,6 +158,14 @@ type viewRow struct {
 }
 
 func (m *Model) viewRows(width, height, cursor int) []viewRow {
+	rows, _ := m.layout(width, height, cursor)
+	return rows
+}
+
+// layout builds the frame and reports how many rows are left for transcript.
+// Both answers come from one pass so that what gets committed to scrollback and
+// what stays on screen can never disagree about where the fold is.
+func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 	if width < 4 {
 		width = 4
 	}
@@ -247,8 +255,12 @@ func (m *Model) viewRows(width, height, cursor int) []viewRow {
 	}
 
 	transcriptText := renderMarkdown(string(m.transcript), width)
+	// Negative means unbounded: a caller that passed no height wants the whole
+	// transcript, and nothing should be committed out from under it.
+	budget := -1
 	if height > 0 {
 		available := height - len(activity) - len(statusLine) - len(suggestions) - len(composer)
+		budget = max(0, available)
 		if available <= 0 {
 			transcriptText = nil
 		} else if len(transcriptText) > available {
@@ -261,17 +273,85 @@ func (m *Model) viewRows(width, height, cursor int) []viewRow {
 		// A request the user sent is theirs, and reads as theirs: the same
 		// purple the composer uses, so the eye can find "what did I ask" in a
 		// long transcript without reading it.
-		style := styleNone
-		if strings.HasPrefix(line, promptMarker+" ") {
-			style = stylePurple
-		}
-		rows = append(rows, viewRow{text: line, style: style})
+		rows = append(rows, viewRow{text: line, style: transcriptStyle(line)})
 	}
 	rows = append(rows, activity...)
 	rows = append(rows, suggestions...)
 	rows = append(rows, composer...)
 	rows = append(rows, statusLine...)
-	return rows
+	return rows, budget
+}
+
+// CommitOverflow removes the transcript that no longer fits on screen and
+// returns it, so the caller can hand it to the terminal's scrollback.
+//
+// Without this the frame is repainted in place: every new line shifts the
+// others up a row and the top one is overwritten. That is why agent mode, which
+// produces far more output than a chat reply, looked like it was "printing
+// upwards" -- and why none of what scrolled past could be read afterwards.
+//
+// The cut is only ever made at a block boundary, where rendering the part that
+// leaves produces exactly the lines that were already on screen.
+func (m *Model) CommitOverflow(width, height int) []viewRow {
+	if width < 4 {
+		width = 4
+	}
+	_, budget := m.layout(width, height, -1)
+	if budget < 0 {
+		return nil
+	}
+	rendered, boundaries := renderMarkdownBlocks(string(m.transcript), width)
+	if len(rendered) <= budget {
+		return nil
+	}
+
+	// Take the most that fits entirely above the fold. Committing a line that
+	// is still visible would print it twice.
+	overflow := len(rendered) - budget
+	cut := blockBoundary{}
+	for _, boundary := range boundaries {
+		if boundary.source > 0 && boundary.rendered <= overflow {
+			cut = boundary
+		}
+	}
+	if cut.source == 0 {
+		// One block taller than the screen -- a long code fence, say. It has to
+		// stay whole, so it is clipped as before rather than cut in half.
+		return nil
+	}
+
+	offset := offsetAfterLines(m.transcript, cut.source)
+	committed := make([]viewRow, 0, cut.rendered)
+	for _, line := range rendered[:cut.rendered] {
+		committed = append(committed, viewRow{text: line, style: transcriptStyle(line)})
+	}
+	m.transcript = m.transcript[:copy(m.transcript, m.transcript[offset:])]
+	return committed
+}
+
+// offsetAfterLines is the byte index just past the count-th newline. The
+// transcript is sanitized on the way in, so its newlines are exactly the ones
+// the renderer split on.
+func offsetAfterLines(transcript []byte, count int) int {
+	for index := 0; index < len(transcript); index++ {
+		if transcript[index] != '\n' {
+			continue
+		}
+		count--
+		if count == 0 {
+			return index + 1
+		}
+	}
+	return len(transcript)
+}
+
+// transcriptStyle marks a line the user typed. It is the composer's own purple,
+// so a request reads as theirs whether it is on screen or in scrollback.
+func transcriptStyle(line string) rowStyle {
+	if strings.HasPrefix(line, promptMarker+" ") {
+		return stylePurple
+	}
+	return styleNone
 }
 
 func joinViewRows(rows []viewRow, styled bool) string {

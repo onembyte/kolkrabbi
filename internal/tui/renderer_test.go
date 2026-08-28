@@ -9,10 +9,10 @@ import (
 func TestRendererReplacesOnlyItsPreviousOwnedRows(t *testing.T) {
 	var out bytes.Buffer
 	renderer := NewRenderer(&out)
-	if err := renderer.Render("assistant first\n╭─ kolk-code\n│ draft\n╰─"); err != nil {
+	if err := renderer.Render(nil, "assistant first\n╭─ kolk-code\n│ draft\n╰─"); err != nil {
 		t.Fatal(err)
 	}
-	if err := renderer.Render("assistant second\n╭─ kolk-code\n│ draft\n╰─"); err != nil {
+	if err := renderer.Render(nil, "assistant second\n╭─ kolk-code\n│ draft\n╰─"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -31,11 +31,11 @@ func TestRendererReplacesOnlyItsPreviousOwnedRows(t *testing.T) {
 func TestRendererOverwritesInPlaceWithoutBlankingFirst(t *testing.T) {
 	var out bytes.Buffer
 	renderer := NewRenderer(&out)
-	if err := renderer.Render("one\ntwo\nthree"); err != nil {
+	if err := renderer.Render(nil, "one\ntwo\nthree"); err != nil {
 		t.Fatal(err)
 	}
 	out.Reset()
-	if err := renderer.Render("ONE\nTWO\nTHREE"); err != nil {
+	if err := renderer.Render(nil, "ONE\nTWO\nTHREE"); err != nil {
 		t.Fatal(err)
 	}
 	frame := out.String()
@@ -54,7 +54,7 @@ func TestRendererOverwritesInPlaceWithoutBlankingFirst(t *testing.T) {
 	// One syscall per frame: a partially written frame is a partially drawn one.
 	var writes countingWriter
 	second := NewRenderer(&writes)
-	if err := second.Render("a\nb\nc"); err != nil {
+	if err := second.Render(nil, "a\nb\nc"); err != nil {
 		t.Fatal(err)
 	}
 	if writes.n != 1 {
@@ -66,11 +66,11 @@ func TestRendererOverwritesInPlaceWithoutBlankingFirst(t *testing.T) {
 func TestRendererErasesTheTailWhenAFrameShrinks(t *testing.T) {
 	var out bytes.Buffer
 	renderer := NewRenderer(&out)
-	if err := renderer.Render("one\ntwo\nthree\nfour"); err != nil {
+	if err := renderer.Render(nil, "one\ntwo\nthree\nfour"); err != nil {
 		t.Fatal(err)
 	}
 	out.Reset()
-	if err := renderer.Render("one\ntwo"); err != nil {
+	if err := renderer.Render(nil, "one\ntwo"); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.HasSuffix(out.String(), "\x1b[J") {
@@ -85,7 +85,7 @@ func (w *countingWriter) Write(p []byte) (int, error) { w.n++; return len(p), ni
 func TestRendererUsesCarriageReturnLineFeedForRawTerminalRows(t *testing.T) {
 	var out bytes.Buffer
 	renderer := NewRenderer(&out)
-	if err := renderer.Render("top\nmiddle\nbottom"); err != nil {
+	if err := renderer.Render(nil, "top\nmiddle\nbottom"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -103,7 +103,7 @@ func TestRendererStartAndCloseOwnBracketedPasteAndCursorState(t *testing.T) {
 	if err := renderer.Start(); err != nil {
 		t.Fatal(err)
 	}
-	if err := renderer.Render("╭─ kolk-code\n│ draft\n╰─"); err != nil {
+	if err := renderer.Render(nil, "╭─ kolk-code\n│ draft\n╰─"); err != nil {
 		t.Fatal(err)
 	}
 	if err := renderer.Close(); err != nil {
@@ -130,12 +130,12 @@ func TestRendererClearsThePhysicalRowsAFrameOccupiesAfterANarrowing(t *testing.T
 	// One logical row of 100 cells, some of them styled: at width 100 it is one
 	// physical row, at width 40 the terminal re-flows it onto three.
 	row := "\x1b[35m" + strings.Repeat("─", 60) + "\x1b[0m" + strings.Repeat("─", 40)
-	if err := renderer.Render(row); err != nil {
+	if err := renderer.Render(nil, row); err != nil {
 		t.Fatal(err)
 	}
 	renderer.Resized(40)
 	out.Reset()
-	if err := renderer.Render("x"); err != nil {
+	if err := renderer.Render(nil, "x"); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "\x1b[2A") {
@@ -143,12 +143,12 @@ func TestRendererClearsThePhysicalRowsAFrameOccupiesAfterANarrowing(t *testing.T
 	}
 
 	// Widening never increases the count: the frame still fits on one row.
-	if err := renderer.Render(row); err != nil {
+	if err := renderer.Render(nil, row); err != nil {
 		t.Fatal(err)
 	}
 	renderer.Resized(200)
 	out.Reset()
-	if err := renderer.Render("x"); err != nil {
+	if err := renderer.Render(nil, "x"); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(out.String(), "A") {
