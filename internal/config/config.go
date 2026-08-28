@@ -37,6 +37,12 @@ type Config struct {
 	// Zero means the default of three; one makes a run sequential.
 	MaxConcurrentTasks int           `json:"max_concurrent_tasks,omitempty"`
 	Local              LocalSettings `json:"local,omitempty"`
+	// AutoRestartAfterUpdate re-executes kolk into the new version once an
+	// in-session `kolk update` succeeds, resuming the same session. A pointer
+	// so "never set" is distinguishable from "set to off": the default is off,
+	// and replacing a running process is not something to start doing to
+	// someone because they upgraded.
+	AutoRestartAfterUpdate *bool `json:"auto_restart_after_update,omitempty"`
 }
 
 // Load reads a config file. A missing file is not an error: it returns a

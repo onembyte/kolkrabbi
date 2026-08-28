@@ -355,6 +355,11 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		if err := a.applyUpdate(ctx, true); err != nil {
 			fmt.Fprintf(a.stderr, "update failed: %v\n", err)
 		}
+		if a.restartInto != "" {
+			// End the session so the screen comes down and the terminal is
+			// restored; tuiRepl performs the handover from there.
+			return true
+		}
 	case "/saga":
 		if err := a.runSaga(ctx, strings.Fields(arg)); err != nil {
 			fmt.Fprintf(a.stderr, "saga error: %v\n", err)

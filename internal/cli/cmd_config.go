@@ -32,8 +32,18 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 		return err
 	}
 	if len(args) == 0 {
-		fmt.Fprintln(a.stdout, usageLine("config"))
+		a.printSettings(cfg, "")
 		return nil
+	}
+	// `kolk config <text>` is a search — but only when it finds something. A
+	// word that matches no setting is far likelier to be a mistyped subcommand
+	// than a search for nothing, and answering "no matches" to `config
+	// set-everythign` would hide the typo instead of reporting it.
+	if len(args) == 1 && !configVerbs[args[0]] {
+		if a.printSettings(cfg, args[0]) {
+			return nil
+		}
+		return usagef("%s", usageLine("config"))
 	}
 
 	switch args[0] {
@@ -54,6 +64,12 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				fmt.Fprintln(a.stdout, cfg.BaseURL)
 			} else {
 				fmt.Fprintf(a.stdout, "(unset — inherits %s)\n", provider.DefaultBaseURL)
+			}
+		case key == "auto_restart_after_update":
+			if cfg.AutoRestartAfterUpdate != nil {
+				fmt.Fprintln(a.stdout, map[bool]string{true: "on", false: "off"}[*cfg.AutoRestartAfterUpdate])
+			} else {
+				fmt.Fprintln(a.stdout, "(unset — inherits off)")
 			}
 		case strings.HasPrefix(key, "effort.") || strings.HasPrefix(key, "tier."):
 			canonical, err := parseEffortKey(key)
@@ -98,6 +114,16 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintf(a.stdout, "base_url → %s\n", cfg.BaseURL)
+		case key == "auto_restart_after_update":
+			on, err := config.ParseOnOff(val)
+			if err != nil {
+				return usagef("auto_restart_after_update: %v", err)
+			}
+			cfg.AutoRestartAfterUpdate = &on
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "auto_restart_after_update → %s\n", val)
 		case strings.HasPrefix(key, "effort.") || strings.HasPrefix(key, "tier."):
 			canonical, err := parseEffortKey(key)
 			if err != nil {
@@ -275,4 +301,47 @@ func parseEffortKey(key string) (string, error) {
 func validEffort(s string) bool {
 	_, ok := engine.NormalizeEffort(s)
 	return ok
+}
+
+// configVerbs are the words that are commands rather than search text, so
+// `kolk config get` cannot be read as a search for "get".
+var configVerbs = map[string]bool{
+	"get": true, "set": true, "unset": true, "path": true, "edit": true, "show": true, "list": true,
+}
+
+// printSettings renders the settings table, optionally filtered. Every row
+// shows the value in effect, with unset rows marked, because the question a
+// person opens this to answer is "what is kolk doing", not "what did I type".
+func (a *app) printSettings(cfg *config.Config, filter string) bool {
+	rows := cfg.Settings(defaultModel, provider.DefaultBaseURL)
+	filter = strings.ToLower(strings.TrimSpace(filter))
+	if filter != "" {
+		kept := rows[:0]
+		for _, row := range rows {
+			if strings.Contains(strings.ToLower(row.Key), filter) ||
+				strings.Contains(strings.ToLower(row.Summary), filter) ||
+				strings.Contains(strings.ToLower(row.Value), filter) {
+				kept = append(kept, row)
+			}
+		}
+		rows = kept
+	}
+	if len(rows) == 0 {
+		return false
+	}
+	width := 0
+	for _, row := range rows {
+		if n := len(row.Key); n > width {
+			width = n
+		}
+	}
+	for _, row := range rows {
+		value := row.Value
+		if row.Default {
+			value += "  (default)"
+		}
+		fmt.Fprintf(a.stdout, "%-*s  %s\n", width, row.Key, value)
+	}
+	fmt.Fprintf(a.stdout, "\n%d settings · kolk config <text> to search · kolk config set <key> <value>\n", len(rows))
+	return true
 }

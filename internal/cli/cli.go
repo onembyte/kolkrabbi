@@ -98,8 +98,16 @@ type app struct {
 	dashURL          string
 	terminalSize     func(*os.File) (int, int)
 	resizeNotifier   func(*os.File) (<-chan struct{}, func())
-	isStdinPiped     func() bool
-	handover         func(context.Context, string, []string, string) error
+	// restartInto is the version an accepted in-session update wants to hand
+	// over to. The exec happens after the screen is torn down and the terminal
+	// restored, never from inside the slash handler: replacing the process
+	// image while the renderer owns a raw terminal leaves the shell unusable
+	// if anything goes wrong.
+	restartInto    string
+	replaceSelf    func(path string, args []string, env []string) error
+	executablePath func() (string, error)
+	isStdinPiped   func() bool
+	handover       func(context.Context, string, []string, string) error
 }
 
 func newApp() *app {
@@ -118,6 +126,8 @@ func newApp() *app {
 	a.enterRaw = term.EnterRaw
 	a.terminalSize = term.Size
 	a.resizeNotifier = term.ResizeNotifier
+	a.replaceSelf = shell.Replace
+	a.executablePath = shell.SelfPath
 	a.isStdinPiped = func() bool {
 		stat, err := os.Stdin.Stat()
 		if err != nil {

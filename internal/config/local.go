@@ -150,3 +150,27 @@ func ParseBytes(value string) (uint64, error) {
 	}
 	return uint64(amount * float64(multiplier)), nil
 }
+
+// settings renders the local section for `kolk config`. Only keys the user has
+// actually set appear: the rest are decided per machine by the hardware probe,
+// so printing a fixed default for them would be a guess presented as a fact.
+func (l LocalSettings) settings() []Setting {
+	rows := make([]Setting, 0, len(LocalKeys))
+	add := func(key, value string) {
+		if value != "" {
+			rows = append(rows, Setting{Key: key, Value: value, Summary: "local model runtime"})
+		}
+	}
+	add("local.gpu_mode", l.GPUMode)
+	if l.GPUIndex != nil {
+		add("local.gpu_index", strconv.Itoa(*l.GPUIndex))
+	}
+	add("local.quantization", l.Quantization)
+	if l.ReservedVRAMFraction != nil {
+		add("local.reserved_vram_fraction", strconv.FormatFloat(*l.ReservedVRAMFraction, 'g', -1, 64))
+	}
+	if l.ReservedRAMBytes != nil {
+		add("local.reserved_ram_bytes", strconv.FormatUint(*l.ReservedRAMBytes, 10))
+	}
+	return rows
+}

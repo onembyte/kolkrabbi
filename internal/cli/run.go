@@ -136,7 +136,11 @@ func (a *app) runDefault(ctx context.Context, args []string) (err error) {
 		return a.tuiRepl(ctx, ag)
 	}
 	a.attachInteractiveActivity(ag, true)
-	return a.repl(ctx, ag)
+	replErr := a.repl(ctx, ag)
+	if replErr == nil {
+		a.performRestart(ag)
+	}
+	return replErr
 }
 
 func (a *app) attachInteractiveActivity(ag *engine.Agent, repl bool) {
