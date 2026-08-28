@@ -61,7 +61,7 @@ contains index.html 'https://kolkrabbi.francomichetti.com/install.sh' "install U
 contains index.html 'kolk key &lt;API_KEY&gt;' "API-key command drifted"
 contains index.html '<code class="key-command"><span class="prompt" aria-hidden="true">$</span> kolk key &lt;API_KEY&gt;</code>' "API-key command is not in the run step"
 contains index.html '<code class="use-command"><span class="prompt" aria-hidden="true">$</span> kolk</code>' "use step must contain only the final kolk command"
-contains index.html 'Installer ships with v1.2.3' "current installer release status is missing"
+contains index.html 'Installer ships with v1.2.4' "current installer release status is missing"
 contains index.html 'https://github.com/onembyte/kolkrabbi' "GitHub link is wrong"
 contains index.html 'Apache-2.0 License' "license link or label does not match LICENSE"
 contains index.html 'Chat, code, and agent' "landing page does not name all three modes"
@@ -108,13 +108,27 @@ provider_status GitHub planned
 # says "anthropic"; anything new must be added here on purpose, which is the
 # point — a provider arriving in the repo should make somebody decide what the
 # page says about it.
-declare -A provider_tiles=(
-  [anthropic]=Anthropic [openai]=OpenAI [google]=Google [xai]=xAI
-  [perplexity]=Perplexity [mistral]=Mistral [deepseek]=DeepSeek [qwen]=Qwen
-  [cohere]=Cohere [github]=GitHub
-)
+# A plain list rather than an associative array: macOS ships bash 3.2, which
+# has no `declare -A`, and under `set -u` it failed as "anthropic: unbound
+# variable" — so this guard passed in CI on Linux and could not run at all on
+# the machine the releases are cut from.
+provider_tiles="anthropic=Anthropic openai=OpenAI google=Google xai=xAI
+perplexity=Perplexity mistral=Mistral deepseek=DeepSeek qwen=Qwen
+cohere=Cohere github=GitHub"
+
+tile_for() {
+  local wanted="$1" pair
+  for pair in $provider_tiles; do
+    if [ "${pair%%=*}" = "$wanted" ]; then
+      printf '%s\n' "${pair#*=}"
+      return 0
+    fi
+  done
+  return 1
+}
+
 while read -r provider; do
-  tile="${provider_tiles[$provider]:-}"
+  tile="$(tile_for "$provider" || true)"
   if [ -z "$tile" ]; then
     fail "internal/provider/plans.go knows the provider $provider, which has no tile on the wall and no name mapped for it"
     continue
