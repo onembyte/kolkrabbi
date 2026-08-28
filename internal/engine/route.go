@@ -93,12 +93,45 @@ func (a *Agent) orchestrationModel() string {
 func (a *Agent) modelForKind(kind Kind) string {
 	slot, routed := kindSlots[kind]
 	if routed {
+		// A configured slot is the user's decision and beats every ranking.
 		if model := strings.TrimSpace(a.Slots[slot]); model != "" {
 			return model
 		}
 		if slot == SlotFast {
 			return a.FastLaneModel()
 		}
+		// An unset slot used to fall straight through to the effort model,
+		// which meant every subagent in a run used the same model as the main
+		// one and the four roles existed on paper only. Choosing per role is
+		// item 33's third ask, and the catalogue is what it chooses from.
+		if chosen := a.slotModel(slot); chosen != "" {
+			return chosen
+		}
 	}
 	return a.modelFor(a.Effort)
+}
+
+// slotModel resolves one slot from the catalogue, remembering the answer.
+//
+// Selection runs once per slot per session rather than once per task: a plan
+// with eight tasks must not rank the catalogue eight times, and a run whose
+// worker model changed halfway through would be one nobody could reason about.
+func (a *Agent) slotModel(slot string) string {
+	if len(a.Catalog) == 0 {
+		return ""
+	}
+	a.slotMu.Lock()
+	defer a.slotMu.Unlock()
+	if model, chosen := a.slotChoice[slot]; chosen {
+		return model
+	}
+	var model string
+	if ranked := RankForSlot(a.Catalog, slot); len(ranked) > 0 {
+		model = ranked[0]
+	}
+	if a.slotChoice == nil {
+		a.slotChoice = map[string]string{}
+	}
+	a.slotChoice[slot] = model
+	return model
 }

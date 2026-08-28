@@ -303,20 +303,24 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	}
 
 	ag := engine.New(engine.Options{
-		Client:             client,
-		Backend:            backend,
-		Model:              model,
-		Mode:               o.mode,
-		Effort:             o.effort,
-		Permission:         permission,
-		Root:               projectRoot(),
-		Sess:               sess,
-		Ckpt:               ckpt,
-		In:                 a.in,
-		Out:                a.stdout,
-		Recorder:           stats.NewStore(d.Data),
-		Tiers:              cfg.Tiers,
-		Slots:              cfg.Slots,
+		Client:     client,
+		Backend:    backend,
+		Model:      model,
+		Mode:       o.mode,
+		Effort:     o.effort,
+		Permission: permission,
+		Root:       projectRoot(),
+		Sess:       sess,
+		Ckpt:       ckpt,
+		In:         a.in,
+		Out:        a.stdout,
+		Recorder:   stats.NewStore(d.Data),
+		Tiers:      cfg.Tiers,
+		Slots:      cfg.Slots,
+		// The catalogue the session already fetched, so an unset slot can be
+		// resolved by what each role needs instead of collapsing to the effort
+		// model (A33.4). Already in memory: this costs nothing to pass.
+		Catalog:            catalog,
 		MaxRunCostUSD:      cfg.MaxRunCostUSD,
 		MaxConcurrentTasks: cfg.MaxConcurrentTasks,
 		Bus:                eventBus,

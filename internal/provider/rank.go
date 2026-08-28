@@ -83,6 +83,13 @@ func RankFreeModels(models []ModelInfo) []string {
 	return result
 }
 
+// SupportsTools reports whether a model can call tools.
+//
+// Exported for the engine's slot ranking (A33.4), which needs the same
+// judgement this package already makes for free models — one opinion about what
+// a usable model is, not two.
+func SupportsTools(model ModelInfo) bool { return supportsTools(model) }
+
 func supportsTools(model ModelInfo) bool {
 	for _, parameter := range model.SupportedParameters {
 		if strings.EqualFold(parameter, "tools") {

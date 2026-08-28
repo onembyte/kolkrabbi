@@ -214,6 +214,10 @@ type Options struct {
 	// guesses one, because compaction is destructive and a guessed limit would
 	// throw away conversation on no evidence.
 	ContextWindow int
+	// Catalog is the live model catalogue, when the host has one. Empty means
+	// slot selection has nothing to choose from and the effort model stands.
+	Catalog []provider.ModelInfo
+
 	// Agents is told how many subagents are running whenever that changes, so a
 	// surface can show it. Nil means nobody is watching.
 	Agents func(running int)
@@ -255,6 +259,10 @@ type Agent struct {
 	// goroutine per task and read by whatever is drawing the screen.
 	subagentMu      sync.Mutex
 	subagentRunning int
+	// slotChoice remembers the model picked for each slot, so a plan ranks the
+	// catalogue once per slot rather than once per task.
+	slotMu     sync.Mutex
+	slotChoice map[string]string
 	// lastPromptTokens is what the provider reported reading on the most recent
 	// main turn, which is the only measured view of how full the window is.
 	lastPromptTokens int

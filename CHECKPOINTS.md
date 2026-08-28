@@ -2137,6 +2137,51 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### A33.4 built — the slots stop collapsing to one model
+
+Four slots and six task kinds have existed and been configurable for a while, and **nothing filled
+them**: an unset slot fell through to the effort model, so a default install ran every subagent on
+the same model as the main one. The roles existed on paper. This is the choosing.
+
+**Cross-provider needed no plumbing**, which the plan predicted and the code confirmed: the gateway
+routes any model id, so a run whose orchestrator is one vendor's model and whose workers are
+another's was always one decision away. The decision is what was missing.
+
+**Each slot ranks for what it is actually for.** Orchestrator: strongest coding-oriented model, price
+ignored, because planning is where a weak model costs the most and the whole run is shaped by it.
+Worker: coding-oriented, with free breaking a tie, since an equally suited free model is strictly
+better. Explore: free first, then cheapest, then widest window — its job is volume. Fast: free, always,
+which is A33.3's decision applied to the slot that does mechanical work. Every slot requires tool
+support and a 32k floor, because a subagent that cannot call a tool cannot do any of this.
+
+**The explore test was wrong and the code was right.** I asserted the cheap paid reader would win and
+it chose the free model — which *is* cheaper, and clears the context floor. Rather than bend the code
+to a bad expectation I made the rule explicit (free first for volume work) and split the test in two,
+so the million-token model is still proven to win when nothing free is available. That is where a
+wide window earns its place.
+
+**Layering moved the code before I wrote much of it.** `RankForSlot` began in `internal/provider`,
+which cannot see the engine's slot constants — L3 below L4. It belongs in the engine, where the
+vocabulary is, using the provider's facts. `supportsTools` is now exported for it, so there is one
+opinion about what a usable model is rather than two.
+
+**Measured, because it runs per plan:** 400 models rank in 1.3 ms once, then 64 ns per call — the
+choice is remembered per slot per session, so an eight-task plan ranks the catalogue once per slot
+and a run's worker model cannot change halfway through, which would be a run nobody could reason
+about.
+
+Verified rather than assumed: the plan already prints each task's kind and model, so a per-slot choice
+is visible before anything runs.
+
+Acceptance checklist:
+
+- [x] ten tests written first, including stability, an unknown slot and an empty catalogue.
+- [x] a wrong test expectation corrected against the code rather than the code bent to it.
+- [x] the layering violation found and the code moved, not worked around.
+- [x] the ranking helpers reused rather than a second opinion about models grown.
+- [x] the selection measured, and memoised so it is per plan and not per task.
+- [x] full `make check` green: 2,388 tests, 0 lint issues.
+
 ### A33.3 built — free for small work, and a correction to my own plan
 
 A paid session model used to send the fast lane to a paid default **even when a free tool-capable
@@ -2261,7 +2306,7 @@ done.
       paid. A free tool-capable model wins fast-lane and boilerplate work whenever one exists;
       `slot.fast` still overrides. Test the exact case that is wrong today: paid main model, free
       model available, mechanical task → free model chosen.
-- [ ] **A33.4 per-slot model selection** — an empty slot resolves from the live catalogue by what
+- [x] **A33.4 per-slot model selection** — an empty slot resolves from the live catalogue by what
       the slot is for (strongest / tool-capable / cheap-and-high-context / free) instead of
       collapsing to the effort model. Printed with the plan before anything runs, as the orchestrator
       already prints its routing. Measure the selection: it runs once per plan, not per task.
