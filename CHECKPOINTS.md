@@ -2137,6 +2137,25 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### I26.8b built — revoking a device, and making the revoke survive the process
+
+`kolk devices revoke <id>` and `/devices revoke <id>` remove one device and name what went.
+
+**The write is the whole point.** `Store.Revoke` mutates memory; nothing in it touches disk. A revoke
+that is not saved lasts until the process exits, which is the opposite of what the person asking for
+it believes they have done — so the test asserts the device is gone from a *second* invocation, and
+mutating the save away fails it.
+
+**An unknown id is refused, and the refusal lists what is paired.** Reporting success would be worse
+than an error: it tells someone a device they still worry about is gone. The label is read before the
+removal, because afterwards there is nothing left to name and "revoked a1b2c3" makes the reader go
+and look up which one that was.
+
+Both mutations bite: dropping the save leaves the device listed, and treating an unknown id as a
+success fails the refusal test.
+
+`make check` green at 2,426 tests. I26.8 is complete — pairing is now two-way from both surfaces.
+
 ### I26.8a built — pairing stops being one-way
 
 `kolk devices` and `/devices` list what is paired: id, label, tier, when it was paired, when it was
@@ -2449,10 +2468,10 @@ hand-edits `devices.json`. `docs/plan/26-remote-access.md` already specifies the
       seen. Empty is a sentence, not a blank: a list that prints nothing cannot be told from a
       command that failed. The parity ratchet redrew this leaf: a top-level verb must have a slash
       twin, so `/devices` shipped with it rather than a tick later.
-- [ ] **I26.8b `kolk devices revoke <id>`** — removes one and says so. An id that is not there is a
+- [x] **I26.8b `kolk devices revoke <id>`** — removes one and says so. An id that is not there is a
       refusal naming what is, because a typo'd revoke that reports success is worse than an error.
-- [~] **I26.8c `/devices` and `/devices revoke <id>`** — the listing half shipped inside I26.8a,
-      forced there by the parity ratchet. The revoke half ships with I26.8b for the same reason.
+- [x] **I26.8c `/devices` and `/devices revoke <id>`** — the listing half shipped inside I26.8a and
+      the revoke half inside I26.8b, both forced there by the parity ratchet rather than planned.
 
 **B12.15 the subscription path's failure tests.** Phase A's happy path is green and its failure
 modes are unproven. A33.7 sharpened this: allowance detection over a vendor CLI is matched on

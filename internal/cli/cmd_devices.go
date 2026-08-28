@@ -26,7 +26,13 @@ func (a *app) runDevices(ctx context.Context, args []string) error {
 	}
 
 	if len(args) > 0 {
-		return usagef("unknown devices command %q", args[0])
+		if args[0] != "revoke" {
+			return usagef("unknown devices command %q", args[0])
+		}
+		if len(args) < 2 {
+			return usagef("usage: kolk devices revoke <id>")
+		}
+		return a.revokeDevice(store, d.DevicesFile(), args[1])
 	}
 
 	paired := store.List()
@@ -73,4 +79,44 @@ func ago(when time.Time) string {
 	default:
 		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
 	}
+}
+
+// revokeDevice removes one paired device and writes the store back.
+//
+// The write is the point. A revoke that stays in memory is a revoke that lasts
+// until the process exits, which is the opposite of what the person asking for
+// it believes they have done.
+func (a *app) revokeDevice(store *devices.Store, file, id string) error {
+	// Read the label before removing it: afterwards there is nothing left to
+	// name, and "revoked <id>" makes someone go and look up which one that was.
+	label := ""
+	for _, device := range store.List() {
+		if device.ID == id {
+			label = device.Label
+		}
+	}
+
+	if !store.Revoke(id) {
+		// Naming what is there turns a typo into a correction rather than a
+		// second guess. Reporting success would be worse than this error: it
+		// would tell someone a device they still worry about is gone.
+		return usagef("no device %q is paired.%s", id, pairedList(store))
+	}
+	if err := store.Save(file); err != nil {
+		return fmt.Errorf("saving the device list: %w", err)
+	}
+	fmt.Fprintf(a.stdout, "revoked %s (%s). its token no longer authenticates.\n", label, id)
+	return nil
+}
+
+func pairedList(store *devices.Store) string {
+	paired := store.List()
+	if len(paired) == 0 {
+		return " nothing is paired with this machine."
+	}
+	out := " paired:"
+	for _, device := range paired {
+		out += fmt.Sprintf("\n  %s  %s", device.ID, device.Label)
+	}
+	return out
 }

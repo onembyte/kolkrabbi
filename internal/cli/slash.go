@@ -48,7 +48,7 @@ var slashCommandTable = []slashCommand{
 	{"diff", "[path]", "show what this session changed, as a diff"},
 	{"plan", "[off]", "read-only: explore and propose, without writing or running anything"},
 	{"saga", "[goal | run | resume | status | stop | rewind]", "careful-progression autonomous loop"},
-	{"devices", "", "list the devices paired with this machine"},
+	{"devices", "[revoke <id>]", "list paired devices, or revoke one without stopping the session"},
 	{"undo", "[task <n>]", "take back the last turn, or one subagent's file changes alone"},
 	{"rewind", "", "restore the last turn's files only, leaving the conversation"},
 	{"commit", "", "draft a commit message from the staged diff, and stop"},
@@ -212,7 +212,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 	case "/devices":
 		// The same listing as `kolk devices`, from inside a session: noticing a
 		// device you do not recognise should not mean stopping to deal with it.
-		if err := a.runDevices(ctx, nil); err != nil {
+		if err := a.runDevices(ctx, strings.Fields(arg)); err != nil {
 			fmt.Fprintf(a.stderr, "devices: %v\n", err)
 		}
 	case "/undo":

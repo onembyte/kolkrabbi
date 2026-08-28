@@ -72,3 +72,53 @@ func TestDevicesIsInTheCommandTable(t *testing.T) {
 		t.Fatal("devices is not a command, so `kolk help` cannot mention it")
 	}
 }
+
+func TestDevicesRevokeRemovesOneAndSaysSo(t *testing.T) {
+	paired := pairedDevices(t, "phone", "old laptop")
+
+	a, out, _ := newTestApp(t, "")
+	if code := a.main(context.Background(), []string{"devices", "revoke", paired[1].ID}); code != ExitOK {
+		t.Fatalf("devices revoke exit = %d, want ExitOK", code)
+	}
+	if !strings.Contains(out.String(), "old laptop") {
+		t.Errorf("revoke output %q does not name what was removed", out.String())
+	}
+
+	// Gone from disk, not just from the in-memory copy that did the removing.
+	// A revoke that is not saved is a revoke that lasts until the next command.
+	a, out, _ = newTestApp(t, "")
+	if code := a.main(context.Background(), []string{"devices"}); code != ExitOK {
+		t.Fatalf("devices exit = %d", code)
+	}
+	if strings.Contains(out.String(), paired[1].ID) {
+		t.Errorf("the revoked device is still listed:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), paired[0].ID) {
+		t.Errorf("revoke took the wrong device, or all of them:\n%s", out.String())
+	}
+}
+
+// A typo'd revoke that reports success is worse than an error: it tells someone
+// a device they still worry about is gone.
+func TestDevicesRevokeRefusesAnIDThatIsNotThere(t *testing.T) {
+	paired := pairedDevices(t, "phone")
+
+	a, _, errOut := newTestApp(t, "")
+	if code := a.main(context.Background(), []string{"devices", "revoke", "not-an-id"}); code == ExitOK {
+		t.Fatal("revoking an unknown id succeeded, want a refusal")
+	}
+	if !strings.Contains(errOut.String(), paired[0].ID) {
+		t.Errorf("the refusal %q does not name what is actually paired", errOut.String())
+	}
+}
+
+func TestDevicesRevokeNeedsAnID(t *testing.T) {
+	pairedDevices(t, "phone")
+	a, _, errOut := newTestApp(t, "")
+	if code := a.main(context.Background(), []string{"devices", "revoke"}); code == ExitOK {
+		t.Fatal("`devices revoke` with no id succeeded, want usage")
+	}
+	if !strings.Contains(errOut.String(), "revoke <id>") {
+		t.Errorf("usage %q does not show the form", errOut.String())
+	}
+}
