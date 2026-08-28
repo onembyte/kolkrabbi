@@ -121,6 +121,8 @@ const (
 )
 
 const (
+	// productName sits in the composer's top rule.
+	productName = "kolkrabbi"
 	// promptMarker opens the draft. statusIndent aligns the footer under it.
 	promptMarker = "❯"
 	statusIndent = "  "
@@ -290,10 +292,9 @@ func writeStyled(output *strings.Builder, text string, style rowStyle, styled bo
 }
 
 func (m *Model) composerLines(width, cursor int) []string {
-	// The rules are unbroken on purpose. A label in the middle of one costs a
-	// glance to read and says what the footer below already says; the frame's
-	// only job is to show where the draft starts and stops.
-	lines := []string{strings.Repeat("─", max(0, width))}
+	// The top rule carries the mode and the product name at its right end; the
+	// closing rule stays unbroken, so the frame still reads as a frame.
+	lines := []string{composerTopRule(m.status.Mode, width)}
 	contentWidth := max(1, width-2)
 	draft := m.draft
 	if cursor >= 0 {
@@ -317,6 +318,30 @@ func (m *Model) composerLines(width, cursor int) []string {
 		}
 	}
 	return append(lines, strings.Repeat("─", width))
+}
+
+// composerTopRule draws the composer's opening rule with the mode and the
+// product name set into its right end:
+//
+//	──────────────────────── code ──── kolkrabbi ─
+//
+// Right-aligned rather than centred: the eye reads the draft from the left, so
+// a label there sits in front of the text, while the right end of the rule is
+// empty space the frame was spending anyway. A terminal too narrow for the
+// label keeps the plain rule instead of clipping the name to nonsense.
+func composerTopRule(mode string, width int) string {
+	plain := strings.Repeat("─", max(0, width))
+	mode = sanitizeTerminalLine(strings.TrimSpace(mode))
+	if mode == "" {
+		return plain
+	}
+	label := " " + mode + " ──── " + productName + " "
+	// One dash of rule after the name, and at least four leading it, or the
+	// label stops reading as something set into a line.
+	if width < cellWidth(label)+5 {
+		return plain
+	}
+	return strings.Repeat("─", width-cellWidth(label)-1) + label + "─"
 }
 
 func horizontalRule(label string, width int) string {

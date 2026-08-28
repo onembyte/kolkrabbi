@@ -98,13 +98,15 @@ func TestViewUsesTextOnlyHorizontalComposerFrameAndLabeledStatus(t *testing.T) {
 		t.Fatalf("view has no persistent composer/status region:\n%s", view)
 	}
 	frame := lines[len(lines)-5:]
-	// Both rules are unbroken. A label in the middle of one is the thing this
-	// frame deliberately does not have.
-	if frame[0] != strings.Repeat("─", 64) {
-		t.Fatalf("opening rule is not a full-width unbroken line: %q", frame[0])
+	// The opening rule carries the mode and the name at its RIGHT end; the
+	// closing rule stays unbroken. The earlier rule — neither may carry a
+	// label — was about a label in the MIDDLE, which sits in front of the
+	// draft; the right end is space the frame was spending anyway.
+	if utf8.RuneCountInString(frame[0]) != 64 {
+		t.Fatalf("opening rule is not full width: %q", frame[0])
 	}
-	if strings.Contains(frame[0], "kolk") || strings.Contains(frame[0], "code") {
-		t.Fatalf("opening rule carries a label: %q", frame[0])
+	if !strings.HasSuffix(frame[0], " code ──── kolkrabbi ─") {
+		t.Fatalf("opening rule lost its right-hand label: %q", frame[0])
 	}
 	if frame[1] != "❯ continue carefully" {
 		t.Fatalf("input row = %q, want one prompt marker and the draft", frame[1])
@@ -259,5 +261,44 @@ func assertOrdered(t *testing.T, text string, parts ...string) {
 			t.Fatalf("view placed %q outside its region:\n%s", part, text)
 		}
 		previous = at
+	}
+}
+
+func TestComposerTopRuleCarriesTheModeAndName(t *testing.T) {
+	m := New(Status{Mode: "code", Lifecycle: "ready"})
+	top := strings.Split(m.View(60, 8), "\n")[0]
+
+	if !strings.HasSuffix(top, " code ──── kolkrabbi ─") {
+		t.Fatalf("top rule = %q, want the mode and name set into its right end", top)
+	}
+	if utf8.RuneCountInString(top) != 60 {
+		t.Fatalf("top rule is %d cells, want the full 60", utf8.RuneCountInString(top))
+	}
+	if !strings.HasPrefix(top, "────") {
+		t.Fatalf("label must be set into a rule, not floating: %q", top)
+	}
+
+	// The closing rule stays unbroken, so the frame still reads as a frame.
+	lines := strings.Split(m.View(60, 8), "\n")
+	var closing string
+	for _, line := range lines {
+		if strings.HasPrefix(line, "─") {
+			closing = line
+		}
+	}
+	if strings.ContainsAny(closing, "kolrabi") {
+		t.Fatalf("closing rule picked up a label: %q", closing)
+	}
+
+	// A mode switch is visible without reading the footer.
+	m.SetStatus(Status{Mode: "agent", Lifecycle: "ready"})
+	if got := strings.Split(m.View(60, 8), "\n")[0]; !strings.Contains(got, " agent ") {
+		t.Fatalf("top rule did not follow the mode: %q", got)
+	}
+
+	// Too narrow for the label: a plain rule beats a clipped name.
+	narrow := strings.Split(m.View(20, 8), "\n")[0]
+	if strings.Contains(narrow, "kolk") || utf8.RuneCountInString(narrow) != 20 {
+		t.Fatalf("narrow rule = %q, want an unbroken 20-cell rule", narrow)
 	}
 }
