@@ -243,6 +243,10 @@ type ChatBackend interface {
 type Agent struct {
 	Options
 	lastTurnID string
+	// subagentIDs pairs a task index with the id both of its lifecycle events
+	// carry, and subagentIDTurn is the turn they belong to.
+	subagentIDs    map[int]string
+	subagentIDTurn string
 	// lastPromptTokens is what the provider reported reading on the most recent
 	// main turn, which is the only measured view of how full the window is.
 	lastPromptTokens int

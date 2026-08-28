@@ -2137,6 +2137,38 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### A33.1 built — the events exist, and now something says them
+
+`subagent.started` and `subagent.finished` have been in the protocol since A7 — declared, documented,
+schema'd, conformance-tested — and **published by nothing**. An orchestrated run could not say how
+wide it had gone because the information never left the engine. This is the publisher.
+
+**Two decisions inside a small leaf.** The id each task carries is minted once per index and
+remembered for the turn, because the start and the finish must pair: a reader that cannot pair them
+is a reader whose count never comes back down, which is the specific way this feature fails while
+still looking like it works. And the memo is cleared when the turn changes, so a task index — which
+means nothing across turns — cannot pair this turn's finish with the last turn's start.
+
+The events are published **around** `runSubagent` rather than inside it, because the event is about
+the task's lifetime and the task is what `runOneTask` owns. The finish fires on every path out,
+including failure.
+
+**The mutation test caught my own vacuous test, which is the part worth recording.** The first
+end-to-end test drove a two-task run and asserted starts equal finishes. Breaking the code so the
+finish only publishes on success **did not fail it** — every task in that fixture succeeds, so the
+failure path was never exercised and the assertion was decoration. A second run now plans two tasks
+and gives the provider only one answer, so the second subagent genuinely errors; that test fails on
+the mutation and asserts a subagent actually reported failure, so the fixture cannot quietly stop
+exercising the path it exists for.
+
+Acceptance checklist:
+
+- [x] five tests written first, including one that drives a real orchestrated run rather than the publisher alone.
+- [x] id stability and per-turn isolation tested, since the pairing is what a count depends on.
+- [x] the finish proven to fire on failure — after the first test was found to be vacuous.
+- [x] silent with no bus, so a run without one behaves exactly as before.
+- [x] full `make check` green: 2,362 tests, 0 lint issues.
+
 ### Item 33 queued — agentic mode, one leaf per tick
 
 The build order below is not the order the asks were given. It is cheapest-first among things that
@@ -2147,7 +2179,7 @@ watch once the count and the costs are visible, and hard to debug before.
 Each leaf: red first, focused verify, full `make check`, record here, commit. Push when the set is
 done.
 
-- [ ] **A33.1 publish subagent lifecycle events** — the orchestrator emits `subagent.started` and
+- [x] **A33.1 publish subagent lifecycle events** — the orchestrator emits `subagent.started` and
       `subagent.finished` with task index, kind and model. The protocol already defines both and the
       conformance test already covers them, so this is a publisher, not a contract change. Verify by
       driving an orchestrated run against the mock and reading the events off the bus.

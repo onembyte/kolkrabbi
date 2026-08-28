@@ -11,6 +11,7 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/tools"
+	"github.com/onembyte/kolkrabbi/internal/xid"
 )
 
 // MaxTasksForEffort is orchestration width for one effort level.
@@ -223,7 +224,17 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 		// keeps a task that arrived without one from asking for an empty model.
 		model = a.modelForKind(tasks[index].Kind)
 	}
+	// A child turn of its own, so a reader can tell one subagent's work from
+	// another's and from the parent's. Published around the call rather than
+	// inside runSubagent: the event is about the task's lifetime, and the task
+	// is what this function owns.
+	childTurn := xid.New(xid.Turn)
+	a.publishSubagentStarted(tasks, index, childTurn)
 	result, err := a.runSubagent(ctx, out, model, userInput, tasks, results, index)
+	// On every path out, including failure. An event that only fires on success
+	// leaves a count stuck at a number that never comes down, which is worse
+	// than no count at all.
+	a.publishSubagentFinished(childTurn, index, err == nil)
 
 	run := taskRun{index: index, result: result, err: err}
 	if buffered != nil {
