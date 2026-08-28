@@ -21,6 +21,7 @@ var longVerbs = map[string]string{
 	"completion": "generates a shell script; typed once per machine, never in a session",
 	"localia":    "the local-model planner; named for the feature, not the keystrokes",
 	"pmodels":    "plan models; `pmodel` reads as a typo of `model`",
+	"devices":    "plural because it lists, like `sessions`; `device` reads as a flag for one",
 	"sessions":   "plural because it lists; `sess` was judged worse to read",
 	"version":    "what every other CLI calls it, and muscle memory beats the rule",
 }

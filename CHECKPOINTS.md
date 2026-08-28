@@ -2137,6 +2137,28 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### I26.8a built — pairing stops being one-way
+
+`kolk devices` and `/devices` list what is paired: id, label, tier, when it was paired, when it was
+last seen. Until now `devices.Store.List` and `.Revoke` were both written, both tested, and neither
+had a caller outside a test — so a device paired once stayed paired until someone hand-edited
+`devices.json`. A credential you cannot withdraw is not really a credential you granted.
+
+**A ratchet redrew the leaf, correctly.** I had planned the slash twin as a separate tick. The parity
+test refused: a top-level verb without a `/` twin is a surface people can only reach one way, and the
+rule exists so that never happens by drift. `/devices` shipped in the same leaf.
+
+**The naming rule was broken deliberately and recorded.** `devices` is seven letters against a
+six-letter rule, so it joins `longVerbs` with its reason — plural because it lists, like `sessions`,
+where `device` would read as a flag for one. The list exists so the violation stays visible and
+bounded rather than becoming a precedent nobody voted for.
+
+Two things the listing refuses to get wrong: nothing paired prints a sentence and a way to pair,
+because a blank screen cannot be told from a command that failed; and a device that has never
+connected reads `never` rather than a zero timestamp dressed up as a date.
+
+`make check` green at 2,423 tests.
+
 ### A33.8 built — one bad subagent no longer costs the whole turn
 
 `/undo task <n>` takes back one writing subagent's file changes and leaves every other task
@@ -2423,13 +2445,14 @@ The two sandbox-shaped items were settled in the same pass and are recorded unde
 and tested, and neither has a caller outside a test: a device paired once stays paired until someone
 hand-edits `devices.json`. `docs/plan/26-remote-access.md` already specifies the surface.
 
-- [ ] **I26.8a `kolk devices` lists what is paired** — id, label, tier, when it was paired and last
+- [x] **I26.8a `kolk devices` lists what is paired** — id, label, tier, when it was paired and last
       seen. Empty is a sentence, not a blank: a list that prints nothing cannot be told from a
-      command that failed.
+      command that failed. The parity ratchet redrew this leaf: a top-level verb must have a slash
+      twin, so `/devices` shipped with it rather than a tick later.
 - [ ] **I26.8b `kolk devices revoke <id>`** — removes one and says so. An id that is not there is a
       refusal naming what is, because a typo'd revoke that reports success is worse than an error.
-- [ ] **I26.8c `/devices` and `/devices revoke <id>`** — the same two from inside a running session,
-      so revoking a lost device does not mean stopping the session that noticed.
+- [~] **I26.8c `/devices` and `/devices revoke <id>`** — the listing half shipped inside I26.8a,
+      forced there by the parity ratchet. The revoke half ships with I26.8b for the same reason.
 
 **B12.15 the subscription path's failure tests.** Phase A's happy path is green and its failure
 modes are unproven. A33.7 sharpened this: allowance detection over a vendor CLI is matched on
