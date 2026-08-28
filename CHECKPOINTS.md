@@ -2137,6 +2137,41 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### A33.3 built — free for small work, and a correction to my own plan
+
+A paid session model used to send the fast lane to a paid default **even when a free tool-capable
+model had been discovered**, so somebody who chose a strong model for real work paid it to name
+sessions, draft commit messages and do boilerplate subtasks. A free model now wins whenever one
+exists, the session's own model is kept when it is already free (switching costs the prompt cache for
+nothing), and `slot.fast` still overrides everything.
+
+**The plan called this a bug and the plan was wrong.** The function's comment says plainly: *"if the
+session model is paid, FastLane uses a high-throughput, low-cost model."* It was deliberate. The doc
+is corrected in place: this is a decision being changed, not a defect being found. Four claims in
+this project's documents have now failed against the code this week, and this is the first one that
+was mine and written the same day.
+
+**Reading it properly also found what the old design was probably protecting.** Free tiers
+rate-limit, and `FastLaneChat` calls the backend **directly** — not through the turn's free-model
+rotation in `retry.go`. Always preferring free would have traded money for a session title that
+sometimes fails. So the leaf carries a fallback: one retry on the low-cost default, and only one,
+because a fast lane that keeps trying is a fast lane that stalls the thing it was helping. Both paths
+are tested, including that a second failure reaches the caller rather than looping.
+
+**The existing test did not pin what it appeared to.** `TestFastLaneModelSelection` asserts a paid
+session gets `gemini-2.5-flash` — but its fixture has **no free models discovered**, so it was
+pinning the no-free-model fallback, which is unchanged. The clause actually removed was never
+covered, which is why it survived to be found by reading rather than by a failure.
+
+Acceptance checklist:
+
+- [x] six tests written first, including the exact case that was wrong.
+- [x] the old test read carefully enough to know it did not cover the change.
+- [x] the rate-limit risk the old design guarded against handled rather than ignored.
+- [x] the fallback bounded to one attempt, with the second failure surfacing.
+- [x] my own plan corrected where it called a decision a bug.
+- [x] full `make check` green: 2,377 tests, 0 lint issues.
+
 ### A33.2 built — the count, where the person is already looking
 
 The engine keeps a running total, an optional observer is told whenever it moves, and the TUI puts it
@@ -2222,7 +2257,7 @@ done.
       composer, beside the existing status. Started minus finished, the kinds in flight, nothing
       else. Must not become a progress bar (item 29's test: name the decision it changes). Verify
       the count returns to zero when a run ends, including when a task fails.
-- [ ] **A33.3 free fast lane** — delete the clause that refuses a free model when the main model is
+- [x] **A33.3 free fast lane** — delete the clause that refuses a free model when the main model is
       paid. A free tool-capable model wins fast-lane and boilerplate work whenever one exists;
       `slot.fast` still overrides. Test the exact case that is wrong today: paid main model, free
       model available, mechanical task → free model chosen.

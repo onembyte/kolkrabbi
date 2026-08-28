@@ -115,7 +115,12 @@ free model and bills a paid default instead.** Someone who chose a strong paid m
 work is charged for every session title, every commit-message draft, and every mechanical subtask —
 precisely the work that has no need of a strong model.
 
-That is a bug against the item's own intent, not a missing feature. The rule becomes: **a free,
+*Corrected 2026-08-28 by A33.3:* calling this a bug was wrong. The function's own comment says
+"if the session model is paid, FastLane uses a high-throughput, low-cost model" — it was **deliberate**,
+and the likely reason is reliability, since free tiers rate-limit and this path calls the backend
+directly rather than through the turn's rotation. It is a decision being changed, not a defect being
+found, and the change carries one fallback so the saving does not buy a session title that sometimes
+fails. The rule becomes: **a free,
 tool-capable model is used for fast-lane and boilerplate work whenever one exists**, whatever the
 main model is. The main model is used only when no free model is available, and `slot.fast` overrides
 everything for anyone who disagrees.
