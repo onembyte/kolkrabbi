@@ -25,6 +25,7 @@ type startLineProcess func(context.Context, string, []string) (lineProcess, erro
 type ClaudeSession struct {
 	process  lineProcess
 	mu       sync.Mutex
+	model    string
 	effort   string
 	closed   bool
 	unusable bool
@@ -45,21 +46,24 @@ func (s *ClaudeSession) Unusable() bool {
 	return s.unusable
 }
 
-func newClaudeSession(ctx context.Context, effort string, start startLineProcess) (*ClaudeSession, error) {
-	process, err := start(ctx, "claude", BuildClaudeSessionArgs(effort))
+func newClaudeSession(ctx context.Context, model, effort string, start startLineProcess) (*ClaudeSession, error) {
+	args, err := BuildClaudeSessionArgs(model, effort)
 	if err != nil {
 		return nil, err
 	}
-	return &ClaudeSession{process: process, effort: effort}, nil
+	process, err := start(ctx, "claude", args)
+	if err != nil {
+		return nil, err
+	}
+	return &ClaudeSession{process: process, model: model, effort: effort}, nil
 }
 
-// BuildClaudeSessionArgs returns the persistent stream-json command line.
-func BuildClaudeSessionArgs(effort string) []string {
-	args := []string{"-p", "--verbose", "--output-format", "stream-json", "--input-format", "stream-json", "--safe-mode", "--setting-sources", ""}
-	if effort != "" {
-		args = append(args, "--effort", effort)
-	}
-	return args
+// BuildClaudeSessionArgs returns the persistent stream-json command line. The
+// model is part of the spawn contract, not a per-turn request field: a
+// stream-json process replays no argv, so a different model means a different
+// process, and the effort dial's own restart rule follows from the same fact.
+func BuildClaudeSessionArgs(model, effort string) ([]string, error) {
+	return claudeArgs(model, effort, true)
 }
 
 // resyncGrace bounds how long Kolkrabbi waits for the tail of an interrupted

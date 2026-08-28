@@ -35,7 +35,7 @@ func TestClaudeSessionReusesProcessAndStreamsTurn(t *testing.T) {
 		[]byte(`{"type":"assistant","message":{"model":"opus","content":[{"type":"text","text":"hello"}]}}`),
 		[]byte(`{"type":"result","result":"hello","subtype":"success"}`),
 	}}
-	session, err := newClaudeSession(context.Background(), "high", func(context.Context, string, []string) (lineProcess, error) {
+	session, err := newClaudeSession(context.Background(), "opus", "high", func(context.Context, string, []string) (lineProcess, error) {
 		return process, nil
 	})
 	if err != nil {
@@ -99,7 +99,7 @@ func TestClaudeSessionDoesNotServeAnInterruptedTurnToTheNextOne(t *testing.T) {
 		lines:   append(claudeTurnFrames("one"), claudeTurnFrames("two")...),
 		stallAt: 1,
 	}
-	session, err := newClaudeSession(context.Background(), "high", func(context.Context, string, []string) (lineProcess, error) {
+	session, err := newClaudeSession(context.Background(), "opus", "high", func(context.Context, string, []string) (lineProcess, error) {
 		return process, nil
 	})
 	if err != nil {
@@ -125,7 +125,7 @@ func TestClaudeSessionReportsItselfUnusableWhenItCannotResynchronize(t *testing.
 	// Only the interrupted turn's opening frame is ever available, so the
 	// completion frame that would resynchronize the stream never arrives.
 	process := &stallingLineProcess{lines: claudeTurnFrames("one")[:1], stallAt: 1}
-	session, err := newClaudeSession(context.Background(), "high", func(context.Context, string, []string) (lineProcess, error) {
+	session, err := newClaudeSession(context.Background(), "opus", "high", func(context.Context, string, []string) (lineProcess, error) {
 		return process, nil
 	})
 	if err != nil {
@@ -151,7 +151,7 @@ func TestClaudeSessionReportsItselfUnusableWhenItCannotResynchronize(t *testing.
 }
 
 func TestClaudeSessionExplainsAProviderThatExitsMidTurn(t *testing.T) {
-	session, err := newClaudeSession(context.Background(), "high", func(context.Context, string, []string) (lineProcess, error) {
+	session, err := newClaudeSession(context.Background(), "opus", "high", func(context.Context, string, []string) (lineProcess, error) {
 		return &fakeLineProcess{}, nil
 	})
 	if err != nil {
@@ -184,7 +184,7 @@ func TestClaudeSessionReportsPerTurnUsageFromCumulativeTotals(t *testing.T) {
 		[]byte(`{"type":"assistant","message":{"model":"opus","content":[{"type":"text","text":"two"}],"usage":{"input_tokens":150,"output_tokens":15}}}`),
 		[]byte(`{"type":"result","result":"two","subtype":"success","total_cost_usd":0.30,"usage":{"input_tokens":250,"output_tokens":25}}`),
 	}}
-	session, err := newClaudeSession(context.Background(), "high", func(context.Context, string, []string) (lineProcess, error) {
+	session, err := newClaudeSession(context.Background(), "opus", "high", func(context.Context, string, []string) (lineProcess, error) {
 		return process, nil
 	})
 	if err != nil {
@@ -219,7 +219,7 @@ func TestClaudeSessionRebasesWhenTheProviderResetsItsTotals(t *testing.T) {
 		[]byte(`{"type":"result","result":"one","subtype":"success","total_cost_usd":0.50,"usage":{"input_tokens":500,"output_tokens":50}}`),
 		[]byte(`{"type":"result","result":"two","subtype":"success","total_cost_usd":0.05,"usage":{"input_tokens":40,"output_tokens":4}}`),
 	}}
-	session, err := newClaudeSession(context.Background(), "high", func(context.Context, string, []string) (lineProcess, error) {
+	session, err := newClaudeSession(context.Background(), "opus", "high", func(context.Context, string, []string) (lineProcess, error) {
 		return process, nil
 	})
 	if err != nil {
@@ -245,7 +245,7 @@ func TestClaudeSessionDiffsCacheTokensToo(t *testing.T) {
 		[]byte(`{"type":"result","result":"one","subtype":"success","usage":{"input_tokens":100,"output_tokens":10,"cache_read_input_tokens":1000,"cache_creation_input_tokens":200}}`),
 		[]byte(`{"type":"result","result":"two","subtype":"success","usage":{"input_tokens":150,"output_tokens":15,"cache_read_input_tokens":2500,"cache_creation_input_tokens":200}}`),
 	}}
-	session, err := newClaudeSession(context.Background(), "high", func(context.Context, string, []string) (lineProcess, error) {
+	session, err := newClaudeSession(context.Background(), "opus", "high", func(context.Context, string, []string) (lineProcess, error) {
 		return process, nil
 	})
 	if err != nil {

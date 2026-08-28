@@ -14,6 +14,10 @@ import (
 // ClaudeBackend adapts a provider-owned Claude CLI to the engine chat seam.
 // Claude's own process remains responsible for authentication and tools.
 type ClaudeBackend struct {
+	// Model and Effort are the values the provider process is started with. A
+	// stream-json process replays no argv, so changing either means a new
+	// process — the backend is rebuilt by the caller, not mutated.
+	Model   string
 	Effort  string
 	run     lineRunner
 	start   startLineProcess
@@ -24,8 +28,9 @@ type ClaudeBackend struct {
 
 // NewClaudeBackend creates a backend that lazily owns one persistent provider
 // process for its lifetime.
-func NewClaudeBackend(effort string) *ClaudeBackend {
+func NewClaudeBackend(model, effort string) *ClaudeBackend {
 	return &ClaudeBackend{
+		Model:  model,
 		Effort: effort,
 		start: func(ctx context.Context, executable string, args []string) (lineProcess, error) {
 			return shell.StartLinesProcess(ctx, executable, args)
@@ -120,12 +125,17 @@ func (b *ClaudeBackend) getSession(ctx context.Context) (*ClaudeSession, error) 
 	// needed it. Inheriting the turn context would let one cancelled turn kill
 	// Claude for every later turn. Close is the only thing that ends it.
 	sessionContext, release := context.WithCancel(context.WithoutCancel(ctx))
-	process, err := b.start(sessionContext, "claude", BuildClaudeSessionArgs(b.Effort))
+	args, err := BuildClaudeSessionArgs(b.Model, b.Effort)
 	if err != nil {
 		release()
 		return nil, err
 	}
-	b.session = &ClaudeSession{process: process, effort: b.Effort}
+	process, err := b.start(sessionContext, "claude", args)
+	if err != nil {
+		release()
+		return nil, err
+	}
+	b.session = &ClaudeSession{process: process, model: b.Model, effort: b.Effort}
 	b.release = release
 	return b.session, nil
 }
