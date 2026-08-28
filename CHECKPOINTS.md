@@ -2137,6 +2137,41 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### A33.2 built — the count, where the person is already looking
+
+The engine keeps a running total, an optional observer is told whenever it moves, and the TUI puts it
+on the status row that already carries mode, effort, folder and state — **what the run is doing**,
+rather than beside the cost, which is what the run has spent.
+
+**Zero shows nothing.** A permanent `agents 0` on every session that never opens a subagent is the
+sort of always-there number people stop reading, and this is one worth reading.
+
+**It stays a count.** Item 29 refused resource telemetry on the test that nobody could name a
+decision it would change; a running-agent count passes that test because it answers the two questions
+a long orchestrated run actually raises — *is this still working, and how wide did it go.* A test
+forbids a percentage, an elapsed time or a per-agent breakdown appearing in that row, so the next
+person to reach for a progress bar has to argue with it first.
+
+**Three things the shape of the code decided.** The counter is written from a goroutine per task, so
+it is behind a mutex and the observer is called **outside** the lock — a slow renderer must not be
+able to stall the run it is describing. The increment sits before the bus check, because the count is
+a second consumer and a session with no bus still has somebody watching the composer. And
+`SetAgents` mutates one field and redraws, exactly as `SetApproval` does, so a live count cannot
+disturb a transcript or a draft somebody is typing while their run works.
+
+The wiring has its own test. A count nothing feeds reads zero forever and looks correct, which is the
+one way this fails silently — so the line that attaches the engine's observer to the controller is
+pinned.
+
+Acceptance checklist:
+
+- [x] nine tests written first across engine and TUI, including a real orchestrated run.
+- [x] the count proven to return to zero when a task fails, not only when one succeeds.
+- [x] concurrency exercised with thirty-two tasks racing the same counter.
+- [x] the row that renders it forbidden from growing a progress indicator.
+- [x] the wire from engine to screen asserted, since an unfed count looks correct.
+- [x] full `make check` green: 2,371 tests, 0 lint issues.
+
 ### A33.1 built — the events exist, and now something says them
 
 `subagent.started` and `subagent.finished` have been in the protocol since A7 — declared, documented,
@@ -2183,7 +2218,7 @@ done.
       `subagent.finished` with task index, kind and model. The protocol already defines both and the
       conformance test already covers them, so this is a publisher, not a contract change. Verify by
       driving an orchestrated run against the mock and reading the events off the bus.
-- [ ] **A33.2 the live agent count** — the TUI shows how many subagents are running, above the
+- [x] **A33.2 the live agent count** — the TUI shows how many subagents are running, above the
       composer, beside the existing status. Started minus finished, the kinds in flight, nothing
       else. Must not become a progress bar (item 29's test: name the decision it changes). Verify
       the count returns to zero when a run ends, including when a task fails.

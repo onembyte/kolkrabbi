@@ -107,6 +107,10 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 	ag.Out = screen
 	ag.Activity = screen
 	ag.Work = screen
+	// The count from A33.1's events, straight to the row above the composer. A
+	// count nothing feeds reads zero forever and looks correct, which is the
+	// one way this feature fails silently.
+	ag.Agents = func(running int) { screen.Controller().SetAgents(running) }
 	ag.Decider = tuiDecider{runtime: screen}
 	ag.Ask = tuiChooser{runtime: screen}
 	runErr := screen.Run(ctx)

@@ -16,6 +16,37 @@ import (
 // a subagent's *work* is the orchestrator's business, and its *visibility* is
 // this one.
 
+// RunningSubagents is how many subagents are working right now.
+//
+// It is what A33.1's events were for: the count answers the two questions a
+// person actually asks of a long orchestrated run — is this still working, and
+// how wide did it go. Item 29's test applies and this passes it; anything more
+// (per-agent progress, tokens, elapsed) is a number nobody would act on.
+func (a *Agent) RunningSubagents() int {
+	a.subagentMu.Lock()
+	defer a.subagentMu.Unlock()
+	return a.subagentRunning
+}
+
+// noteSubagents adjusts the count and tells whoever is watching.
+//
+// runOneTask runs in a goroutine per task, so this is written from several at
+// once; the observer is called outside the lock, because a slow renderer must
+// not be able to stall the run it is describing.
+func (a *Agent) noteSubagents(delta int) {
+	a.subagentMu.Lock()
+	a.subagentRunning += delta
+	if a.subagentRunning < 0 {
+		a.subagentRunning = 0
+	}
+	running := a.subagentRunning
+	a.subagentMu.Unlock()
+
+	if a.Agents != nil {
+		a.Agents(running)
+	}
+}
+
 // subagentTaskID is the canonical id for one task in the current turn.
 //
 // Minted once per index and remembered, so the start and the finish of one task
@@ -44,7 +75,13 @@ func (a *Agent) subagentTaskID(index int) string {
 
 // publishSubagentStarted announces one child turn.
 func (a *Agent) publishSubagentStarted(tasks []Task, index int, childTurn string) {
-	if a.Bus == nil || index < 0 || index >= len(tasks) {
+	if index < 0 || index >= len(tasks) {
+		return
+	}
+	// Counted before the bus check: the count is a separate consumer, and a
+	// session with no bus still has a person watching the composer.
+	a.noteSubagents(1)
+	if a.Bus == nil {
 		return
 	}
 	title := tasks[index].Title
@@ -77,6 +114,7 @@ func (a *Agent) publishSubagentStarted(tasks []Task, index int, childTurn string
 // fires on success leaves a counter stuck at a number that never comes down,
 // which is worse than no counter at all.
 func (a *Agent) publishSubagentFinished(childTurn string, index int, ok bool) {
+	a.noteSubagents(-1)
 	if a.Bus == nil {
 		return
 	}

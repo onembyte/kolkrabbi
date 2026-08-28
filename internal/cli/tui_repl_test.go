@@ -198,3 +198,15 @@ func TestAResumedSessionIsNotReorientated(t *testing.T) {
 		}
 	}
 }
+
+// A count nothing feeds reads zero forever and looks correct. This asserts the
+// wire exists: the engine's observer reaches the controller that draws it.
+func TestTheAgentCountIsWiredToTheScreen(t *testing.T) {
+	source, err := os.ReadFile("tui_repl.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(source), "ag.Agents = func(running int) { screen.Controller().SetAgents(running) }") {
+		t.Error("the running-agent count is not attached to the screen, so the status would never move")
+	}
+}

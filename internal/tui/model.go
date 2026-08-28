@@ -4,6 +4,7 @@
 package tui
 
 import (
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -27,6 +28,10 @@ type Status struct {
 	// stop. Empty means not measured yet, which is different from zero.
 	Context string
 	Cost    string
+	// Agents is how many subagents are running right now. Zero shows nothing:
+	// a permanent "agents 0" on every session is the sort of always-there
+	// number people stop reading, and this one is worth reading.
+	Agents int
 }
 
 // Snapshot is an immutable copy of the screen regions. Tests and future
@@ -552,6 +557,9 @@ func formatStatus(status Status) []string {
 			// mode or the tier.
 			{label: "folder", value: status.Folder},
 			{label: "state", value: status.Lifecycle},
+			// What the run is doing belongs on the row that already carries
+			// mode and state, not beside the cost.
+			{label: "agents", value: agentCount(status.Agents)},
 		},
 		{
 			{label: "session", value: sessionLabel},
@@ -700,4 +708,18 @@ func skipEscapeSequence(text string, start int) int {
 		}
 		return next
 	}
+}
+
+// agentCount renders the running-subagent count, and nothing when there are
+// none.
+//
+// It is a count and stays one. Item 29 refused resource telemetry on the test
+// that nobody could name a decision it would change; a count of running agents
+// passes that test because it answers "is this still working, and how wide did
+// it go" — a percentage, an elapsed time or a per-agent breakdown would not.
+func agentCount(running int) string {
+	if running <= 0 {
+		return ""
+	}
+	return strconv.Itoa(running)
 }

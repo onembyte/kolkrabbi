@@ -214,6 +214,10 @@ type Options struct {
 	// guesses one, because compaction is destructive and a guessed limit would
 	// throw away conversation on no evidence.
 	ContextWindow int
+	// Agents is told how many subagents are running whenever that changes, so a
+	// surface can show it. Nil means nobody is watching.
+	Agents func(running int)
+
 	// PostWrite is called after a file-modifying tool succeeded, so the host
 	// can run hooks. It cannot veto: the work is already done, which is what
 	// keeps a hook from being a second permission system.
@@ -247,6 +251,10 @@ type Agent struct {
 	// carry, and subagentIDTurn is the turn they belong to.
 	subagentIDs    map[int]string
 	subagentIDTurn string
+	// subagentRunning is how many subagents are working, written from a
+	// goroutine per task and read by whatever is drawing the screen.
+	subagentMu      sync.Mutex
+	subagentRunning int
 	// lastPromptTokens is what the provider reported reading on the most recent
 	// main turn, which is the only measured view of how full the window is.
 	lastPromptTokens int

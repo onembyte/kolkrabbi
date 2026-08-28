@@ -440,6 +440,14 @@ func (c *Controller) resolveApproval(decision Decision, interrupt, exit bool) Ef
 	return Effect{Decision: decision, Interrupt: interrupt, Exit: exit}
 }
 
+// SetAgents updates only the running-subagent count, the way SetApproval
+// updates only the tier: one field, an immediate redraw, and no disturbance to
+// the transcript or a draft somebody is typing while their run works.
+func (c *Controller) SetAgents(running int) {
+	c.status.Agents = running
+	c.screen.SetStatus(c.status)
+}
+
 // SetApproval updates only the permission tier shown in the footer.
 func (c *Controller) SetApproval(approval string) {
 	c.status.Approval = approval
