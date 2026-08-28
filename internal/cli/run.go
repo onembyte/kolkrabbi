@@ -226,6 +226,12 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	if model == "" {
 		model = sess.Model
 	}
+	// The engine defaults an unset mode to code; the plan backend needs the
+	// same resolved value, because mode is part of its spawn contract.
+	mode := o.mode
+	if mode == "" {
+		mode = engine.ModeCode
+	}
 	// meteredFallback is the gateway model a run can continue on when the
 	// subscription it started on runs out. Empty means there is none, and a
 	// limit ends the run rather than quietly starting to bill.
@@ -326,7 +332,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		freeModels = provider.RankFreeModels(provider.FallbackCatalogSeed())
 	}
 
-	backend, err := a.planBackend(model, effort, sess.ProviderStateName(), func(state string) {
+	backend, err := a.planBackend(model, mode, effort, sess.ProviderStateName(), func(state string) {
 		// The vendor conversation handle is noted the moment the backend owns
 		// one, and the engine's next save writes it to disk; a failed save only
 		// costs the resume, never the turn.
@@ -438,14 +444,14 @@ func (a *app) loadCatalog(ctx context.Context, client *provider.Client, path str
 // model keeps the default provider client, and a plan model the user cannot use
 // yet stops the session with the reason rather than quietly answering from a
 // different provider than the one they asked for.
-func (a *app) planBackend(model, effort, state string, note func(string)) (engine.ChatBackend, error) {
-	backend, _, err := a.planBackendFor(model, effort, state, note)
+func (a *app) planBackend(model, mode, effort, state string, note func(string)) (engine.ChatBackend, error) {
+	backend, _, err := a.planBackendFor(model, mode, effort, state, note)
 	return backend, err
 }
 
 // planBackendFor reports the provider that must answer for one model. A nil
 // backend with a nil error means "an ordinary model, use the default client".
-func (a *app) planBackendFor(model, effort, state string, note func(string)) (engine.ChatBackend, provider.PlanModel, error) {
+func (a *app) planBackendFor(model, mode, effort, state string, note func(string)) (engine.ChatBackend, provider.PlanModel, error) {
 	d, err := a.resolve()
 	if err != nil {
 		return nil, provider.PlanModel{}, err
@@ -468,8 +474,11 @@ func (a *app) planBackendFor(model, effort, state string, note func(string)) (en
 		// conversation the session left off in; the vendor replays no argv on
 		// resume, so model and effort ride along every time.
 		resolved := a.planEffort(effort, planModel)
-		inner := agentcli.NewClaudeBackendFromHandle(planModel.Model, resolved, state, state != "")
-		return a.verifyingBackend(inner, planModel, resolved, note), planModel, nil
+		inner, err := agentcli.NewClaudeBackendFromHandle(planModel.Model, mode, resolved, state, state != "")
+		if err != nil {
+			return nil, provider.PlanModel{}, err
+		}
+		return a.verifyingBackend(inner, planModel, mode, resolved, note), planModel, nil
 	default:
 		return nil, provider.PlanModel{}, fmt.Errorf("the %s connector is enabled but Kolkrabbi has no adapter for it yet, so %s cannot run a session",
 			planModel.Connector, planModel.Model)
@@ -586,7 +595,7 @@ func (a *app) switchModel(ag *engine.Agent, ref string) (string, error) {
 		state = ag.Sess.ProviderStateName()
 		note = func(state string) { ag.Sess.SetProviderStateName(state) }
 	}
-	backend, planModel, err := a.planBackendFor(ref, ag.Effort, state, note)
+	backend, planModel, err := a.planBackendFor(ref, ag.Mode, ag.Effort, state, note)
 	if err != nil {
 		return "", err
 	}

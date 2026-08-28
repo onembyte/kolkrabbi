@@ -26,6 +26,11 @@ type verifyingBackend struct {
 	// change without restarting that process, so the session has to be able to
 	// say what the provider is actually running at.
 	effort string
+	// mode is the session mode the provider process was started with. It is
+	// part of the vendor's spawn contract — chat runs with no tool in context,
+	// code with the vendor's own tool loop — so a mode change restarts the
+	// process exactly as an effort change does.
+	mode string
 	// note records provider-side state worth resuming — for Claude, the vendor
 	// conversation handle — into the session file, so /model switches and later
 	// Kolkrabbi runs land on the same conversation.
@@ -41,13 +46,14 @@ type providerHandleBackend interface {
 	ProviderHandle() string
 }
 
-func (a *app) verifyingBackend(inner engine.ChatBackend, plan provider.PlanModel, effort string, note func(string)) *verifyingBackend {
+func (a *app) verifyingBackend(inner engine.ChatBackend, plan provider.PlanModel, mode, effort string, note func(string)) *verifyingBackend {
 	if note == nil {
 		note = func(string) {}
 	}
 	return &verifyingBackend{
 		inner:  inner,
 		plan:   plan,
+		mode:   mode,
 		effort: effort,
 		note:   note,
 		confirm: func(ctx context.Context) {

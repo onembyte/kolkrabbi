@@ -8,7 +8,7 @@ import (
 )
 
 func TestRunClaudeStreamsTranslatedEventsAndPromptOnStdin(t *testing.T) {
-	invocation, err := BuildClaudeInvocation("opus", "high", "say hello")
+	invocation, err := BuildClaudeInvocation("opus", "code", "high", "say hello")
 	if err != nil {
 		t.Fatal(err)
 	}

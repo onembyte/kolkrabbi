@@ -6,7 +6,7 @@ import (
 )
 
 func TestBuildClaudeInvocationKeepsPromptOutOfArgv(t *testing.T) {
-	invocation, err := BuildClaudeInvocation("opus", "high", "inspect this repository")
+	invocation, err := BuildClaudeInvocation("opus", "code", "high", "inspect this repository")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +25,7 @@ func TestBuildClaudeInvocationKeepsPromptOutOfArgv(t *testing.T) {
 }
 
 func TestBuildClaudeInvocationRejectsEmptyPrompt(t *testing.T) {
-	if _, err := BuildClaudeInvocation("opus", "high", "  "); err == nil {
+	if _, err := BuildClaudeInvocation("opus", "code", "high", "  "); err == nil {
 		t.Fatal("empty prompt should be rejected")
 	}
 }

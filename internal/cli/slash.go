@@ -118,6 +118,35 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			fmt.Fprintf(a.stdout, "mode: %s (chat|code|agent)\n", ag.Mode)
 			break
 		}
+		// A provider CLI owns its own tool loop, so the tool set and the
+		// permission mode it should run under are flags on its process — which
+		// replays no argv. Mode is part of that contract, exactly like effort:
+		// a change means a new process. Agent mode is refused outright, though:
+		// the vendor schedules its own subagents, which kolk cannot record or
+		// stop, so binding it to kolk's orchestrator would be a claim of
+		// supervision nobody makes.
+		if plan, ok := ag.Backend.(*verifyingBackend); ok {
+			if arg == "agent" {
+				fmt.Fprintf(a.stdout, "%s cannot run kolk's agent mode: the vendor schedules its own subagents, which kolk cannot record or stop; use code mode\n", plan.plan.Connector)
+				break
+			}
+			if err := ag.SetMode(arg); err != nil {
+				fmt.Fprintln(a.stdout, err)
+				break
+			}
+			fmt.Fprintf(a.stdout, "mode: %s\n", ag.Mode)
+			if plan.mode != ag.Mode {
+				model, connector := plan.plan.Model, plan.plan.Connector
+				label, err := a.switchModel(ag, model)
+				if err != nil {
+					fmt.Fprintf(a.stdout, "could not restart %s in %s mode: %v\n", connector, ag.Mode, err)
+					fmt.Fprintf(a.stdout, "  re-run /model %s to retry\n", model)
+					break
+				}
+				fmt.Fprintf(a.stdout, "%s restarted in %s mode (%s)\n", connector, ag.Mode, label)
+			}
+			break
+		}
 		if err := ag.SetMode(arg); err != nil {
 			fmt.Fprintln(a.stdout, err)
 		} else {

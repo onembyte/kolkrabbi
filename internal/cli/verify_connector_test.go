@@ -40,7 +40,7 @@ func unverifiedClaude(t *testing.T) (*app, provider.PlanModel) {
 // answered. That is a turn the user wanted anyway, so it costs nothing extra.
 func TestAnsweredTurnVerifiesTheConnector(t *testing.T) {
 	a, planModel := unverifiedClaude(t)
-	backend := a.verifyingBackend(stubBackend{}, planModel, "high", nil)
+	backend := a.verifyingBackend(stubBackend{}, planModel, "code", "high", nil)
 
 	if _, _, err := backend.StreamChat(context.Background(), "claude-opus", nil, nil, nil); err != nil {
 		t.Fatal(err)
@@ -63,7 +63,7 @@ func TestAFailedTurnOnAnUnverifiedConnectorExplainsTheLikelyCause(t *testing.T) 
 	a, planModel := unverifiedClaude(t)
 	var errOut strings.Builder
 	a.stderr = &errOut
-	backend := a.verifyingBackend(stubBackend{err: errors.New("provider process exited unsuccessfully")}, planModel, "high", nil)
+	backend := a.verifyingBackend(stubBackend{err: errors.New("provider process exited unsuccessfully")}, planModel, "code", "high", nil)
 
 	if _, _, err := backend.StreamChat(context.Background(), "claude-opus", nil, nil, nil); err == nil {
 		t.Fatal("the underlying failure must still reach the caller")
@@ -84,7 +84,7 @@ func TestAFailedTurnOnAnUnverifiedConnectorExplainsTheLikelyCause(t *testing.T) 
 
 func TestAVerifiedConnectorIsNotReWrittenOnEveryTurn(t *testing.T) {
 	a, planModel := unverifiedClaude(t)
-	backend := a.verifyingBackend(stubBackend{}, planModel, "high", nil)
+	backend := a.verifyingBackend(stubBackend{}, planModel, "code", "high", nil)
 
 	for range 3 {
 		if _, _, err := backend.StreamChat(context.Background(), "claude-opus", nil, nil, nil); err != nil {
@@ -102,7 +102,7 @@ func TestAFailedTurnExplainsOnlyOnce(t *testing.T) {
 	a, planModel := unverifiedClaude(t)
 	var errOut strings.Builder
 	a.stderr = &errOut
-	backend := a.verifyingBackend(stubBackend{err: errors.New("boom")}, planModel, "high", nil)
+	backend := a.verifyingBackend(stubBackend{err: errors.New("boom")}, planModel, "code", "high", nil)
 
 	for range 3 {
 		_, _, _ = backend.StreamChat(context.Background(), "claude-opus", nil, nil, nil)
@@ -128,7 +128,7 @@ func TestAnAnsweredTurnNotesTheVendorHandle(t *testing.T) {
 	a, planModel := unverifiedClaude(t)
 	noted := ""
 	var mu sync.Mutex
-	backend := a.verifyingBackend(stubHandleBackend{handle: "vendor-conv-1"}, planModel, "high", func(state string) {
+	backend := a.verifyingBackend(stubHandleBackend{handle: "vendor-conv-1"}, planModel, "code", "high", func(state string) {
 		mu.Lock()
 		defer mu.Unlock()
 		noted = state
@@ -156,7 +156,7 @@ func TestAnAnsweredTurnNotesTheVendorHandle(t *testing.T) {
 func TestAFailedTurnNotesNothing(t *testing.T) {
 	a, planModel := unverifiedClaude(t)
 	noted := ""
-	backend := a.verifyingBackend(stubHandleBackend{stubBackend: stubBackend{err: errors.New("boom")}, handle: "vendor-conv-1"}, planModel, "high", func(state string) {
+	backend := a.verifyingBackend(stubHandleBackend{stubBackend: stubBackend{err: errors.New("boom")}, handle: "vendor-conv-1"}, planModel, "code", "high", func(state string) {
 		noted = state
 	})
 
@@ -172,7 +172,7 @@ func TestAFailedTurnNotesNothing(t *testing.T) {
 func TestABackendWithoutAHandleNotesNothing(t *testing.T) {
 	a, planModel := unverifiedClaude(t)
 	noted := ""
-	backend := a.verifyingBackend(stubBackend{}, planModel, "high", func(state string) {
+	backend := a.verifyingBackend(stubBackend{}, planModel, "code", "high", func(state string) {
 		noted = state
 	})
 

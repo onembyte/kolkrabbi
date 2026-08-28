@@ -14,10 +14,11 @@ import (
 // ClaudeBackend adapts a provider-owned Claude CLI to the engine chat seam.
 // Claude's own process remains responsible for authentication and tools.
 type ClaudeBackend struct {
-	// Model and Effort are the values the provider process is started with. A
-	// stream-json process replays no argv, so changing either means a new
-	// process — the backend is rebuilt by the caller, not mutated.
+	// Model, Mode and Effort are the values the provider process is started
+	// with. A stream-json process replays no argv, so changing any of them
+	// means a new process — the backend is rebuilt by the caller, not mutated.
 	Model  string
+	Mode   string
 	Effort string
 	// handle is the vendor conversation this backend drives: minted by
 	// Kolkrabbi, carried across backends and restarts through the session
@@ -37,17 +38,23 @@ type ClaudeBackend struct {
 
 // NewClaudeBackendFromHandle creates a backend that resumes one vendor
 // conversation (resume true) or opens a brand-new one kolk has already
-// minted a name for.
-func NewClaudeBackendFromHandle(model, effort, handle string, resume bool) *ClaudeBackend {
+// minted a name for. The mode is part of the spawn contract: chat runs the
+// vendor with no tool in context, code runs the vendor's own tool loop.
+func NewClaudeBackendFromHandle(model, mode, effort, handle string, resume bool) (*ClaudeBackend, error) {
+	// Refusing here, before any process exists, is what "says why" means.
+	if _, err := claudeModeFlags(mode); err != nil {
+		return nil, err
+	}
 	return &ClaudeBackend{
 		Model:  model,
+		Mode:   strings.ToLower(strings.TrimSpace(mode)),
 		Effort: effort,
 		handle: handle,
 		resume: resume,
 		start: func(ctx context.Context, executable string, args []string) (lineProcess, error) {
 			return shell.StartLinesProcess(ctx, executable, args)
 		},
-	}
+	}, nil
 }
 
 // ProviderHandle reports the vendor conversation this backend has driven most
@@ -64,14 +71,15 @@ func (b *ClaudeBackend) ProviderHandle() string {
 }
 
 func (b *ClaudeBackend) StreamChat(ctx context.Context, model string, messages []provider.Message, tools []provider.Tool, onToken func(string)) (provider.Message, provider.Meta, error) {
-	if len(tools) > 0 {
-		return provider.Message{}, provider.Meta{Model: model}, fmt.Errorf("claude provider-owned tools are not yet supported by this adapter")
-	}
+	// The tool schemas the gateway seam passes are deliberately ignored: the
+	// vendor owns tool execution here, and --allowedTools takes names, not
+	// JSON Schema. Pretending to forward them would claim a definition of the
+	// vendor's tool loop kolk does not have.
 	prompt, err := promptFromMessages(messages)
 	if err != nil {
 		return provider.Message{}, provider.Meta{Model: model}, err
 	}
-	invocation, err := BuildClaudeInvocation(model, b.Effort, prompt)
+	invocation, err := BuildClaudeInvocation(model, b.Mode, b.Effort, prompt)
 	if err != nil {
 		return provider.Message{}, provider.Meta{Model: model}, err
 	}
@@ -167,7 +175,7 @@ func (b *ClaudeBackend) getSession(ctx context.Context) (*ClaudeSession, error) 
 		b.handle = NewVendorHandle()
 	}
 	resume := b.started || b.resume
-	args, err := BuildClaudeSessionArgs(b.Model, b.Effort, b.handle, resume)
+	args, err := BuildClaudeSessionArgs(b.Model, b.Mode, b.Effort, b.handle, resume)
 	if err != nil {
 		release()
 		return nil, err

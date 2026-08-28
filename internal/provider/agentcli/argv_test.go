@@ -10,7 +10,7 @@ import (
 )
 
 func TestBuildClaudeSessionArgsCarriesTheVendorModelAndEffort(t *testing.T) {
-	args, err := BuildClaudeSessionArgs("claude-opus", "high", "0b5e0e2a-1111-4222-8333-444455556666", false)
+	args, err := BuildClaudeSessionArgs("claude-opus", "code", "high", "0b5e0e2a-1111-4222-8333-444455556666", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestBuildClaudeSessionArgsCarriesTheVendorModelAndEffort(t *testing.T) {
 }
 
 func TestBuildClaudeSessionArgsOmitsAnEmptyModel(t *testing.T) {
-	args, err := BuildClaudeSessionArgs("", "high", "", false)
+	args, err := BuildClaudeSessionArgs("", "code", "high", "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,10 +45,10 @@ func TestBuildClaudeSessionArgsOmitsAnEmptyModel(t *testing.T) {
 // The vendor warn-and-runs on an unknown --effort value, which would leave the
 // effort dial silently doing nothing: Kolkrabbi refuses instead.
 func TestBuildClaudeSessionArgsRefusesAnUnknownEffort(t *testing.T) {
-	if _, err := BuildClaudeSessionArgs("opus", "bogus", "", false); err == nil {
+	if _, err := BuildClaudeSessionArgs("opus", "code", "bogus", "", false); err == nil {
 		t.Fatal("an effort level outside the vendor's closed set must be refused")
 	}
-	args, err := BuildClaudeSessionArgs("opus", "", "", false)
+	args, err := BuildClaudeSessionArgs("opus", "code", "", "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestBuildClaudeSessionArgsRefusesAnUnknownEffort(t *testing.T) {
 // must be re-passed alongside it every time.
 func TestBuildClaudeSessionArgsResumesWithTheSameModelAndEffort(t *testing.T) {
 	handle := "0b5e0e2a-1111-4222-8333-444455556666"
-	args, err := BuildClaudeSessionArgs("claude-opus", "high", handle, true)
+	args, err := BuildClaudeSessionArgs("claude-opus", "code", "high", handle, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,12 +81,73 @@ func TestBuildClaudeSessionArgsResumesWithTheSameModelAndEffort(t *testing.T) {
 	}
 }
 
-func TestBuildClaudeSessionArgsMatchesTheOneShotSpine(t *testing.T) {
-	session, err := BuildClaudeSessionArgs("opus", "high", "0b5e0e2a-1111-4222-8333-444455556666", false)
+// Mode is structural on this backend: the vendor's own tool loop carries the
+// mode, because kolk runs no tool executor of its own here.
+func TestClaudeModeFlagsShapeTheVendorToolSet(t *testing.T) {
+	code, err := claudeModeFlags("code")
 	if err != nil {
 		t.Fatal(err)
 	}
-	invocation, err := BuildClaudeInvocation("opus", "high", "inspect this repository")
+	if got := strings.Join(code, " "); !strings.Contains(got, "--permission-mode acceptEdits") ||
+		!strings.Contains(got, "Read") || !strings.Contains(got, "Bash") || strings.Contains(got, "Task") {
+		t.Fatalf("code flags = %q, want the vendor tool set without Task", got)
+	}
+	chat, err := claudeModeFlags("chat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(strings.Join(chat, " "), "Bash") {
+		t.Fatalf("chat flags = %q, chat must run with no built-in tool", chat)
+	}
+	if !strings.Contains(strings.Join(chat, " "), "--permission-mode dontAsk") {
+		t.Fatalf("chat flags = %q, want dontAsk", strings.Join(chat, " "))
+	}
+	if _, err := claudeModeFlags("agent"); err == nil {
+		t.Fatal("agent mode must be refused on this backend, with the reason")
+	}
+}
+
+func TestClaudeSessionArgsCarryTheModeToolsAndPermission(t *testing.T) {
+	args, err := BuildClaudeSessionArgs("claude-opus", "chat", "high", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := slices.Index(args, "--tools")
+	if i < 0 || i+1 >= len(args) {
+		t.Fatalf("args %q lack --tools", args)
+	}
+	if next := args[i+1]; next != "" && strings.Contains(next, "Bash") {
+		t.Fatalf("--tools = %q, chat mode must clear the built-in tool set", next)
+	}
+	p := slices.Index(args, "--permission-mode")
+	if p < 0 || p+1 >= len(args) || args[p+1] != "dontAsk" {
+		t.Fatalf("args %q lack --permission-mode dontAsk", args)
+	}
+}
+
+// The variadic flags consume every following bare token, so each one gets
+// exactly one comma-separated string and nothing ever rides unshielded.
+func TestClaudeModeAndHandleFlagsNeverExposeBareTokens(t *testing.T) {
+	args, err := BuildClaudeSessionArgs("claude-opus", "code", "high", "conv-handle", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, arg := range args {
+		switch arg {
+		case "--tools", "--permission-mode", "--resume", "--session-id", "--model", "--effort":
+			if i+1 >= len(args) || strings.HasPrefix(args[i+1], "--") {
+				t.Fatalf("%s at %d is either unvalued or followed by another flag: %q", arg, i, args)
+			}
+		}
+	}
+}
+
+func TestBuildClaudeSessionArgsMatchesTheOneShotSpine(t *testing.T) {
+	session, err := BuildClaudeSessionArgs("opus", "code", "high", "0b5e0e2a-1111-4222-8333-444455556666", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invocation, err := BuildClaudeInvocation("opus", "code", "high", "inspect this repository")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +200,10 @@ func TestClaudeEffortValidAcceptsTheVendorSet(t *testing.T) {
 // a stream-json process cannot take a new argv later.
 func TestClaudeBackendSessionSpawnsWithItsConstructedModel(t *testing.T) {
 	var spawned []string
-	backend := NewClaudeBackendFromHandle("claude-opus", "high", "", false)
+	backend, err0 := NewClaudeBackendFromHandle("claude-opus", "code", "high", "", false)
+	if err0 != nil {
+		t.Fatal(err0)
+	}
 	backend.start = func(_ context.Context, _ string, args []string) (lineProcess, error) {
 		spawned = append([]string(nil), args...)
 		// No frames: the turn ends at EOF, but only after the process spawned.
@@ -160,7 +224,10 @@ func TestClaudeBackendSessionSpawnsWithItsConstructedModel(t *testing.T) {
 // StreamChat with a fake process that answers one turn normally.
 func TestClaudeBackendHappyPathEndsCleanlyWithConstructedModel(t *testing.T) {
 	process := &fakeLineProcess{lines: claudeTurnFrames("hello")}
-	backend := NewClaudeBackendFromHandle("claude-opus", "high", "", false)
+	backend, err0 := NewClaudeBackendFromHandle("claude-opus", "code", "high", "", false)
+	if err0 != nil {
+		t.Fatal(err0)
+	}
 	backend.start = func(context.Context, string, []string) (lineProcess, error) {
 		return process, nil
 	}
@@ -189,7 +256,10 @@ func TestNewVendorHandleIsAWellFormedUUID(t *testing.T) {
 // `claude` child would walk into its own empty history.
 func TestClaudeBackendMintsTheHandleOnceAndResumesEverAfter(t *testing.T) {
 	spawned := [][]string{}
-	backend := NewClaudeBackendFromHandle("claude-opus", "high", "", false)
+	backend, err0 := NewClaudeBackendFromHandle("claude-opus", "code", "high", "", false)
+	if err0 != nil {
+		t.Fatal(err0)
+	}
 	backend.start = func(_ context.Context, _ string, args []string) (lineProcess, error) {
 		spawned = append(spawned, append([]string(nil), args...))
 		return &fakeLineProcess{lines: claudeTurnFrames("ok")}, nil
@@ -234,7 +304,10 @@ func TestClaudeBackendReportsTheVendorConfirmedHandle(t *testing.T) {
 		[]byte(`{"type":"assistant","message":{"model":"opus","content":[{"type":"text","text":"hi"}]}}`),
 		[]byte(`{"type":"result","result":"hi","subtype":"success","session_id":"vendor-confirmed"}`),
 	}}
-	backend := NewClaudeBackendFromHandle("claude-opus", "high", "", false)
+	backend, err0 := NewClaudeBackendFromHandle("claude-opus", "code", "high", "", false)
+	if err0 != nil {
+		t.Fatal(err0)
+	}
 	backend.start = func(context.Context, string, []string) (lineProcess, error) {
 		return process, nil
 	}
@@ -251,7 +324,10 @@ func TestClaudeBackendReportsTheVendorConfirmedHandle(t *testing.T) {
 // conversation, not wedge every later turn behind the same dead resume.
 func TestClaudeBackendForgetsAStoredHandleThatResumesDead(t *testing.T) {
 	spawned := [][]string{}
-	backend := NewClaudeBackendFromHandle("claude-opus", "high", "handle-the-vendor-forgot", true)
+	backend, err0 := NewClaudeBackendFromHandle("claude-opus", "code", "high", "handle-the-vendor-forgot", true)
+	if err0 != nil {
+		t.Fatal(err0)
+	}
 	backend.start = func(_ context.Context, _ string, args []string) (lineProcess, error) {
 		spawned = append(spawned, append([]string(nil), args...))
 		if len(spawned) == 1 {

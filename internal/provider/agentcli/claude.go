@@ -44,15 +44,40 @@ func runClaude(ctx context.Context, invocation ClaudeInvocation, run lineRunner,
 
 // BuildClaudeInvocation creates the documented non-interactive Claude CLI
 // invocation. The provider CLI remains responsible for authentication.
-func BuildClaudeInvocation(model, effort, prompt string) (ClaudeInvocation, error) {
+func BuildClaudeInvocation(model, mode, effort, prompt string) (ClaudeInvocation, error) {
 	if strings.TrimSpace(prompt) == "" {
 		return ClaudeInvocation{}, fmt.Errorf("claude prompt cannot be empty")
 	}
-	args, err := claudeArgs(model, effort, "", false, false)
+	args, err := claudeArgs(mode, model, effort, "", false, false)
 	if err != nil {
 		return ClaudeInvocation{}, err
 	}
 	return ClaudeInvocation{Args: args, Prompt: prompt}, nil
+}
+
+// claudeCodeTools is the vendor tool set a code session runs with. Task stays
+// off on purpose: kolk's agent mode is not available on this backend at all,
+// and leaving the vendor's own subagent scheduler on would put a subagent tree
+// in the stream that kolk's bus cannot represent.
+const claudeCodeTools = "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,TodoWrite"
+
+// claudeModeFlags turns kolk's session mode into the vendor flags that make
+// it structural. The provider owns its tools — kolk sends schemas to nobody
+// here — so "chat cannot touch your files" is enforced by the vendor running
+// with no tool in context at all, and code mode works because the vendor's
+// own tool loop is on. A mode change therefore changes the process, not the
+// request: a stream-json process replays no argv.
+func claudeModeFlags(mode string) ([]string, error) {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "", "code":
+		return []string{"--tools", claudeCodeTools, "--permission-mode", "acceptEdits"}, nil
+	case "chat":
+		return []string{"--tools", "", "--permission-mode", "dontAsk"}, nil
+	case "agent":
+		return nil, fmt.Errorf("claude cannot run kolk's agent mode: the vendor schedules its own subagents, which kolk cannot record or stop; run code mode instead")
+	default:
+		return nil, fmt.Errorf("unknown mode %q (chat|code|agent)", mode)
+	}
 }
 
 // claudeEfforts is the closed set the vendor documents for --effort. The CLI
@@ -111,16 +136,24 @@ func NewVendorHandle() string {
 // A handle either opens one named conversation (--session-id) or resumes it
 // (--resume); the vendor replays no flag vector on resume, so the model and
 // effort flags are re-passed alongside it every time.
-func claudeArgs(model, effort, handle string, resume, streamOnly bool) ([]string, error) {
+func claudeArgs(mode, model, effort, handle string, resume, streamOnly bool) ([]string, error) {
 	effort = strings.ToLower(strings.TrimSpace(effort))
 	if !ClaudeEffortValid(effort) {
 		return nil, fmt.Errorf("claude has no %q effort level; use low, medium, high, xhigh or max", effort)
+	}
+	modeFlags, err := claudeModeFlags(mode)
+	if err != nil {
+		return nil, err
 	}
 	args := []string{"-p", "--verbose", "--output-format", "stream-json"}
 	if streamOnly {
 		args = append(args, "--input-format", "stream-json")
 	}
 	args = append(args, "--safe-mode", "--setting-sources", "")
+	// One comma-separated string per variadic flag: the vendor's variadic
+	// flags consume every following bare token, so a second bare token would
+	// register as a tool name, not a flag value.
+	args = append(args, modeFlags...)
 	if model = strings.TrimSpace(model); model != "" {
 		args = append(args, "--model", ClaudeVendorModel(model))
 	}

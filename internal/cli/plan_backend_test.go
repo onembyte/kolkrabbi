@@ -377,6 +377,108 @@ func TestSlashEffortRestartsThePlanProvider(t *testing.T) {
 	}
 }
 
+// Mode is part of the vendor's spawn contract: kolk's chat mode runs the
+// provider with no tool in context at all, so "chat cannot touch your files"
+// is what the process is, not a prompt instruction. A mode change must
+// therefore restart the provider process, exactly as an effort change does.
+func TestSlashModeRestartsThePlanProviderInChatMode(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	enablePlanConnector(t, dirs)
+	a, ag, out := replFixture(t, "")
+	if a.slash(context.Background(), ag, "/model claude-opus") {
+		t.Fatal("/model must not exit the session")
+	}
+	before, ok := ag.Backend.(*verifyingBackend)
+	if !ok {
+		t.Fatalf("backend = %T, want the verifying wrapper before the change", ag.Backend)
+	}
+
+	if a.slash(context.Background(), ag, "/mode chat") {
+		t.Fatal("/mode must not exit the session")
+	}
+	wrapped, ok := ag.Backend.(*verifyingBackend)
+	if !ok {
+		t.Fatalf("backend = %T, want the verifying wrapper after /mode", ag.Backend)
+	}
+	if ag.Backend == before {
+		t.Fatal("/mode must replace a plan provider still running in the old mode")
+	}
+	if wrapped.mode != "chat" {
+		t.Fatalf("provider mode = %q, want chat", wrapped.mode)
+	}
+	inner, ok := wrapped.inner.(*agentcli.ClaudeBackend)
+	if !ok {
+		t.Fatalf("inner = %T, want the claude backend", wrapped.inner)
+	}
+	if inner.Mode != "chat" {
+		t.Fatalf("claude backend mode = %q, want chat", inner.Mode)
+	}
+	if !strings.Contains(out.String(), "restarted in chat mode") {
+		t.Fatalf("output = %q, want it to say the provider restarted", out.String())
+	}
+}
+
+// Agent mode binds to kolk's orchestrator, and the vendor schedules its own
+// subagents kolk cannot record or stop — so the switch is refused with the
+// reason, and the provider process is left untouched.
+func TestSlashModeRefusesAgentOnAPlanProvider(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	enablePlanConnector(t, dirs)
+	a, ag, out := replFixture(t, "")
+	if a.slash(context.Background(), ag, "/model claude-opus") {
+		t.Fatal("/model must not exit the session")
+	}
+	before := ag.Backend
+
+	if a.slash(context.Background(), ag, "/mode agent") {
+		t.Fatal("/mode must not exit the session")
+	}
+	if !strings.Contains(out.String(), "cannot run kolk's agent mode") {
+		t.Fatalf("output = %q, want the refusal with its reason", out.String())
+	}
+	if ag.Backend != before {
+		t.Fatal("a refused mode change must not replace the provider")
+	}
+	if ag.Mode == "agent" {
+		t.Fatal("a refused mode change must not change the session's own mode")
+	}
+}
+
+// The refusal is scoped to the plan provider: an ordinary gateway session can
+// still run agent mode.
+func TestSlashModeStillSwitchesAgentOnAPlainBackend(t *testing.T) {
+	a, ag, _ := replFixture(t, "")
+	if a.slash(context.Background(), ag, "/mode agent") {
+		t.Fatal("/mode must not exit the session")
+	}
+	if ag.Mode != "agent" {
+		t.Fatalf("mode = %q, want agent on a plain backend", ag.Mode)
+	}
+}
+
+// Starting a session straight onto a plan model in agent mode is refused with
+// the reason, before any provider process exists.
+func TestAgentModeIsRefusedForAPlanModel(t *testing.T) {
+	dirs := storeFirstRunKey(t)
+	if err := dirs.EnsureData(); err != nil {
+		t.Fatal(err)
+	}
+	enablePlanConnector(t, dirs)
+	stored := session.New(dirs.Sessions(), "vendor/model")
+	if err := stored.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	a, _, _ := newTestApp(t, "")
+	_, err := a.newAgent(context.Background(), &options{session: stored.ID, model: "claude-opus", mode: "agent"})
+	if err == nil {
+		t.Fatal("agent mode on a plan model must be refused")
+	}
+	if !strings.Contains(err.Error(), "agent mode") {
+		t.Fatalf("err = %v, want the reason", err)
+	}
+}
+
 // A /effort that is a no-op on the plan's ladder must not churn the provider
 // process: restarting the vendor child costs its streamed context.
 func TestSlashEffortLeavesThePlanProviderAloneAtTheSameLevel(t *testing.T) {

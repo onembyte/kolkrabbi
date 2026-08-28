@@ -74,9 +74,9 @@ func (s *ClaudeSession) Resumed() bool {
 // newClaudeSession mints a fresh conversation name and opens the persistent
 // process with it. Backends that own a resume flow spawn through getSession
 // instead, which can reuse a handle the session file carried.
-func newClaudeSession(ctx context.Context, model, effort string, start startLineProcess) (*ClaudeSession, error) {
+func newClaudeSession(ctx context.Context, model, mode, effort string, start startLineProcess) (*ClaudeSession, error) {
 	handle := NewVendorHandle()
-	args, err := BuildClaudeSessionArgs(model, effort, handle, false)
+	args, err := BuildClaudeSessionArgs(model, mode, effort, handle, false)
 	if err != nil {
 		return nil, err
 	}
@@ -93,8 +93,8 @@ func newClaudeSession(ctx context.Context, model, effort string, start startLine
 // process, and the effort dial's own restart rule follows from the same fact.
 // A handle either claims a new conversation (--session-id) or resumes a known
 // one (--resume).
-func BuildClaudeSessionArgs(model, effort, handle string, resume bool) ([]string, error) {
-	return claudeArgs(model, effort, handle, resume, true)
+func BuildClaudeSessionArgs(model, mode, effort, handle string, resume bool) ([]string, error) {
+	return claudeArgs(mode, model, effort, handle, resume, true)
 }
 
 // resyncGrace bounds how long Kolkrabbi waits for the tail of an interrupted

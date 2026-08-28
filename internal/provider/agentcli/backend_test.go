@@ -22,11 +22,21 @@ func TestPromptFromMessagesPreservesConversationRoles(t *testing.T) {
 	}
 }
 
-func TestClaudeBackendRejectsEngineToolsUntilTranslated(t *testing.T) {
-	backend := ClaudeBackend{}
-	_, _, err := backend.StreamChat(context.Background(), "opus", nil, []provider.Tool{{}}, nil)
-	if err == nil {
-		t.Fatal("tool requests must fail explicitly until Claude tool events are supported")
+// The gateway seam's tool schemas are deliberately ignored on this backend:
+// the vendor owns tool execution, and its argv takes names, not JSON Schema.
+// They must neither error the turn nor reach the process.
+func TestClaudeBackendIgnoresEngineToolSchemas(t *testing.T) {
+	backend := ClaudeBackend{
+		start: func(context.Context, string, []string) (lineProcess, error) {
+			return &fakeLineProcess{lines: claudeTurnFrames("hello")}, nil
+		},
+	}
+	message, _, err := backend.StreamChat(context.Background(), "opus", []provider.Message{{Role: "user", Content: "hi"}}, []provider.Tool{{Function: provider.FunctionDef{Name: "bash"}}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if message.Content != "hello" {
+		t.Fatalf("message = %q", message.Content)
 	}
 }
 
