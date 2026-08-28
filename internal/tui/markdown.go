@@ -28,21 +28,43 @@ type blockBoundary struct {
 	rendered int // rendered lines before this point
 }
 
-func renderMarkdown(text string, width int) []string {
-	lines, _ := renderMarkdownBlocks(text, width)
-	return lines
+// styledRow is one rendered terminal row and the fixed style it carries.
+// Styles attach to structural facts established here, at the only place that
+// knows a row was a diff line or a heading; everything downstream joins them
+// into strings.
+type styledRow struct {
+	text  string
+	style rowStyle
 }
 
 // renderMarkdownBlocks renders text and reports every point at which the
 // rendering could be cut without changing what either half looks like.
 func renderMarkdownBlocks(text string, width int) ([]string, []blockBoundary) {
+	rows, boundaries := renderMarkdownStyledBlocks(text, width)
+	return rowTexts(rows), boundaries
+}
+
+func rowTexts(rows []styledRow) []string {
+	out := make([]string, len(rows))
+	for index, row := range rows {
+		out[index] = row.text
+	}
+	return out
+}
+
+func renderMarkdownStyled(text string, width int) []styledRow {
+	rows, _ := renderMarkdownStyledBlocks(text, width)
+	return rows
+}
+
+func renderMarkdownStyledBlocks(text string, width int) ([]styledRow, []blockBoundary) {
 	sanitized := sanitizeTerminalText(text)
 	logical := strings.Split(sanitized, "\n")
 	if len(logical) > 0 && logical[len(logical)-1] == "" {
 		logical = logical[:len(logical)-1]
 	}
 
-	var lines []string
+	var rows []styledRow
 	// The top of this loop is a boundary by construction: every block the body
 	// handles is consumed whole before control returns here.
 	boundaries := []blockBoundary{{}}
@@ -64,7 +86,7 @@ func renderMarkdownBlocks(text string, width int) ([]string, []blockBoundary) {
 				}
 				body = append(body, row)
 			}
-			lines = append(lines, renderCodeBlock(info, body, closed, width)...)
+			rows = append(rows, renderCodeBlock(info, body, closed, width)...)
 			if index < len(logical) {
 				// Step past whichever row ended the scan: a closing fence,
 				// a blank prose terminator, or nothing at end of input.
@@ -73,22 +95,24 @@ func renderMarkdownBlocks(text string, width int) ([]string, []blockBoundary) {
 			// An unclosed fence is still being written, so its rendering can
 			// still change: it is not a boundary.
 			if closed {
-				boundaries = append(boundaries, blockBoundary{source: index, rendered: len(lines)})
+				boundaries = append(boundaries, blockBoundary{source: index, rendered: len(rows)})
 			}
 			continue
 		}
 		if heading, ok := trimHeading(line); ok {
-			lines = append(lines, wrapLine(heading, width)...)
-			lines = append(lines, "")
+			for _, wrapped := range wrapLine(heading, width) {
+				rows = append(rows, styledRow{text: wrapped, style: styleHeading})
+			}
+			rows = append(rows, styledRow{})
 			index++
-			boundaries = append(boundaries, blockBoundary{source: index, rendered: len(lines)})
+			boundaries = append(boundaries, blockBoundary{source: index, rendered: len(rows)})
 			continue
 		}
-		lines = append(lines, wrapLine(markdownLine(line), width)...)
+		rows = append(rows, wrapMarkdownLine(markdownLine(line), width)...)
 		index++
-		boundaries = append(boundaries, blockBoundary{source: index, rendered: len(lines)})
+		boundaries = append(boundaries, blockBoundary{source: index, rendered: len(rows)})
 	}
-	return lines, boundaries
+	return rows, boundaries
 }
 
 type fence struct {
@@ -112,7 +136,7 @@ func fenceInfo(line string) (fence, bool) {
 	return fence{language: info}, true
 }
 
-func renderCodeBlock(info fence, body []string, closed bool, width int) []string {
+func renderCodeBlock(info fence, body []string, closed bool, width int) []styledRow {
 	title := "code"
 	if info.isDiff {
 		title = diffMarker
@@ -121,27 +145,88 @@ func renderCodeBlock(info fence, body []string, closed bool, width int) []string
 	}
 
 	contentWidth := max(1, width-3)
-	lines := make([]string, 0, len(body)+2)
-	rows := make([]string, 0, len(body))
-	for _, row := range body {
-		rows = append(rows, clipRow(row, contentWidth))
-	}
-	lines = append(lines, clipLine("╭─ "+title, width))
+	rows := make([]styledRow, 0, len(body)+2)
+	rows = append(rows, styledRow{text: clipLine("╭─ "+title, width), style: styleMeta})
 	prefix := "│ "
-	if info.isDiff {
-		for i, row := range rows {
-			rows[i] = diffPrefix(row)
+	for _, row := range body {
+		row = clipRow(row, contentWidth)
+		if info.isDiff {
+			// The style is read from the signed row and only then is the sign
+			// given its own column; reading it after diffPrefix would see the
+			// payload only and colour nothing.
+			style := diffStyle(row)
+			prefixed := diffPrefix(row)
+			// Sign-coloured diff rows are the whole reason the sign sits
+			// alone in its column: the eye can then run down the edge.
+			rows = append(rows, styledRow{text: clipLine(prefix+prefixed, width), style: style})
+			continue
 		}
-	}
-	for _, row := range rows {
 		for _, wrapped := range wrapLine(row, contentWidth) {
-			lines = append(lines, clipLine(prefix+wrapped, width))
+			rows = append(rows, styledRow{text: clipLine(prefix+wrapped, width)})
 		}
 	}
 	if closed {
-		lines = append(lines, clipLine("╰─", width))
+		rows = append(rows, styledRow{text: clipLine("╰─", width), style: styleMeta})
 	}
-	return lines
+	return rows
+}
+
+// wrapMarkdownLine wraps one mapped prose row, preferring word boundaries and
+// keeping the shape the first line established: a list item's continuation
+// lines stay under its text, a quote's stay inside its bar. Breaking mid-word
+// on every long paragraph is what makes a transcript read as broken text.
+func wrapMarkdownLine(line string, width int) []styledRow {
+	marker, body, indent := splitHangingIndent(line)
+	if marker == "" {
+		wrapped := wrapWords(body, width)
+		rows := make([]styledRow, len(wrapped))
+		for index, text := range wrapped {
+			rows[index] = styledRow{text: text}
+		}
+		return rows
+	}
+	// The marker is part of every row, not just the first: the wrap width is
+	// what is left after both the hanging indent and the marker. Forgetting the
+	// marker wrapped the body too wide and clipLine then dropped whole words
+	// off the right edge — rows that looked complete but said less.
+	contentWidth := max(1, width-cellWidth(indent)-cellWidth(marker))
+	wrapped := wrapWords(body, contentWidth)
+	rows := make([]styledRow, 0, len(wrapped))
+	rows = append(rows, styledRow{text: clipLine(indent+marker+wrapped[0], width)})
+	for _, rest := range wrapped[1:] {
+		rows = append(rows, styledRow{text: clipLine(indent+strings.Repeat(" ", cellWidth(marker))+rest, width)})
+	}
+	return rows
+}
+
+// splitHangingIndent takes a mapped markdown line back apart into its bullet
+// shape so wrapping can put continuation rows under the text instead of at
+// column zero, where the prefix shape would be lost.
+func splitHangingIndent(line string) (marker, body, indent string) {
+	switch {
+	case strings.HasPrefix(line, quoteToken):
+		return quoteToken, strings.TrimPrefix(line, quoteToken), ""
+	case strings.HasPrefix(line, "  "+listToken):
+		return listToken, strings.TrimPrefix(line, "  "+listToken), "  "
+	default:
+		return "", line, ""
+	}
+}
+
+// diffStyle classifies one raw diff row: added, removed, or meta. Context
+// rows and hunk headers dim so the +/- lines are the only colour in the block.
+func diffStyle(row string) rowStyle {
+	switch {
+	case strings.HasPrefix(row, "+"):
+		return styleAdd
+	case strings.HasPrefix(row, "-"):
+		return styleDel
+	case strings.HasPrefix(row, "@@"), strings.HasPrefix(row, "diff --git"),
+		strings.HasPrefix(row, "index "), strings.HasPrefix(row, "---"), strings.HasPrefix(row, "+++"):
+		return styleMeta
+	default:
+		return styleNone
+	}
 }
 
 // diffPrefix separates the sign from the payload so +/-/space markers stay

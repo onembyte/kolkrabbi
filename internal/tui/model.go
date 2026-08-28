@@ -32,6 +32,9 @@ type Status struct {
 	// a permanent "agents 0" on every session is the sort of always-there
 	// number people stop reading, and this one is worth reading.
 	Agents int
+	// Queued is requests typed and held while a turn runs. It answers the one
+	// question the spinner cannot: "will what I just typed actually send?"
+	Queued int
 }
 
 // Snapshot is an immutable copy of the screen regions. Tests and future
@@ -131,10 +134,22 @@ func (m *Model) renderView(width, height, cursor int) string {
 
 type rowStyle uint8
 
+// rowStyle is the vocabulary the whole screen draws with. The transcript is
+// sanitized on ingest, so these fixed styles are the only colour in the app —
+// they attach to structural facts (this row is a heading, a diff line, meta)
+// and never to content the model chose. A palette maps each style to the
+// escape sequences of one terminal tier; three tiers exist because the
+// alternatives each fail differently: a 16-color-only terminal given
+// 256-color sequences shows garbage, and a NO_COLOR user who asked out of
+// colour gets none of it.
 const (
 	styleNone rowStyle = iota
 	stylePurple
 	stylePurpleMuted
+	styleHeading
+	styleMeta
+	styleAdd
+	styleDel
 )
 
 const (
@@ -145,11 +160,50 @@ const (
 	statusIndent = "  "
 )
 
-const (
-	purpleANSI      = "\x1b[38;5;141m"
-	purpleMutedANSI = "\x1b[38;5;103m"
-	resetANSI       = "\x1b[0m"
-)
+// palette maps one rowStyle to the escape sequences of one terminal tier.
+type palette map[rowStyle]string
+
+var palette256 = palette{
+	// styleHeading is one compound SGR, not two stacked opens: every style
+	// here is paired with exactly one reset downstream, and an audit that
+	// counts opens against resets would (correctly) call two opens a leak.
+	stylePurple:      "\x1b[38;5;141m",
+	stylePurpleMuted: "\x1b[38;5;103m",
+	styleHeading:     "\x1b[38;5;141;1m",
+	styleMeta:        "\x1b[2m",
+	styleAdd:         "\x1b[38;5;114m",
+	styleDel:         "\x1b[38;5;174m",
+}
+
+var palette16 = palette{
+	stylePurple:      "\x1b[95m",
+	stylePurpleMuted: "\x1b[90m",
+	styleHeading:     "\x1b[95;1m",
+	styleMeta:        "\x1b[2m",
+	styleAdd:         "\x1b[32m",
+	styleDel:         "\x1b[31m",
+}
+
+// activePalette is process state, not screen state: the terminal's colour
+// capability cannot change while kolk is attached to it, and every render
+// reads it. The CLI picks the tier once at startup, honouring NO_COLOR.
+var activePalette = palette256
+
+// SetPalette selects the escape tier: "256", "16", or "none". It is called
+// once by the CLI before the first frame, from the same capability probe the
+// legacy line REPL uses for its colour.
+func SetPalette(tier string) {
+	switch tier {
+	case "16":
+		activePalette = palette16
+	case "none":
+		activePalette = palette{styleNone: ""}
+	default:
+		activePalette = palette256
+	}
+}
+
+const resetANSI = "\x1b[0m"
 
 type viewRow struct {
 	text  string
@@ -200,7 +254,7 @@ func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 	// Multi-line activity, and a terminal too narrow to share the row, keep the
 	// old placement.
 	if len(statusLine) > 0 && len(activity) == 1 &&
-		len([]rune(statusLine[0].text))+len([]rune(activity[0].text))+1 <= width {
+		cellWidth(statusLine[0].text)+cellWidth(activity[0].text)+1 <= width {
 		statusLine[0].right = activity[0].text
 		statusLine[0].rightStyle = stylePurple
 		activity = nil
@@ -259,7 +313,7 @@ func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 		}
 	}
 
-	transcriptText := renderMarkdown(string(m.transcript), width)
+	transcriptRows := renderMarkdownStyled(string(m.transcript), width)
 	// Negative means unbounded: a caller that passed no height wants the whole
 	// transcript, and nothing should be committed out from under it.
 	budget := -1
@@ -267,10 +321,10 @@ func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 		available := height - len(activity) - len(statusLine) - len(suggestions) - len(composer)
 		budget = max(0, available)
 		if available <= 0 {
-			transcriptText = nil
-		} else if len(transcriptText) > available {
-			transcriptText = transcriptText[len(transcriptText)-available:]
-		} else if len(transcriptText) < available {
+			transcriptRows = nil
+		} else if len(transcriptRows) > available {
+			transcriptRows = transcriptRows[len(transcriptRows)-available:]
+		} else if len(transcriptRows) < available {
 			// Pad above, so the frame is always exactly the height of the
 			// terminal and the composer is always on its last row.
 			//
@@ -280,17 +334,21 @@ func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 			// the screen -- and on a resize it appeared to jump upward, because
 			// the terminal adds its new rows below a frame that is not anchored
 			// to anything. One height, one position, from the first frame on.
-			padded := make([]string, available-len(transcriptText), available)
-			transcriptText = append(padded, transcriptText...)
+			padded := make([]styledRow, available-len(transcriptRows), available)
+			transcriptRows = append(padded, transcriptRows...)
 		}
 	}
 
-	rows := make([]viewRow, 0, len(transcriptText)+len(activity)+len(statusLine)+len(suggestions)+len(composer))
-	for _, line := range transcriptText {
+	rows := make([]viewRow, 0, len(transcriptRows)+len(activity)+len(statusLine)+len(suggestions)+len(composer))
+	for _, row := range transcriptRows {
 		// A request the user sent is theirs, and reads as theirs: the same
 		// purple the composer uses, so the eye can find "what did I ask" in a
-		// long transcript without reading it.
-		rows = append(rows, viewRow{text: line, style: transcriptStyle(line)})
+		// long transcript without reading it. The renderer's own styles stand
+		// for everything that was not typed by the user.
+		if transcriptStyle(row.text) == stylePurple {
+			row.style = stylePurple
+		}
+		rows = append(rows, viewRow{text: row.text, style: row.style})
 	}
 	rows = append(rows, activity...)
 	rows = append(rows, suggestions...)
@@ -317,7 +375,7 @@ func (m *Model) CommitOverflow(width, height int) []viewRow {
 	if budget < 0 {
 		return nil
 	}
-	rendered, boundaries := renderMarkdownBlocks(string(m.transcript), width)
+	rendered, boundaries := renderMarkdownStyledBlocks(string(m.transcript), width)
 	if len(rendered) <= budget {
 		return nil
 	}
@@ -339,8 +397,11 @@ func (m *Model) CommitOverflow(width, height int) []viewRow {
 
 	offset := offsetAfterLines(m.transcript, cut.source)
 	committed := make([]viewRow, 0, cut.rendered)
-	for _, line := range rendered[:cut.rendered] {
-		committed = append(committed, viewRow{text: line, style: transcriptStyle(line)})
+	for _, row := range rendered[:cut.rendered] {
+		if transcriptStyle(row.text) == stylePurple {
+			row.style = stylePurple
+		}
+		committed = append(committed, viewRow{text: row.text, style: row.style})
 	}
 	m.transcript = m.transcript[:copy(m.transcript, m.transcript[offset:])]
 	return committed
@@ -386,7 +447,10 @@ func joinViewRowsWidth(rows []viewRow, styled bool, width int) string {
 		}
 		pad := ""
 		if row.right != "" && width > 0 {
-			gap := width - len([]rune(row.text)) - len([]rune(row.right))
+			// Cells, not runes: a CJK session title or emoji in the activity
+			// line takes two columns per glyph, and a rune-count gap under-pads
+			// the row so the frame hard-wraps mid-write.
+			gap := width - cellWidth(row.text) - cellWidth(row.right)
 			if gap >= 1 {
 				pad = strings.Repeat(" ", gap)
 			} else {
@@ -411,12 +475,12 @@ func writeStyled(output *strings.Builder, text string, style rowStyle, styled bo
 		output.WriteString(text)
 		return
 	}
-	switch style {
-	case stylePurple:
-		output.WriteString(purpleANSI)
-	case stylePurpleMuted:
-		output.WriteString(purpleMutedANSI)
+	sequence := activePalette[style]
+	if sequence == "" {
+		output.WriteString(text)
+		return
 	}
+	output.WriteString(sequence)
 	output.WriteString(text)
 	output.WriteString(resetANSI)
 }
@@ -506,6 +570,72 @@ func wrapLine(line string, width int) []string {
 	return append(lines, string(current))
 }
 
+// wrapWords wraps at the last space that fits, breaking a word only when no
+// space fits on the line at all. Prose that splits mid-word reads as broken
+// text; code and input rows keep the exact character wrap of wrapLine.
+func wrapWords(line string, width int) []string {
+	if line == "" {
+		return []string{""}
+	}
+	if cellWidth(line) <= width {
+		return []string{line}
+	}
+	var out []string
+	for line != "" {
+		// The last space whose column still fits inside the width…
+		spaceAt := -1
+		used := 0
+		for index, r := range line {
+			cells := runeCellWidth(r)
+			if used+cells > width {
+				break
+			}
+			used += cells
+			if r == ' ' {
+				spaceAt = index
+			}
+		}
+		if spaceAt >= 0 {
+			// A run of spaces wrapping across the boundary is not a row of its
+			// own: emitting the trimmed head only when it says something keeps
+			// the wrap from opening with a phantom blank line.
+			if head := strings.TrimRight(line[:spaceAt], " "); head != "" {
+				out = append(out, head)
+			}
+			line = strings.TrimLeft(line[spaceAt:], " ")
+			continue
+		}
+		// …otherwise hard-break. A first rune wider than the whole row
+		// would otherwise loop forever on its own.
+		hard := 0
+		used = 0
+		for index, r := range line {
+			cells := runeCellWidth(r)
+			if used+cells > width {
+				break
+			}
+			used += cells
+			hard = index + utf8.RuneLen(r)
+		}
+		if hard == 0 {
+			hard = utf8.RuneLen(firstRune(line))
+		}
+		out = append(out, line[:hard])
+		line = strings.TrimLeft(line[hard:], " ")
+	}
+	if len(out) == 0 {
+		return []string{""}
+	}
+	return out
+}
+
+func firstRune(text string) rune {
+	for _, r := range text {
+		return r
+	}
+	return 0
+}
+
 func clipLine(line string, width int) string {
 	if cellWidth(line) <= width {
 		return line
@@ -572,6 +702,9 @@ func formatStatus(status Status) []string {
 			// What the run is doing belongs on the row that already carries
 			// mode and state, not beside the cost.
 			{label: "agents", value: agentCount(status.Agents)},
+			// A queued request that only its author can see is a dropped one
+			// as far as everyone else is concerned.
+			{label: "queued", value: queuedCount(status.Queued)},
 		},
 		{
 			{label: "session", value: sessionLabel},
@@ -734,4 +867,13 @@ func agentCount(running int) string {
 		return ""
 	}
 	return strconv.Itoa(running)
+}
+
+// queuedCount renders the held-request count. The count is the message: one
+// held request already means Enter was pressed against a busy turn.
+func queuedCount(queued int) string {
+	if queued <= 0 {
+		return ""
+	}
+	return strconv.Itoa(queued)
 }

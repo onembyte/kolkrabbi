@@ -53,8 +53,10 @@ func TestScreenRegionsKeepTranscriptActivityAndDraftIndependent(t *testing.T) {
 	if !strings.HasSuffix(statusRow, "🐙 thinking…") {
 		t.Fatalf("the indicator must sit flush right on the status row, got %q", statusRow)
 	}
-	if utf8.RuneCountInString(statusRow) != 80 {
-		t.Fatalf("status row is %d cells wide, want the full 80", utf8.RuneCountInString(statusRow))
+	// Width is measured in cells, not runes: the glyph sitting flush right is
+	// one rune wide but two cells wide, and padding answers to cells.
+	if cellWidth(statusRow) != 80 {
+		t.Fatalf("status row is %d cells wide, want the full 80", cellWidth(statusRow))
 	}
 	// The tier still has to be readable without running a command; it just
 	// leads its row now instead of hiding mid-sentence.

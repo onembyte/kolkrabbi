@@ -125,9 +125,10 @@ func (r *Renderer) Resized(width int) {
 }
 
 // visibleWidth counts the cells a rendered row occupies: escape sequences take
-// none, every other rune takes one. The frame is ASCII and box-drawing, all
-// single-cell, so rune count is exact here; wide glyphs in user content would
-// be undercounted by this and over-cleared by one row, which is harmless.
+// none, everything else takes what runeCellWidth says. The frame is ASCII and
+// box-drawing — all single-cell — but user content is not: a CJK row counted
+// by runes under-flows the resize reflow and leaves stale rows above the
+// repainted frame.
 func visibleWidth(row string) int {
 	cells := 0
 	inEscape := false
@@ -140,7 +141,7 @@ func visibleWidth(row string) int {
 		case r == 0x1b:
 			inEscape = true
 		default:
-			cells++
+			cells += runeCellWidth(r)
 		}
 	}
 	return cells
