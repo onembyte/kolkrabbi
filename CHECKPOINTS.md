@@ -2414,6 +2414,76 @@ Acceptance checklist:
 - [x] silent with no bus, so a run without one behaves exactly as before.
 - [x] full `make check` green: 2,362 tests, 0 lint issues.
 
+### Owner-cleared queue — devices, failure paths, first run, a pinned runtime
+
+Cleared by the owner on 2026-08-28 after a review of everything parked. One leaf per tick, in order.
+The two sandbox-shaped items were settled in the same pass and are recorded under "Refused" below.
+
+**I26.8 `kolk devices` — pairing is one-way today.** `devices.Store.Revoke` and `.List` are written
+and tested, and neither has a caller outside a test: a device paired once stays paired until someone
+hand-edits `devices.json`. `docs/plan/26-remote-access.md` already specifies the surface.
+
+- [ ] **I26.8a `kolk devices` lists what is paired** — id, label, tier, when it was paired and last
+      seen. Empty is a sentence, not a blank: a list that prints nothing cannot be told from a
+      command that failed.
+- [ ] **I26.8b `kolk devices revoke <id>`** — removes one and says so. An id that is not there is a
+      refusal naming what is, because a typo'd revoke that reports success is worse than an error.
+- [ ] **I26.8c `/devices` and `/devices revoke <id>`** — the same two from inside a running session,
+      so revoking a lost device does not mean stopping the session that noticed.
+
+**B12.15 the subscription path's failure tests.** Phase A's happy path is green and its failure
+modes are unproven. A33.7 sharpened this: allowance detection over a vendor CLI is matched on
+wording, and it is these tests that widen the list from something real rather than something guessed.
+
+- [ ] **B12.15a a plan login that expired mid-session** — the turn fails with a sentence naming the
+      plan and how to sign in again, and the session survives to be retried.
+- [ ] **B12.15b the vendor CLI removed underneath a live session** — the backend it was resolved to
+      is gone. Not a panic, not a silent fall back to a billed model: the run stops and says which
+      binary went missing.
+- [ ] **B12.15c a connector disabled or unverified after selection** — routing chose it at startup
+      (A33.6) and it stopped qualifying. The session says so once rather than each turn.
+
+**B12.13 first run without an OpenRouter key — the owner's decision, recorded 2026-08-28.**
+Rejected: dropping the key requirement outright. The order is *free first, subscription when there
+is one, free again when there is not*, and the switch is configurable rather than assumed.
+
+- [ ] **B12.13a first run stands up on free models alone** — an OpenRouter key with no credit is
+      enough to start. Nothing may demand a paid model to reach a first answer.
+- [ ] **B12.13b a subscription becomes the default only once it is available** — enabled and
+      verified, per A33.6, and not before. Availability is a fact about this machine, so it is
+      re-checked rather than remembered from install.
+- [ ] **B12.13c falling back the other way** — no subscription available means free models again,
+      not a metered one.
+- [ ] **B12.13d `routing.on_free_exhausted`** — `free` (default), `paid`, `stop`. The same shape as
+      `routing.on_subscription_limit` (A33.7) and for the same reason: nothing starts spending
+      because a limit was reached. Consolidate with it rather than growing a second vocabulary.
+
+**L13.5b4 propose a runtime pin.** The owner cleared me to *propose*, not to invent: fetch a specific
+upstream release, compute its SHA-256 from the bytes, and put version, URL and digest up for a yes or
+no. `pinnedRuntime` stays empty until that answer.
+
+- [ ] **L13.5b4a a candidate release, with its digest computed here** — presented for approval. No
+      commit to `pinnedRuntime` without it.
+
+**T0.5 clean-machine rehearsal.** The owner will uninstall and reinstall to run it. My half is making
+that rehearsal a script rather than a memory, so what was proven is legible afterwards.
+
+- [ ] **T0.5a a written rehearsal the owner can run** — uninstall, install from the public installer,
+      first run, key addition, first model response, each step with what it must show.
+
+### Refused, with the reason, so nobody re-opens them by accident
+
+- **Phase E's OS sandbox matrix — still deferred, and the reason survived a challenge.** The owner
+  asked whether a kernel refusal would surface as an OS prompt, "like on macOS when an agent needs
+  the local network". It would not. That prompt is TCC, a *privacy consent* system built to ask a
+  human. Landlock returns `EACCES` and seatbelt simply denies — neither prompts, and neither can be
+  asked. So the OS cannot explain a refusal on kolk's behalf: kolk would have to produce that
+  explanation itself, per platform, or leave the user staring at a bare permission error with no idea
+  which guard fired. That is the work, and it still needs a CI answer before it needs code.
+- **I26.7's client page — parked deliberately, checkpoint kept.** Not merely unbuilt: the route
+  answers `501` because `kolk serve` owns no agent, and items 27 and 29 both refused the supervisor
+  that would change that. A page shipped against a 501 would be a demo, not a feature.
+
 ### Item 33 queued — agentic mode, one leaf per tick
 
 The build order below is not the order the asks were given. It is cheapest-first among things that
