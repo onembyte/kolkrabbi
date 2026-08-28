@@ -33,14 +33,29 @@ func TestScreenRegionsKeepTranscriptActivityAndDraftIndependent(t *testing.T) {
 	}
 
 	view := m.View(80, 20)
+	// The indicator now trails the first status row, below the composer, rather
+	// than occupying a row above it.
 	assertOrdered(t, view,
 		"assistant first response",
-		"🐙 thinking…",
 		"❯ fix the renderer",
 		"  then run every test  ",
 		"⏵ ask (shift+tab) · mode code · effort ultra",
+		"🐙 thinking…",
 		"session 01TESTSESSION · model stealth/ox-alpha",
 	)
+	statusRow := ""
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, "⏵ ask ") {
+			statusRow = line
+			break
+		}
+	}
+	if !strings.HasSuffix(statusRow, "🐙 thinking…") {
+		t.Fatalf("the indicator must sit flush right on the status row, got %q", statusRow)
+	}
+	if utf8.RuneCountInString(statusRow) != 80 {
+		t.Fatalf("status row is %d cells wide, want the full 80", utf8.RuneCountInString(statusRow))
+	}
 	// The tier still has to be readable without running a command; it just
 	// leads its row now instead of hiding mid-sentence.
 	if !strings.Contains(view, "⏵ ask ") {

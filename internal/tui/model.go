@@ -105,11 +105,11 @@ func (m *Model) View(width, height int) string {
 }
 
 func (m *Model) view(width, height, cursor int) string {
-	return joinViewRows(m.viewRows(width, height, cursor), false)
+	return joinViewRowsWidth(m.viewRows(width, height, cursor), false, width)
 }
 
 func (m *Model) renderView(width, height, cursor int) string {
-	return joinViewRows(m.viewRows(width, height, cursor), true)
+	return joinViewRowsWidth(m.viewRows(width, height, cursor), true, width)
 }
 
 type rowStyle uint8
@@ -135,6 +135,12 @@ const (
 type viewRow struct {
 	text  string
 	style rowStyle
+	// right is drawn flush with the right edge of the row, in its own style.
+	// The activity indicator lives there: it belongs beside the state it
+	// describes, not on a row of its own above the composer, and it must not
+	// take the muted styling the status fields use.
+	right      string
+	rightStyle rowStyle
 }
 
 func (m *Model) viewRows(width, height, cursor int) []viewRow {
@@ -160,6 +166,17 @@ func (m *Model) viewRows(width, height, cursor int) []viewRow {
 	statusLine := []viewRow{}
 	for _, status := range formatStatus(m.status) {
 		statusLine = append(statusLine, viewRow{text: clipLine(status, width), style: stylePurpleMuted})
+	}
+	// The indicator sits at the right end of the first status row: beside the
+	// state it describes, below the composer, rather than on a row of its own
+	// above it that pushed the whole screen down whenever a turn started.
+	// Multi-line activity, and a terminal too narrow to share the row, keep the
+	// old placement.
+	if len(statusLine) > 0 && len(activity) == 1 &&
+		len([]rune(statusLine[0].text))+len([]rune(activity[0].text))+1 <= width {
+		statusLine[0].right = activity[0].text
+		statusLine[0].rightStyle = stylePurple
+		activity = nil
 	}
 	suggestions := make([]viewRow, 0, len(m.suggestions))
 	for index, suggestion := range m.suggestions {
@@ -216,25 +233,53 @@ func (m *Model) viewRows(width, height, cursor int) []viewRow {
 }
 
 func joinViewRows(rows []viewRow, styled bool) string {
+	return joinViewRowsWidth(rows, styled, 0)
+}
+
+// joinViewRowsWidth renders rows, placing any right-aligned field flush with
+// width. It composes here rather than earlier because a right field carries its
+// own style, and padding has to be measured on visible runes, not escape bytes.
+func joinViewRowsWidth(rows []viewRow, styled bool, width int) string {
 	var output strings.Builder
 	for index, row := range rows {
 		if index > 0 {
 			output.WriteByte('\n')
 		}
-		if !styled || row.style == styleNone || row.text == "" {
-			output.WriteString(row.text)
-			continue
+		pad := ""
+		if row.right != "" && width > 0 {
+			gap := width - len([]rune(row.text)) - len([]rune(row.right))
+			if gap >= 1 {
+				pad = strings.Repeat(" ", gap)
+			} else {
+				// Too narrow to share the row; the caller keeps it on its own.
+				row.right = ""
+			}
 		}
-		switch row.style {
-		case stylePurple:
-			output.WriteString(purpleANSI)
-		case stylePurpleMuted:
-			output.WriteString(purpleMutedANSI)
+		writeStyled(&output, row.text, row.style, styled)
+		if row.right != "" {
+			output.WriteString(pad)
+			writeStyled(&output, row.right, row.rightStyle, styled)
 		}
-		output.WriteString(row.text)
-		output.WriteString(resetANSI)
 	}
 	return output.String()
+}
+
+func writeStyled(output *strings.Builder, text string, style rowStyle, styled bool) {
+	if text == "" {
+		return
+	}
+	if !styled || style == styleNone {
+		output.WriteString(text)
+		return
+	}
+	switch style {
+	case stylePurple:
+		output.WriteString(purpleANSI)
+	case stylePurpleMuted:
+		output.WriteString(purpleMutedANSI)
+	}
+	output.WriteString(text)
+	output.WriteString(resetANSI)
 }
 
 func (m *Model) composerLines(width, cursor int) []string {
