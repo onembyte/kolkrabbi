@@ -57,7 +57,14 @@ func (a *Agent) noteSubagents(delta int) {
 // The memo is cleared when the turn changes, because a task index means nothing
 // across turns and a stale entry would pair this turn's finish with the last
 // turn's start.
+//
+// It is called from the per-task goroutines, so it takes the same lock the
+// count does. Without it two tasks starting together read and write the memo at
+// once, which the race detector catches and which a real run can turn into a
+// concurrent map write -- a panic mid-turn, not a wrong number.
 func (a *Agent) subagentTaskID(index int) string {
+	a.subagentMu.Lock()
+	defer a.subagentMu.Unlock()
 	if a.subagentIDTurn != a.lastTurnID {
 		a.subagentIDTurn = a.lastTurnID
 		a.subagentIDs = nil

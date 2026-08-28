@@ -3951,14 +3951,19 @@ which reads the published refs instead of the cached ones.
 useless. GoReleaser resolved the previous release correctly and listed the six real commits. The
 notes were replaced by hand anyway; commit subjects are not what an upgrader reads.
 
-## Agent-mode field report — three defects from one run (2026-08-28)
+## A34 agent-mode field report — three defects from one run (2026-08-28)
+
+**Numbering:** these are A34, not A33. They were written as A33.1–A33.4 by a session that had not
+yet pulled, and A33 was already the agentic-mode group — subagent events, the live count, the free
+fast lane, per-slot models. Two different things under one identifier is worse than either name, so
+the later arrival moved.
 
 One agent-mode run reported by the user produced all three. The session was killed at 02:51 after it
 had been running long enough to look hung. The directory it was building, `~/ecommerce-webapp`,
 contained **eighteen directories and zero files** — the run had created and re-created the same
 skeleton without ever writing code, which is the first defect below observed directly.
 
-### A33.1 the doom-loop guard missed alternating cycles
+### A34.1 the doom-loop guard missed alternating cycles
 
 **Scope:** a tool cycle is stopped whether or not the repeated call follows itself. Non-goals:
 changing what counts as a repeat, or the once-per-loop reporting contract.
@@ -3984,7 +3989,7 @@ shipped as a regression:
    cleared on every differing call, so one cycle reported six times instead of once —
    prompt-per-lap noise, which is exactly what the single report exists to prevent.
 
-### A33.2 the spinner vanished while work was still running
+### A34.2 the spinner vanished while work was still running
 
 **Scope:** the activity row reflects whether anything is running. Non-goal: showing more than one
 activity at a time.
@@ -4008,7 +4013,7 @@ came, and the package hung rather than failed. Emptying the list now wakes the a
 `TestStoppingTheLastActivityDoesNotWaitForATick` pins it. Worth noting that the symptom was a ten
 minute timeout, not a failure: a hang reads as an infrastructure problem and is easy to misattribute.
 
-### A33.3 the transcript was overwritten instead of scrolled
+### A34.3 the transcript was overwritten instead of scrolled
 
 **Scope:** output that leaves the frame reaches the terminal's scrollback. Non-goals: scrollback
 navigation inside kolk, and any change to what the frame itself shows.
@@ -4041,7 +4046,7 @@ activity tests as HANG/FAIL. They were passing; macOS has no `timeout(1)`, so ev
 failed with `command not found` and the loop read a non-zero exit as a hang. `go test -timeout` is
 the portable form and named the one genuinely hanging test immediately.
 
-### A33.4 questions the user answers by picking, not by typing
+### A34.4 questions the user answers by picking, not by typing
 
 **Scope:** the model can put a fixed-option decision to the person, who answers with the arrow keys.
 Non-goals: free-text questions, which prose already handles; questions from subagents; more than one
@@ -4098,3 +4103,50 @@ redirect resolves to `v1.2.15`, which is what the website installer discovers.
 
 **Version line:** the user chose to stay on `1.2.x` rather than take the minor bump SemVer would
 suggest for the new `ask_user` capability, keeping the agent-mode fixes as one continuous series.
+
+### A34.5 the picker, made reachable
+
+**Scope:** the model is told when to ask, and Esc backs out of the picker. Non-goals: free-text
+questions, and Esc anywhere other than the picker.
+
+**The gap A34.4 left.** The tool, the schema and the picker were built and tested, and none of it
+could fire. Nothing in the system prompt mentioned `ask_user`, and the surrounding text pushed the
+other way — *"keep using tools until that checkpoint is complete, or state a concrete blocker"*. A
+model reading that decides for itself. A capability the model is never told about is one it does not
+have, and the unit tests could not see it because every one of them called the tool directly.
+
+`TestTheCodePromptSaysWhenToAsk` is the test that was missing. It also asserts the *bounds*: without
+them an invitation to ask turns the session into a questionnaire, so the prompt names what is the
+user's (framework, database, which of several designs, work not asked for) and what is not
+(permission to continue, confirmation of something readable, anything answered the same way either
+way). Chat mode has no tools, so `TestTheChatPromptDoesNotOfferATool` keeps the promise out of it.
+
+**Esc did nothing, anywhere.** There was no `KeyEscape` at all: a lone escape byte returned
+incomplete from `decodeEscape` and sat in the buffer until the next key absorbed it. Esc cannot be
+told from the start of a sequence by looking at bytes — every sequence begins with it — so the read
+boundary is the evidence: terminals emit a sequence in one write and it arrives whole. A lone escape
+left at the end of a read is now the Esc key.
+
+The trade is deliberate and recorded: a sequence split across two reads would be read as Esc plus its
+tail as text. Against that, Esc was otherwise a key that never did anything at all, and the worst a
+spurious one does is close a picker. Four tests hold the line — arrows, Shift+Tab and Delete must not
+decode as Esc, an escape mid-chunk is not the key, and an escape inside a bracketed paste is content.
+
+### A34.6 a concurrent map write in the new subagent events
+
+Found by running `-race` over the tree after merging the A33 group, which `make check` does not do.
+
+`subagentTaskID` mints and memoizes one id per task index. `subagentRunning` beside it was correctly
+guarded by `subagentMu`; the memo was not, and it is written from the per-task goroutines — so two
+subagents starting together read and write the same map at once. The detector called it on
+`TestARealOrchestratedRunEmitsThePairs`. This is not a wrong-number bug: a concurrent map write is a
+runtime panic, mid-turn, in exactly the mode being released.
+
+Fixed by taking the same lock. No nesting risk: `noteSubagents` releases before `publishSubagentStarted`
+calls this, and the observer was already called outside the lock so a slow renderer cannot stall the
+run. `TestSubagentIDsAreMintedSafelyInParallel` starts sixteen tasks on one channel close and checks
+both properties the memo exists for — every index gets a distinct id, and an index keeps the id it
+was given, or a finish can never be paired with its start and the count never comes back down.
+
+**Standing note:** `make check` does not run the race detector, so a concurrency bug passes every
+gate. `go test ./... -race` belongs in the checkpoint routine for anything touching goroutines.

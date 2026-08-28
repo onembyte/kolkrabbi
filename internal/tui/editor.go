@@ -28,6 +28,7 @@ const (
 	KeyShiftTab
 	KeyPageUp
 	KeyPageDown
+	KeyEscape
 )
 
 // Key carries text only for KeyText and KeyPaste.
@@ -348,6 +349,21 @@ func (d *Decoder) Feed(chunk []byte) []Key {
 		d.pending = d.pending[size:]
 	}
 	flushText()
+
+	// A lone escape byte left at the end of a read is the Esc key. It cannot be
+	// told from the start of a sequence by looking at the bytes, because every
+	// sequence begins with it -- so the read boundary is the evidence.
+	// Terminals emit a sequence in one write and it arrives whole, which is why
+	// this is the usual way to decode Esc without a timer.
+	//
+	// The trade is deliberate. A sequence split across two reads would be read
+	// as Esc followed by its tail as text; against that, Esc is otherwise a key
+	// that never does anything at all, and the worst a spurious one does is
+	// close a picker.
+	if !d.pasting && len(d.pending) == 1 && d.pending[0] == 0x1b {
+		d.pending = d.pending[:0]
+		keys = append(keys, Key{Kind: KeyEscape})
+	}
 	return keys
 }
 

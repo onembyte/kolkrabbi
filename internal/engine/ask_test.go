@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -126,5 +127,75 @@ func TestAskUserReportsMalformedArguments(t *testing.T) {
 	agent := &Agent{Options: Options{Ask: &recordingChooser{}}}
 	if _, err := agent.askUser(context.Background(), `{not json`, io.Discard, true); err == nil {
 		t.Error("malformed arguments were accepted")
+	}
+}
+
+// The tool existed and the picker worked, but nothing in the system prompt
+// invited the model to reach for either -- and the surrounding text pushed the
+// other way ("keep using tools until that checkpoint is complete"). A
+// capability the model is never told about is one it does not have.
+func TestTheCodePromptSaysWhenToAsk(t *testing.T) {
+	agent := &Agent{Options: Options{Mode: ModeCode}}
+	prompt := agent.systemPrompt(ModeCode)
+	if !strings.Contains(prompt, toolAskUser) {
+		t.Fatalf("the prompt never mentions %s, so the model will not use it:\n%s", toolAskUser, prompt)
+	}
+	// It has to bound the invitation too, or the model asks permission to
+	// continue and the session turns into a questionnaire.
+	for _, bound := range []string{"decide yourself", "permission to continue"} {
+		if !strings.Contains(prompt, bound) {
+			t.Errorf("the prompt invites asking without bounding it: %q is missing", bound)
+		}
+	}
+}
+
+// Chat mode has no tools at all, so promising one would be a lie the model
+// cannot act on.
+func TestTheChatPromptDoesNotOfferATool(t *testing.T) {
+	agent := &Agent{Options: Options{Mode: ModeChat}}
+	if prompt := agent.systemPrompt(ModeChat); strings.Contains(prompt, toolAskUser) {
+		t.Errorf("chat mode offers a tool it does not have:\n%s", prompt)
+	}
+}
+
+// The lifecycle-event id memo is written from the per-task goroutines. Without
+// a lock two subagents starting together race on the map, which the detector
+// catches and which a real run can turn into a concurrent map write: a panic
+// mid-turn, not a wrong number. Run under -race, this is the guard.
+func TestSubagentIDsAreMintedSafelyInParallel(t *testing.T) {
+	agent := &Agent{}
+	agent.lastTurnID = "turn-1"
+
+	const tasks = 16
+	ids := make([]string, tasks)
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for index := range tasks {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start // all at once, which is when the race shows
+			ids[index] = agent.subagentTaskID(index)
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	seen := map[string]bool{}
+	for index, id := range ids {
+		if id == "" {
+			t.Fatalf("task %d got no id", index)
+		}
+		if seen[id] {
+			t.Errorf("task %d reused id %s: its start and finish would pair with another task", index, id)
+		}
+		seen[id] = true
+	}
+	// The same index must keep its id, or a finish can never be paired with the
+	// start it belongs to and the count never comes back down.
+	for index, id := range ids {
+		if again := agent.subagentTaskID(index); again != id {
+			t.Errorf("task %d minted %s then %s", index, id, again)
+		}
 	}
 }

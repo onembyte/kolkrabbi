@@ -108,3 +108,55 @@ func TestEditorCapsOnePasteWithoutSplittingUTF8(t *testing.T) {
 		t.Fatalf("capped paste = %#v, %q", result, editor.Draft())
 	}
 }
+
+// A lone escape byte ending a read is the Esc key. Every sequence starts with
+// the same byte, so the read boundary is the only evidence there is without a
+// timer.
+func TestALoneEscapeByteDecodesAsTheEscapeKey(t *testing.T) {
+	decoder := NewDecoder()
+	keys := decoder.Feed([]byte{0x1b})
+	if len(keys) != 1 || keys[0].Kind != KeyEscape {
+		t.Fatalf("keys = %#v, want one KeyEscape", keys)
+	}
+}
+
+// The arrow keys must keep working: their sequences begin with the same byte,
+// and reading one as Esc would break navigation everywhere.
+func TestAnArrowSequenceIsNotReadAsEscape(t *testing.T) {
+	for name, sequence := range map[string][]byte{
+		"up":        []byte("\x1b[A"),
+		"down":      []byte("\x1b[B"),
+		"shift tab": []byte("\x1b[Z"),
+		"delete":    []byte("\x1b[3~"),
+	} {
+		keys := NewDecoder().Feed(sequence)
+		for _, key := range keys {
+			if key.Kind == KeyEscape {
+				t.Errorf("%s decoded as escape: %#v", name, keys)
+			}
+		}
+	}
+}
+
+// Escape must not fire while a sequence is still arriving in the same read.
+func TestAnEscapeMidChunkIsNotTheEscapeKey(t *testing.T) {
+	keys := NewDecoder().Feed([]byte("ab\x1b[A"))
+	for _, key := range keys {
+		if key.Kind == KeyEscape {
+			t.Fatalf("escape fired mid-chunk: %#v", keys)
+		}
+	}
+}
+
+// Bracketed paste carries arbitrary bytes, escape among them. A pasted escape
+// is content, not a key.
+func TestAnEscapeInsideAPasteIsNotTheEscapeKey(t *testing.T) {
+	decoder := NewDecoder()
+	decoder.Feed(pasteStart)
+	keys := decoder.Feed([]byte{0x1b})
+	for _, key := range keys {
+		if key.Kind == KeyEscape {
+			t.Fatalf("escape fired inside a paste: %#v", keys)
+		}
+	}
+}

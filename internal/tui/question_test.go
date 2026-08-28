@@ -192,3 +192,20 @@ func TestThePickerShowsEveryOptionAndMarksTheSelection(t *testing.T) {
 	r.HandleKey(Key{Kind: KeyEnter})
 	<-done
 }
+
+// Esc is what a person reaches for to back out of a picker, and it did nothing
+// at all until the decoder learned to emit it.
+func TestEscapeDismissesThePicker(t *testing.T) {
+	r, done := openQuestion(t)
+	r.HandleKey(Key{Kind: KeyEscape})
+	result := <-done
+	if result.ok || result.answer != "" {
+		t.Errorf("escape returned %q ok = %v, want no answer", result.answer, result.ok)
+	}
+	r.mu.Lock()
+	still := r.controller.Question()
+	r.mu.Unlock()
+	if still != nil {
+		t.Error("the picker stayed on screen after escape")
+	}
+}

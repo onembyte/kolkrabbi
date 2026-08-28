@@ -267,7 +267,8 @@ type Agent struct {
 	Options
 	lastTurnID string
 	// subagentIDs pairs a task index with the id both of its lifecycle events
-	// carry, and subagentIDTurn is the turn they belong to.
+	// carry, and subagentIDTurn is the turn they belong to. Both are under
+	// subagentMu: the per-task goroutines mint ids concurrently.
 	subagentIDs    map[int]string
 	subagentIDTurn string
 	// subagentRunning is how many subagents are working, written from a
@@ -463,7 +464,9 @@ You have tools to read/write/edit files, list directories, and run shell command
 Be concise in your prose responses. Do not narrate every tool call at length; let the tool results speak for themselves and summarize only what matters.`, runtime.GOOS, cwd)
 		sys += `
 
-When asked to build or continue a project, inspect the relevant plan and checkpoint, select one concrete unfinished checkpoint, and carry it through implementation and verification. Do not stop after inspection: keep using tools until that checkpoint is complete, or state a concrete blocker and the evidence for it.`
+When asked to build or continue a project, inspect the relevant plan and checkpoint, select one concrete unfinished checkpoint, and carry it through implementation and verification. Do not stop after inspection: keep using tools until that checkpoint is complete, or state a concrete blocker and the evidence for it.
+
+Some decisions are the user's rather than yours: which framework or database to build on, which of several designs to take, what to do about work you were not asked for. When one of those would change what you build and the code does not already answer it, call ask_user with the alternatives and put your recommendation first. Ask once, early, before building on a guess -- an assumption discovered three files later costs more than a question. Everything else you decide yourself: do not ask for permission to continue, for confirmation of something you can read, or for anything you would answer the same way whatever they said.`
 	}
 
 	// The user's own notes first, the project's second: a project statement wins

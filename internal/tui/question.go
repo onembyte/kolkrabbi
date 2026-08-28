@@ -42,7 +42,7 @@ func (c *Controller) QuestionIndex() int { return c.questionIndex }
 func (c *Controller) handleQuestionKey(key Key) Effect {
 	count := len(c.question.Options)
 	switch key.Kind {
-	case KeyInterrupt:
+	case KeyInterrupt, KeyEscape:
 		return c.resolveQuestion(0, true, false)
 	case KeyEOF:
 		return c.resolveQuestion(0, true, true)
