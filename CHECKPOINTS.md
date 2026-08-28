@@ -2137,6 +2137,39 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### B12.15 built — the failure tests found a bug, and unbuilt one of their own premises
+
+Phase A's happy path was green and its failures were guesses. Writing the tests changed two things
+and confirmed a third.
+
+**B12.15a found a real defect.** An expired plan login does not just fail the turn — it leaves the
+session holding a process that has already exited. Measured across three turns: turn 1 returns the
+real error, **turn 2 is wasted** on the misleading "claude exited before finishing the turn", and
+only turn 3 works. So a user who signs in again in another terminal and retries gets a second
+failure that has nothing to do with their fix.
+
+The fix is one retry, tightly bounded: when a turn fails on a stream that ended *before it produced
+anything*, the process was already gone, so the session is replaced and the turn runs once more.
+`streamed` guards it — a turn that already showed half an answer is never replayed, because printing
+the first half twice is worse than the error. Both mutations bite: dropping the `streamed` guard
+replays a half-streamed turn, and removing the retry restores the wasted turn.
+
+**B12.15b found nothing wrong, which is also a result.** A missing vendor CLI already fails by name
+and already preserves `exec.ErrNotFound` through the wrap, so the surface can still tell "not
+installed" from "installed and refused". That behaviour was unpinned; now it is.
+
+**B12.15c unbuilt its own premise.** I set out to test that an enabled connector with no adapter
+fails by name — `planBackendFor` has a branch for exactly that. It cannot be reached: `SaveConnector`
+refuses any connector whose login is not provider-owned, so the state never reaches disk. The test
+now covers the guard that actually holds, and asserts the rejected connector was not half-written.
+The downstream branch stays as defence in depth and is recorded as unreachable rather than left
+looking like a live path nobody covered.
+
+That is the fourth premise this month to fail on contact with the code, and the second where the
+thing I meant to test turned out to be impossible rather than merely untested.
+
+`make check` green at 2,431 tests.
+
 ### I26.8b built — revoking a device, and making the revoke survive the process
 
 `kolk devices revoke <id>` and `/devices revoke <id>` remove one device and name what went.
@@ -2477,12 +2510,12 @@ hand-edits `devices.json`. `docs/plan/26-remote-access.md` already specifies the
 modes are unproven. A33.7 sharpened this: allowance detection over a vendor CLI is matched on
 wording, and it is these tests that widen the list from something real rather than something guessed.
 
-- [ ] **B12.15a a plan login that expired mid-session** — the turn fails with a sentence naming the
+- [x] **B12.15a a plan login that expired mid-session** — the turn fails with a sentence naming the
       plan and how to sign in again, and the session survives to be retried.
-- [ ] **B12.15b the vendor CLI removed underneath a live session** — the backend it was resolved to
+- [x] **B12.15b the vendor CLI removed underneath a live session** — the backend it was resolved to
       is gone. Not a panic, not a silent fall back to a billed model: the run stops and says which
       binary went missing.
-- [ ] **B12.15c a connector disabled or unverified after selection** — routing chose it at startup
+- [x] **B12.15c a connector disabled or unverified after selection** — routing chose it at startup
       (A33.6) and it stopped qualifying. The session says so once rather than each turn.
 
 **B12.13 first run without an OpenRouter key — the owner's decision, recorded 2026-08-28.**

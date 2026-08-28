@@ -50,12 +50,38 @@ func (b *ClaudeBackend) StreamChat(ctx context.Context, model string, messages [
 		if err != nil {
 			return provider.Message{}, provider.Meta{Model: model}, err
 		}
-		message, meta, turnErr := session.Turn(ctx, messages, model, onToken)
+		// Whether anything reached the user decides whether this turn can be
+		// retried at all: replaying a turn that already streamed half an answer
+		// would print it twice.
+		streamed := false
+		watch := onToken
+		if onToken != nil {
+			watch = func(token string) {
+				streamed = true
+				onToken(token)
+			}
+		}
+		message, meta, turnErr := session.Turn(ctx, messages, model, watch)
 		// A session that lost its place in the provider stream is replaced
 		// rather than kept: one unrecoverable interrupt must not end Claude for
 		// the rest of the Kolkrabbi session.
 		if session.Unusable() {
 			b.dropSession(session)
+			// The process was already gone when this turn began — the previous
+			// turn ended it, which is what an expired login looks like from
+			// here. Without this retry the user signs in again, sends a turn,
+			// and gets "claude exited before finishing the turn" for their
+			// trouble; only the turn after that works. Nothing was streamed, so
+			// one attempt on a fresh process is invisible and costs a turn
+			// that had already failed.
+			if turnErr != nil && !streamed && ctx.Err() == nil {
+				if replacement, startErr := b.getSession(ctx); startErr == nil {
+					message, meta, turnErr = replacement.Turn(ctx, messages, model, watch)
+					if replacement.Unusable() {
+						b.dropSession(replacement)
+					}
+				}
+			}
 		}
 		return message, meta, turnErr
 	}
