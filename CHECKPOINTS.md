@@ -2631,6 +2631,47 @@ Acceptance checklist:
 - [x] silent with no bus, so a run without one behaves exactly as before.
 - [x] full `make check` green: 2,362 tests, 0 lint issues.
 
+### L13.6 queued — what the runtime pin actually needs
+
+Planned 2026-08-28 after L13.5b4a was refused. The analysis is in
+[`docs/plan/25-managed-local-models.md`](docs/plan/25-managed-local-models.md) under "L13.6"; the
+numbers there come from the release API, not from memory.
+
+**L13.6a comes first and is the owner's, not mine.** Managed installation now means a >1 GB download
+on Linux plus zstd, which the standard library does not have and the two-module gate will not buy.
+That is a different feature from the one plan 25 described. Everything below assumes option **A**
+(shell out for zstd on Linux, stdlib elsewhere) and is wasted under option **C** (keep `localia`'s
+reporting and planning, drop managed installation) — which is why the decision is a leaf rather than
+an assumption, and why nothing after it starts until it is answered.
+
+- [ ] **L13.6a the decision, in writing** — A, B, C or D from the plan, recorded with its reason.
+      Blocks every leaf below. If C, the rest of this section is deleted rather than left to rot,
+      `InstallRuntime` goes with it, and its dead-export allowlist entry goes with that.
+- [ ] **L13.6b per-platform pins** — `pinnedRuntime` becomes a table keyed by `GOOS`/`GOARCH`, and
+      `PinnedRuntime()` resolves the running platform. A platform with no pin is an honest refusal
+      naming the platform, never a silent fall through to another one's bytes.
+- [ ] **L13.6c a size bound taken from the real assets** — replacing "tens of megabytes", which was
+      never true. The bound belongs per pin, since 159 MB (darwin) and 1.54 GB (linux arm64) are the
+      same feature.
+- [ ] **L13.6d stream the download to disk** — the current path holds bytes in memory, which is fine
+      at 10 MB and fatal at 1.4 GB. Verify-before-execute survives the change: the digest is
+      computed as the bytes land, and nothing is extracted until it matches.
+- [ ] **L13.6e extraction, hardened the way `selfupdate` already proves** — allowlisted member paths,
+      regular files only, no absolute or `..` paths, no symlinks, per-member and total expansion
+      caps, no extended metadata. That code is the model, not the library: it is gzip-only and reads
+      whole archives into memory.
+- [ ] **L13.6f zstd on Linux, detected before the download** — a missing `zstd` is a refusal that
+      names the package to install, raised *before* 1.4 GB is transferred rather than after. Never a
+      silent skip of verification or extraction.
+- [ ] **L13.6g fix the idempotence check** — `runtimeMatches` hashes the installed binary against the
+      pinned digest, which stops meaning anything once the pin is an archive's. Without this a
+      correct install re-downloads 1.4 GB every run.
+- [ ] **L13.6h peak disk checked before the download** — archive plus expansion is roughly 3 GB, and
+      finding that out at 90% is how a feature gets turned off.
+- [ ] **L13.6i then, and only then, L13.5b4a** — propose a real pin per platform, with digests
+      computed from the bytes, for the owner to approve. `pinnedRuntime` stays empty until that
+      approval, exactly as its own comment asks.
+
 ### Owner-cleared queue — devices, failure paths, first run, a pinned runtime
 
 Cleared by the owner on 2026-08-28 after a review of everything parked. One leaf per tick, in order.
