@@ -114,6 +114,10 @@ func TestSuggestionListScrollsThroughTheWholeCatalog(t *testing.T) {
 	if !strings.Contains(opened, "/cmd07") || !strings.Contains(opened, "↓") {
 		t.Fatalf("the opening frame is missing rows or the arrow:\n%s", opened)
 	}
+	// Nothing is above the first row, so nothing points up.
+	if strings.Contains(opened, "↑") {
+		t.Fatalf("an up arrow at the top of the list points at nothing:\n%s", opened)
+	}
 
 	// Walk past the window's edge; the last command must become visible.
 	for range 12 {
@@ -141,9 +145,13 @@ func TestSuggestionListScrollsThroughTheWholeCatalog(t *testing.T) {
 	if !strings.Contains(view, "/cmd29") {
 		t.Fatalf("last command never became visible:\n%s", view)
 	}
-	// At the end of the list the arrow has nothing left to point at.
+	// At the end of the list the down arrow has nothing left to point at, and
+	// the up arrow now does: the pair is symmetric.
 	if strings.Contains(view, "↓") {
 		t.Fatalf("the arrow outlived the rows it pointed to:\n%s", view)
+	}
+	if !strings.Contains(view, "↑") {
+		t.Fatalf("scrolled to the bottom, nothing marks the rows above:\n%s", view)
 	}
 
 	// And back to the top.

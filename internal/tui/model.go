@@ -199,7 +199,13 @@ func (m *Model) viewRows(width, height, cursor int) []viewRow {
 		first = min(max(0, m.suggestionTop), max(0, len(m.suggestions)-1))
 		last = min(len(m.suggestions), first+m.suggestionWindow)
 	}
-	suggestions := make([]viewRow, 0, last-first+1)
+	suggestions := make([]viewRow, 0, last-first+2)
+	// The same arrow, pointing the other way. Scrolled down, the rows above are
+	// as invisible as the ones below were, and the reader has no way to know
+	// the list did not start here.
+	if first > 0 {
+		suggestions = append(suggestions, viewRow{text: clipLine("  ↑", width), style: stylePurpleMuted})
+	}
 	for index := first; index < last; index++ {
 		suggestion := m.suggestions[index]
 		marker := "  "
