@@ -130,15 +130,25 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		}
 		if err := ag.SetEffort(arg); err != nil {
 			fmt.Fprintln(a.stdout, err)
-		} else {
-			m := ag.ModelForEffort(ag.Effort)
-			fmt.Fprintf(a.stdout, "effort: %s → %s\n", ag.Effort, m)
-			// A provider CLI is started with its effort and keeps it for the
-			// life of its process, so this dial did not reach it.
-			if plan, ok := ag.Backend.(*verifyingBackend); ok && plan.effort != ag.Effort {
-				fmt.Fprintf(a.stdout, "%s is still running at %s effort; re-run /model %s to restart it at %s\n",
-					plan.plan.Connector, plan.effort, plan.plan.Model, ag.Effort)
+			break
+		}
+		m := ag.ModelForEffort(ag.Effort)
+		fmt.Fprintf(a.stdout, "effort: %s → %s\n", ag.Effort, m)
+		// A provider CLI is started with its effort and replays no argv, so a
+		// new level means a new process. The restart is the dial's job, not a
+		// second command the user has to remember.
+		if plan, ok := ag.Backend.(*verifyingBackend); ok {
+			if plan.effort == ag.Effort {
+				break
 			}
+			model, connector := plan.plan.Model, plan.plan.Connector
+			label, err := a.switchModel(ag, model)
+			if err != nil {
+				fmt.Fprintf(a.stdout, "could not restart %s at %s effort: %v\n", connector, ag.Effort, err)
+				fmt.Fprintf(a.stdout, "  re-run /model %s to retry\n", model)
+				break
+			}
+			fmt.Fprintf(a.stdout, "%s restarted at %s effort (%s)\n", connector, ag.Effort, label)
 		}
 	case "/rate":
 		n, err := strconv.Atoi(arg)

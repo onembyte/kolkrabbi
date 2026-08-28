@@ -197,23 +197,68 @@ func TestSessionNormalisesALegacyEffortBeforeCheckingThePlan(t *testing.T) {
 	}
 }
 
-// A provider process is started with its effort and keeps it. Letting /effort
-// report a new level while the provider still runs at the old one is the same
-// silent mismatch /model used to have.
-func TestSlashEffortSaysThePlanProviderKeepsItsOwnLevel(t *testing.T) {
+// A provider process is started with its effort and replays no argv, so a new
+// level means a new process. The dial does the restart itself: telling the
+// user to find a second command again would leave /effort describing a level
+// the provider never runs at.
+func TestSlashEffortRestartsThePlanProvider(t *testing.T) {
 	dirs := isolateConnectorState(t)
 	enablePlanConnector(t, dirs)
 	a, ag, out := replFixture(t, "")
 	if a.slash(context.Background(), ag, "/model claude-opus") {
 		t.Fatal("/model must not exit the session")
 	}
+	before, ok := ag.Backend.(*verifyingBackend)
+	if !ok {
+		t.Fatalf("backend = %T, want the verifying wrapper before the change", ag.Backend)
+	}
 
 	if a.slash(context.Background(), ag, "/effort low") {
 		t.Fatal("/effort must not exit the session")
 	}
+	wrapped, ok := ag.Backend.(*verifyingBackend)
+	if !ok {
+		t.Fatalf("backend = %T, want the verifying wrapper after /effort", ag.Backend)
+	}
+	if wrapped.effort != "low" {
+		t.Fatalf("provider effort = %q, want the level the dial asked for", wrapped.effort)
+	}
+	if ag.Backend == before {
+		t.Fatal("/effort must replace a plan provider still running at the old level")
+	}
+	if inner, ok := wrapped.inner.(*agentcli.ClaudeBackend); !ok || inner.Effort != "low" || inner.Model != "claude-opus" {
+		t.Fatalf("inner = %#v, want a claude backend spawned at low effort for claude-opus", wrapped.inner)
+	}
 	got := out.String()
-	if !strings.Contains(got, "claude") || !strings.Contains(got, "/model") {
-		t.Fatalf("output = %q, want it to say the provider keeps its level and how to restart it", got)
+	if strings.Contains(got, "re-run /model") {
+		t.Fatalf("output = %q, the manual follow-up command is gone", got)
+	}
+	if !strings.Contains(got, "restarted at low effort") {
+		t.Fatalf("output = %q, want it to say the provider restarted", got)
+	}
+}
+
+// A /effort that is a no-op on the plan's ladder must not churn the provider
+// process: restarting the vendor child costs its streamed context.
+func TestSlashEffortLeavesThePlanProviderAloneAtTheSameLevel(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	enablePlanConnector(t, dirs)
+	a, ag, _ := replFixture(t, "")
+	if a.slash(context.Background(), ag, "/model claude-opus") {
+		t.Fatal("/model must not exit the session")
+	}
+	_, ok := ag.Backend.(*verifyingBackend)
+	if !ok {
+		t.Fatalf("backend = %T, want the verifying wrapper", ag.Backend)
+	}
+	providerEffort := ag.Backend.(*verifyingBackend).effort
+	before := ag.Backend
+
+	if a.slash(context.Background(), ag, "/effort "+providerEffort) {
+		t.Fatal("/effort must not exit the session")
+	}
+	if ag.Backend != before {
+		t.Fatal("the same effort level must not restart the provider process")
 	}
 }
 
