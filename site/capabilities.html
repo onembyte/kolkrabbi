@@ -497,14 +497,16 @@
           <div class="spec-meta"><span class="status-badge">Available now</span><span>PAIR</span></div>
           <h3>Pair a device with a short code</h3>
           <p>A six-digit code is armed for a couple of minutes, used once, and capped in attempts, on
-            a route that does not exist the rest of the time.</p>
+            a route that does not exist the rest of the time. This is the server half: pairing is an
+            HTTP call today, and the app that would make it a two-second gesture is below.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>TOKENS</span></div>
           <h3>One revocable token per device</h3>
-          <p>Each paired device gets its own token, stored only as a hash, revocable one at a time.
-            A device token ranks below the operator's: it can read the stream, and steering is a
-            separate, higher grant.</p>
+          <p>Each paired device gets its own token, stored only as a hash, and a device token ranks
+            below the operator's: it can read the stream, while steering is a separate, higher
+            grant. Revocation exists in the store and has no command yet — <code>kolk devices</code>
+            is not written.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>REACHABILITY</span></div>
@@ -516,9 +518,17 @@
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>APPROVE</span></div>
           <h3>Answer a prompt from elsewhere</h3>
-          <p>A paired device follows the live event stream and resolves the permission requests a
-            running session raises, so unattended work does not stall on a keyboard you walked away
-            from.</p>
+          <p>The server accepts it: a token-gated event stream with replay, and a route that
+            resolves a pending permission request from a device that holds the steering grant.
+            Nothing first-party sends that request yet, so today this is an API you could drive
+            yourself rather than a thing you do from your phone.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Planned</span><span>CLIENT</span></div>
+          <h3>Something to use it from</h3>
+          <p>The protected surface above is built and tested; what is missing is the thing that
+            speaks it — an authenticated view of a running session that shows the stream and answers
+            a prompt. Until that exists, this section is a server waiting for a client.</p>
         </article>
         <article class="spec-card" data-status="planned">
           <div class="spec-meta"><span class="status-badge">Planned</span><span>MANY</span></div>

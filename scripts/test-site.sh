@@ -118,6 +118,13 @@ contains capabilities.html '>DOCTOR<' "catalog does not mention kolk doctor and 
 contains capabilities.html '>COMMANDS<' "catalog does not mention markdown commands"
 contains capabilities.html '>HOOKS<' "catalog does not mention hooks and their confirmation"
 excludes capabilities.html 'status-badge">Available now</span><span>MCP<' "MCP is claimed as shipped; only its permission rules and schema budget are"
+
+# The reach section is a server surface with no first-party client, and it read
+# as a phone app until someone said so. These two lines keep the distinction:
+# the missing half must stay named, and the answer-a-prompt card must not
+# describe a device experience that does not exist.
+contains capabilities.html '>CLIENT<' "the missing remote client is not named, so the reach section reads as a finished feature"
+excludes capabilities.html 'A paired device follows the live event stream' "the reach section describes a device experience that has no client"
 for section in working access continuity workflows safety interfaces reach videos; do
   contains capabilities.html "id=\"$section\"" "capabilities page is missing the $section section"
 done
