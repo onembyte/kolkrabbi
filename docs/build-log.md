@@ -4150,3 +4150,17 @@ was given, or a finish can never be paired with its start and the count never co
 
 **Standing note:** `make check` does not run the race detector, so a concurrency bug passes every
 gate. `go test ./... -race` belongs in the checkpoint routine for anything touching goroutines.
+
+### R1.5 v1.2.16 reachable-picker release
+
+**Gate:** `make check` green before the tag, and `go test ./... -race` clean over the whole tree —
+the run that found A34.6, and the reason it is now part of the routine rather than a thing this
+session happened to do.
+
+**Publication:** commit `7f9da2a` on `main`, tag `v1.2.16`. Release workflow run 33189793519 passed
+verify and publish. Four archives plus the Cosign-signed `checksums.txt` are public, the release is
+neither draft nor prerelease, and the latest redirect resolves to `v1.2.16`.
+
+**What v1.2.15 got wrong.** It published a feature that could not fire. The lesson is narrow and
+worth keeping: a tool is reachable only if the prompt invites it, and a test that calls the tool
+directly proves nothing about whether the model ever will.
