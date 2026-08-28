@@ -135,13 +135,37 @@ func tuiModels(_ context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 	// Subscriptions, but only where the provider's CLI is actually installed:
 	// offering Claude Max on a machine with no claude binary is an instruction
 	// that cannot be followed.
+	//
+	// Installed is not the same as signed in, and the row has to say which,
+	// because selecting one that is merely installed is refused with "needs the
+	// claude connector". A label that promises what selecting it cannot deliver
+	// is worse than no label.
+	var manifest provider.ConnectorManifest
+	if d, err := a.locate(); err == nil {
+		manifest, _ = provider.LoadConnectors(d.ConnectorsFile())
+	}
+	signedIn := func(plan provider.PlanModel) bool {
+		for _, connector := range manifest.Connectors {
+			if connector.Provider == plan.Provider && connector.Name == plan.Connector && connector.Enabled {
+				return true
+			}
+		}
+		return false
+	}
 	for _, plan := range provider.PlanModels("") {
 		if !a.connectorInstalled(plan.Connector) {
 			continue
 		}
+		if signedIn(plan) {
+			out = append(out, tui.ModelSpec{
+				ID: plan.Model, Cost: tui.CostSubscription, Rank: tui.ModelRank(tui.CostSubscription),
+				Name: plan.Plan + " · via your " + plan.Connector + " login",
+			})
+			continue
+		}
 		out = append(out, tui.ModelSpec{
-			ID: plan.Model, Cost: tui.CostSubscription, Rank: tui.ModelRank(tui.CostSubscription),
-			Name: plan.Plan + " · via your " + plan.Connector + " login",
+			ID: plan.Model, Cost: tui.CostSubscriptionLogin, Rank: tui.ModelRank(tui.CostSubscriptionLogin),
+			Name: fmt.Sprintf("%s · sign in first:  kolk plans login %s %q", plan.Plan, plan.Provider, plan.Plan),
 		})
 	}
 

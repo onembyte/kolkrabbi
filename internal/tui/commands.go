@@ -28,9 +28,14 @@ type ModelSpec struct {
 // Model cost classes, in the order the picker lists them.
 const (
 	CostSubscription = "sub"
-	CostFree         = "free"
-	CostLocal        = "local"
-	CostMetered      = "$"
+	// CostSubscriptionLogin is a plan whose CLI is installed but not signed
+	// into. It is still free to use once the sign-in happens, so it sorts with
+	// the subscriptions rather than being hidden — the row carries the command
+	// that makes it usable.
+	CostSubscriptionLogin = "sub·login"
+	CostFree              = "free"
+	CostLocal             = "local"
+	CostMetered           = "$"
 )
 
 // ModelRank maps a cost class to its position. Anything unlabelled sorts with
@@ -39,12 +44,15 @@ func ModelRank(cost string) int {
 	switch cost {
 	case CostSubscription:
 		return 0
-	case CostFree:
+	case CostSubscriptionLogin:
+		// After the ones ready to use, before anything that bills.
 		return 1
-	case CostLocal:
+	case CostFree:
 		return 2
-	default:
+	case CostLocal:
 		return 3
+	default:
+		return 4
 	}
 }
 

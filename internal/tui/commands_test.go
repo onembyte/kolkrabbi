@@ -237,3 +237,36 @@ func TestSettingsPickerFiltersLiveAndCompletesToSet(t *testing.T) {
 		t.Fatalf("picker fought the value being typed: %#v", got)
 	}
 }
+
+// A subscription whose CLI is installed is not the same as one signed into:
+// selecting the latter is refused with "needs the claude connector". The row
+// has to carry that difference, and the command that closes it.
+func TestModelPickerSeparatesSignedInFromNeedsLogin(t *testing.T) {
+	models := []ModelSpec{
+		{ID: "claude-opus", Cost: CostSubscriptionLogin, Rank: ModelRank(CostSubscriptionLogin),
+			Name: `Claude Max · sign in first:  kolk plans login anthropic "Claude Max"`},
+		{ID: "claude-sonnet", Cost: CostSubscription, Rank: ModelRank(CostSubscription),
+			Name: "Claude Pro · via your claude login"},
+		{ID: "anthropic/claude-opus-5", Name: "Claude Opus 5", Cost: CostMetered, Rank: ModelRank(CostMetered)},
+	}
+	sort.SliceStable(models, func(i, j int) bool { return models[i].Rank < models[j].Rank })
+
+	got := SuggestModels(models, "/model claude", 10)
+	if len(got) != 3 {
+		t.Fatalf("offered %d of 3", len(got))
+	}
+	// Ready to use first, then the one a sign-in away, then anything metered.
+	if !strings.HasPrefix(got[0].Summary, "["+CostSubscription+"]") {
+		t.Fatalf("row 0 = %q, want the signed-in subscription", got[0].Summary)
+	}
+	if !strings.HasPrefix(got[1].Summary, "["+CostSubscriptionLogin+"]") {
+		t.Fatalf("row 1 = %q, want the one needing a login", got[1].Summary)
+	}
+	if !strings.HasPrefix(got[2].Summary, "["+CostMetered+"]") {
+		t.Fatalf("row 2 = %q, want the metered API row last", got[2].Summary)
+	}
+	// The row that cannot be selected yet says exactly what to run.
+	if !strings.Contains(got[1].Summary, "kolk plans login anthropic") {
+		t.Fatalf("a row that needs a login must carry the command: %q", got[1].Summary)
+	}
+}
