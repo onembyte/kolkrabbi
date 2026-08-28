@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"github.com/onembyte/kolkrabbi/internal/provider"
 	"sort"
 	"strings"
 )
@@ -126,7 +127,10 @@ func (a *Agent) slotModel(slot string) string {
 		return model
 	}
 	var model string
-	if ranked := RankForSlot(a.Catalog, slot); len(ranked) > 0 {
+	ranked := rankForSlot(a.Catalog, slot, func(m provider.ModelInfo) int {
+		return a.ratingVerdict(m.ID)
+	})
+	if len(ranked) > 0 {
 		model = ranked[0]
 	}
 	if a.slotChoice == nil {

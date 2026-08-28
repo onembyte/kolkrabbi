@@ -2137,6 +2137,51 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### A33.5 built — the one signal no benchmark has
+
+A vendor benchmark says whether a model is good. This machine's own ratings say whether it was good
+**at this person's work**, which is the only question a router here can actually answer. `/rate`
+already collects them and `kolk stats` already folds them per model; nothing had ever used them for
+anything but a table.
+
+**Three values, not a weight.** A model is disliked, has no opinion attached, or is liked — and that
+verdict outranks every per-slot heuristic, because what this machine has seen beats what a
+description claims. A continuous weight would invite tuning, and there is nothing to tune against:
+this is one person's handful of ratings, not a dataset.
+
+**Three rules keep it from becoming noise with a numeric face.** Fewer than three ratings changes
+nothing, so somebody who mis-clicks once does not lose a model and a single turn — which says more
+about the task than the model — is not a verdict. A middling average changes nothing, because only a
+clear opinion is a signal. And **demotion is not exclusion**: a badly rated model sorts last rather
+than off the list, so it is still chosen when it is the only tool-capable model there is. Each of
+those has its own test, including the one that would otherwise leave a run with no model at all.
+
+**Reuse rather than a second opinion.** `RatingsByModel` is a projection of `Aggregate`, which
+already applies the rule that a turn's rating belongs to every call in that turn. Re-deriving that
+join would have put the same rule in two places, and this project has spent the week removing
+duplicates of exactly that shape.
+
+**Measured, and the number decided where the call goes.** `Aggregate` decodes the whole usage log:
+**226 ms on a 5.9 MB file**. That is fine once per session and indefensible per plan, so it is read
+when the agent is built and handed over as plain values — the engine may not import `internal/stats`,
+being a layer below the adapters, which is the same reason `DirtyFiles` and the hook runner are
+host-supplied.
+
+**The dead-export rule fired again, and correctly.** Making the ratings-aware ranking the real path
+left `RankForSlot` exported with only test callers — the same shape as `CostBySession` in I27.4. The
+answer was not an allowlist entry but one function: `rankForSlot` now takes a verdict that may be
+nil, nil meaning no opinion, which is the normal state of a machine that has rated nothing.
+
+Acceptance checklist:
+
+- [x] nine tests written first across two packages, including the only-model-left case.
+- [x] the evidence threshold justified rather than picked: one rating must not rearrange a run.
+- [x] demotion proven not to be exclusion.
+- [x] the existing rating-to-call join reused instead of re-derived.
+- [x] the read measured, and placed once per session on that evidence.
+- [x] the exported wrapper collapsed rather than allowlisted when the ratchet caught it.
+- [x] full `make check` green: 2,397 tests, 0 lint issues.
+
 ### A33.4 built — the slots stop collapsing to one model
 
 Four slots and six task kinds have existed and been configurable for a while, and **nothing filled
@@ -2310,7 +2355,7 @@ done.
       the slot is for (strongest / tool-capable / cheap-and-high-context / free) instead of
       collapsing to the effort model. Printed with the plan before anything runs, as the orchestrator
       already prints its routing. Measure the selection: it runs once per plan, not per task.
-- [ ] **A33.5 ratings inform the choice** — this machine's own 1–5 ratings from `stats.jsonl` weight
+- [x] **A33.5 ratings inform the choice** — this machine's own 1–5 ratings from `stats.jsonl` weight
       the selection, so a model somebody rated badly stops being chosen for them. The one ranking
       signal no vendor benchmark has. Reuse `CostForSessions`' cheap-read lesson: one pass, not one
       per slot.

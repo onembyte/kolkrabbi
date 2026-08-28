@@ -320,7 +320,12 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		// The catalogue the session already fetched, so an unset slot can be
 		// resolved by what each role needs instead of collapsing to the effort
 		// model (A33.4). Already in memory: this costs nothing to pass.
-		Catalog:            catalog,
+		Catalog: catalog,
+		// This machine's own opinion of each model, read once per session:
+		// Aggregate decodes the whole usage log, measured at 226 ms on a 5.9 MB
+		// file, so it must never be on a per-plan path. A log that cannot be
+		// read costs the opinion, never the session.
+		ModelRatings:       modelRatings(d.Data),
 		MaxRunCostUSD:      cfg.MaxRunCostUSD,
 		MaxConcurrentTasks: cfg.MaxConcurrentTasks,
 		Bus:                eventBus,
@@ -579,4 +584,21 @@ func (a *app) resolveSession(o *options) (*session.Session, error) {
 		sess = session.New(sdir, "")
 	}
 	return sess, nil
+}
+
+// modelRatings folds this machine's ratings for the engine's slot selection.
+//
+// The conversion exists because the engine may not import internal/stats — it
+// sits a layer below the adapters — so the host reads the log and hands over
+// plain values, the same shape as DirtyFiles and the hook runner.
+func modelRatings(dataDir string) map[string]engine.ModelRating {
+	folded, err := stats.RatingsByModel(dataDir)
+	if err != nil || len(folded) == 0 {
+		return nil
+	}
+	ratings := make(map[string]engine.ModelRating, len(folded))
+	for model, rating := range folded {
+		ratings[model] = engine.ModelRating{Average: rating.Average, Count: rating.Count}
+	}
+	return ratings
 }

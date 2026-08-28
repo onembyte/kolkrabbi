@@ -214,6 +214,10 @@ type Options struct {
 	// guesses one, because compaction is destructive and a guessed limit would
 	// throw away conversation on no evidence.
 	ContextWindow int
+	// ModelRatings is what this machine has thought of each model, from its own
+	// usage log. Empty means no opinion, which is the normal state.
+	ModelRatings map[string]ModelRating
+
 	// Catalog is the live model catalogue, when the host has one. Empty means
 	// slot selection has nothing to choose from and the effort model stands.
 	Catalog []provider.ModelInfo

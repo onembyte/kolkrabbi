@@ -14,7 +14,51 @@ import (
 // orchestrated task carries.
 const minSlotContext = 32768
 
-// RankForSlot orders the catalogue by what a slot is for.
+// ModelRating is what this machine thinks of a model, from its own ratings.
+//
+// The one ranking signal no vendor benchmark has: not whether a model is good,
+// but whether it was good at this person's work. Count travels with Average
+// because one bad turn is a bad turn and not a verdict.
+type ModelRating struct {
+	Average float64
+	Count   int
+}
+
+const (
+	// minRatingsToCount is how much evidence moves a ranking.
+	//
+	// One rating must not rearrange a run: somebody who mis-clicks once should
+	// not lose a model, and a single turn says more about the task than the
+	// model. Three is enough to be a pattern and few enough to be reachable.
+	minRatingsToCount = 3
+	// A rating only counts when it is an opinion. A middling average is not a
+	// signal, and treating it as one turns the ranking into noise with a
+	// numeric face.
+	ratingLiked    = 4.0
+	ratingDisliked = 2.0
+)
+
+// ratingVerdict is -1, 0 or +1: disliked, no opinion, liked.
+//
+// Deliberately three values rather than a continuous weight. A weight invites
+// tuning, and there is nothing here to tune against — this is one person's
+// handful of ratings, not a benchmark.
+func (a *Agent) ratingVerdict(model string) int {
+	rating, rated := a.ModelRatings[model]
+	if !rated || rating.Count < minRatingsToCount {
+		return 0
+	}
+	switch {
+	case rating.Average <= ratingDisliked:
+		return -1
+	case rating.Average >= ratingLiked:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// rankForSlot orders the catalogue by what a slot is for.
 //
 // The slots exist and are configurable; until now nothing filled them, so an
 // unset slot fell back to the effort model and **every subagent in a run used
@@ -28,7 +72,12 @@ const minSlotContext = 32768
 // Ranking reuses what already exists — `CodingSuitability`, tool support,
 // `ModelIsFree` — rather than growing a second opinion about models beside the
 // one `RankFreeModels` already holds.
-func RankForSlot(models []provider.ModelInfo, slot string) []string {
+// A nil verdict means no opinion, which is the state of a machine that has
+// rated nothing — the normal one.
+func rankForSlot(models []provider.ModelInfo, slot string, verdict func(provider.ModelInfo) int) []string {
+	if verdict == nil {
+		verdict = func(provider.ModelInfo) int { return 0 }
+	}
 	usable := make([]provider.ModelInfo, 0, len(models))
 	for _, m := range models {
 		// Every slot runs a subagent, and a subagent that cannot call a tool
@@ -97,6 +146,14 @@ func RankForSlot(models []provider.ModelInfo, slot string) []string {
 	}
 
 	sort.SliceStable(usable, func(i, j int) bool {
+		// What this machine has actually seen outranks what a description
+		// claims: a model rated badly for this person's work goes last whatever
+		// its name suggests, and one rated well comes first. Demotion is not
+		// exclusion — a badly rated model is still better than no model, so it
+		// falls to the end of the list rather than off it.
+		if vi, vj := verdict(usable[i]), verdict(usable[j]); vi != vj {
+			return vi > vj
+		}
 		if better(usable[i], usable[j]) {
 			return true
 		}
