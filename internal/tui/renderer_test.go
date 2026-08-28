@@ -16,13 +16,71 @@ func TestRendererReplacesOnlyItsPreviousOwnedRows(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := "assistant first\r\n╭─ kolk-code\r\n│ draft\r\n╰─" +
-		"\r\x1b[3A\x1b[J" +
-		"assistant second\r\n╭─ kolk-code\r\n│ draft\r\n╰─"
+	want := "\rassistant first\x1b[K\r\n╭─ kolk-code\x1b[K\r\n│ draft\x1b[K\r\n╰─\x1b[K" +
+		"\r\x1b[3A" +
+		"assistant second\x1b[K\r\n╭─ kolk-code\x1b[K\r\n│ draft\x1b[K\r\n╰─\x1b[K"
 	if got := out.String(); got != want {
 		t.Fatalf("rendered bytes:\n got %q\nwant %q", got, want)
 	}
 }
+
+// The reason for the shape above: a repaint must never blank the region before
+// it draws. Erase-then-draw let the terminal display the empty state in
+// between, and a window drag — which fires a repaint per size change — turned
+// that into a visible flicker of the whole composer.
+func TestRendererOverwritesInPlaceWithoutBlankingFirst(t *testing.T) {
+	var out bytes.Buffer
+	renderer := NewRenderer(&out)
+	if err := renderer.Render("one\ntwo\nthree"); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	if err := renderer.Render("ONE\nTWO\nTHREE"); err != nil {
+		t.Fatal(err)
+	}
+	frame := out.String()
+
+	// Whatever precedes the first character of content may only move the
+	// cursor. An erase there is the flicker.
+	head := frame[:strings.Index(frame, "ONE")]
+	if strings.Contains(head, "\x1b[J") || strings.Contains(head, "\x1b[2J") {
+		t.Fatalf("region was erased before it was redrawn: %q", head)
+	}
+	// Every row clears its own tail instead, so a shorter line cannot leave
+	// the previous one's characters behind.
+	if got := strings.Count(frame, "\x1b[K"); got != 3 {
+		t.Fatalf("erase-to-end-of-line count = %d, want one per row", got)
+	}
+	// One syscall per frame: a partially written frame is a partially drawn one.
+	var writes countingWriter
+	second := NewRenderer(&writes)
+	if err := second.Render("a\nb\nc"); err != nil {
+		t.Fatal(err)
+	}
+	if writes.n != 1 {
+		t.Fatalf("frame took %d writes, want 1", writes.n)
+	}
+}
+
+// A frame shorter than the last still has to remove the rows it no longer uses.
+func TestRendererErasesTheTailWhenAFrameShrinks(t *testing.T) {
+	var out bytes.Buffer
+	renderer := NewRenderer(&out)
+	if err := renderer.Render("one\ntwo\nthree\nfour"); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	if err := renderer.Render("one\ntwo"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(out.String(), "\x1b[J") {
+		t.Fatalf("a shrinking frame must erase what is left below it: %q", out.String())
+	}
+}
+
+type countingWriter struct{ n int }
+
+func (w *countingWriter) Write(p []byte) (int, error) { w.n++; return len(p), nil }
 
 func TestRendererUsesCarriageReturnLineFeedForRawTerminalRows(t *testing.T) {
 	var out bytes.Buffer
@@ -31,7 +89,7 @@ func TestRendererUsesCarriageReturnLineFeedForRawTerminalRows(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got, want := out.String(), "top\r\nmiddle\r\nbottom"; got != want {
+	if got, want := out.String(), "\rtop\x1b[K\r\nmiddle\x1b[K\r\nbottom\x1b[K"; got != want {
 		t.Fatalf("raw-terminal frame = %q, want %q", got, want)
 	}
 }
@@ -56,7 +114,7 @@ func TestRendererStartAndCloseOwnBracketedPasteAndCursorState(t *testing.T) {
 	}
 
 	want := "\x1b[?2004h\x1b[?25l" +
-		"╭─ kolk-code\r\n│ draft\r\n╰─" +
+		"\r╭─ kolk-code\x1b[K\r\n│ draft\x1b[K\r\n╰─\x1b[K" +
 		"\r\x1b[2A\x1b[J\x1b[?25h\x1b[?2004l"
 	if got := out.String(); got != want {
 		t.Fatalf("lifecycle bytes:\n got %q\nwant %q", got, want)

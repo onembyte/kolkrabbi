@@ -12,6 +12,7 @@ const (
 	hideCursor        = "\x1b[?25l"
 	showCursor        = "\x1b[?25h"
 	eraseBelow        = "\x1b[J"
+	eraseToLineEnd    = "\x1b[K"
 )
 
 // Renderer repaints one contiguous terminal region in the normal screen
@@ -43,24 +44,50 @@ func (r *Renderer) Start() error {
 }
 
 // Render replaces the exact rows owned by the previous frame.
+//
+// One write, and each row overwrites its predecessor in place. The earlier
+// version erased the whole region and then painted it back, in two separate
+// writes: the terminal was free to display the blank state between them, which
+// is what made a resize flicker — a drag fires many repaints, and every one of
+// them blanked the composer before redrawing it.
+//
+// So: no erase before drawing. Each line is written followed by erase-to-end-
+// of-line, which clears whatever was longer than the new content without ever
+// blanking the row. Only when the new frame is SHORTER than the last does
+// anything get erased below, and by then the new frame is already on screen.
 func (r *Renderer) Render(view string) error {
-	if r.rows > 0 {
-		if _, err := io.WriteString(r.out, r.clearSequence()); err != nil {
-			return err
-		}
+	var frame strings.Builder
+
+	// Back to the top-left of the region this renderer owns.
+	frame.WriteString("\r")
+	if r.rows > 1 {
+		fmt.Fprintf(&frame, "\x1b[%dA", r.rows-1)
 	}
+
+	rows := 0
 	if view != "" {
 		// Raw terminal mode disables the output post-processing that normally
 		// turns LF into CRLF. Emit both explicitly so every repainted row starts
 		// in column zero instead of staircasing across the screen.
-		frame := strings.ReplaceAll(view, "\n", "\r\n")
-		if _, err := io.WriteString(r.out, frame); err != nil {
-			return err
+		lines := strings.Split(view, "\n")
+		rows = len(lines)
+		for index, line := range lines {
+			if index > 0 {
+				frame.WriteString("\r\n")
+			}
+			frame.WriteString(line)
+			frame.WriteString(eraseToLineEnd)
 		}
-		r.rows = strings.Count(view, "\n") + 1
-	} else {
-		r.rows = 0
 	}
+	// A shorter frame leaves rows of the previous one below the cursor.
+	if rows < r.rows {
+		frame.WriteString(eraseBelow)
+	}
+
+	if _, err := io.WriteString(r.out, frame.String()); err != nil {
+		return err
+	}
+	r.rows = rows
 	r.lastView = view
 	return nil
 }
