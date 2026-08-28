@@ -4235,3 +4235,15 @@ the same rule from two lists — they now share `longVerbs`, so they cannot disa
 **Verified by running it**, not only by unit tests: a throwaway install under `KOLK_*_DIR` with a
 fixture key, a config, a cache and a session. Refused with no answer, then accepted with `--yes`, and
 every path was gone including the binary, which unlinks itself cleanly on Unix.
+
+### R1.6 v1.2.17 uninstall release
+
+**Gate:** `make check` green before the tag, and `go test ./... -race` clean over the whole tree.
+
+**Publication:** commit `3f61a98` on `main`, tag `v1.2.17`. Release workflow run 33207424596 passed
+verify and publish. Four archives plus the Cosign-signed `checksums.txt` are public, the release is
+not a draft, and the latest redirect resolves to `v1.2.17`.
+
+**Note on the uninstall path.** `kolk uninstall` covers the case where kolk still runs. It does not
+cover a broken or missing binary, where the files are still on disk and nothing can remove them but
+`rm`. A `site/uninstall.sh` alongside `site/install.sh` would close that, and is not built yet.
