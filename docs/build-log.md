@@ -3950,3 +3950,93 @@ which reads the published refs instead of the cached ones.
 **Also predicted wrongly:** the generated changelog was expected to span `v1.1.6..v1.2.1` and be
 useless. GoReleaser resolved the previous release correctly and listed the six real commits. The
 notes were replaced by hand anyway; commit subjects are not what an upgrader reads.
+
+## Agent-mode field report — three defects from one run (2026-08-28)
+
+One agent-mode run reported by the user produced all three. The session was killed at 02:51 after it
+had been running long enough to look hung. The directory it was building, `~/ecommerce-webapp`,
+contained **eighteen directories and zero files** — the run had created and re-created the same
+skeleton without ever writing code, which is the first defect below observed directly.
+
+### A33.1 the doom-loop guard missed alternating cycles
+
+**Scope:** a tool cycle is stopped whether or not the repeated call follows itself. Non-goals:
+changing what counts as a repeat, or the once-per-loop reporting contract.
+
+**Red:** the guard compared each call only against the one before it, so `d.repeats` reset on every
+alternation. A probe drove `bash` and `list_dir` alternately ten times: the guard fired zero times.
+`TestAnAlternatingCycleIsALoop` and `TestAThreeCallRotationIsALoop` reproduce it.
+
+**Green:** a nine-call window — a three-call rotation seen three times, `doomThreshold * 3` — and a
+count of how often each settled signature comes round again. Both halves of the existing rule still
+apply inside the window: arguments *and* result must match, so a test that fails differently each run
+is still progress rather than a loop.
+
+**Two bugs the new tests caught in the fix itself**, both worth recording because each would have
+shipped as a regression:
+
+1. The first `wouldRepeat` counted by tool and arguments and ignored the result. That broke the
+   documented invariant directly and failed the existing
+   `TestAPendingCallIsNotARepeatWhenTheResultsMoved`. A command whose output keeps moving is
+   progressing; counting it by arguments alone would stop a test run that is fixing itself one
+   failure at a time.
+2. A six-call window could not see a three-call rotation three times, and the `reported` flag was
+   cleared on every differing call, so one cycle reported six times instead of once —
+   prompt-per-lap noise, which is exactly what the single report exists to prevent.
+
+### A33.2 the spinner vanished while work was still running
+
+**Scope:** the activity row reflects whether anything is running. Non-goal: showing more than one
+activity at a time.
+
+**Red:** the row was one slot with one owner. Agent mode runs up to three subagents concurrently, so
+the first to finish blanked the row while the others worked, and their animators had already stood
+down when a newer activity replaced them. The session then looked frozen for the rest of the turn.
+A probe confirmed it: two overlapping activities, stop the newer, row `""`.
+`TestFinishingOneOfSeveralActivitiesKeepsTheRow` covers it.
+
+**Green:** every in-flight activity is tracked. The row shows the newest — the most specific
+description of what is happening — and falls back to whatever is still running when that one ends,
+going blank only when nothing is left. One animator serves them all, spawned and retired under the
+same lock that adds and removes activities, so a start racing a retirement either spawns a
+replacement or is seen by the incumbent, never neither.
+
+**A deadlock the fix introduced, caught by an existing test.** Making a stop join the animator meant
+it waited for the animator to notice the empty list — which it only did on its next frame. Against
+the injected clock in `TestRuntimeToolWorkUsesOnlyTheEphemeralActivityRegion` no next frame ever
+came, and the package hung rather than failed. Emptying the list now wakes the animator directly.
+`TestStoppingTheLastActivityDoesNotWaitForATick` pins it. Worth noting that the symptom was a ten
+minute timeout, not a failure: a hang reads as an infrastructure problem and is easy to misattribute.
+
+### A33.3 the transcript was overwritten instead of scrolled
+
+**Scope:** output that leaves the frame reaches the terminal's scrollback. Non-goals: scrollback
+navigation inside kolk, and any change to what the frame itself shows.
+
+**Red:** the frame is repainted in place. Once the transcript filled the screen, every new line
+shifted the rest up a row and the top one was overwritten — the "printing upwards" in the report.
+It also meant nothing that scrolled past could be read afterwards, because it had never been written
+to the terminal at all, only drawn over.
+`TestOutputThatLeavesTheFrameIsCommittedNotOverwritten` renders sixty lines through a ten-row frame
+and asserts every one reached the writer.
+
+**Green:** what no longer fits is cut from the transcript and printed above the frame in the same
+write, so the terminal scrolls it into history. The cut is only ever made at a block boundary — a
+point where the markdown renderer holds no state — so what goes to scrollback renders exactly as it
+did on screen. `TestCuttingAtABoundaryChangesNothing` checks that invariant directly across seven
+samples at two widths. An unclosed fence is not a boundary, since it is still streaming; a single
+block taller than the screen is left whole and clipped as before rather than committed in half.
+
+**One-write ordering:** the committed lines and the new frame go out in a single write, so a line is
+never on screen twice and never missing for a frame.
+
+### Verification
+
+`make fmt-check`, `make vet`, `make arch`, `make purity`, `make buildtags`, `make budgets` and
+`./scripts/test.sh` all green — 2340 tests across all modules. `internal/tui` and `internal/engine`
+additionally under `-race -count=2`.
+
+**A false diagnosis, corrected within the minute.** A per-test hang hunt reported all five new
+activity tests as HANG/FAIL. They were passing; macOS has no `timeout(1)`, so every invocation had
+failed with `command not found` and the loop read a non-zero exit as a hang. `go test -timeout` is
+the portable form and named the one genuinely hanging test immediately.
