@@ -42,9 +42,19 @@ func TestControllerFirstInterruptClearsAndSecondConsecutiveInterruptExits(t *tes
 	controller.HandleKey(Key{Kind: KeyEnter})
 	controller.HandleKey(Key{Kind: KeyText, Text: "do this next"})
 
+	// While a turn runs, Ctrl+C stops that turn and nothing else: the session
+	// stays, and the next draft the user was typing is untouched.
 	effect := controller.HandleKey(Key{Kind: KeyInterrupt})
+	if !effect.Interrupt || effect.Exit || controller.Snapshot().Draft != "do this next" {
+		t.Fatalf("busy interrupt = %#v, draft %q", effect, controller.Snapshot().Draft)
+	}
+
+	// Idle again, the two-stage exit contract applies: the first press clears
+	// the draft and arms, the second consecutive press exits.
+	controller.FinishTurn("ready")
+	effect = controller.HandleKey(Key{Kind: KeyInterrupt})
 	if effect.Interrupt || effect.Exit || controller.Snapshot().Draft != "" {
-		t.Fatalf("interrupt = %#v, draft %q", effect, controller.Snapshot().Draft)
+		t.Fatalf("first idle interrupt = %#v, draft %q", effect, controller.Snapshot().Draft)
 	}
 	if !strings.Contains(controller.Snapshot().Activity, "Ctrl+C again") {
 		t.Fatalf("first interrupt did not explain exit gesture: %#v", controller.Snapshot())
@@ -82,8 +92,9 @@ func TestControllerApprovalOverlayNeverConsumesTheMainDraft(t *testing.T) {
 	controller.HandleKey(Key{Kind: KeyText, Text: "next draft"})
 	controller.RequestApproval(Approval{Action: "Run shell command", Detail: "go test ./..."})
 
-	controller.HandleKey(Key{Kind: KeyText, Text: "y"})
-	effect := controller.HandleKey(Key{Kind: KeyEnter})
+	// One keypress answers: the effect carries the decision directly, with no
+	// Enter to press and nothing left to resolve afterwards.
+	effect := controller.HandleKey(Key{Kind: KeyText, Text: "y"})
 	if effect.Decision != DecisionAllow {
 		t.Fatalf("approval effect = %#v", effect)
 	}
@@ -144,10 +155,12 @@ func TestControllerViewSeparatesApprovalFromTheMainComposer(t *testing.T) {
 	controller := NewController(Status{Mode: "code", Lifecycle: "thinking"}, 1024)
 	controller.HandleKey(Key{Kind: KeyText, Text: "next draft"})
 	controller.RequestApproval(Approval{Action: "Run shell command", Detail: "go test ./..."})
-	controller.HandleKey(Key{Kind: KeyText, Text: "y"})
+	// A multi-character answer stays in the overlay's editor until Enter, so the
+	// typed echo is still on screen to assert the regions stay separate.
+	controller.HandleKey(Key{Kind: KeyText, Text: "yes"})
 
 	view := controller.View(50, 12)
-	for _, want := range []string{"❯ next draft▌", "Run shell command", "go test ./...", "Allow? [y/N]: y▌"} {
+	for _, want := range []string{"❯ next draft▌", "Run shell command", "go test ./...", "Allow? [y/N]: yes▌"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("approval view omitted %q:\n%s", want, view)
 		}
@@ -243,5 +256,68 @@ func TestControllerEnterCompletesOnlyAnExplicitlySelectedSuggestion(t *testing.T
 	}
 	if effect := controller.HandleKey(Key{Kind: KeyEnter}); effect.Submit != "/help" {
 		t.Fatalf("completed command did not submit on the next enter: %#v", effect)
+	}
+}
+
+func TestABusyInterruptDropsTheUnsentQueueAndKeepsTheDraft(t *testing.T) {
+	controller := NewController(Status{Mode: "code", Lifecycle: "thinking"}, 1024)
+	controller.HandleKey(Key{Kind: KeyText, Text: "one"})
+	submit := controller.HandleKey(Key{Kind: KeyEnter})
+	if !submit.Interrupt && submit.Submit != "one" {
+		t.Fatalf("submit = %#v", submit)
+	}
+	controller.HandleKey(Key{Kind: KeyText, Text: "two"})
+	controller.HandleKey(Key{Kind: KeyEnter})
+	if got := controller.Queued(); got != "two" {
+		t.Fatalf("enter during a turn = %q, want the draft queued", got)
+	}
+	if controller.Snapshot().Draft != "" {
+		t.Fatalf("queueing did not take the draft: %q", controller.Snapshot().Draft)
+	}
+
+	// Ctrl+C stops the turn and cancels the never-sent request with it, while
+	// anything typed after is the user's, and is left alone.
+	controller.HandleKey(Key{Kind: KeyText, Text: "next draft"})
+	if effect := controller.HandleKey(Key{Kind: KeyInterrupt}); !effect.Interrupt {
+		t.Fatalf("busy interrupt = %#v", effect)
+	}
+	if got := controller.Queued(); got != "" {
+		t.Fatalf("interrupt kept the unsent queue: %q", got)
+	}
+	if got := controller.Snapshot().Draft; got != "next draft" {
+		t.Fatalf("interrupt disturbed the new draft: %q", got)
+	}
+
+	// Esc carries the same meaning while a turn runs, queue included.
+	controller.FinishTurn("ready")
+	controller.HandleKey(Key{Kind: KeyText, Text: "second"})
+	controller.HandleKey(Key{Kind: KeyEnter})
+	controller.HandleKey(Key{Kind: KeyText, Text: "third"})
+	controller.HandleKey(Key{Kind: KeyEnter})
+	if got := controller.Queued(); got != "third" {
+		t.Fatalf("enter during the second turn = %q", got)
+	}
+	if effect := controller.HandleKey(Key{Kind: KeyEscape}); !effect.Interrupt || controller.Queued() != "" {
+		t.Fatalf("esc during a turn = %#v queued %q", effect, controller.Queued())
+	}
+}
+
+func TestEscDisarmsTheArmedExitAndPutsTheNoticeAway(t *testing.T) {
+	controller := NewController(Status{Mode: "code", Lifecycle: "ready"}, 1024)
+	controller.HandleKey(Key{Kind: KeyInterrupt})
+	if !strings.Contains(controller.Snapshot().Activity, "Ctrl+C again") {
+		t.Fatalf("first interrupt did not arm the exit: %#v", controller.Snapshot())
+	}
+	controller.HandleKey(Key{Kind: KeyEscape})
+	if controller.Snapshot().Activity == interruptExitNotice {
+		t.Fatal("esc left the exit notice on the activity row")
+	}
+	// Disarmed: the next interrupt starts over instead of exiting, and puts its
+	// own notice back up while doing so.
+	if effect := controller.HandleKey(Key{Kind: KeyInterrupt}); effect.Exit {
+		t.Fatal("esc should have disarmed the armed exit")
+	}
+	if !strings.Contains(controller.Snapshot().Activity, "Ctrl+C again") {
+		t.Fatalf("re-armed interrupt did not explain the exit gesture: %#v", controller.Snapshot())
 	}
 }

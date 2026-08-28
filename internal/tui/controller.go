@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+// interruptExitNotice is the idle-state Ctrl+C message: the same two-stage
+// contract as before. A busy turn changes what the key does.
 const interruptExitNotice = "Input cleared. Press Ctrl+C again to exit."
 
 // Decision is the result of one visible approval overlay.
@@ -107,6 +109,9 @@ func (c *Controller) HandleKey(key Key) Effect {
 	if key.Kind == KeyInterrupt {
 		return c.handleInterrupt()
 	}
+	if key.Kind == KeyEscape {
+		return c.handleEscape()
+	}
 	c.disarmInterrupt()
 	// Shift+Tab cycles the tier whether or not a completion list is open:
 	// Tab completes, Shift+Tab never does, so there is nothing to disturb.
@@ -126,11 +131,16 @@ func (c *Controller) HandleKey(key Key) Effect {
 		if draft == "" {
 			return Effect{}
 		}
+		replacing := strings.TrimSpace(c.queued) != ""
 		c.queued = c.editor.Draft()
 		c.editor.clearDraft()
 		c.screen.SetDraft("")
 		c.clearSuggestions()
+		c.syncQueued()
 		c.screen.SetActivity(queuedNotice)
+		if replacing {
+			c.screen.SetActivity(queuedReplacedNotice)
+		}
 		return Effect{}
 	}
 	result := c.editor.Update(key)
@@ -151,7 +161,42 @@ func (c *Controller) HandleKey(key Key) Effect {
 	return effect
 }
 
+// handleEscape is the universal way out, one meaning per context. It runs only
+// with the overlays closed — an open approval or question sees the key first —
+// so the meanings it carries are its own: collapse a completion list, stop a
+// running turn, and otherwise stand down anything armed. A key that does
+// nothing gives no feedback at all.
+func (c *Controller) handleEscape() Effect {
+	switch {
+	case len(c.suggestions) > 0:
+		c.clearSuggestions()
+		return Effect{}
+	case c.busy:
+		// Same meaning as Ctrl+C on a running turn, so the same handler runs:
+		// the queue is dropped, the draft the user is typing survives.
+		return c.handleInterrupt()
+	default:
+		// An armed Ctrl+C exit is waiting state on screen; Esc is the polite
+		// way to have it put away without pressing anything irreversible.
+		c.disarmInterrupt()
+		return Effect{}
+	}
+}
+
 func (c *Controller) handleInterrupt() Effect {
+	// A turn running is the thing Ctrl+C most urgently means: stop it, keep
+	// the app. The queued request — never yet sent — is dropped with it: Ctrl+C
+	// means stop, not stop-then-start-something. The draft the user is typing
+	// stays; destroying it was the old contract's worst habit. The two-stage
+	// exit applies only when idle — quitting while a run streams was the only
+	// way to stop that run, and it took the whole session with it.
+	if c.busy {
+		if c.queued != "" {
+			c.queued = ""
+			c.syncQueued()
+		}
+		return Effect{Interrupt: true}
+	}
 	if c.interruptArmed {
 		return Effect{Exit: true}
 	}
@@ -163,6 +208,12 @@ func (c *Controller) handleInterrupt() Effect {
 	return Effect{}
 }
 
+// handleEscape resolves the one thing on screen a person most plausibly
+// wanted to get out of: a completion menu, then a busy turn. The key was
+// decoded everywhere and bound nowhere outside the question picker, so
+// pressing it gave no feedback of any kind.
+
+// disarmInterrupt returns the armed exit to safe when any other key arrives.
 func (c *Controller) disarmInterrupt() {
 	if !c.interruptArmed {
 		return
@@ -239,8 +290,14 @@ func (c *Controller) SetActivity(activity string) {
 }
 
 // SetStatus replaces the session metadata without touching transcript or
-// draft state.
+// draft state. The queued count is controller-owned, not CLI-owned: the CLI
+// rebuilds its Status from the engine and cannot know about the queue, so it
+// is re-derived here rather than read out of the fresh value.
 func (c *Controller) SetStatus(status Status) {
+	status.Queued = 0
+	if strings.TrimSpace(c.queued) != "" {
+		status.Queued = 1
+	}
 	c.status = status
 	c.screen.SetStatus(status)
 }
@@ -249,6 +306,14 @@ func (c *Controller) SetStatus(status Status) {
 // queuedNotice tells the user the key was received and what will happen. A
 // queued request that looks identical to a dropped one is a bug report.
 const queuedNotice = "queued — sends when this turn finishes"
+
+// queuedReplacedNotice is what a second Enter against an occupied queue says.
+// An overwrite nobody mentions is a lost message nobody can trace.
+const queuedReplacedNotice = "replaced the earlier queued request — sends when this turn finishes"
+
+// interruptedNotice is committed to the transcript when a turn is cancelled.
+// A stop has to be visible where the output it stopped is.
+const interruptedNotice = "  · interrupted\n"
 
 // BeginTurn puts the controller into the same state a submitted key does. The
 // runtime uses it when it starts a queued request, so a queued turn is
@@ -263,11 +328,23 @@ func (c *Controller) BeginTurn() {
 func (c *Controller) TakeQueued() string {
 	queued := c.queued
 	c.queued = ""
+	c.syncQueued()
 	return queued
 }
 
 // Queued reports the request waiting to be sent, if any.
 func (c *Controller) Queued() string { return c.queued }
+
+// syncQueued puts the held-request count on the status row, where it survives
+// for the whole minute the spinner will otherwise cover the notice. A queue
+// only its author remembers is a dropped message as far as the session reads.
+func (c *Controller) syncQueued() {
+	c.status.Queued = 0
+	if strings.TrimSpace(c.queued) != "" {
+		c.status.Queued = 1
+	}
+	c.screen.SetStatus(c.status)
+}
 
 func (c *Controller) FinishTurn(lifecycle string) {
 	c.busy = false
@@ -408,6 +485,11 @@ func (c *Controller) handleApprovalKey(key Key) Effect {
 		return c.resolveApproval(DecisionDeny, true, false)
 	case KeyEOF:
 		return c.resolveApproval(DecisionDeny, false, true)
+	case KeyEscape:
+		// Esc is the safe key here: it refuses and returns to the composer
+		// without touching the running turn. Refusing must never require a
+		// modifier the reader has to think about.
+		return c.resolveApproval(DecisionDeny, false, false)
 	case KeyEnter:
 		answer := strings.ToLower(strings.TrimSpace(c.approvalEditor.Draft()))
 		decision := DecisionDeny
@@ -423,6 +505,26 @@ func (c *Controller) handleApprovalKey(key Key) Effect {
 			}
 		}
 		return c.resolveApproval(decision, false, false)
+	case KeyText:
+		// One keypress answers: an approval is a decision, not a line of
+		// text to walk over and Enter. Anything longer still goes through
+		// the editor and Enter for the person who wants to read before
+		// committing.
+		switch strings.ToLower(key.Text) {
+		case "y":
+			return c.resolveApproval(DecisionAllow, false, false)
+		case "n":
+			return c.resolveApproval(DecisionDeny, false, false)
+		case "a":
+			if c.approval.Rule != "" {
+				return c.resolveApproval(DecisionAllowAlways, false, false)
+			}
+		}
+		result := c.approvalEditor.Update(key)
+		if result.Changed {
+			c.approval.Input = c.approvalEditor.Draft()
+		}
+		return Effect{}
 	default:
 		result := c.approvalEditor.Update(key)
 		if result.Changed {
@@ -445,6 +547,15 @@ func (c *Controller) resolveApproval(decision Decision, interrupt, exit bool) Ef
 // the transcript or a draft somebody is typing while their run works.
 func (c *Controller) SetAgents(running int) {
 	c.status.Agents = running
+	c.screen.SetStatus(c.status)
+}
+
+// SetUsage updates only the footer's context and cost cells. The CLI could
+// otherwise rebuild the whole status only between turns, so both numbers sat
+// frozen for as long as a turn ran — which is when the context one moves.
+func (c *Controller) SetUsage(context, cost string) {
+	c.status.Context = context
+	c.status.Cost = cost
 	c.screen.SetStatus(c.status)
 }
 

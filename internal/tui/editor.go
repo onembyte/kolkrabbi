@@ -2,6 +2,7 @@ package tui
 
 import (
 	"bytes"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -29,6 +30,14 @@ const (
 	KeyPageUp
 	KeyPageDown
 	KeyEscape
+	// The readline vocabulary. Ctrl-key motion is muscle memory carried over
+	// from every shell a person has typed in; a composer without it feels
+	// unfinished before anything else is noticed about it.
+	KeyWordLeft
+	KeyWordRight
+	KeyKillWord
+	KeyKillToStart
+	KeyKillToEnd
 )
 
 // Key carries text only for KeyText and KeyPaste.
@@ -116,6 +125,43 @@ func (e *Editor) Update(key Key) EditResult {
 		_, end := lineBounds(e.draft, e.cursor)
 		if e.cursor != end {
 			e.cursor = end
+			return EditResult{Changed: true}
+		}
+	case KeyWordLeft:
+		if moved := e.jumpWord(-1); moved != e.cursor {
+			e.cursor = moved
+			return EditResult{Changed: true}
+		}
+	case KeyWordRight:
+		if moved := e.jumpWord(1); moved != e.cursor {
+			e.cursor = moved
+			return EditResult{Changed: true}
+		}
+	case KeyKillWord:
+		if target := e.jumpWord(-1); target != e.cursor {
+			copy(e.draft[target:], e.draft[e.cursor:])
+			e.draft = e.draft[:len(e.draft)-(e.cursor-target)]
+			e.cursor = target
+			e.leaveHistory()
+			return EditResult{Changed: true}
+		}
+	case KeyKillToStart:
+		start, _ := lineBounds(e.draft, e.cursor)
+		if e.cursor != start {
+			copy(e.draft[start:], e.draft[e.cursor:])
+			e.draft = e.draft[:len(e.draft)-(e.cursor-start)]
+			e.cursor = start
+			e.leaveHistory()
+			return EditResult{Changed: true}
+		}
+	case KeyKillToEnd:
+		// Scoped to the line like every other kill: the naive draft[:cursor]
+		// deleted every following line and hit harder than any readline.
+		_, end := lineBounds(e.draft, e.cursor)
+		if e.cursor != end {
+			copy(e.draft[e.cursor:], e.draft[end:])
+			e.draft = e.draft[:len(e.draft)-(end-e.cursor)]
+			e.leaveHistory()
 			return EditResult{Changed: true}
 		}
 	case KeyUp:
@@ -216,6 +262,33 @@ func (e *Editor) setDraft(value string) {
 	e.cursor = len(e.draft)
 }
 
+// jumpWord walks the draft one word in direction: over trailing whitespace
+// first, then over the word itself — the behavior every readline has. Words
+// are fenced to the line they sit on: '\n' stops motion the way line-scoped
+// Home, End and the kills do, so one keypress can never silently merge two
+// lines' worth of text. The returned offset always stays within [0, len(draft)].
+func (e *Editor) jumpWord(direction int) int {
+	runes := e.draft
+	cursor := min(max(e.cursor, 0), len(runes))
+	if direction < 0 {
+		for cursor > 0 && runes[cursor-1] != '\n' && unicode.IsSpace(runes[cursor-1]) {
+			cursor--
+		}
+		for cursor > 0 && runes[cursor-1] != '\n' && !unicode.IsSpace(runes[cursor-1]) {
+			cursor--
+		}
+		return cursor
+	}
+	end := cursor
+	for end < len(runes) && runes[end] != '\n' && unicode.IsSpace(runes[end]) {
+		end++
+	}
+	for end < len(runes) && runes[end] != '\n' && !unicode.IsSpace(runes[end]) {
+		end++
+	}
+	return end
+}
+
 func (e *Editor) clearDraft() bool {
 	changed := len(e.draft) > 0 || e.cursor != 0
 	e.draft = e.draft[:0]
@@ -293,7 +366,7 @@ func (d *Decoder) Feed(chunk []byte) []Key {
 				d.pasteBuf = append(d.pasteBuf, d.pending[:end]...)
 				d.pending = d.pending[end+len(pasteEnd):]
 				flushText()
-				keys = append(keys, Key{Kind: KeyPaste, Text: string(d.pasteBuf)})
+				keys = append(keys, Key{Kind: KeyPaste, Text: sanitizePastedText(string(d.pasteBuf))})
 				d.pasteBuf = d.pasteBuf[:0]
 				d.pasting = false
 				continue
@@ -333,10 +406,34 @@ func (d *Decoder) Feed(chunk []byte) []Key {
 			kind = KeyBackspace
 		case '\t':
 			kind = KeyTab
+		case 0x01: // Ctrl+A
+			kind = KeyHome
+		case 0x05: // Ctrl+E
+			kind = KeyEnd
+		case 0x02: // Ctrl+B
+			kind = KeyLeft
+		case 0x06: // Ctrl+F
+			kind = KeyRight
+		case 0x0b: // Ctrl+K
+			kind = KeyKillToEnd
+		case 0x15: // Ctrl+U
+			kind = KeyKillToStart
+		case 0x17: // Ctrl+W
+			kind = KeyKillWord
 		}
 		if kind != 0 {
 			flushText()
 			keys = append(keys, Key{Kind: kind})
+			d.pending = d.pending[1:]
+			continue
+		}
+
+		if d.pending[0] < 0x20 || d.pending[0] == 0x7f {
+			// An unhandled control byte must not ride into the draft as an
+			// invisible rune: display sanitization strips it later, so the
+			// rendered cursor would disagree with the logical one and edits
+			// would act on text nobody can see.
+			flushText()
 			d.pending = d.pending[1:]
 			continue
 		}
@@ -376,6 +473,12 @@ func decodeEscape(input []byte) (consumed int, kind KeyKind, complete bool) {
 		{[]byte("\x1b[13;2u"), KeyNewline},
 		{[]byte("\x1b\r"), KeyNewline},
 		{[]byte("\x1b\n"), KeyNewline},
+		// Alt+word motion and Ctrl+Arrow. Both are read like any other
+		// sequence; a terminal that sends them had a person who meant them.
+		{[]byte("\x1bb"), KeyWordLeft},
+		{[]byte("\x1bf"), KeyWordRight},
+		{[]byte("\x1b[1;5D"), KeyWordLeft},
+		{[]byte("\x1b[1;5C"), KeyWordRight},
 		{[]byte("\x1b[A"), KeyUp},
 		{[]byte("\x1b[B"), KeyDown},
 		{[]byte("\x1b[C"), KeyRight},
@@ -429,4 +532,32 @@ func suffixPrefixLen(input, marker []byte) int {
 		}
 	}
 	return 0
+}
+
+// sanitizePastedText strips a paste's invisible riders. Clipboard contents
+// regularly carry escape sequences (a bracketed paste of a terminal screen
+// brings its own SGR along), and the same C0 bytes the decoder refuses to
+// insert when typed must not ride in through KeyPaste: display sanitization
+// strips them later, so the rendered cursor would disagree with the logical
+// one and edits would act on text nobody can see. Newlines survive — a paste
+// of more than one line is the whole point — and \r is folded to \n, which is
+// how every terminal delivers a pasted line break.
+func sanitizePastedText(text string) string {
+	var out []rune
+	for _, r := range text {
+		switch {
+		case r == '\n':
+			out = append(out, '\n')
+		case r == '\t':
+			out = append(out, '\t')
+		case r < 0x20 || r == 0x7f:
+			// Dropped: control bytes — \r folded above, ESC openers gone. What
+			// remains of a swallowed sequence in the draft is inert text,
+			// which is the honest rendering of a paste that carried styling
+			// no composer should apply.
+		default:
+			out = append(out, r)
+		}
+	}
+	return string(out)
 }

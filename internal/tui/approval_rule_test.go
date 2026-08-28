@@ -12,9 +12,18 @@ func approvalFixture(t *testing.T, approval Approval) *Controller {
 	return c
 }
 
+// typeAnswer feeds an answer the way a person does. y, n and a resolve on the
+// single keypress — an approval is a decision, not a line of text — while any
+// longer answer walks through the overlay's editor to Enter. The helper returns
+// the first effect that carried a decision, whichever path produced it.
 func typeAnswer(c *Controller, answer string) Effect {
-	if answer != "" {
-		c.HandleKey(Key{Kind: KeyText, Text: answer})
+	if answer == "" {
+		return c.HandleKey(Key{Kind: KeyEnter})
+	}
+	for _, r := range answer {
+		if effect := c.HandleKey(Key{Kind: KeyText, Text: string(r)}); effect.Decision != DecisionNone {
+			return effect
+		}
 	}
 	return c.HandleKey(Key{Kind: KeyEnter})
 }
