@@ -29,7 +29,7 @@ func (a *app) runPlanModels(_ context.Context, args []string) error {
 	for _, model := range models {
 		status := model.Access
 		if status != "unsupported subscription" {
-			status = "available"
+			status = "listed"
 			for _, connector := range manifest.Connectors {
 				if connector.Provider == model.Provider && connector.Name == model.Connector && connector.Enabled {
 					status = "enabled"

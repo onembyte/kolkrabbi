@@ -98,6 +98,30 @@ provider_status Qwen planned
 provider_status Cohere planned
 provider_status GitHub planned
 
+# The checks above are written by hand, which means a provider added to the
+# repository could sit there unlisted while every one of them still passed.
+# This derives the expected set from internal/provider/plans.go instead: every
+# provider kolk knows a plan for must have a tile, so the wall cannot silently
+# fall behind the code.
+#
+# The mapping is display names, because a wall reads "Anthropic" and a table
+# says "anthropic"; anything new must be added here on purpose, which is the
+# point — a provider arriving in the repo should make somebody decide what the
+# page says about it.
+declare -A provider_tiles=(
+  [anthropic]=Anthropic [openai]=OpenAI [google]=Google [xai]=xAI
+  [perplexity]=Perplexity [mistral]=Mistral [deepseek]=DeepSeek [qwen]=Qwen
+  [cohere]=Cohere [github]=GitHub
+)
+while read -r provider; do
+  tile="${provider_tiles[$provider]:-}"
+  if [ -z "$tile" ]; then
+    fail "internal/provider/plans.go knows the provider $provider, which has no tile on the wall and no name mapped for it"
+    continue
+  fi
+  contains index.html "provider-name\">$tile<" "$provider is in plans.go but has no tile on the provider wall"
+done < <(grep -oE '\{Provider: "[a-z]+"' "$ROOT/internal/provider/plans.go" | sed 's/.*"\([a-z]*\)"/\1/' | sort -u)
+
 contains capabilities.html '<html lang="en">' "capabilities page must declare its language"
 contains capabilities.html 'name="viewport"' "capabilities page must configure a mobile viewport"
 contains capabilities.html '<main id="content">' "capabilities page must have a semantic main region"

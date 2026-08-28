@@ -36,7 +36,11 @@ func (a *app) runPlans(ctx context.Context, args []string) error {
 		if plan.Sandbox {
 			sandbox = "yes"
 		}
-		status := "available"
+		// "listed" and not "available": this row is in the provider matrix and
+		// nothing is configured for it. Calling that available told a user on a
+		// fresh machine that fifteen providers were ready to use, while the
+		// website said "no adapter yet" about the same fifteen.
+		status := "listed"
 		for _, connector := range manifest.Connectors {
 			if connector.Provider == plan.Provider && connector.Name == plan.Connector && connector.Enabled {
 				status = "enabled"
@@ -50,6 +54,7 @@ func (a *app) runPlans(ctx context.Context, args []string) error {
 		fmt.Fprintf(a.stdout, "%-12s %-20s %-15s %-13s %-13s %-8s %s\n",
 			plan.Provider, plan.Name, plan.Connector, plan.Auth, plan.Billing, sandbox, status)
 	}
+	fmt.Fprintln(a.stdout, "\nlisted: in the provider matrix, with nothing configured for it here.")
 	if unverified {
 		fmt.Fprintln(a.stdout, "\nunverified: the provider CLI exited cleanly, which is not proof of a login.")
 		fmt.Fprintln(a.stdout, "Kolkrabbi confirms it the first time the connector answers a turn.")
