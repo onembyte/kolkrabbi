@@ -26,6 +26,12 @@ type Effect struct {
 	Interrupt bool
 	Exit      bool
 	Decision  Decision
+	// Choice is the option picked from a question, 1-based. Zero means no
+	// choice was made by this key.
+	Choice int
+	// ChoiceDismissed reports a question closed without an answer, which is a
+	// different thing from picking the first option.
+	ChoiceDismissed bool
 	// CyclePermission asks the surface to advance the permission tier. The
 	// controller cannot do it itself: what the tiers are, and what changing
 	// one means, belongs to the engine rather than to a screen.
@@ -47,9 +53,18 @@ type Approval struct {
 // Controller applies terminal and engine events to one screen and editor.
 type Controller struct {
 	screen *Model
-	editor *Editor
-	status Status
-	busy   bool
+	// question is the open picker, if any. It takes keys ahead of the composer
+	// for the same reason the approval overlay does: what is on screen is a
+	// question, and the next key is its answer.
+	question      *Question
+	questionIndex int
+	// lastOptions outlives the question by one key, because the Effect that
+	// closes it carries an index that still has to be resolved to an answer.
+	lastOptions    []string
+	beforeQuestion string
+	editor         *Editor
+	status         Status
+	busy           bool
 	// queued holds a request submitted while a turn was still running. The
 	// engine session is stateful, so two turns cannot run at once; the request
 	// waits here and starts the moment the running one finishes.
@@ -85,6 +100,9 @@ func NewController(status Status, maxDraftRunes int) *Controller {
 func (c *Controller) HandleKey(key Key) Effect {
 	if c.approval != nil {
 		return c.handleApprovalKey(key)
+	}
+	if c.question != nil {
+		return c.handleQuestionKey(key)
 	}
 	if key.Kind == KeyInterrupt {
 		return c.handleInterrupt()
@@ -292,13 +310,21 @@ func (c *Controller) RenderView(width, height int) string {
 }
 
 func (c *Controller) renderView(width, height int, styled bool) string {
+	if c.question != nil {
+		return c.overlayView(c.questionLines(width), width, height, styled)
+	}
 	if c.approval == nil {
 		if styled {
 			return c.screen.renderView(width, height, c.editor.Cursor())
 		}
 		return c.screen.view(width, height, c.editor.Cursor())
 	}
-	overlay := c.approvalLines(width)
+	return c.overlayView(c.approvalLines(width), width, height, styled)
+}
+
+// overlayView draws an overlay under the screen, shortening the screen by
+// exactly the rows the overlay takes so the two never fight for the same line.
+func (c *Controller) overlayView(overlay []string, width, height int, styled bool) string {
 	baseHeight := height
 	if height > 0 {
 		baseHeight = max(0, height-len(overlay))
@@ -313,6 +339,11 @@ func (c *Controller) renderView(width, height int, styled bool) string {
 				style = stylePurple
 			} else if index == 1 || index == len(overlay)-2 {
 				style = stylePurpleMuted
+			}
+			// The highlighted row carries the same marker and colour the
+			// command and model pickers use, so one habit works everywhere.
+			if strings.HasPrefix(line, "> ") {
+				style = stylePurple
 			}
 			rows[index] = viewRow{text: line, style: style}
 		}

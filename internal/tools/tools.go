@@ -161,6 +161,14 @@ func Definitions() []provider.Tool {
 			}`, "command", "description"),
 		}},
 		{Type: "function", Function: provider.FunctionDef{
+			Name:        "ask_user",
+			Description: "Ask the person running the session to choose between options, when the answer changes what you build and you cannot settle it from the code. They pick with the arrow keys. Use it for decisions that are genuinely theirs, not for permission to continue or for anything you can determine yourself.",
+			Parameters: schema(`{
+				"question":{"type":"string","description":"The question, in one sentence"},
+				"options":{"type":"array","items":{"type":"string"},"description":"Two to eight distinct answers, each a short phrase. Put the one you would recommend first"}
+			}`, "question", "options"),
+		}},
+		{Type: "function", Function: provider.FunctionDef{
 			Name:        "read_file",
 			Description: "Read a text file's contents from disk, with line numbers. Large files are truncated; use start_line and end_line to page through the rest instead of reaching for shell tools.",
 			Parameters: schema(`{

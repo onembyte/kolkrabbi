@@ -102,7 +102,7 @@ func TestDoctorReportsWhatSchemasCost(t *testing.T) {
 	if !strings.Contains(out, "of schema on every request") {
 		t.Errorf("doctor does not report the schema cost:\n%s", out)
 	}
-	if !strings.Contains(out, "5 tools") {
+	if !strings.Contains(out, "6 tools") {
 		t.Errorf("doctor does not say how many tools are sent:\n%s", out)
 	}
 }

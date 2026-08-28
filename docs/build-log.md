@@ -4040,3 +4040,48 @@ additionally under `-race -count=2`.
 activity tests as HANG/FAIL. They were passing; macOS has no `timeout(1)`, so every invocation had
 failed with `command not found` and the loop read a non-zero exit as a hang. `go test -timeout` is
 the portable form and named the one genuinely hanging test immediately.
+
+### A33.4 questions the user answers by picking, not by typing
+
+**Scope:** the model can put a fixed-option decision to the person, who answers with the arrow keys.
+Non-goals: free-text questions, which prose already handles; questions from subagents; more than one
+question at a time.
+
+**Red:** there was no way for the model to ask anything. It asked in prose, and the answer had to be
+typed back — which meant re-reading the options, choosing a spelling, and hoping the model read it
+the way it was meant. `TestArrowKeysAndEnterAnswerTheQuestion` is the smallest statement of what was
+missing.
+
+**Green:** an `ask_user` tool carrying a question and two to eight options, answered by the surface
+rather than by the tools package, because the answer comes from a person and nothing below the
+surface can reach one. The engine intercepts the call before the work indicator and the confinement
+guard, neither of which means anything for a question waiting on a human. The screen shows a picker:
+`↑`/`↓` move, Enter takes the highlighted row, the number beside a row takes it outright, Ctrl+C
+dismisses. The first option is preselected and the model is told to put its recommendation there, so
+Enter alone is a real answer rather than an accident.
+
+**Four ways to get this wrong, each pinned by a test:**
+
+- **Dismissing is not choosing.** Reporting a dismissal as the first option would put words in the
+  user's mouth and let the model build on a decision nobody made. `ok` is carried separately from the
+  answer the whole way through, and the model is told to decide and say what it assumed.
+- **Subagents never ask.** Up to three run at once, so two asking would race for one terminal, and an
+  answer could not say which of three parallel tasks it belonged to. `mayAsk` is false on the
+  subagent path.
+- **A second question is refused, not queued.** Stacking questions in front of the person is worse
+  than making the model wait for the first answer.
+- **An interrupted turn takes its picker down.** Otherwise it sits on screen waiting for an answer
+  nobody is listening for.
+
+A question with fewer than two distinct options, or none, is refused before it reaches the screen and
+the model is redirected to prose: blank and repeated options are choices that cannot be made
+meaningfully.
+
+**Ratchet:** `TestDoctorReportsWhatSchemasCost` asserts the tool count literally and went from five
+to six. That is the assertion working — a new tool is sent on every request of every turn, so adding
+one should require saying so out loud. `make budgets` and the schema budget test confirm the sixth
+schema still fits.
+
+**Verification:** all gates green — `fmt-check`, `vet`, `arch`, `purity`, `buildtags`, `budgets`,
+`surface`, `plan-check`, `spec`, and `./scripts/test.sh` at 2356 tests. `internal/tui`,
+`internal/engine` and `internal/cli` additionally under `-race -count=2`.

@@ -108,6 +108,7 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 	ag.Activity = screen
 	ag.Work = screen
 	ag.Decider = tuiDecider{runtime: screen}
+	ag.Ask = tuiChooser{runtime: screen}
 	runErr := screen.Run(ctx)
 	a.stdout, a.stderr = originalStdout, originalStderr
 	restoreErr := restoreTerminal()
@@ -287,6 +288,15 @@ func compactWorkingFolder(cwd, home string) string {
 // mentionCandidates bounds the completion list. Past a few hundred entries a
 // filtered menu is not helping anyone find a file.
 const mentionCandidates = 400
+
+// tuiChooser adapts the engine's question to the screen's picker. The engine
+// does not know what a terminal is and the screen does not know what a model
+// is, so the translation lives here, next to the other port adapters.
+type tuiChooser struct{ runtime *tui.Runtime }
+
+func (c tuiChooser) Choose(ctx context.Context, choice engine.Choice) (string, bool) {
+	return c.runtime.Ask(ctx, tui.Question{Prompt: choice.Question, Options: choice.Options})
+}
 
 type tuiDecider struct{ runtime *tui.Runtime }
 

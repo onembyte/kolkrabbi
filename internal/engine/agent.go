@@ -199,6 +199,10 @@ type Options struct {
 	Activity  ActivityIndicator
 	Work      WorkIndicator
 	Decider   Decider
+	// Ask puts a fixed-option question to the person running the session. Nil
+	// means nobody can be asked, and the model is told to decide and say what
+	// it assumed rather than to wait for an answer that cannot come.
+	Ask Chooser
 	// Tiers maps effort level -> model id. Missing tiers fall back to Model,
 	// so everything works zero-config and tiers are a pure optimization.
 	Tiers       map[string]string
@@ -855,16 +859,22 @@ func sanitizeToolText(value string) string {
 
 // executeTool runs one tool for the main session, where a person can answer.
 func (a *Agent) executeTool(ctx context.Context, tc provider.ToolCall) (string, error) {
-	return a.executeToolWith(ctx, tc, a.Out, a.guard)
+	return a.executeToolWith(ctx, tc, a.Out, a.guard, true)
 }
 
 // executeSubagentTool runs one tool for an orchestrated subagent, where nobody
 // can.
 func (a *Agent) executeSubagentTool(ctx context.Context, tc provider.ToolCall, out io.Writer) (string, error) {
-	return a.executeToolWith(ctx, tc, out, a.subagentGuard)
+	return a.executeToolWith(ctx, tc, out, a.subagentGuard, false)
 }
 
-func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, out io.Writer, guard func(context.Context, io.Writer) tools.Guard) (string, error) {
+func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, out io.Writer, guard func(context.Context, io.Writer) tools.Guard, mayAsk bool) (string, error) {
+	// Answered before any of the machinery below: a question waits on a person,
+	// so a spinner saying "working" and a confinement guard over a path neither
+	// applies nor makes sense.
+	if tc.Function.Name == toolAskUser {
+		return a.askUser(ctx, tc.Function.Arguments, out, mayAsk)
+	}
 	description := describeToolCall(tc)
 	fmt.Fprintf(out, "%s  → %s%s\n", colorDim, description, colorReset)
 	stopWork := func() {}

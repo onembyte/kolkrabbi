@@ -72,6 +72,8 @@ type Runtime struct {
 	animIdle chan struct{}
 	turns    sync.WaitGroup
 	approval chan Decision
+	// question is the reply channel of the model worker waiting on a picker.
+	question chan questionReply
 	quit     chan struct{}
 	quitOnce sync.Once
 	resize   <-chan struct{}
@@ -218,6 +220,10 @@ func (r *Runtime) HandleKey(key Key) Effect {
 	if effect.Decision != DecisionNone && r.approval != nil {
 		r.approval <- effect.Decision
 		r.approval = nil
+	}
+	if (effect.Choice > 0 || effect.ChoiceDismissed) && r.question != nil {
+		r.question <- r.controller.chosen(effect)
+		r.question = nil
 	}
 	if effect.CyclePermission && r.cyclePerm != nil {
 		if tier := r.cyclePerm(); tier != "" {
@@ -402,6 +408,57 @@ func (r *Runtime) finishActivity(id uint64) {
 		case r.animIdle <- struct{}{}:
 		default:
 		}
+	}
+}
+
+// questionReply carries a picked option back to the waiting model worker.
+// Dismissed is kept apart from the option because closing a question is not
+// choosing anything, and the engine must be able to tell the difference.
+type questionReply struct {
+	option    string
+	dismissed bool
+}
+
+// Ask puts a fixed-option question on screen and blocks the calling model
+// worker until it is answered or dismissed. Only the worker blocks: the read
+// loop keeps running, so the picker responds to keys and the session can still
+// be interrupted.
+//
+// ok is false when the question was dismissed. A second question arriving while
+// one is open is refused rather than queued -- the model should be working on
+// the first answer, not stacking questions in front of the person.
+func (r *Runtime) Ask(ctx context.Context, question Question) (string, bool) {
+	if len(question.Options) == 0 {
+		return "", false
+	}
+	reply := make(chan questionReply, 1)
+	r.mu.Lock()
+	if r.question != nil || r.approval != nil {
+		r.mu.Unlock()
+		return "", false
+	}
+	r.question = reply
+	r.controller.RequestQuestion(question)
+	r.renderLocked()
+	r.mu.Unlock()
+
+	select {
+	case answer := <-reply:
+		if answer.dismissed {
+			return "", false
+		}
+		return answer.option, true
+	case <-ctx.Done():
+		// The turn was interrupted. Take the picker down rather than leave it
+		// on screen waiting for an answer nobody is listening for any more.
+		r.mu.Lock()
+		if r.question == reply {
+			r.question = nil
+			_ = r.controller.HandleKey(Key{Kind: KeyInterrupt})
+			r.renderLocked()
+		}
+		r.mu.Unlock()
+		return "", false
 	}
 }
 
