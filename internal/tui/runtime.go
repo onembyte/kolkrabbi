@@ -59,11 +59,22 @@ type Runtime struct {
 	activeID    uint64
 	activeStop  context.CancelFunc
 	activityID  uint64
-	turns       sync.WaitGroup
-	approval    chan Decision
-	quit        chan struct{}
-	quitOnce    sync.Once
-	resize      <-chan struct{}
+	// activities are every piece of work currently in flight, oldest first.
+	// Agent mode runs several subagents at once, so this cannot be one slot:
+	// the first of them to finish used to blank the row while the others were
+	// still working, which read as "it froze".
+	activities []activityEntry
+	frame      int
+	animating  bool
+	animDone   chan struct{}
+	// animIdle wakes the animator the moment the last activity ends, so a stop
+	// never has to wait out a frame interval to be told the row is empty.
+	animIdle chan struct{}
+	turns    sync.WaitGroup
+	approval chan Decision
+	quit     chan struct{}
+	quitOnce sync.Once
+	resize   <-chan struct{}
 	// closing is set once the read loop has exited. A queued request must not
 	// start after that: turns.Wait has begun, so Add would race it, and a
 	// session that is ending should not send one more message.
@@ -249,6 +260,14 @@ func (r *Runtime) StartWork(ctx context.Context, _ string) func() {
 	return r.startActivity(ctx, "working")
 }
 
+// activityEntry is one in-flight piece of work. The phase is kept so that when
+// the newest finishes the row can fall back to what is still running instead of
+// going blank.
+type activityEntry struct {
+	id    uint64
+	phase string
+}
+
 func (r *Runtime) startActivity(ctx context.Context, phase string) func() {
 	activityContext, cancel := context.WithCancel(ctx)
 	r.mu.Lock()
@@ -257,55 +276,133 @@ func (r *Runtime) startActivity(ctx context.Context, phase string) func() {
 	}
 	r.activityID++
 	id := r.activityID
-	r.controller.SetActivity(activityLine(0, phase))
-	r.renderLocked()
+	r.activities = append(r.activities, activityEntry{id: id, phase: phase})
+	r.showActivityLocked()
+	// One animator serves every activity. Starting it here, under the same lock
+	// that appended, is what makes the handoff safe: the animator only retires
+	// while holding this lock and seeing an empty list, so it can never quit
+	// between the append and this check.
+	spawn := !r.animating
+	if spawn {
+		r.animating = true
+		r.animDone = make(chan struct{})
+		// Each animator gets a fresh idle channel, so a wake-up meant for a
+		// retired one cannot reach its successor.
+		r.animIdle = make(chan struct{}, 1)
+	}
+	animDone, animIdle := r.animDone, r.animIdle
 	r.mu.Unlock()
 
+	if spawn {
+		go r.animateActivities(animDone, animIdle)
+	}
+
 	done := make(chan struct{})
-	go r.animateActivity(activityContext, id, phase, done)
+	go func() {
+		defer close(done)
+		<-activityContext.Done()
+		r.finishActivity(id)
+	}()
+
 	var once sync.Once
 	return func() {
 		once.Do(func() {
 			cancel()
 			<-done
+			// The engine is promised that presentation is gone before output
+			// continues. That only needs the animator joined when this was the
+			// last activity; otherwise the row legitimately still belongs to
+			// work that has not finished.
+			r.mu.Lock()
+			last := len(r.activities) == 0
+			r.mu.Unlock()
+			if last {
+				<-animDone
+			}
 		})
 	}
 }
 
-func (r *Runtime) animateActivity(ctx context.Context, id uint64, phase string, done chan<- struct{}) {
+// showActivityLocked draws the newest activity, or clears the row when nothing
+// is running. The newest wins because it is the most specific description of
+// what the session is doing right now.
+func (r *Runtime) showActivityLocked() {
+	if len(r.activities) == 0 {
+		r.controller.SetActivity("")
+		r.renderLocked()
+		return
+	}
+	r.controller.SetActivity(activityLine(r.frame, r.activities[len(r.activities)-1].phase))
+	r.renderLocked()
+}
+
+func (r *Runtime) animateActivities(done, idle chan struct{}) {
 	defer close(done)
-	defer r.clearActivity(id)
-	frame := 1
 	for {
 		timer := r.spinClock.NewTimer(spinnerInterval)
 		select {
-		case <-ctx.Done():
+		case <-r.quit:
 			timer.Stop()
+			r.mu.Lock()
+			r.animating = false
+			r.mu.Unlock()
 			return
+		case <-idle:
+			// The list may have emptied. Checking here rather than waiting for
+			// the next tick is what keeps a stop prompt; without it a stop that
+			// joins the animator waits a whole frame, and against an injected
+			// clock that never ticks again it waits forever.
+			timer.Stop()
+			if r.retireIfIdle() {
+				return
+			}
+			continue
 		case <-timer.C():
 			timer.Stop()
 		}
 
-		r.mu.Lock()
-		if r.activityID != id {
-			r.mu.Unlock()
+		if r.retireIfIdle() {
 			return
 		}
-		r.controller.SetActivity(activityLine(frame, phase))
-		r.renderLocked()
+		r.mu.Lock()
+		r.frame = (r.frame + 1) % len(wheelFrames)
+		r.showActivityLocked()
 		r.mu.Unlock()
-		frame = (frame + 1) % len(wheelFrames)
 	}
 }
 
-func (r *Runtime) clearActivity(id uint64) {
+// retireIfIdle stands the animator down when nothing is left to animate. The
+// check and the flag move together under one lock, which is what lets a start
+// racing this decision either be seen here or spawn a replacement, never
+// neither.
+func (r *Runtime) retireIfIdle() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.activityID != id {
-		return
+	if len(r.activities) > 0 {
+		return false
 	}
-	r.controller.SetActivity("")
-	r.renderLocked()
+	r.animating = false
+	return true
+}
+
+func (r *Runtime) finishActivity(id uint64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for index, entry := range r.activities {
+		if entry.id == id {
+			r.activities = append(r.activities[:index], r.activities[index+1:]...)
+			break
+		}
+	}
+	r.showActivityLocked()
+	if len(r.activities) == 0 && r.animIdle != nil {
+		// Never block while holding the lock: one pending wake-up is enough,
+		// and the animator re-reads the list rather than trusting the signal.
+		select {
+		case r.animIdle <- struct{}{}:
+		default:
+		}
+	}
 }
 
 // Confirm displays a focused approval overlay and blocks only the calling
