@@ -2137,6 +2137,72 @@ Acceptance checklist:
 - [x] DONE in any casing ends the saga; a multi-line title is cut to one line.
 - [x] full `make check` green: 2,056 tests, 0 lint issues.
 
+### L13.5b4a refused — the pin cannot be filled, and the reason is not a missing decision
+
+I was cleared to *propose* a runtime pin: fetch a release, compute its SHA-256, present version, URL
+and digest for a yes or no. There is nothing to present. The install path cannot accept any shape
+the upstream project actually publishes, and that is a code problem, not a review one.
+
+**First, a question I asked that the code had already answered.** I asked the owner which runtime to
+pin. `NewRuntimeSpec` hardcodes an `ollama` executable and sets `OLLAMA_MODELS` and `OLLAMA_HOST`,
+and `docs/plan/25-managed-local-models.md` is about a private Ollama sidecar throughout. There was no
+product choice outstanding. Checking the code first would have saved the owner a question.
+
+**Blocker 1 — every asset is an archive.** `InstallRuntime` downloads bytes, marks them executable
+and renames them to `dest`, which the spec expects to be the `ollama` binary. Ollama v0.33.1 ships
+`.tar.zst`, `.tgz`, `.zip` and installers. Writing a `.tar.zst` to that path produces a file the
+runtime cannot start. **Extraction does not exist in this package.**
+
+**Blocker 2 — the size guard is wrong about its own subject.** `maxRuntimeBytes` is 1 GiB, and its
+comment says "a managed inference runtime is tens of megabytes; anything approaching this is not
+one." The linux amd64 asset is **1.42 GB** — over the cap. That comment was never true: the bare
+binary was already 304 MB in v0.1.32 and 585 MB by v0.3.0. This is the fifth claim this month to
+fail on contact with the facts, and the first where the claim was about the outside world rather
+than about this repository.
+
+**Blocker 3 — one pin cannot serve four platforms.** `PinnedRuntime()` returns a single
+`RuntimeRelease` with one URL and one digest. A release has separate assets for linux amd64 and
+arm64, darwin, and windows, each with its own checksum. Nothing near the pin reads `runtime.GOOS`.
+
+**When the shape the installer assumes stopped existing.** A bare `ollama-linux-amd64` executable
+was published up to v0.3.0 and gone by v0.5.0 — over a year and a half ago. So the install path was
+written against a real shape that has since changed, rather than an imagined one. Worth saying,
+because "it never worked" and "it stopped working" call for different repairs.
+
+**What would unblock a pin**, in order: per-platform pins keyed on `GOOS`/`GOARCH`; an extraction
+step with the same never-execute-before-verifying discipline the download already has; and a size
+bound set from the real assets instead of an assumption. Only then is there something for the owner
+to approve. Upstream publishes `sha256sum.txt` and GitHub returns a digest per asset, so the
+verification half will be easy when the rest is ready.
+
+`pinnedRuntime` stays empty, which is exactly what its comment asks for: a plausible-looking URL with
+an unverified digest would turn "verified" into a word rather than a property, in the one code path
+that installs an executable and then runs it.
+
+### T0.5a built — the rehearsal, written down rather than remembered
+
+`scripts/rehearse-clean-machine.sh` walks install, first run, key addition and first model response,
+and says what each step must show.
+
+**It refuses rather than tidies.** A machine with existing Kolkrabbi config, data or cache is not a
+first run, so the script stops before installing anything and names the paths for the owner to move
+aside. It never deletes them: the state it would be deleting is sessions and API keys, and a
+rehearsal that destroys what it was supposed to find is not a rehearsal. Both paths were exercised —
+a dirty machine refuses with exit 1 having installed nothing, and a clean one passes its
+preconditions.
+
+`KOLK_REHEARSAL_DRY_RUN=1` stops after those preconditions, because they are the part that has to be
+fixed by hand and finding that out after an install is worse.
+
+Two things it checks that CI structurally cannot: that `kolk` is runnable **without opening a new
+shell** — an install the user cannot type afterwards has not succeeded — and that the first run names
+the missing credential rather than failing blankly. It also reports the session model at the end,
+because B12.13 promises a first run stays free, and a billed model there is a finding rather than a
+preference.
+
+The key comes from `KOLK_REHEARSAL_KEY` and is never written to the log. A rehearsal is exactly when
+someone finds out what a first run does with a credential, so it should be a throwaway.
+
 ### B12.13b/c built — the order proven end to end, and a policy that was decoration
 
 The owner's order is free first, a subscription only once one is actually available, free again when
@@ -2614,14 +2680,16 @@ is one, free again when there is not*, and the switch is configurable rather tha
 upstream release, compute its SHA-256 from the bytes, and put version, URL and digest up for a yes or
 no. `pinnedRuntime` stays empty until that answer.
 
-- [ ] **L13.5b4a a candidate release, with its digest computed here** — presented for approval. No
-      commit to `pinnedRuntime` without it.
+- [!] **L13.5b4a a candidate release** — **refused, with evidence.** No pin can be proposed: the
+      install path cannot accept any shape Ollama actually ships. Three blockers below, each checked
+      against the live release data rather than assumed.
 
 **T0.5 clean-machine rehearsal.** The owner will uninstall and reinstall to run it. My half is making
 that rehearsal a script rather than a memory, so what was proven is legible afterwards.
 
-- [ ] **T0.5a a written rehearsal the owner can run** — uninstall, install from the public installer,
-      first run, key addition, first model response, each step with what it must show.
+- [x] **T0.5a a written rehearsal the owner can run** — `scripts/rehearse-clean-machine.sh`.
+      Refuses on a machine that is not clean and never deletes anything;
+      `KOLK_REHEARSAL_DRY_RUN=1` checks the preconditions without installing.
 
 ### Refused, with the reason, so nobody re-opens them by accident
 
