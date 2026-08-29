@@ -187,6 +187,19 @@ contains capabilities.html 'Permission rules and path jail' "catalog does not co
 contains capabilities.html 'Local model dashboard' "catalog does not cover the local dashboard"
 contains capabilities.html 'Attachable local service' "catalog does not cover the event service"
 contains capabilities.html 'One revocable token per device' "catalog does not cover per-device tokens"
+# The uninstall path and the question picker shipped in v1.2.17 and v1.2.16. The
+# first is pinned because someone looking for it is usually already frustrated
+# and will not go hunting; the second because a capability nobody is told about
+# is one the product does not have, which is the mistake v1.2.15 made by
+# shipping the picker with nothing inviting the model to use it.
+contains index.html 'kolk uninstall' "the install steps do not say how to leave"
+contains index.html 'kolk uninstall --keep-data' "the uninstall step does not say how to keep a key for a reinstall"
+contains capabilities.html 'Leaving is one command too' "catalog does not cover uninstall"
+contains capabilities.html 'A question you answer by picking' "catalog does not cover the question picker"
+# Six, not five: ask_user joined the tool set and the schema of every tool is
+# sent on every request of every turn, so the count is a cost the page states.
+contains capabilities.html 'Six focused tools' "catalog miscounts the tools it sends"
+excludes capabilities.html 'Five focused tools' "catalog still claims the pre-ask_user tool count"
 excludes capabilities.html 'yolo' "catalog names a permission surface that no longer exists"
 contains capabilities.html 'data-language="en"' "English explainer slot is missing"
 contains capabilities.html 'data-language="es"' "Spanish explainer slot is missing"

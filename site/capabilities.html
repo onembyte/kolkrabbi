@@ -85,11 +85,12 @@
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>TOOLS</span></div>
-          <h3>Five focused tools</h3>
-          <p>Read, list, write, edit, and shell execution cover the code loop. File paths are
-            confined to the project, three permission tiers — ask, auto-approve, full-auto — decide
-            how much happens without a prompt, and a binary is described rather than sent while a
-            large file says how to page through the rest.</p>
+          <h3>Six focused tools</h3>
+          <p>Read, list, write, edit, and shell execution cover the code loop, and a sixth asks you
+            a question when the answer is genuinely yours. File paths are confined to the project,
+            three permission tiers — ask, auto-approve, full-auto — decide how much happens without
+            a prompt, and a binary is described rather than sent while a large file says how to page
+            through the rest.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>SESSIONS</span></div>
@@ -142,8 +143,27 @@
           <h3>A turn that is going nowhere stops</h3>
           <p>Three identical tool calls returning identical results are a loop, not a fourth attempt.
             The call is never made a third time: you are asked whether to run it again, and in
-            <code>/full-auto</code> the turn stops and says what it stopped. A failing test whose
+            <code>/full-auto</code> the turn stops and says what it stopped. Alternating calls count
+            too — remove, list, remove, list is a cycle even though no call ever follows itself, and
+            a nine-call window sees rotations a consecutive counter misses. A failing test whose
             output keeps changing is progress and is left alone.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>ASK</span></div>
+          <h3>A question you answer by picking</h3>
+          <p>When a decision is genuinely yours — which database, which of two designs — you get a
+            list, not a paragraph. Arrows move, enter takes the highlighted row, the number beside a
+            row takes it outright, escape backs out. The recommendation is first, so enter alone is a
+            real answer. Dismissing is not choosing: it is never reported as picking the first
+            option.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>UNINSTALL</span></div>
+          <h3>Leaving is one command too</h3>
+          <p><code>kolk uninstall</code> lists every path it will delete, what each one holds and how
+            big it is, then asks once. <code>--keep-data</code> spares your key, settings and sessions
+            for a reinstall. Anything that is not an explicit yes is a no, a closed input included, so
+            a script can never quietly delete your key.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>GIT</span></div>
