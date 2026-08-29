@@ -102,7 +102,7 @@ func TestSwitchingPlanModelsCarriesTheVendorConversationHandle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	label, err := a.switchModel(ag, "claude-opus")
+	label, err := a.switchModel(context.Background(), ag, "claude-opus")
 	if err != nil {
 		t.Fatal(err)
 	}

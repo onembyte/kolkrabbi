@@ -360,7 +360,7 @@ func (a *Agent) CompactNow(ctx context.Context, target int) (Compaction, bool) {
 // once per turn: a second refusal after compacting means the request cannot be
 // made to fit, and retrying again would only spend money to fail again.
 func (a *Agent) recoverFromOverflow(ctx context.Context) bool {
-	target := int(float64(a.ContextWindow) * compactToFraction)
+	target := int(float64(a.window()) * compactToFraction)
 	result, changed := a.CompactNow(ctx, target)
 	if !changed {
 		return false

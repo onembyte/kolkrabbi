@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/atomicfile"
@@ -407,7 +408,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	{
 		switch host.State {
 		case local.HostRunning:
-			ag.Routes = map[string]engine.ChatBackend{local.SidecarName: provider.NewHostClient(host.Addr)}
+			ag.Routes = map[string]engine.ChatBackend{local.SidecarName: local.NewHostBackend(host.Addr)}
 		case local.HostInstalled:
 			// Installed and idle: kolk starts one of its own on a port it
 			// chooses, lazily on the first host-model turn (E3b) — measured
@@ -615,7 +616,7 @@ func (a *app) contextWindowFor(model string) int {
 // switchModel points a live session at a model and, when that model belongs to
 // a subscription plan, at the provider that can actually answer it. Without
 // this the status line names one model while a different provider replies.
-func (a *app) switchModel(ag *engine.Agent, ref string) (string, error) {
+func (a *app) switchModel(ctx context.Context, ag *engine.Agent, ref string) (string, error) {
 	// The vendor conversation continues across a model switch: the stored
 	// handle (from this run or a previous one) resumes the same conversation on
 	// the model the user just chose, and new provider state lands back in the
@@ -650,8 +651,10 @@ func (a *app) switchModel(ag *engine.Agent, ref string) (string, error) {
 	// later /new inherits the provider it is running on.
 	ag.Model = resolved
 	// A provider CLI's window is not in the catalog, so a plan model reports
-	// unknown rather than borrowing the previous model's limit.
+	// unknown rather than borrowing the previous model's limit. A host model's
+	// comes from its route, which the engine asks when this is zero (E8).
 	ag.ContextWindow = a.contextWindowFor(resolved)
+	a.warmHostModel(ctx, ag, resolved)
 	ag.PinnedModel = true
 	if ag.Sess != nil {
 		ag.Sess.SetModelName(resolved)
@@ -745,4 +748,38 @@ func (a *app) refreshOllamaConnector(ctx context.Context, connectorsFile string,
 		_ = provider.SaveConnector(ctx, connectorsFile, connector)
 		return
 	}
+}
+
+// modelWarmer is what a host route implements to load a model ahead of its
+// first turn.
+type modelWarmer interface {
+	Warm(context.Context, string)
+}
+
+// warmHostModel loads a just-selected host model in the background, so the
+// first turn is not a cold load — seconds for a 7B, minutes on a CPU — and the
+// server's effective window is known before the first prompt is built. Off
+// the turn path and bounded: a warm that fails costs nothing but the warmth.
+func (a *app) warmHostModel(ctx context.Context, ag *engine.Agent, model string) {
+	prefix, wire, ok := strings.Cut(model, "/")
+	if !ok {
+		return
+	}
+	warmer, ok := ag.Routes[prefix].(modelWarmer)
+	if !ok {
+		return
+	}
+	warm := a.warmHost
+	if warm == nil {
+		warm = func(ctx context.Context, w modelWarmer, model string) {
+			// Off the turn path, but not off the session: a warm that
+			// outlived the session would load a model for nobody.
+			go func() {
+				ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+				defer cancel()
+				w.Warm(ctx, model)
+			}()
+		}
+	}
+	warm(ctx, warmer, wire)
 }

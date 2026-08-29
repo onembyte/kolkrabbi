@@ -137,7 +137,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			fmt.Fprintf(a.stdout, "mode: %s\n", ag.Mode)
 			if plan.mode != ag.Mode {
 				model, connector := plan.plan.Model, plan.plan.Connector
-				label, err := a.switchModel(ag, model)
+				label, err := a.switchModel(ctx, ag, model)
 				if err != nil {
 					fmt.Fprintf(a.stdout, "could not restart %s in %s mode: %v\n", connector, ag.Mode, err)
 					fmt.Fprintf(a.stdout, "  re-run /model %s to retry\n", model)
@@ -174,7 +174,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 				break
 			}
 			model, connector := plan.plan.Model, plan.plan.Connector
-			label, err := a.switchModel(ag, model)
+			label, err := a.switchModel(ctx, ag, model)
 			if err != nil {
 				fmt.Fprintf(a.stdout, "could not restart %s at %s effort: %v\n", connector, ag.Effort, err)
 				fmt.Fprintf(a.stdout, "  re-run /model %s to retry\n", model)
@@ -329,7 +329,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			// never a catalog search that ends in an OpenRouter error.
 			fmt.Fprintf(a.stdout, "%v\n", err)
 		} else if planModel || strings.Contains(arg, "/") || provider.ResolveModelAlias(arg) != arg {
-			label, err := a.switchModel(ag, arg)
+			label, err := a.switchModel(ctx, ag, arg)
 			if err != nil {
 				fmt.Fprintf(a.stdout, "%v\n", err)
 				break

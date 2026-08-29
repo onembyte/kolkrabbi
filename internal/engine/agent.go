@@ -1031,7 +1031,32 @@ func (a *Agent) contextUsage(lastPromptTokens int) ContextUsage {
 	if a.Sess != nil && lastPromptTokens <= 0 {
 		messages = a.Sess.GetMessages()
 	}
-	return MeasureContext(a.ContextWindow, lastPromptTokens, messages)
+	return MeasureContext(a.window(), lastPromptTokens, messages)
+}
+
+// windowReporter is what a routed backend implements when it knows a model's
+// window better than the catalogue does — a host server, whose effective
+// window is whatever it loaded the model with.
+type windowReporter interface {
+	ContextWindow(model string) int
+}
+
+// window is the active model's context size: the session's own when it has
+// one, else whatever the routed backend can say, else unknown. A known window
+// is never overridden by a route — the gateway catalogue is the truth for
+// gateway models — and a route that cannot say leaves it unknown.
+func (a *Agent) window() int {
+	if a.ContextWindow > 0 {
+		return a.ContextWindow
+	}
+	backend, wire, err := a.backendFor(a.Model)
+	if err != nil {
+		return 0
+	}
+	if reporter, ok := backend.(windowReporter); ok {
+		return reporter.ContextWindow(wire)
+	}
+	return 0
 }
 
 // RunTurn dispatches a user message according to the current mode.

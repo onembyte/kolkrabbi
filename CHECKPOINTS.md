@@ -2631,6 +2631,44 @@ Acceptance checklist:
 - [x] silent with no bus, so a run without one behaves exactly as before.
 - [x] full `make check` green: 2,362 tests, 0 lint issues.
 
+### E8 built — the window the server actually runs, and a model that is warm when chosen
+
+Ollama truncates an over-long prompt **from the front** and says nothing, which drops kolk's
+system prompt and tool schemas first. A host model's window is not in the gateway catalogue, so
+until now it was zero — "unknown means never compact" — and a long session would have been
+silently truncated into a model that no longer knew what it was asked.
+
+**The engine now asks the route.** When the session has no window of its own, `window()` asks the
+routed backend for the active model's; a known window is never overridden, and a route that cannot
+say leaves it unknown. The mutation that stops asking fails. Both readers — the meter and the
+overflow recovery — go through it, so there is one answer.
+
+**The host backend answers three ways, in order.** Before the server has said anything: the
+floor, 4096, Ollama's smallest VRAM-chosen default, because unknown must be treated as small. After
+the first turn or a warm: `/api/ps`, the window the server *loaded the model with* — measured at
+0.3 ms and asked once per model. For a cloud model, which is never loaded here: the trained window
+from `/api/show`, because nothing local constrains it. The mutations that return zero for unknown,
+and that never learn, both fail.
+
+**Warm on selection.** Choosing a host model sends a keep-alive load off the turn path, bounded at
+two minutes and tied to the session's context — a warm that outlived the session would load a
+model for nobody — so the first turn is not a cold load and the window is known before the first
+prompt is built. The wire name, never the prefixed one; the mutation that warms `ollama/x` fails. A
+gateway model warms nothing. The load itself was not measured here: the owner's server has no
+model pulled, and a number invented for a leaf is worse than none.
+
+**Consolidated:** the adopted server and the one kolk starts now share one backend core — client,
+windows, warming — with the lazy starter as the only difference.
+
+**One line of the queue was not followed, on purpose.** It said to set `OLLAMA_CONTEXT_LENGTH` on
+a kolk-started server. Ollama's default is chosen by VRAM (4k, 32k or 256k), and a blind override
+to 32k on a small card is an out-of-memory in the one code path meant to make things work. With the
+window read from the server instead, kolk compacts to what the model actually runs with, and the
+override buys nothing. Recorded here rather than silently skipped.
+
+The invented-context ratchet caught the first version of the warm, which conjured a
+`context.Background()`; `switchModel` now takes the caller's context, as the rule says it must.
+
 ### E7 built — the host is its own cost class, and its limit is about time, not money
 
 A refusal from the user's own Ollama — a local model, or a cloud model proxied through it — is now
@@ -2890,7 +2928,7 @@ is deliberately late because item 34 is working in the same files.
 - [x] **E7 limits and cost class** — a third class, `local`, that neither `on_free_exhausted` nor
       `on_subscription_limit` governs; Ollama Cloud's `429` classified as a limit that resets, with
       the reset hint, never as an exhausted plan.
-- [ ] **E8 context and warmth** — `OLLAMA_CONTEXT_LENGTH` on a kolk-started server; the loaded
+- [x] **E8 context and warmth** — `OLLAMA_CONTEXT_LENGTH` on a kolk-started server; the loaded
       model's real window from `/api/ps` on an adopted one; unknown treated as small, because Ollama
       truncates from the front. A keep-alive request on selection so the first turn is not a cold
       load.

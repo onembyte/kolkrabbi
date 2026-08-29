@@ -99,6 +99,9 @@ type app struct {
 	listHostModels func(ctx context.Context, addr, cacheFile string) ([]local.HostModel, error)
 	// signIn asks that Ollama whether it is signed in to ollama.com, and
 	// signInBudget is how long a login waits for the browser half to finish.
+	// warmHost loads a host model ahead of its first turn; injected so a test
+	// can see the request without a goroutine.
+	warmHost       func(context.Context, modelWarmer, string)
 	signIn         func(context.Context, string) local.SignInState
 	signInBudget   time.Duration
 	enterRaw       func(*os.File) (func() error, error)

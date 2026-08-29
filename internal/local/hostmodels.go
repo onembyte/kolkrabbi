@@ -180,6 +180,7 @@ type shownModel struct {
 	capabilitiesPresent bool
 	tools, vision       bool
 	thinking            bool
+	remote              bool
 }
 
 // showHostModel asks /api/show for one model. Context comes from
@@ -203,6 +204,7 @@ func showHostModel(ctx context.Context, client *http.Client, base, name string) 
 	}
 	var reply struct {
 		Capabilities []string `json:"capabilities"`
+		RemoteHost   string   `json:"remote_host"`
 		Details      struct {
 			ContextLength int `json:"context_length"`
 		} `json:"details"`
@@ -211,7 +213,7 @@ func showHostModel(ctx context.Context, client *http.Client, base, name string) 
 	if err := json.NewDecoder(response.Body).Decode(&reply); err != nil {
 		return shownModel{}, false
 	}
-	shown := shownModel{contextLength: reply.Details.ContextLength, capabilitiesPresent: reply.Capabilities != nil}
+	shown := shownModel{contextLength: reply.Details.ContextLength, capabilitiesPresent: reply.Capabilities != nil, remote: reply.RemoteHost != ""}
 	for _, capability := range reply.Capabilities {
 		switch strings.ToLower(capability) {
 		case "tools":

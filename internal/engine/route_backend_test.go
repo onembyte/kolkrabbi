@@ -153,3 +153,32 @@ func TestCloseStopsRoutedBackends(t *testing.T) {
 		t.Fatal("closing the agent left the routed backend — and the server behind it — running")
 	}
 }
+
+type windowBackend struct {
+	routeBackend
+	window int
+}
+
+func (b *windowBackend) ContextWindow(string) int { return b.window }
+
+// E8. A host model's window is not in the gateway catalogue and changes after
+// the model loads, so when the session has no window of its own the engine
+// asks the routed backend. A gateway window is never overridden, and a route
+// that cannot say leaves the window unknown.
+func TestTheWindowComesFromTheRoutedBackendWhenUnknown(t *testing.T) {
+	route := &windowBackend{routeBackend: routeBackend{name: "ollama"}, window: 8192}
+	a := routedAgent(&routeBackend{name: "gateway"}, map[string]ChatBackend{"ollama": route})
+	a.Model = "ollama/qwen2.5-coder:7b"
+	if got := a.Context().Window; got != 8192 {
+		t.Fatalf("window = %d, want the routed backend's 8192", got)
+	}
+	a.ContextWindow = 200000
+	if got := a.Context().Window; got != 200000 {
+		t.Fatalf("a known window was overridden by the route: %d", got)
+	}
+	plain := routedAgent(&routeBackend{name: "gateway"}, map[string]ChatBackend{"ollama": &routeBackend{name: "ollama"}})
+	plain.Model = "ollama/x"
+	if got := plain.Context().Window; got != 0 {
+		t.Fatalf("a route that cannot report a window produced %d", got)
+	}
+}

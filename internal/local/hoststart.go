@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/shell"
 )
 
@@ -204,37 +203,15 @@ func kept(name string) bool {
 // LazyHostBackend is the route registered when the binary is installed and
 // idle. Nothing starts until the first turn asks for a host model; then the
 // server is started, and that turn and every later one goes to it. Closing the
-// backend stops the server, which was kolk's to stop.
+// backend stops the server, which was kolk's to stop. Everything else — the
+// client, the windows, warming — is the shared host backend.
 type LazyHostBackend struct {
+	*hostBackend
 	starter *HostStarter
-	mu      sync.Mutex
-	client  *provider.Client
 }
 
 func NewLazyHostBackend(starter *HostStarter) *LazyHostBackend {
-	return &LazyHostBackend{starter: starter}
-}
-
-func (b *LazyHostBackend) StreamChat(ctx context.Context, model string, messages []provider.Message, tools []provider.Tool, onToken func(string)) (provider.Message, provider.Meta, error) {
-	client, err := b.ensureClient(ctx)
-	if err != nil {
-		return provider.Message{}, provider.Meta{Model: model}, err
-	}
-	return client.StreamChat(ctx, model, messages, tools, onToken)
-}
-
-func (b *LazyHostBackend) ensureClient(ctx context.Context) (*provider.Client, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.client != nil {
-		return b.client, nil
-	}
-	addr, err := b.starter.Ensure(ctx)
-	if err != nil {
-		return nil, err
-	}
-	b.client = provider.NewHostClient(addr)
-	return b.client, nil
+	return &LazyHostBackend{hostBackend: newHostBackend(starter.Ensure), starter: starter}
 }
 
 // Addr is where the server is, once started; empty before then.
