@@ -4339,3 +4339,38 @@ three repairs in M1.2, because the tree as pulled did not pass either.
 tag pointed at an orphaned commit. Release workflow run 33226897598 passed verify and publish. Four
 archives plus the Cosign-signed `checksums.txt` are public, the release is neither draft nor
 prerelease, and the latest redirect resolves to `v1.2.19`.
+
+### S1.1 the site catches up with the product (2026-08-28)
+
+The version badge had been tracking releases correctly — Pages builds from `main`, so each release
+bump deployed itself. The prose had not.
+
+**Uninstall was absent from the entire site.** Not a stale sentence: no mention anywhere, in either
+page. It is the thing someone looks for while already frustrated, and they will not go hunting, so it
+is now the fourth step in the install terminal, next to the three that got them there.
+`--keep-data` is named beside it, because "I am reinstalling" and "I am done with this" are different
+intentions and only one of them should cost you your API key.
+
+**Five focused tools was four words and one wrong number.** `ask_user` made it six. The count matters
+enough to state because every tool's schema is sent on every request of every turn — the same reason
+`TestDoctorReportsWhatSchemasCost` asserts it literally.
+
+The doom-loop card said three identical calls. It now also says alternating calls count, which is the
+FR1.1 fix: remove, list, remove, list is a cycle even though no call ever follows itself.
+
+Two new cards — the question picker and uninstall — and both, plus the corrected count, are ratcheted
+into `scripts/test-site.sh`. 96 checks to 117. The picker is pinned for the reason FR1.5 earned: a
+capability nobody is told about is one the product does not have.
+
+**Audited rather than assumed.** `kolk help` was diffed against both pages, the method that found the
+missing self-update entry earlier. Nothing else substantive was missing: `model`, `mode`, `config`
+and the plan commands are covered in prose by cards that do not spell the verb, and `help`,
+`version` and `completion` do not earn cards.
+
+**Verified live**, not just in the repo: the deploy landed in about twenty seconds, and
+`kolk uninstall`, `Six focused tools`, `Leaving is one command too` and `A question you answer by
+picking` all came back from the public hostname.
+
+One thing left alone: `index.html` links `/capabilities.html`, which Cloudflare 308s to
+`/capabilities`. It works, browsers follow it, and changing the link is a cosmetic edit to a
+published page for no reader-visible gain.
