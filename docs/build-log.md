@@ -4277,3 +4277,24 @@ the resolution needed no follow-on edits. Checked rather than assumed.
 **Verification after the merge, not before:** `make check` green, and `go test ./... -race` clean over
 the whole tree. A merge that compiles is not a merge that works, and the two halves had never seen
 each other.
+
+### R1.7 v1.2.18 merged release
+
+**Gate:** `make check` green and `go test ./... -race` clean *after* the merge, on the tree that
+actually shipped — the two halves had never seen each other before this.
+
+**Publication:** commit `c4a87ff` on `main`, tag `v1.2.18`. Release workflow run 33222459642 passed
+verify and publish. Four archives plus the Cosign-signed `checksums.txt` are public, the release is
+neither draft nor prerelease, and the latest redirect resolves to `v1.2.18`.
+
+**A stale tag caught before it shipped.** A local `v1.2.18` already existed, created by the other
+session and never pushed. It pointed at `50081ce` — a commit the rebase had rewritten, so it was
+orphaned: not an ancestor of `main`, and missing the entire `a34` connector group. Pushing it would
+have published a release built from history nobody could reach, whose contents did not match its own
+notes.
+
+Two checks catch this, and both are one command. `git merge-base --is-ancestor <tag> HEAD` says
+whether the tag is on the history being shipped. `git ls-remote --tags origin` says whether the
+remote has it at all, reading published refs rather than this clone's cached ones — the same check
+R1.3 arrived at after misdiagnosing exactly the opposite problem. The tag was deleted and recreated
+on the merged HEAD.
