@@ -4442,3 +4442,108 @@ release is neither draft nor prerelease, and the latest redirect resolves to `v1
 plan-catalogue row and its login subcommand, while the other built host discovery, the
 model-to-backend router and the host-model decoder. The rebase was clean and the merged tree passed
 on the first run, which is what the E-group's separate `internal/local` files bought.
+## S10 codex spawn backend — verified by a session that did not write it (2026-08-29)
+
+**Gate:** `make check` exit 0 — **2,529 tests, 0 lint issues**, cold start 3.8 ms p50, site 155 /
+surface 15 / installer 72 / spec 29 / release 24 / workflow 41 / verifier 30 / smoke 18 / plan 98.
+Before it: `go build ./...` clean, and `go test -count=1 -race` green on
+`internal/provider/agentcli`, `internal/cli`, `internal/provider`, `internal/shell`.
+
+**Why this needed a second session at all.** The session that wrote S10 was driven by
+`glm-5.3-flash:cloud` over the Ollama integration and was killed by its vendor mid-step —
+`429 · you have reached your session usage limit` — about five minutes after `codex.go` landed. It
+had written 3,701 lines across the §11 S-group and recorded **none of it** in `CHECKPOINTS.md`, so
+the work existed only in a chat transcript that had already been summarised past its own context
+twice. Nothing was broken; nothing was proven either. Reproducing the commands:
+
+```console
+$ go -C . build ./...
+$ go test -count=1 -race ./internal/provider/agentcli/ ./internal/cli/ ./internal/provider/ ./internal/shell/
+$ make check
+```
+
+**Two defects, and the difference between them is the lesson.** `make check` failed the first run on
+exactly two lint issues, both in the unexercised code.
+
+`session.go` pulled the vendor's cause out of a plan-limit failure with `err.(*providerError)`.
+`Collect` returns that type bare, so the assertion worked — today. One `fmt.Errorf("…: %w")`
+anywhere on that path drops the cause and leaves `claude plan limit reached: the seven-day window is
+fully used` with no reason attached: a message that still reads as complete. The red test wraps a
+`providerError` and asserts the cause survives; it fails on the assertion and passes on `errors.As`.
+This was a latent bug.
+
+`codex.go` returned `nil, nil` after a failed `json.Unmarshal`, which `nilerr` flags and which is
+**correct** — a line that is not JSON is a version-manager shim announcing itself before the first
+frame, real output on a shimmed machine, documented in `spec/testdata/foreign/README.md`. It was
+written so that nothing in the code said so. Fixed with the `//nolint:nilerr` and reason that
+`cmd_sessions.go` and `cmd_uninstall.go` already carry for the same deliberate skip, rather than a
+second spelling of the same idea.
+
+One was a bug; the other was correct code that could not be told apart from a bug. A gate cannot
+distinguish those, which is why both stop it, and why "it compiles and it is wired" was never
+evidence that this worked.
+
+**Left open, deliberately, as S10.1b.** `scripts/capture-foreign.sh`, `internal/mockagent`'s four
+fake binaries and the L0 integration test, `spec/testdata/foreign/synthetic/`, and the six
+priority-1 `claude-*` fixtures. §10.3 prices priority 1 at **$0** with four of six already observed
+live, so this is cheap and was passed over rather than refused — §11 sends an implementer to S3
+first precisely because its fixtures were already committed.
+
+## S10.2 a fixture nobody replayed hid a dead code path (2026-08-29)
+
+**Gate:** `make check` exit 0 — **2,531 tests, 0 lint issues**, cold start 3.2 ms p50.
+
+**The find came from asking a bookkeeping question, not a debugging one.** While correcting the
+fixture README (S10.1a) the obvious next question was which tests replay these files. The answer was
+none. `claude-plain.ndjson` and `claude-tool-use.ndjson` appear in exactly one place in the tree — a
+filename list in `protocol/contract_inventory_test.go` that asserts they exist. Their own README
+says they exist so the translator can replay real vendor output *"offline, forever"*. The codex half
+of the same package does it properly, replaying all three of its fixtures in six places.
+
+```console
+$ grep -rn "claude-plain\|claude-tool-use" internal/ protocol/
+protocol/contract_inventory_test.go:22:  "testdata/foreign/claude-plain.ndjson"
+protocol/contract_inventory_test.go:23:  "testdata/foreign/claude-tool-use.ndjson"
+```
+
+**The bug that hid behind it.** The vendor nests `rate_limit_event` under `rate_limit_info` in
+camelCase; `wireFrame` declared the fields flat and snake_case at the top level. `jq` on the
+committed capture settles it in one line:
+
+```console
+$ jq -c 'select(.type=="rate_limit_event")' spec/testdata/foreign/claude-plain.ndjson
+{"type":"rate_limit_event","rate_limit_info":{"status":"allowed_warning","resetsAt":1787731200,
+ "rateLimitType":"seven_day","utilization":0.78,…},…}
+```
+
+So `frame.Status` was `""` on every real frame, the status check dropped it, and two things that
+look implemented were not: the plan warning never reached the user, and `s.rejectedLimit` was never
+set — leaving `classifyLimitFailure` unreachable against real vendor output. A user hitting their
+Claude plan limit got a bare "credit balance too low" rather than the window and its reset time.
+The wrapped-cause fix made under S10 hours earlier was, against a real machine, repairing a path
+nothing could enter.
+
+**Five tests asserted the invented shape and passed.** Hand-written flat snake_case JSON across
+`translate_test.go` and `session_test.go`, testing this package's assumption against itself. They
+have been moved onto the shape the vendor sends. This is A33.1's vacuity lesson from the other
+direction: there the fixture was too easy to fail, here the fixture was never opened.
+
+**Mutation, because a green test proves nothing about a test written after the fix.** Disabling the
+nested branch with `if false &&` fails three tests — the fixture replay, the rate-limit projection,
+and `TestClaudeSessionWarnsThenClassifiesThePlanLimit` — confirming the session-level path is
+genuinely covered and not merely adjacent. `translate.go` was diffed byte-identical against a
+pre-mutation copy afterwards.
+
+**The flat spelling is kept, and pinned.** No vendor frame has ever carried it, so it is evidence of
+nothing — but a rate-limit frame this package cannot read is a plan limit the user never hears
+about, and an extra tolerated spelling costs four lines. It has its own test so that it stays a
+decision someone can find and delete, rather than a shape that merely still happens to decode.
+
+**Gate 8, and the part that stings.** The walk-back found nothing promising the flat shape — because
+`04-subscription-backends.md` had it right the whole time. It names `rate_limit_info.utilization`
+twice, at §7.3's dashboard column and again at §11, and even records *"0.78 of the seven-day window
+in both fixtures"* — the exact number this checkpoint's test now asserts. So this was not a spec gap
+and not vendor drift. It was implementation drift away from a correct spec, invisible because the
+tests were written from the same assumption as the code and the one artifact that disagreed —
+the captured fixture — was never opened by anything. Two independent records were right and the
+third was wrong, and nothing compared them.

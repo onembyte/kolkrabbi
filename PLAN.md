@@ -589,9 +589,17 @@ The inventory and acceptance gates live in [`docs/plan/24-subscription-provider-
   listed as open have since shipped and the row did not know: connector→backend selection is B12.9
   (`planBackendFor` picks the provider and refuses an unusable plan model with its reason), and proof
   of authentication is P11.7a/P11.7b (a clean exit records `unverified` and says what that does not
-  prove; the first answered turn confirms it). **Still open: failure-path tests**, and B12.13, the
-  product decision about whether a subscription session still needs an OpenRouter key.
-- [ ] OpenAI ChatGPT Free/Plus/Pro/Business/Enterprise via a permitted Codex/first-party CLI path.
+  prove; the first answered turn confirms it). **Both remaining items closed 2026-08-28 and this row
+  did not know:** the failure-path tests are B12.15a/b/c (an expired mid-session login, the vendor
+  CLI removed underneath a live session, a connector that stopped qualifying after selection), and
+  B12.13 was decided — dropping the OpenRouter key outright was rejected, and the order is free
+  first, subscription when there is one, free again when there is not.
+- [x] OpenAI ChatGPT Free/Plus/Pro/Business/Enterprise via a permitted Codex/first-party CLI path —
+  shipped 2026-08-28 as S10 (`internal/provider/agentcli/codex.go` over `codex exec --json`, wired
+  at `internal/cli/run.go:482`), gates closed 2026-08-29. Model and effort are switchable inside the
+  subscription. The catalogue's ids were corrected against codex-cli 0.149.1 on a real ChatGPT
+  login, where `gpt-4.1` is refused outright: the rows had been advertising a model the vendor will
+  not serve.
 - [ ] Google Gemini Free/AI Pro/AI Ultra/Workspace via documented API access.
 - [ ] xAI Grok consumer/business plans.
 - [ ] Perplexity Pro/Max/Enterprise.

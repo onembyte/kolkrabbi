@@ -181,7 +181,10 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **P11.7a honest login state** — a clean provider exit records the connector as `unverified` and says what it does and does not prove.
 - [x] **P11.7b verify on first use** — the first answered turn confirms the connector; a failed turn on an unverified one explains the likely cause once and changes nothing.
 - [x] **B12.12 effort within the plan** — an effort a plan does not offer steps down and says so, and `/effort` reports what the running provider is actually using.
-- [ ] **B12.13 subscription-only first run** — decide, with the owner, whether a session whose provider is a subscription still requires an OpenRouter key. Product decision before code.
+- [x] **B12.13 subscription-only first run** — the owner's decision was recorded 2026-08-28 and its four
+  leaves B12.13a–d all closed; see "B12.13 first run without an OpenRouter key" below. Dropping the key
+  requirement outright was rejected: the order is free first, subscription when there is one, free again
+  when there is not. Tick corrected 2026-08-28 — the leaves closed and nothing brought the news here.
 - [x] **B12.14 cache token accounting** — cache tokens reach `provider.Meta`, the call record and `stats.jsonl`, from both the Claude adapter and OpenRouter, and are diffed per turn like the rest.
 - [x] **L13.1 managed local storage paths** — a Kolk-owned model directory under the data dir, never a host Ollama path.
 - [x] **L13.2 managed runtime spec & lifecycle** — validated `RuntimeSpec`, start-at-most-once, deterministic close.
@@ -279,6 +282,118 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **C12.7 fast-lane session naming** — a session earns a real name once enough has happened, without delaying the answer or overwriting a name a person chose.
 - [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
+- [x] **S10 codex spawn backend** — `codex exec --json` becomes a kolk backend, with the model and
+  effort dials working inside the subscription. Written 2026-08-28, gates closed 2026-08-29 by a
+  later session that found two real lint defects in it. See "S10 closed" below.
+- [x] **S10.1a fixture provenance corrected** — §10.1's A1–A4 checked against the committed bytes
+  and written into `spec/testdata/foreign/README.md`: the tool is `Bash` not `Write`, both
+  `claude-*` files are **tolerance** fixtures carrying `permissionMode:"auto"` and eight hook
+  frames, and the `␊` in `tool_result.content` is a capture-time redaction artifact that no test
+  may assert. Verified while recording it: nothing in `internal/secret` or `internal/redact` maps
+  U+240A, so production `Scrub` never had this defect.
+- [x] **S10.2 the captured stream is replayed, and the limit frame it carries is finally read** —
+  the fixtures existed to be replayed and nothing replayed them, which hid a live bug. See below.
+- [ ] **S10.1b the skipped capture and mock work** — `scripts/capture-foreign.sh` with its verbatim
+  `.cmd` sidecar, `internal/mockagent`'s four fake binaries and the L0 integration test (S2),
+  `spec/testdata/foreign/synthetic/`, and the six priority-1 `claude-*` fixtures plus the
+  `claude-isolated.ndjson` CONTRACT capture. §10.3 prices priority 1 at **$0** with four of six
+  already observed live, so this was passed over rather than refused — §11 sends you to S3 first
+  because its fixtures were already committed, which is how it got skipped.
+
+### S10.2 built — a fixture nobody replayed hid a dead code path
+
+The two committed `claude-*` fixtures say, in their own README, that they exist so the translator
+can replay real vendor output *"offline, forever"*. **Nothing replayed them.** They appeared in
+exactly one place in the tree — a filename list in `protocol/contract_inventory_test.go` asserting
+the files exist. The codex half of the same package does this properly: `codex_test.go` replays all
+three of its fixtures in six places. The claude half never did.
+
+**What that hid.** The vendor sends `rate_limit_event` with its payload nested under
+`rate_limit_info` in camelCase — `{"rate_limit_info":{"status":"allowed_warning",
+"rateLimitType":"seven_day","resetsAt":…}}` — which is what the captured fixture carries.
+`wireFrame` declared those fields flat and snake_case at the top level. So on a real machine
+`frame.Status` was always `""`, every rate-limit frame fell through the status check, and:
+
+1. the plan warning never reached the user — nobody was told the seven-day window was 78% gone; and
+2. `s.rejectedLimit` was never set, so `classifyLimitFailure` could not fire. The whole plan-limit
+   classification path — including the wrapped-cause bug fixed hours earlier under S10 — was
+   unreachable against real vendor output. A user hitting their Claude limit got a bare
+   "credit balance too low" instead of the window and its reset time.
+
+**Every existing test asserted the invented shape.** Five of them, across two files, hand-written
+with flat snake_case JSON the vendor has never sent. They passed, and they were decoration: the
+suite was testing this package's assumption against itself. That is the same vacuity A33.1 caught by
+mutation, arrived at from the other direction — there the fixture was too easy, here the fixture was
+never opened.
+
+**The flat spelling is kept as a tolerated fallback, not deleted.** No vendor frame has carried it,
+so it is not evidence of anything — but a rate-limit frame this package cannot read is a plan limit
+the user never hears about, and tolerating an extra spelling costs four lines. It is pinned by its
+own test so it stays a decision someone can find and delete rather than a shape that merely still
+decodes.
+
+Acceptance checklist:
+
+- [x] the replay test written first and observed failing for its intended reason: **zero limit
+  events from a real captured stream that contains exactly one**.
+- [x] the five hand-written tests moved onto the shape the vendor actually sends, so the suite
+  stops passing on a frame that does not exist.
+- [x] proven non-vacuous by mutation — disabling the nested branch fails three tests including the
+  session-level classification, and the file was diffed byte-identical after reverting.
+- [x] the tolerated fallback pinned by its own test rather than left implicit.
+- [x] full `make check` green: **2,531 tests, 0 lint issues**, cold start 3.2 ms p50.
+
+### S10 closed — built by one session, verified by the next
+
+Recorded 2026-08-29. This entry exists because the work was real and the ledger did not know it: the
+whole `04-subscription-backends.md` §11 S-group ran to S10 and **nothing was written here**, so the
+only record was a chat transcript that had already scrolled past its own context twice.
+
+**The session that wrote it never learned whether it worked.** It died mid-step on a vendor rate
+limit — `429 · you have reached your session usage limit` from the Ollama cloud model driving it —
+five minutes after writing `codex.go`. So gates 5, 6 and 7 were open on code that was complete,
+wired, and entirely unexercised. "It is written and it is wired" and "it works" are different
+claims, and only the first had been made.
+
+**Two defects were sitting in it, and `make check` found both.** Neither would have failed a build
+the author ran, because the author ran none.
+
+1. `session.go` asserted `err.(*providerError)` to pull the vendor's cause into a plan-limit
+   message. `Collect` returns that type bare today, so the assertion happened to work — but one
+   `fmt.Errorf("…: %w")` anywhere on that path would drop the cause while leaving a message that
+   still reads as complete, with the reason silently missing. That is the specific way it fails
+   while still looking like it works, so it is now `errors.As` behind a test that wraps the cause
+   and asserts it survives. The test fails on the old assertion.
+2. `codex.go` returned `nil, nil` after a failed `json.Unmarshal`. This one is *correct* — a line
+   that is not JSON is a version-manager shim announcing itself before the first frame, which
+   `spec/testdata/foreign/README.md` documents as real codex output — but it was written so that
+   nothing said so. It now carries the `//nolint:nilerr` with a reason that `cmd_sessions.go` and
+   `cmd_uninstall.go` already use for the same deliberate skip, rather than a new spelling.
+
+The second is worth separating from the first: one was a latent bug, the other was correct code that
+could not be told apart from a bug. The gate cannot distinguish them, which is why both stop it.
+
+**What it is, verified against the tree rather than the transcript.**
+`internal/provider/agentcli/codex.go` carries `RunCodex`, `BuildCodexInvocation`, `TranslateCodex`
+and `CodexBackend` with `StreamChat`/`ProviderHandle`/`Close`, plus the effort, sandbox-mode and
+model-alias mapping. It is wired, not orphaned: `internal/cli/run.go:482` dispatches `case "codex"`
+into `NewCodexBackendFromHandle`, `internal/provider/connector_login.go:20` gives it a login verb,
+and `plans.go` / `plan_models.go` carry the ChatGPT Plus/Pro rows. Those model ids are the part
+worth keeping: they were corrected against codex-cli 0.149.1 on a real ChatGPT login, where
+`gpt-4.1` is refused outright — the catalogue had been advertising a model the vendor will not
+serve. `codex-plain.jsonl`, `codex-tool-use.jsonl` and `codex-error.jsonl` are captured and
+documented, so S10's own fixture gate is lifted.
+
+Acceptance checklist:
+
+- [x] `go build ./...` clean, and the changed packages green under `-race`
+  (`agentcli`, `cli`, `provider`, `shell`).
+- [x] the wrapped-cause test written first and observed failing for its intended reason —
+  the cause dropped, not the window name.
+- [x] the deliberate skip kept as behavior and made legible, matching the existing idiom rather
+  than inventing one.
+- [x] full `make check` green: **2,529 tests, 0 lint issues**, cold start 3.8 ms p50.
+
 ### R1.3 v1.2.1 composer release — verified detail
 
 Scope:
@@ -9615,21 +9730,21 @@ checkpoint is expanded. Status here mirrors [`PLAN.md`](PLAN.md); PLAN remains a
 - [x] 8 model selection and routing — hardened; doc complete (docs/plan/08-model-routing.md), free coding model ranking, vendor aliases, zero-cost fast lane
 - [x] 9 command surface — hardened; doc complete (docs/plan/09-command-surface.md), strict CLI/slash parity, <= 6 char verbs, stream-json, reserve list
 - [x] 10 saga — hardened; doc complete (docs/plan/10-saga-loop.md), chapter-by-chapter SAGA.md loop, shell quality gates, commit-on-green, doom-loop detector
-- [ ] 11 REPL/TUI
+- [x] 11 REPL/TUI — hardened; doc complete (docs/plan/11-repl-tui-input.md). Mirror corrected 2026-08-28.
 - [x] 12 sessions, context, and memory — hardened; doc complete (docs/plan/12-sessions-context-memory.md),
   JSON storage kept, 75% compaction with tool output sacrificed first, overflow compacts and retries once
 - [x] 13 tools, permissions, and sandboxing — hardened; doc complete (docs/plan/13-tools-permissions-sandboxing.md),
   path jail, hardline blocklist under yolo, scrubbed tool output, subagent auto-deny; OS sandboxes deferred
-- [ ] 14 orchestration and per-task routing
-- [ ] 15 code-mode specifics
-- [ ] 16 extensibility
-- [ ] 17 local dashboard
+- [x] 14 orchestration and per-task routing — hardened; doc complete (docs/plan/14-orchestration-routing.md). Mirror corrected 2026-08-28.
+- [x] 15 code-mode specifics — hardened; doc complete (docs/plan/15-code-mode.md). Mirror corrected 2026-08-28.
+- [x] 16 extensibility — hardened; doc complete (docs/plan/16-extensibility.md). Mirror corrected 2026-08-28.
+- [x] 17 local dashboard — hardened; doc complete (docs/plan/17-local-dashboard.md). Mirror corrected 2026-08-28.
 - [x] 18 config system — hardened; truncated draft completed by ox-alpha (§5 migration, §6 UX, §7 ship list, rationale sections) 2026-08-24
-- [ ] 19 desktop and iPad path
-- [ ] 20 distribution, updates, and CI
-- [ ] 21 quality, testing, and security
-- [ ] 22 onboarding and docs
-- [ ] 23 roadmap, phasing, and non-goals
+- [x] 19 desktop and iPad path — hardened; doc complete (docs/plan/19-desktop-ipad.md). Mirror corrected 2026-08-28.
+- [x] 20 distribution, updates, and CI — hardened; doc complete (docs/plan/20-distribution-updates-ci.md). Mirror corrected 2026-08-28.
+- [x] 21 quality, testing, and security — hardened; doc complete (docs/plan/21-quality-testing-security.md). Mirror corrected 2026-08-28.
+- [x] 22 onboarding and docs — hardened; doc complete (docs/plan/22-onboarding-docs.md). Mirror corrected 2026-08-28.
+- [x] 23 roadmap, phasing, and non-goals — hardened; doc complete (docs/plan/23-roadmap-phasing-non-goals.md). Mirror corrected 2026-08-28.
 - [~] 24 subscription provider matrix — doc complete (docs/plan/24-subscription-provider-matrix.md);
   Anthropic handover shipped under P11/B12, every other provider still open
 - [~] 25 managed local models — contract complete (docs/plan/25-managed-local-models.md);
