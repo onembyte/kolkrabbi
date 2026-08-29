@@ -306,14 +306,54 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   end** once the ladder completes, and async stdin with `EPIPE` tolerance. P6 names the hang those
   prevent and this leaf does not: a background `Bash` grandchild inherits the stdout **write end**,
   so an unbounded drain never sees EOF and hangs the CLI after a complete answer.
-- [ ] **S10.1d4 the ladder's other half — session continuity after a hard exit.** §2.5's starred
-  rule is only half-honoured: the ladder now gives the vendor its chance to produce a `result`, but
-  nothing yet acts on the case where it did **not**. A SIGTERM/SIGKILL exit invalidates the vendor
-  session, so the next turn must mint a fresh `--session-id` and replay kolk's own transcript as a
-  labelled `<prior-conversation>` prelude with `WarnHistoryLost`. Until then a `--resume` after a
-  hard exit lets the vendor silently continue the unfinished turn — executing tool calls kolk
-  already told the user were cancelled, and editing files after a "cancelled" turn. This is the
-  most dangerous thing still open in the S-group and it belongs to `agentcli`, not `shell`.
+- [x] **S10.1d4 a hard exit retires the vendor conversation** — the dangerous half of §2.5's starred
+  rule is closed. See below.
+- [ ] **S10.1d5 the `<prior-conversation>` label and `WarnHistoryLost`** — §2.5 also asks that a
+  retired conversation be *announced*. Deliberately separated from S10.1d4 because the safety half
+  does not depend on it: `promptFromMessages` already serialises the whole conversation every turn,
+  so kolk replays its own transcript whether or not the vendor remembers anything. What is missing
+  is the label and the warning — the user is not told that the vendor lost its own copy. That is a
+  UX gap, not a correctness one, and it should not have blocked the correctness fix.
+
+### S10.1d4 built — and mutation testing found the bug in the fix
+
+§2.5's starred rule: a SIGTERM/SIGKILL exit **invalidates the vendor conversation**, because the
+vendor *continues an unfinished turn* on `--resume`. Resuming after a hard exit therefore lets the
+vendor silently execute the tool calls kolk already told the user were cancelled — editing files
+after a "cancelled" turn, and permanently diverging kolk's transcript from the vendor's. The ladder
+(S10.1d3) gave the vendor its chance to finish; nothing acted on the case where it did not take it.
+
+**Retiring the handle costs nothing, which is why this was safe to do alone.** `promptFromMessages`
+serialises the entire conversation on every turn, so kolk replays its own transcript regardless of
+what the vendor remembers. The `<prior-conversation>` label and `WarnHistoryLost` that §2.5 also
+asks for are a *notification* concern, split out as S10.1d5 rather than allowed to hold up the fix
+that stops files being edited after a cancellation.
+
+**The predicate was wrong on the first draft, and mutation testing is the only reason it is not
+still wrong.** `exitedHard` originally excluded SIGINT, reasoning from §2.5's "SIGINT ends the turn
+gracefully and still produces a result frame". Deleting the exclusion changed no test. The branch
+was never reached: the test meant to cover it used a child that *exits cleanly* after SIGINT, whose
+wait status is not signalled at all, so the comparison never ran.
+
+Re-reading it with that in hand showed the line was not merely dead but **wrong**. A process that
+*handles* a signal exits with a code of its own choosing and is never signalled. A wait status that
+IS signalled means no handler ran — no result frame, an unfinished turn — and that is equally true
+of SIGINT. The exclusion would have called a SIGINT-killed vendor resumable, which is the exact
+failure the rule exists to prevent. The predicate is now `status.Signaled()`, with no exception, and
+`mockagent.KilledByInterrupt` covers the branch that had none.
+
+Acceptance checklist:
+
+- [x] red first at the level that matters — a second turn issuing `--resume` with the same handle
+  after the first process was killed, printed in the failure.
+- [x] the fix proven at the backend: a hard exit retires the handle, and the next turn claims a
+  fresh `--session-id` with a different value.
+- [x] both signal outcomes proven on real processes: a clean exit after SIGINT is not a hard exit,
+  and being killed — by SIGTERM or by SIGINT — is.
+- [x] mutation re-run after the correction: reinstating the SIGINT exclusion now fails
+  `TestBeingKilledByInterruptIsStillAHardExit`, where before it failed nothing.
+- [x] `-race` green across `agentcli` and `shell`.
+- [x] full `make check` green: **2,540 tests, 0 lint issues**.
 
 ### S10.1d3 built — the ladder, and the fake vendors that make it provable
 

@@ -92,6 +92,68 @@ func TestCancelSendsInterruptFirst(t *testing.T) {
 	}
 }
 
+// The distinction §2.5 rests on: a child that answered SIGINT by leaving is a
+// finished turn with a result frame, and its conversation stays resumable. A
+// child that had to be killed left its turn unfinished, and resuming it makes
+// the vendor continue that turn. Only the wait status can tell these apart, and
+// only if the child was genuinely signalled rather than choosing its own exit
+// code — which is why KilledByTerminate exists.
+func TestACleanExitAfterInterruptIsNotAHardExit(t *testing.T) {
+	shortLadder(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	process, _ := startMock(t, ctx, mockagent.ExitsOnInterrupt)
+	defer func() { _ = process.Close() }()
+
+	cancel()
+	for {
+		if _, err := process.Next(context.Background()); err != nil {
+			break
+		}
+	}
+	if process.HardExit() {
+		t.Fatal("a child that exited cleanly after SIGINT must not invalidate its conversation")
+	}
+}
+
+func TestAKilledChildIsAHardExit(t *testing.T) {
+	shortLadder(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	process, _ := startMock(t, ctx, mockagent.KilledByTerminate)
+	defer func() { _ = process.Close() }()
+
+	cancel()
+	for {
+		if _, err := process.Next(context.Background()); err != nil {
+			break
+		}
+	}
+	if !process.HardExit() {
+		t.Fatal("a child killed by SIGTERM left its turn unfinished and must invalidate its conversation")
+	}
+}
+
+// The case an earlier draft got wrong, and that mutation testing exposed. Being
+// killed BY SIGINT is not the graceful ending §2.5 describes — a vendor that
+// ends its turn on SIGINT handles the signal and exits with its own code, so it
+// is never signalled. A signalled SIGINT means no handler ran, so there is no
+// result frame and nothing safe to resume.
+func TestBeingKilledByInterruptIsStillAHardExit(t *testing.T) {
+	shortLadder(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	process, _ := startMock(t, ctx, mockagent.KilledByInterrupt)
+	defer func() { _ = process.Close() }()
+
+	cancel()
+	for {
+		if _, err := process.Next(context.Background()); err != nil {
+			break
+		}
+	}
+	if !process.HardExit() {
+		t.Fatal("a child with no SIGINT handler produced no result frame; its conversation is not resumable")
+	}
+}
+
 // Escalation has to actually happen, and has to stop at rung 2 when rung 2
 // works. A ladder that jumps to SIGKILL and one that never escalates are both
 // wrong, and only the child's own log can tell them apart.

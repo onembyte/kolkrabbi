@@ -24,6 +24,21 @@ trap 'printf "TERM\n" >> "$MOCKAGENT_LOG"; exit 0' TERM
 printf "ready\n"
 while true; do sleep 0.05; done
 `,
+	// No TERM trap on purpose: the default action kills it, so the wait status
+	// is signalled rather than an exit code the script chose. That distinction
+	// is the whole point of this one.
+	KilledByTerminate: `#!/bin/sh
+trap '' INT
+printf "ready\n"
+while true; do sleep 0.05; done
+`,
+	// No traps at all: SIGINT's default action kills it on the first rung, and
+	// the wait status is signalled with SIGINT. A vendor that *handles* SIGINT
+	// never looks like this.
+	KilledByInterrupt: `#!/bin/sh
+printf "ready\n"
+while true; do sleep 0.05; done
+`,
 }
 
 func writeFake(dir string, kind Kind) (executable, logPath string, err error) {

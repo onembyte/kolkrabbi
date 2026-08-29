@@ -32,6 +32,20 @@ const (
 	// SIGTERM. It is the child that proves escalation happens at all, and that
 	// rung 2 is reached before rung 3.
 	IgnoresInterrupt Kind = "ignores-interrupt"
+
+	// KilledByTerminate ignores SIGINT and traps nothing else, so SIGTERM's
+	// default action kills it. It is the only one of these whose wait status is
+	// actually *signalled*: the other two choose their own exit code, which is
+	// what a well-behaved vendor does and therefore cannot demonstrate the case
+	// that invalidates a conversation. This is the child a hard exit looks like.
+	KilledByTerminate Kind = "killed-by-terminate"
+
+	// KilledByInterrupt traps nothing, so SIGINT's default action kills it on
+	// rung 1. It is the case that separates "the vendor handled SIGINT and
+	// ended its turn" from "SIGINT killed a process that had no handler": the
+	// first exits with a code of its own and leaves a result frame, the second
+	// is signalled and leaves nothing. They must not be treated alike.
+	KilledByInterrupt Kind = "killed-by-interrupt"
 )
 
 // Write creates one fake vendor CLI in dir and returns its path along with the

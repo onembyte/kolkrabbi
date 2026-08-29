@@ -70,6 +70,13 @@ func command(ctx context.Context, c Cmd) (*exec.Cmd, error) {
 // silence to discover.
 func groupChild(*exec.Cmd, <-chan struct{}) {}
 
+// exitedHard is always false here. There is no signal ladder on Windows —
+// groupChild is a documented no-op pending A13's job objects — so nothing this
+// package does can leave a vendor turn unfinished the way §2.5 describes.
+// Saying "no" is honest rather than conservative: with no ladder there is no
+// hard exit of ours to report.
+func exitedHard(error) bool { return false }
+
 // killChild terminates the child alone. Everything it started survives, per the
 // note above.
 func killChild(cmd *exec.Cmd) error {

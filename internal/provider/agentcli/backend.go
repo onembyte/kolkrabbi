@@ -100,6 +100,18 @@ func (b *ClaudeBackend) StreamChat(ctx context.Context, model string, messages [
 			}
 		}
 		message, meta, turnErr := session.Turn(ctx, messages, model, watch)
+		// A killed process leaves the vendor's turn unfinished with nothing
+		// recorded, and the vendor CONTINUES that turn on the next --resume.
+		// Resuming here would let it execute the tool calls kolk has already
+		// told the user were cancelled — editing files after a "cancelled"
+		// turn, and diverging kolk's transcript from the vendor's permanently.
+		// So the conversation is retired rather than reused. Nothing is lost:
+		// promptFromMessages sends the whole conversation every turn, so kolk
+		// replays its own transcript whether or not the vendor remembers it.
+		if session.HardExit() {
+			b.forgetHandle()
+			b.dropSession(session)
+		}
 		// A session that lost its place in the provider stream is replaced
 		// rather than kept: one unrecoverable interrupt must not end Claude for
 		// the rest of the Kolkrabbi session. But a process that was opened with

@@ -4539,6 +4539,46 @@ nothing — but a rate-limit frame this package cannot read is a plan limit the 
 about, and an extra tolerated spelling costs four lines. It has its own test so that it stays a
 decision someone can find and delete, rather than a shape that merely still happens to decode.
 
+## S10.1d4 a hard exit retires the conversation — and the bug mutation found in the fix (2026-08-29)
+
+**Gate:** `make check` exit 0 — **2,540 tests, 0 lint issues**, `-race` green on `agentcli` and
+`shell`.
+
+§2.5's starred rule: a SIGTERM/SIGKILL exit invalidates the vendor conversation, because the vendor
+**continues an unfinished turn** on `--resume`. So resuming after a hard exit lets it silently
+execute the tool calls kolk already told the user were cancelled — editing files after a "cancelled"
+turn. S10.1d3 gave the vendor its chance to finish; nothing acted when it did not take it. Red was
+the second turn spawning with `--resume <same handle>`, printed in the failure.
+
+**Retiring the handle costs nothing.** `promptFromMessages` serialises the whole conversation every
+turn, so kolk replays its own transcript regardless of what the vendor remembers. That is what made
+it right to ship the correctness half alone and split §2.5's `<prior-conversation>` label and
+`WarnHistoryLost` out as S10.1d5 — a notification gap should not hold up the fix that stops files
+being edited after a cancellation.
+
+**The predicate was wrong, and only mutation testing says so.** `exitedHard` first excluded SIGINT,
+reasoning from §2.5's "SIGINT ends the turn gracefully and still produces a result frame":
+
+```go
+return status.Signal() != syscall.SIGINT   // the wrong line
+```
+
+Deleting the exclusion **failed no test**. The branch was unreachable: the test meant to cover it
+used a child that exits *cleanly* after SIGINT, whose wait status is not signalled, so the
+comparison never ran.
+
+Reading it again with that fact in hand showed the line was not just dead but wrong. **A process
+that handles a signal is never signalled** — it exits with a code of its own choosing. A signalled
+status means no handler ran, so there is no result frame and the turn is unfinished, and that is as
+true of SIGINT as of SIGTERM. The exclusion would have called a SIGINT-killed vendor resumable,
+which is precisely the failure the rule exists to prevent. `mockagent.KilledByInterrupt` — no traps
+at all, so SIGINT's default action kills it — now covers the branch, and reinstating the exclusion
+fails a test where before it failed none.
+
+The lesson is not "write more tests". It is that a mutation surviving is a *claim about coverage*
+worth chasing to its source, because the uncovered line is disproportionately likely to be the
+wrong one. Two of the four leaves in this loop have now had a defect found this way.
+
 ## S10.1d3 the cancel ladder, and the fake vendors that make it provable (2026-08-29)
 
 **Gate:** `make check` exit 0 — **2,536 tests, 0 lint issues**, `-race` green on `internal/shell`.

@@ -3,6 +3,7 @@ package agentcli
 import (
 	"context"
 	"io"
+	"slices"
 	"testing"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -37,6 +38,50 @@ func TestClaudeBackendIgnoresEngineToolSchemas(t *testing.T) {
 	}
 	if message.Content != "hello" {
 		t.Fatalf("message = %q", message.Content)
+	}
+}
+
+// §2.5's starred rule, and the most dangerous thing in this adapter. A
+// SIGTERM/SIGKILL exit leaves the vendor's turn unfinished with nothing
+// recorded, and the vendor *continues that turn* on the next --resume. So
+// resuming after a hard exit makes the vendor silently execute the tool calls
+// kolk already told the user were cancelled — editing files after a
+// "cancelled" turn, and permanently diverging kolk's transcript from the
+// vendor's. The handle has to be retired instead.
+//
+// Nothing is lost by retiring it: promptFromMessages serialises the whole
+// conversation on every turn, so kolk replays its own transcript regardless of
+// whether the vendor remembers anything.
+func TestAHardExitRetiresTheVendorConversation(t *testing.T) {
+	var argvs [][]string
+	backend := ClaudeBackend{
+		Model: "opus", Mode: "code", Effort: "high",
+		start: func(_ context.Context, _ string, args []string) (lineProcess, error) {
+			argvs = append(argvs, args)
+			return &fakeLineProcess{lines: claudeTurnFrames("answered"), hardExit: true}, nil
+		},
+	}
+	messages := []provider.Message{{Role: "user", Content: "hi"}}
+
+	for turn := range 2 {
+		if _, _, err := backend.StreamChat(context.Background(), "opus", messages, nil, nil); err != nil {
+			t.Fatalf("turn %d: %v", turn+1, err)
+		}
+	}
+
+	if len(argvs) != 2 {
+		t.Fatalf("spawned %d processes, want one per turn after the first was killed", len(argvs))
+	}
+	if slices.Contains(argvs[1], "--resume") {
+		t.Fatalf("the second turn resumed a conversation the vendor left unfinished: %v", argvs[1])
+	}
+	if !slices.Contains(argvs[1], "--session-id") {
+		t.Fatalf("the second turn must claim a fresh conversation: %v", argvs[1])
+	}
+	first := argvs[0][slices.Index(argvs[0], "--session-id")+1]
+	second := argvs[1][slices.Index(argvs[1], "--session-id")+1]
+	if first == second {
+		t.Fatalf("both turns used handle %q; the invalidated one was not retired", first)
 	}
 }
 

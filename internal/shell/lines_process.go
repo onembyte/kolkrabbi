@@ -70,7 +70,28 @@ type LinesProcess struct {
 	// terminal result can be observed any number of times from any caller.
 	exited  chan struct{}
 	exitErr error
-	once    sync.Once
+	// hardExit records that the child was killed rather than allowed to finish.
+	// Written before exited closes, so any reader that has observed the close
+	// sees it.
+	hardExit bool
+	once     sync.Once
+}
+
+// HardExit reports that the child was terminated by a signal that left its work
+// unfinished — anything but SIGINT, which the vendor answers by completing the
+// turn. A caller that resumes a conversation after this is asking the vendor to
+// continue a turn nobody is waiting for. False until the child has actually
+// exited, because "not dead" is not "died gracefully".
+func (p *LinesProcess) HardExit() bool {
+	if p == nil {
+		return false
+	}
+	select {
+	case <-p.exited:
+		return p.hardExit
+	default:
+		return false
+	}
 }
 
 // StartLinesProcess starts an executable without exposing its process details
@@ -120,6 +141,7 @@ func (p *LinesProcess) read(stdout io.Reader, stderr *stderrRing) {
 	if scanErr := scanner.Err(); scanErr != nil {
 		err = scanErr
 	} else if waitErr := p.cmd.Wait(); waitErr != nil {
+		p.hardExit = exitedHard(waitErr)
 		if stderr.Len() > 0 {
 			err = fmt.Errorf("provider process exited unsuccessfully: %s: %w", stderr.String(), waitErr)
 		} else {

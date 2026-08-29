@@ -4,6 +4,7 @@ package shell
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"syscall"
@@ -102,6 +103,32 @@ func cancelLadder(cmd *exec.Cmd, exited <-chan struct{}, schedule []rung) {
 		}
 	}
 	_ = signalGroup(cmd, syscall.SIGKILL)
+}
+
+// exitedHard reports that the child was terminated by a signal rather than
+// leaving on its own, which means its work is unfinished.
+//
+// The predicate is "signalled", with **no exception for SIGINT**, and the
+// reason is worth stating because the obvious reading of §2.5 says otherwise.
+// §2.5 records that the vendor answers SIGINT by ending the turn gracefully and
+// still producing a result frame — but a process that *handles* a signal exits
+// with a code of its own choosing, and its wait status is not signalled at all.
+// A status that IS signalled means no handler ran: no result frame, an
+// unfinished turn, and a conversation the vendor would continue on --resume.
+// SIGINT included.
+//
+// An earlier draft of this function excluded SIGINT. Mutation testing found it:
+// removing the exclusion changed no test, because the test meant to cover it
+// used a child that exits cleanly and therefore never reached the branch. A
+// line no test can kill is a line worth re-reading, and this one was wrong as
+// well as dead — it would have called a SIGINT-killed vendor resumable.
+func exitedHard(err error) bool {
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		return false
+	}
+	status, ok := exitErr.Sys().(syscall.WaitStatus)
+	return ok && status.Signaled()
 }
 
 // signalGroup sends one signal to the child's entire process group.

@@ -13,9 +13,12 @@ import (
 )
 
 type fakeLineProcess struct {
-	sent  []byte
-	lines [][]byte
+	sent     []byte
+	lines    [][]byte
+	hardExit bool
 }
+
+func (p *fakeLineProcess) HardExit() bool { return p.hardExit }
 
 func (p *fakeLineProcess) Send(line []byte) error {
 	p.sent = append([]byte(nil), line...)
@@ -173,6 +176,10 @@ func TestClaudeSessionWarnsThenClassifiesThePlanLimit(t *testing.T) {
 // stallingLineProcess waits for cancellation at one chosen point in the
 // stream, which is what a real provider looks like when the user interrupts a
 // turn: the frames it had already queued are still in the pipe afterwards.
+// HardExit is false: this fake stalls, it is never killed. A stall that
+// reported a hard exit would retire a handle the vendor is still holding.
+func (p *stallingLineProcess) HardExit() bool { return false }
+
 type stallingLineProcess struct {
 	lines   [][]byte
 	index   int

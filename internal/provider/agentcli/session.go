@@ -17,6 +17,9 @@ type lineProcess interface {
 	Send([]byte) error
 	Next(context.Context) ([]byte, error)
 	Close() error
+	// HardExit reports that the child was killed rather than allowed to end its
+	// own turn, which invalidates the vendor's conversation. See §2.5.
+	HardExit() bool
 }
 
 type startLineProcess func(context.Context, string, []string) (lineProcess, error)
@@ -67,6 +70,15 @@ func (s *ClaudeSession) Unusable() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.unusable
+}
+
+// HardExit reports that the provider process was killed rather than allowed to
+// end its own turn. §2.5: the vendor resumes an *unfinished* turn on --resume,
+// so a conversation whose process died this way must never be resumed.
+func (s *ClaudeSession) HardExit() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.process.HardExit()
 }
 
 // Resumed reports whether this process opened a conversation the vendor was
