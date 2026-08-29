@@ -58,14 +58,14 @@ func (a *Agent) FastLaneChat(ctx context.Context, systemPrompt, userPrompt strin
 		buf.WriteString(tok)
 	}
 
-	msg, _, err := a.Backend.StreamChat(ctx, model, messages, nil, onToken)
+	msg, _, err := a.fastLaneCall(ctx, model, messages, onToken)
 	if err != nil && model != defaultPaidFastLaneModel {
 		// Free tiers rate-limit, and this path calls the backend directly
 		// rather than through the turn's free-model rotation. Preferring free
 		// without a net would trade money for a session title that sometimes
 		// fails, so one fallback — and only one, because a fast lane that keeps
 		// trying is a fast lane that stalls the thing it was helping.
-		msg, _, err = a.Backend.StreamChat(ctx, defaultPaidFastLaneModel, messages, nil, onToken)
+		msg, _, err = a.fastLaneCall(ctx, defaultPaidFastLaneModel, messages, onToken)
 	}
 	if err != nil {
 		return "", err
@@ -74,4 +74,14 @@ func (a *Agent) FastLaneChat(ctx context.Context, systemPrompt, userPrompt strin
 		return msg.Content, nil
 	}
 	return buf.String(), nil
+}
+
+// fastLaneCall is one fast-lane request through the router, so a host model
+// chosen for the lane reaches its own server rather than the gateway.
+func (a *Agent) fastLaneCall(ctx context.Context, model string, messages []provider.Message, onToken func(string)) (provider.Message, provider.Meta, error) {
+	backend, wire, err := a.backendFor(model)
+	if err != nil {
+		return provider.Message{}, provider.Meta{Model: model}, err
+	}
+	return backend.StreamChat(ctx, wire, messages, nil, onToken)
 }

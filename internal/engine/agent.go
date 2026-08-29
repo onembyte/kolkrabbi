@@ -160,9 +160,14 @@ type WorkIndicator interface {
 type Options struct {
 	Client  *provider.Client
 	Backend ChatBackend
-	Model   string // the session's base model
-	Mode    string // chat | code | agent (default code)
-	Effort  string // quick | standard | deep | ultra (default standard)
+	// Routes are the backends that answer for an owned model-id prefix
+	// (ownedPrefixes), keyed by the prefix without its slash. A host Ollama is
+	// registered here as "ollama" and reached as ollama/<model>. Separate from
+	// Backend so the plan-or-gateway swap never disturbs them (E2).
+	Routes map[string]ChatBackend
+	Model  string // the session's base model
+	Mode   string // chat | code | agent (default code)
+	Effort string // quick | standard | deep | ultra (default standard)
 	// Permission is how much may happen without asking. It never removes the
 	// floor: no tier allows an action the hardline rules refuse.
 	Permission Permission

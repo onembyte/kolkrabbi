@@ -55,7 +55,13 @@ func (a *Agent) streamChat(ctx context.Context, phase, model string, messages []
 
 	tried := map[string]bool{model: true}
 	for retry := 0; ; retry++ {
-		msg, meta, err := a.Backend.StreamChat(ctx, model, messages, toolset, streamToken)
+		// Resolved every attempt, not once: rotation and the metered fallback
+		// change `model` inside this loop, and the backend has to follow it.
+		backend, wire, routeErr := a.backendFor(model)
+		if routeErr != nil {
+			return provider.Message{}, provider.Meta{Model: model}, routeErr
+		}
+		msg, meta, err := backend.StreamChat(ctx, wire, messages, toolset, streamToken)
 		if err == nil {
 			return msg, meta, nil
 		}

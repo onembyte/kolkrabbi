@@ -2631,6 +2631,32 @@ Acceptance checklist:
 - [x] silent with no bus, so a run without one behaves exactly as before.
 - [x] full `make check` green: 2,362 tests, 0 lint issues.
 
+### E2 built — the engine can hold a second backend without lying to the first
+
+`ownedPrefixes` names the model-id prefixes the engine routes itself; `Routes` holds a backend per
+prefix; `backendFor` resolves every call. Both engine call sites go through it — the turn's retry
+path and the fast lane, which calls the backend directly and would otherwise have sent a host model
+to the gateway wearing a prefix the gateway has never seen.
+
+**The guard that matters is the refusal.** Every gateway id already has the shape `vendor/model`,
+so a slash is not a route: only a listed prefix is. And a listed prefix with no backend behind it is
+refused, never forwarded — at best a 404 about a model the user did not type, at worst a gateway
+that happened to know the name answering it for money. Three mutations confirm the three edges:
+forwarding an unrouted host id, forgetting to strip the prefix, and treating every vendor as owned.
+All three fail the tests.
+
+**Resolved per attempt, not per turn.** Free rotation and the metered fallback change `model` inside
+the retry loop; a backend resolved once at the top would keep answering for the model that just
+left. And routes live beside `Backend`, not in it, because `moveToMetered` and `switchModel` swap
+`Backend` between the plan provider and the gateway client — a route that lived there would vanish
+on the first swap, which a test now pins.
+
+This is the wall A33.6 hit ("a subscription is a backend, not a model id"). It is gone for host
+models; subscriptions still ride `Backend` and could move onto routes later if a plan ever wants
+per-slot backends.
+
+`make check` green at 2,529 tests.
+
 ### L13.6 queued — option E, host Ollama, one leaf per tick
 
 Rewritten 2026-08-29. The A–D queue is deleted rather than ticked: the owner chose none of them.
@@ -2640,7 +2666,7 @@ is deliberately late because item 34 is working in the same files.
 
 - [x] **E1 the decision in writing** — plan 25's contract rewritten as E, A–D deleted, the review's
       findings recorded so nobody re-derives them.
-- [ ] **E2 the model→backend router** — the engine owns a prefix (`ollama/`), strips it at the wire,
+- [x] **E2 the model→backend router** — the engine owns a prefix (`ollama/`), strips it at the wire,
       and resolves a backend per model; `a.Backend` stays the default. The gateway catalogue never
       holds a host id. A persisted host id with no server is a stop naming the server, never a route
       to the gateway. This is the wall A33.6 hit; it comes first because nothing else can.
