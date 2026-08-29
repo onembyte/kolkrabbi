@@ -15,6 +15,12 @@ func Collect(events []Event, elapsed time.Duration) (provider.Message, provider.
 		switch event.Kind {
 		case EventInit:
 			meta.Model = event.Model
+		case EventTool:
+			// One tool_use is one run; the later tool_result merely completes
+			// the one already counted.
+			if event.ToolName != "" {
+				meta.ToolCalls++
+			}
 		case EventMessageDelta:
 			message.Role = "assistant"
 			message.Content += event.Text

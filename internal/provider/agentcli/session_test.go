@@ -56,6 +56,71 @@ func TestClaudeSessionReusesProcessAndStreamsTurn(t *testing.T) {
 	}
 }
 
+// The vendor runs its own tool loop. kolk neither executed nor approved the
+// tool, so the trail is a record of what happened — streamed live, and counted
+// in the turn's meta — while the final message keeps only the answer text.
+func TestClaudeSessionStreamsTheVendorToolLoopAsATrail(t *testing.T) {
+	process := &fakeLineProcess{lines: [][]byte{
+		[]byte(`{"type":"assistant","message":{"content":[{"type":"tool_use","id":"toolu_1","name":"Read","input":{"path":"README.md"}}]}}`),
+		[]byte(`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"README.md: 12 lines"}]}}`),
+		[]byte(`{"type":"assistant","message":{"content":[{"type":"text","text":"the readme has 12 lines"}]}}`),
+		[]byte(`{"type":"result","result":"the readme has 12 lines","subtype":"success"}`),
+	}}
+	session, err := newClaudeSession(context.Background(), "opus", "code", "high", func(context.Context, string, []string) (lineProcess, error) {
+		return process, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tokens string
+	message, meta, err := session.Turn(context.Background(), []provider.Message{{Role: "user", Content: "how long is the readme?"}}, "opus", func(token string) {
+		tokens += token
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if message.Content != "the readme has 12 lines" {
+		t.Fatalf("final message = %+v, want only the answer text", message)
+	}
+	if meta.ToolCalls != 1 {
+		t.Fatalf("tool calls = %d, want the one run the vendor executed", meta.ToolCalls)
+	}
+	if !strings.Contains(tokens, "· Read") || !strings.Contains(tokens, "→ ok README.md: 12 lines") {
+		t.Fatalf("tool trail missing from the stream: %q", tokens)
+	}
+	if err := session.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A failing tool is still part of the record: the trail marks it as an error
+// and quotes the vendor's complaint.
+func TestClaudeSessionTrailMarksAFailedToolRun(t *testing.T) {
+	process := &fakeLineProcess{lines: [][]byte{
+		[]byte(`{"type":"assistant","message":{"content":[{"type":"tool_use","id":"toolu_2","name":"Bash","input":{"command":"npm test"}}]}}`),
+		[]byte(`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_2","content":"2 tests failed","is_error":true}]}}`),
+		[]byte(`{"type":"result","result":"two tests failed","subtype":"success"}`),
+	}}
+	session, err := newClaudeSession(context.Background(), "opus", "code", "high", func(context.Context, string, []string) (lineProcess, error) {
+		return process, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tokens string
+	if _, _, err := session.Turn(context.Background(), []provider.Message{{Role: "user", Content: "run the tests"}}, "opus", func(token string) {
+		tokens += token
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(tokens, "→ error: 2 tests failed") {
+		t.Fatalf("trail = %q, want the failure marked", tokens)
+	}
+	if err := session.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // stallingLineProcess waits for cancellation at one chosen point in the
 // stream, which is what a real provider looks like when the user interrupts a
 // turn: the frames it had already queued are still in the pipe afterwards.

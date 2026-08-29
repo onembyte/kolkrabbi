@@ -3,6 +3,7 @@ package agentcli
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/secret"
 )
@@ -19,6 +20,8 @@ const (
 )
 
 // Event is the allow-listed, credential-free projection of one Claude frame.
+// Every tool event is provider-executed: this backend owns no tool executor,
+// so by the time a tool event exists the vendor has already run it.
 type Event struct {
 	Kind          EventKind
 	Model         string
@@ -31,7 +34,10 @@ type Event struct {
 	CostUSD       float64
 	Error         string
 	ToolName      string
+	ToolCallID    string
 	ToolInput     string
+	ToolOutput    string
+	ToolIsError   bool
 }
 
 type wireFrame struct {
@@ -51,6 +57,11 @@ type wireFrame struct {
 			ID    string          `json:"id"`
 			Name  string          `json:"name"`
 			Input json.RawMessage `json:"input"`
+			// Tool-result blocks (user frames) reference the tool_use that
+			// produced them and carry either a string or an array of blocks.
+			ToolUseID  string          `json:"tool_use_id"`
+			ToolResult json.RawMessage `json:"content"`
+			IsError    bool            `json:"is_error"`
 		} `json:"content"`
 		Usage *wireUsage `json:"usage"`
 	} `json:"message"`
@@ -91,13 +102,33 @@ func Translate(line []byte) ([]Event, error) {
 			}
 			if block.Type == "tool_use" && block.Name != "" {
 				events = append(events, Event{
-					Kind: EventTool, ToolName: block.Name,
+					Kind: EventTool, ToolName: block.Name, ToolCallID: block.ID,
 					ToolInput: secret.Scrub(string(block.Input)),
 				})
 			}
 		}
 		if frame.Message.Usage != nil {
 			events = append(events, usageEvent(frame.Message.Model, frame.Message.Usage, 0))
+		}
+		return events, nil
+	case "user":
+		// A user frame carrying tool_result blocks is the vendor reporting what
+		// it ran: the tool already executed, so the event is a record, never a
+		// request. The frame does not repeat the tool's name — the id is all
+		// there is, and the consumer matches it against the tool_use it saw.
+		if frame.Message == nil {
+			return nil, nil
+		}
+		var events []Event
+		for _, block := range frame.Message.Content {
+			if block.Type != "tool_result" {
+				continue
+			}
+			events = append(events, Event{
+				Kind: EventTool, ToolCallID: block.ToolUseID,
+				ToolOutput:  secret.Scrub(flattenToolResult(block.ToolResult)),
+				ToolIsError: block.IsError,
+			})
 		}
 		return events, nil
 	case "result":
@@ -125,4 +156,35 @@ func usageEvent(model string, usage *wireUsage, cost float64) Event {
 		event.CacheCreation = usage.CacheCreationInputTokens
 	}
 	return event
+}
+
+// flattenToolResult flattens a tool_result content field — which the vendor
+// sends as either a JSON string or an array of content blocks — into one
+// string. Shape-shifting output must never cost the whole frame.
+func flattenToolResult(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		return text
+	}
+	var blocks []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(raw, &blocks); err != nil {
+		return ""
+	}
+	var out strings.Builder
+	for _, block := range blocks {
+		if block.Text == "" {
+			continue
+		}
+		if out.Len() > 0 {
+			out.WriteString("\n")
+		}
+		out.WriteString(block.Text)
+	}
+	return out.String()
 }

@@ -42,6 +42,62 @@ func TestTranslateRedactsDisplayText(t *testing.T) {
 	}
 }
 
+// A user frame carrying tool_result blocks is the vendor reporting what it
+// ran — with string content, array-of-blocks content, an error mark, and a
+// scrub of whatever leaked into the output along the way.
+func TestTranslateProjectsProviderToolResults(t *testing.T) {
+	t.Run("string content", func(t *testing.T) {
+		events, err := Translate([]byte(`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"README.md: 12 lines"}]}}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(events) != 1 || events[0].Kind != EventTool ||
+			events[0].ToolName != "" || events[0].ToolCallID != "toolu_1" ||
+			events[0].ToolOutput != "README.md: 12 lines" || events[0].ToolIsError {
+			t.Fatalf("tool result event = %+v", events)
+		}
+	})
+	t.Run("block content", func(t *testing.T) {
+		events, err := Translate([]byte(`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_2","content":[{"type":"text","text":"line one"},{"type":"text","text":"line two"}]}]}}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(events) != 1 || events[0].ToolOutput != "line one\nline two" {
+			t.Fatalf("flattened output = %+v", events)
+		}
+	})
+	t.Run("error result", func(t *testing.T) {
+		events, err := Translate([]byte(`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_3","content":"file not found","is_error":true}]}}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(events) != 1 || !events[0].ToolIsError {
+			t.Fatalf("error flag = %+v", events)
+		}
+	})
+	t.Run("redacted output", func(t *testing.T) {
+		events, err := Translate([]byte(`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_4","content":"token sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789"}]}}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(events[0].ToolOutput, "sk-ant-") {
+			t.Fatalf("unredacted tool output = %+v", events[0])
+		}
+	})
+}
+
+// Translate can only know the tool's name from the tool_use that preceded it;
+// a user frame's blocks repeat nothing but the id.
+func TestTranslateToolResultsNameOnlyTheId(t *testing.T) {
+	events, err := Translate([]byte(`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_9","content":"ok"}]}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || events[0].ToolName != "" || events[0].ToolCallID != "toolu_9" {
+		t.Fatalf("event = %+v, want the id alone", events)
+	}
+}
+
 func TestTranslateProjectsProviderToolUseWithoutExecutingIt(t *testing.T) {
 	events, err := Translate([]byte(`{"type":"assistant","message":{"content":[{"type":"tool_use","id":"toolu_1","name":"Read","input":{"path":"README.md"}}]}}`))
 	if err != nil {

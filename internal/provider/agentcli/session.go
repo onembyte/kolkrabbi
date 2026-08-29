@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -129,6 +130,9 @@ func (s *ClaudeSession) Turn(ctx context.Context, messages []provider.Message, m
 	}
 	start := time.Now()
 	events := make([]Event, 0, 8)
+	// The tool ids this turn has seen, so a tool_result — which names only the
+	// id — can be reported under the tool's name.
+	pending := make(map[string]string)
 	for {
 		line, err := s.process.Next(ctx)
 		if err != nil {
@@ -151,8 +155,15 @@ func (s *ClaudeSession) Turn(ctx context.Context, messages []provider.Message, m
 		completed := false
 		for _, event := range translated {
 			events = append(events, event)
-			if event.Kind == EventMessageDelta && onToken != nil {
+			switch {
+			case event.Kind == EventMessageDelta && onToken != nil:
 				onToken(event.Text)
+			case event.Kind == EventTool && onToken != nil:
+				// The vendor ran this tool already — the trail says what
+				// happened, to whom it happened, and that kolk did not do it.
+				if line := toolTrail(event, pending); line != "" {
+					onToken(line)
+				}
 			}
 			if event.Kind == EventMessageCompleted {
 				completed = true
@@ -167,6 +178,42 @@ func (s *ClaudeSession) Turn(ctx context.Context, messages []provider.Message, m
 			return message, meta, collectErr
 		}
 	}
+}
+
+// toolTrail renders one provider-executed tool event for the stream: the run
+// when it starts, and its outcome when the vendor reports back. It is a record,
+// never a request — by this point the vendor has already done the work, and
+// kolk neither approved nor executed it.
+func toolTrail(event Event, pending map[string]string) string {
+	switch {
+	case event.ToolName != "":
+		if event.ToolCallID != "" {
+			pending[event.ToolCallID] = event.ToolName
+		}
+		if detail := oneLine(event.ToolInput, 100); detail != "" {
+			return fmt.Sprintf("\n· %s: %s\n", event.ToolName, detail)
+		}
+		return "\n· " + event.ToolName + "\n"
+	case event.ToolCallID != "":
+		mark := "→ ok"
+		if event.ToolIsError {
+			mark = "→ error:"
+		}
+		return fmt.Sprintf("  %s %s\n", mark, oneLine(event.ToolOutput, 100))
+	}
+	return ""
+}
+
+// oneLine is the first line of s, rune-capped at max.
+func oneLine(s string, max int) string {
+	s = strings.TrimSpace(s)
+	if i := strings.IndexAny(s, "\r\n"); i >= 0 {
+		s = s[:i]
+	}
+	if runes := []rune(s); len(runes) > max {
+		return string(runes[:max]) + "…"
+	}
+	return s
 }
 
 // explainEarlyExit turns a bare end-of-stream into something the user can act

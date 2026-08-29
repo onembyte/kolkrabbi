@@ -1144,7 +1144,13 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 			})
 		}
 		a.lastPromptTokens = meta.PromptTokens
-		a.record("main", meta, len(msg.ToolCalls))
+		// A provider that runs its own tool loop returns a message with none of
+		// the calls in it — the backend's meta is the only count there is.
+		toolRuns := len(msg.ToolCalls)
+		if meta.ToolCalls > toolRuns {
+			toolRuns = meta.ToolCalls
+		}
+		a.record("main", meta, toolRuns)
 		if strings.TrimSpace(msg.Content) == "" && len(msg.ToolCalls) == 0 {
 			emptyCompletions++
 			if emptyCompletions >= 2 {

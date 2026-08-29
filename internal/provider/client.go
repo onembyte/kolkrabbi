@@ -67,6 +67,10 @@ type Meta struct {
 	// explain why two turns on one model differ.
 	CacheReadTokens     int
 	CacheCreationTokens int
+	// ToolCalls counts the tool runs inside the turn when the backend knows
+	// better than the returned message — a provider-executed tool loop leaves
+	// the message carrying none of its calls.
+	ToolCalls int
 }
 
 type chatRequest struct {
