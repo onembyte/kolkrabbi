@@ -252,7 +252,11 @@ func (s *ClaudeSession) classifyLimitFailure(err error) error {
 		return err
 	}
 	cause := ""
-	if pe, ok := err.(*providerError); ok {
+	// errors.As, not a type assertion: the vendor's failure reaches here
+	// through the run and translate layers, and the moment either wraps it the
+	// assertion stops matching and the message silently loses its cause.
+	var pe *providerError
+	if errors.As(err, &pe) {
 		cause = pe.Error()
 	}
 	message := fmt.Sprintf("claude plan limit reached: the %s window is fully used",

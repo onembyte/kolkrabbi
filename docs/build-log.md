@@ -4298,3 +4298,33 @@ whether the tag is on the history being shipped. `git ls-remote --tags origin` s
 remote has it at all, reading published refs rather than this clone's cached ones — the same check
 R1.3 arrived at after misdiagnosing exactly the opposite problem. The tag was deleted and recreated
 on the merged HEAD.
+
+### M1.2 main arrived broken, and what the three failures had in common
+
+A pull brought the `a34.3`–`a34.5` group and `main` did not pass its own gates. Three failures, none
+of them in the new feature, all three the same shape: **the change was right and something that
+still described the old world was not brought along.** That is gate 8 of the checkpoint contract —
+the one that looks behind — and it is the gate that goes unrun when a session is moving fast.
+
+**The spec inventory was no longer closed.** `a34.5` added three codex fixtures
+(`codex-error.jsonl`, `codex-plain.jsonl`, `codex-tool-use.jsonl`) without adding them to
+`TestSpecContractInventoryIsClosed`. Working as designed: the inventory is closed on purpose so a
+spec file cannot appear without someone saying it should. Declared, with a note on why codex is
+JSONL where claude is NDJSON.
+
+**A test asserted a model that had just been deleted.** `TestSessionRefusesAPlanModelWithNoAdapterYet`
+used `o3` as its example of a plan model whose connector has no adapter. `a34.5` removed `o3` and
+`gpt-4.1` from the codex rows for being dead on current codex — so the reference stopped resolving as
+a plan model at all, fell through to OpenRouter, and the test failed for a reason unrelated to
+adapters. The rule it protects is still exactly right: codex still has no adapter, and `run.go` still
+has only `case "claude"`. Only the example had died. It now reads the first codex row out of the
+catalogue instead of naming one, so the next dead model cannot rot it, and skips with a reason if the
+catalogue ever carries none.
+
+**A type assertion on an error.** `session.go:255` did `err.(*providerError)` to recover the cause of
+a plan-limit failure. The vendor's failure reaches that function through the run and translate
+layers, so the moment either wraps it the assertion stops matching and the limit message silently
+loses the cause it exists to report. `errors.As`, which is what the linter was saying.
+
+**None of this is visible without running the gates.** The tree compiled and the feature worked. The
+lesson is the cheap one: `make check` before the push, not after the pull.

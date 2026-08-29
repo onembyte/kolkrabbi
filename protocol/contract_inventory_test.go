@@ -21,6 +21,12 @@ func TestSpecContractInventoryIsClosed(t *testing.T) {
 		"testdata/foreign/README.md",
 		"testdata/foreign/claude-plain.ndjson",
 		"testdata/foreign/claude-tool-use.ndjson",
+		// Codex speaks JSONL where Claude speaks NDJSON. Both are recorded, so
+		// the translator is tested against what each vendor actually emits
+		// rather than against one shape assumed to fit both.
+		"testdata/foreign/codex-error.jsonl",
+		"testdata/foreign/codex-plain.jsonl",
+		"testdata/foreign/codex-tool-use.jsonl",
 	}
 	for _, command := range KnownCommandTypes() {
 		wantFiles = append(wantFiles,

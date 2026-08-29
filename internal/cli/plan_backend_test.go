@@ -206,18 +206,35 @@ func TestSessionKeepsTheDefaultBackendForAnOrdinaryModel(t *testing.T) {
 }
 
 func TestSessionRefusesAPlanModelWithNoAdapterYet(t *testing.T) {
+	// The model is read out of the catalogue rather than written in here. It
+	// used to name `o3` directly, and when that row was deleted for being dead
+	// on current codex the reference stopped resolving as a plan model at all:
+	// the test then passed the wrong thing through to OpenRouter and failed for
+	// a reason that had nothing to do with adapters.
+	var plan provider.PlanModel
+	for _, candidate := range provider.PlanModels("") {
+		if candidate.Connector == "codex" {
+			plan = candidate
+			break
+		}
+	}
+	if plan.Model == "" {
+		t.Skip("no codex plan model in the catalogue to test the missing adapter with")
+	}
+
 	dirs := storeFirstRunKey(t)
 	if err := provider.SaveConnector(context.Background(), dirs.ConnectorsFile(), provider.Connector{
-		Provider: "openai", Plan: "ChatGPT Pro", Name: "codex",
+		Provider: plan.Provider, Plan: plan.Plan, Name: plan.Connector,
 		LoginOwner: "provider-cli", Enabled: true,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	a, _, _ := newTestApp(t, "")
 
-	_, err := a.newAgent(context.Background(), &options{model: "o3"})
+	_, err := a.newAgent(context.Background(), &options{model: plan.Model})
 	if err == nil {
-		t.Fatal("a connector with no adapter must say so instead of silently using OpenRouter")
+		t.Fatalf("connector %s has no adapter, so %s must say so instead of silently using OpenRouter",
+			plan.Connector, plan.Model)
 	}
 	if !strings.Contains(err.Error(), "codex") {
 		t.Fatalf("error = %v, want it to name the connector that is not implemented", err)
