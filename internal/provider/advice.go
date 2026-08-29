@@ -183,6 +183,14 @@ func adviseHost(httpErr *HTTPError) (Advice, bool) {
 			next = "Sign in at " + httpErr.SignInURL + " (or run `ollama signin`), then try again."
 		}
 		return Advice{Summary: "the local Ollama server is signed out of ollama.com, which this cloud model needs", NextAction: next}, true
+	case http.StatusTooManyRequests:
+		// A limit about time, not money: it resets, and nothing here is
+		// billed instead.
+		return Advice{
+			Summary:    "Ollama Cloud's usage limit is reached",
+			NextAction: "It resets on a schedule — session limits every 5 hours, weekly ones every 7 days. A local model has no limit; `kolk models` lists what is pulled.",
+			RetryAfter: httpErr.RetryAfter,
+		}, true
 	case http.StatusNotFound:
 		return Advice{
 			Summary:    "the local Ollama server has no model by that name",

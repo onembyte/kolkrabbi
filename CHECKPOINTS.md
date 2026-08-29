@@ -2631,6 +2631,28 @@ Acceptance checklist:
 - [x] silent with no bus, so a run without one behaves exactly as before.
 - [x] full `make check` green: 2,362 tests, 0 lint issues.
 
+### E7 built — the host is its own cost class, and its limit is about time, not money
+
+A refusal from the user's own Ollama — a local model, or a cloud model proxied through it — is now
+checked *first* in the retry path and returned once, unretried, with a sentence that says what it
+is. Neither money policy touches it.
+
+**Why first.** Ollama Cloud's limit resets — session limits every 5 hours, weekly ones every 7 days.
+Its wording, "you have reached your session usage limit", matches the allowance phrases A33.7 uses
+to recognise an exhausted plan, and two lines further down the retry path that match would have
+prompted for, or under `switch` silently taken, a metered fallback. For a limit that clears by
+itself. The mutation that removes the gate does exactly that — the run bills a gateway model — and
+fails both tests.
+
+**Why unretried.** The free-exhausted policy rotates gateway models through a 1-2-4 second
+backoff. A local server does not rate-limit, and a limit that resets in hours is not cleared by
+four seconds; waiting would be theatre. One attempt, no waits, no rotation, pinned.
+
+**Consolidated, not invented.** The TUI already names three cost classes and `CostLocal` is one
+of them; this leaf applies that class where the money decisions are actually made, rather than
+adding a second vocabulary. The advice for a host 429 says the limit resets and that a local model
+has none, and never mentions the gateway or credit.
+
 ### E6 built — the cloud connector is verified by asking, never by a turn
 
 The other session had already landed the plan row ("Ollama Pro") and the login args (`signin`);
@@ -2865,7 +2887,7 @@ is deliberately late because item 34 is working in the same files.
 - [x] **E6 the cloud connector** — a plan row for Ollama Cloud, login args `{"signin"}` with
       `OLLAMA_HOST` pointed at the server kolk uses, verified by `POST /api/me` and never by an
       answered turn. Cloud rows from the local `/api/show` proxy, not static entries that retire.
-- [ ] **E7 limits and cost class** — a third class, `local`, that neither `on_free_exhausted` nor
+- [x] **E7 limits and cost class** — a third class, `local`, that neither `on_free_exhausted` nor
       `on_subscription_limit` governs; Ollama Cloud's `429` classified as a limit that resets, with
       the reset hint, never as an exhausted plan.
 - [ ] **E8 context and warmth** — `OLLAMA_CONTEXT_LENGTH` on a kolk-started server; the loaded

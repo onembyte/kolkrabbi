@@ -134,3 +134,17 @@ func TestStreamKeepsTwoToolCallsApartWhenTheIndexRepeats(t *testing.T) {
 		t.Fatalf("arguments were merged across calls: %+v", msg.ToolCalls)
 	}
 }
+
+// A cloud usage limit is advice about time, not money: it resets, and a local
+// model has no limit at all.
+func TestHostClientRateLimitAdviceSaysItResets(t *testing.T) {
+	err := &HTTPError{StatusCode: http.StatusTooManyRequests, Origin: HostOrigin, Message: "you have reached your session usage limit"}
+	advice, ok := Advise(err)
+	if !ok {
+		t.Fatal("no advice for an Ollama 429")
+	}
+	text := advice.Summary + " " + advice.NextAction
+	if !strings.Contains(text, "resets") || strings.Contains(text, "OpenRouter") || strings.Contains(text, "credit") {
+		t.Fatalf("advice = %+v, want a resetting limit and nothing about the gateway or money", advice)
+	}
+}

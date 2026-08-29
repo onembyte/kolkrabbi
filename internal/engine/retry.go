@@ -65,6 +65,14 @@ func (a *Agent) streamChat(ctx context.Context, phase, model string, messages []
 		if err == nil {
 			return msg, meta, nil
 		}
+		// The user's own Ollama is its own cost class (E7): no plan to bill
+		// against, no free rotation to run, no backoff worth waiting. Checked
+		// first, because a cloud limit's wording would otherwise read as an
+		// exhausted plan two lines down.
+		if httpErr, host := hostRefusal(err); host {
+			return provider.Message{}, meta, explainHostRefusal(model, httpErr, err)
+		}
+
 		// An exhausted allowance is checked before the rate-limit gate below:
 		// waiting never clears it, and two of its shapes — 402, and a vendor
 		// CLI's prose — do not reach that gate at all.
