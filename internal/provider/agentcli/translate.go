@@ -17,6 +17,7 @@ const (
 	EventTool             EventKind = "tool"
 	EventUsage            EventKind = "usage"
 	EventError            EventKind = "error"
+	EventLimit            EventKind = "limit"
 )
 
 // Event is the allow-listed, credential-free projection of one Claude frame.
@@ -38,6 +39,13 @@ type Event struct {
 	ToolInput     string
 	ToolOutput    string
 	ToolIsError   bool
+	// Rate-limit data, when the frame was a rate_limit_event. Rejected means
+	// the vendor refused the request outright; the consumer keeps it to
+	// classify the terminal frame that follows.
+	LimitRejected    bool
+	LimitWindow      string
+	LimitUtilization float64
+	LimitResets      int64 // unix seconds
 }
 
 type wireFrame struct {
@@ -67,8 +75,15 @@ type wireFrame struct {
 	} `json:"message"`
 	Result       string     `json:"result"`
 	IsError      bool       `json:"is_error"`
+	Errors       []string   `json:"errors"`
 	TotalCostUSD float64    `json:"total_cost_usd"`
 	Usage        *wireUsage `json:"usage"`
+	// Rate-limit frames carry these at the top level. A rejected request does
+	// not end the stream — the terminal frame follows it.
+	Status        string  `json:"status"`
+	RateLimitType string  `json:"rate_limit_type"`
+	Utilization   float64 `json:"utilization"`
+	ResetsAt      int64   `json:"resets_at"`
 }
 
 type wireUsage struct {
@@ -131,6 +146,20 @@ func Translate(line []byte) ([]Event, error) {
 			})
 		}
 		return events, nil
+	case "rate_limit_event":
+		// A warning is the scarce resource speaking while there is still time to
+		// notice; a rejection is the cause of a failure that has not arrived
+		// yet. A plain "allowed" neither — dropped.
+		if frame.Status != "allowed_warning" && frame.Status != "rejected" {
+			return nil, nil
+		}
+		return []Event{{
+			Kind:             EventLimit,
+			LimitRejected:    frame.Status == "rejected",
+			LimitWindow:      secret.Scrub(frame.RateLimitType),
+			LimitUtilization: frame.Utilization,
+			LimitResets:      frame.ResetsAt,
+		}}, nil
 	case "result":
 		events := []Event{{
 			Kind: EventMessageCompleted, Text: secret.Scrub(frame.Result), SessionID: frame.SessionID,
@@ -139,7 +168,17 @@ func Translate(line []byte) ([]Event, error) {
 			events = append(events, usageEvent(frame.Model, frame.Usage, frame.TotalCostUSD))
 		}
 		if frame.IsError {
-			events = append(events, Event{Kind: EventError, Error: secret.Scrub(frame.Result)})
+			// Error subtypes (error_max_turns and friends) carry their prose in
+			// errors[] and often no result at all — reading result alone
+			// describes the failure as blank.
+			text := strings.Join(frame.Errors, "; ")
+			if text == "" {
+				text = frame.Result
+			}
+			if frame.Subtype == "error_max_turns" {
+				text = "the turn was cut off at the effort's round limit; the partial answer above is all that arrived: " + text
+			}
+			events = append(events, Event{Kind: EventError, Error: secret.Scrub(text)})
 		}
 		return events, nil
 	default:

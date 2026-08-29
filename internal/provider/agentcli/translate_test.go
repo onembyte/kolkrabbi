@@ -98,6 +98,58 @@ func TestTranslateToolResultsNameOnlyTheId(t *testing.T) {
 	}
 }
 
+// rate_limit_event is the plan's own scarce resource speaking. "allowed"
+// carries no news, a warning does, and a rejection is the cause of a failure
+// that arrives one frame later.
+func TestTranslateProjectsRateLimitEvents(t *testing.T) {
+	t.Run("allowed is dropped", func(t *testing.T) {
+		events, err := Translate([]byte(`{"type":"rate_limit_event","status":"allowed","rate_limit_type":"seven_day","utilization":0.4,"resets_at":1788220800}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(events) != 0 {
+			t.Fatalf("allowed events = %+v, want none", events)
+		}
+	})
+	t.Run("warning keeps the window", func(t *testing.T) {
+		events, err := Translate([]byte(`{"type":"rate_limit_event","status":"allowed_warning","rate_limit_type":"seven_day","utilization":0.78,"resets_at":1788220800}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(events) != 1 || events[0].Kind != EventLimit || events[0].LimitRejected ||
+			events[0].LimitWindow != "seven_day" || events[0].LimitUtilization != 0.78 ||
+			events[0].LimitResets != 1788220800 {
+			t.Fatalf("warning event = %+v", events)
+		}
+	})
+	t.Run("rejection is marked", func(t *testing.T) {
+		events, err := Translate([]byte(`{"type":"rate_limit_event","status":"rejected","rate_limit_type":"five_hour","resets_at":1788220800}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(events) != 1 || !events[0].LimitRejected {
+			t.Fatalf("rejected event = %+v", events)
+		}
+	})
+}
+
+// Error subtypes name their prose in errors[] and often have no result field
+// at all; error_max_turns is a truncated answer, not a broken turn.
+func TestTranslateErrorSubtypesUseTheErrorsField(t *testing.T) {
+	events, err := Translate([]byte(`{"type":"result","subtype":"error_max_turns","errors":["Reached maximum number of turns (8)"],"is_error":true}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	errEvent := events[len(events)-1]
+	if errEvent.Kind != EventError {
+		t.Fatalf("last event = %+v, want the error", errEvent)
+	}
+	if !strings.Contains(errEvent.Error, "Reached maximum number of turns") ||
+		!strings.Contains(errEvent.Error, "partial answer") {
+		t.Fatalf("error = %q, want the vendor prose and the truncation named", errEvent.Error)
+	}
+}
+
 func TestTranslateProjectsProviderToolUseWithoutExecutingIt(t *testing.T) {
 	events, err := Translate([]byte(`{"type":"assistant","message":{"content":[{"type":"tool_use","id":"toolu_1","name":"Read","input":{"path":"README.md"}}]}}`))
 	if err != nil {

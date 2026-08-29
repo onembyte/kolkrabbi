@@ -46,6 +46,11 @@ type ClaudeSession struct {
 	spentOutput        int
 	spentCacheRead     int
 	spentCacheCreation int
+	// rejectedLimit holds the last rate_limit_event rejection: the vendor hands
+	// over the cause before the failure, and the failure's own prose is
+	// usually a bare "credit balance too low". The zero Event carries no Kind,
+	// which is how "nothing recorded" reads.
+	rejectedLimit Event
 }
 
 // ProviderHandle reports the vendor conversation this process has been
@@ -164,6 +169,12 @@ func (s *ClaudeSession) Turn(ctx context.Context, messages []provider.Message, m
 				if line := toolTrail(event, pending); line != "" {
 					onToken(line)
 				}
+			case event.Kind == EventLimit && !event.LimitRejected:
+				if onToken != nil {
+					onToken(limitTrail(event))
+				}
+			case event.Kind == EventLimit && event.LimitRejected:
+				s.rejectedLimit = event
 			}
 			if event.Kind == EventMessageCompleted {
 				completed = true
@@ -171,6 +182,9 @@ func (s *ClaudeSession) Turn(ctx context.Context, messages []provider.Message, m
 		}
 		if completed {
 			message, meta, collectErr := Collect(events, time.Since(start))
+			if collectErr != nil {
+				collectErr = s.classifyLimitFailure(collectErr)
+			}
 			if meta.Model == "" {
 				meta.Model = model
 			}
@@ -202,6 +216,54 @@ func toolTrail(event Event, pending map[string]string) string {
 		return fmt.Sprintf("  %s %s\n", mark, oneLine(event.ToolOutput, 100))
 	}
 	return ""
+}
+
+// limitTrail renders a rate_limit_event warning for the stream: how much of
+// the plan's window is gone while a turn can still be spent on it, and when
+// the window refills.
+func limitTrail(event Event) string {
+	var out strings.Builder
+	out.WriteString("\n· plan limit: ")
+	if event.LimitUtilization > 0 {
+		fmt.Fprintf(&out, "%.0f%% of the %s window used", event.LimitUtilization*100, limitWindowName(event.LimitWindow))
+	} else {
+		out.WriteString("the " + limitWindowName(event.LimitWindow) + " window is nearly used")
+	}
+	if event.LimitResets > 0 {
+		out.WriteString(" · resets " + time.Unix(event.LimitResets, 0).UTC().Format("2006-01-02 15:04 MST"))
+	}
+	out.WriteString("\n")
+	return out.String()
+}
+
+// limitWindowName names a rate_limit_type the way a person says it.
+func limitWindowName(window string) string {
+	if window == "" {
+		return "plan"
+	}
+	return strings.ReplaceAll(window, "_", "-")
+}
+
+// classifyLimitFailure turns the vendor's terminal failure into what it is
+// when a rejection preceded it: the plan window ran out, and the answer to
+// "when can I go again" is a timestamp the vendor already gave.
+func (s *ClaudeSession) classifyLimitFailure(err error) error {
+	if s.rejectedLimit.Kind != EventLimit {
+		return err
+	}
+	cause := ""
+	if pe, ok := err.(*providerError); ok {
+		cause = pe.Error()
+	}
+	message := fmt.Sprintf("claude plan limit reached: the %s window is fully used",
+		limitWindowName(s.rejectedLimit.LimitWindow))
+	if s.rejectedLimit.LimitResets > 0 {
+		message += "; it resets " + time.Unix(s.rejectedLimit.LimitResets, 0).UTC().Format("2006-01-02 15:04 MST")
+	}
+	if cause != "" {
+		message += " (" + cause + ")"
+	}
+	return fmt.Errorf("%s", message)
 }
 
 // oneLine is the first line of s, rune-capped at max.

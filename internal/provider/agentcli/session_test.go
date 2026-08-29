@@ -121,6 +121,54 @@ func TestClaudeSessionTrailMarksAFailedToolRun(t *testing.T) {
 	}
 }
 
+// A warning surfaces while the turn can still make something of it; a
+// rejection turns the failure that follows into "when can I go again".
+func TestClaudeSessionWarnsThenClassifiesThePlanLimit(t *testing.T) {
+	process := &fakeLineProcess{lines: [][]byte{
+		[]byte(`{"type":"rate_limit_event","status":"allowed_warning","rate_limit_type":"seven_day","utilization":0.78,"resets_at":1788220800}`),
+		[]byte(`{"type":"result","result":"fine","subtype":"success"}`),
+		[]byte(`{"type":"rate_limit_event","status":"rejected","rate_limit_type":"seven_day","resets_at":1788220800}`),
+		[]byte(`{"type":"result","subtype":"error_during_execution","errors":["credit balance too low"],"is_error":true}`),
+	}}
+	session, ctxCancel := func() (*ClaudeSession, func()) {
+		ctx, cancel := context.WithCancel(context.Background())
+		s, err := newClaudeSession(ctx, "opus", "code", "high", func(context.Context, string, []string) (lineProcess, error) {
+			return process, nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s, cancel
+	}()
+	var tokens string
+	if _, _, err := session.Turn(context.Background(), []provider.Message{{Role: "user", Content: "hi"}}, "opus", func(token string) {
+		tokens += token
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(tokens, "78% of the seven-day window used") ||
+		!strings.Contains(tokens, "resets 2026-09-01 00:00 UTC") {
+		t.Fatalf("warning missing from the stream: %q", tokens)
+	}
+	_, _, turnErr := session.Turn(context.Background(), []provider.Message{{Role: "user", Content: "again"}}, "opus", nil)
+	if turnErr == nil {
+		t.Fatal("a rejected plan limit must fail the turn")
+	}
+	if !strings.Contains(turnErr.Error(), "seven-day window is fully used") ||
+		!strings.Contains(turnErr.Error(), "resets 2026-09-01 00:00 UTC") {
+		t.Fatalf("error = %v, want the window and the reset time", turnErr)
+	}
+	// The vendor's own words stay as a parenthetical — they may carry detail
+	// kolk does not know — but never as the headline.
+	if !strings.HasPrefix(turnErr.Error(), "claude plan limit reached") {
+		t.Fatalf("error = %v, want the plan limit speaking first", turnErr)
+	}
+	ctxCancel()
+	if err := session.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // stallingLineProcess waits for cancellation at one chosen point in the
 // stream, which is what a real provider looks like when the user interrupts a
 // turn: the frames it had already queued are still in the pipe afterwards.
