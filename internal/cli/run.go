@@ -223,6 +223,12 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	if effort == "" {
 		effort = sess.Effort
 	}
+	// One discovery per startup, shared by the connector refresh and the
+	// route below. 230 µs, measured.
+	var host local.Host
+	if a.discoverHost != nil {
+		host = a.discoverHost(ctx)
+	}
 	model := o.model
 	if model == "" {
 		model = sess.Model
@@ -254,6 +260,10 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		// while it sits idle is the plainest waste there is (A33.6). Only a
 		// connector that is enabled *and* verified counts — "listed" is a row
 		// in the matrix, not a capability.
+		// The Ollama connector's "verified" is re-read from the server first
+		// (E6): a sign-in can lapse, and a claim recorded last month must not
+		// pick this session's default. One POST, only when a server runs.
+		a.refreshOllamaConnector(ctx, d.ConnectorsFile(), host)
 		if connectors, err := provider.LoadConnectors(d.ConnectorsFile()); err == nil {
 			gateway := choice.Model
 			choice = chooseSessionModel(choice, connectors)
@@ -394,8 +404,8 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	// stops a server it did not start. Discovery costs 230 µs, measured.
 	// No discovery seam means no discovery, never a panic: an app built
 	// without one simply has no host route.
-	if a.discoverHost != nil {
-		switch host := a.discoverHost(ctx); host.State {
+	{
+		switch host.State {
 		case local.HostRunning:
 			ag.Routes = map[string]engine.ChatBackend{local.SidecarName: provider.NewHostClient(host.Addr)}
 		case local.HostInstalled:
@@ -709,4 +719,30 @@ func modelRatings(dataDir string) map[string]engine.ModelRating {
 		ratings[model] = engine.ModelRating{Average: rating.Average, Count: rating.Count}
 	}
 	return ratings
+}
+
+// refreshOllamaConnector brings a recorded Ollama connector in line with what
+// the running server says about its sign-in — in both directions, saved only
+// on a change. A connector that is not recorded is left alone: kolk never
+// invents one from a sign-in nobody asked it to use.
+func (a *app) refreshOllamaConnector(ctx context.Context, connectorsFile string, host local.Host) {
+	if host.State != local.HostRunning || a.signIn == nil {
+		return
+	}
+	manifest, err := provider.LoadConnectors(connectorsFile)
+	if err != nil {
+		return
+	}
+	for _, connector := range manifest.Connectors {
+		if connector.Name != local.SidecarName || !connector.Enabled {
+			continue
+		}
+		state := a.signIn(ctx, host.Addr)
+		if !state.Known || state.SignedIn == connector.Verified {
+			return
+		}
+		connector.Verified = state.SignedIn
+		_ = provider.SaveConnector(ctx, connectorsFile, connector)
+		return
+	}
 }

@@ -97,6 +97,10 @@ type app struct {
 	// listHostModels reads what that Ollama serves; injected for the same
 	// reason.
 	listHostModels func(ctx context.Context, addr, cacheFile string) ([]local.HostModel, error)
+	// signIn asks that Ollama whether it is signed in to ollama.com, and
+	// signInBudget is how long a login waits for the browser half to finish.
+	signIn         func(context.Context, string) local.SignInState
+	signInBudget   time.Duration
 	enterRaw       func(*os.File) (func() error, error)
 	terminalOwned  func() bool
 	probeHardware  func(context.Context, string) local.Hardware
@@ -139,6 +143,8 @@ func newApp() *app {
 		return local.DiscoverHost(ctx, local.HostDiscovery{Addr: local.DefaultHostAddr, LookPath: shell.LookPath})
 	}
 	a.listHostModels = local.ListHostModels
+	a.signIn = local.SignIn
+	a.signInBudget = 2 * time.Minute
 	a.newActivity = func(out io.Writer) engine.ActivityIndicator {
 		return newOctopusActivity(out, term.Color())
 	}

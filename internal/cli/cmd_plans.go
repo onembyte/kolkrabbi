@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/onembyte/kolkrabbi/internal/local"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/shell"
 )
@@ -157,6 +159,18 @@ func (a *app) runConnectorLoginWith(ctx context.Context, connectorsFile string, 
 	if !known {
 		fmt.Fprintf(a.stdout, "kolk does not know how %s signs in; running it as-is.\n", selected.Connector)
 	}
+	// `ollama signin` talks to a running server — the key that gets signed in
+	// is the server's — so without one the login cannot start, and a
+	// connector recorded against nothing would be a claim.
+	var host local.Host
+	if selected.Connector == local.SidecarName {
+		host = a.discoverHost(ctx)
+		if host.State != local.HostRunning {
+			fmt.Fprintln(a.stdout, "ollama signin needs a running Ollama server and none is listening on 127.0.0.1:11434.")
+			fmt.Fprintln(a.stdout, "start one with `ollama serve` (or open the Ollama app), then run this again.")
+			return nil
+		}
+	}
 	fmt.Fprintf(a.stdout, "starting %s login; Kolkrabbi will not see credentials\n", selected.Connector)
 	if err := run(ctx, selected.Connector, loginArgs); err != nil {
 		return err
@@ -170,8 +184,61 @@ func (a *app) runConnectorLoginWith(ctx context.Context, connectorsFile string, 
 	}); err != nil {
 		return err
 	}
+	if selected.Connector == local.SidecarName {
+		return a.verifyOllamaConnector(ctx, connectorsFile, selected, host.Addr)
+	}
 	fmt.Fprintf(a.stdout, "%s recorded. %s exited cleanly, which is not proof of a login;\n",
 		selected.Name, selected.Connector)
 	fmt.Fprintf(a.stdout, "Kolkrabbi confirms it the first time %s answers a turn.\n", selected.Connector)
 	return nil
+}
+
+// verifyOllamaConnector asks the server whether the sign-in happened, rather
+// than waiting for a turn to prove it. `ollama signin` returns as soon as the
+// browser opens, so this waits for the browser half to finish — bounded, and
+// with the URL printed in case the browser never came.
+//
+// A turn is the wrong verifier here: a local model answering proves nothing
+// about ollama.com, and a verifier that could not tell the two apart would
+// make Ollama Cloud the session default for someone who never signed in.
+func (a *app) verifyOllamaConnector(ctx context.Context, connectorsFile string, selected provider.Plan, addr string) error {
+	fmt.Fprintln(a.stdout, "waiting for the sign-in to finish in your browser (Ctrl-C stops waiting; it verifies at the next start instead)")
+	deadline := time.Now().Add(a.signInBudget)
+	var last local.SignInState
+	for {
+		last = a.signIn(ctx, addr)
+		if last.SignedIn {
+			if err := provider.SaveConnector(ctx, connectorsFile, provider.Connector{
+				Provider: selected.Provider, Plan: selected.Name, Name: selected.Connector,
+				Sandbox: selected.Sandbox, LoginOwner: "provider-cli", Enabled: true, Verified: true,
+			}); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "✓ %s verified: the server is signed in on the %q plan.\n", selected.Name, last.Plan)
+			return nil
+		}
+		if ctx.Err() != nil || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(a.signInPoll())
+	}
+	fmt.Fprintf(a.stdout, "%s recorded but not yet signed in.\n", selected.Name)
+	if last.SignInURL != "" {
+		fmt.Fprintf(a.stdout, "  sign in at %s\n", last.SignInURL)
+	}
+	fmt.Fprintln(a.stdout, "  kolk checks again at every start and marks it verified once the server says so.")
+	return nil
+}
+
+// signInPoll paces the wait: a browser sign-in takes seconds, and a test's
+// budget is milliseconds.
+func (a *app) signInPoll() time.Duration {
+	poll := a.signInBudget / 4
+	if poll > 2*time.Second {
+		return 2 * time.Second
+	}
+	if poll < 10*time.Millisecond {
+		return 10 * time.Millisecond
+	}
+	return poll
 }

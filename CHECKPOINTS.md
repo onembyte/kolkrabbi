@@ -2631,6 +2631,42 @@ Acceptance checklist:
 - [x] silent with no bus, so a run without one behaves exactly as before.
 - [x] full `make check` green: 2,362 tests, 0 lint issues.
 
+### E6 built — the cloud connector is verified by asking, never by a turn
+
+The other session had already landed the plan row ("Ollama Pro") and the login args (`signin`);
+this leaf builds on both rather than beside them. What it adds is the verifier.
+
+**`POST /api/me` is the truth, and kolk never holds the credential.** The server answers 200 with
+the plan when signed in, 401 with a `signin_url` when not; the key is the server's own, in its home
+directory. `local.SignIn` reads that. Unreachable is a third state, not "signed out": a verifier
+that read a dead server as a revoked sign-in would un-verify a connector every time the machine
+slept. The mutation that collapses the two fails — once aimed at the right line; the first aim hit
+a branch unreachable for that case, which is worth writing down because a mutation that cannot
+kill is a claim about a test, not a test.
+
+**The login waits for the browser half.** `ollama signin` returns as soon as the browser opens, so
+`kolk plans login ollama "Ollama Pro"` polls the server — bounded, with the URL printed in case the
+browser never came — and records `Verified` only when the server says so. Recording it on a clean
+exit, as the other connectors do, would be a claim; the mutation that does so fails. And with no
+server listening the login does not start at all: `ollama signin` signs in a *server's* key, and a
+connector recorded against nothing is a claim about nothing.
+
+**Startup re-reads the truth, in both directions.** A sign-in recorded last month can have lapsed,
+and A33.6 picks a session default from `Verified`. When a server is running, one POST brings the
+connector in line with it and saves only on a change. Down as well as up — the mutation that only
+ever raises it fails. Discovery is now done once per startup and shared with the route, so this
+costs a probe (230 µs) and a POST, not two probes.
+
+**The guard that matters is pinned:** a turn answered by a local model through the route does not
+touch the connector. The `verifyingBackend` never wraps a route, and a test now says so with a
+manifest that stays unverified across a successful local turn.
+
+Not built, and said so: `planBackendFor` has no `ollama` case because no static plan model exists
+for it, so the case would be unreachable; subscription-first for Ollama Cloud (A33.6) therefore
+does not apply yet and waits on a dynamic cloud row, which is E9's catalogue work. And a sign-in
+against a server kolk started itself would need `OLLAMA_HOST` carried into the login child; the
+handover seam does not carry env, and the honest message beats a silent default.
+
 ### E3b built — kolk starts an Ollama of its own, lazily, and stops only that one
 
 `local.HostStarter` starts the user's binary on a loopback port kolk chooses, with a curated
@@ -2826,7 +2862,7 @@ is deliberately late because item 34 is working in the same files.
       (neither exists in `internal/shell` yet), one transcript line, stopped only if kolk started
       it. Started lazily on first use, not at startup: an idle server for a model nobody picked is
       memory spent on nothing. After E5, so the route it registers exists.
-- [ ] **E6 the cloud connector** — a plan row for Ollama Cloud, login args `{"signin"}` with
+- [x] **E6 the cloud connector** — a plan row for Ollama Cloud, login args `{"signin"}` with
       `OLLAMA_HOST` pointed at the server kolk uses, verified by `POST /api/me` and never by an
       answered turn. Cloud rows from the local `/api/show` proxy, not static entries that retire.
 - [ ] **E7 limits and cost class** — a third class, `local`, that neither `on_free_exhausted` nor
