@@ -197,7 +197,7 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 // tuiModels feeds the picker from the snapshot startup already loaded. It used
 // to re-read the catalog here, which on a stale cache meant a second network
 // wait before the first prompt could be drawn.
-func tuiModels(_ context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
+func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 	if ag.Client == nil {
 		return nil
 	}
@@ -245,12 +245,11 @@ func tuiModels(_ context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 	}
 
 	// Local models already pulled onto this machine.
-	for _, entry := range local.Catalog("") {
-		out = append(out, tui.ModelSpec{
-			ID: entry.Name, Cost: tui.CostLocal, Rank: tui.ModelRank(tui.CostLocal),
-			Name: entry.Parameters + " " + entry.Quantization + " · runs on this machine",
-		})
-	}
+	// The user's own Ollama, as it actually is (E9): what is pulled, under the
+	// ids the router understands. The rows this replaces were a static
+	// catalogue of models nobody had pulled, under bare ids that went to the
+	// gateway and 404'd.
+	out = append(out, a.hostModelRows(ctx, manifest)...)
 
 	models := a.catalog
 	if len(models) == 0 {
@@ -482,4 +481,90 @@ func tuiSettings(a *app) []tui.SettingSpec {
 		})
 	}
 	return out
+}
+
+// hostModelRows lists the host's models for the picker. Local models are the
+// local cost class, labelled with what the machine will run them on and
+// whether they can take tools; cloud models bill against the Ollama plan, so
+// their row is the plan's — subscription when the connector is verified,
+// sign-in-first when not. An installed-but-idle Ollama lists nothing: starting
+// a server to populate a picker is memory spent on a model nobody picked.
+func (a *app) hostModelRows(ctx context.Context, manifest provider.ConnectorManifest) []tui.ModelSpec {
+	if a.discoverHost == nil || a.listHostModels == nil {
+		return nil
+	}
+	host := a.discoverHost(ctx)
+	if host.State != local.HostRunning {
+		return nil
+	}
+	cache := ""
+	if d, err := a.locate(); err == nil {
+		cache = d.HostCatalogFile()
+	}
+	models, err := a.listHostModels(ctx, host.Addr, cache)
+	if err != nil {
+		return nil
+	}
+
+	cloudVerified, plan := false, "Ollama Pro"
+	for _, connector := range manifest.Connectors {
+		if connector.Name == local.SidecarName && connector.Enabled {
+			cloudVerified = connector.Verified
+			if connector.Plan != "" {
+				plan = connector.Plan
+			}
+		}
+	}
+	// The same bounded probe `kolk localia` uses; 112 µs on the owner's
+	// machine, and a process exec where nvidia-smi exists.
+	modelDir := ""
+	if d, err := a.locate(); err == nil {
+		modelDir = d.LocalModelsDir()
+	}
+	cpuOnly := len(a.hardware(ctx, modelDir).Accelerators) == 0
+
+	rows := make([]tui.ModelSpec, 0, len(models))
+	for _, m := range models {
+		id := local.HostPrefix + m.Name
+		if m.Cloud {
+			if cloudVerified {
+				rows = append(rows, tui.ModelSpec{
+					ID: id, Cost: tui.CostSubscription, Rank: tui.ModelRank(tui.CostSubscription),
+					Name: sizeLabel(m) + "cloud via ollama.com · " + plan,
+				})
+				continue
+			}
+			rows = append(rows, tui.ModelSpec{
+				ID: id, Cost: tui.CostSubscriptionLogin, Rank: tui.ModelRank(tui.CostSubscriptionLogin),
+				Name: fmt.Sprintf("%scloud via ollama.com · sign in first:  kolk plans login ollama %q", sizeLabel(m), plan),
+			})
+			continue
+		}
+		name := sizeLabel(m) + "runs on this machine"
+		if cpuOnly {
+			name += " · CPU only"
+		}
+		switch {
+		case !m.CapabilitiesKnown:
+			name += " · capabilities unknown"
+		case !m.Tools:
+			name += " · chat only, no tools"
+		}
+		rows = append(rows, tui.ModelSpec{ID: id, Cost: tui.CostLocal, Rank: tui.ModelRank(tui.CostLocal), Name: name})
+	}
+	return rows
+}
+
+func sizeLabel(m local.HostModel) string {
+	parts := make([]string, 0, 2)
+	if m.Parameters != "" {
+		parts = append(parts, m.Parameters)
+	}
+	if m.Quantization != "" {
+		parts = append(parts, m.Quantization)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, " ") + " · "
 }

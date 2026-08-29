@@ -2631,6 +2631,37 @@ Acceptance checklist:
 - [x] silent with no bus, so a run without one behaves exactly as before.
 - [x] full `make check` green: 2,362 tests, 0 lint issues.
 
+### E9 built — the picker shows the Ollama the user has, and refuses what a mode cannot use
+
+`/model` now lists what the host actually serves, under the `ollama/` ids the router understands.
+Local models are the local cost class, labelled with their size, whether the machine will run them
+on a GPU or `CPU only`, and whether they can take tools. Cloud models bill against the Ollama plan,
+so their row is the plan's: subscription when the connector is verified, sign-in-first — with the
+command — when not.
+
+**The rows this replaces were a trap.** The picker listed a static five-entry catalogue of models
+nobody had pulled, under bare ids like `qwen2.5-coder:7b` that went to the gateway and 404'd. A row
+that cannot be picked is not a row. The mutation that brings them back fails.
+
+**The guard that matters is at selection.** The engine sends tool schemas by mode and never by
+model, so a model without tools chosen in code or agent mode failed with a 400 in the middle of the
+first turn. `switchModel` now refuses it there, with plan 06's sentence — *unavailable in code
+mode: no tool support* — and says `/mode chat` can use it. Chat mode takes it; a tool-capable host
+model is not refused. The mutation that drops the check fails. A listing that fails does not block
+a selection: the worst case is the 400 this pre-empts, which is where things stood before.
+
+**Never the default**, pinned: a session with a running host and pulled models still starts on the
+gateway's free choice. The free-first chooser cannot tell a 1.5B local model from a 480B free one.
+
+**Consolidated, after a slip.** I added a `probeHardware` seam and the build said "redeclared" —
+`kolk localia` already had one, with the bounded probe around it. Mine is gone and the picker uses
+theirs. The probe costs 112 µs on the owner's machine (sysfs, no nvidia-smi); where nvidia-smi
+exists it is a process exec, bounded by the same timeout localia uses.
+
+**An installed-but-idle Ollama lists nothing in the picker, on purpose.** Populating a picker by
+starting a server is memory spent on a model nobody picked; `kolk models` and the doctor say why
+the section is empty and what starts it.
+
 ### E8 built — the window the server actually runs, and a model that is warm when chosen
 
 Ollama truncates an over-long prompt **from the front** and says nothing, which drops kolk's
@@ -2932,7 +2963,7 @@ is deliberately late because item 34 is working in the same files.
       model's real window from `/api/ps` on an adopted one; unknown treated as small, because Ollama
       truncates from the front. A keep-alive request on selection so the first turn is not a cold
       load.
-- [ ] **E9 the picker rows** — host models as rows labelled local (with `CPU only` from the fit
+- [x] **E9 the picker rows** — host models as rows labelled local (with `CPU only` from the fit
       planner when there is no accelerator) or cloud; chat-only when `tools` is absent, and
       code/agent mode refused at selection with plan 06's sentence rather than a 400 mid-turn.
       Never the default. Last, because item 34 owns these files today.

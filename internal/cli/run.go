@@ -617,6 +617,13 @@ func (a *app) contextWindowFor(model string) int {
 // a subscription plan, at the provider that can actually answer it. Without
 // this the status line names one model while a different provider replies.
 func (a *app) switchModel(ctx context.Context, ag *engine.Agent, ref string) (string, error) {
+	// A model that cannot take tools is refused for a mode that sends them,
+	// here, with the sentence plan 06 wrote — rather than as a 400 in the
+	// middle of a turn, because the engine sends tool schemas by mode and
+	// never by model (E9).
+	if err := a.refuseToollessHostModel(ctx, ag, ref); err != nil {
+		return "", err
+	}
 	// The vendor conversation continues across a model switch: the stored
 	// handle (from this run or a previous one) resumes the same conversation on
 	// the model the user just chose, and new provider state lands back in the
@@ -782,4 +789,31 @@ func (a *app) warmHostModel(ctx context.Context, ag *engine.Agent, model string)
 		}
 	}
 	warm(ctx, warmer, wire)
+}
+
+// refuseToollessHostModel is the selection-time check for a host model the
+// server says has no tool capability. Chat mode sends no tools and is fine;
+// code and agent mode would 400 on the first turn.
+func (a *app) refuseToollessHostModel(ctx context.Context, ag *engine.Agent, ref string) error {
+	name, ok := strings.CutPrefix(ref, local.HostPrefix)
+	if !ok || ag.Mode == engine.ModeChat || a.discoverHost == nil || a.listHostModels == nil {
+		return nil
+	}
+	host := a.discoverHost(ctx)
+	if host.State != local.HostRunning {
+		return nil
+	}
+	cache := ""
+	if d, err := a.locate(); err == nil {
+		cache = d.HostCatalogFile()
+	}
+	// A listing that fails must not block a selection: the worst case is the
+	// 400 this check exists to pre-empt, which is where things stood before.
+	models, _ := a.listHostModels(ctx, host.Addr, cache)
+	for _, m := range models {
+		if m.Name == name && m.CapabilitiesKnown && !m.Tools {
+			return fmt.Errorf("%s is unavailable in %s mode: no tool support. `/mode chat` can use it; code and agent mode need a tool-capable model (`/model` marks them)", ref, ag.Mode)
+		}
+	}
+	return nil
 }
