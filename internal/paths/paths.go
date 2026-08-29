@@ -128,6 +128,10 @@ func (d Dirs) LocalRuntimeDir() string { return filepath.Join(d.Data, "local-run
 // CatalogFile is the cached model catalog: rebuildable, so it lives in Cache.
 func (d Dirs) CatalogFile() string { return filepath.Join(d.Cache, "models.json") }
 
+// HostCatalogFile caches what the user's own Ollama served, beside the gateway
+// catalog and for the same reason: rebuildable, so it lives in Cache.
+func (d Dirs) HostCatalogFile() string { return filepath.Join(d.Cache, "host-models.json") }
+
 // EnsureConfig creates the config directory. 0700 because the prototype wrote
 // keys here and old installs still do.
 func (d Dirs) EnsureConfig() error { return mkdir(d.Config) }

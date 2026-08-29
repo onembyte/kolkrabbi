@@ -93,7 +93,10 @@ type app struct {
 	chooseDefault    func([]provider.ModelInfo) defaultModelChoice
 	// discoverHost finds the user's own Ollama. Injected so a test never
 	// probes the real loopback port, which on the owner's machine has one.
-	discoverHost   func(context.Context) local.Host
+	discoverHost func(context.Context) local.Host
+	// listHostModels reads what that Ollama serves; injected for the same
+	// reason.
+	listHostModels func(ctx context.Context, addr, cacheFile string) ([]local.HostModel, error)
 	enterRaw       func(*os.File) (func() error, error)
 	terminalOwned  func() bool
 	probeHardware  func(context.Context, string) local.Hardware
@@ -135,6 +138,7 @@ func newApp() *app {
 	a.discoverHost = func(ctx context.Context) local.Host {
 		return local.DiscoverHost(ctx, local.HostDiscovery{Addr: local.DefaultHostAddr, LookPath: shell.LookPath})
 	}
+	a.listHostModels = local.ListHostModels
 	a.newActivity = func(out io.Writer) engine.ActivityIndicator {
 		return newOctopusActivity(out, term.Color())
 	}

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/config"
+	"github.com/onembyte/kolkrabbi/internal/local"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 )
 
@@ -37,7 +38,49 @@ func (a *app) runModels(ctx context.Context, args []string) error {
 		}
 	}
 
-	return a.printModelCatalog(ctx, client, d.CatalogFile(), forceRefresh, strings.Join(filterArgs, " "))
+	filter := strings.Join(filterArgs, " ")
+	if err := a.printModelCatalog(ctx, client, d.CatalogFile(), forceRefresh, filter); err != nil {
+		return err
+	}
+	a.printHostModels(ctx, d.HostCatalogFile(), filter)
+	return nil
+}
+
+// printHostModels lists what the user's own Ollama serves, below the gateway
+// rows and never mixed into them: a host id in the gateway list is a 404
+// waiting to happen, and a reader should see at a glance which rows cost
+// nothing because they never leave the machine.
+func (a *app) printHostModels(ctx context.Context, cacheFile, filter string) {
+	host := a.discoverHost(ctx)
+	switch host.State {
+	case local.HostInstalled:
+		fmt.Fprintf(a.stdout, "\nlocal · ollama at %s is installed but not running; its models are listed once it runs\n", host.Binary)
+		return
+	case local.HostAbsent:
+		return
+	}
+	models, err := a.listHostModels(ctx, host.Addr, cacheFile)
+	if err != nil {
+		fmt.Fprintf(a.stdout, "\nlocal · ollama %s at %s answered, but its model list did not: %v\n", host.Version, host.Addr, err)
+		return
+	}
+	renderHostModels(a.stdout, host, models, filter)
+}
+
+func renderHostModels(out io.Writer, host local.Host, models []local.HostModel, filter string) {
+	fmt.Fprintf(out, "\nlocal · ollama %s at %s\n", host.Version, host.Addr)
+	if len(models) == 0 {
+		fmt.Fprintln(out, "  nothing pulled yet; `ollama pull <model>` adds one")
+		return
+	}
+	filter = strings.ToLower(filter)
+	for _, m := range models {
+		info := m.ModelInfo()
+		if filter != "" && !strings.Contains(strings.ToLower(info.ID), filter) {
+			continue
+		}
+		fmt.Fprintf(out, "%-48s ctx %-9d %s\n", info.ID, info.ContextLength, info.Description)
+	}
 }
 
 func (a *app) printModelCatalog(ctx context.Context, client *provider.Client, catalogFile string, forceRefresh bool, filter string) error {

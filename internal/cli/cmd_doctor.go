@@ -82,7 +82,11 @@ func (a *app) doctorLocalModels(ctx context.Context) {
 	host := a.discoverHost(ctx)
 	switch host.State {
 	case local.HostRunning:
-		fmt.Fprintf(a.stdout, "  ✓ ollama %s running at %s — kolk uses it and never stops it\n", host.Version, host.Addr)
+		count := ""
+		if models, err := a.listHostModels(ctx, host.Addr, ""); err == nil {
+			count = fmt.Sprintf(", %d model(s)", len(models))
+		}
+		fmt.Fprintf(a.stdout, "  ✓ ollama %s running at %s%s — kolk uses it and never stops it\n", host.Version, host.Addr, count)
 	case local.HostInstalled:
 		fmt.Fprintf(a.stdout, "  · ollama at %s, not running\n", host.Binary)
 	case local.HostAbsent:

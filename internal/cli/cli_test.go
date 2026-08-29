@@ -42,6 +42,7 @@ func newTestApp(t *testing.T, stdin string) (*app, *bytes.Buffer, *bytes.Buffer)
 	// Never the real loopback port: the owner's machine has an Ollama on it,
 	// and a test that found it would pass here and fail everywhere else.
 	a.discoverHost = func(context.Context) local.Host { return local.Host{State: local.HostAbsent} }
+	a.listHostModels = func(context.Context, string, string) ([]local.HostModel, error) { return nil, nil }
 	return a, &out, &errOut
 }
 

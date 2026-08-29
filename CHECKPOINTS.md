@@ -2631,6 +2631,37 @@ Acceptance checklist:
 - [x] silent with no bus, so a run without one behaves exactly as before.
 - [x] full `make check` green: 2,362 tests, 0 lint issues.
 
+### E4 built — the host's models, decoded from what the server says and nothing else
+
+`local.ListHostModels` reads `/api/tags`, then `/api/show` per model, into `HostModel`: tools,
+vision and thinking from `capabilities`; context from `details.context_length`, else from
+`model_info["<architecture>.context_length"]` where older servers and cloud models keep it; local
+versus cloud from `remote_host`. `HostModel.ModelInfo()` projects into the shape the rest of kolk
+ranks and prints, with the `ollama/` prefix E2's router strips at the wire. Surfaced twice: a
+`local` section under `kolk models`, never mixed into the gateway rows, and a model count in the
+doctor.
+
+**The guard that matters is the unknown.** Before 0.6.4 `/api/show` has no `capabilities`, and a
+model whose show failed has none either. Both are `CapabilitiesKnown: false`, and a model with no
+claim claims no tools — a ranker that guessed here would send tool schemas to a model that 400s on
+them. The mutation that trusts every server kills. So does the one that drops a model whose show
+failed: the user pulled it and can see it in `ollama list`, and a listing that lost it would be one
+they cannot trust.
+
+**Measured before shipping, cold and warm.** Twenty models: 4.4 ms cold, 0.58 ms warm mean,
+1.3 ms warm worst. The tags list is always fetched — it is one request, and a pulled or removed model
+should be seen at once — while each model's show answer is cached by digest beside the gateway
+catalogue and invalidated when the server version changes. The mutation that ignores the cache
+kills.
+
+`"models": null` is an empty list, not an error: it is a user with nothing pulled. Cloud models
+project with no pricing rather than zero, so nothing reads them as free — they bill against the
+Ollama plan, and E7 gives that a cost class of its own.
+
+**A slip worth recording:** the first attempt at the surface silently did nothing, because an
+edit anchor missed after gofmt realigned a struct field, and the dead-export ratchet caught the
+uncalled decoder before the commit. That is the ratchet doing exactly its job.
+
 ### E3a built — kolk knows whose Ollama it is looking at
 
 `local.DiscoverHost` probes the loopback default and PATH and reports running, installed or
@@ -2710,7 +2741,7 @@ is deliberately late because item 34 is working in the same files.
       names the install line without running it. Measured: 119 µs with nothing listening, 230 µs
       against a running server. Split from E3 because adoption *registers a backend*, and the
       backend is E5 — a started server with nothing to use it would be an export with no caller.
-- [ ] **E4 the catalogue decoder** — `/api/tags` then `/api/show` per model into `ModelInfo`:
+- [x] **E4 the catalogue decoder** — `/api/tags` then `/api/show` per model into `ModelInfo`:
       tools from `capabilities`, context from `details.context_length`, local vs cloud from
       `remote_host`. Version floor from `/api/version`. `"data": null` is an empty list, not an
       error. Measure the per-startup cost with N models and cache it beside the gateway catalogue.
