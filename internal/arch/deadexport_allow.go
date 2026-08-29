@@ -44,14 +44,6 @@ var DeadExportAllowlist = map[string]string{
 	// and VerifySagaChapter. The five below each earn their place.
 	"MaxTasksForEffort": "exported only so the external test package can assert orchestration width",
 
-	// Built and unreachable on purpose: the managed local runtime cannot start
-	// until L13.5b4 pins a reviewed release with its checksum, which is blocked
-	// on the owner. Deleting them would mean rebuilding them the day that
-	// decision is made.
-	"InstallRuntime":    "managed runtime, blocked on L13.5b4 pinning a release",
-	"NewManagedRuntime": "managed runtime, blocked on L13.5b4 pinning a release",
-	"NewRuntimeSpec":    "managed runtime, blocked on L13.5b4 pinning a release",
-
 	// A7.4's event-to-text path, built ahead of the thing that will read it.
 	//
 	// Reason corrected on 2026-08-27: I26.7 has partly landed — the turn.start

@@ -3,6 +3,8 @@ package cli
 import (
 	"bytes"
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -283,10 +285,56 @@ func TestLocaliaPullSaysWhatIsMissingWhenApproved(t *testing.T) {
 
 	code := a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:7b"})
 	if code == ExitOK {
-		t.Fatal("there is no managed runtime installed, so the pull cannot succeed yet")
+		t.Fatal("with no Ollama installed the pull cannot succeed")
 	}
-	if !strings.Contains(errOut.String(), "runtime") {
-		t.Fatalf("stderr = %q, want the missing piece named", errOut.String())
+	if !strings.Contains(errOut.String(), "ollama.com") {
+		t.Fatalf("stderr = %q, want the install line", errOut.String())
+	}
+}
+
+// E10. An approved pull goes through the host's own API and is watched.
+func TestLocaliaPullStreamsThroughTheHost(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/pull" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte("{\"status\":\"pulling manifest\"}\n{\"status\":\"pulling sha256:abc\",\"total\":10,\"completed\":10}\n{\"status\":\"success\"}\n"))
+	}))
+	t.Cleanup(server.Close)
+	a, out, errOut := pullFixture(t, "y\n")
+	a.discoverHost = func(context.Context) local.Host {
+		return local.Host{State: local.HostRunning, Addr: strings.TrimPrefix(server.URL, "http://"), Version: "0.33.1"}
+	}
+	if code := a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:7b"}); code != ExitOK {
+		t.Fatalf("pull exit = %d, stderr = %q", code, errOut.String())
+	}
+	for _, want := range []string{"pulling manifest", "100%", "success", "ollama/qwen2.5-coder:7b"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output lacks %q:\n%s", want, out.String())
+		}
+	}
+}
+
+// An installed, idle Ollama is started for the pull and stopped after it —
+// the one command that earns a server, and only for as long as it takes.
+func TestLocaliaPullStartsAnIdleOllamaAndStopsItAfter(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("{\"status\":\"success\"}\n"))
+	}))
+	t.Cleanup(server.Close)
+	a, _, errOut := pullFixture(t, "y\n")
+	a.discoverHost = func(context.Context) local.Host { return local.Host{State: local.HostInstalled, Binary: "/opt/ollama"} }
+	started, stopped := 0, 0
+	a.startHost = func(context.Context, local.Host) (string, func(), error) {
+		started++
+		return strings.TrimPrefix(server.URL, "http://"), func() { stopped++ }, nil
+	}
+	if code := a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:7b"}); code != ExitOK {
+		t.Fatalf("pull exit = %d, stderr = %q", code, errOut.String())
+	}
+	if started != 1 || stopped != 1 {
+		t.Fatalf("started %d, stopped %d; want the server up for the pull and down after", started, stopped)
 	}
 }
 

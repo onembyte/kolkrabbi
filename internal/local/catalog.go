@@ -24,9 +24,10 @@ const (
 	mebibyte = 1 << 20
 )
 
-// SidecarName is the managed runtime binary Kolkrabbi owns. It is deliberately
-// looked for only below Kolkrabbi's own directory: a binary of the same name on
-// PATH belongs to the host and is never used.
+// SidecarName is the user's own Ollama binary, looked for on PATH, and the
+// route prefix the engine owns for its models (option E). It once named a
+// runtime kolk would install itself; that contract is gone, and the name stays
+// because the route key and the connector name were built on it.
 const SidecarName = "ollama"
 
 // catalog is deliberately short. A long list of models nobody verified is not

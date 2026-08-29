@@ -2631,6 +2631,39 @@ Acceptance checklist:
 - [x] silent with no bus, so a run without one behaves exactly as before.
 - [x] full `make check` green: 2,362 tests, 0 lint issues.
 
+### E10 built — what E made dead is gone, and what it made false is no longer said
+
+**Deleted:** `InstallRuntime`, `pinnedRuntime`, `PinnedRuntime`, `RuntimeRelease`, the managed
+`Runtime` and its `RuntimeSpec`, `paths.LocalRuntimeDir`, and the three dead-export allowances that
+had kept them — 800 lines of a runtime kolk will never install, with their tests. `Process` and
+`StartFunc` survive, moved beside the starter that actually uses them.
+
+**`localia pull` goes through the host now.** After the fit plan and the approval plan 25 always
+required, the pull is the Ollama's own: `/api/pull`, streamed, one line per status and one per ten
+percent of a layer, so a four-gigabyte download is watched rather than waited for. An error line in
+the stream is a failed pull — Ollama reports failures after `200 OK` — and the mutation that reads
+it as progress fails. An installed-but-idle Ollama is started for the pull and stopped after it,
+the one command that earns a server; the mutation that leaves it running fails. No Ollama at all
+names the install line.
+
+**The stale sentences are gone, and a ratchet keeps them gone.** Seven phrases — "never touches a
+host-owned Ollama", "managed local runtime", "Kolk-owned runtime", "pins no verified local
+runtime" and the rest — were still in README, PLAN.md, the site and code comments, each a promise
+about behaviour that no longer exists. `TestNoManagedSidecarClaimsSurvive` scans everything a user
+reads as current; history is exempt by name. It was proven to bite by putting one phrase back.
+
+**The site lost a provider row.** "Managed local · Pinned build pending" described a thing that
+will not be built; the Ollama row now says what is true — *your own Ollama, found and used*.
+
+**Left as it was, and said so:** `localia pull` still takes only names from kolk's five-entry sized
+catalogue, because the fit plan needs a size and plan 25 refuses to promise a fit from a name.
+Widening it to any name the registry serves is a decision about that promise, not a deletion.
+
+**This closes L13.6.** Ten leaves, one worktree, every one rebased onto the other session's work
+before it landed, and four of them corrected the plan on contact with the code: E3 split on a
+dependency, E5's `tool_choice` claim was false, E8's `OLLAMA_CONTEXT_LENGTH` line was refused for
+the VRAM reason, and E9's hardware seam already existed.
+
 ### E9 built — the picker shows the Ollama the user has, and refuses what a mode cannot use
 
 `/model` now lists what the host actually serves, under the `ollama/` ids the router understands.
@@ -2967,7 +3000,7 @@ is deliberately late because item 34 is working in the same files.
       planner when there is no accelerator) or cloud; chat-only when `tools` is absent, and
       code/agent mode refused at selection with plan 06's sentence rather than a 400 mid-turn.
       Never the default. Last, because item 34 owns these files today.
-- [ ] **E10 delete what E makes dead** — `InstallRuntime`, `pinnedRuntime` and their dead-export
+- [x] **E10 delete what E makes dead** — `InstallRuntime`, `pinnedRuntime` and their dead-export
       allowances; `localia pull` re-pointed at the host's `/api/pull` with the explicit approval
       plan 25 always required; `SidecarName`'s "never used" comment and every remaining sentence
       that says kolk never touches a host Ollama.

@@ -271,8 +271,8 @@ The reasoning for each, and the condition that would change it, is in
   a dedicated critic are not built yet.
 - A session still expects a gateway key even when a subscription plan will
   answer the turns.
-- Installing a managed local runtime refuses to run without a pinned checksum,
-  and this build pins none — `localia` can report and plan, not yet install.
+- Local models use the Ollama you already have; kolk never installs one. An
+  installed-but-idle Ollama lists nothing in `/model` until something runs it.
 - No MCP, skills, commands, or hooks yet, and no execution sandbox.
 - A remote device can watch a session and answer its permission prompts; it
   cannot yet send a turn.

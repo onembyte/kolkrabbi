@@ -122,9 +122,6 @@ func (d Dirs) MemoryFile() string { return filepath.Join(d.Config, "memory.md") 
 // LocalModelsDir stores models and managed local-runtime state.
 func (d Dirs) LocalModelsDir() string { return filepath.Join(d.Data, "local-models") }
 
-// LocalRuntimeDir stores versioned runtime binaries owned by Kolk.
-func (d Dirs) LocalRuntimeDir() string { return filepath.Join(d.Data, "local-runtime") }
-
 // CatalogFile is the cached model catalog: rebuildable, so it lives in Cache.
 func (d Dirs) CatalogFile() string { return filepath.Join(d.Cache, "models.json") }
 

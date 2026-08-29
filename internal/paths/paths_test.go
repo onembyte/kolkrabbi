@@ -150,10 +150,6 @@ func TestLocalModelsLiveInManagedData(t *testing.T) {
 	if strings.HasPrefix(got, d.Config) || strings.HasPrefix(got, d.Cache) {
 		t.Fatalf("LocalModelsDir() = %q must not use config or cache storage", got)
 	}
-	runtimeDir := d.LocalRuntimeDir()
-	if !strings.HasPrefix(runtimeDir, d.Data+string(filepath.Separator)) {
-		t.Fatalf("LocalRuntimeDir() = %q, want a path below Data %q", runtimeDir, d.Data)
-	}
 }
 
 func TestEnsureDataWritesAGitignore(t *testing.T) {

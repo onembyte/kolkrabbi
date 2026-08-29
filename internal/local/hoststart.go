@@ -14,6 +14,16 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/shell"
 )
 
+// Process is what a started server looks like from here: something that can
+// be stopped. shell.ManagedProcess is the real one; tests hand in a fake.
+type Process interface {
+	Close() error
+}
+
+// StartFunc starts one server process. Injected so the starter can be tested
+// without a binary.
+type StartFunc func(ctx context.Context, executable string, args, env []string) (Process, error)
+
 // hostReadyBudget is how long a server kolk started may take to answer before
 // it is stopped and the turn fails. Measured on the owner's machine: 300–440 ms
 // to ready. Fifteen seconds covers a slow disk; a server that needs more is

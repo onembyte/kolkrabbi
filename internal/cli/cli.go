@@ -101,9 +101,12 @@ type app struct {
 	// signInBudget is how long a login waits for the browser half to finish.
 	// warmHost loads a host model ahead of its first turn; injected so a test
 	// can see the request without a goroutine.
-	warmHost       func(context.Context, modelWarmer, string)
-	signIn         func(context.Context, string) local.SignInState
-	signInBudget   time.Duration
+	warmHost     func(context.Context, modelWarmer, string)
+	signIn       func(context.Context, string) local.SignInState
+	signInBudget time.Duration
+	// startHost brings up an idle Ollama for one command; injected so a test
+	// never starts a process.
+	startHost      func(context.Context, local.Host) (string, func(), error)
 	enterRaw       func(*os.File) (func() error, error)
 	terminalOwned  func() bool
 	probeHardware  func(context.Context, string) local.Hardware

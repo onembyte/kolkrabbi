@@ -600,8 +600,10 @@ The inventory and acceptance gates live in [`docs/plan/24-subscription-provider-
 - [ ] For every provider: terms review, capability matrix, billing-mode labeling,
   offline fixtures, and credential-redaction tests.
 
-### [~] 25. Managed local models
-**Scope:** first-party local inference that never touches a host-owned Ollama install.
+### [~] 25. Local models through a host Ollama
+**Scope:** the Ollama the user already has — found on the loopback default and adopted read-only,
+or started for the session on a port kolk chooses; its models in the picker; Ollama Cloud behind
+its own sign-in. Kolk never installs one.
 The contract lives in [`docs/plan/25-managed-local-models.md`](docs/plan/25-managed-local-models.md).
 
 - [x] Kolk-owned versioned sidecar, private endpoint, and a model store inside Kolk's data directory.

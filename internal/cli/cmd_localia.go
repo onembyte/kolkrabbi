@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -281,17 +280,45 @@ func (a *app) pullLocalModel(ctx context.Context, name string, approved bool) er
 		}
 	}
 
-	runtime := filepath.Join(dirs.LocalModelsDir(), "runtime", local.SidecarName)
-	if _, err := os.Stat(runtime); err != nil {
-		// Kolkrabbi runs its own sidecar and never touches a host installation,
-		// so there is nothing to pull through until that runtime is installed.
-		if _, pinned := local.PinnedRuntime(); !pinned {
-			return fmt.Errorf("this build pins no verified local runtime, so %s cannot be pulled; the install path is ready and waiting for a reviewed release to be recorded",
-				entry.Name)
+	// The pull is the host's own (E10): the bytes land in its store, and
+	// `ollama list` shows them afterwards exactly as if the user had typed
+	// `ollama pull` — which is what this is, with the fit plan and the
+	// approval above in front of it.
+	host := a.discoverHost(ctx)
+	addr := host.Addr
+	switch host.State {
+	case local.HostAbsent:
+		return fmt.Errorf("ollama is not installed, so nothing can pull %s; install it with: %s", entry.Name, host.InstallHint())
+	case local.HostInstalled:
+		// Installed and idle: a pull is exactly the first use that earns a
+		// started server. Stopped again when the pull is done.
+		started, stop, err := a.startHostFor(ctx, host)
+		if err != nil {
+			return err
 		}
-		return fmt.Errorf("the managed local runtime is not installed at %s; run `kolk localia runtime install` first", runtime)
+		defer stop()
+		addr = started
 	}
-	return fmt.Errorf("the managed local runtime at %s cannot pull models yet", runtime)
+	fmt.Fprintf(a.stdout, "pulling %s through ollama at %s\n", entry.Name, addr)
+	if err := local.PullHostModel(ctx, addr, entry.Name, a.stdout); err != nil {
+		return err
+	}
+	fmt.Fprintf(a.stdout, "%s is pulled; `/model` lists it as ollama/%s\n", entry.Name, entry.Name)
+	return nil
+}
+
+// startHostFor brings up the user's idle Ollama for one command, through the
+// same starter a session uses, and hands back the way to stop it.
+func (a *app) startHostFor(ctx context.Context, host local.Host) (string, func(), error) {
+	if a.startHost != nil {
+		return a.startHost(ctx, host)
+	}
+	starter := &local.HostStarter{Binary: host.Binary, Environ: os.Environ(), Out: a.stdout}
+	addr, err := starter.Ensure(ctx)
+	if err != nil {
+		return "", func() {}, err
+	}
+	return addr, func() { _ = starter.Close() }, nil
 }
 
 // confirmed asks one yes-or-no question. Anything that is not an explicit yes

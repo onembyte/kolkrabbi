@@ -357,8 +357,8 @@
           <h3>Local models, planned before pulled</h3>
           <p><code>kolk localia</code> reports what this machine can actually run — accelerators, RAM,
             free disk — and shows every number behind a fit decision, refusing what does not fit
-            instead of degrading into swap. A pull asks first. Installing the managed runtime waits on
-            a reviewed upstream build with a pinned checksum.</p>
+            instead of degrading into swap. A pull asks first, then goes through the Ollama you already
+            have; kolk never installs one.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>COMMANDS</span></div>
