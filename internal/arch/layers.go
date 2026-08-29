@@ -121,6 +121,7 @@ var packageLayer = map[string]Layer{
 
 	// Test kit — fakes, fixtures and the rules themselves.
 	"internal/enginetest": LTestKit,
+	"internal/mockagent":  LTestKit,
 	"internal/arch":       LTestKit,
 }
 

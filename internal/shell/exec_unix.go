@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
+	"time"
 )
 
 // interpreterName is what Run will actually invoke.
@@ -42,9 +43,78 @@ func command(ctx context.Context, c Cmd) (*exec.Cmd, error) {
 // CLI runs its own tool loop, so `bash`, `npm test` and any language server it
 // starts are kolk's grandchildren, and this child outlives every turn of a
 // session rather than one command.
-func groupChild(cmd *exec.Cmd) {
+func groupChild(cmd *exec.Cmd, exited <-chan struct{}) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error { return killGroup(cmd) }
+	// Cancel returns nil rather than killing: the ladder owns termination from
+	// here, and os/exec then waits for the child to leave on its own. Returning
+	// an error here would make the ladder's careful teardown moot by reporting
+	// the cancellation as the process's failure.
+	// The schedule is read here, on the goroutine that starts the child, and
+	// captured. Reading the package variables from inside the ladder goroutine
+	// instead is a data race against a test that adjusts them — found by the
+	// race detector rather than reasoned about, and worth keeping fixed this
+	// way: the graces belong to the child as configured at spawn, not to
+	// whatever the package happens to hold when cancellation lands.
+	schedule := []rung{{syscall.SIGINT, sigintGrace}, {syscall.SIGTERM, sigtermGrace}}
+	cmd.Cancel = func() error {
+		go cancelLadder(cmd, exited, schedule)
+		return nil
+	}
+}
+
+// rung is one step of the cancel ladder: a signal, and how long the child is
+// given to act on it before the next step.
+type rung struct {
+	signal syscall.Signal
+	grace  time.Duration
+}
+
+// Ladder graces, from §2.5. Variables rather than constants so a test can walk
+// all three rungs without spending seven seconds proving arithmetic.
+var (
+	sigintGrace  = 5 * time.Second
+	sigtermGrace = 2 * time.Second
+)
+
+// cancelLadder walks SIGINT → SIGTERM → SIGKILL against the process group,
+// stopping as soon as the child leaves.
+//
+// Starting at SIGINT is not politeness. The vendor documents that SIGINT ends
+// the turn gracefully and **still produces a result frame**, which is the only
+// authority for continuity: it carries the turn's accounting, so a cancelled
+// turn is not a hole in the dashboard. Worse, §2.5's starred rule — a
+// SIGTERM/SIGKILL exit *invalidates the vendor session*, because the vendor
+// resumes an unfinished turn on --resume and would silently execute the tool
+// calls kolk already told the user were cancelled, editing files after a
+// "cancelled" turn. Reaching for SIGKILL first is therefore a correctness
+// failure, not a rudeness.
+func cancelLadder(cmd *exec.Cmd, exited <-chan struct{}, schedule []rung) {
+	for _, rung := range schedule {
+		if err := signalGroup(cmd, rung.signal); err != nil {
+			return // already gone
+		}
+		timer := time.NewTimer(rung.grace)
+		select {
+		case <-exited:
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+	}
+	_ = signalGroup(cmd, syscall.SIGKILL)
+}
+
+// signalGroup sends one signal to the child's entire process group.
+func signalGroup(cmd *exec.Cmd, sig syscall.Signal) error {
+	if cmd.Process == nil {
+		return syscall.ESRCH
+	}
+	if err := syscall.Kill(-cmd.Process.Pid, sig); err != nil {
+		// The group may already be gone, or Setpgid may not have taken; fall
+		// back to the process itself rather than leaving it running.
+		return cmd.Process.Signal(sig)
+	}
+	return nil
 }
 
 // killChild terminates a child and everything it started.

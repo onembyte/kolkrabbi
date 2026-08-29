@@ -4539,6 +4539,60 @@ nothing — but a rate-limit frame this package cannot read is a plan limit the 
 about, and an extra tolerated spelling costs four lines. It has its own test so that it stays a
 decision someone can find and delete, rather than a shape that merely still happens to decode.
 
+## S10.1d3 the cancel ladder, and the fake vendors that make it provable (2026-08-29)
+
+**Gate:** `make check` exit 0 — **2,536 tests, 0 lint issues**, `-race` green on `internal/shell`.
+
+Cancellation went straight to SIGKILL; §2.5 says start at SIGINT. The reason is not politeness. The
+vendor documents that SIGINT ends the turn gracefully and **still produces a `result` frame**, which
+carries the turn's accounting. And the starred rule is heavier: a SIGTERM/SIGKILL exit *invalidates
+the vendor session*, because the vendor resumes an **unfinished** turn on `--resume`. Killing first
+risks the vendor later executing tool calls kolk already reported as cancelled, editing files after
+a "cancelled" turn. This was a correctness bug dressed as a manners bug.
+
+**`internal/mockagent` finally earned its place.** Two leaves ago it was deliberately not built,
+because `sh -c` and `cat` were reaching the defects without it. This leaf is where that stopped
+being true: no stock POSIX tool ignores SIGINT on request, so escalation cannot be observed without
+a child written to ignore it. Two fakes — one exits on SIGINT, one traps it and leaves on SIGTERM —
+each appending received signals to a log. **The log is the evidence**, because an exit status cannot
+tell the rungs apart once a child chooses its own exit code. Only the two kinds this leaf needed
+exist; the write-end holder arrives with the drain that needs it.
+
+**The race detector found a bug in this leaf's own design.** The graces are variables so a test can
+walk three rungs in 0.17 s instead of seven seconds, and the ladder goroutine read them while a test
+adjusted them:
+
+```
+WARNING: DATA RACE
+  exec_unix.go:82  (ladder goroutine reading sigintGrace)
+  ladder_test.go:22 (test writing it)
+```
+
+Fixed by capture rather than by locking: the schedule is read on the goroutine that starts the
+child. The graces belong to the child **as configured at spawn**, not to whatever the package holds
+when cancellation lands — which is also the more truthful model.
+
+**Mutation:** starting the schedule at SIGTERM fails both tests, reporting `[TERM]` where
+`[INT, TERM]` belongs. That is the §2.5 violation verbatim.
+
+**A test that taught POSIX rather than kolk.** `TestLinesProcessCancelKillsTheWholeProcessGroup`
+started failing once the ladder existed: its grandchild is `sleep 30 &`, and POSIX makes a
+background job in a non-interactive shell **ignore SIGINT**. It really does survive rung 1 and die
+on rung 2. The test was right and the ladder was right; the expectation had been written when
+cancellation meant an immediate SIGKILL.
+
+**The arch gate rejected the first draft** for comparing `runtime.GOOS`, which
+`docs/plan/02-architecture.md` §8 forbids in favour of build-tagged files. Rightly: the split is now
+`mockagent_unix.go` and `mockagent_windows.go`, and the Windows one **refuses** rather than faking a
+child, because a green signal-ladder test on a platform whose `groupChild` is a documented no-op
+would mean nothing.
+
+**Recorded as still open, not ticked — S10.1d4, and it is the dangerous one.** The ladder now gives
+the vendor its chance to produce a `result`; nothing yet acts on the case where it did not. Honouring
+§2.5's starred rule needs `agentcli` to mint a fresh `--session-id` after a hard exit and replay
+kolk's own transcript as a labelled `<prior-conversation>` prelude with `WarnHistoryLost`. Until
+that lands, a `--resume` after SIGTERM/SIGKILL can still let the vendor continue the unfinished turn.
+
 ## S10.1d2 (part) the long-lived child gets the rule the one-shot already had (2026-08-29)
 
 **Gate:** `make check` exit 0 — **2,534 tests, 0 lint issues**, `-race` green on `internal/shell`,

@@ -82,7 +82,10 @@ func StartLinesProcess(ctx context.Context, executable string, args []string) (*
 		return nil, err
 	}
 	cmd := exec.CommandContext(ctx, path, args...)
-	groupChild(cmd)
+	// Created before Start so the cancel ladder can observe the child leaving
+	// and stop climbing; read() closes it once the exit status is final.
+	exited := make(chan struct{})
+	groupChild(cmd, exited)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("opening %s stdin: %w", executable, err)
@@ -99,7 +102,7 @@ func StartLinesProcess(ctx context.Context, executable string, args []string) (*
 		return nil, fmt.Errorf("starting %s: %w", executable, err)
 	}
 	process := &LinesProcess{
-		cmd: cmd, stdin: stdin, lines: make(chan []byte), exited: make(chan struct{}),
+		cmd: cmd, stdin: stdin, lines: make(chan []byte), exited: exited,
 	}
 	go process.read(stdout, &stderr)
 	return process, nil

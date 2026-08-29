@@ -299,15 +299,62 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   the contract the committed captures corrupted. See below.
 - [x] **S10.1d1 the stderr ring** — S2's bounded stderr, and the two defects an unbounded buffer
   was carrying. See below.
-- [~] **S10.1d2 the rest of S2's L0** — **the process group half is done and verified; the rest is
-  not.** `StartLinesProcess` now groups its child and cancels against the group, and `Close` kills
-  the group on the grace timeout. Still open, all of it §2.5/P6: the **bounded 3 s drain** before
-  the ladder, the **ladder itself** (SIGINT first, then escalate — today cancellation goes straight
-  to SIGKILL), **closing the stdout read end** once the ladder completes, and async stdin with
-  `EPIPE` tolerance. P6 names the hang these prevent and this leaf does not: a background `Bash`
-  grandchild inherits the stdout **write end**, so an unbounded drain never sees EOF and hangs the
-  CLI after a complete answer. Testing that honestly needs a child that holds the write end and one
-  that ignores `SIGINT` — which is where `internal/mockagent` finally earns its place.
+- [~] **S10.1d2 the rest of S2's L0** — **the process group and the cancel ladder are done and
+  verified; the drain is not.** `StartLinesProcess` groups its child, cancellation walks
+  SIGINT → SIGTERM → SIGKILL against the group, and `Close` kills the group on the grace timeout.
+  Still open, from §2.5/P6: the **bounded 3 s drain** before the ladder, **closing the stdout read
+  end** once the ladder completes, and async stdin with `EPIPE` tolerance. P6 names the hang those
+  prevent and this leaf does not: a background `Bash` grandchild inherits the stdout **write end**,
+  so an unbounded drain never sees EOF and hangs the CLI after a complete answer.
+- [ ] **S10.1d4 the ladder's other half — session continuity after a hard exit.** §2.5's starred
+  rule is only half-honoured: the ladder now gives the vendor its chance to produce a `result`, but
+  nothing yet acts on the case where it did **not**. A SIGTERM/SIGKILL exit invalidates the vendor
+  session, so the next turn must mint a fresh `--session-id` and replay kolk's own transcript as a
+  labelled `<prior-conversation>` prelude with `WarnHistoryLost`. Until then a `--resume` after a
+  hard exit lets the vendor silently continue the unfinished turn — executing tool calls kolk
+  already told the user were cancelled, and editing files after a "cancelled" turn. This is the
+  most dangerous thing still open in the S-group and it belongs to `agentcli`, not `shell`.
+
+### S10.1d3 built — the ladder, and the fake vendors that make it provable
+
+Cancellation went straight to SIGKILL. §2.5 says start at SIGINT, and the reason is not politeness:
+the vendor documents that SIGINT ends the turn gracefully and **still produces a `result` frame**,
+which carries the turn's accounting — so Ctrl-C stops being a hole in the dashboard. The starred
+rule is heavier still: a SIGTERM/SIGKILL exit **invalidates the vendor session**, because the vendor
+resumes an *unfinished* turn on `--resume`. Killing first therefore risks the vendor later executing
+tool calls kolk already reported as cancelled. Reaching for SIGKILL was a correctness failure
+wearing the costume of a rude one.
+
+**`internal/mockagent` earns its place here, exactly as predicted two leaves ago.** No stock POSIX
+tool will ignore SIGINT on request, so the escalation could not be observed with `sh -c`. Two fake
+vendors — one that exits on SIGINT, one that traps it and leaves only on SIGTERM — each appending
+the signals it received to a log. **That log is the evidence.** An exit status cannot distinguish
+the rungs once a child picks its own exit code; the child's own record can. Only the two kinds this
+leaf needed were built; the write-end holder arrives with the drain that needs it.
+
+**The race detector found a bug in this leaf's own design.** The graces are variables so a test can
+walk three rungs without spending seven seconds, and the ladder goroutine was reading them while a
+test adjusted them. The fix is better than a mutex: the schedule is read on the goroutine that
+starts the child and captured, because the graces belong to the child **as configured at spawn**,
+not to whatever the package happens to hold when cancellation lands.
+
+**One test taught something about POSIX rather than about kolk.** `TestLinesProcessCancelKills-
+TheWholeProcessGroup` began failing once the ladder existed, because its grandchild is `sleep 30 &`
+and POSIX makes a background job in a non-interactive shell **ignore SIGINT**. It genuinely
+survives rung 1 and dies on rung 2 — the test was right, the ladder was right, and the old
+expectation had been written for an immediate SIGKILL.
+
+Acceptance checklist:
+
+- [x] red first, failing on the missing ladder, then on the missing rung.
+- [x] proven non-vacuous by mutation: starting the schedule at SIGTERM fails both tests, and the
+  reported signals are `[TERM]` where `[INT, TERM]` belongs — the exact §2.5 violation.
+- [x] `-race` green, after the detector caught this leaf's own data race and it was fixed by
+  capture rather than by locking.
+- [x] Windows refused rather than faked — `writeFake` there returns an error naming A13, because a
+  green signal-ladder test on a platform with no ladder would mean nothing.
+- [x] the architecture gate's `runtime.GOOS` rule obeyed: build-tagged files, not a runtime branch.
+- [x] full `make check` green: **2,536 tests, 0 lint issues**.
 
 ### S10.1d2 (part) built — the long-lived child gets the rule the one-shot already had
 

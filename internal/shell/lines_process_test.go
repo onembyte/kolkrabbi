@@ -55,6 +55,11 @@ exit 3`
 // same defect TestTimeoutKillsTheWholeProcessGroup exists to prevent on the
 // Run path, on the path that is actually long-lived.
 func TestLinesProcessCancelKillsTheWholeProcessGroup(t *testing.T) {
+	// The grandchild here is `sleep 30 &`, and POSIX makes a background job in
+	// a non-interactive shell ignore SIGINT — so this one genuinely survives
+	// rung 1 and dies on rung 2. Shortening the graces keeps that a test about
+	// the group rather than about the five-second wait.
+	shortLadder(t)
 	dir := t.TempDir()
 	pidFile := filepath.Join(dir, "grandchild.pid")
 	// Start a grandchild in the background, record its pid, then block. It
