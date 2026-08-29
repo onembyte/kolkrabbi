@@ -36,6 +36,20 @@ func command(ctx context.Context, c Cmd) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
+// groupChild applies the same rule to a long-lived child that command() applies
+// to a one-shot: its own process group, and a cancel that reaches the group
+// rather than the leader. The reason is stronger here, not weaker — a provider
+// CLI runs its own tool loop, so `bash`, `npm test` and any language server it
+// starts are kolk's grandchildren, and this child outlives every turn of a
+// session rather than one command.
+func groupChild(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return killGroup(cmd) }
+}
+
+// killChild terminates a child and everything it started.
+func killChild(cmd *exec.Cmd) error { return killGroup(cmd) }
+
 // killGroup signals the child's entire process group. A negative pid means
 // "the group whose id is this", which is why Setpgid above is load-bearing.
 func killGroup(cmd *exec.Cmd) error {

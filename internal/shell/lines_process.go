@@ -82,6 +82,7 @@ func StartLinesProcess(ctx context.Context, executable string, args []string) (*
 		return nil, err
 	}
 	cmd := exec.CommandContext(ctx, path, args...)
+	groupChild(cmd)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("opening %s stdin: %w", executable, err)
@@ -167,8 +168,10 @@ func (p *LinesProcess) Close() error {
 	select {
 	case <-p.exited:
 	case <-timer.C:
+		// The group, not the leader: a provider that will not exit on stdin
+		// close is exactly the one likely to be sitting on a running tool.
 		if p.cmd.Process != nil {
-			_ = p.cmd.Process.Kill()
+			_ = killChild(p.cmd)
 		}
 		<-p.exited
 	}

@@ -61,3 +61,20 @@ func command(ctx context.Context, c Cmd) (*exec.Cmd, error) {
 	// silently pretended away.
 	return cmd, nil
 }
+
+// groupChild is deliberately a no-op here, for exactly the reason command()
+// gives above: grouping on Windows needs a job object, and step 13 owns that.
+// A persistent provider child therefore leaks its own grandchildren on a
+// cancelled session. That is worse than the Unix behaviour and is written down
+// rather than papered over, so the port has a defect to fix rather than a
+// silence to discover.
+func groupChild(*exec.Cmd) {}
+
+// killChild terminates the child alone. Everything it started survives, per the
+// note above.
+func killChild(cmd *exec.Cmd) error {
+	if cmd.Process == nil {
+		return nil
+	}
+	return cmd.Process.Kill()
+}

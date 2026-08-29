@@ -4539,6 +4539,37 @@ nothing — but a rate-limit frame this package cannot read is a plan limit the 
 about, and an extra tolerated spelling costs four lines. It has its own test so that it stays a
 decision someone can find and delete, rather than a shape that merely still happens to decode.
 
+## S10.1d2 (part) the long-lived child gets the rule the one-shot already had (2026-08-29)
+
+**Gate:** `make check` exit 0 — **2,534 tests, 0 lint issues**, `-race` green on `internal/shell`,
+windows/amd64 cross-build green.
+
+`command()` has put every one-shot in its own process group since the beginning, kept honest by
+`TestTimeoutKillsTheWholeProcessGroup`. `StartLinesProcess` — the child that lives for the whole
+session rather than one command — had neither `Setpgid` nor a group-aware cancel. The rule matters
+*more* here: running the vendor's own tool loop is the premise of this backend, so whatever it
+starts is kolk's grandchild, and `exec.CommandContext`'s default cancel signals only the leader.
+
+**The test runtime is the measurement.** Red: 30.01 s, because the orphaned `sleep 30` held the
+pipe and the deferred `Close` waited on it. Green: 0.04 s. A cancellation that takes 750× the
+cancel is not a cancellation — the same observation the Run-path test already records.
+
+**Mutation:** dropping `Setpgid` while keeping the `Cancel` hook restores the 30 s failure, because
+`killGroup`'s negative pid then names no group and falls back to killing the leader alone. That is
+the plausible half-fix, and it is caught.
+
+**Windows is worse and says so.** `groupChild` is a no-op there for the reason `command()` already
+gives — grouping needs a job object, which A13 owns — so a persistent provider child leaks its
+grandchildren. Recorded in `exec_windows.go` beside the existing note.
+
+**Deliberately not closed, and marked `[~]` rather than ticked.** §2.5/P6 wants a bounded 3 s drain,
+then a **ladder** — SIGINT first, escalating — then closing the stdout **read end**. Today
+cancellation goes straight to SIGKILL. P6 names the hang the rest prevents and this leaf does not:
+a background `Bash` grandchild inherits the stdout write end, so an unbounded drain never sees EOF
+and hangs the CLI after a complete answer. Testing that honestly needs a child holding the write end
+and a child that ignores SIGINT, which is the concrete job `internal/mockagent` exists for — and the
+reason it was right not to build it speculatively two leaves ago.
+
 ## S10.1d1 the stderr ring — a session-long buffer nobody was emptying (2026-08-29)
 
 **Gate:** `make check` exit 0 — **2,533 tests, 0 lint issues**, cold start 3.2 ms p50, `-race`

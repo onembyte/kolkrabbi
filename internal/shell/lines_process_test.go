@@ -5,7 +5,9 @@ package shell
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -43,6 +45,45 @@ exit 3`
 	if strings.Contains(message, "noise line 0\n") {
 		t.Fatal("exit error still carries the earliest stderr; the ring is not discarding the head")
 	}
+}
+
+// Cancelling a provider session must take the vendor's own children with it.
+// Running the vendor's tool loop is the entire premise of this backend, so a
+// `bash`, an `npm test`, a language server it started are all grandchildren of
+// kolk. exec.CommandContext's default cancel signals only the direct child, so
+// without a process group those survive the session that started them — the
+// same defect TestTimeoutKillsTheWholeProcessGroup exists to prevent on the
+// Run path, on the path that is actually long-lived.
+func TestLinesProcessCancelKillsTheWholeProcessGroup(t *testing.T) {
+	dir := t.TempDir()
+	pidFile := filepath.Join(dir, "grandchild.pid")
+	// Start a grandchild in the background, record its pid, then block. It
+	// outlives the session unless the whole group is signalled.
+	script := fmt.Sprintf("sleep 30 & echo $! > %s; wait", pidFile)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	process, err := StartLinesProcess(ctx, "sh", []string{"-c", script})
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	defer func() { _ = process.Close() }()
+
+	pid := readPID(t, pidFile)
+	if pid <= 0 {
+		cancel()
+		t.Skip("the grandchild never recorded its pid; nothing to assert")
+	}
+	cancel()
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if !alive(pid) {
+			return // the group died with its leader
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("grandchild %d survived the cancelled session; the process group is not being signalled", pid)
 }
 
 func TestLinesProcessReusesOneChildForMultipleLines(t *testing.T) {

@@ -299,9 +299,45 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   the contract the committed captures corrupted. See below.
 - [x] **S10.1d1 the stderr ring** — S2's bounded stderr, and the two defects an unbounded buffer
   was carrying. See below.
-- [ ] **S10.1d2 the rest of S2's L0** — the process group for `LinesProcess` (`StartLinesProcess`
-  sets no `Setpgid`, unlike `command()` in `exec_unix.go`, so a vendor's own grandchildren outlive
-  a cancelled session), async stdin with `EPIPE` tolerance, and close-the-read-end-after-the-ladder.
+- [~] **S10.1d2 the rest of S2's L0** — **the process group half is done and verified; the rest is
+  not.** `StartLinesProcess` now groups its child and cancels against the group, and `Close` kills
+  the group on the grace timeout. Still open, all of it §2.5/P6: the **bounded 3 s drain** before
+  the ladder, the **ladder itself** (SIGINT first, then escalate — today cancellation goes straight
+  to SIGKILL), **closing the stdout read end** once the ladder completes, and async stdin with
+  `EPIPE` tolerance. P6 names the hang these prevent and this leaf does not: a background `Bash`
+  grandchild inherits the stdout **write end**, so an unbounded drain never sees EOF and hangs the
+  CLI after a complete answer. Testing that honestly needs a child that holds the write end and one
+  that ignores `SIGINT` — which is where `internal/mockagent` finally earns its place.
+
+### S10.1d2 (part) built — the long-lived child gets the rule the one-shot already had
+
+`command()` in `exec_unix.go` has put every one-shot in its own process group since the beginning,
+with `TestTimeoutKillsTheWholeProcessGroup` to keep `Setpgid` load-bearing. `StartLinesProcess` —
+the child that lives for the **whole session** rather than one command — had neither. The reason
+the rule exists is stronger here, not weaker: running the vendor's own tool loop is the entire
+premise of this backend, so a `bash`, an `npm test`, a language server it starts are all kolk's
+grandchildren, and `exec.CommandContext`'s default cancel signals only the direct child.
+
+**The test's own runtime is the evidence.** Before the fix it failed in 30.01 s — the orphaned
+`sleep 30` held the pipe, so the deferred `Close` waited for it. After, the same test passes in
+0.04 s. A cancellation that takes 750× the cancel is not a cancellation, which is the observation
+`TestTimeoutKillsTheWholeProcessGroup` already records for the other path.
+
+**Windows is worse here and says so.** `groupChild` is a no-op there for the same reason `command()`
+does not tear down a group: it needs a job object, which A13 owns. A persistent provider child
+therefore leaks its grandchildren on Windows. Written into `exec_windows.go` beside the existing
+note, so the port has a defect to fix rather than a silence to discover.
+
+Acceptance checklist:
+
+- [x] red first, failing for its intended reason — a named grandchild pid still alive after the
+  session was cancelled.
+- [x] proven non-vacuous by mutation: dropping `Setpgid` while keeping the `Cancel` hook restores
+  the 30 s failure, since `killGroup`'s negative pid then resolves to no group.
+- [x] `-race` green, and the windows/amd64 cross-build green with the honest no-op.
+- [x] full `make check` green: **2,534 tests, 0 lint issues**.
+- [ ] **not done, and not ticked:** the bounded drain, the SIGINT-first ladder, the read-end close,
+  and `EPIPE`-tolerant async stdin.
 
 ### S10.1d1 built — a session-long buffer nobody was emptying
 
