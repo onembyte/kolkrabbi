@@ -192,8 +192,8 @@ contains capabilities.html 'One revocable token per device' "catalog does not co
 # and will not go hunting; the second because a capability nobody is told about
 # is one the product does not have, which is the mistake v1.2.15 made by
 # shipping the picker with nothing inviting the model to use it.
-contains capabilities.html 'kolk uninstall' "catalog does not name the uninstall command"
-contains capabilities.html 'keep-data' "catalog does not say how to keep a key for a reinstall"
+contains index.html 'kolk uninstall' "the install steps do not say how to leave"
+contains index.html 'kolk uninstall --keep-data' "the uninstall step does not say how to keep a key for a reinstall"
 contains capabilities.html 'Leaving is one command too' "catalog does not cover uninstall"
 contains capabilities.html 'A question you answer by picking' "catalog does not cover the question picker"
 # Six, not five: ask_user joined the tool set and the schema of every tool is
