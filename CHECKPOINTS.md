@@ -2631,46 +2631,52 @@ Acceptance checklist:
 - [x] silent with no bus, so a run without one behaves exactly as before.
 - [x] full `make check` green: 2,362 tests, 0 lint issues.
 
-### L13.6 queued — what the runtime pin actually needs
+### L13.6 queued — option E, host Ollama, one leaf per tick
 
-Planned 2026-08-28 after L13.5b4a was refused. The analysis is in
-[`docs/plan/25-managed-local-models.md`](docs/plan/25-managed-local-models.md) under "L13.6"; the
-numbers there come from the release API, not from memory.
+Rewritten 2026-08-29. The A–D queue is deleted rather than ticked: the owner chose none of them.
+The contract is in [`docs/plan/25-managed-local-models.md`](docs/plan/25-managed-local-models.md);
+each leaf builds to it rather than re-deciding it. Order is dependency order, and the picker leaf
+is deliberately late because item 34 is working in the same files.
 
-**L13.6a comes first and is the owner's, not mine.** Managed installation now means a >1 GB download
-on Linux plus zstd, which the standard library does not have and the two-module gate will not buy.
-That is a different feature from the one plan 25 described. Everything below assumes option **A**
-(shell out for zstd on Linux, stdlib elsewhere) and is wasted under option **C** (keep `localia`'s
-reporting and planning, drop managed installation) — which is why the decision is a leaf rather than
-an assumption, and why nothing after it starts until it is answered.
-
-- [ ] **L13.6a the decision, in writing** — A, B, C or D from the plan, recorded with its reason.
-      Blocks every leaf below. If C, the rest of this section is deleted rather than left to rot,
-      `InstallRuntime` goes with it, and its dead-export allowlist entry goes with that.
-- [ ] **L13.6b per-platform pins** — `pinnedRuntime` becomes a table keyed by `GOOS`/`GOARCH`, and
-      `PinnedRuntime()` resolves the running platform. A platform with no pin is an honest refusal
-      naming the platform, never a silent fall through to another one's bytes.
-- [ ] **L13.6c a size bound taken from the real assets** — replacing "tens of megabytes", which was
-      never true. The bound belongs per pin, since 159 MB (darwin) and 1.54 GB (linux arm64) are the
-      same feature.
-- [ ] **L13.6d stream the download to disk** — the current path holds bytes in memory, which is fine
-      at 10 MB and fatal at 1.4 GB. Verify-before-execute survives the change: the digest is
-      computed as the bytes land, and nothing is extracted until it matches.
-- [ ] **L13.6e extraction, hardened the way `selfupdate` already proves** — allowlisted member paths,
-      regular files only, no absolute or `..` paths, no symlinks, per-member and total expansion
-      caps, no extended metadata. That code is the model, not the library: it is gzip-only and reads
-      whole archives into memory.
-- [ ] **L13.6f zstd on Linux, detected before the download** — a missing `zstd` is a refusal that
-      names the package to install, raised *before* 1.4 GB is transferred rather than after. Never a
-      silent skip of verification or extraction.
-- [ ] **L13.6g fix the idempotence check** — `runtimeMatches` hashes the installed binary against the
-      pinned digest, which stops meaning anything once the pin is an archive's. Without this a
-      correct install re-downloads 1.4 GB every run.
-- [ ] **L13.6h peak disk checked before the download** — archive plus expansion is roughly 3 GB, and
-      finding that out at 90% is how a feature gets turned off.
-- [ ] **L13.6i then, and only then, L13.5b4a** — propose a real pin per platform, with digests
-      computed from the bytes, for the owner to approve. `pinnedRuntime` stays empty until that
-      approval, exactly as its own comment asks.
+- [x] **E1 the decision in writing** — plan 25's contract rewritten as E, A–D deleted, the review's
+      findings recorded so nobody re-derives them.
+- [ ] **E2 the model→backend router** — the engine owns a prefix (`ollama/`), strips it at the wire,
+      and resolves a backend per model; `a.Backend` stays the default. The gateway catalogue never
+      holds a host id. A persisted host id with no server is a stop naming the server, never a route
+      to the gateway. This is the wall A33.6 hit; it comes first because nothing else can.
+- [ ] **E3 detect, adopt, or start** — probe the literal `127.0.0.1:11434` (`HEAD /`, then
+      `/api/version`), never `OLLAMA_HOST`. Running → adopted, never stopped. Absent and `ollama` on
+      PATH → started on a kolk-chosen loopback port with a curated env, readiness bounded, death
+      signal on Linux, job object on Windows, one transcript line, stopped only if kolk started it.
+      Absent and no binary → `kolk doctor` names the install line and does not run it. Measure the
+      probe on a machine with nothing listening before shipping it.
+- [ ] **E4 the catalogue decoder** — `/api/tags` then `/api/show` per model into `ModelInfo`:
+      tools from `capabilities`, context from `details.context_length`, local vs cloud from
+      `remote_host`. Version floor from `/api/version`. `"data": null` is an empty list, not an
+      error. Measure the per-startup cost with N models and cache it beside the gateway catalogue.
+- [ ] **E5 the HTTP backend** — `provider.Client` against `/v1` with no key, its own transport with
+      no first-byte timeout, `tool_choice` dropped, tool-call slots keyed by id when the index is
+      absent or repeats. `HTTPError` gains an origin so a signed-out cloud model does not read as
+      "OpenRouter rejected the API key"; `Advise` dispatches on it; a `401` body's `signin_url` is
+      printed.
+- [ ] **E6 the cloud connector** — a plan row for Ollama Cloud, login args `{"signin"}` with
+      `OLLAMA_HOST` pointed at the server kolk uses, verified by `POST /api/me` and never by an
+      answered turn. Cloud rows from the local `/api/show` proxy, not static entries that retire.
+- [ ] **E7 limits and cost class** — a third class, `local`, that neither `on_free_exhausted` nor
+      `on_subscription_limit` governs; Ollama Cloud's `429` classified as a limit that resets, with
+      the reset hint, never as an exhausted plan.
+- [ ] **E8 context and warmth** — `OLLAMA_CONTEXT_LENGTH` on a kolk-started server; the loaded
+      model's real window from `/api/ps` on an adopted one; unknown treated as small, because Ollama
+      truncates from the front. A keep-alive request on selection so the first turn is not a cold
+      load.
+- [ ] **E9 the picker rows** — host models as rows labelled local (with `CPU only` from the fit
+      planner when there is no accelerator) or cloud; chat-only when `tools` is absent, and
+      code/agent mode refused at selection with plan 06's sentence rather than a 400 mid-turn.
+      Never the default. Last, because item 34 owns these files today.
+- [ ] **E10 delete what E makes dead** — `InstallRuntime`, `pinnedRuntime` and their dead-export
+      allowances; `localia pull` re-pointed at the host's `/api/pull` with the explicit approval
+      plan 25 always required; `SidecarName`'s "never used" comment and every remaining sentence
+      that says kolk never touches a host Ollama.
 
 ### Owner-cleared queue — devices, failure paths, first run, a pinned runtime
 

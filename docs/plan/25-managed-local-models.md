@@ -1,24 +1,54 @@
-# 25. Managed local models
+# 25. Local models through a host Ollama
 
-Status: contract checkpoint · 2026-08-26
+Status: contract rewritten as option E · 2026-08-29 · supersedes the managed-sidecar contract of 2026-08-26
 
-Kolkrabbi may provide local models without using an Ollama installation or
-service owned by the host. The local backend is a Kolk-managed, versioned
-Ollama sidecar with a private endpoint and a model store inside Kolk's data
-directory.
+Kolkrabbi uses the Ollama the user already has. It finds a running server on
+the loopback default, or starts one of its own on a port it chooses when the
+binary is on PATH and nothing is listening. Its models appear in the picker
+with no configuration; Ollama Cloud models appear once the user has signed in,
+and the only thing the user is asked to do is that sign-in.
 
 ## Contract
 
-- Kolk downloads or receives explicit user approval before installing a
-  versioned sidecar binary. It verifies the binary before execution.
-- Kolk starts the sidecar itself, gives it a Kolk-owned model directory and
-  private listen address, and shuts it down with the Kolk session.
-- Kolk never discovers, starts, stops, or connects to a host Ollama service.
-- Model blobs, manifests, quantization metadata, and download state remain
-  below Kolk's managed local-model directory. No model is pulled implicitly.
-- `/localia` is the interactive entry point for hardware status, storage
-  usage, model catalog, pull approval, GPU configuration, and local-model
-  selection. Every pull is an explicit user action.
+- Kolk never installs Ollama. When the binary is absent, `kolk doctor` and the
+  picker name the one command that installs it; kolk does not run it, because
+  kolk's own hardline forbids `curl | sh` and `sudo`, and a floor that the
+  product itself steps over is not a floor.
+- Kolk probes the literal `127.0.0.1:11434` and nothing else — never
+  `OLLAMA_HOST`, which may point at another machine or at ollama.com. A server
+  found there is **adopted read-only**: used, never stopped. On this machine
+  that server is the user's own shell process; on a systemd install it is the
+  service whose key holds the sign-in. Both are somebody else's.
+- When nothing listens and `ollama` is on PATH, kolk starts `ollama serve` on a
+  loopback port **it chooses**, with a curated environment (`HOME`, `PATH`,
+  `OLLAMA_HOST`; never `OPENROUTER_API_KEY`), waits for readiness, says so once
+  in the transcript, and stops **only what it started** — with a death signal
+  on Linux and a job object on Windows, because a server that outlives kolk on
+  `SIGTERM` becomes a "host server" the next session must never touch.
+- The model store is the host's. Plan 25's private store is dropped: a
+  kolk-started server that cannot see the user's pulled models defeats the
+  point of listing them. No model is pulled implicitly; a pull is an explicit
+  approval against the host's `/api/pull`.
+- Host models are **rows in the picker and never the zero-config default.**
+  B12.13's free-first order cannot tell a 1.5B local model from a 480B free
+  gateway one, so local is an explicit choice. A `routing.prefer_local` may
+  come later, with the same never-surprises discipline as its siblings.
+- The backend is HTTP against the local server's OpenAI-compatible `/v1`, not
+  a CLI adapter: kolk runs its own tool loop and sends tool schemas every turn,
+  and the vendor CLI has neither. Cloud models go through the **same** local
+  server, which signs upstream requests with its own key; kolk never holds a
+  credential for ollama.com.
+- The cloud connector is verified by `POST /api/me` on the local server — `200`
+  with the plan, or `401` with a `signin_url` kolk prints — **not** by a first
+  answered turn. A local model answering proves nothing about a sign-in, and a
+  verifier that cannot tell the two apart would make Ollama Cloud the session
+  default for someone who never signed in.
+- Host models carry a backend prefix (`ollama/<name>`) that a router in the
+  engine owns and strips at the wire. The gateway's catalogue never holds a
+  host id and the router never sends a host id to the gateway. A persisted host
+  id whose server is gone is a stop that names the server, never a silent
+  route to OpenRouter.
+
 
 ## GPU and storage policy
 
@@ -76,15 +106,22 @@ the planner compares both storage size and runtime memory requirements.
 5. Verification records race/full-suite results and a manual GPU smoke test
    as separate evidence.
 
-## L13.6 — what the pin actually needs, measured 2026-08-28
+## L13.6 — option E, and why A–D are gone
 
-`pinnedRuntime` was left empty for review, and L13.5b4 was described as a task
-with no code in it: pick a release, verify it, record three values. That was
-wrong, and the release data says so. The install path cannot accept any shape
-Ollama publishes, so there is nothing to review until it can.
+The managed-sidecar contract asked kolk to download, verify and run its own
+Ollama. Measured against the release data on 2026-08-28, that meant a >1 GB
+zstd archive per platform, a separate asset per GPU vendor, and an extraction
+path this repository does not have. Four options were written up (shell out
+for zstd; take a dependency; keep only reporting; pin an old release). The owner
+chose none of them and asked the better question: the user already has Ollama,
+or can install it in one line — why is kolk shipping a second one?
 
-The numbers below are from `ollama/ollama` v0.33.1 and three older tags, read
-from the GitHub release API rather than assumed.
+That is option E. It was reviewed before being adopted (seven agents, checked
+against the live 0.33.1 server on this machine and against upstream source;
+four refutation passes found nothing false). What the review changed is in the
+contract above: adopt-don't-start on the default port, `/api/me` instead of a
+spent turn, local never the default, the install line named rather than run,
+and a router before a second backend.
 
 ### What is actually shipped
 
@@ -101,58 +138,37 @@ A bare `ollama-linux-amd64` executable existed up to **v0.3.0** and was gone by
 changed, not an imagined one — which matters, because "it never worked" and "it
 stopped working" call for different repairs.
 
-### The four things that block a pin
+### What the review confirmed, so nobody re-derives it
 
-1. **Extraction does not exist.** `InstallRuntime` writes downloaded bytes to
-   the destination, marks them executable and renames. Every asset is an archive.
-2. **The size bound contradicts its subject.** `maxRuntimeBytes` is 1 GiB and its
-   comment reads "a managed inference runtime is tens of megabytes". The linux
-   asset is 1.42 GB, and the bare binary was already 304 MB in v0.1.32. The
-   comment was never true, not merely outdated.
-3. **One pin cannot serve four platforms.** `PinnedRuntime()` returns a single
-   URL and digest; nothing near it reads `GOOS`/`GOARCH`.
-4. **The idempotence check breaks under extraction.** `runtimeMatches` hashes the
-   *installed binary* against the *pinned* digest. Once the pin is an archive's
-   digest those are different values, so a correct install would be re-downloaded
-   every time — 1.4 GB per run.
+- Cloud models run **through the local server** with no prior pull when the
+  name carries `:cloud` or `-cloud`; `/api/show` proxies cloud names and
+  returns `capabilities` and context length; the cloud catalogue is readable
+  unauthenticated at `ollama.com/api/tags`.
+- `/api/show` has carried `capabilities` (`completion`, `tools`, `vision`,
+  `thinking`, …) since v0.6.4; `/v1` has streamed tool calls since v0.8.0.
+  Plan 03's note that Ollama omits the tool-call `index` is stale upstream.
+- `/v1/models` on an empty server returns `"data": null`, not `[]`.
+- A second `ollama serve` on a bound port exits 1 with
+  `bind: address already in use`.
+- `ollama signin` needs a reachable server, opens a browser, prints the URL and
+  returns without polling. On a systemd install the sign-in belongs to the
+  service's key (`/usr/share/ollama/.ollama`), not the user's — which is why
+  adopting the running service comes before starting one.
+- Ollama Cloud's `429` is a session or weekly limit that **resets** (5 h / 7 d);
+  it must not be read as A33.7's exhausted plan, which never clears by waiting.
+- `/v1` cannot set `num_ctx` per request; the effective window is the server's
+  default, and Ollama truncates from the **front**, which drops kolk's system
+  prompt and tool schemas first. A kolk-started server sets
+  `OLLAMA_CONTEXT_LENGTH`; an adopted one is read from `/api/ps` after load.
+- Kolk's 60 s first-byte timeout kills CPU inference: a cold 7B with a 3k-token
+  system prompt takes minutes. The Ollama backend needs its own transport.
 
-### The decision this needs before any of it is built
+### The blocker underneath all of it
 
-Managed installation now means a **>1 GB download on Linux**, plus zstd, which
-the Go standard library does not have and which the two-module dependency gate
-will not buy. That is a different feature from the one plan 25 described, and it
-should be re-chosen rather than inherited.
-
-- **A — shell out for zstd on Linux, stdlib for macOS and Windows.** Keeps the
-  dependency gate. Adds a host-tool requirement that has to be detected up front
-  and explained, not discovered mid-install. Shelling out is already how the
-  provider CLIs work, so it is not a new kind of thing.
-- **B — take a zstd dependency.** Buys symmetry and costs the gate that has held
-  at two modules. Refused unless the owner moves the gate deliberately; it is not
-  a decision to make by `go get`.
-- **C — keep `localia`'s reporting and planning, drop managed installation.**
-  Hardware probing, the model catalogue and fit plans are built and useful on
-  their own. Only *installing the runtime* is blocked. Given 1.4 GB, this
-  deserves real weight rather than being the fallback.
-- **D — pin an old release that still shipped `.tgz`.** Rejected here: pinning an
-  eighteen-month-old runtime to avoid a compression format is choosing the wrong
-  thing to be stable about.
-
-**Recommendation: decide between A and C before building.** B is a gate change
-and D is a trap. The rest of L13.6 is written assuming A, and is wasted work
-under C — which is exactly why the decision is its own leaf and comes first.
-
-### If A is chosen
-
-Extraction must inherit the discipline `internal/selfupdate/artifact.go` already
-proves out — allowlisted member paths, regular files only, per-member and total
-expansion caps, no extended metadata, nothing executed before its bytes are
-checked. That code is the model, not the library: it is gzip-only and holds the
-whole archive in memory, which is right for a 10 MB kolk release and impossible
-for a 1.4 GB one. Streaming is not an optimisation here, it is the requirement.
-
-Two things the current path never had to think about, both of which arrive with
-the size: **peak disk** is the archive plus its expansion, roughly 3 GB, and it
-should be checked before the download rather than discovered at 90%; and a
-**resumable or at least restartable** download, because a 1.4 GB transfer that
-fails at the end and starts over is a feature people turn off.
+The engine routes by model id over one backend; only `planBackendFor` and
+`switchModel` know a second backend exists. Slot ranking, free rotation, the
+fast lane and the default chooser all draw from the one gateway catalogue. A
+host id in that slice is a 404 from OpenRouter; a gateway id sent to Ollama is
+the same the other way. This is the wall A33.6 hit when it refused
+"subscriptions for any slot", and E cannot start until it is gone. The router
+is the first leaf for that reason.
