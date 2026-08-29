@@ -4539,6 +4539,38 @@ nothing — but a rate-limit frame this package cannot read is a plan limit the 
 about, and an extra tolerated spelling costs four lines. It has its own test so that it stays a
 decision someone can find and delete, rather than a shape that merely still happens to decode.
 
+## S10.1d7 async stdin — the pipe was reporting itself instead of the child (2026-08-29)
+
+**Gate:** `make check` exit 0 — **2,544 tests, 0 lint issues**, `-race` green on `internal/shell`.
+
+Amendment A6 wants an asynchronous stdin write that ignores `EPIPE`, and its own sentence is the
+leaf: *"a 200 KB prompt against a child that exits on a bad flag blocks past the 64 KiB pipe buffer
+and reports 'broken pipe' as the cause, discarding the real diagnosis."*
+
+A diagnosis bug, not a plumbing one. The child has already said what is wrong — `claude: unknown
+flag --nope` — and it waits in stderr for the reader, which S10.1d1 bounded and the exit path
+reports. `Send` wrote synchronously and returned first, so the turn failed with a symptom and the
+sentence the user needed was never printed. Red:
+
+```
+Send reported writing provider request: write |1: broken pipe
+```
+
+**The write error is not returned at all, rather than ranked below the exit code.** A6 says it may
+never outrank the exit code and stderr. Ranking implies a comparison every call site has to get
+right; never producing the error deletes the comparison. The reader owns diagnosis.
+
+**One writer goroutine, not one per Send.** This is a line-delimited protocol, so ordering is part
+of the contract and N goroutines racing on a pipe do not preserve it. A buffered channel with a
+single consumer keeps sends FIFO while letting `Send` return before the child has read anything.
+
+**A discarded mutation, recorded because throwing it out was the point.** The first attempt at
+restoring synchronous behaviour left a `select` whose only remaining case was `<-p.exited`, so
+`Send` blocked forever against `cat` and the run was killed at the timeout. A hang is not evidence
+about the code — it is a broken experiment, and counting it as "the mutation was caught" would have
+been self-deception dressed as rigour. Re-run with the exact pre-fix write, it fails the new test
+with the original message.
+
 ## S10.1d6 the drain was reading the receipt and throwing it away (2026-08-29)
 
 **Gate:** `make check` exit 0 — **2,543 tests, 0 lint issues**, `-race` green.

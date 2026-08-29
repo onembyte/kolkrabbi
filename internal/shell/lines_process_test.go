@@ -3,6 +3,7 @@
 package shell
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -89,6 +90,36 @@ func TestLinesProcessCancelKillsTheWholeProcessGroup(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("grandchild %d survived the cancelled session; the process group is not being signalled", pid)
+}
+
+// Amendment A6's case, and it is a diagnosis bug rather than a plumbing one.
+// A child that dies on a bad flag has already said why, in stderr. But the
+// prompt is large, the pipe buffer is 64 KiB, and a synchronous write to a dead
+// child blocks and then fails with EPIPE — so the turn reports "broken pipe"
+// and throws away the child's own explanation. The user is told about a pipe
+// when they should be told about the flag.
+func TestALargePromptToADeadChildReportsTheChildsOwnReason(t *testing.T) {
+	process, err := StartLinesProcess(context.Background(), "sh",
+		[]string{"-c", `echo "claude: unknown flag --nope" >&2; exit 2`})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = process.Close() }()
+
+	// Comfortably past the 64 KiB pipe buffer, which is what makes the write
+	// block rather than fail fast.
+	huge := bytes.Repeat([]byte("x"), 256*1024)
+	if sendErr := process.Send(huge); sendErr != nil {
+		t.Fatalf("Send reported %v; a prompt the child never read is not the caller's error", sendErr)
+	}
+
+	_, err = process.Next(context.Background())
+	if err == nil {
+		t.Fatal("a child that exits 2 must report its failure")
+	}
+	if !strings.Contains(err.Error(), "unknown flag") {
+		t.Fatalf("error = %v, want the child's own reason rather than a pipe symptom", err)
+	}
 }
 
 func TestLinesProcessReusesOneChildForMultipleLines(t *testing.T) {

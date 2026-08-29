@@ -66,6 +66,9 @@ type LinesProcess struct {
 	cmd   *exec.Cmd
 	stdin io.WriteCloser
 	lines chan []byte
+	// writes carries outbound lines to the single writer goroutine. Buffered so
+	// a Send does not wait on a child that is busy answering the last one.
+	writes chan []byte
 	// exited closes once the reader has finished and exitErr is final, so the
 	// terminal result can be observed any number of times from any caller.
 	exited  chan struct{}
@@ -124,8 +127,10 @@ func StartLinesProcess(ctx context.Context, executable string, args []string) (*
 	}
 	process := &LinesProcess{
 		cmd: cmd, stdin: stdin, lines: make(chan []byte), exited: exited,
+		writes: make(chan []byte, 8),
 	}
 	go process.read(stdout, &stderr)
+	go process.write()
 	return process, nil
 }
 
@@ -151,15 +156,44 @@ func (p *LinesProcess) read(stdout io.Reader, stderr *stderrRing) {
 	p.exitErr = err
 }
 
-// Send writes one line to the provider process.
+// Send hands one line to the provider process.
+//
+// The write is asynchronous, and a failed write is deliberately never returned
+// to the caller. A prompt is routinely larger than the 64 KiB pipe buffer, so a
+// synchronous write to a child that has already died blocks and then fails with
+// EPIPE — and reporting that makes "broken pipe" the diagnosis while the
+// child's real explanation ("unknown flag --nope") sits unread in stderr. The
+// write error may never outrank the exit code and stderr, and the surest way to
+// guarantee that is for it never to become an error here at all: the reader
+// owns diagnosis, and a child that did not take this prompt is a child whose
+// exit already says why.
 func (p *LinesProcess) Send(line []byte) error {
 	if p == nil || p.stdin == nil {
 		return fmt.Errorf("provider process is not running")
 	}
-	if _, err := p.stdin.Write(append(append([]byte(nil), line...), '\n')); err != nil {
-		return fmt.Errorf("writing provider request: %w", err)
+	payload := append(append([]byte(nil), line...), '\n')
+	select {
+	case p.writes <- payload:
+	case <-p.exited:
+		// The child is already gone. Dropping the line is right: Next is about
+		// to report why, and that report is worth more than this one.
 	}
 	return nil
+}
+
+// write is the single writer, so lines reach a line-delimited protocol in the
+// order they were sent. One goroutine per Send would not guarantee that.
+func (p *LinesProcess) write() {
+	for {
+		select {
+		case payload := <-p.writes:
+			if _, err := p.stdin.Write(payload); err != nil {
+				return // the reader owns diagnosis; see Send
+			}
+		case <-p.exited:
+			return
+		}
+	}
 }
 
 // Next waits for the next output line or process termination.

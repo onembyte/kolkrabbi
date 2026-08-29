@@ -321,6 +321,44 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 
 - [x] **S10.1d6 a cancelled turn is accounted, and stops billing the next one** — the drain already
   read the vendor's terminal frame and discarded it. See below.
+- [x] **S10.1d7 async stdin, so a dead child's own reason survives** — A6's write path. See below.
+
+### S10.1d7 built — the pipe was reporting itself instead of the child
+
+Amendment A6 asks for an asynchronous stdin write that ignores `EPIPE`, and the sentence explaining
+why is the whole leaf: *"a 200 KB prompt against a child that exits on a bad flag blocks past the
+64 KiB pipe buffer and reports 'broken pipe' as the cause, discarding the real diagnosis."*
+
+This is a **diagnosis** bug, not a plumbing one. The child has already said exactly what is wrong —
+`claude: unknown flag --nope` — and it is sitting in stderr waiting for the reader to collect it,
+which the stderr ring (S10.1d1) now keeps bounded and the exit path now reports. But `Send` wrote
+synchronously and returned first, so the turn failed with a symptom of the failure instead of the
+failure, and the sentence the user needed was never printed.
+
+**The write error is not returned at all, rather than ranked below the exit code.** A6 says it "may
+never outrank the exit code + stderr in classification". Ranking implies a comparison someone has to
+get right at every call site. Never producing the error removes the comparison: the reader owns
+diagnosis, and a child that did not take this prompt is a child whose exit already says why.
+
+**One writer goroutine, not one per `Send`.** This is a line-delimited protocol, so order is part of
+the contract, and N goroutines racing on a pipe do not preserve it. A buffered channel with a single
+consumer keeps sends FIFO while still letting `Send` return before the child has read anything.
+
+**A malformed mutation is worth recording too.** The first attempt at reverting to synchronous
+behaviour left a `select` whose only case was `<-p.exited`, so `Send` blocked forever against `cat`
+and the run had to be killed. That is not evidence about the code — it is a broken experiment, and
+counting it as a caught mutation would have been self-deception. Re-done properly, restoring the
+exact pre-fix synchronous write fails the new test with the original `broken pipe` message.
+
+Acceptance checklist:
+
+- [x] red first, failing with the literal defect: `Send reported writing provider request: write |1:
+  broken pipe`.
+- [x] the prompt sized past the 64 KiB pipe buffer, since a small one fails fast and never
+  reproduces the blocking half.
+- [x] proven non-vacuous by a correctly-formed mutation after the first was thrown out as invalid.
+- [x] `-race` green, including the new writer goroutine.
+- [x] full `make check` green: **2,544 tests, 0 lint issues**.
 
 ### S10.1d6 built — the drain was reading the receipt and throwing it away
 
