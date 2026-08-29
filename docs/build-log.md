@@ -4427,3 +4427,18 @@ and a caller filling only the display fields should still get a menu.
 **The site gate caught the rest.** Adding a provider to `plans.go` fails `make site` until that
 provider has a tile on the wall — which is how the duplicate Ollama tile was found immediately, and
 why the existing live tile was amended instead.
+
+### R1.9 v1.2.20 Ollama release
+
+**Gate:** `make check` green — 2530 tests — and `go test ./... -race` clean, both run after pulling
+the E1–E4 host-Ollama group rather than before.
+
+**Publication:** commit `f7a3253` on `main`, tag `v1.2.20`, checked with
+`git merge-base --is-ancestor HEAD origin/main` before tagging. Release workflow run 33277647165
+passed verify and publish. Four archives plus the Cosign-signed `checksums.txt` are public, the
+release is neither draft nor prerelease, and the latest redirect resolves to `v1.2.20`.
+
+**Two sessions converged on Ollama from opposite ends and did not collide:** this one added the
+plan-catalogue row and its login subcommand, while the other built host discovery, the
+model-to-backend router and the host-model decoder. The rebase was clean and the merged tree passed
+on the first run, which is what the E-group's separate `internal/local` files bought.
