@@ -2,6 +2,8 @@ package local
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -58,6 +60,39 @@ func Catalog(filter string) []CatalogEntry {
 	return out
 }
 
+// PulledNames reports which catalog models are already on disk, by reading the
+// manifest tree the sidecar writes when a pull completes. Ollama's own layout
+// is the only record of what was pulled, and reading it beats asking kolk's
+// caller to guess: a model listed in the catalog is a plan for a pull, not
+// evidence that one happened. A missing directory is "nothing pulled yet",
+// never an error — the picker has to draw the same way on a fresh machine.
+func PulledNames(modelDir string) map[string]bool {
+	out := map[string]bool{}
+	library := filepath.Join(modelDir, "manifests", "registry.ollama.ai", "library")
+	names, err := os.ReadDir(library)
+	if err != nil {
+		return out
+	}
+	for _, name := range names {
+		tags, err := os.ReadDir(filepath.Join(library, name.Name()))
+		if err != nil || len(tags) == 0 {
+			continue
+		}
+		out[name.Name()] = true
+	}
+	return out
+}
+
+// IsPulled reports whether a catalog entry like "qwen2.5-coder:7b" is on disk:
+// the manifest tree is keyed by library name, and the tag rides inside it.
+func PulledName(names map[string]bool, entry string) bool {
+	library, _, ok := strings.Cut(entry, ":")
+	if !ok {
+		library = entry
+	}
+	return names[library]
+}
+
 // LookupModel resolves an exact catalog name.
 func LookupModel(name string) (CatalogEntry, error) {
 	wanted := strings.ToLower(strings.TrimSpace(name))
@@ -91,4 +126,28 @@ func (e CatalogEntry) Requirement() ModelRequirement {
 		// room for the runtime to work in, so it asks for more, not the same.
 		RAMBytes: runtime + overhead,
 	}
+}
+
+// HostModelDir is where the user's own Ollama keeps its models: OLLAMA_MODELS
+// when they set it, else ~/.ollama/models. Read from environ rather than the
+// process so a test can hand in a home of its own.
+func HostModelDir(environ []string) string {
+	home := ""
+	for _, entry := range environ {
+		name, value, _ := strings.Cut(entry, "=")
+		switch name {
+		case "OLLAMA_MODELS":
+			if value != "" {
+				return value
+			}
+		case "HOME", "USERPROFILE":
+			if home == "" {
+				home = value
+			}
+		}
+	}
+	if home == "" {
+		return ""
+	}
+	return filepath.Join(home, ".ollama", "models")
 }

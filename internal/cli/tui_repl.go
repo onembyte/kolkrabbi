@@ -219,6 +219,10 @@ func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 	if d, err := a.locate(); err == nil {
 		manifest, _ = provider.LoadConnectors(d.ConnectorsFile())
 	}
+	pulled := map[string]bool{}
+	if a.pulledNames != nil {
+		pulled = a.pulledNames()
+	}
 	signedIn := func(plan provider.PlanModel) bool {
 		for _, connector := range manifest.Connectors {
 			if connector.Provider == plan.Provider && connector.Name == plan.Connector && connector.Enabled {
@@ -244,12 +248,14 @@ func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 		})
 	}
 
-	// Local models already pulled onto this machine.
-	// The user's own Ollama, as it actually is (E9): what is pulled, under the
-	// ids the router understands. The rows this replaces were a static
-	// catalogue of models nobody had pulled, under bare ids that went to the
-	// gateway and 404'd.
-	out = append(out, a.hostModelRows(ctx, manifest)...)
+	// Local models (E9, a34.6). A running Ollama is the truth: what it serves,
+	// under the ids the router understands. An installed, idle one is read
+	// from its manifest tree — the only record of what a pull left behind —
+	// so the picker draws the same way without starting a server; picking one
+	// starts it (E3b). Catalogued models not pulled carry the exact command
+	// that would change that, under the same ids, so picking one gets the
+	// host's own "no such model" and its pull advice rather than a gateway 404.
+	out = append(out, a.hostModelRows(ctx, manifest, pulled)...)
 
 	models := a.catalog
 	if len(models) == 0 {
@@ -489,21 +495,40 @@ func tuiSettings(a *app) []tui.SettingSpec {
 // their row is the plan's — subscription when the connector is verified,
 // sign-in-first when not. An installed-but-idle Ollama lists nothing: starting
 // a server to populate a picker is memory spent on a model nobody picked.
-func (a *app) hostModelRows(ctx context.Context, manifest provider.ConnectorManifest) []tui.ModelSpec {
+func (a *app) hostModelRows(ctx context.Context, manifest provider.ConnectorManifest, pulled map[string]bool) []tui.ModelSpec {
 	if a.discoverHost == nil || a.listHostModels == nil {
 		return nil
 	}
 	host := a.discoverHost(ctx)
-	if host.State != local.HostRunning {
+	if host.State == local.HostAbsent {
 		return nil
 	}
-	cache := ""
-	if d, err := a.locate(); err == nil {
-		cache = d.HostCatalogFile()
+	var models []local.HostModel
+	switch host.State {
+	case local.HostRunning:
+		cache := ""
+		if d, err := a.locate(); err == nil {
+			cache = d.HostCatalogFile()
+		}
+		models, _ = a.listHostModels(ctx, host.Addr, cache)
+	case local.HostInstalled:
+		// No server to ask, so the manifest tree says what is pulled; what
+		// each model can do is unknown until one runs.
+		for _, entry := range local.Catalog("") {
+			if local.PulledName(pulled, entry.Name) {
+				models = append(models, local.HostModel{Name: entry.Name, Parameters: entry.Parameters, Quantization: entry.Quantization})
+			}
+		}
 	}
-	models, err := a.listHostModels(ctx, host.Addr, cache)
-	if err != nil {
-		return nil
+	listed := map[string]bool{}
+	for _, m := range models {
+		listed[m.Name] = true
+	}
+	for _, entry := range local.Catalog("") {
+		if listed[entry.Name] || local.PulledName(pulled, entry.Name) {
+			continue
+		}
+		models = append(models, local.HostModel{Name: entry.Name, Parameters: entry.Parameters, Quantization: entry.Quantization, NotPulled: true})
 	}
 
 	cloudVerified, plan := false, "Ollama Pro"
@@ -540,7 +565,15 @@ func (a *app) hostModelRows(ctx context.Context, manifest provider.ConnectorMani
 			})
 			continue
 		}
+		if m.NotPulled {
+			rows = append(rows, tui.ModelSpec{ID: id, Cost: tui.CostLocal, Rank: tui.ModelRank(tui.CostLocal),
+				Name: sizeLabel(m) + "not pulled: kolk localia pull " + m.Name})
+			continue
+		}
 		name := sizeLabel(m) + "runs on this machine"
+		if host.State == local.HostInstalled {
+			name += " · starts ollama when picked"
+		}
 		if cpuOnly {
 			name += " · CPU only"
 		}

@@ -51,6 +51,9 @@ type HostModel struct {
 	// local server signs the request with its own key.
 	Cloud      bool   `json:"cloud"`
 	RemoteHost string `json:"remote_host,omitempty"`
+	// NotPulled marks a catalogued model the picker offers with its pull
+	// command; the server has never seen it. Never set by the decoder.
+	NotPulled bool `json:"-"`
 }
 
 // ModelInfo projects a host model into the shape the rest of kolk ranks and

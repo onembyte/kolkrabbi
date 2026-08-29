@@ -136,3 +136,32 @@ func TestAHostModelIsNeverTheDefault(t *testing.T) {
 		t.Fatalf("the session started on %q with nothing configured", agent.Model)
 	}
 }
+
+// Merged from a34.6: an installed, idle Ollama draws from its manifest tree,
+// and catalogued models not pulled carry the pull command — all under the
+// ids the router understands, never a bare name that goes to the gateway.
+func TestPickerDrawsAnIdleOllamaFromItsManifestTree(t *testing.T) {
+	isolateConnectorState(t)
+	storeFirstRunKey(t)
+	a, _, _ := newTestApp(t, "")
+	a.discoverHost = func(context.Context) local.Host { return local.Host{State: local.HostInstalled, Binary: "/opt/ollama"} }
+	a.pulledNames = func() map[string]bool { return map[string]bool{"qwen2.5-coder": true} }
+	agent, err := a.newAgent(context.Background(), &options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := tuiModels(context.Background(), a, agent)
+	pulledRow, ok := rowByID(rows, "ollama/qwen2.5-coder:7b")
+	if !ok || !strings.Contains(pulledRow.Name, "runs on this machine") || !strings.Contains(pulledRow.Name, "starts ollama") {
+		t.Fatalf("pulled model on an idle host = %+v, want a runnable row that says it starts ollama", pulledRow)
+	}
+	notPulled, ok := rowByID(rows, "ollama/llama3.1:8b")
+	if !ok || !strings.Contains(notPulled.Name, "kolk localia pull llama3.1:8b") {
+		t.Fatalf("unpulled catalogue model = %+v, want the pull command", notPulled)
+	}
+	for _, row := range rows {
+		if row.Cost == tui.CostLocal && !strings.HasPrefix(row.ID, "ollama/") {
+			t.Fatalf("a local row carries a bare id the gateway will 404: %+v", row)
+		}
+	}
+}

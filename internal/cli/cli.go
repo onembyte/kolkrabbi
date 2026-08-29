@@ -106,7 +106,10 @@ type app struct {
 	signInBudget time.Duration
 	// startHost brings up an idle Ollama for one command; injected so a test
 	// never starts a process.
-	startHost      func(context.Context, local.Host) (string, func(), error)
+	startHost func(context.Context, local.Host) (string, func(), error)
+	// pulledNames reads the host store manifest tree; injected so a test never
+	// reads the real ~/.ollama.
+	pulledNames    func() map[string]bool
 	enterRaw       func(*os.File) (func() error, error)
 	terminalOwned  func() bool
 	probeHardware  func(context.Context, string) local.Hardware
@@ -150,6 +153,7 @@ func newApp() *app {
 	}
 	a.listHostModels = local.ListHostModels
 	a.signIn = local.SignIn
+	a.pulledNames = func() map[string]bool { return local.PulledNames(local.HostModelDir(os.Environ())) }
 	a.signInBudget = 2 * time.Minute
 	a.newActivity = func(out io.Writer) engine.ActivityIndicator {
 		return newOctopusActivity(out, term.Color())
