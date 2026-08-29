@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/buildinfo"
+	"github.com/onembyte/kolkrabbi/internal/local"
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/redact"
 	"github.com/onembyte/kolkrabbi/internal/term"
@@ -67,7 +68,27 @@ func (a *app) runDoctor(ctx context.Context, args []string) error {
 	fmt.Fprintln(a.stdout, "\nnetwork")
 	a.doctorNetwork(ctx)
 
+	fmt.Fprintln(a.stdout, "\nlocal models")
+	a.doctorLocalModels(ctx)
+
 	return nil
+}
+
+// doctorLocalModels reports the user's own Ollama: running and adopted,
+// installed but idle, or absent with the one line that installs it. The line
+// is named and not run — the Linux installer needs sudo and pipes curl into
+// sh, both of which kolk's own hardline refuses.
+func (a *app) doctorLocalModels(ctx context.Context) {
+	host := a.discoverHost(ctx)
+	switch host.State {
+	case local.HostRunning:
+		fmt.Fprintf(a.stdout, "  ✓ ollama %s running at %s — kolk uses it and never stops it\n", host.Version, host.Addr)
+	case local.HostInstalled:
+		fmt.Fprintf(a.stdout, "  · ollama at %s, not running\n", host.Binary)
+	case local.HostAbsent:
+		fmt.Fprintln(a.stdout, "  ✗ ollama is not installed")
+		fmt.Fprintf(a.stdout, "  · install it with: %s\n", host.InstallHint())
+	}
 }
 
 func (a *app) doctorKeys(ctx context.Context) {

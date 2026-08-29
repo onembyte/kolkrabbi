@@ -91,13 +91,16 @@ type app struct {
 	canAnimate       func() bool
 	newActivity      func(io.Writer) engine.ActivityIndicator
 	chooseDefault    func([]provider.ModelInfo) defaultModelChoice
-	enterRaw         func(*os.File) (func() error, error)
-	terminalOwned    func() bool
-	probeHardware    func(context.Context, string) local.Hardware
-	catalog          []provider.ModelInfo
-	dashURL          string
-	terminalSize     func(*os.File) (int, int)
-	resizeNotifier   func(*os.File) (<-chan struct{}, func())
+	// discoverHost finds the user's own Ollama. Injected so a test never
+	// probes the real loopback port, which on the owner's machine has one.
+	discoverHost   func(context.Context) local.Host
+	enterRaw       func(*os.File) (func() error, error)
+	terminalOwned  func() bool
+	probeHardware  func(context.Context, string) local.Hardware
+	catalog        []provider.ModelInfo
+	dashURL        string
+	terminalSize   func(*os.File) (int, int)
+	resizeNotifier func(*os.File) (<-chan struct{}, func())
 	// restartInto is the version an accepted in-session update wants to hand
 	// over to. The exec happens after the screen is torn down and the terminal
 	// restored, never from inside the slash handler: replacing the process
@@ -129,6 +132,9 @@ func newApp() *app {
 	a.update = selfupdate.Update
 	a.currentVersion = func() string { return buildinfo.Get().Version }
 	a.canAnimate = term.CanAnimate
+	a.discoverHost = func(ctx context.Context) local.Host {
+		return local.DiscoverHost(ctx, local.HostDiscovery{Addr: local.DefaultHostAddr, LookPath: shell.LookPath})
+	}
 	a.newActivity = func(out io.Writer) engine.ActivityIndicator {
 		return newOctopusActivity(out, term.Color())
 	}

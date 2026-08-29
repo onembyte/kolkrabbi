@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/onembyte/kolkrabbi/internal/keystore"
+	"github.com/onembyte/kolkrabbi/internal/local"
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/selfupdate"
@@ -38,6 +39,9 @@ func newTestApp(t *testing.T, stdin string) (*app, *bytes.Buffer, *bytes.Buffer)
 	a.stderr = &errOut
 	a.in = bufio.NewReader(strings.NewReader(stdin))
 	a.canAnimate = func() bool { return false }
+	// Never the real loopback port: the owner's machine has an Ollama on it,
+	// and a test that found it would pass here and fail everywhere else.
+	a.discoverHost = func(context.Context) local.Host { return local.Host{State: local.HostAbsent} }
 	return a, &out, &errOut
 }
 

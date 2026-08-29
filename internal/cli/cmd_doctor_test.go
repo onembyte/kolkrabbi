@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"github.com/onembyte/kolkrabbi/internal/local"
+
 	"context"
 	"regexp"
 	"strings"
@@ -13,7 +15,7 @@ func TestDoctorReportsEverySection(t *testing.T) {
 		t.Fatalf("runDoctor: %v", err)
 	}
 	out := stdout.String()
-	for _, section := range []string{"keys", "directories", "terminal", "network"} {
+	for _, section := range []string{"keys", "directories", "terminal", "network", "local models"} {
 		if !strings.Contains(strings.ToLower(out), section) {
 			t.Errorf("doctor never mentions %s:\n%s", section, out)
 		}
@@ -104,5 +106,36 @@ func TestDoctorReportsWhatSchemasCost(t *testing.T) {
 	}
 	if !strings.Contains(out, "6 tools") {
 		t.Errorf("doctor does not say how many tools are sent:\n%s", out)
+	}
+}
+
+// E3a. The doctor is where someone finds out why no local model is listed.
+// Each state has to be told apart, and the absent case has to name the
+// install line without running it — "no effort" still hides one effort.
+func TestDoctorTellsTheThreeOllamaStatesApart(t *testing.T) {
+	for _, tc := range []struct {
+		host local.Host
+		want []string
+	}{
+		{local.Host{State: local.HostRunning, Addr: "127.0.0.1:11434", Version: "0.33.1"}, []string{"0.33.1", "127.0.0.1:11434", "never stops"}},
+		{local.Host{State: local.HostInstalled, Binary: "/opt/ollama"}, []string{"/opt/ollama", "not running"}},
+		{local.Host{State: local.HostAbsent}, []string{"not installed", "ollama.com", "install it with"}},
+	} {
+		a, stdout, _ := newTestApp(t, "")
+		a.discoverHost = func(context.Context) local.Host { return tc.host }
+		if err := a.runDoctor(context.Background(), nil); err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range tc.want {
+			if !strings.Contains(stdout.String(), want) {
+				t.Errorf("state %s: doctor output lacks %q:\n%s", tc.host.State, want, stdout.String())
+			}
+		}
+	}
+	// And the absent case must not run anything: the hint is text.
+	a, stdout, _ := newTestApp(t, "")
+	_ = a.runDoctor(context.Background(), nil)
+	if strings.Contains(stdout.String(), "installing") || strings.Contains(stdout.String(), "installed ollama") {
+		t.Fatalf("doctor claims to have installed something:\n%s", stdout.String())
 	}
 }

@@ -2631,6 +2631,40 @@ Acceptance checklist:
 - [x] silent with no bus, so a run without one behaves exactly as before.
 - [x] full `make check` green: 2,362 tests, 0 lint issues.
 
+### E3a built — kolk knows whose Ollama it is looking at
+
+`local.DiscoverHost` probes the loopback default and PATH and reports running, installed or
+absent. `kolk doctor` has a `local models` section that tells the three apart, and in the absent
+case names the install line — and says it will not run it, because the Linux installer needs sudo
+and pipes curl into sh, both of which kolk's own hardline refuses.
+
+**Adoption requires identification.** The port may be held by a dev server, a proxy or an old
+experiment, and plenty of services answer `/api/version` with a version object. Only the root's
+"Ollama is running" — the vendor CLI's own heartbeat — tells them apart. The first stranger test
+was too weak to prove this: its fake answered garbage everywhere, so the version check caught it
+and the mutation that dropped the root check survived. Made the stranger plausible (a real version
+object, no heartbeat) and the mutation kills.
+
+**Never `OLLAMA_HOST`.** It may name another machine or ollama.com itself. A test sets it to a
+live fake and proves discovery does not follow it.
+
+**Measured before shipping:** 119 µs mean with nothing listening, 230 µs against a running server,
+worst case under a millisecond. It runs at startup and costs nothing anyone will notice.
+
+Three ratchets shaped the leaf, and each was right. The dead-export rule caught `HostAbsent`
+reachable only from tests, because the doctor used `default:`. The GOOS rule refused a switch on
+`runtime.GOOS`. Then the layer rule refused the build-tagged files I replaced it with, because
+OS-divergent files belong in the platform layer alone — and the GOOS rule's own comment had the
+answer: reading GOOS as a *value* is fine, only branching on it is banned. The install hint is a
+table keyed by GOOS, which is a lookup and not a branch.
+
+**The leaf split on a dependency.** Adopting a server means registering a backend for it, and the
+backend is E5. Starting kolk's own server (E3b) is queued after E5 for the same reason, and it will
+start lazily on first use rather than at startup: an idle server for a model nobody picked is memory
+spent on nothing.
+
+`make check` green.
+
 ### E2 built — the engine can hold a second backend without lying to the first
 
 `ownedPrefixes` names the model-id prefixes the engine routes itself; `Routes` holds a backend per
@@ -2670,12 +2704,12 @@ is deliberately late because item 34 is working in the same files.
       and resolves a backend per model; `a.Backend` stays the default. The gateway catalogue never
       holds a host id. A persisted host id with no server is a stop naming the server, never a route
       to the gateway. This is the wall A33.6 hit; it comes first because nothing else can.
-- [ ] **E3 detect, adopt, or start** — probe the literal `127.0.0.1:11434` (`HEAD /`, then
-      `/api/version`), never `OLLAMA_HOST`. Running → adopted, never stopped. Absent and `ollama` on
-      PATH → started on a kolk-chosen loopback port with a curated env, readiness bounded, death
-      signal on Linux, job object on Windows, one transcript line, stopped only if kolk started it.
-      Absent and no binary → `kolk doctor` names the install line and does not run it. Measure the
-      probe on a machine with nothing listening before shipping it.
+- [x] **E3a detect and adopt** — probe the literal `127.0.0.1:11434`, never `OLLAMA_HOST`; adopt
+      only a server that identifies itself, because a stranger on the port answers 200 too;
+      bounded at 300 ms; the binary found on PATH; `kolk doctor` tells the three states apart and
+      names the install line without running it. Measured: 119 µs with nothing listening, 230 µs
+      against a running server. Split from E3 because adoption *registers a backend*, and the
+      backend is E5 — a started server with nothing to use it would be an export with no caller.
 - [ ] **E4 the catalogue decoder** — `/api/tags` then `/api/show` per model into `ModelInfo`:
       tools from `capabilities`, context from `details.context_length`, local vs cloud from
       `remote_host`. Version floor from `/api/version`. `"data": null` is an empty list, not an
@@ -2685,6 +2719,12 @@ is deliberately late because item 34 is working in the same files.
       absent or repeats. `HTTPError` gains an origin so a signed-out cloud model does not read as
       "OpenRouter rejected the API key"; `Advise` dispatches on it; a `401` body's `signin_url` is
       printed.
+- [ ] **E3b start one of kolk's own** — when nothing listens and the binary is on PATH: a
+      kolk-chosen loopback port, curated env (`HOME`, `PATH`, `OLLAMA_HOST`; never
+      `OPENROUTER_API_KEY`), readiness bounded, death signal on Linux and a job object on Windows
+      (neither exists in `internal/shell` yet), one transcript line, stopped only if kolk started
+      it. Started lazily on first use, not at startup: an idle server for a model nobody picked is
+      memory spent on nothing. After E5, so the route it registers exists.
 - [ ] **E6 the cloud connector** — a plan row for Ollama Cloud, login args `{"signin"}` with
       `OLLAMA_HOST` pointed at the server kolk uses, verified by `POST /api/me` and never by an
       answered turn. Cloud rows from the local `/api/show` proxy, not static entries that retire.
