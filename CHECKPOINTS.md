@@ -316,10 +316,21 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
     grandchild that escaped the group with its own `setsid` would still hold it. An earlier note in
     this session claimed this was "probably covered" — it is not, and the correction is the reason
     this entry now cites line-level evidence rather than a recollection.
-  - **The drain's deadline disagrees with the spec.** P6 says *bounded 3 s*; `resyncGrace` is
-    **5 s** (`session.go:120`). The drain exists and is bounded, so this is drift rather than a
-    hole — but a timeout is a product decision and is not being changed silently to match a
-    document. **Owner: 3 s or 5 s?**
+  - **P6's post-result drain does not exist.** Corrected 2026-08-29, replacing a claim in this very
+    entry that it did and merely disagreed on its deadline. It does not, because P6's drain and
+    `resyncGrace` are different mechanisms that this session read as one:
+    - **P6's drain** runs after a *successful* `result`: do not kill, keep reading stdout **without
+      translating** for ≤3 s, then walk the ladder, then close the read end. It exists because the
+      vendor keeps flushing queued output for up to 30 s when the consumer is slow, so killing on
+      sight of `result` **truncates large responses**. `Turn` returns the moment it sees the
+      completion, so nothing drains and that truncation is live.
+    - **`resyncGrace`** (5 s, `session.go:120`) runs after an *interrupted* turn, waiting for the
+      tail so the next turn does not inherit stale frames. Different trigger, different purpose,
+      correct as it stands.
+
+    There is therefore no 3-vs-5 timeout question, and no owner decision here — only an unbuilt
+    leaf. Recorded this way because "the deadline drifted" and "the feature is missing" send the
+    next reader to entirely different places.
 - [x] **S10.1d4 a hard exit retires the vendor conversation** — the dangerous half of §2.5's starred
   rule is closed. See below.
 - [~] **S10.1d5 announcing a retired conversation** — **the user is now told, and told once; the
