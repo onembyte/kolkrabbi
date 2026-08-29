@@ -20,8 +20,14 @@ type PlanModel struct {
 var planModelCatalog = []PlanModel{
 	{Provider: "anthropic", Plan: "Claude Pro", Connector: "claude", Model: "claude-sonnet", Efforts: []string{"low", "medium", "high"}, Access: "provider CLI"},
 	{Provider: "anthropic", Plan: "Claude Max", Connector: "claude", Model: "claude-opus", Efforts: []string{"low", "medium", "high", "max"}, Access: "provider CLI"},
-	{Provider: "openai", Plan: "ChatGPT Plus", Connector: "codex", Model: "gpt-4.1", Efforts: []string{"low", "medium", "high"}, Access: "provider CLI"},
-	{Provider: "openai", Plan: "ChatGPT Pro", Connector: "codex", Model: "o3", Efforts: []string{"low", "medium", "high", "max"}, Access: "provider CLI"},
+	// The codex rows carry only ids the vendor's own CLI accepted on a ChatGPT
+	// login (verified 2026-08-28, codex-cli 0.149.1): gpt-4.1 errors with
+	// "model metadata not found" and gpt-5.3-codex / gpt-5.6-pro are refused by
+	// a non-Pro ChatGPT account, so until a Pro login proves otherwise, the
+	// Pro row keeps the model OpenAI markets for it even though this machine
+	// could not end-to-end verify it.
+	{Provider: "openai", Plan: "ChatGPT Plus", Connector: "codex", Model: "gpt-5.6-sol", Efforts: []string{"low", "medium", "high", "xhigh"}, Access: "provider CLI"},
+	{Provider: "openai", Plan: "ChatGPT Pro", Connector: "codex", Model: "gpt-5.6-pro", Efforts: []string{"low", "medium", "high", "xhigh"}, Access: "provider CLI"},
 	{Provider: "google", Plan: "Google AI Pro", Connector: "gemini", Model: "gemini-2.5-pro", Efforts: []string{"low", "medium", "high"}, Access: "unsupported subscription"},
 	{Provider: "google", Plan: "Google AI Pro", Connector: "gemini", Model: "gemini-2.5-flash", Efforts: []string{"low", "medium", "high"}, Access: "unsupported subscription"},
 	{Provider: "google", Plan: "Google AI Ultra", Connector: "gemini", Model: "gemini-2.5-pro", Efforts: []string{"low", "medium", "high", "max"}, Access: "unsupported subscription"},

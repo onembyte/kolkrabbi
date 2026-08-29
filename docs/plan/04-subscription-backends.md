@@ -1387,7 +1387,7 @@ All in a scratch dir, **never the repo**; redaction re-run each time; **argv rec
 | **3** | `claude-multimodel.ndjson` | a prompt long enough to force auto-compaction | ★ the **only** way to test the multi-key `modelUsage` fold against real data; also `compact_boundary` | ~20¢ |
 | **3** | `claude-structured-output.ndjson` | `claude -p "name three colours" --verbose --output-format stream-json --json-schema '{"type":"object","properties":{"colours":{"type":"array","items":{"type":"string"}}},"required":["colours"]}'` | `result.structured_output`'s real shape under stream-json | ~2¢ |
 | **3** | `claude-partial-messages.ndjson` | add `--include-partial-messages` to the isolated command | ⬚ **gates the v0.5 token-streaming decision**; settles the double-emit risk | ~2¢ |
-| **4** | `codex-plain.jsonl` / `codex-tool-use.jsonl` | `codex exec --json "Reply with exactly: ok"` | ⬚ **gates v0.4** | ~2¢ |
+| **4** | `codex-plain.jsonl` / `codex-tool-use.jsonl` | `codex exec --json "Reply with exactly: ok"` | ✔ **captured 2026-08-28** (codex-cli 0.149.1, ChatGPT login; `codex-error.jsonl` added alongside) — **gates v0.4: lifted** | ~2¢ |
 
 **Priority 1 costs $0 in total and four of its six are already observed.** Not worth provoking, and
 **synthesised by hand from the schema** into `spec/testdata/foreign/synthetic/` (clearly separated
