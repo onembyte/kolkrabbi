@@ -27,6 +27,10 @@ func TestSpecContractInventoryIsClosed(t *testing.T) {
 		"testdata/foreign/codex-error.jsonl",
 		"testdata/foreign/codex-plain.jsonl",
 		"testdata/foreign/codex-tool-use.jsonl",
+		// Hand-synthesised, not captured. It lives in its own directory so the
+		// distinction survives being skim-read: everything beside it is
+		// evidence of what a vendor sent, and this is not.
+		"testdata/foreign/synthetic/control-characters.ndjson",
 	}
 	for _, command := range KnownCommandTypes() {
 		wantFiles = append(wantFiles,
@@ -64,6 +68,7 @@ func TestSpecContractInventoryIsClosed(t *testing.T) {
 		"testdata/entities",
 		"testdata/events",
 		"testdata/foreign",
+		"testdata/foreign/synthetic",
 		"testdata/streams",
 	}
 	sort.Strings(wantDirectories)

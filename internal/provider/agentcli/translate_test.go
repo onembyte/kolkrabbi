@@ -70,6 +70,36 @@ func TestTranslateReplaysTheCapturedPlainStream(t *testing.T) {
 	}
 }
 
+// The committed captures cannot cover this: their tool output had its newline
+// replaced by U+240A SYMBOL FOR LINE FEED during redaction, so asserting
+// against them would enshrine an artifact of the cleaning rather than the
+// vendor's behaviour. This fixture is hand-written for exactly that reason and
+// says so in its directory name. Both shapes of tool_result are covered, since
+// flattenToolResult decodes a string and an array of blocks by different paths
+// and only one of them was ever exercised on real bytes.
+func TestTranslateKeepsControlCharactersInToolOutput(t *testing.T) {
+	events := translateAll(t, claudeFixtureLines(t, "synthetic/control-characters.ndjson"))
+
+	if len(events) != 3 {
+		t.Fatalf("events = %d, want one per frame", len(events))
+	}
+	if got, want := events[0].ToolOutput, "line one\nline two\ttabbed\r\ncrlf ends here"; got != want {
+		t.Fatalf("string tool output = %q, want %q", got, want)
+	}
+	if got, want := events[1].ToolOutput, "first\nsecond\ntab\there"; got != want {
+		t.Fatalf("block tool output = %q, want %q", got, want)
+	}
+	// An unpaired surrogate is the shape a vendor can emit and encoding/json
+	// will not hand back verbatim: it decodes to U+FFFD. What matters is that
+	// the frame survives at all rather than costing the turn.
+	if !strings.Contains(events[2].ToolOutput, "surrogate survives") {
+		t.Fatalf("lone-surrogate output = %q, want the frame to survive", events[2].ToolOutput)
+	}
+	if strings.Contains(events[0].ToolOutput, "␊") {
+		t.Fatal("tool output carries U+240A: a redaction artifact has reached an assertion")
+	}
+}
+
 func TestTranslateAllowListsAssistantAndResult(t *testing.T) {
 	line := []byte(`{"type":"assistant","message":{"model":"claude-opus","content":[{"type":"text","text":"hello"}],"usage":{"input_tokens":2,"output_tokens":4}}}`)
 	events, err := Translate(line)

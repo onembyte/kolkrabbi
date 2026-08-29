@@ -23,6 +23,23 @@ Captured 2026-08-22 with **Claude Code 2.1.240**, `apiKeySource: "none"` (i.e. s
 which is the mode kolk's adapter targets), model `claude-opus-5`. The codex fixtures were captured
 2026-08-28 with **codex-cli 0.149.1**, `codex login status` → `Logged in using ChatGPT`.
 
+## `synthetic/` is hand-written and is not evidence
+
+Everything in this directory except `synthetic/` was captured from a vendor
+binary and proves what that vendor sent. `synthetic/` is the opposite: frames
+written by hand from the schema, to reach shapes a capture cannot produce on
+demand. Never cite one as vendor behaviour, and never let one settle a question
+about what a vendor does.
+
+| File | Why it cannot be captured |
+|---|---|
+| `synthetic/control-characters.ndjson` | Real tool output carries `\n`, `\t` and `\r\n`, but the committed captures had theirs replaced by U+240A during redaction (see the artifact note below). Asserting against those would enshrine the cleaning, so the control-character contract is pinned here instead — in both `tool_result` shapes, since a string and an array of blocks decode by different paths. It also carries a lone surrogate, which `encoding/json` turns into U+FFFD; what is asserted is that the frame survives rather than costing the turn. |
+
+Captures are still owed for the shapes §10.3 prices at $0 — the four `claude-error-*`
+streams and `claude-init-apikey` — and for `claude-isolated.ndjson`, the CONTRACT
+fixture. Those are real vendor behaviour and belong beside the other captures,
+never in here.
+
 ## These two `claude-*` files are TOLERANCE fixtures, not contract fixtures
 
 Corrected 2026-08-29, each claim re-checked against the committed bytes rather than the capture

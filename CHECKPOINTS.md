@@ -293,12 +293,57 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   U+240A, so production `Scrub` never had this defect.
 - [x] **S10.2 the captured stream is replayed, and the limit frame it carries is finally read** —
   the fixtures existed to be replayed and nothing replayed them, which hid a live bug. See below.
-- [ ] **S10.1b the skipped capture and mock work** — `scripts/capture-foreign.sh` with its verbatim
-  `.cmd` sidecar, `internal/mockagent`'s four fake binaries and the L0 integration test (S2),
-  `spec/testdata/foreign/synthetic/`, and the six priority-1 `claude-*` fixtures plus the
-  `claude-isolated.ndjson` CONTRACT capture. §10.3 prices priority 1 at **$0** with four of six
-  already observed live, so this was passed over rather than refused — §11 sends you to S3 first
-  because its fixtures were already committed, which is how it got skipped.
+- [x] **S10.1c the capture script, and the fixture the captures cannot carry** —
+  `scripts/capture-foreign.sh` writes argv verbatim beside every capture and redacts through `jq`,
+  so control characters survive; `spec/testdata/foreign/synthetic/control-characters.ndjson` pins
+  the contract the committed captures corrupted. See below.
+- [ ] **S10.1d `internal/mockagent`** — S2's four fake vendor binaries and the L0 integration test,
+  so the spawn ladder is exercised without a vendor binary on the machine.
+- [ ] **S10.1e the priority-1 captures** — the four `claude-error-*` streams and
+  `claude-init-apikey` (§10.3 prices all of them at **$0**; four are already observed live), plus
+  `claude-isolated.ndjson`, the CONTRACT fixture, at ~2¢. Needs the owner's vendor login, so it is
+  the one leaf here that cannot be done offline.
+
+### S10.1c built — provenance becomes mechanical, and one artifact stops being contagious
+
+Two of §10.1's defects were never really about the two files they were found in. **A1** — a README
+naming `--allowedTools "Write"` for a capture whose `tool_use` block runs `Bash` — is what happens
+when provenance is a sentence someone types afterwards. **A3** — a newline replaced by U+240A
+SYMBOL FOR LINE FEED — is what happens when JSON is redacted by a line-oriented tool that cannot see
+inside a string. Both recur on the next capture unless the capture itself changes.
+
+**`scripts/capture-foreign.sh` writes the `.cmd` sidecar before it runs the vendor**, so a command
+that fails still leaves its provenance behind, and one argv element per line so that
+`--setting-sources ""` is unambiguous on the way back out. The vendor runs in a scratch directory,
+never the checkout, because raw frames echo `cwd` and a capture taken inside the repository bakes
+the maintainer's path in before redaction can reach it. Redaction runs through `jq`, which decodes
+and re-encodes JSON strings — that is the whole of the A3 fix, and the script says in its header
+never to use `sed` or `tr` here. UUIDs map to stable fakes by order of first appearance, so
+re-capturing the same shape yields the same bytes and the diff stays readable. It refuses to
+overwrite an existing fixture, and greps its own output for `$HOME` and the scratch path before
+writing, because that is the exact mistake redaction exists to prevent.
+
+**Proven on a probe carrying `\n`, `\t`, `\r\n`**, a private tool name, a real `$HOME` path and a
+shim line: control characters came through as escapes, the tool list was genericised, the UUID was
+stably mapped across two frames, and the non-JSON line was dropped and reported rather than
+silently eaten.
+
+**The synthetic fixture exists because the captures cannot carry this.** Their tool output is
+already corrupted, so asserting against it would enshrine the cleaning. `synthetic/` is its own
+directory, registered separately in the spec inventory, so "captured, therefore evidence" and
+"hand-written, therefore not" cannot be confused by someone skim-reading the folder. Both
+`tool_result` shapes are covered — a string and an array of blocks decode by different paths in
+`flattenToolResult`, and only the first was ever exercised on real bytes.
+
+Acceptance checklist:
+
+- [x] argv recorded by the tool that ran it, not by a note afterwards.
+- [x] redaction proven to preserve `\n`, `\t` and `\r\n` on a probe built for it.
+- [x] the fixture test proven non-vacuous by mutation — reintroducing the exact A3 corruption in
+  `flattenToolResult` fails it, and the reported diff is the original defect verbatim.
+- [x] synthetic frames separated from captures by directory and by inventory entry, and the README
+  says which is evidence and which is not.
+- [x] full `make check` green: **2,532 tests, 0 lint issues**, spec guard 29 checks.
 
 ### S10.2 built — a fixture nobody replayed hid a dead code path
 
