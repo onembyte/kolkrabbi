@@ -126,7 +126,10 @@ func (s RuntimeSpec) Validate() error {
 	if !filepath.IsAbs(s.Executable) {
 		return fmt.Errorf("local runtime executable must be absolute, got %q", s.Executable)
 	}
-	if !filepath.IsAbs(s.ModelDir) || !strings.HasSuffix(filepath.Clean(s.ModelDir), string(filepath.Separator)+"local-models") {
+	// An empty ModelDir means the host's own store (option E); a set one has
+	// to be kolk's, because a managed store anywhere else is a store nobody
+	// asked kolk to write into.
+	if s.ModelDir != "" && (!filepath.IsAbs(s.ModelDir) || !strings.HasSuffix(filepath.Clean(s.ModelDir), string(filepath.Separator)+"local-models")) {
 		return fmt.Errorf("local model directory is not Kolk-managed, got %q", s.ModelDir)
 	}
 	return nil

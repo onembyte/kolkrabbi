@@ -28,6 +28,10 @@ func StartManagedProcess(ctx context.Context, executable string, args, env []str
 	cmd.Env = append([]string(nil), env...)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
+	// Its own process group, so stopping it stops the workers it spawned —
+	// an inference server forks runners, and a Kill on the parent alone
+	// leaves them holding the GPU. On Linux the group also dies with kolk.
+	cmd.SysProcAttr = managedProcAttr()
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("starting managed process %s: %w", executable, err)
 	}
@@ -46,7 +50,7 @@ func (p *ManagedProcess) Close() error {
 	p.once.Do(func() {
 		var killErr error
 		if p.cmd.Process != nil {
-			killErr = p.cmd.Process.Kill()
+			killErr = killManaged(p.cmd)
 		}
 		waitErr := <-p.done
 		if killErr == nil {
@@ -55,4 +59,12 @@ func (p *ManagedProcess) Close() error {
 		p.err = waitErr
 	})
 	return p.err
+}
+
+// Pid is the process id, for a transcript line that names what was started.
+func (p *ManagedProcess) Pid() int {
+	if p == nil || p.cmd == nil || p.cmd.Process == nil {
+		return 0
+	}
+	return p.cmd.Process.Pid
 }

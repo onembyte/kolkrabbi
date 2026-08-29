@@ -132,3 +132,24 @@ func TestTheFastLaneRoutesAsWell(t *testing.T) {
 		t.Fatalf("fast lane answered %q with gateway calls %v; want the routed backend alone", msg.Content, gateway.models)
 	}
 }
+
+type closingBackend struct {
+	routeBackend
+	closed bool
+}
+
+func (b *closingBackend) Close() error { b.closed = true; return nil }
+
+// A server kolk started for a route is the thing most worth stopping at exit.
+// Close must reach every route, and must reach them even when the session
+// backend has nothing to close.
+func TestCloseStopsRoutedBackends(t *testing.T) {
+	route := &closingBackend{routeBackend: routeBackend{name: "ollama"}}
+	a := routedAgent(&routeBackend{name: "gateway"}, map[string]ChatBackend{"ollama": route})
+	if err := a.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !route.closed {
+		t.Fatal("closing the agent left the routed backend — and the server behind it — running")
+	}
+}

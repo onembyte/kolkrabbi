@@ -319,10 +319,22 @@ type Agent struct {
 // Close releases resources owned by the configured backend, when it exposes
 // an optional lifecycle.
 func (a *Agent) Close() error {
-	if closer, ok := a.Backend.(io.Closer); ok {
-		return closer.Close()
+	var first error
+	// Routes first: a host server kolk started is the thing most worth
+	// stopping, and it must stop even if the session backend's Close fails.
+	for _, route := range a.Routes {
+		if closer, ok := route.(io.Closer); ok {
+			if err := closer.Close(); err != nil && first == nil {
+				first = err
+			}
+		}
 	}
-	return nil
+	if closer, ok := a.Backend.(io.Closer); ok {
+		if err := closer.Close(); err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
 }
 
 // New wires up an agent around an existing (possibly resumed) session. The

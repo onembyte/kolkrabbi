@@ -2631,6 +2631,42 @@ Acceptance checklist:
 - [x] silent with no bus, so a run without one behaves exactly as before.
 - [x] full `make check` green: 2,362 tests, 0 lint issues.
 
+### E3b built — kolk starts an Ollama of its own, lazily, and stops only that one
+
+`local.HostStarter` starts the user's binary on a loopback port kolk chooses, with a curated
+environment, waits for it to answer as Ollama, prints one transcript line naming the pid and
+address, and stops it at exit. `local.LazyHostBackend` is the route registered when the binary is
+installed and idle: nothing starts until the first turn asks for a host model. `Agent.Close` now
+closes every route, so the server kolk started dies with the session even when the session backend
+has nothing to close.
+
+**Measured before deciding when.** Start-to-ready on the owner's machine: 300, 304 and 438 ms
+across three runs. Paid once when asked for, that is nothing; paid at every startup for a model
+nobody picked, it is the whole startup budget. Lazy it is.
+
+**The guard that matters is the environment.** The only credential kolk holds is the OpenRouter
+key, and a child process on this machine has no business seeing it. The server gets an allowlist —
+its store, its GPU libraries, the locale — and never a credential; an allowlist rather than a
+denylist, because a secret with a name nobody anticipated is the one a denylist lets through. The
+user's own `OLLAMA_HOST` is dropped and replaced: the server has to bind kolk's port, not whatever
+machine that variable names. The mutation that passes the environment through fails.
+
+**Never the default port.** A kolk server on 11434 would be adopted by the next session as a host
+server it must never stop — and outlive every kolk on a SIGKILL. The port chooser refuses it, and
+the mutation that accepts it fails. So does the one that leaves an unready process running, and the
+one that lets `Close` skip the routes.
+
+**The process group and the death signal.** `StartManagedProcess` now puts the child in its own
+group and `Close` takes the group: an inference server forks runners, and a Kill on the parent
+alone leaves them holding the GPU. On Linux `Pdeathsig` sends `SIGTERM` when kolk's thread dies,
+which is the only thing that stops a kolk server outliving a kolk that was killed rather than
+closed. Outside Linux there is no death signal, and the file says so: a survivor is found by the
+next session and adopted read-only, which is the safe direction. **Windows has no job object yet**
+and its stub says that too, rather than claiming one.
+
+One test was wrong rather than the code: the lazy-backend fake answered the heartbeat but not
+`/api/version`, and the real probe correctly refused to call it Ollama.
+
 ### E5 built — the host answers, and its refusals say whose they are
 
 `provider.NewHostClient` talks to the user's Ollama through its OpenAI-compatible `/v1`. A running
@@ -2784,7 +2820,7 @@ is deliberately late because item 34 is working in the same files.
       absent or repeats. `HTTPError` gains an origin so a signed-out cloud model does not read as
       "OpenRouter rejected the API key"; `Advise` dispatches on it; a `401` body's `signin_url` is
       printed.
-- [ ] **E3b start one of kolk's own** — when nothing listens and the binary is on PATH: a
+- [x] **E3b start one of kolk's own** — when nothing listens and the binary is on PATH: a
       kolk-chosen loopback port, curated env (`HOME`, `PATH`, `OLLAMA_HOST`; never
       `OPENROUTER_API_KEY`), readiness bounded, death signal on Linux and a job object on Windows
       (neither exists in `internal/shell` yet), one transcript line, stopped only if kolk started
