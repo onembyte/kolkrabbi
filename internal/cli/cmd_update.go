@@ -95,7 +95,7 @@ func (a *app) finishSession(ctx context.Context, ag *engine.Agent) {
 		selected := *a.pendingLogin
 		a.pendingLogin = nil
 		if d, err := a.resolve(); err == nil {
-			if err := a.runConnectorLogin(ctx, d.ConnectorsFile(), selected); err != nil {
+			if err := a.runConnectorLoginWith(ctx, d.ConnectorsFile(), selected, a.terminalHandover()); err != nil {
 				fmt.Fprintf(a.stderr, "%s login did not complete: %v\n", selected.Connector, err)
 			}
 		}

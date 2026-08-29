@@ -113,6 +113,11 @@ type app struct {
 	executablePath func() (string, error)
 	isStdinPiped   func() bool
 	handover       func(context.Context, string, []string, string) error
+	// handoverWindow runs a provider login in a terminal window kolk opens
+	// itself, so a session never has to step down for its user to sign in.
+	// Nil means this kolk build has no such path and the screen-down flow
+	// below is the only way.
+	handoverWindow func(context.Context, string, []string) error
 }
 
 func newApp() *app {
@@ -141,6 +146,7 @@ func newApp() *app {
 		return (stat.Mode() & os.ModeCharDevice) == 0
 	}
 	a.handover = shell.Handover
+	a.handoverWindow = shell.LoginWindow
 	return a
 }
 

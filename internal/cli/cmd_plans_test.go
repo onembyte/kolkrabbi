@@ -103,13 +103,56 @@ func TestPlansLoginUsesHandoverAndPersistsMetadata(t *testing.T) {
 	}
 }
 
-// A login requested from inside a session is deferred, not refused: the
-// provider CLI still must not be spawned while the input pump owns the
-// keyboard, but the user should not have to open a second terminal either.
+// A login requested from inside a session opens its own terminal window: the
+// provider CLI gets a keyboard nobody in kolk is reading, the session never
+// steps down, and the window closes itself when the vendor's login returns.
+func TestPlansLoginRunsInItsOwnWindowWhileKolkrabbiOwnsTheTerminal(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	a, out, errOut := newTestApp(t, "")
+	a.terminalOwned = func() bool { return true }
+	var spawned string
+	var gotArgs []string
+	a.handover = func(context.Context, string, []string, string) error {
+		t.Fatal("the login must not take over kolk's own terminal")
+		return nil
+	}
+	a.handoverWindow = func(_ context.Context, executable string, args []string) error {
+		spawned = executable
+		gotArgs = args
+		return nil
+	}
+
+	if code := a.main(context.Background(), []string{"plans", "login", "anthropic", "Claude", "Max"}); code != ExitOK {
+		t.Fatalf("plans login exit = %d, stderr = %q", code, errOut.String())
+	}
+	if spawned != "claude" {
+		t.Fatalf("window handover spawned %q, want the provider CLI", spawned)
+	}
+	if !strings.Contains(strings.Join(gotArgs, " "), "auth") || !strings.Contains(strings.Join(gotArgs, " "), "login") {
+		t.Fatalf("window handover args = %v, want the login subcommand", gotArgs)
+	}
+	if a.pendingLogin != nil {
+		t.Fatalf("a windowed login armed a session deferral it does not need: %+v", a.pendingLogin)
+	}
+	if got := out.String(); !strings.Contains(got, "separate terminal window") {
+		t.Fatalf("output = %q, want it to say where the login runs", got)
+	}
+	manifest, err := provider.LoadConnectors(dirs.ConnectorsFile())
+	if err != nil || len(manifest.Connectors) != 1 || !manifest.Connectors[0].Enabled {
+		t.Fatalf("saved connector = %+v, err=%v", manifest.Connectors, err)
+	}
+	if manifest.Connectors[0].Verified {
+		t.Fatalf("connector = %+v, want it unverified until it answers a turn", manifest.Connectors[0])
+	}
+}
+
+// Without a terminal emulator to host a window, the login is deferred to the
+// screen-down flow instead of failing: the session still signs its user in.
 func TestPlansLoginDefersTheHandoverWhileKolkrabbiOwnsTheTerminal(t *testing.T) {
 	dirs := isolateConnectorState(t)
 	a, out, errOut := newTestApp(t, "")
 	a.terminalOwned = func() bool { return true }
+	a.handoverWindow = nil // no emulator found
 	a.handover = func(context.Context, string, []string, string) error {
 		t.Fatal("a provider login must never be spawned while Kolkrabbi owns the terminal")
 		return nil

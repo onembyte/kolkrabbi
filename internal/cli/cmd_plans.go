@@ -116,8 +116,15 @@ func (a *app) runPlanLogin(ctx context.Context, args []string) error {
 	}
 	// A live Kolkrabbi session reads the keyboard from its own goroutine, so a
 	// provider CLI spawned here would fight it for every keystroke. The login
-	// therefore moves to a terminal Kolkrabbi does not own.
+	// therefore moves to a terminal Kolkrabbi does not own — a window of its
+	// own when one can be opened, and the whole screen handed over when not.
 	if a.terminalOwned != nil && a.terminalOwned() {
+		if a.handoverWindow != nil {
+			fmt.Fprintf(a.stdout, "Signing in to %s — a separate terminal window is opening for %s.\n",
+				selected.Name, selected.Connector)
+			fmt.Fprintln(a.stdout, "Finish there (your browser will take it from here) and this session continues as it was.")
+			return a.runConnectorLoginWith(ctx, dirs.ConnectorsFile(), selected, a.handoverWindow)
+		}
 		// The session steps aside rather than sending the user to another
 		// terminal: the screen comes down, the provider's CLI gets the keyboard
 		// on a terminal nothing else is reading, and kolk comes back on the same
@@ -127,13 +134,22 @@ func (a *app) runPlanLogin(ctx context.Context, args []string) error {
 			selected.Name, selected.Connector)
 		return nil
 	}
-	return a.runConnectorLogin(ctx, dirs.ConnectorsFile(), selected)
+	return a.runConnectorLoginWith(ctx, dirs.ConnectorsFile(), selected, a.terminalHandover())
 }
 
-// runConnectorLogin hands the terminal to the provider's own CLI and records
-// the connector afterwards. The caller must already own an unshared terminal:
-// in a session that means after the screen is down.
-func (a *app) runConnectorLogin(ctx context.Context, connectorsFile string, selected provider.Plan) error {
+// terminalHandover is the runner for wherever this command currently owns the
+// terminal. The string result is the directory the login runs in, unused by
+// the plain handover but part of the same shape the window runner reports.
+func (a *app) terminalHandover() func(context.Context, string, []string) error {
+	return func(ctx context.Context, executable string, args []string) error {
+		return a.handover(ctx, executable, args, "")
+	}
+}
+
+// runConnectorLoginWith hands the vendor's login to the given runner and
+// records the connector afterwards. The runner owns the question of where the
+// user sees the login — a dedicated window, or a terminal kolk has cleared.
+func (a *app) runConnectorLoginWith(ctx context.Context, connectorsFile string, selected provider.Plan, run func(context.Context, string, []string) error) error {
 	// The login subcommand, never the bare executable: running `claude` with no
 	// arguments opens Claude Code itself, which is how a person asking to sign
 	// in ended up inside another agent's full interface instead.
@@ -141,8 +157,8 @@ func (a *app) runConnectorLogin(ctx context.Context, connectorsFile string, sele
 	if !known {
 		fmt.Fprintf(a.stdout, "kolk does not know how %s signs in; running it as-is.\n", selected.Connector)
 	}
-	fmt.Fprintf(a.stdout, "starting %s login in this terminal; Kolkrabbi will not see credentials\n", selected.Connector)
-	if err := a.handover(ctx, selected.Connector, loginArgs, ""); err != nil {
+	fmt.Fprintf(a.stdout, "starting %s login; Kolkrabbi will not see credentials\n", selected.Connector)
+	if err := run(ctx, selected.Connector, loginArgs); err != nil {
 		return err
 	}
 	// A provider CLI that quits without signing in also exits 0, so a clean exit
