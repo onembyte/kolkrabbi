@@ -302,13 +302,24 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   the contract the committed captures corrupted. See below.
 - [x] **S10.1d1 the stderr ring** — S2's bounded stderr, and the two defects an unbounded buffer
   was carrying. See below.
-- [~] **S10.1d2 the rest of S2's L0** — **the process group and the cancel ladder are done and
-  verified; the drain is not.** `StartLinesProcess` groups its child, cancellation walks
-  SIGINT → SIGTERM → SIGKILL against the group, and `Close` kills the group on the grace timeout.
-  Still open, from §2.5/P6: the **bounded 3 s drain** before the ladder, **closing the stdout read
-  end** once the ladder completes, and async stdin with `EPIPE` tolerance. P6 names the hang those
-  prevent and this leaf does not: a background `Bash` grandchild inherits the stdout **write end**,
-  so an unbounded drain never sees EOF and hangs the CLI after a complete answer.
+- [~] **S10.1d2 the rest of S2's L0** — re-checked against the tree 2026-08-29, because the previous
+  wording of this entry was written from intent rather than evidence and got two things wrong.
+  **Done:** the process group and group-directed cancel (S10.1d2), the SIGINT-first ladder
+  (S10.1d3), the drain that keeps its accounting (S10.1d6), and async `EPIPE`-tolerant stdin
+  (S10.1d7). **Genuinely still open, verified by reading it:**
+  - **Closing the stdout read end after the ladder.** Not implemented, and it cannot be while
+    `cmd.StdoutPipe()` owns the pipe: that read end is closed by `Wait`, and `Wait` may not run
+    until every read has finished — which is precisely the case P6 describes, where a background
+    `Bash` grandchild inherits the **write** end and EOF never arrives. Doing this properly means
+    `os.Pipe()` and owning the read `*os.File`. The group kill from S10.1d2 **bounds** the symptom
+    to `closeGrace` by killing whatever held the write end; it does not close the read end, and a
+    grandchild that escaped the group with its own `setsid` would still hold it. An earlier note in
+    this session claimed this was "probably covered" — it is not, and the correction is the reason
+    this entry now cites line-level evidence rather than a recollection.
+  - **The drain's deadline disagrees with the spec.** P6 says *bounded 3 s*; `resyncGrace` is
+    **5 s** (`session.go:120`). The drain exists and is bounded, so this is drift rather than a
+    hole — but a timeout is a product decision and is not being changed silently to match a
+    document. **Owner: 3 s or 5 s?**
 - [x] **S10.1d4 a hard exit retires the vendor conversation** — the dangerous half of §2.5's starred
   rule is closed. See below.
 - [~] **S10.1d5 announcing a retired conversation** — **the user is now told, and told once; the
