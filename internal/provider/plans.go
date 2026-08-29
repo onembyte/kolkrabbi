@@ -29,23 +29,50 @@ var planCatalog = []Plan{
 	{Provider: "qwen", Name: "Qwen", Connector: "qwen-api", Auth: "API key", Billing: "metered", Sandbox: false},
 	{Provider: "github", Name: "Copilot Pro", Connector: "copilot", Auth: "provider CLI", Billing: "subscription", Sandbox: true},
 	{Provider: "cohere", Name: "Cohere Developer", Connector: "cohere-api", Auth: "API key", Billing: "metered", Sandbox: false},
+	// Ollama's paid ollama.com tier, which is not the same thing as the local
+	// Ollama this machine may already be running — `kolk localia` owns that.
+	// Sandbox is false where every other provider-CLI row is true: sandbox
+	// means the vendor's CLI enforces its own tool-execution jail, which is
+	// what `claude --permission-mode` and `codex --sandbox` do. `ollama run`
+	// has no such flag because ollama runs inference, not an agent, and
+	// claiming "yes" in that column would describe a jail that does not exist.
+	{Provider: "ollama", Name: "Ollama Pro", Connector: "ollama", Auth: "provider CLI", Billing: "subscription", Sandbox: false},
 }
 
 // Plans returns all known plans matching filter across provider, plan,
 // connector, authentication, and billing fields.
 func Plans(filter string) []Plan {
-	filter = strings.ToLower(strings.TrimSpace(filter))
 	out := make([]Plan, 0, len(planCatalog))
 	for _, plan := range planCatalog {
-		if filter != "" &&
-			!strings.Contains(strings.ToLower(plan.Provider), filter) &&
-			!strings.Contains(strings.ToLower(plan.Name), filter) &&
-			!strings.Contains(strings.ToLower(plan.Connector), filter) &&
-			!strings.Contains(strings.ToLower(plan.Auth), filter) &&
-			!strings.Contains(strings.ToLower(plan.Billing), filter) {
+		row := strings.Join([]string{
+			plan.Provider, plan.Name, plan.Connector, plan.Auth, plan.Billing,
+		}, " ")
+		if !matchesEveryWord(row, filter) {
 			continue
 		}
 		out = append(out, plan)
 	}
 	return out
+}
+
+// matchesEveryWord reports whether every word of filter appears somewhere in
+// row, in any order.
+//
+// The fields used to be matched one at a time against the whole filter, so a
+// search had to name a single field and name it in order: `kolk plans claude
+// max` worked only because "claude max" happens to be the plan's name, and
+// `kolk plans max claude` or `kolk plans anthropic max` — a provider and a
+// tier, which is how people describe a plan — found nothing at all.
+func matchesEveryWord(row, filter string) bool {
+	filter = strings.TrimSpace(filter)
+	if filter == "" {
+		return true
+	}
+	row = strings.ToLower(row)
+	for _, word := range strings.Fields(strings.ToLower(filter)) {
+		if !strings.Contains(row, word) {
+			return false
+		}
+	}
+	return true
 }

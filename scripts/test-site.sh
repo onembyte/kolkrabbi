@@ -114,7 +114,7 @@ provider_status GitHub planned
 # the machine the releases are cut from.
 provider_tiles="anthropic=Anthropic openai=OpenAI google=Google xai=xAI
 perplexity=Perplexity mistral=Mistral deepseek=DeepSeek qwen=Qwen
-cohere=Cohere github=GitHub"
+cohere=Cohere github=GitHub ollama=Ollama"
 
 tile_for() {
   local wanted="$1" pair

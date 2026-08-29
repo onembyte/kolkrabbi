@@ -319,7 +319,7 @@ func tuiPlans() []tui.PlanSpec {
 	plans := provider.Plans("")
 	out := make([]tui.PlanSpec, 0, len(plans))
 	for _, plan := range plans {
-		out = append(out, tui.PlanSpec{Provider: plan.Provider, Name: plan.Name})
+		out = append(out, tui.PlanSpec{Provider: plan.Provider, Name: plan.Name, Auth: plan.Auth})
 	}
 	return out
 }

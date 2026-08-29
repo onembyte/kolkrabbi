@@ -65,10 +65,36 @@ type SettingSpec struct {
 	Default bool
 }
 
-// PlanSpec is the presentation subset used by the provider-login picker.
+// PlanSpec is the presentation subset used by the provider-login picker. Auth
+// is carried so the picker can offer only what a login can actually act on:
+// an API-key plan is signed into with a key, not with a provider CLI.
 type PlanSpec struct {
 	Provider string
 	Name     string
+	Auth     string
+}
+
+// matchesFilter reports whether every word of filter appears somewhere in
+// haystack, in any order.
+//
+// Every picker in the app routes through this so they agree. Substring matching
+// on the whole filter meant a search had to be typed in the order the row
+// happens to print: "claude max" found the row and "max claude" found nothing,
+// which is not how anyone thinks about a list they are scanning. For a
+// single-word filter this is byte-for-byte the old behaviour, because a word
+// cannot span the space the fields are joined by.
+func matchesFilter(haystack, filter string) bool {
+	filter = strings.TrimSpace(filter)
+	if filter == "" {
+		return true
+	}
+	haystack = strings.ToLower(haystack)
+	for _, token := range strings.Fields(strings.ToLower(filter)) {
+		if !strings.Contains(haystack, token) {
+			return false
+		}
+	}
+	return true
 }
 
 // CommandHistory retains bounded unique names in most-recent-first order.
@@ -170,9 +196,7 @@ func SuggestModels(models []ModelSpec, draft string, limit int) []CommandSpec {
 			continue
 		}
 		if filter != "" &&
-			!strings.Contains(strings.ToLower(model.ID), filter) &&
-			!strings.Contains(strings.ToLower(model.Name), filter) &&
-			!strings.Contains(strings.ToLower(model.Cost), filter) {
+			!matchesFilter(model.ID+" "+model.Name+" "+model.Cost, filter) {
 			continue
 		}
 		summary := model.Name
@@ -199,11 +223,17 @@ func SuggestPlanLogins(plans []PlanSpec, draft string, limit int) []CommandSpec 
 	if limit <= 0 {
 		limit = 8
 	}
-	filter := strings.ToLower(strings.TrimSpace(draft[len(prefix):]))
+	filter := strings.TrimSpace(draft[len(prefix):])
 	suggestions := make([]CommandSpec, 0, min(limit, len(plans)))
 	for _, plan := range plans {
+		// A plan signed into with an API key cannot be signed into here: the
+		// command refuses it outright. Offering it would be a menu entry whose
+		// only outcome is an error message.
+		if plan.Auth != "" && plan.Auth != "provider CLI" {
+			continue
+		}
 		label := plan.Provider + " " + plan.Name
-		if filter != "" && !strings.Contains(strings.ToLower(label), filter) {
+		if !matchesFilter(label, filter) {
 			continue
 		}
 		suggestions = append(suggestions, CommandSpec{
@@ -245,9 +275,7 @@ func SuggestSettings(settings []SettingSpec, draft string, limit int) []CommandS
 			continue
 		}
 		if filter != "" &&
-			!strings.Contains(strings.ToLower(setting.Key), filter) &&
-			!strings.Contains(strings.ToLower(setting.Summary), filter) &&
-			!strings.Contains(strings.ToLower(setting.Value), filter) {
+			!matchesFilter(setting.Key+" "+setting.Summary+" "+setting.Value, filter) {
 			continue
 		}
 		value := setting.Value

@@ -18,6 +18,11 @@ var connectorLoginArgs = map[string][]string{
 	// whole point of a provider-CLI connector is that the provider keeps it.
 	"claude": {"auth", "login"},
 	"codex":  {"login"},
+	// `ollama signin` opens a browser, waits for the sign-in and exits. Unlike
+	// `claude`, the bare `ollama` binary prints usage rather than opening an
+	// application, so the fallback would not have been harmful here — the
+	// subcommand is named anyway because it is the one that actually signs in.
+	"ollama": {"signin"},
 	// gemini is deliberately absent. Its login subcommand was not verified
 	// against an installed CLI, and a guessed subcommand is worse than the
 	// fallback: the fallback runs the program the user named, while a wrong

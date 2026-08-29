@@ -9,6 +9,7 @@ func TestAConnectorLoginIsASubcommandNotTheBareCLI(t *testing.T) {
 	for connector, want := range map[string][]string{
 		"claude": {"auth", "login"},
 		"codex":  {"login"},
+		"ollama": {"signin"},
 	} {
 		got, known := LoginArgs(connector)
 		if !known {

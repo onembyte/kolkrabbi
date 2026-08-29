@@ -4374,3 +4374,56 @@ picking` all came back from the public hostname.
 One thing left alone: `index.html` links `/capabilities.html`, which Cloudflare 308s to
 `/capabilities`. It works, browsers follow it, and changing the link is a cosmetic edit to a
 published page for no reader-visible gain.
+
+## FR3 four things asked for while using it (2026-08-29)
+
+Investigated with a four-way parallel read of the code, each investigation then checked by an
+adversarial reader. Every one of the four came back `needs-work`, and the critiques were worth more
+than the investigations: one falsified a proposed pty call by **running it** (`TIOCSWINSZ` on the
+master before the slave is opened returns `ENOTTY` on darwin), one found the seam the investigation
+said it could not promise already existed three times over in the same file, and one found the test
+file the investigation proposed creating.
+
+### FR3.1 the Ollama plan, and what it is not
+
+`/plans ollama` said "no plans match", because there was no Ollama row. Added one.
+
+The distinction that matters and was nearly lost: kolk **already** supports Ollama, as a local
+runtime — `kolk localia`, `internal/local/*`, models running on this machine. What was asked for is
+ollama.com's paid tier, which is a different thing reached a different way. Both are true at once,
+and the provider wall now says so on one tile rather than growing a second Ollama.
+
+`Sandbox: false`, alone among the provider-CLI rows. Sandbox means the vendor's CLI enforces its own
+tool-execution jail — that is what `claude --permission-mode` and `codex --sandbox` are. `ollama run
+--help` has no such flag, because ollama runs inference, not an agent. Claiming `yes` would have
+printed a jail that does not exist into the SANDBOX column and persisted it into the connector
+manifest.
+
+`"ollama": {"signin"}` joins the login table, verified against the installed CLI (`ollama signin
+--help` → "Sign in to ollama.com"). No plan-model row was added: `planBackendFor` has only
+`case "claude"`, so a row claiming `Access: "provider CLI"` would be a trap that fails at the user's
+first turn rather than at login.
+
+### FR3.2 searching plans the way people describe them
+
+"make plans search better, like when searching models."
+
+Both filters were substring matches, but per-field: each field was tested against the *whole* filter.
+So the words had to land inside one field, in the order that field prints. `kolk plans claude max`
+worked only because "claude max" is verbatim the plan's name; `max claude` and `anthropic max` — a
+provider and a tier, which is how anyone actually describes a plan — found nothing.
+
+Now every word must appear somewhere in the row, in any order. For a single-word filter this is
+byte-for-byte the old behaviour, because a word cannot span the space the fields are joined by, so
+every existing assertion still holds. The model and settings pickers route through the same matcher,
+because four pickers disagreeing about what a search means is four things to learn.
+
+**A bug found on the way.** `tuiPlans` fed all fifteen catalogue rows into the `/plogin` picker,
+including the six signed into with an API key — which `runPlanLogin` refuses outright. Those were
+menu entries whose only possible outcome was an error message. The picker now offers only what the
+command can act on. A `PlanSpec` with no stated `Auth` is still offered: it is a presentation struct,
+and a caller filling only the display fields should still get a menu.
+
+**The site gate caught the rest.** Adding a provider to `plans.go` fails `make site` until that
+provider has a tile on the wall — which is how the duplicate Ollama tile was found immediately, and
+why the existing live tile was amended instead.
