@@ -2631,6 +2631,40 @@ Acceptance checklist:
 - [x] silent with no bus, so a run without one behaves exactly as before.
 - [x] full `make check` green: 2,362 tests, 0 lint issues.
 
+### E5 built — the host answers, and its refusals say whose they are
+
+`provider.NewHostClient` talks to the user's Ollama through its OpenAI-compatible `/v1`. A running
+server found at startup is registered as the `ollama` route (E2), so `-m ollama/<model>` and
+`/model ollama/<model>` reach it end to end — the first user-visible capability of E. Adopted
+read-only: this session never stops a server it did not start.
+
+Three things differ from the gateway client, each for a reason and each pinned by a test:
+
+- **No key, and no transport that could attach one.** The only credential kolk holds is the
+  OpenRouter key, and a Bearer header carrying it to a process on this machine is a credential
+  leaving the service it belongs to. The key check is waived by *origin*, not removed: the gateway
+  still refuses unauthenticated calls, and the mutation that makes every client require a key
+  fails the keyless test.
+- **No first-byte timeout.** A cold 7B on a CPU takes minutes to its first token; the gateway's
+  60 s is right for a data centre and wrong here. The turn's own context bounds the wait.
+- **Errors carry their origin.** `HTTPError` gains `Origin`, stamped by the client, and its message
+  reads `ollama: HTTP 401` rather than `openrouter: HTTP 401`. `Advise` dispatches on it: a
+  signed-out cloud model says *run `ollama signin`* and prints the `signin_url` the server offered,
+  a missing model says *`ollama pull`*, a 5xx says *the model may not fit in memory* — instead of
+  *set a working key with `kolk key`*, which was what a local refusal used to produce.
+
+**A corruption nobody had hit yet.** `readStream` merged tool-call deltas by index, and an absent
+index decodes as 0. A server that sends complete calls without indexes would have had its second
+call's arguments appended to its first — one call with garbage JSON. A new id at an occupied index
+is now a new call. The mutation that removes the check produces exactly that corruption and fails.
+
+**One claim in the queue was wrong.** It said `tool_choice` must be dropped for this backend. The
+client never sends `tool_choice`; there was nothing to drop. Checked rather than built.
+
+**And one panic caught by an existing test.** An app built without the discovery seam — as the
+single-shot test does — dereferenced nil at startup. A missing seam now means no host route, never
+a crash.
+
 ### E4 built — the host's models, decoded from what the server says and nothing else
 
 `local.ListHostModels` reads `/api/tags`, then `/api/show` per model, into `HostModel`: tools,
@@ -2745,7 +2779,7 @@ is deliberately late because item 34 is working in the same files.
       tools from `capabilities`, context from `details.context_length`, local vs cloud from
       `remote_host`. Version floor from `/api/version`. `"data": null` is an empty list, not an
       error. Measure the per-startup cost with N models and cache it beside the gateway catalogue.
-- [ ] **E5 the HTTP backend** — `provider.Client` against `/v1` with no key, its own transport with
+- [x] **E5 the HTTP backend** — `provider.Client` against `/v1` with no key, its own transport with
       no first-byte timeout, `tool_choice` dropped, tool-call slots keyed by id when the index is
       absent or repeats. `HTTPError` gains an origin so a signed-out cloud model does not read as
       "OpenRouter rejected the API key"; `Advise` dispatches on it; a `401` body's `signin_url` is

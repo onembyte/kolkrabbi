@@ -19,6 +19,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/hooks"
+	"github.com/onembyte/kolkrabbi/internal/local"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/provider/agentcli"
 	"github.com/onembyte/kolkrabbi/internal/session"
@@ -388,6 +389,16 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		UserMemoryFile:     d.MemoryFile(),
 		ArchiveCompaction:  archiveCompaction(d.Sessions(), sess.ID),
 	})
+	// The user's own Ollama, when one is running, answers for ollama/<model>
+	// through the router (E2, E5). Adopted read-only: this session never
+	// stops a server it did not start. Discovery costs 230 µs, measured.
+	// No discovery seam means no discovery, never a panic: an app built
+	// without one simply has no host route.
+	if a.discoverHost != nil {
+		if host := a.discoverHost(ctx); host.State == local.HostRunning {
+			ag.Routes = map[string]engine.ChatBackend{local.SidecarName: provider.NewHostClient(host.Addr)}
+		}
+	}
 	// Rules the user already wrote down apply from the first turn. A stored
 	// permission that only takes effect after someone opens /permissions is a
 	// permission that was not actually stored.

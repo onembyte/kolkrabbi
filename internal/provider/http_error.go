@@ -22,6 +22,13 @@ type HTTPError struct {
 	LimitSource  string
 	RemedyHint   string
 	RetryAfter   time.Duration
+	// Origin is the service that answered — empty for the gateway, "ollama"
+	// for a server on this machine — so the message and the advice can name
+	// the right remedy.
+	Origin string
+	// SignInURL is the address an Ollama server offers when a cloud model is
+	// asked for while signed out.
+	SignInURL string
 }
 
 func (e *HTTPError) Error() string {
@@ -45,7 +52,11 @@ func (e *HTTPError) Error() string {
 	if e.RemedyHint != "" {
 		detail += ": " + e.RemedyHint
 	}
-	return fmt.Sprintf("openrouter: HTTP %d: %s", e.StatusCode, detail)
+	origin := e.Origin
+	if origin == "" {
+		origin = "openrouter"
+	}
+	return fmt.Sprintf("%s: HTTP %d: %s", origin, e.StatusCode, detail)
 }
 
 func newHTTPError(statusCode int, header http.Header, body []byte) *HTTPError {
@@ -55,9 +66,11 @@ func newHTTPError(statusCode int, header http.Header, body []byte) *HTTPError {
 		RetryAfter:   parseRetryAfter(header.Get("Retry-After"), time.Now()),
 	}
 	var envelope struct {
-		Error struct {
-			Message  string `json:"message"`
-			Metadata struct {
+		SignInURL string `json:"signin_url"`
+		Error     struct {
+			Message   string `json:"message"`
+			SignInURL string `json:"signin_url"`
+			Metadata  struct {
 				ProviderName string `json:"provider_name"`
 				LimitSource  string `json:"limit_source"`
 				RemedyHint   string `json:"remedy_hint"`
@@ -69,6 +82,10 @@ func newHTTPError(statusCode int, header http.Header, body []byte) *HTTPError {
 		e.ProviderName = secret.Scrub(envelope.Error.Metadata.ProviderName)
 		e.LimitSource = secret.Scrub(envelope.Error.Metadata.LimitSource)
 		e.RemedyHint = secret.Scrub(envelope.Error.Metadata.RemedyHint)
+		e.SignInURL = envelope.SignInURL
+		if e.SignInURL == "" {
+			e.SignInURL = envelope.Error.SignInURL
+		}
 	}
 	return e
 }

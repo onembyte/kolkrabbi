@@ -52,6 +52,11 @@ func Advise(err error) (Advice, bool) {
 		return adviseTransport(err)
 	}
 
+	if httpErr.Origin == HostOrigin {
+		if advice, ok := adviseHost(httpErr); ok {
+			return advice, true
+		}
+	}
 	switch httpErr.StatusCode {
 	case http.StatusBadRequest, http.StatusRequestEntityTooLarge:
 		return adviseBadRequest(err, httpErr)
@@ -162,6 +167,32 @@ func adviseTransport(err error) (Advice, bool) {
 		return Advice{
 			Summary:    "the connection dropped part-way through the answer",
 			NextAction: "What arrived before the break is kept. Ask again to continue.",
+		}, true
+	}
+	return Advice{}, false
+}
+
+// adviseHost is the advice for a refusal from the user's own Ollama, where
+// every OpenRouter remedy is the wrong one: there is no key to fix, no credit
+// to add, and "the model behind it" is a process on this machine.
+func adviseHost(httpErr *HTTPError) (Advice, bool) {
+	switch httpErr.StatusCode {
+	case http.StatusUnauthorized:
+		next := "Run `ollama signin` in a terminal, then try again."
+		if httpErr.SignInURL != "" {
+			next = "Sign in at " + httpErr.SignInURL + " (or run `ollama signin`), then try again."
+		}
+		return Advice{Summary: "the local Ollama server is signed out of ollama.com, which this cloud model needs", NextAction: next}, true
+	case http.StatusNotFound:
+		return Advice{
+			Summary:    "the local Ollama server has no model by that name",
+			NextAction: "`ollama pull <name>` fetches it; `kolk models` lists what is pulled.",
+		}, true
+	}
+	if httpErr.StatusCode >= 500 {
+		return Advice{
+			Summary:    fmt.Sprintf("the local Ollama server failed (HTTP %d)", httpErr.StatusCode),
+			NextAction: "The model may not fit in memory, or the server may be mid-crash. `ollama ps` shows what is loaded; its own log says why.",
 		}, true
 	}
 	return Advice{}, false

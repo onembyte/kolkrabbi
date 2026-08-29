@@ -131,10 +131,48 @@ type Client struct {
 	AppName string
 	AppURL  string
 
+	// Origin names the service this client talks to when it is not the
+	// gateway — "ollama" for a server on this machine. It is stamped on every
+	// HTTPError so a refusal from a local process never reads as an OpenRouter
+	// error with OpenRouter remedies, and it is what waives the key: the
+	// gateway is the only origin that needs one.
+	Origin string
+
 	// auth holds the key. It is unexported so the only way to read it back is
 	// through a Secret, and it is never copied into a request here.
 	auth *secret.AuthTransport
 }
+
+// HostOrigin is the origin of a client talking to the user's own Ollama.
+const HostOrigin = "ollama"
+
+// NewHostClient talks to an Ollama server on this machine through its
+// OpenAI-compatible /v1 (E5). Three things differ from the gateway client, each
+// for a reason:
+//
+//   - No key, and no transport that could attach one. The only credential
+//     kolk holds is the OpenRouter key, and a Bearer header carrying it to a
+//     process on this machine is a credential leaving the service it belongs
+//     to. The server needs none; cloud models are signed by the server's own
+//     key, which kolk never sees.
+//   - No first-byte timeout. A cold 7B on a CPU takes minutes to its first
+//     token; the gateway's 60 s is right for a data centre and wrong here. The
+//     turn's context bounds the wait instead.
+//   - No attribution headers. They are OpenRouter's, and a local server would
+//     only ignore them.
+func NewHostClient(addr string) *Client {
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.ResponseHeaderTimeout = 0
+	return &Client{
+		BaseURL:    "http://" + addr + "/v1",
+		HTTPClient: &http.Client{Transport: tr},
+		Origin:     HostOrigin,
+	}
+}
+
+// requiresKey is true for the gateway, which refuses unauthenticated calls,
+// and false for a local origin, which has nothing to authenticate.
+func (c *Client) requiresKey() bool { return c.Origin == "" }
 
 func NewClient(apiKey string) *Client {
 	// No overall client Timeout: it would cap the total streaming duration.
@@ -187,9 +225,14 @@ func (c *Client) HasKey() bool { return !c.Key().IsZero() }
 // is called for every content delta as it arrives (for live terminal output).
 // It returns the fully assembled assistant message, including any tool calls,
 // plus per-call usage/cost metadata when the server reports it.
+// syntheticSlot is where a tool call goes when its index collides with a
+// different call's. Far above any real index, so sorting keeps real indexes
+// first and collisions in arrival order after them.
+const syntheticSlot = 1 << 20
+
 func (c *Client) StreamChat(ctx context.Context, model string, messages []Message, tools []Tool, onToken func(string)) (Message, Meta, error) {
 	meta := Meta{Model: model}
-	if !c.HasKey() {
+	if c.requiresKey() && !c.HasKey() {
 		return Message{}, meta, fmt.Errorf("no API key set (run: kolk key <API_KEY>, or export OPENROUTER_API_KEY)")
 	}
 	reqBody := chatRequest{
@@ -229,7 +272,9 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []Messag
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		return Message{}, meta, secret.ScrubError(newHTTPError(resp.StatusCode, resp.Header, b))
+		httpErr := newHTTPError(resp.StatusCode, resp.Header, b)
+		httpErr.Origin = c.Origin
+		return Message{}, meta, secret.ScrubError(httpErr)
 	}
 
 	msg, err := readStream(resp.Body, &meta, onToken)
@@ -295,11 +340,20 @@ func readStream(body io.Reader, meta *Meta, onToken func(string)) (Message, erro
 		}
 
 		for _, tc := range delta.ToolCalls {
-			existing, ok := toolCalls[tc.Index]
+			slot := tc.Index
+			existing, ok := toolCalls[slot]
+			// A new id at an index already holding a call is a new call, not
+			// a continuation: an absent index decodes as 0, so a server that
+			// sends complete calls without indexes would otherwise have its
+			// second call's arguments appended to its first.
+			if ok && tc.ID != "" && existing.ID != "" && tc.ID != existing.ID {
+				slot = syntheticSlot + len(toolCallOrder)
+				existing, ok = toolCalls[slot]
+			}
 			if !ok {
 				cp := tc
-				toolCalls[tc.Index] = &cp
-				toolCallOrder = append(toolCallOrder, tc.Index)
+				toolCalls[slot] = &cp
+				toolCallOrder = append(toolCallOrder, slot)
 				continue
 			}
 			if tc.ID != "" {
