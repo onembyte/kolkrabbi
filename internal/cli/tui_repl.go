@@ -139,7 +139,18 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 		Meter: func() (string, string) { return contextLabel(ag), sessionCostLabel(ag) },
 		Turn: func(turnContext context.Context, prompt string) error {
 			if strings.HasPrefix(strings.TrimSpace(prompt), "/") {
-				shouldExit := a.slash(turnContext, ag, strings.TrimSpace(prompt))
+				prompt = strings.TrimSpace(prompt)
+				// `/model` with no argument is the picker, not a catalog dump: the
+				// screen can offer every model with an effort dial alongside, so
+				// a plain list is the worse answer. The plain REPL keeps its
+				// catalog view; it has no arrow keys to offer.
+				if picked, shown := tuiModelPickerCommand(turnContext, screen, a, ag, prompt); shown {
+					if picked == "" {
+						return nil // dismissed
+					}
+					prompt = picked
+				}
+				shouldExit := a.slash(turnContext, ag, prompt)
 				screen.SetStatus(tuiStatus(ag, "ready", folder))
 				if shouldExit {
 					return tui.ErrExit
@@ -255,6 +266,52 @@ func tuiModels(_ context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 		})
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Rank < out[j].Rank })
+	return out
+}
+
+// tuiModelPickerCommand turns a bare `/model` into the picker's command. It
+// returns the picked command (and shown=true) only on this screen and only
+// when the argument was bare; a command with arguments, a screen that cannot
+// show the picker, or a dismissal falls through with shown=false or picked="".
+func tuiModelPickerCommand(ctx context.Context, screen *tui.Runtime, a *app, ag *engine.Agent, prompt string) (string, bool) {
+	if strings.TrimSpace(prompt) != "/model" {
+		return "", false
+	}
+	entries := tuiModelPickEntries(ctx, a, ag)
+	picked, ok := screen.AskModel(ctx, entries)
+	if !ok {
+		return "", false
+	}
+	return picked, true
+}
+
+// tuiModelPickEntries is the /model suggestion list, one row per model with
+// the effort dial of its plan where the plan offers one. The dial starts at
+// the level the session already runs at — mapped down onto whatever the plan
+// actually offers.
+func tuiModelPickEntries(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelPickEntry {
+	specs := tuiModels(ctx, a, ag)
+	current, _ := engine.NormalizeEffort(ag.Effort)
+	out := make([]tui.ModelPickEntry, 0, len(specs))
+	for _, spec := range specs {
+		entry := tui.ModelPickEntry{ID: spec.ID, Name: spec.Name}
+		for _, plan := range provider.PlanModels("") {
+			if plan.Model != spec.ID {
+				continue
+			}
+			entry.Efforts = plan.Efforts
+			if resolved, _ := provider.EffortForPlan(current, plan.Efforts); resolved != "" {
+				for index, effort := range plan.Efforts {
+					if strings.EqualFold(effort, resolved) {
+						entry.Effort = index
+						break
+					}
+				}
+			}
+			break
+		}
+		out = append(out, entry)
+	}
 	return out
 }
 

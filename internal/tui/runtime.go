@@ -88,9 +88,12 @@ type Runtime struct {
 	approval chan Decision
 	// question is the reply channel of the model worker waiting on a picker.
 	question chan questionReply
-	quit     chan struct{}
-	quitOnce sync.Once
-	resize   <-chan struct{}
+	// modelPick is the reply channel of the surface waiting on the /model
+	// overlay. Empty answer means dismissed.
+	modelPick chan string
+	quit      chan struct{}
+	quitOnce  sync.Once
+	resize    <-chan struct{}
 	// closing is set once the read loop has exited. A queued request must not
 	// start after that: turns.Wait has begun, so Add would race it, and a
 	// session that is ending should not send one more message.
@@ -246,6 +249,10 @@ func (r *Runtime) HandleKey(key Key) Effect {
 	if (effect.Choice > 0 || effect.ChoiceDismissed) && r.question != nil {
 		r.question <- r.controller.chosen(effect)
 		r.question = nil
+	}
+	if (effect.PickModel != "" || effect.PickDismissed) && r.modelPick != nil {
+		r.modelPick <- effect.PickModel
+		r.modelPick = nil
 	}
 	if effect.CyclePermission && r.cyclePerm != nil {
 		if tier := r.cyclePerm(); tier != "" {
@@ -486,6 +493,44 @@ func (r *Runtime) Ask(ctx context.Context, question Question) (string, bool) {
 		r.mu.Lock()
 		if r.question == reply {
 			r.question = nil
+			_ = r.controller.HandleKey(Key{Kind: KeyInterrupt})
+			r.renderLocked()
+		}
+		r.mu.Unlock()
+		return "", false
+	}
+}
+
+// AskModel opens the /model picker and returns the command line to run, or
+// false when the picker was dismissed or refused (another overlay is already
+// open, or no rows were given). Like Ask, it blocks only the calling worker.
+func (r *Runtime) AskModel(ctx context.Context, entries []ModelPickEntry) (string, bool) {
+	if len(entries) == 0 {
+		return "", false
+	}
+	reply := make(chan string, 1)
+	r.mu.Lock()
+	if r.question != nil || r.approval != nil || r.modelPick != nil {
+		r.mu.Unlock()
+		return "", false
+	}
+	r.modelPick = reply
+	r.controller.RequestModelPicker(entries)
+	r.renderLocked()
+	r.mu.Unlock()
+
+	select {
+	case answer := <-reply:
+		if answer == "" {
+			return "", false
+		}
+		return answer, true
+	case <-ctx.Done():
+		// The turn was interrupted. Take the picker down rather than leave it
+		// on screen waiting for an answer nobody is listening for any more.
+		r.mu.Lock()
+		if r.modelPick == reply {
+			r.modelPick = nil
 			_ = r.controller.HandleKey(Key{Kind: KeyInterrupt})
 			r.renderLocked()
 		}

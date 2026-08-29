@@ -34,6 +34,10 @@ type Effect struct {
 	// ChoiceDismissed reports a question closed without an answer, which is a
 	// different thing from picking the first option.
 	ChoiceDismissed bool
+	// PickModel is the command line the /model picker resolved to, or empty.
+	// PickDismissed distinguishes closing the picker untouched from a pick.
+	PickModel     string
+	PickDismissed bool
 	// CyclePermission asks the surface to advance the permission tier. The
 	// controller cannot do it itself: what the tiers are, and what changing
 	// one means, belongs to the engine rather than to a screen.
@@ -64,9 +68,14 @@ type Controller struct {
 	// closes it carries an index that still has to be resolved to an answer.
 	lastOptions    []string
 	beforeQuestion string
-	editor         *Editor
-	status         Status
-	busy           bool
+	// modelPicker is the open /model overlay, if any. It takes keys ahead of
+	// the composer like the question overlay does, and resolves to a command
+	// line rather than to an option string.
+	modelPicker []ModelPickEntry
+	modelIndex  int
+	editor      *Editor
+	status      Status
+	busy        bool
 	// queued holds a request submitted while a turn was still running. The
 	// engine session is stateful, so two turns cannot run at once; the request
 	// waits here and starts the moment the running one finishes.
@@ -102,6 +111,9 @@ func NewController(status Status, maxDraftRunes int) *Controller {
 func (c *Controller) HandleKey(key Key) Effect {
 	if c.approval != nil {
 		return c.handleApprovalKey(key)
+	}
+	if c.modelPicker != nil {
+		return c.handleModelPickerKey(key)
 	}
 	if c.question != nil {
 		return c.handleQuestionKey(key)
@@ -387,6 +399,9 @@ func (c *Controller) RenderView(width, height int) string {
 }
 
 func (c *Controller) renderView(width, height int, styled bool) string {
+	if c.modelPicker != nil {
+		return c.overlayView(c.modelPickerLines(width), width, height, styled)
+	}
 	if c.question != nil {
 		return c.overlayView(c.questionLines(width), width, height, styled)
 	}
