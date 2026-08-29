@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -82,6 +83,57 @@ func TestAHardExitRetiresTheVendorConversation(t *testing.T) {
 	second := argvs[1][slices.Index(argvs[1], "--session-id")+1]
 	if first == second {
 		t.Fatalf("both turns used handle %q; the invalidated one was not retired", first)
+	}
+}
+
+// Retiring the conversation (S10.1d4) is silent, and silence is the wrong
+// default here: the vendor has lost its own record of the session, later turns
+// will behave subtly differently, and nothing told the user. kolk's transcript
+// is intact — promptFromMessages replays it every turn — so the message says
+// what actually changed rather than raising an alarm about data loss.
+func TestARetiredConversationIsAnnounced(t *testing.T) {
+	backend := ClaudeBackend{
+		Model: "opus", Mode: "code", Effort: "high",
+		start: func(context.Context, string, []string) (lineProcess, error) {
+			return &fakeLineProcess{lines: claudeTurnFrames("answered"), hardExit: true}, nil
+		},
+	}
+	var streamed string
+	_, _, err := backend.StreamChat(context.Background(), "opus",
+		[]provider.Message{{Role: "user", Content: "hi"}}, nil,
+		func(token string) { streamed += token })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(streamed, "answered") {
+		t.Fatalf("the turn's own output went missing: %q", streamed)
+	}
+	if !strings.Contains(streamed, "provider") || !strings.Contains(streamed, "fresh") {
+		t.Fatalf("streamed = %q, want the retirement explained to the user", streamed)
+	}
+}
+
+// §2.5 marks Ctrl-C `Silent:true`. A person who just cancelled their own turn
+// knows why the provider stopped; telling them the conversation was retired is
+// noise attached to the thing they deliberately did, and it would appear on
+// every single cancellation.
+func TestAUserCancelledTurnRetiresQuietly(t *testing.T) {
+	backend := ClaudeBackend{
+		Model: "opus", Mode: "code", Effort: "high",
+		start: func(context.Context, string, []string) (lineProcess, error) {
+			return &fakeLineProcess{lines: claudeTurnFrames("answered"), hardExit: true}, nil
+		},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var streamed string
+	_, _, _ = backend.StreamChat(ctx, "opus",
+		[]provider.Message{{Role: "user", Content: "hi"}}, nil,
+		func(token string) { streamed += token })
+
+	if strings.Contains(streamed, "fresh") {
+		t.Fatalf("streamed = %q, want silence on a cancellation the user asked for", streamed)
 	}
 }
 

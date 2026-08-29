@@ -248,6 +248,19 @@ func limitTrail(event Event) string {
 	return out.String()
 }
 
+// retirementTrail explains a conversation kolk had to retire after the provider
+// was killed mid-turn.
+//
+// It describes what changed rather than what was lost, because nothing was:
+// kolk replays its whole transcript on every turn, so the vendor's own copy is
+// the only casualty and the user's history is untouched. Saying "history lost"
+// here would be both alarming and false.
+func retirementTrail() string {
+	return "\n· the provider stopped before it finished, so its own record of this" +
+		" conversation was discarded and the next turn starts a fresh one." +
+		" Your transcript is intact.\n"
+}
+
 // limitWindowName names a rate_limit_type the way a person says it.
 func limitWindowName(window string) string {
 	if window == "" {

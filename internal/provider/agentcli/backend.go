@@ -111,6 +111,16 @@ func (b *ClaudeBackend) StreamChat(ctx context.Context, model string, messages [
 		if session.HardExit() {
 			b.forgetHandle()
 			b.dropSession(session)
+			// Say so — except to the person who just pressed Ctrl-C. §2.5 marks
+			// a user cancellation Silent, and they already know why the
+			// provider stopped; this line would arrive on every cancellation
+			// attached to the thing they deliberately did. Written through
+			// onToken rather than watch so it does not count as answer content:
+			// `streamed` decides whether a turn may be retried, and a notice is
+			// not half an answer.
+			if onToken != nil && ctx.Err() == nil {
+				onToken(retirementTrail())
+			}
 		}
 		// A session that lost its place in the provider stream is replaced
 		// rather than kept: one unrecoverable interrupt must not end Claude for

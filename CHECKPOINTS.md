@@ -308,12 +308,50 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   so an unbounded drain never sees EOF and hangs the CLI after a complete answer.
 - [x] **S10.1d4 a hard exit retires the vendor conversation** — the dangerous half of §2.5's starred
   rule is closed. See below.
-- [ ] **S10.1d5 the `<prior-conversation>` label and `WarnHistoryLost`** — §2.5 also asks that a
-  retired conversation be *announced*. Deliberately separated from S10.1d4 because the safety half
-  does not depend on it: `promptFromMessages` already serialises the whole conversation every turn,
-  so kolk replays its own transcript whether or not the vendor remembers anything. What is missing
-  is the label and the warning — the user is not told that the vendor lost its own copy. That is a
-  UX gap, not a correctness one, and it should not have blocked the correctness fix.
+- [~] **S10.1d5 announcing a retired conversation** — **the user is now told, and told once; the
+  typed code and the vendor-facing label are not built.** A retirement streams a trail line through
+  the same channel `limitTrail` uses, and stays silent when the user cancelled the turn themselves.
+  Still open: `WarnHistoryLost` as a **typed** warning rather than prose, which needs §2.6's
+  amendment **A2** (`Warnings` riding an `EventResponseMeta` — `provider.Meta` has no warnings field
+  at all today) and **A7** (the three `Warn*` codes). Also open, and deliberately: the
+  `<prior-conversation>` prompt label.
+
+### S10.1d5 (part) built — saying so, and knowing when not to
+
+S10.1d4 made a retirement safe and left it **silent**. The vendor has lost its own record of the
+session, later turns behave differently because of it, and nothing said a word.
+
+**What the message says is the decision here.** §2.5 names the warning `WarnHistoryLost`, and taken
+literally that is the wrong thing to tell this user: nothing of theirs was lost. `promptFromMessages`
+replays the whole conversation on every turn, so kolk's transcript is intact and the vendor's copy is
+the only casualty. The line therefore reports **what changed** — the next turn starts a fresh
+conversation, your transcript is intact — rather than raising an alarm about data loss that did not
+happen. A warning that overstates its own severity gets ignored, including the time it matters.
+
+**And it stays quiet for the person who pressed Ctrl-C.** §2.5 marks a user cancellation
+`Silent:true`. Someone who just cancelled their own turn knows why the provider stopped; the notice
+would arrive on *every* cancellation, attached to the thing they deliberately did. Silence there is
+the feature, which is why it has its own test rather than being left to a reviewer to notice.
+
+**Written through `onToken`, not `watch`.** `watch` sets `streamed`, which decides whether a turn may
+be retried at all — and a notice is not half an answer. Routing the trail around that flag keeps
+"content reached the user" meaning what the retry logic needs it to mean.
+
+**Why the typed code is not here.** `provider.Meta` has no warnings field: §2.6's amendment A2 is
+unbuilt, and A7's three `Warn*` codes with it. Inventing a private one inside `agentcli` would
+create the second warning vocabulary those amendments exist to prevent. Prose through the existing
+trail channel is the honest interim, and it is recorded as interim rather than ticked.
+
+Acceptance checklist:
+
+- [x] red first: the retirement explained to nobody, with the streamed output printed.
+- [x] the silent case proven separately, since "does not appear" is invisible in a passing test
+  that only asserts presence.
+- [x] proven non-vacuous by mutation: announcing unconditionally fails the cancellation test with
+  the full unwanted line in the failure.
+- [x] `-race` green; full `make check` green: **2,542 tests, 0 lint issues**.
+- [ ] **not done, and not ticked:** `WarnHistoryLost` as a typed warning (needs A2 + A7), and the
+  `<prior-conversation>` prompt label.
 
 ### S10.1d4 built — and mutation testing found the bug in the fix
 

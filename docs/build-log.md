@@ -4539,6 +4539,35 @@ nothing — but a rate-limit frame this package cannot read is a plan limit the 
 about, and an extra tolerated spelling costs four lines. It has its own test so that it stays a
 decision someone can find and delete, rather than a shape that merely still happens to decode.
 
+## S10.1d5 (part) saying a conversation was retired, and knowing when not to (2026-08-29)
+
+**Gate:** `make check` exit 0 — **2,542 tests, 0 lint issues**, `-race` green.
+
+S10.1d4 made the retirement safe and left it silent. The vendor has lost its own record of the
+session and nothing said so.
+
+**The wording is the decision.** §2.5 names this warning `WarnHistoryLost`, and taken literally that
+is the wrong thing to tell the user: nothing of theirs was lost. `promptFromMessages` replays the
+entire conversation every turn, so kolk's transcript is intact and the vendor's copy is the only
+casualty. The line reports what changed — the next turn starts a fresh conversation, your transcript
+is intact — instead of announcing data loss that did not occur. A warning that overstates itself is
+one people learn to skip, including on the day it matters.
+
+**Silence is a feature with its own test.** §2.5 marks a user cancellation `Silent:true`. Someone who
+just pressed Ctrl-C knows why the provider stopped, and the notice would appear on *every*
+cancellation, bolted onto the thing they deliberately did. "Does not appear" is invisible in a test
+that only asserts presence, so it gets its own — and the mutation (announcing unconditionally) fails
+it with the whole unwanted line printed in the failure.
+
+**Routed through `onToken`, not `watch`.** `watch` sets `streamed`, which decides whether a turn may
+be retried, and a notice is not half an answer. Keeping the trail off that flag preserves what the
+retry logic needs `streamed` to mean.
+
+**The typed code is deliberately absent.** `provider.Meta` has no warnings field — §2.6's amendment
+A2 is unbuilt, and A7's three `Warn*` codes with it. Minting a private warning vocabulary inside
+`agentcli` would create exactly the second vocabulary those amendments exist to prevent. Prose
+through the existing trail channel is the honest interim, recorded as `[~]` rather than ticked.
+
 ## S10.1d4 a hard exit retires the conversation — and the bug mutation found in the fix (2026-08-29)
 
 **Gate:** `make check` exit 0 — **2,540 tests, 0 lint issues**, `-race` green on `agentcli` and
