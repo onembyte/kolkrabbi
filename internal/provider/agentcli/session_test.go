@@ -3,6 +3,7 @@ package agentcli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"strings"
@@ -125,9 +126,9 @@ func TestClaudeSessionTrailMarksAFailedToolRun(t *testing.T) {
 // rejection turns the failure that follows into "when can I go again".
 func TestClaudeSessionWarnsThenClassifiesThePlanLimit(t *testing.T) {
 	process := &fakeLineProcess{lines: [][]byte{
-		[]byte(`{"type":"rate_limit_event","status":"allowed_warning","rate_limit_type":"seven_day","utilization":0.78,"resets_at":1788220800}`),
+		[]byte(`{"type":"rate_limit_event","rate_limit_info":{"status":"allowed_warning","rateLimitType":"seven_day","utilization":0.78,"resetsAt":1788220800}}`),
 		[]byte(`{"type":"result","result":"fine","subtype":"success"}`),
-		[]byte(`{"type":"rate_limit_event","status":"rejected","rate_limit_type":"seven_day","resets_at":1788220800}`),
+		[]byte(`{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","rateLimitType":"seven_day","resetsAt":1788220800}}`),
 		[]byte(`{"type":"result","subtype":"error_during_execution","errors":["credit balance too low"],"is_error":true}`),
 	}}
 	session, ctxCancel := func() (*ClaudeSession, func()) {
@@ -377,5 +378,31 @@ func TestClaudeSessionDiffsCacheTokensToo(t *testing.T) {
 	}
 	if second.CacheCreationTokens != 0 {
 		t.Fatalf("cache creation = %d, want 0 (the total did not move)", second.CacheCreationTokens)
+	}
+}
+
+// The vendor's cause must survive being wrapped on the way to classification.
+// `Collect` returns *providerError bare today, so a type assertion happens to
+// work — but one `fmt.Errorf("…: %w", err)` anywhere on that path would drop
+// the cause silently, and the limit message would still read as complete with
+// the reason missing from it. That is the specific way this fails while still
+// looking like it works, so it is asserted rather than left to the next edit.
+func TestClaudeSessionClassifiesAWrappedProviderCause(t *testing.T) {
+	session := &ClaudeSession{rejectedLimit: Event{
+		Kind:        EventLimit,
+		LimitWindow: "seven_day",
+	}}
+	wrapped := fmt.Errorf("stream ended: %w", &providerError{message: "credit balance too low"})
+
+	err := session.classifyLimitFailure(wrapped)
+
+	if err == nil {
+		t.Fatal("a rejected limit must classify into an error")
+	}
+	if !strings.Contains(err.Error(), "credit balance too low") {
+		t.Fatalf("err = %v, want the wrapped vendor cause preserved", err)
+	}
+	if !strings.Contains(err.Error(), "seven-day") {
+		t.Fatalf("err = %v, want the limit window named", err)
 	}
 }

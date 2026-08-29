@@ -78,12 +78,27 @@ type wireFrame struct {
 	Errors       []string   `json:"errors"`
 	TotalCostUSD float64    `json:"total_cost_usd"`
 	Usage        *wireUsage `json:"usage"`
-	// Rate-limit frames carry these at the top level. A rejected request does
-	// not end the stream — the terminal frame follows it.
+	// A rejected request does not end the stream — the terminal frame follows
+	// it. The vendor sends this payload nested under rate_limit_info in
+	// camelCase; that is the shape the captured fixture carries and the only
+	// one ever observed on the wire.
+	RateLimitInfo *wireRateLimit `json:"rate_limit_info"`
+	// The flat snake_case spelling below was assumed before any fixture was
+	// replayed, and no vendor frame has ever carried it. It is kept as a
+	// tolerated fallback rather than deleted, because a frame this package
+	// cannot read is a plan limit the user never hears about — but the nested
+	// form wins, and it is the one the fixture test anchors.
 	Status        string  `json:"status"`
 	RateLimitType string  `json:"rate_limit_type"`
 	Utilization   float64 `json:"utilization"`
 	ResetsAt      int64   `json:"resets_at"`
+}
+
+type wireRateLimit struct {
+	Status        string  `json:"status"`
+	RateLimitType string  `json:"rateLimitType"`
+	Utilization   float64 `json:"utilization"`
+	ResetsAt      int64   `json:"resetsAt"`
 }
 
 type wireUsage struct {
@@ -150,15 +165,23 @@ func Translate(line []byte) ([]Event, error) {
 		// A warning is the scarce resource speaking while there is still time to
 		// notice; a rejection is the cause of a failure that has not arrived
 		// yet. A plain "allowed" neither — dropped.
-		if frame.Status != "allowed_warning" && frame.Status != "rejected" {
+		status, window := frame.Status, frame.RateLimitType
+		utilization, resets := frame.Utilization, frame.ResetsAt
+		if frame.RateLimitInfo != nil {
+			status = frame.RateLimitInfo.Status
+			window = frame.RateLimitInfo.RateLimitType
+			utilization = frame.RateLimitInfo.Utilization
+			resets = frame.RateLimitInfo.ResetsAt
+		}
+		if status != "allowed_warning" && status != "rejected" {
 			return nil, nil
 		}
 		return []Event{{
 			Kind:             EventLimit,
-			LimitRejected:    frame.Status == "rejected",
-			LimitWindow:      secret.Scrub(frame.RateLimitType),
-			LimitUtilization: frame.Utilization,
-			LimitResets:      frame.ResetsAt,
+			LimitRejected:    status == "rejected",
+			LimitWindow:      secret.Scrub(window),
+			LimitUtilization: utilization,
+			LimitResets:      resets,
 		}}, nil
 	case "result":
 		events := []Event{{

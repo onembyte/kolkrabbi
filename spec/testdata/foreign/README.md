@@ -14,7 +14,7 @@ vendor output **offline, forever, with no vendor binary and no account** — see
 | File | Captured with | Shape it proves |
 |---|---|---|
 | `claude-plain.ndjson` | `claude -p "Reply with exactly: ok" --output-format stream-json --verbose` | 12 frames: 4×`hook_started`, 4×`hook_response`, `system/init`, `assistant`(text), `rate_limit_event`, `result/success` |
-| `claude-tool-use.ndjson` | same, plus `--allowedTools "Write"`, prompting a file write | 14 frames: the full tool round trip — `assistant`(`tool_use`) → `user`(`tool_result`) → `assistant`(text) → `result` |
+| `claude-tool-use.ndjson` | same, plus `--allowedTools "Bash"`, prompting a file write | 14 frames: the full tool round trip — `assistant`(`tool_use`) → `user`(`tool_result`) → `assistant`(text) → `result` |
 | `codex-plain.jsonl` | `codex exec --json --skip-git-repo-check "Reply with exactly: ok"` | 4 frames: `thread.started`(handle) → `turn.started` → `item.completed`(`agent_message`) → `turn.completed`(`usage`) |
 | `codex-tool-use.jsonl` | same, with `-s workspace-write`, prompting a file write | 12 frames: interleaved `item.started`/`item.completed` for `file_change` and `command_execution` (with `aggregated_output`, `exit_code`) and `agent_message` prose between them |
 | `codex-error.jsonl` | `codex exec --json --skip-git-repo-check -m gpt-4.1 "…"` | 5 frames: exit 1 — an `item.completed`(`type:"error"`) warning, then top-level `error` and `turn.failed` whose `message` is a **JSON-encoded string** carrying OpenAI's real error |
@@ -22,6 +22,39 @@ vendor output **offline, forever, with no vendor binary and no account** — see
 Captured 2026-08-22 with **Claude Code 2.1.240**, `apiKeySource: "none"` (i.e. subscription login,
 which is the mode kolk's adapter targets), model `claude-opus-5`. The codex fixtures were captured
 2026-08-28 with **codex-cli 0.149.1**, `codex login status` → `Logged in using ChatGPT`.
+
+## These two `claude-*` files are TOLERANCE fixtures, not contract fixtures
+
+Corrected 2026-08-29, each claim re-checked against the committed bytes rather than the capture
+notes. Read this before writing a test that treats them as the production shape.
+
+**They were captured without `--safe-mode --setting-sources ""`**, which kolk's production argv
+always passes. The proof is in the files: both carry `"permissionMode":"auto"` — leaked from the
+capturing machine's own `~/.claude/settings.json` — and eight hook frames each. Production argv
+yields `"permissionMode":"default"` and zero hook frames. So these files show what the adapter
+survives **on a real user's machine**, which is exactly the right job for them and the wrong thing to
+assert as canonical. The CONTRACT fixture, `claude-isolated.ndjson`, captured with the exact
+production argv, is still to be taken.
+
+**The tool in `claude-tool-use.ndjson` is `Bash`, not `Write`.** The capture line above said `Write`
+until 2026-08-29; the `tool_use` block runs
+`printf 'hi\n' > /work/hello.txt && cat -A /work/hello.txt`. A fixture whose provenance is
+misdescribed cannot anchor a regression test, which is why `scripts/capture-foreign.sh` is specified
+to write argv verbatim into a sidecar `.cmd` file rather than leaving it to a note someone types.
+
+**`--include-hook-events` is absent from the capture line, yet hook frames are present.** Left as
+observed rather than explained away: the adapter tolerates hook frames unconditionally by invariant,
+so nothing depends on resolving it.
+
+**⚠ One redaction artifact, deliberately not repaired in place.** `tool_result.content` is the
+literal `␊` — U+240A SYMBOL FOR LINE FEED — where the real tool output carried a newline.
+Verified byte-for-byte. **No test may assert `"hi␊"`**: that would enshrine an artifact of how these
+files were cleaned as though it were vendor behavior. It is left alone rather than hand-corrected,
+because editing captured bytes fabricates provenance — the repair is a re-capture whose redactor
+leaves control characters alone, since a control character identifies nobody. Checked while
+recording this: nothing in `internal/secret` or `internal/redact` maps U+240A, so **this is an
+artifact of the ad-hoc capture-time cleaning and never of production `Scrub`** — no shipped tool
+output is affected.
 
 Three codex facts verified on the capturing machine that the shape tables alone do not carry:
 
