@@ -2,7 +2,6 @@ package shell
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -14,6 +13,52 @@ import (
 // closeGrace is how long a provider process may take to exit after its stdin
 // closes before Kolkrabbi terminates it.
 const closeGrace = 5 * time.Second
+
+// stderrRingBytes is how much of a provider's stderr is kept. This process
+// lives for the whole session, so its stderr is not a transcript to retain —
+// it is a diagnostic to retain the end of, and the end is the part that says
+// why it stopped. 8 KiB holds a stack trace or a login refusal comfortably.
+const stderrRingBytes = 8 << 10
+
+// stderrRing keeps the last stderrRingBytes of a child's stderr and discards
+// the rest. os/exec writes to it from its own goroutine while the reader
+// goroutine may be reading it at exit, so it carries its own mutex: a
+// bytes.Buffer shared across that boundary is a data race the race detector
+// only catches when a child happens to be chatty at the wrong moment.
+type stderrRing struct {
+	mu   sync.Mutex
+	buf  []byte
+	over bool // true once anything has been discarded
+}
+
+func (r *stderrRing) Write(p []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.buf = append(r.buf, p...)
+	if len(r.buf) > stderrRingBytes {
+		r.buf = append(r.buf[:0], r.buf[len(r.buf)-stderrRingBytes:]...)
+		r.over = true
+	}
+	return len(p), nil
+}
+
+// String reports the retained tail, saying so when there was more. Naming the
+// elision matters: "the last 8 KiB" and "all of it" lead to different next
+// questions, and a reader cannot tell them apart from the text alone.
+func (r *stderrRing) String() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.over {
+		return "…(earlier stderr discarded)… " + string(r.buf)
+	}
+	return string(r.buf)
+}
+
+func (r *stderrRing) Len() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.buf)
+}
 
 // LinesProcess is one long-lived child process with line-delimited stdin and
 // stdout. It is suitable for a provider session that accepts NDJSON requests.
@@ -46,7 +91,7 @@ func StartLinesProcess(ctx context.Context, executable string, args []string) (*
 		_ = stdin.Close()
 		return nil, fmt.Errorf("opening %s stdout: %w", executable, err)
 	}
-	var stderr bytes.Buffer
+	var stderr stderrRing
 	cmd.Stderr = &stderr
 	if err := cmd.Start(); err != nil {
 		_ = stdin.Close()
@@ -59,7 +104,7 @@ func StartLinesProcess(ctx context.Context, executable string, args []string) (*
 	return process, nil
 }
 
-func (p *LinesProcess) read(stdout io.Reader, stderr *bytes.Buffer) {
+func (p *LinesProcess) read(stdout io.Reader, stderr *stderrRing) {
 	defer close(p.exited)
 	defer close(p.lines)
 	scanner := bufio.NewScanner(stdout)

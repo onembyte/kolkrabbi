@@ -297,8 +297,50 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   `scripts/capture-foreign.sh` writes argv verbatim beside every capture and redacts through `jq`,
   so control characters survive; `spec/testdata/foreign/synthetic/control-characters.ndjson` pins
   the contract the committed captures corrupted. See below.
-- [ ] **S10.1d `internal/mockagent`** — S2's four fake vendor binaries and the L0 integration test,
-  so the spawn ladder is exercised without a vendor binary on the machine.
+- [x] **S10.1d1 the stderr ring** — S2's bounded stderr, and the two defects an unbounded buffer
+  was carrying. See below.
+- [ ] **S10.1d2 the rest of S2's L0** — the process group for `LinesProcess` (`StartLinesProcess`
+  sets no `Setpgid`, unlike `command()` in `exec_unix.go`, so a vendor's own grandchildren outlive
+  a cancelled session), async stdin with `EPIPE` tolerance, and close-the-read-end-after-the-ladder.
+
+### S10.1d1 built — a session-long buffer nobody was emptying
+
+S2 asks for a stderr **ring**. `StartLinesProcess` had a `bytes.Buffer`, and the difference is not
+stylistic. This process is the one B12.5 made persistent: **one child serves every turn of a
+Kolkrabbi session.** Its stderr was appended to for the entire life of that session and never
+drained, so a vendor that narrates to stderr — a progress line per tool call, a deprecation notice
+per turn — grew kolk's memory for as long as someone kept working.
+
+**The second defect is the one a user would actually have seen.** On a failed exit the whole buffer
+went into the error: `fmt.Errorf("provider process exited unsuccessfully: %s: %w", stderr.String(),
+…)`. That string is what reaches the terminal and the session transcript. A chatty vendor turned one
+failed turn into as much output as it had ever written — and the part that says *why* it failed is
+the last line, which is exactly the part a reader has to scroll past everything else to find.
+
+**So the ring keeps the tail, and says when it dropped anything.** "The last 8 KiB" and "all of it"
+lead a reader to different next questions, and nothing in the text itself distinguishes them, so the
+elision is named rather than silent.
+
+**It carries its own mutex, which is not decoration.** `os/exec` writes stderr from its own
+goroutine while the reader goroutine reads it at exit. A `bytes.Buffer` across that boundary is a
+data race the detector only reports when a child happens to be chatty at the moment it dies — the
+kind that passes CI for months. `-race` is green with the mutex.
+
+Acceptance checklist:
+
+- [x] red first: 3,000 stderr lines then a real cause then `exit 3`, asserting bounded size, the
+  tail kept, and the head discarded. It failed to compile first on the missing constant, then
+  failed on the assertion.
+- [x] proven non-vacuous by mutation — keeping the head instead of the tail is the plausible wrong
+  implementation, and the failure output shows `noise line 0` retained with the cause gone.
+- [x] `-race` green across the package, which is the point of the mutex.
+- [x] full `make check` green: **2,533 tests, 0 lint issues**, cold start 3.2 ms p50.
+
+**On `internal/mockagent`, which this leaf did not create.** S2 names "four fake binaries", but the
+package's own tests already drive real children through `sh -c` and `cat`, and that idiom reached
+this defect without a new package. Scaffolding nobody needed yet is scaffolding to maintain, so it
+is not built. If S10.1d2's cancel ladder needs a child that ignores `SIGINT` — and it will — that is
+the moment mockagent earns its place.
 - [ ] **S10.1e the priority-1 captures** — the four `claude-error-*` streams and
   `claude-init-apikey` (§10.3 prices all of them at **$0**; four are already observed live), plus
   `claude-isolated.ndjson`, the CONTRACT fixture, at ~2¢. Needs the owner's vendor login, so it is

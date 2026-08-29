@@ -4539,6 +4539,42 @@ nothing — but a rate-limit frame this package cannot read is a plan limit the 
 about, and an extra tolerated spelling costs four lines. It has its own test so that it stays a
 decision someone can find and delete, rather than a shape that merely still happens to decode.
 
+## S10.1d1 the stderr ring — a session-long buffer nobody was emptying (2026-08-29)
+
+**Gate:** `make check` exit 0 — **2,533 tests, 0 lint issues**, cold start 3.2 ms p50, `-race`
+green on `internal/shell`.
+
+S2 asks for a stderr **ring**; `StartLinesProcess` had a `bytes.Buffer`. B12.5 made this process
+persistent — one child serves every turn of a session — so that buffer was appended to for the whole
+life of the session and never drained. A vendor that narrates to stderr grows kolk's memory for as
+long as somebody keeps working.
+
+**The visible half was worse than the leak.** On a failed exit the entire buffer was interpolated
+into the error string that reaches the terminal and the transcript:
+
+```go
+err = fmt.Errorf("provider process exited unsuccessfully: %s: %w", stderr.String(), waitErr)
+```
+
+A chatty vendor turned one failed turn into as much output as it had ever written, with the line
+that says *why* — the last one — at the far end of it.
+
+**Keeping the tail is the whole design.** The ring discards the head and names the elision, because
+"the last 8 KiB" and "all of it" send a reader to different next questions and the text alone cannot
+tell them apart. 8 KiB holds a stack trace or a login refusal comfortably.
+
+**The mutex is load-bearing.** `os/exec` writes stderr from its own goroutine while the reader
+goroutine reads it at exit; a `bytes.Buffer` across that boundary races only when a child is chatty
+at the moment it dies, which is the flavour that survives CI for months.
+
+**Mutation:** keeping the head — `r.buf = r.buf[:stderrRingBytes]` — is the plausible wrong
+implementation, and the test reports `noise line 0` retained with the cause gone. Reverted and
+re-verified.
+
+**`internal/mockagent` was not built, deliberately.** S2 names four fake binaries, but this package's
+tests already drive real children through `sh -c` and `cat`, and that reached the defect without a
+new package. It earns its place when S10.1d2 needs a child that ignores `SIGINT`, and not before.
+
 **Gate 8, and the part that stings.** The walk-back found nothing promising the flat shape — because
 `04-subscription-backends.md` had it right the whole time. It names `rate_limit_info.utilization`
 twice, at §7.3's dashboard column and again at §11, and even records *"0.78 of the seven-day window

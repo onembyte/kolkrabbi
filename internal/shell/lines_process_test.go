@@ -6,9 +6,44 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 )
+
+// A persistent provider process serves every turn of a Kolkrabbi session, so
+// its stderr is not a transcript worth keeping — it is a diagnostic worth
+// keeping the END of. An unbounded buffer grows for as long as the session
+// does, and every byte of it was being interpolated into the exit error, which
+// is the string the user actually reads. A chatty vendor could therefore turn
+// one failed turn into a megabyte of terminal output.
+func TestLinesProcessBoundsStderrAndKeepsTheTail(t *testing.T) {
+	const script = `i=0
+while [ $i -lt 3000 ]; do echo "noise line $i" >&2; i=$((i+1)); done
+echo "the real cause" >&2
+exit 3`
+	process, err := StartLinesProcess(context.Background(), "sh", []string{"-c", script})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = process.Close() }()
+
+	_, err = process.Next(context.Background())
+	if err == nil {
+		t.Fatal("a child that exits 3 must report its failure")
+	}
+	message := err.Error()
+
+	if len(message) > stderrRingBytes*2 {
+		t.Fatalf("exit error is %d bytes; stderr is not bounded", len(message))
+	}
+	if !strings.Contains(message, "the real cause") {
+		t.Fatalf("exit error dropped the tail, which is the whole diagnostic: %.200q", message)
+	}
+	if strings.Contains(message, "noise line 0\n") {
+		t.Fatal("exit error still carries the earliest stderr; the ring is not discarding the head")
+	}
+}
 
 func TestLinesProcessReusesOneChildForMultipleLines(t *testing.T) {
 	process, err := StartLinesProcess(context.Background(), "cat", nil)
