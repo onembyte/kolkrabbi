@@ -205,39 +205,27 @@ func TestSessionKeepsTheDefaultBackendForAnOrdinaryModel(t *testing.T) {
 	}
 }
 
-func TestSessionRefusesAPlanModelWithNoAdapterYet(t *testing.T) {
-	// The model is read out of the catalogue rather than written in here. It
-	// used to name `o3` directly, and when that row was deleted for being dead
-	// on current codex the reference stopped resolving as a plan model at all:
-	// the test then passed the wrong thing through to OpenRouter and failed for
-	// a reason that had nothing to do with adapters.
-	var plan provider.PlanModel
-	for _, candidate := range provider.PlanModels("") {
-		if candidate.Connector == "codex" {
-			plan = candidate
-			break
-		}
-	}
-	if plan.Model == "" {
-		t.Skip("no codex plan model in the catalogue to test the missing adapter with")
-	}
-
+// Codex has an adapter now, so the session's remaining reachable refusal for an
+// enabled connector is the one the plan catalog itself carries: gemini, whose
+// subscription may never be driven by a third party and is marked that way
+// upstream of any adapter. A signed-in connector that kolk cannot drive must
+// still say so instead of silently answering from OpenRouter.
+func TestSessionRefusesAPlanModelNoAdapterCanServe(t *testing.T) {
 	dirs := storeFirstRunKey(t)
 	if err := provider.SaveConnector(context.Background(), dirs.ConnectorsFile(), provider.Connector{
-		Provider: plan.Provider, Plan: plan.Plan, Name: plan.Connector,
+		Provider: "google", Plan: "Google AI Pro", Name: "gemini",
 		LoginOwner: "provider-cli", Enabled: true,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	a, _, _ := newTestApp(t, "")
 
-	_, err := a.newAgent(context.Background(), &options{model: plan.Model})
+	_, err := a.newAgent(context.Background(), &options{model: "gemini-2.5-pro"})
 	if err == nil {
-		t.Fatalf("connector %s has no adapter, so %s must say so instead of silently using OpenRouter",
-			plan.Connector, plan.Model)
+		t.Fatal("a plan kolk cannot serve must say so instead of silently using OpenRouter")
 	}
-	if !strings.Contains(err.Error(), "codex") {
-		t.Fatalf("error = %v, want it to name the connector that is not implemented", err)
+	if !strings.Contains(err.Error(), "unsupported subscription") {
+		t.Fatalf("error = %v, want the catalog's reason rather than a silent provider swap", err)
 	}
 }
 

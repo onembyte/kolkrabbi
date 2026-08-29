@@ -510,6 +510,17 @@ func (a *app) planBackendFor(model, mode, effort, state string, note func(string
 			return nil, provider.PlanModel{}, err
 		}
 		return a.verifyingBackend(inner, planModel, mode, resolved, note), planModel, nil
+	case "codex":
+		// One-shot per turn, one process per turn, the vendor's own thread
+		// resumed through `exec resume`: same handle plumbing, no persistent
+		// process to keep. The sandbox is the vendor's own, chosen by kolk's
+		// session mode.
+		resolved := a.planEffort(effort, planModel)
+		inner, err := agentcli.NewCodexBackendFromHandle(planModel.Model, mode, resolved, state, state != "")
+		if err != nil {
+			return nil, provider.PlanModel{}, err
+		}
+		return a.verifyingBackend(inner, planModel, mode, resolved, note), planModel, nil
 	default:
 		return nil, provider.PlanModel{}, fmt.Errorf("the %s connector is enabled but Kolkrabbi has no adapter for it yet, so %s cannot run a session",
 			planModel.Connector, planModel.Model)
