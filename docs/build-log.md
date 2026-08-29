@@ -4328,3 +4328,14 @@ loses the cause it exists to report. `errors.As`, which is what the linter was s
 
 **None of this is visible without running the gates.** The tree compiled and the feature worked. The
 lesson is the cheap one: `make check` before the push, not after the pull.
+
+### R1.8 v1.2.19 codex-connector release
+
+**Gate:** `make check` green — 2523 tests — and `go test ./... -race` clean. Both run *after* the
+three repairs in M1.2, because the tree as pulled did not pass either.
+
+**Publication:** commit `f3ffc19` on `main`, tag `v1.2.19`, checked with
+`git merge-base --is-ancestor HEAD origin/main` before tagging — the check R1.7 added after a stale
+tag pointed at an orphaned commit. Release workflow run 33226897598 passed verify and publish. Four
+archives plus the Cosign-signed `checksums.txt` are public, the release is neither draft nor
+prerelease, and the latest redirect resolves to `v1.2.19`.
