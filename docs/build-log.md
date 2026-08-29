@@ -3951,19 +3951,27 @@ which reads the published refs instead of the cached ones.
 useless. GoReleaser resolved the previous release correctly and listed the six real commits. The
 notes were replaced by hand anyway; commit subjects are not what an upgrader reads.
 
-## A34 agent-mode field report — three defects from one run (2026-08-28)
+## FR1 agent-mode field report — three defects from one run (2026-08-28)
 
-**Numbering:** these are A34, not A33. They were written as A33.1–A33.4 by a session that had not
-yet pulled, and A33 was already the agentic-mode group — subagent events, the live count, the free
-fast lane, per-slot models. Two different things under one identifier is worse than either name, so
-the later arrival moved.
+**Numbering: FR, and why it is not a letter-number.** These were written as A33 by a session that had
+not pulled, renumbered to A34 when A33 turned out to be the agentic-mode group, and renumbered again
+when A34 was taken too — by commits that are published and cannot be moved.
+
+Twice was enough. `A33`, `A34`, `L13`, `B12` are *plan items*: work someone chose in advance, whose
+identifier is allocated by PLAN.md. These are not that. They are defects a person hit while using
+kolk, discovered in the order they were hit, and they were colliding because they were borrowing a
+namespace that belongs to planning.
+
+`FR` is field reports, numbered per report and per defect within it. Nothing in PLAN.md allocates it,
+so a parallel session cannot take it by working on the next plan item. If you are adding a defect
+someone reported from real use, it is the next `FR`.
 
 One agent-mode run reported by the user produced all three. The session was killed at 02:51 after it
 had been running long enough to look hung. The directory it was building, `~/ecommerce-webapp`,
 contained **eighteen directories and zero files** — the run had created and re-created the same
 skeleton without ever writing code, which is the first defect below observed directly.
 
-### A34.1 the doom-loop guard missed alternating cycles
+### FR1.1 the doom-loop guard missed alternating cycles
 
 **Scope:** a tool cycle is stopped whether or not the repeated call follows itself. Non-goals:
 changing what counts as a repeat, or the once-per-loop reporting contract.
@@ -3989,7 +3997,7 @@ shipped as a regression:
    cleared on every differing call, so one cycle reported six times instead of once —
    prompt-per-lap noise, which is exactly what the single report exists to prevent.
 
-### A34.2 the spinner vanished while work was still running
+### FR1.2 the spinner vanished while work was still running
 
 **Scope:** the activity row reflects whether anything is running. Non-goal: showing more than one
 activity at a time.
@@ -4013,7 +4021,7 @@ came, and the package hung rather than failed. Emptying the list now wakes the a
 `TestStoppingTheLastActivityDoesNotWaitForATick` pins it. Worth noting that the symptom was a ten
 minute timeout, not a failure: a hang reads as an infrastructure problem and is easy to misattribute.
 
-### A34.3 the transcript was overwritten instead of scrolled
+### FR1.3 the transcript was overwritten instead of scrolled
 
 **Scope:** output that leaves the frame reaches the terminal's scrollback. Non-goals: scrollback
 navigation inside kolk, and any change to what the frame itself shows.
@@ -4046,7 +4054,7 @@ activity tests as HANG/FAIL. They were passing; macOS has no `timeout(1)`, so ev
 failed with `command not found` and the loop read a non-zero exit as a hang. `go test -timeout` is
 the portable form and named the one genuinely hanging test immediately.
 
-### A34.4 questions the user answers by picking, not by typing
+### FR1.4 questions the user answers by picking, not by typing
 
 **Scope:** the model can put a fixed-option decision to the person, who answers with the arrow keys.
 Non-goals: free-text questions, which prose already handles; questions from subagents; more than one
@@ -4104,12 +4112,12 @@ redirect resolves to `v1.2.15`, which is what the website installer discovers.
 **Version line:** the user chose to stay on `1.2.x` rather than take the minor bump SemVer would
 suggest for the new `ask_user` capability, keeping the agent-mode fixes as one continuous series.
 
-### A34.5 the picker, made reachable
+### FR1.5 the picker, made reachable
 
 **Scope:** the model is told when to ask, and Esc backs out of the picker. Non-goals: free-text
 questions, and Esc anywhere other than the picker.
 
-**The gap A34.4 left.** The tool, the schema and the picker were built and tested, and none of it
+**The gap FR1.4 left.** The tool, the schema and the picker were built and tested, and none of it
 could fire. Nothing in the system prompt mentioned `ask_user`, and the surrounding text pushed the
 other way — *"keep using tools until that checkpoint is complete, or state a concrete blocker"*. A
 model reading that decides for itself. A capability the model is never told about is one it does not
@@ -4132,7 +4140,7 @@ tail as text. Against that, Esc was otherwise a key that never did anything at a
 spurious one does is close a picker. Four tests hold the line — arrows, Shift+Tab and Delete must not
 decode as Esc, an escape mid-chunk is not the key, and an escape inside a bracketed paste is content.
 
-### A34.6 a concurrent map write in the new subagent events
+### FR1.6 a concurrent map write in the new subagent events
 
 Found by running `-race` over the tree after merging the A33 group, which `make check` does not do.
 
@@ -4154,7 +4162,7 @@ gate. `go test ./... -race` belongs in the checkpoint routine for anything touch
 ### R1.5 v1.2.16 reachable-picker release
 
 **Gate:** `make check` green before the tag, and `go test ./... -race` clean over the whole tree —
-the run that found A34.6, and the reason it is now part of the routine rather than a thing this
+the run that found FR1.6, and the reason it is now part of the routine rather than a thing this
 session happened to do.
 
 **Publication:** commit `7f9da2a` on `main`, tag `v1.2.16`. Release workflow run 33189793519 passed
@@ -4165,9 +4173,9 @@ neither draft nor prerelease, and the latest redirect resolves to `v1.2.16`.
 worth keeping: a tool is reachable only if the prompt invites it, and a test that calls the tool
 directly proves nothing about whether the model ever will.
 
-## A35 three things a person hit while using it (2026-08-28)
+## FR2 three things a person hit while using it (2026-08-28)
 
-### A35.1 the composer sat at the top and jumped on resize
+### FR2.1 the composer sat at the top and jumped on resize
 
 Reported from a 125×57 window: the composer near the top, fifty empty rows below it, and the box
 moving upward whenever the window was resized.
@@ -4186,7 +4194,7 @@ Three tests had encoded the old layout by reading `view[0]` — the composer rul
 first line. They were rewritten to find what they were looking for rather than to assume where it
 falls, which is what they meant in the first place.
 
-### A35.2 `/plogin` opened Claude Code instead of a login
+### FR2.2 `/plogin` opened Claude Code instead of a login
 
 `runConnectorLogin` called `handover(ctx, selected.Connector, nil, "")`. Nil arguments: it ran the
 bare `claude`, which is Claude Code itself. Someone asking kolk to sign in to their Max plan got
@@ -4208,7 +4216,7 @@ protecting is that kolk passes no credential to the provider CLI — not that it
 It now checks the arguments for anything credential- or path-shaped and requires the login subcommand
 by name.
 
-### A35.3 there was no way to uninstall
+### FR2.3 there was no way to uninstall
 
 Asked directly: how do I uninstall? There was no answer. No command, no script, nothing in the
 README — an install path with one command and an uninstall path with none.
@@ -4247,3 +4255,25 @@ not a draft, and the latest redirect resolves to `v1.2.17`.
 **Note on the uninstall path.** `kolk uninstall` covers the case where kolk still runs. It does not
 cover a broken or missing binary, where the files are still on disk and nothing can remove them but
 `rm`. A `site/uninstall.sh` alongside `site/install.sh` would close that, and is not built yet.
+
+### M1.1 merging two sessions' work, and the one conflict that mattered
+
+Two sessions were committing into this checkout at once. One had five commits local and unpushed —
+four TUI/engine fixes and a `v1.2.18` bump; the other had six pushed — the `a34` group teaching the
+vendor connector to carry kolk's mode, effort and session across processes. 856 lines against 1592,
+overlapping in exactly two files.
+
+**The conflict was in `Agent.streamChat`, and both sides were right.** One had made
+`lastPromptTokens` an `atomic.Int64` because the TUI meter reads it mid-turn from another goroutine.
+The other had changed the line beside it, because a provider that runs its own tool loop returns a
+message with no calls in it, so `len(msg.ToolCalls)` undercounts and the backend's `meta.ToolCalls`
+is the only real number. Taking either side alone would have silently dropped the other's fix: a
+race, or a tool count that reads zero for every vendor-connector turn. Resolved by keeping both —
+the atomic store, then the larger of the two counts.
+
+Every other use of `lastPromptTokens` was already on the atomic API (`compact.go`, `Context()`), so
+the resolution needed no follow-on edits. Checked rather than assumed.
+
+**Verification after the merge, not before:** `make check` green, and `go test ./... -race` clean over
+the whole tree. A merge that compiles is not a merge that works, and the two halves had never seen
+each other.
