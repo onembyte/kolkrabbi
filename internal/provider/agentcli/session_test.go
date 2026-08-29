@@ -271,6 +271,58 @@ func TestClaudeSessionReportsItselfUnusableWhenItCannotResynchronize(t *testing.
 	}
 }
 
+// §2.5's entire reason for starting the cancel ladder at SIGINT is that the
+// vendor still produces a result frame, so a cancelled turn is *accounted*
+// rather than being a hole in the dashboard. The drain already reads that
+// frame — and threw it away.
+//
+// The second half is worse and is not about cancellation at all. chargeTurn
+// converts the vendor's running session totals into one turn's delta by
+// rebasing s.spent* on every report. An abandoned turn that never charges
+// leaves those totals stale, so the NEXT turn's delta silently includes the
+// abandoned turn's tokens and cost. B12.11 exists to stop exactly that, and
+// cancellation walked around it.
+func TestAnAbandonedTurnIsAccountedAndDoesNotChargeTheNextOne(t *testing.T) {
+	process := &stallingLineProcess{
+		stallAt: 1,
+		lines: [][]byte{
+			[]byte(`{"type":"assistant","message":{"model":"opus","content":[{"type":"text","text":"partial"}]}}`),
+			[]byte(`{"type":"result","result":"cancelled","subtype":"success","total_cost_usd":0.5,"usage":{"input_tokens":100,"output_tokens":20}}`),
+			[]byte(`{"type":"assistant","message":{"model":"opus","content":[{"type":"text","text":"second"}]}}`),
+			[]byte(`{"type":"result","result":"second","subtype":"success","total_cost_usd":0.8,"usage":{"input_tokens":150,"output_tokens":30}}`),
+		},
+	}
+	session, err := newClaudeSession(context.Background(), "opus", "code", "high", func(context.Context, string, []string) (lineProcess, error) {
+		return process, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	interrupted, cancel := context.WithCancel(context.Background())
+	go cancel()
+	_, abandoned, turnErr := session.Turn(interrupted, []provider.Message{{Role: "user", Content: "first"}}, "opus", nil)
+	if turnErr == nil {
+		t.Fatal("an interrupted turn must still report the interruption")
+	}
+	if abandoned.Cost != 0.5 || abandoned.PromptTokens != 100 || abandoned.CompletionTokens != 20 {
+		t.Fatalf("abandoned turn meta = %+v, want the accounting the vendor still reported", abandoned)
+	}
+
+	_, next, err := session.Turn(context.Background(), []provider.Message{{Role: "user", Content: "second"}}, "opus", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 0.8 and 150/30 are running session totals. The second turn's own share is
+	// the difference; charging it 0.8 bills the cancelled turn twice.
+	if next.Cost != 0.30000000000000004 && next.Cost != 0.3 {
+		t.Fatalf("next turn cost = %v, want only its own share (0.3)", next.Cost)
+	}
+	if next.PromptTokens != 50 || next.CompletionTokens != 10 {
+		t.Fatalf("next turn tokens = %d/%d, want 50/10", next.PromptTokens, next.CompletionTokens)
+	}
+}
+
 func TestClaudeSessionExplainsAProviderThatExitsMidTurn(t *testing.T) {
 	session, err := newClaudeSession(context.Background(), "opus", "code", "high", func(context.Context, string, []string) (lineProcess, error) {
 		return &fakeLineProcess{}, nil

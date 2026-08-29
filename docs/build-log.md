@@ -4539,6 +4539,41 @@ nothing — but a rate-limit frame this package cannot read is a plan limit the 
 about, and an extra tolerated spelling costs four lines. It has its own test so that it stays a
 decision someone can find and delete, rather than a shape that merely still happens to decode.
 
+## S10.1d6 the drain was reading the receipt and throwing it away (2026-08-29)
+
+**Gate:** `make check` exit 0 — **2,543 tests, 0 lint issues**, `-race` green.
+
+§2.5 starts the cancel ladder at SIGINT for one stated reason: the vendor still produces a `result`
+frame, so a cancelled turn is accounted rather than a hole in the dashboard. Three leaves went into
+making that frame exist and arrive. `abandonTurn` was already draining it, looking only for the
+completion event to resynchronise the stream, and discarding everything else — so the benefit the
+ladder was built for was never actually collected.
+
+**The second defect is worse and has nothing to do with cancellation.** `chargeTurn` converts the
+vendor's *running session totals* into a per-turn delta by rebasing `s.spent*` on every report. An
+abandoned turn never charged, so those totals stayed stale and the next turn's delta silently
+absorbed the abandoned turn's usage. Cancel a turn, retry immediately, and the cancelled turn is
+billed twice — once invisibly, once inside the retry. The test pins both halves:
+
+```
+next turn cost = 0.8, want only its own share (0.3)
+```
+
+That is the mutation output from removing `chargeTurn` while keeping the reporting fix — the
+plausible half-fix, since reporting the cancelled turn and *charging* it are separable and only the
+first is visible in a returned meta.
+
+**B12.11 is amended rather than left standing.** Its entry read "a session turn records its own cost
+and tokens, not the provider's running totals" without qualification. That was true only of turns
+that completed. Gate 8's job is to notice when a leaf makes an older claim finally true, or reveals
+it was never quite true, and this was the second.
+
+**Not recovered, deliberately: the partial message.** The drain collects accounting only. The turn
+failed and still says why; returning half an answer as if it were an answer is §1.2's `Truncated`
+and A4's flattening rule, and is not decided here. `Collect`'s own error on this path is discarded
+for the same reason — the turn already failed, `cause` is the diagnosis, and a parse error from a
+stream interrupted mid-flight would replace it with a symptom.
+
 ## S10.1d5 (part) saying a conversation was retired, and knowing when not to (2026-08-29)
 
 **Gate:** `make check` exit 0 — **2,542 tests, 0 lint issues**, `-race` green.

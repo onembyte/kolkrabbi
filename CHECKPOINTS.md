@@ -178,6 +178,9 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **B12.9 connector-to-backend selection** — an enabled connector actually chooses the provider that answers a turn, and an unusable plan model refuses with its reason.
 - [x] **B12.10 live provider switch** — `/model` onto or off a plan model moves the provider with it and releases the one it retires.
 - [x] **B12.11 per-turn accounting** — a session turn records its own cost and tokens, not the provider's running totals, and no longer records zero.
+  **Amended 2026-08-29 by S10.1d6**: this held only for turns that *completed*. An abandoned turn
+  never charged, so it recorded zero and left the running totals stale — and the next turn was
+  billed for both. The claim is true on every path now, not just the happy one.
 - [x] **P11.7a honest login state** — a clean provider exit records the connector as `unverified` and says what it does and does not prove.
 - [x] **P11.7b verify on first use** — the first answered turn confirms the connector; a failed turn on an unverified one explains the likely cause once and changes nothing.
 - [x] **B12.12 effort within the plan** — an effort a plan does not offer steps down and says so, and `/effort` reports what the running provider is actually using.
@@ -315,6 +318,44 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   amendment **A2** (`Warnings` riding an `EventResponseMeta` — `provider.Meta` has no warnings field
   at all today) and **A7** (the three `Warn*` codes). Also open, and deliberately: the
   `<prior-conversation>` prompt label.
+
+- [x] **S10.1d6 a cancelled turn is accounted, and stops billing the next one** — the drain already
+  read the vendor's terminal frame and discarded it. See below.
+
+### S10.1d6 built — the drain was reading the receipt and throwing it away
+
+§2.5 starts the cancel ladder at SIGINT for one stated reason: the vendor still produces a `result`
+frame, **so a cancelled turn is accounted rather than a hole in the dashboard**. Three leaves have
+now been spent making that frame exist and arrive. `abandonTurn` was already draining it — and
+dropping every byte on the floor. The benefit the whole ladder was built for was never collected.
+
+**The second defect is worse, and is not about cancellation at all.** `chargeTurn` turns the
+vendor's *running session totals* into one turn's delta by rebasing `s.spent*` on each report. An
+abandoned turn that never charged left those totals stale, so the next turn's delta silently
+included the abandoned turn's tokens and cost. A user who cancels a turn and immediately retries was
+**billed for the cancelled one twice**: once invisibly, once inside the retry. B12.11 exists to
+prevent precisely this, and cancellation walked straight around it — which is why B12.11's entry
+above is amended rather than left reading as though it had always been true.
+
+**What is deliberately *not* recovered: the partial message.** The drain collects only the
+accounting. The turn still failed and still reports why; handing back half an answer as though it
+were an answer is a different decision, belonging to §1.2's `Truncated` and A4's flattening rule,
+and it is not made here.
+
+**`Collect`'s own error is discarded on this path, on purpose.** The turn has already failed and
+`cause` is the reason. A second error from parsing a stream that was interrupted mid-flight would
+only replace a useful diagnosis with a symptom of it.
+
+Acceptance checklist:
+
+- [x] red first: the abandoned turn's meta printed empty, with the vendor's reported cost right
+  there in the fixture.
+- [x] the double-charge covered in the same test, since reporting the cancelled turn and *charging*
+  it are separable and only one of them is visible in a meta.
+- [x] proven non-vacuous by mutation: dropping `chargeTurn` alone still reports the cancelled turn
+  correctly and bills the next one 0.8 instead of 0.3 — the exact double-billing, caught.
+- [x] gate 8: B12.11's claim amended, because it read as unconditional and was not.
+- [x] `-race` green; full `make check` green: **2,543 tests, 0 lint issues**.
 
 ### S10.1d5 (part) built — saying so, and knowing when not to
 

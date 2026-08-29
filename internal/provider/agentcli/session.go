@@ -153,11 +153,13 @@ func (s *ClaudeSession) Turn(ctx context.Context, messages []provider.Message, m
 	for {
 		line, err := s.process.Next(ctx)
 		if err != nil {
-			return provider.Message{}, provider.Meta{Model: model, Elapsed: time.Since(start)}, s.abandonTurn(ctx, explainEarlyExit(err))
+			meta, cause := s.abandonTurn(ctx, explainEarlyExit(err))
+			return provider.Message{}, abandonedMeta(meta, model, start), cause
 		}
 		translated, err := Translate(line)
 		if err != nil {
-			return provider.Message{}, provider.Meta{Model: model, Elapsed: time.Since(start)}, s.abandonTurn(ctx, err)
+			meta, cause := s.abandonTurn(ctx, err)
+			return provider.Message{}, abandonedMeta(meta, model, start), cause
 		}
 		for _, event := range translated {
 			// init and result both carry the conversation handle; the result
@@ -339,31 +341,57 @@ func (s *ClaudeSession) chargeTurn(meta *provider.Meta) {
 	s.spentCacheRead, s.spentCacheCreation = cacheRead, cacheCreation
 }
 
+// abandonedMeta finishes the meta of a turn that failed: whatever accounting
+// the drain recovered, with the model and the wall clock this turn actually
+// spent. An empty meta stays empty apart from those two — a turn whose terminal
+// frame never arrived reports no usage rather than a guess at one.
+func abandonedMeta(meta provider.Meta, model string, start time.Time) provider.Meta {
+	if meta.Model == "" {
+		meta.Model = model
+	}
+	meta.Elapsed = time.Since(start)
+	return meta
+}
+
 // abandonTurn resynchronizes the provider stream after a turn ends early.
 // The provider keeps emitting the frames it had already produced for that turn,
 // and handing them to the next turn would answer the previous question. The
 // caller still holds s.mu, so no other turn can interleave with the drain.
-func (s *ClaudeSession) abandonTurn(ctx context.Context, cause error) error {
+func (s *ClaudeSession) abandonTurn(ctx context.Context, cause error) (provider.Meta, error) {
 	// The turn's context is usually already cancelled — that is why the turn is
 	// being abandoned — so the drain detaches from its cancellation while
 	// keeping its values.
 	resync, cancel := context.WithTimeout(context.WithoutCancel(ctx), resyncGrace)
 	defer cancel()
+	// The frames still arriving belong to this turn, and the terminal one
+	// carries its accounting. §2.5 starts the cancel ladder at SIGINT precisely
+	// so that frame exists: a cancelled turn costs money and must not be a hole
+	// in the dashboard. Draining it and discarding it threw that away.
+	var drained []Event
 	for {
 		line, err := s.process.Next(resync)
 		if err != nil {
 			// The rest of the interrupted turn never arrived, so where the next
 			// turn's frames begin is unknowable. Refuse to guess.
 			s.unusable = true
-			return cause
+			return provider.Meta{}, cause
 		}
 		events, translateErr := Translate(line)
 		if translateErr != nil {
 			continue
 		}
+		drained = append(drained, events...)
 		for _, event := range events {
 			if event.Kind == EventMessageCompleted {
-				return cause
+				// Collect's own error is discarded: this turn already failed and
+				// `cause` is why. What is wanted here is only the accounting.
+				_, meta, _ := Collect(drained, 0)
+				// Charging matters even more than reporting. chargeTurn rebases
+				// the running session totals; skipping it leaves them stale, so
+				// the next turn's delta would silently include this one's
+				// tokens and cost.
+				s.chargeTurn(&meta)
+				return meta, cause
 			}
 		}
 	}
