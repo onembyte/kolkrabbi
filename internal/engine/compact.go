@@ -283,7 +283,7 @@ Name the work, not the conversation: "add the config parser", not "user asks for
 // compaction, costs one fast-lane call, and never touches a title the user
 // chose: `kolk sessions rename` marks a title as theirs.
 func (a *Agent) titleSessionIfNeeded(ctx context.Context) {
-	if a.Sess == nil || a.Backend == nil {
+	if a.Sess == nil || a.sessionBackend() == nil {
 		return
 	}
 	// Asked before the call, not after: generating a name Kolkrabbi is not
@@ -366,7 +366,7 @@ func (a *Agent) recoverFromOverflow(ctx context.Context) bool {
 		return false
 	}
 	fmt.Fprintf(a.Out, "the request was too long for %s; compacted %d messages (%s) and retrying once\n",
-		a.Model, result.Replaced, result.Stage)
+		a.SessionModel(), result.Replaced, result.Stage)
 	return true
 }
 
@@ -388,7 +388,7 @@ func (a *Agent) RestoreCompaction() bool {
 // summarizeSpan summarises older history through the fast lane, which exists
 // for exactly this and is zero-cost whenever the session model is free.
 func (a *Agent) summarizeSpan(ctx context.Context) Summarizer {
-	if a.Backend == nil {
+	if a.sessionBackend() == nil {
 		return nil
 	}
 	return func(span []provider.Message) (string, error) {

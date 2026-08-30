@@ -117,7 +117,7 @@ func (a *Agent) streamChat(ctx context.Context, phase, model string, messages []
 				tried[nextCandidate] = true
 				fmt.Fprintf(a.Out, "◆ free model rate-limited (429); rotating to %s\n", nextCandidate)
 				model = nextCandidate
-				a.Model = nextCandidate
+				a.SetSessionModel(nextCandidate)
 				if a.Sess != nil {
 					a.Sess.SetModelName(nextCandidate)
 				}

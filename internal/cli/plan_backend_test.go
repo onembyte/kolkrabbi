@@ -423,47 +423,37 @@ func TestSlashModeRestartsThePlanProviderInChatMode(t *testing.T) {
 	}
 }
 
-// Agent mode binds to kolk's orchestrator, and the vendor schedules its own
-// subagents kolk cannot record or stop — so the switch is refused with the
-// reason, and the provider process is left untouched.
-func TestSlashModeRefusesAgentOnAPlanProvider(t *testing.T) {
+// Agent mode is accepted on a plan provider, and the process restarts into it.
+//
+// This test asserted the opposite until 2026-08-30. The refusal's reason — the
+// vendor schedules its own subagents kolk cannot record or stop — was true of
+// the vendor's Task tool, which has never been in claudeCodeTools. kolk's agent
+// mode schedules kolk's own children, each a process kolk starts and can stop.
+// The refusal was broader than its own argument.
+func TestSlashModeAcceptsAgentOnAPlanProvider(t *testing.T) {
 	dirs := isolateConnectorState(t)
 	enablePlanConnector(t, dirs)
 	a, ag, out := replFixture(t, "")
 	if a.slash(context.Background(), ag, "/model claude-opus") {
 		t.Fatal("/model must not exit the session")
 	}
-	before := ag.Backend
 
-	if a.slash(context.Background(), ag, "/mode agent") {
-		t.Fatal("/mode must not exit the session")
-	}
-	if !strings.Contains(out.String(), "cannot run kolk's agent mode") {
-		t.Fatalf("output = %q, want the refusal with its reason", out.String())
-	}
-	if ag.Backend != before {
-		t.Fatal("a refused mode change must not replace the provider")
-	}
-	if ag.Mode == "agent" {
-		t.Fatal("a refused mode change must not change the session's own mode")
-	}
-}
-
-// The refusal is scoped to the plan provider: an ordinary gateway session can
-// still run agent mode.
-func TestSlashModeStillSwitchesAgentOnAPlainBackend(t *testing.T) {
-	a, ag, _ := replFixture(t, "")
 	if a.slash(context.Background(), ag, "/mode agent") {
 		t.Fatal("/mode must not exit the session")
 	}
 	if ag.Mode != "agent" {
-		t.Fatalf("mode = %q, want agent on a plain backend", ag.Mode)
+		t.Fatalf("mode = %q, want agent", ag.Mode)
+	}
+	// A vendor process replays no argv, so a mode change means a new process.
+	if !strings.Contains(out.String(), "restarted in agent mode") {
+		t.Fatalf("output = %q, want the provider restarted into agent mode", out.String())
 	}
 }
 
-// Starting a session straight onto a plan model in agent mode is refused with
-// the reason, before any provider process exists.
-func TestAgentModeIsRefusedForAPlanModel(t *testing.T) {
+// A session can START in agent mode on a plan model, not only switch into it.
+// The two paths share claudeModeFlags, so they were refused together and are
+// allowed together.
+func TestASessionCanStartInAgentModeOnAPlanModel(t *testing.T) {
 	dirs := storeFirstRunKey(t)
 	if err := dirs.EnsureData(); err != nil {
 		t.Fatal(err)
@@ -475,12 +465,12 @@ func TestAgentModeIsRefusedForAPlanModel(t *testing.T) {
 	}
 
 	a, _, _ := newTestApp(t, "")
-	_, err := a.newAgent(context.Background(), &options{session: stored.ID, model: "claude-opus", mode: "agent"})
-	if err == nil {
-		t.Fatal("agent mode on a plan model must be refused")
+	agent, err := a.newAgent(context.Background(), &options{session: stored.ID, model: "claude-opus", mode: "agent"})
+	if err != nil {
+		t.Fatalf("agent mode on a plan model was refused: %v", err)
 	}
-	if !strings.Contains(err.Error(), "agent mode") {
-		t.Fatalf("err = %v, want the reason", err)
+	if agent.Mode != "agent" {
+		t.Errorf("mode = %q, want agent", agent.Mode)
 	}
 }
 

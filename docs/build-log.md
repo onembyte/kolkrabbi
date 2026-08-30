@@ -5070,3 +5070,161 @@ are restored.
 **Tagged at the head, not the release commit.** `chore(release): v1.2.21` was two fixes behind by
 the time CI was green; a tag on it would have shipped the macOS-broken fixture and the
 request-bound server.
+
+### FR3.3 the login happens inside the session
+
+"i dont want to login outside kolk. all need to be inside the same session."
+
+Then, from a real run, the reason it had become urgent:
+
+```
+❯ /plogin anthropic Claude Max
+Signing in to Claude Max — a separate terminal window is opening for claude.
+plan login error: no terminal emulator found to open a login window; set $TERMINAL
+```
+
+**The window path cannot work on a stock macOS at all.** `LoginWindow` searches `$TERMINAL`,
+`$TERM_PROGRAM` and a list of emulator binaries; Terminal.app and iTerm are `.app` bundles, not
+executables on `PATH`, so the search finds nothing and the login fails outright. The other branch —
+defer the login, end the session, run it after the screen is down — was not reachable in production
+anyway, because `newApp` always sets `handoverWindow`.
+
+**Why the child could not simply run in the session.** `Runtime.Run` owns `os.Stdin` from a read
+goroutine while the terminal is in raw mode, and `Handover` gave the child that same descriptor. Two
+readers on one fd, each taking half the keystrokes.
+
+**A pty, and one reader.** The child gets a terminal of its own that kolk owns both ends of. The read
+goroutine stays the only reader on the real terminal and *forwards* raw bytes to the pty while a
+child is attached — nothing is decoded on the way through, so a password typed at a vendor's prompt
+cannot also be interpreted as one of kolk's keys, and kolk remains a wire rather than a reader.
+
+Zero cgo, `golang.org/x/sys` only, and it lives in `internal/term` because `internal/arch` permits
+that import in exactly one package. Everything above receives `*os.File` and never learns which
+ioctl opened it. `pty_other.go` returns `ErrNoPTY` so windows/amd64 still compiles for release, and
+the window and handover paths remain as fallbacks.
+
+**Two things verified by running them rather than by reading a man page:**
+
+- *The size must be set after the slave is opened.* An earlier design sized the master immediately
+  after unlocking it, which on darwin returns `ENOTTY` — a call that looks correct and silently is
+  not. `TestAChildOnThePTYSeesARealTerminal` asserts the child reports `30 100`, so a regression here
+  fails rather than producing an invisible zero-sized terminal.
+- *The name comes from `Minor(rdev)`, not `TIOCPTYGNAME`.* The naming ioctl wants a 128-byte buffer
+  and reading it back would need `unsafe`. The device number gives the same answer with neither cgo
+  nor unsafe.
+
+**A data race the detector caught in the new code.** `RunInSession` closed the master by clearing
+`pty.Master` while both copy pumps were reading that field. `make check` does not run `-race`, so it
+passed every gate; `go test ./... -race` failed three tests immediately. The master is now held
+through a local, and the struct is never written while a pump is alive.
+
+**The keyboard pump is deliberately not joined.** It is parked in a read on the session's terminal,
+which does not unblock when the child exits — waiting for it would hang the login until the user
+happened to press a key. `TestItReturnsWithoutWaitingForAKeystroke` pins that.
+
+### R1.10 v1.2.22 in-session-login release
+
+**Gate:** `make check` green — 2625 tests — and `go test ./... -race` clean.
+
+**Publication:** commit `ba40df3` on `main`, tag `v1.2.22`. Release workflow run 33288720527 passed
+verify and publish. Four archives plus the Cosign-signed `checksums.txt` are public and the latest
+redirect resolves to `v1.2.22`.
+
+**The first attempt failed the gate, and the release gate is the reason it was caught.** Run
+33288587029 failed at `verify`, on a test written in this session:
+`TestALoginRunsInsideTheSessionOnItsOwnTerminal` asserted the child reported `/dev/tty`. A pty slave
+is `/dev/ttysNNN` on darwin and `/dev/pts/N` on linux, so the assertion described the machine it was
+written on rather than the behaviour it meant to check. Everything ran green locally; nothing was
+wrong with the code.
+
+The fix asks `tty` the actual question — the output must name a device and must not be "not a tty" —
+and the two sibling tests in `internal/term` and `internal/shell` carried the same trap and were
+hardened with it. Worth keeping: a pty test that names a device path is testing an operating system,
+not a program. CI also proved `/dev/ptmx` is available in the runner, since the failure was the
+assertion rather than the allocation.
+
+The tag was deleted and recreated on the fixed commit rather than left pointing at a build that
+never published.
+
+### FR4.1 the selected model is a ceiling
+
+Asked for while designing agent mode over a subscription:
+
+> "never use a superior model than selected without asking thats needs to be coded... not asked to
+> the model. for example if i select sonnet model, and select agentic, only sonnet and haiku have to
+> be available. not opus or fable... and the same for other vendor subs connections"
+
+**The rule.** Orchestration routes *downward* freely — that is what the slots are for, and running a
+commit or an mkdir on the cheapest model is how a subscription lasts the day. It must never route
+*upward*. Selecting Sonnet makes {Sonnet, Haiku} the entire reachable set.
+
+**Coded, not prompted.** "that needs to be coded... not asked to the model" is the load-bearing half.
+A system-prompt line saying "prefer cheaper models" is a request, and a model reading it may decide —
+reasonably — that this particular task deserves the strong one. A filter over the candidate set is a
+guarantee, and a spending limit has to be a guarantee.
+
+**Applied at one point.** `modelForKind` was split into `routeKind` (the choice) and `modelForKind`
+(the choice held to the ceiling), so every branch — configured slot, fast lane, catalogue ranking,
+effort model — passes through `underCeiling`. A ceiling with an exception is not a ceiling, and the
+next branch someone adds would not know it was supposed to ask. A configured slot normally beats
+every ranking; it does not beat this, because the slot was configured once and the model was selected
+just now.
+
+**Ranked per vendor**, from what each vendor says about its own models: Claude's picker calls Fable
+"most capable", Sonnet "efficient for routine tasks", Haiku "fastest for quick answers". Codex and
+Gemini have their own ladders. Matching is by prefix, so `claude-sonnet`, `claude-sonnet-5` and
+`anthropic/claude-sonnet-4` all land on one rung.
+
+**Two deliberate refusals to act.** A model on no ladder is never clamped — a ceiling that guessed
+would be worse than one that admits it does not know. And a ceiling does not reach across vendors: a
+Claude ceiling says nothing about a codex model, because that is a different bill, and silently
+rewriting a model configured for another provider would be a surprise of its own.
+
+**Made visible.** Entering agent mode now prints what the run may use and says the selection is the
+ceiling. A limit nobody can see is one people find out about by being surprised. Nothing is printed
+for an unranked model or for a user already on the cheapest rung, because neither line would say
+anything true and new.
+
+### FR4.2 a test that read the maintainer's own config
+
+`TestSlashUpdateReportsRestartAndKeepsSessionAlive` began failing locally while passing on CI.
+
+`replFixture` built its `app` directly and never called `isolateHome`, so `armRestart` resolved the
+real `~/.config/kolk/config.json`. The maintainer had turned on `auto_restart_after_update`, which is
+exactly what the setting is for — and the test then saw `/update` exit the REPL, which is exactly
+what the setting does.
+
+Nothing was wrong with the code. A suite that reads the developer's settings reports the wrong thing
+on precisely one machine: the maintainer's. `replFixture` isolates now, like `newTestApp` already
+did.
+
+### FR4.3 two corrections the adversarial pass found in FR4.1
+
+A four-way design investigation into agent mode over vendor CLIs, each investigation then checked by
+an adversarial reader, found two defects in the ceiling shipped an hour earlier. Both were in code
+already pushed, and neither had failed a test.
+
+**A whole id namespace the ceiling could not see.** `modelRank` normalised by stripping everything up
+to the last `/`, so `claude/haiku` became `haiku`, which does not prefix-match the rung
+`claude-haiku`. An unranked model is deliberately never clamped — so any `vendor/model` route would
+have been invisible to the ceiling, silently exempt from the one guarantee it exists to provide. All
+three spellings a model arrives in are now tried: the bare plan name, the catalogue's
+`provider/model`, and the namespaced `claude/haiku` folded to `claude-haiku`.
+
+**A message that promised what the router does not do.** Entering agent mode printed
+`agent runs may use: claude-sonnet, claude-haiku`. The ceiling is real, but that line predicted a
+routing decision rather than stating a guarantee — and the prediction is wrong today. On a plan
+session `a.Catalog` is still the gateway catalogue (`run.go` loads it regardless of backend), so
+`SlotExplore` ranks gateway rows and `SlotFast` returns `FastLaneModel`, which on a non-free session
+model is `google/gemini-2.5-flash`. The clamp then correctly leaves it alone — a different ladder is
+a different bill — but the user had been told to expect their plan's own models.
+
+It now says what is guaranteed: `agent runs are capped at claude-sonnet — claude-fable and
+claude-opus stay out of reach`. Refusal is a guarantee; selection is not yet. `ModelsAtOrBelow` was
+deleted rather than allowlisted when the dead-export gate caught it losing its caller, and
+`ModelsAboveCeiling` replaced it.
+
+**Recorded as the honest state of the work:** the ceiling is enforced. Routing a subagent to the
+plan's own cheap model is the other half and is not built — on a plan session the slots still resolve
+gateway ids. Saying so here matters more than the code did, because the previous line said otherwise
+to the user's face.

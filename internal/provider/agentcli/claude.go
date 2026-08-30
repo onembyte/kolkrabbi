@@ -55,10 +55,21 @@ func BuildClaudeInvocation(model, mode, effort, prompt string) (ClaudeInvocation
 	return ClaudeInvocation{Args: args, Prompt: prompt}, nil
 }
 
-// claudeCodeTools is the vendor tool set a code session runs with. Task stays
-// off on purpose: kolk's agent mode is not available on this backend at all,
-// and leaving the vendor's own subagent scheduler on would put a subagent tree
-// in the stream that kolk's bus cannot represent.
+// claudeCodeTools is the vendor tool set every session runs with, in code mode
+// and in agent mode alike.
+//
+// Task stays off in both. The reason is one thing, not two: the vendor's own
+// subagent scheduler would put a subagent tree in the stream that kolk's bus
+// cannot represent, so kolk could neither record those children nor stop them.
+// That is true whoever is orchestrating.
+//
+// It used to read "kolk's agent mode is not available on this backend at all,
+// and …", which was circular — Task was off because agent mode was refused, and
+// agent mode was refused because the vendor schedules subagents. Only the
+// second half was ever an argument. kolk's agent mode spawns kolk's own
+// subagents, each a process kolk starts, records and can kill; that is a
+// different thing from the vendor scheduling its own, and this constant is what
+// keeps the vendor from doing so.
 const claudeCodeTools = "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,TodoWrite"
 
 // claudeModeFlags turns kolk's session mode into the vendor flags that make
@@ -69,12 +80,14 @@ const claudeCodeTools = "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,TodoW
 // request: a stream-json process replays no argv.
 func claudeModeFlags(mode string) ([]string, error) {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
-	case "", "code":
+	// Agent mode takes the same flags as code mode. In an orchestrated run this
+	// process serves the planner and the synthesis calls, and the single-task
+	// fallback that degrades to the ordinary loop — all of which need the
+	// vendor's tool loop exactly as code mode does. Task is absent either way.
+	case "", "code", "agent":
 		return []string{"--tools", claudeCodeTools, "--permission-mode", "acceptEdits"}, nil
 	case "chat":
 		return []string{"--tools", "", "--permission-mode", "dontAsk"}, nil
-	case "agent":
-		return nil, fmt.Errorf("claude cannot run kolk's agent mode: the vendor schedules its own subagents, which kolk cannot record or stop; run code mode instead")
 	default:
 		return nil, fmt.Errorf("unknown mode %q (chat|code|agent)", mode)
 	}

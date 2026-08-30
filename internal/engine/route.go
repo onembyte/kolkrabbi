@@ -80,9 +80,23 @@ func isKnownSlot(name string) bool {
 // their behalf the first time they open the config.
 func (a *Agent) orchestrationModel() string {
 	if model := strings.TrimSpace(a.Slots[SlotOrchestrator]); model != "" {
-		return model
+		return a.underCeiling(model)
 	}
-	return a.modelFor(a.Effort)
+	return a.underCeiling(a.modelFor(a.Effort))
+}
+
+// underCeiling holds every routing decision to the model the user selected.
+//
+// It is applied here, at the single point every subagent's model passes
+// through, rather than at each of the branches above — a ceiling with an
+// exception is not a ceiling, and the next branch someone adds would not know
+// it was supposed to ask.
+//
+// A configured slot is normally the user's decision and beats every ranking,
+// but not this: they configured the slot once and selected the model just now,
+// and the nearer choice is the one that meant it.
+func (a *Agent) underCeiling(model string) string {
+	return ClampToCeiling(model, a.SessionModel())
 }
 
 // modelForKind picks the model for one task.
@@ -92,6 +106,11 @@ func (a *Agent) orchestrationModel() string {
 // how to pick something cheap, then the model the run is already using. A user
 // who configured nothing gets exactly today's behaviour.
 func (a *Agent) modelForKind(kind Kind) string {
+	return a.underCeiling(a.routeKind(kind))
+}
+
+// routeKind is the choice; modelForKind is the choice held to the ceiling.
+func (a *Agent) routeKind(kind Kind) string {
 	slot, routed := kindSlots[kind]
 	if routed {
 		// A configured slot is the user's decision and beats every ranking.

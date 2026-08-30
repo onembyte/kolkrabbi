@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/config"
@@ -71,6 +72,24 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 			} else {
 				fmt.Fprintln(a.stdout, "(unset — inherits off)")
 			}
+		case key == "max_run_cost_usd":
+			if cfg.MaxRunCostUSD > 0 {
+				fmt.Fprintf(a.stdout, "%.2f\n", cfg.MaxRunCostUSD)
+			} else {
+				fmt.Fprintln(a.stdout, "(unset — no ceiling)")
+			}
+		case key == "max_concurrent_tasks":
+			if cfg.MaxConcurrentTasks > 0 {
+				fmt.Fprintln(a.stdout, cfg.MaxConcurrentTasks)
+			} else {
+				fmt.Fprintf(a.stdout, "(unset — inherits %d)\n", engine.DefaultConcurrentTasks)
+			}
+		case strings.HasPrefix(key, "slot."):
+			if model := cfg.Slots[strings.TrimPrefix(key, "slot.")]; model != "" {
+				fmt.Fprintln(a.stdout, model)
+			} else {
+				fmt.Fprintln(a.stdout, "(unset — chosen from the catalogue)")
+			}
 		case key == "routing.on_subscription_limit":
 			if cfg.Routing.OnSubscriptionLimit != "" {
 				fmt.Fprintln(a.stdout, cfg.Routing.OnSubscriptionLimit)
@@ -136,6 +155,53 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintf(a.stdout, "auto_restart_after_update → %s\n", val)
+		case key == "max_run_cost_usd":
+			ceiling, err := strconv.ParseFloat(strings.TrimSpace(val), 64)
+			if err != nil {
+				return usagef("max_run_cost_usd: %q is not a number", val)
+			}
+			// Zero is meaningful — it is how the ceiling is expressed as "none"
+			// in the config — but a negative one is a run that is over budget
+			// before it starts.
+			if ceiling < 0 {
+				return usagef("max_run_cost_usd: %.2f is negative; use 0 for no ceiling", ceiling)
+			}
+			cfg.MaxRunCostUSD = ceiling
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "max_run_cost_usd → %.2f\n", ceiling)
+		case key == "max_concurrent_tasks":
+			width, err := strconv.Atoi(strings.TrimSpace(val))
+			if err != nil {
+				return usagef("max_concurrent_tasks: %q is not a whole number", val)
+			}
+			// One is sequential, which is a choice. Zero is a run that never
+			// starts a task, which is not.
+			if width < 1 {
+				return usagef("max_concurrent_tasks: %d would run nothing; one is the minimum", width)
+			}
+			cfg.MaxConcurrentTasks = width
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "max_concurrent_tasks → %d\n", width)
+		case strings.HasPrefix(key, "slot."):
+			name := strings.TrimPrefix(key, "slot.")
+			// Validated at the point of typing. The alternative is a warning at
+			// the next session start, which on a setting nobody looks at twice
+			// means paying for the wrong model until they happen to notice.
+			if err := engine.ValidateSlots(map[string]string{name: val}); err != nil {
+				return usagef("%v", err)
+			}
+			if cfg.Slots == nil {
+				cfg.Slots = map[string]string{}
+			}
+			cfg.Slots[name] = val
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "slot.%s → %s\n", name, val)
 		case key == "routing.on_subscription_limit":
 			policy, err := engine.NormalizeSubscriptionLimit(val)
 			if err != nil {
@@ -200,6 +266,31 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintln(a.stdout, "removed base_url")
+		case key == "max_run_cost_usd":
+			cfg.MaxRunCostUSD = 0
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintln(a.stdout, "removed max_run_cost_usd; a run has no cost ceiling")
+		case key == "max_concurrent_tasks":
+			cfg.MaxConcurrentTasks = 0
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "removed max_concurrent_tasks; back to %d at a time\n",
+				engine.DefaultConcurrentTasks)
+		case strings.HasPrefix(key, "slot."):
+			name := strings.TrimPrefix(key, "slot.")
+			delete(cfg.Slots, name)
+			// An emptied map is nilled so it leaves the file entirely: a
+			// `"slots": {}` left behind reads as a decision someone made.
+			if len(cfg.Slots) == 0 {
+				cfg.Slots = nil
+			}
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "removed slot.%s\n", name)
 		case key == "routing.on_subscription_limit":
 			cfg.Routing.OnSubscriptionLimit = ""
 			if err := config.Save(d.ConfigFile(), cfg); err != nil {

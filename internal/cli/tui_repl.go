@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,6 +17,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/projectfiles"
 	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/shell"
 	"github.com/onembyte/kolkrabbi/internal/term"
 	"github.com/onembyte/kolkrabbi/internal/tui"
 	"github.com/onembyte/kolkrabbi/protocol"
@@ -188,6 +190,18 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 	ag.Agents = func(running int) { screen.Controller().SetAgents(running) }
 	ag.Decider = tuiDecider{runtime: screen}
 	ag.Ask = tuiChooser{runtime: screen}
+
+	// The login runs here, inside the session, on a terminal of its own. The
+	// runtime parks the frame and forwards the keyboard; shell puts the child
+	// on a pty. Restored on the way out so a later non-session command is not
+	// left holding a screen that has gone.
+	previousLogin := a.loginInSession
+	a.loginInSession = func(ctx context.Context, executable string, args []string) error {
+		return screen.RunAttached(ctx, func(in io.Reader, out io.Writer, width, height int) error {
+			return shell.RunInSession(ctx, executable, args, in, out, width, height)
+		})
+	}
+	defer func() { a.loginInSession = previousLogin }()
 	runErr := screen.Run(ctx)
 	a.stdout, a.stderr = originalStdout, originalStderr
 	restoreErr := restoreTerminal()

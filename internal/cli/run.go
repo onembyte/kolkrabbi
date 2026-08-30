@@ -65,7 +65,7 @@ func (a *app) runDefault(ctx context.Context, args []string) (err error) {
 	// diagnostic that reports "mode " has recorded the one thing it must not
 	// get wrong.
 	a.debugLog.Printf("session %s, model %s, mode %s, effort %s, permission %s",
-		ag.Sess.SessionID(), ag.Model, ag.Mode, ag.Effort, ag.Permission)
+		ag.Sess.SessionID(), ag.SessionModel(), ag.Mode, ag.Effort, ag.Permission)
 	defer func() {
 		// Every goroutine this run started is joined before it returns; a
 		// background refresh is cancelled rather than waited for.
@@ -650,17 +650,20 @@ func (a *app) switchModel(ctx context.Context, ag *engine.Agent, ref string) (st
 		return "", err
 	}
 
-	previous := ag.Backend
+	previous := ag.SessionBackend()
 	resolved, label := provider.ResolveModelAlias(ref), ""
+	// Through the setters, not the fields: a turn may be in flight, and in an
+	// orchestrated one every subagent is reading the model on its way to a
+	// spawn. The engine owns the lock; this package must not write behind it.
 	if backend != nil {
 		resolved = planModel.Model
 		label = fmt.Sprintf(" (%s, via the %s CLI)", planModel.Plan, planModel.Connector)
-		ag.Backend = backend
+		ag.SetSessionBackend(backend)
 	} else if ag.Client != nil {
-		ag.Backend = ag.Client
+		ag.SetSessionBackend(ag.Client)
 	}
 	// The retired provider owns a child process; nothing else will release it.
-	if previous != nil && previous != ag.Backend {
+	if current := ag.SessionBackend(); previous != nil && previous != current {
 		if closer, ok := previous.(io.Closer); ok {
 			_ = closer.Close()
 		}
@@ -668,7 +671,7 @@ func (a *app) switchModel(ctx context.Context, ag *engine.Agent, ref string) (st
 
 	// Options is embedded in Agent, so these are the session's own fields and a
 	// later /new inherits the provider it is running on.
-	ag.Model = resolved
+	ag.SetSessionModel(resolved)
 	// A provider CLI's window is not in the catalog, so a plan model reports
 	// unknown rather than borrowing the previous model's limit. A host model's
 	// comes from its route, which the engine asks when this is zero (E8).

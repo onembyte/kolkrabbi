@@ -83,6 +83,34 @@ func printSlashHelp(out interface{ Write([]byte) (int, error) }) {
 	}
 }
 
+// reportAgentModelCeiling says which models an orchestrated run may use.
+//
+// The model the user selected is a ceiling: a run routes downward to cheaper
+// models freely and never upward. That is enforced in the engine, but a limit
+// nobody can see is one people find out about by being surprised — so entering
+// agent mode says what the run can reach, and the answer changes when they
+// change their model.
+func (a *app) reportAgentModelCeiling(ag *engine.Agent) {
+	if ag.Mode != engine.ModeAgent {
+		return
+	}
+	blocked := engine.ModelsAboveCeiling(ag.SessionModel())
+	if len(blocked) == 0 {
+		// Either the model is on no ranked ladder, or it is already the
+		// strongest rung and nothing is out of reach. Neither is worth a line:
+		// the first would be a claim kolk cannot make, and the second says
+		// nothing the user did not just choose.
+		return
+	}
+	// Stated as what is REFUSED, not as what will be chosen. The ceiling is a
+	// guarantee — a stronger model cannot be reached — and that is true today.
+	// Which cheaper model a task actually lands on is the router's decision and
+	// on a plan session it is still a gateway model, so listing the plan's own
+	// cheap rungs here would promise something the router does not yet do.
+	fmt.Fprintf(a.stdout, "agent runs are capped at %s — %s out of reach\n",
+		ag.SessionModel(), strings.Join(blocked, " and ")+" stay")
+}
+
 // slash handles a /command typed in the REPL. It returns true when the REPL
 // should exit.
 func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
@@ -121,15 +149,18 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		// A provider CLI owns its own tool loop, so the tool set and the
 		// permission mode it should run under are flags on its process — which
 		// replays no argv. Mode is part of that contract, exactly like effort:
-		// a change means a new process. Agent mode is refused outright, though:
-		// the vendor schedules its own subagents, which kolk cannot record or
-		// stop, so binding it to kolk's orchestrator would be a claim of
-		// supervision nobody makes.
-		if plan, ok := ag.Backend.(*verifyingBackend); ok {
-			if arg == "agent" {
-				fmt.Fprintf(a.stdout, "%s cannot run kolk's agent mode: the vendor schedules its own subagents, which kolk cannot record or stop; use code mode\n", plan.plan.Connector)
-				break
-			}
+		// a change means a new process.
+		//
+		// Agent mode is no longer refused here. It used to be, for every plan
+		// connector at once, on the grounds that the vendor schedules its own
+		// subagents — but the vendor's scheduler is off (its Task tool is not
+		// in the tool set), and kolk's agent mode spawns kolk's own children,
+		// which kolk starts and can stop. Whether a given connector is ready
+		// is the adapter's question, not this one's: claudeModeFlags accepts
+		// agent mode, codexModeSandbox still refuses it until each subagent
+		// gets its own vendor conversation, and the error surfaces from the
+		// restart below either way.
+		if plan, ok := ag.SessionBackend().(*verifyingBackend); ok {
 			if err := ag.SetMode(arg); err != nil {
 				fmt.Fprintln(a.stdout, err)
 				break
@@ -151,6 +182,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			fmt.Fprintln(a.stdout, err)
 		} else {
 			fmt.Fprintf(a.stdout, "mode: %s\n", ag.Mode)
+			a.reportAgentModelCeiling(ag)
 		}
 	case "/effort":
 		if arg == "" {
@@ -169,7 +201,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		// A provider CLI is started with its effort and replays no argv, so a
 		// new level means a new process. The restart is the dial's job, not a
 		// second command the user has to remember.
-		if plan, ok := ag.Backend.(*verifyingBackend); ok {
+		if plan, ok := ag.SessionBackend().(*verifyingBackend); ok {
 			if plan.effort == ag.Effort {
 				break
 			}
@@ -194,7 +226,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			fmt.Fprintf(a.stdout, "rated %d★ — see `kolk stats`\n", n)
 		}
 	case "/new", "/clear":
-		sess := session.New(a.dirs.Sessions(), ag.Model)
+		sess := session.New(a.dirs.Sessions(), ag.SessionModel())
 		ckpt, err := checkpoint.Open(sess.CkptDir())
 		if err != nil {
 			ckpt = nil
@@ -318,7 +350,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		a.setPermission(ag, strings.TrimPrefix(cmd, "/"))
 	case "/model":
 		if arg == "" {
-			fmt.Fprintf(a.stdout, "current model: %s\n", ag.Model)
+			fmt.Fprintf(a.stdout, "current model: %s\n", ag.SessionModel())
 			d, _ := a.locate()
 			if err := a.printModelCatalog(ctx, ag.Client, d.CatalogFile(), false, ""); err != nil {
 				fmt.Fprintf(a.stderr, "could not list models: %v\n", err)

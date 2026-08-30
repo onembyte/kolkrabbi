@@ -88,6 +88,14 @@ type Runtime struct {
 	approval chan Decision
 	// question is the reply channel of the model worker waiting on a picker.
 	question chan questionReply
+	// output is the terminal itself, kept so a child process can be given the
+	// screen directly for as long as it owns it.
+	output io.Writer
+	// attached, while set, is where raw keyboard bytes go instead of to the
+	// decoder. It is how a vendor CLI runs inside the session: the ONE reader
+	// on the terminal stays the read goroutine, and it forwards. A second
+	// reader on the same descriptor is the bug this design exists to avoid.
+	attached io.Writer
 	// modelPick is the reply channel of the surface waiting on the /model
 	// overlay. Empty answer means dismissed.
 	modelPick chan string
@@ -131,7 +139,8 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 	return &Runtime{
 		input: options.Input, controller: controller,
 		renderer: NewRenderer(options.Output), decoder: NewDecoder(),
-		width: options.Width, height: options.Height, resize: options.Resize, turn: options.Turn,
+		output: options.Output,
+		width:  options.Width, height: options.Height, resize: options.Resize, turn: options.Turn,
 		cyclePerm: options.CyclePermission, meter: options.Meter,
 		spinClock: realSpinnerClock{},
 		quit:      make(chan struct{}),
@@ -187,6 +196,21 @@ readLoop:
 		case <-r.resize:
 			r.Resize()
 		case result := <-reads:
+			r.mu.Lock()
+			sink := r.attached
+			r.mu.Unlock()
+			if sink != nil {
+				// The child owns the keyboard. Nothing is decoded, so nothing
+				// is interpreted: kolk is a wire here, which is what keeps it
+				// from seeing a credential typed at a vendor's prompt.
+				if len(result.data) > 0 {
+					_, _ = sink.Write(result.data)
+				}
+				if result.err != nil {
+					break readLoop
+				}
+				continue
+			}
 			for _, key := range r.decoder.Feed(result.data) {
 				if r.HandleKey(key).Exit {
 					break readLoop

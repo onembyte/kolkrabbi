@@ -158,14 +158,22 @@ func (a *Agent) resolveSubscriptionLimit(ctx context.Context, current string) (s
 // bills it. The retired plan provider owns a child process, and nothing else
 // will release it.
 func (a *Agent) moveToMetered(model string) {
+	// Read and swap under one lock, so a reader cannot see the old backend
+	// paired with the new model. Closing happens after the lock is released:
+	// the retired provider's Close waits on a child process, and holding a
+	// session-wide lock across that would stall every other subagent.
+	var retired ChatBackend
+	a.modelMu.Lock()
 	if a.Client != nil && a.Backend != ChatBackend(a.Client) {
-		retired := a.Backend
+		retired = a.Backend
 		a.Backend = a.Client
-		if closer, ok := retired.(io.Closer); ok {
-			_ = closer.Close()
-		}
 	}
 	a.Model = model
+	a.modelMu.Unlock()
+
+	if closer, ok := retired.(io.Closer); ok {
+		_ = closer.Close()
+	}
 	if a.Sess != nil {
 		a.Sess.SetModelName(model)
 	}

@@ -117,9 +117,17 @@ func (a *app) runPlanLogin(ctx context.Context, args []string) error {
 		return err
 	}
 	// A live Kolkrabbi session reads the keyboard from its own goroutine, so a
-	// provider CLI spawned here would fight it for every keystroke. The login
-	// therefore moves to a terminal Kolkrabbi does not own — a window of its
-	// own when one can be opened, and the whole screen handed over when not.
+	// provider CLI spawned here would fight it for every keystroke — unless it
+	// is given a terminal of its own. That is what the in-session runner does:
+	// the frame is parked, the child draws on a pty kolk owns both ends of, and
+	// the session comes back when it exits. Nothing leaves the window the user
+	// is already looking at.
+	if a.loginInSession != nil {
+		return a.runConnectorLoginWith(ctx, dirs.ConnectorsFile(), selected, a.loginInSession)
+	}
+	// Failing that, the login moves to a terminal Kolkrabbi does not own — a
+	// window of its own when one can be opened, and the whole screen handed
+	// over when not.
 	if a.terminalOwned != nil && a.terminalOwned() {
 		if a.handoverWindow != nil {
 			fmt.Fprintf(a.stdout, "Signing in to %s — a separate terminal window is opening for %s.\n",
