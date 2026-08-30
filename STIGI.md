@@ -244,7 +244,7 @@ not meaning. `"medium"`, `"VERY HARD"` and a model name stuffed into the field a
 
 ---
 
-## C6 — The roster: what this session may spend on
+## C6 — The roster: what this session may spend on  ·  **done**
 
 **Observable:** agent mode prints the lane above the plan —
 `lane: trivial → claude-haiku · routine → claude-sonnet · hard → claude-sonnet`. Nothing binds to it
@@ -252,17 +252,42 @@ yet. The lane is visible *before* it can cost anything, which is why this is spl
 
 **Files:** `internal/engine/ceiling.go`, `roster.go` (new), `agent.go`, `internal/cli/subagent_backend.go` (new)
 
-- [ ] **C6.1** Export `LadderRungIDs(vendor)` returning canonical `vendor/rung` ids, strongest first. These are already rankable: `modelRank` folds `claude/haiku` to `claude-haiku`.
-- [ ] **C6.2** `Rung{ID, Model, Vendor, Depth}` where `Depth 0` **is** the ceiling.
-- [ ] **C6.3** `Rungs[0].Model` is `a.sessionModel()` **verbatim** — never a ladder string. This is judge defect B: ladder rungs are match prefixes, and using one as a model id would hand `claude-opus` to OpenRouter as a literal name.
-- [ ] **C6.4** Rungs below depth 0 exist only when the port answers for them, and the port answers only for connectors that are signed in — rule 2.
-- [ ] **C6.5** Print the lane on entering agent mode; replace the interim "capped at …" line from FR4.1 with this, which says the same thing and more.
-- [ ] **C6.6** Tests, then gates.
+- [x] **C6.1** Export `LadderRungIDs(vendor)` returning canonical `vendor/rung` ids, strongest first. These are already rankable: `modelRank` folds `claude/haiku` to `claude-haiku`.
+- [x] **C6.2** `Rung{ID, Model, Vendor, Depth}` where `Depth 0` **is** the ceiling.
+- [x] **C6.3** `Rungs[0].Model` is `a.sessionModel()` **verbatim** — never a ladder string. This is judge defect B: ladder rungs are match prefixes, and using one as a model id would hand `claude-opus` to OpenRouter as a literal name.
+- [x] **C6.4** Rungs below depth 0 exist only when the port answers for them, and the port answers only for connectors that are signed in — rule 2.
+- [x] **C6.5** Print the lane on entering agent mode; replace the interim "capped at …" line from FR4.1 with this, which says the same thing and more.
+- [x] **C6.6** Tests, then gates.
 
-**Open question to settle inside this checkpoint:** cross-vendor. The roster is currently one
-vendor's ladder. Rule 2 says another vendor's rungs may join it when that vendor is signed in.
-Decide the shape here, with cost and this machine's own ratings as the comparison — `stats.RatingsByModel`
-already exists and already knows that "never rated" and "rated badly" are different facts.
+**Done 2026-08-30.** `make check` green at 2667 tests, race clean.
+
+A test of mine failed for the right reason and taught the arithmetic: `claude-opus` sits at depth 1,
+so it has **two** cheaper rungs, not one. The assertion had encoded my miscount rather than the
+intent, which was that the ceiling is never asked about — the session is already running on it, so
+the question is answered by the session existing. It now asserts that directly.
+
+`ClaudeKnowsModel` is new and distinct from `ClaudeVendorModel`, which passes an unrecognised name
+through untouched. That pass-through is right when a user typed a full vendor id and wrong for
+deciding what to put on a menu: a roster built on it would offer every ladder rung whether or not
+the adapter could spawn it, and the failure would land on the user's first task.
+
+**The cross-vendor question, settled.** The roster asks one question per cheaper rung —
+`RungAvailable(vendor, model)` — and the surface answers it from the connector manifest. Rule 2 is
+therefore already enforced *by shape*: a vendor that is not signed in through kolk answers no, and
+its rungs never reach the menu. `TestACheaperRungNeedsItsVendorSignedInThroughKolk` pins it, and
+signing in to claude does not make a codex rung available.
+
+What is **not** built, and is deliberately its own future checkpoint: rungs from a *different*
+vendor joining the roster at all. Today the roster walks the session vendor's own ladder downward.
+Reaching sideways needs an answer to a question this checkpoint does not have — how to compare a
+rung on one ladder with a rung on another — and the honest candidates are relative depth, this
+machine's own ratings (`stats.RatingsByModel`, which already distinguishes "never rated" from "rated
+badly"), and measured cost per token. Guessing that ordering would put a model on the menu on a
+comparison nobody defended. The gate for it exists; the ordering does not.
+
+`Enabled` rather than `Verified`, deliberately. `Verified` means kolk has seen the connector answer a
+real turn — a stronger claim, but requiring it would keep a freshly signed-in vendor off the menu
+until it happened to be used, so signing in would appear to do nothing.
 
 ---
 

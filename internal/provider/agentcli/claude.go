@@ -129,6 +129,18 @@ func ClaudeVendorModel(model string) string {
 	return model
 }
 
+// ClaudeKnowsModel reports whether this adapter can actually spawn a model.
+//
+// Distinct from ClaudeVendorModel, which passes an unrecognised name through
+// untouched — the right behaviour when the user typed a full vendor id, and the
+// wrong one for deciding what to put on a menu. A roster built on the
+// pass-through would offer every ladder rung whether or not this adapter could
+// run it, and the failure would land on the user's first task instead of here.
+func ClaudeKnowsModel(model string) bool {
+	_, known := claudeModelAliases[strings.ToLower(strings.TrimSpace(model))]
+	return known
+}
+
 // NewVendorHandle mints the conversation handle a claude session is opened
 // under. Kolk mints it so it owns the resume handle before the process
 // starts — a child that dies before its first init frame still leaves a name

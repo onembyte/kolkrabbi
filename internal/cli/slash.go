@@ -83,36 +83,42 @@ func printSlashHelp(out interface{ Write([]byte) (int, error) }) {
 	}
 }
 
-// reportAgentModelCeiling says which models an orchestrated run may use.
+// reportAgentLane says what an orchestrated run may spend on.
 //
-// The model the user selected is a ceiling: a run routes downward to cheaper
-// models freely and never upward. That is enforced in the engine, but a limit
-// nobody can see is one people find out about by being surprised — so entering
-// agent mode says what the run can reach, and the answer changes when they
-// change their model.
-func (a *app) reportAgentModelCeiling(ag *engine.Agent) {
+// The roster is printed on entering agent mode, before it can cost anything.
+// A limit nobody can see is one people meet by being surprised, and this one is
+// worth seeing twice: it names the ceiling, and it names what is below it, so
+// the difference between "I picked a cheap model" and "cheap work will run
+// cheaply" is visible rather than assumed.
+func (a *app) reportAgentLane(ag *engine.Agent) {
 	if ag.Mode != engine.ModeAgent {
 		return
 	}
+	roster := ag.Roster(a.rungAvailable())
 	blocked := engine.ModelsAboveCeiling(ag.SessionModel())
-	if len(blocked) == 0 {
-		// Either the model is on no ranked ladder, or it is already the
-		// strongest rung and nothing is out of reach. Neither is worth a line:
-		// the first would be a claim kolk cannot make, and the second says
-		// nothing the user did not just choose.
+	if len(roster.Rungs) < 2 && len(blocked) == 0 {
+		// On no ranked ladder, or already at the top with nothing cheaper
+		// reachable. Neither is worth a line: the first would be a claim kolk
+		// cannot make, the second says nothing the user did not just choose.
 		return
 	}
-	// Stated as what is REFUSED, not as what will be chosen. The ceiling is a
-	// guarantee — a stronger model cannot be reached — and that is true today.
-	// Which cheaper model a task actually lands on is the router's decision and
-	// on a plan session it is still a gateway model, so listing the plan's own
-	// cheap rungs here would promise something the router does not yet do.
-	fmt.Fprintf(a.stdout, "agent runs are capped at %s — %s out of reach\n",
-		ag.SessionModel(), strings.Join(blocked, " and ")+" stay")
+
+	models := make([]string, 0, len(roster.Rungs))
+	for _, rung := range roster.Rungs {
+		models = append(models, rung.Model)
+	}
+	fmt.Fprintf(a.stdout, "agent lane: %s\n", strings.Join(models, " → "))
+	if len(blocked) > 0 {
+		fmt.Fprintf(a.stdout, "  capped at %s — %s out of reach\n",
+			ag.SessionModel(), strings.Join(blocked, " and "))
+	}
+	if len(roster.Rungs) == 1 && len(blocked) > 0 {
+		// Being told what is refused without being told what is available is
+		// half an answer, and this is the half people act on.
+		fmt.Fprintln(a.stdout, "  nothing cheaper is signed in, so every task runs on your model")
+	}
 }
 
-// slash handles a /command typed in the REPL. It returns true when the REPL
-// should exit.
 func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 	fields := strings.Fields(line)
 	cmd := fields[0]
@@ -182,7 +188,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			fmt.Fprintln(a.stdout, err)
 		} else {
 			fmt.Fprintf(a.stdout, "mode: %s\n", ag.Mode)
-			a.reportAgentModelCeiling(ag)
+			a.reportAgentLane(ag)
 		}
 	case "/effort":
 		if arg == "" {

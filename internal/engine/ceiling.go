@@ -109,6 +109,24 @@ func ClampToCeiling(chosen, ceiling string) string {
 	return chosen
 }
 
+// LadderRungIDs is one vendor's ladder, strongest first, as ids.
+//
+// These are the same strings the ranking matches on, so every id this returns
+// is one ClampToCeiling can see — there exists no rung the ceiling cannot rank.
+// A vendor kolk does not know has no ladder, and gets nothing rather than a
+// guess.
+func LadderRungIDs(vendor string) []string {
+	for _, ladder := range vendorLadders {
+		if ladder.name != vendor {
+			continue
+		}
+		rungs := make([]string, len(ladder.rungs))
+		copy(rungs, ladder.rungs)
+		return rungs
+	}
+	return nil
+}
+
 // ModelsAboveCeiling is every model on the ceiling's ladder that this session
 // may NOT use. It is what a session can honestly state: the ceiling refuses
 // these, which is a guarantee, where naming the cheaper rungs would predict a
