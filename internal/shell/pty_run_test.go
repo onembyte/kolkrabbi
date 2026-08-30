@@ -20,7 +20,7 @@ func TestAChildRunInSessionGetsARealTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunInSession: %v", err)
 	}
-	if !strings.Contains(out.String(), "/dev/") {
+	if strings.Contains(out.String(), "not a tty") || !strings.Contains(out.String(), "/dev/") {
 		t.Errorf("the child does not think it is on a terminal: %q", out.String())
 	}
 	if !strings.Contains(out.String(), "30 100") {

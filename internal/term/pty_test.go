@@ -56,7 +56,7 @@ func TestAChildOnThePTYSeesARealTerminal(t *testing.T) {
 		t.Fatal("the child never produced output on the pty")
 	}
 
-	if !strings.Contains(output, "/dev/") {
+	if strings.Contains(output, "not a tty") || !strings.Contains(output, "/dev/") {
 		t.Errorf("the child does not think it is on a terminal: %q", output)
 	}
 	// The size must be the one asked for. Setting it against the master before

@@ -42,7 +42,13 @@ func TestALoginRunsInsideTheSessionOnItsOwnTerminal(t *testing.T) {
 	got := screen.String()
 	// A vendor CLI like `claude auth login` is a full-screen UI that refuses to
 	// run without a terminal. If this is not true, the login cannot work.
-	if !strings.Contains(got, "/dev/tty") {
+	//
+	// Asserted by what `tty` says rather than by the device's name: a pty slave
+	// is /dev/ttysNNN on darwin and /dev/pts/N on linux, and an earlier version
+	// of this test looked for "/dev/tty" — which passed on the machine it was
+	// written on and failed on CI for a reason that had nothing to do with the
+	// code.
+	if strings.Contains(got, "not a tty") || !strings.Contains(got, "/dev/") {
 		t.Errorf("the child was not given a terminal:\n%s", got)
 	}
 	// And the session has to still be there afterwards.
