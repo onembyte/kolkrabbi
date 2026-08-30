@@ -149,15 +149,18 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		// A provider CLI owns its own tool loop, so the tool set and the
 		// permission mode it should run under are flags on its process — which
 		// replays no argv. Mode is part of that contract, exactly like effort:
-		// a change means a new process. Agent mode is refused outright, though:
-		// the vendor schedules its own subagents, which kolk cannot record or
-		// stop, so binding it to kolk's orchestrator would be a claim of
-		// supervision nobody makes.
+		// a change means a new process.
+		//
+		// Agent mode is no longer refused here. It used to be, for every plan
+		// connector at once, on the grounds that the vendor schedules its own
+		// subagents — but the vendor's scheduler is off (its Task tool is not
+		// in the tool set), and kolk's agent mode spawns kolk's own children,
+		// which kolk starts and can stop. Whether a given connector is ready
+		// is the adapter's question, not this one's: claudeModeFlags accepts
+		// agent mode, codexModeSandbox still refuses it until each subagent
+		// gets its own vendor conversation, and the error surfaces from the
+		// restart below either way.
 		if plan, ok := ag.SessionBackend().(*verifyingBackend); ok {
-			if arg == "agent" {
-				fmt.Fprintf(a.stdout, "%s cannot run kolk's agent mode: the vendor schedules its own subagents, which kolk cannot record or stop; use code mode\n", plan.plan.Connector)
-				break
-			}
 			if err := ag.SetMode(arg); err != nil {
 				fmt.Fprintln(a.stdout, err)
 				break

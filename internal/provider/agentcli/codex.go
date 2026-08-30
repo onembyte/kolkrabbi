@@ -82,7 +82,16 @@ func codexModeSandbox(mode string) (string, error) {
 	case "chat":
 		return "read-only", nil
 	case "agent":
-		return "", fmt.Errorf("codex cannot run kolk's agent mode: the vendor schedules its own work and kolk cannot record or stop it; run code mode instead")
+		// Refused for a narrower and more concrete reason than it used to give.
+		// "The vendor schedules its own work" is equally true of code mode,
+		// which is allowed. What actually breaks is the conversation: one
+		// CodexBackend holds one thread id, and every turn resumes it with
+		// `codex exec resume <thread>`. Several subagents on one backend would
+		// interleave their turns into a single vendor transcript — not a data
+		// race (the field is guarded) but one conversation where there should
+		// be several. Lifting this needs a backend per subagent, which is the
+		// same change claude needs for its own reasons.
+		return "", fmt.Errorf("codex cannot run kolk's agent mode yet: subagents would share one vendor conversation; run code mode instead")
 	default:
 		return "", fmt.Errorf("unknown mode %q (chat|code|agent)", mode)
 	}

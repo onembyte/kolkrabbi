@@ -102,8 +102,37 @@ func TestClaudeModeFlagsShapeTheVendorToolSet(t *testing.T) {
 	if !strings.Contains(strings.Join(chat, " "), "--permission-mode dontAsk") {
 		t.Fatalf("chat flags = %q, want dontAsk", strings.Join(chat, " "))
 	}
-	if _, err := claudeModeFlags("agent"); err == nil {
-		t.Fatal("agent mode must be refused on this backend, with the reason")
+	// Agent mode takes the same flags as code mode. It was refused here until
+	// 2026-08-30, on a reason that was true of the vendor's Task tool rather
+	// than of kolk's orchestrator — and Task has never been in this tool set.
+	agentFlags, err := claudeModeFlags("agent")
+	if err != nil {
+		t.Fatalf("agent mode was refused: %v", err)
+	}
+	if strings.Join(agentFlags, " ") != strings.Join(code, " ") {
+		t.Errorf("agent flags = %q, want the same as code mode %q", agentFlags, code)
+	}
+}
+
+// The one thing that must stay true in every mode, forever: kolk's bus cannot
+// represent a vendor subagent tree, so the vendor never gets its own scheduler.
+//
+// Pinned as a contract rather than left as a convenience. The tool set is a
+// string kolk sends to a vendor whose defaults are not kolk's to control — the
+// day `Task` becomes a default, or the day someone adds a tool to this list
+// without reading why the list exists, this test is what says so.
+func TestTheVendorNeverGetsItsOwnSubagentScheduler(t *testing.T) {
+	for _, mode := range []string{"", "code", "agent", "chat"} {
+		flags, err := claudeModeFlags(mode)
+		if err != nil {
+			t.Fatalf("mode %q: %v", mode, err)
+		}
+		if strings.Contains(strings.Join(flags, " "), "Task") {
+			t.Errorf("mode %q hands the vendor its own subagent scheduler: %q", mode, flags)
+		}
+	}
+	if strings.Contains(claudeCodeTools, "Task") {
+		t.Error("Task is in the tool set; kolk's bus cannot represent a vendor subagent tree")
 	}
 }
 

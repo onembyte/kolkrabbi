@@ -161,7 +161,7 @@ deliberately survives a cancelled turn; a subagent deliberately must not.
 
 ---
 
-## C4 — A subscription session can enter agent mode at all
+## C4 — A subscription session can enter agent mode at all  ·  **done (claude only)**
 
 **Observable:** `kolk --model claude-sonnet` then `/mode agent` runs an orchestrated turn end to end.
 Every task still runs on Sonnet.
@@ -172,12 +172,33 @@ than the code, because `claudeCodeTools` never included `Task`.
 
 **Files:** `internal/provider/agentcli/claude.go`, `internal/cli/slash.go`
 
-- [ ] **C4.1** `claudeModeFlags`: `"agent"` gets the same flags as `"code"`.
-- [ ] **C4.2** Rewrite the tool-set comment to the sound half only: `Task` is off because *kolk's* orchestrator schedules *kolk's* subagents, and a vendor subagent tree is one kolk's bus cannot represent. Delete the circular clause.
-- [ ] **C4.3** Delete the `/mode agent` refusal branch in `slash.go`; keep the restart-on-mode-change path below it untouched.
-- [ ] **C4.4** Do the same for `codexModeSandbox` **only if** its justification is equally circular — read it first and decide on the evidence.
-- [ ] **C4.5** Pin the tool set as a contract, not a convenience: a test that fails the day a vendor default changes.
-- [ ] **C4.6** Tests, then gates.
+- [x] **C4.1** `claudeModeFlags`: `"agent"` gets the same flags as `"code"`.
+- [x] **C4.2** Rewrite the tool-set comment to the sound half only: `Task` is off because *kolk's* orchestrator schedules *kolk's* subagents, and a vendor subagent tree is one kolk's bus cannot represent. Delete the circular clause.
+- [x] **C4.3** Delete the `/mode agent` refusal branch in `slash.go`; keep the restart-on-mode-change path below it untouched.
+- [x] **C4.4** Do the same for `codexModeSandbox` **only if** its justification is equally circular — read it first and decide on the evidence.
+- [x] **C4.5** Pin the tool set as a contract, not a convenience: a test that fails the day a vendor default changes.
+- [x] **C4.6** Tests, then gates.
+
+**Done 2026-08-30 — and a deliberate deviation from the plan.** The plan opened claude *and* codex
+here. Codex is held back until C7, on evidence gathered in C4.4 rather than on the plan's say-so.
+
+The design panel's critique claimed codex "races to overwrite `b.thread`". Checked: **that is wrong**
+— the write is inside `b.mu.Lock()`. But a real problem sits underneath it and is not a race: one
+`CodexBackend` holds one thread id and every turn resumes it with `codex exec resume <thread>`, so
+several subagents on one backend would interleave their turns into a single vendor transcript. One
+conversation where there should be several. Opening codex before C7 would introduce that; claude's
+persistent session merely serialises on a mutex, which is slow rather than wrong.
+
+Codex's refusal message now names that reason instead of "the vendor schedules its own work", which
+was equally true of code mode — and code mode is allowed.
+
+The session-level refusal in `slash.go` fired for *every* plan connector at once. It is gone, and
+readiness is now the adapter's question: `claudeModeFlags` accepts agent mode, `codexModeSandbox`
+still refuses it, and the error surfaces from the restart either way.
+
+Three tests encoded the old decision and were rewritten to assert the new one, each carrying why it
+changed. `TestTheVendorNeverGetsItsOwnSubagentScheduler` is new and pins the part that must stay true
+forever: the tool set is a string kolk sends to a vendor whose defaults are not kolk's to control.
 
 **Tests** — `internal/provider/agentcli/argv_test.go`, `internal/cli/slash_test.go`
 - `TestAgentModeRunsTheVendorWithTheSameToolsAsCodeMode`
