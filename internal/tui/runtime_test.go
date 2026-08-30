@@ -376,6 +376,145 @@ func TestRuntimeQueuesEnterDuringATurnAndSendsItWhenTheTurnFinishes(t *testing.T
 	}
 }
 
+// H7: every overlay-opening entry point must refuse when ANY other overlay is
+// already open, not just the ones it happened to know about when it was
+// written. AskModel and AskConfig already checked all four overlay fields;
+// Ask and Decide predated modelPick/configPick and were never updated, so a
+// question or an approval opened while a /model or /config picker was
+// showing got no keys at all — Controller.HandleKey checks
+// modelPicker/configPicker ahead of question/approval — and hung until its
+// context was cancelled. Each blocking call below runs on its own goroutine
+// specifically so a still-buggy guard times this test out instead of the
+// whole suite.
+func TestAQuestionIsRefusedWhileAModelPickerIsOpen(t *testing.T) {
+	r := NewRuntime(RuntimeOptions{})
+	pickDone := make(chan bool, 1)
+	go func() {
+		_, ok := r.AskModel(context.Background(), []ModelPickEntry{{ID: "vendor/model"}})
+		pickDone <- ok
+	}()
+	waitForPickerOpen(t, r)
+
+	asked := make(chan bool, 1)
+	go func() {
+		_, ok := r.Ask(context.Background(), Question{Prompt: "Other?", Options: []string{"x", "y"}})
+		asked <- ok
+	}()
+	select {
+	case ok := <-asked:
+		if ok {
+			t.Error("a question was accepted while the /model picker was already open")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Ask blocked instead of refusing while the /model picker was already open")
+	}
+	r.HandleKey(Key{Kind: KeyEscape})
+	<-pickDone
+}
+
+func TestAnApprovalIsRefusedWhileAModelPickerIsOpen(t *testing.T) {
+	r := NewRuntime(RuntimeOptions{})
+	pickDone := make(chan bool, 1)
+	go func() {
+		_, ok := r.AskModel(context.Background(), []ModelPickEntry{{ID: "vendor/model"}})
+		pickDone <- ok
+	}()
+	waitForPickerOpen(t, r)
+
+	decided := make(chan Decision, 1)
+	go func() {
+		decided <- r.Decide(context.Background(), Approval{Action: "run"})
+	}()
+	select {
+	case decision := <-decided:
+		if decision != DecisionDeny {
+			t.Errorf("decision = %v, want DecisionDeny while the /model picker was already open", decision)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Decide blocked instead of refusing while the /model picker was already open")
+	}
+	r.HandleKey(Key{Kind: KeyEscape})
+	<-pickDone
+}
+
+func TestAnApprovalIsRefusedWhileAQuestionIsOpen(t *testing.T) {
+	r, done := openQuestion(t)
+
+	decided := make(chan Decision, 1)
+	go func() {
+		decided <- r.Decide(context.Background(), Approval{Action: "run"})
+	}()
+	select {
+	case decision := <-decided:
+		if decision != DecisionDeny {
+			t.Errorf("decision = %v, want DecisionDeny while a question was already open", decision)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Decide blocked instead of refusing while a question was already open")
+	}
+	r.HandleKey(Key{Kind: KeyEnter})
+	<-done
+}
+
+func TestAnApprovalIsRefusedWhileAConfigPickerIsOpen(t *testing.T) {
+	r := NewRuntime(RuntimeOptions{})
+	pickDone := make(chan bool, 1)
+	go func() {
+		_, ok := r.AskConfig(context.Background(), []SettingSpec{{Key: "effort"}})
+		pickDone <- ok
+	}()
+	waitFor(t, 2*time.Second, "the config picker to open", func() bool {
+		return r.ConfigPicker() != nil
+	})
+
+	decided := make(chan Decision, 1)
+	go func() {
+		decided <- r.Decide(context.Background(), Approval{Action: "run"})
+	}()
+	select {
+	case decision := <-decided:
+		if decision != DecisionDeny {
+			t.Errorf("decision = %v, want DecisionDeny while the /config picker was already open", decision)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Decide blocked instead of refusing while the /config picker was already open")
+	}
+	r.HandleKey(Key{Kind: KeyEscape})
+	<-pickDone
+}
+
+// The other direction of the same gap: opening the /model picker while a PTY
+// child already owns the keyboard would show an overlay nothing can ever
+// answer, since attached bypasses HandleKey entirely until the attach ends.
+func TestAModelPickerIsRefusedWhileAttached(t *testing.T) {
+	r := NewRuntime(RuntimeOptions{})
+	release := make(chan struct{})
+	attachStarted := make(chan struct{})
+	go func() {
+		_ = r.RunAttached(context.Background(), func(io.Reader, io.Writer, int, int) error {
+			close(attachStarted)
+			<-release
+			return nil
+		})
+	}()
+	<-attachStarted
+
+	picked := make(chan bool, 1)
+	go func() {
+		_, ok := r.AskModel(context.Background(), []ModelPickEntry{{ID: "vendor/model"}})
+		picked <- ok
+	}()
+	select {
+	case ok := <-picked:
+		if ok {
+			t.Error("the /model picker was accepted while a PTY child owned the keyboard")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("AskModel blocked instead of refusing while attached")
+	}
+	close(release)
+}
+
 // waitFor polls until condition holds, so a test never depends on a sleep
 // being long enough on a loaded machine.
 func waitFor(t *testing.T, limit time.Duration, what string, condition func() bool) {

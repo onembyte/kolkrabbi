@@ -118,6 +118,36 @@ func TestASecondAttachIsRefused(t *testing.T) {
 	close(release)
 }
 
+// H7: while attached, the read loop forwards raw bytes straight to the child
+// and never calls HandleKey at all — so a question, an approval, or a
+// picker opened during an attach would show on screen and then hang forever,
+// since nothing routes a key to it until the attach itself ends. RunAttached
+// must refuse the same way it already refuses a second attach.
+func TestAnAttachIsRefusedWhileAModelPickerIsOpen(t *testing.T) {
+	r := NewRuntime(RuntimeOptions{})
+	pickDone := make(chan bool, 1)
+	go func() {
+		_, ok := r.AskModel(context.Background(), []ModelPickEntry{{ID: "vendor/model"}})
+		pickDone <- ok
+	}()
+	waitForPickerOpen(t, r)
+
+	attached := make(chan error, 1)
+	go func() {
+		attached <- r.RunAttached(context.Background(), func(io.Reader, io.Writer, int, int) error { return nil })
+	}()
+	select {
+	case err := <-attached:
+		if !errors.Is(err, ErrAlreadyAttached) {
+			t.Errorf("attach while the /model picker was open returned %v, want ErrAlreadyAttached", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("RunAttached blocked instead of refusing while the /model picker was already open")
+	}
+	r.HandleKey(Key{Kind: KeyEscape})
+	<-pickDone
+}
+
 // The session has to come back afterwards, not stay a blank screen.
 func TestTheFrameComesBackAfterTheChildExits(t *testing.T) {
 	var screen bytes.Buffer

@@ -652,6 +652,61 @@ left/right for text editing and relearning the effort-cycle key.
 - [x] **H6 pasting into either filter box** — H3 and H4 wired `KeyText` into their filter boxes but
   never `KeyPaste`, which the composer has always treated as the same act of adding text. Both
   overlays silently dropped a paste. One-line fix per overlay, its own mutation-tested red/green.
+- [x] **H7 five ways to own the terminal, and only some of them knew about each other** — found
+  while verifying the merge that brought in a concurrently-developed PTY-attach feature (§below),
+  not by anything failing on its own. See below.
+
+### H7 built — a gap that predates this group, surfaced by merging with work that makes it likelier
+
+`main` diverged from `origin/main` for both branches' entire duration: this group (H0–H6) on one
+side, a PTY-based provider-login feature (`RunAttached`) and new agentic/subagent orchestration on
+the other. `git merge-tree` reported the merge as textually clean — no conflict markers, both sides
+touched `controller.go`/`runtime.go` without colliding on the same lines — but a clean text merge is
+not a proof of correctness, and reviewing the merged `runtime.go` by hand rather than trusting the
+green diff is what found this.
+
+**Five separate places can claim exclusive ownership of the terminal's input: `Question`,
+`Approval`, the `/model` picker, the `/config` picker, and now `RunAttached`'s raw PTY forwarding.**
+Each was added at a different time, by a different piece of work, and each guarded only against the
+ones that already existed *when it was written* — never against the ones added afterward:
+
+- `Ask` (Question) and `Decide`/`Confirm` (Approval) predate `modelPick`/`configPick` entirely (H3),
+  and were never revisited when those were added.
+- `AskModel`/`AskConfig` correctly check all four overlay fields — because they were written last,
+  with the others already in front of them — but neither checks `attached`, which did not exist yet.
+- `RunAttached` (new in the merged branch) only refuses a *second* attach; it does not check any of
+  the four overlay fields, because from that branch's perspective none of them existed either.
+
+**The failure mode is a hang, not a crash, which is why nothing had found it.** While `attached` is
+set, the read loop forwards raw bytes straight to the child and never calls `HandleKey` at all
+(`runtime.go`'s read loop, `if sink != nil { ...; continue }` before key decoding). While any picker
+is open, `Controller.HandleKey` checks `modelPicker`/`configPicker` ahead of `question`/`approval`.
+Either way, an overlay opened on top of another exclusive state receives no keys, ever, and the
+`select` blocking on its reply channel waits until its caller's context is cancelled — which, for a
+subagent's own turn context, may be a very long time. The newly-merged agentic orchestration
+(concurrent subagents, each capable of asking a question or requesting approval on its own turn)
+makes two of these five colliding is now a real scenario rather than a theoretical one, which is why
+this was worth fixing now rather than filing for later.
+
+**The fix is the same four-line change repeated at all five entry points**: `Ask`, `Decide`,
+`AskModel`, `AskConfig`, and `RunAttached` each now refuse when *any* of the other four are active,
+not just the ones that predate them. `RunAttached` keeps its own `ErrAlreadyAttached` sentinel
+return (rather than adopting `AskModel`'s bare `bool`) since that is the contract its own existing
+callers and tests already depend on.
+
+Acceptance checklist:
+
+- [x] red first, and safely red: each of the six new tests runs its blocking call on its own
+  goroutine with a bounded `select`/timeout, specifically so a still-buggy guard times out that one
+  test rather than hanging the whole suite — the failure observed was the actual hang the bug
+  describes (`"blocked instead of refusing"`), not a compile error.
+- [x] every new clause in every fixed guard proven non-vacuous individually: `Decide`'s three new
+  conditions (question, modelPick, configPick) each mutation-tested by removing just that one
+  clause and confirming exactly its own test fails, all three others staying green; `RunAttached`'s
+  modelPick clause and `AskModel`'s attached clause likewise. Five targeted mutations, five clean
+  catches, all reverted to byte-identical diffs.
+- [x] `-race` green across `internal/tui`.
+- [x] full `make check` green: **2,700 tests, 0 lint issues**, release/plan/spec guards all passing.
 
 ### H0 built — one scoring term turned out to be free
 

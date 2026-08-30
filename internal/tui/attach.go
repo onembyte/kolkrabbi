@@ -32,7 +32,11 @@ func (r *Runtime) RunAttached(ctx context.Context, run func(in io.Reader, out io
 	keys, sink := io.Pipe()
 
 	r.mu.Lock()
-	if r.attached != nil {
+	// Any overlay open here would become unreachable the moment the attach
+	// begins: raw bytes go straight to the child from here on, and nothing
+	// routes a key back to a question, an approval, or a picker until the
+	// attach itself ends.
+	if r.attached != nil || r.question != nil || r.approval != nil || r.modelPick != nil || r.configPick != nil {
 		r.mu.Unlock()
 		_ = keys.Close()
 		_ = sink.Close()

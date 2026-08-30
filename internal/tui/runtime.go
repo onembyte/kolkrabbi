@@ -502,7 +502,7 @@ func (r *Runtime) Ask(ctx context.Context, question Question) (string, bool) {
 	}
 	reply := make(chan questionReply, 1)
 	r.mu.Lock()
-	if r.question != nil || r.approval != nil {
+	if r.question != nil || r.approval != nil || r.modelPick != nil || r.configPick != nil || r.attached != nil {
 		r.mu.Unlock()
 		return "", false
 	}
@@ -540,7 +540,7 @@ func (r *Runtime) AskModel(ctx context.Context, entries []ModelPickEntry) (strin
 	}
 	reply := make(chan string, 1)
 	r.mu.Lock()
-	if r.question != nil || r.approval != nil || r.modelPick != nil || r.configPick != nil {
+	if r.question != nil || r.approval != nil || r.modelPick != nil || r.configPick != nil || r.attached != nil {
 		r.mu.Unlock()
 		return "", false
 	}
@@ -580,7 +580,7 @@ func (r *Runtime) AskConfig(ctx context.Context, entries []SettingSpec) (string,
 	}
 	reply := make(chan string, 1)
 	r.mu.Lock()
-	if r.question != nil || r.approval != nil || r.modelPick != nil || r.configPick != nil {
+	if r.question != nil || r.approval != nil || r.modelPick != nil || r.configPick != nil || r.attached != nil {
 		r.mu.Unlock()
 		return "", false
 	}
@@ -619,7 +619,7 @@ func (r *Runtime) Confirm(ctx context.Context, approval Approval) bool {
 func (r *Runtime) Decide(ctx context.Context, approval Approval) Decision {
 	reply := make(chan Decision, 1)
 	r.mu.Lock()
-	if r.approval != nil {
+	if r.approval != nil || r.question != nil || r.modelPick != nil || r.configPick != nil || r.attached != nil {
 		r.mu.Unlock()
 		return DecisionDeny
 	}

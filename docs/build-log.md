@@ -4539,6 +4539,44 @@ gofmt's actual output, so no mutation was applied at all, and a silently-passing
 identical to a validly-caught one. Every mutation below was confirmed by `diff` against the original
 before trusting its test result, and reverted to a byte-identical file after.
 
+## H7 five ways to own the terminal, and only some of them knew about each other (2026-08-30)
+
+**Gate:** `make check` exit 0 — **2,700 tests, 0 lint issues**, `-race` green on `internal/tui`,
+release/plan/spec guards all passing.
+
+Found while verifying a merge, not by anything failing on its own. `main` had diverged from
+`origin/main` for the entire duration of this group: H0–H6 on one side, a PTY-based provider-login
+feature (`RunAttached`) and new agentic/subagent orchestration on the other, both touching
+`controller.go` and `runtime.go`. `git merge-tree` reported it clean — no conflict markers, the two
+sides never edited the same lines — but a clean text merge is not a proof of correctness, and
+reviewing the merged `runtime.go` by hand instead of trusting the green diff is what surfaced this.
+
+Five separate places can claim exclusive ownership of the terminal's input: `Question`, `Approval`,
+the `/model` picker, the `/config` picker, and now `RunAttached`'s raw PTY forwarding. Each guarded
+only against the ones that already existed when it was written:
+
+- `Ask`/`Decide` predate `modelPick`/`configPick` (H3) and were never revisited when those landed.
+- `AskModel`/`AskConfig` correctly check all four overlay fields — written last, with the others
+  already in front of them — but neither checks `attached`, which did not exist yet.
+- `RunAttached`, new on the other branch, only refuses a *second* attach; none of the four overlay
+  fields existed from that branch's perspective either.
+
+The failure mode is a hang, not a crash. While `attached` is set, the read loop forwards raw bytes
+straight to the child and never calls `HandleKey`. While a picker is open, `HandleKey` checks it
+ahead of `question`/`approval`. Either way, an overlay opened on top of another exclusive state gets
+no keys, ever, and blocks on its reply channel until its caller's context is cancelled — which, for
+a subagent's own turn, may be a long time. The newly-merged concurrent-subagent orchestration makes
+two of these five colliding a real scenario now, not a theoretical one.
+
+The fix is the same change at all five entry points: each now refuses when *any* of the other four
+are active, not just the ones that predate it. `RunAttached` keeps its own `ErrAlreadyAttached`
+return rather than adopting `AskModel`'s bare bool, since that is the contract its existing callers
+already depend on. Each of the six new tests runs its blocking call on its own goroutine with a
+bounded timeout specifically so a still-buggy guard times out that one test instead of the whole
+suite — and the failure observed really was the hang the bug describes, not a compile error. Five
+targeted mutations — one per newly-added clause across `Decide`, `RunAttached`, and `AskModel` —
+each caught by exactly the test written for it, all reverted byte-identical.
+
 ## H6 both filter boxes silently dropped a paste (2026-08-30)
 
 **Gate:** `make check` exit 0 — **2,643 tests, 0 lint issues**, `-race` green on `internal/tui`.
