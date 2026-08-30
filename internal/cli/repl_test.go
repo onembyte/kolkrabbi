@@ -368,7 +368,7 @@ func TestSlashModelListsTheActiveProviderCatalog(t *testing.T) {
 			t.Fatalf("/model catalog omitted %q: %q", want, got)
 		}
 	}
-	for _, want := range []string{"subscription models", "/model gpt-plus", "gpt-5.6-sol", "ChatGPT Plus", "sign in: kolk plans login"} {
+	for _, want := range []string{"subscription models", "/model gpt-plus", "/model gpt-plus-terra", "/model gpt-plus-luna", "/model gpt-pro-terra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "ChatGPT Plus", "sign in: kolk plans login"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("/model plan choices omitted %q: %q", want, got)
 		}

@@ -40,6 +40,9 @@ func (s State) String() string {
 // drops a lock when the process goes, so a crashed session stops looking live
 // without anything having to notice that it crashed.
 func Hold(dir, id string) (*lock.File, error) {
+	if err := validateSessionID(id); err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
@@ -53,6 +56,9 @@ func Hold(dir, id string) (*lock.File, error) {
 // session a listing touches, which a benchmark against a real directory of 549
 // sessions turned into 549 stray files and half a second of syscalls.
 func Live(dir, id string) State {
+	if err := validateSessionID(id); err != nil {
+		return StateUnknown
+	}
 	held, err := lock.Held(lockPath(dir, id))
 	switch {
 	case err != nil:

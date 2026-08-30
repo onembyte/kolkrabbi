@@ -2,6 +2,7 @@ package shell
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -18,6 +19,8 @@ const closeGrace = 5 * time.Second
 // it is a diagnostic to retain the end of, and the end is the part that says
 // why it stopped. 8 KiB holds a stack trace or a login refusal comfortably.
 const stderrRingBytes = 8 << 10
+
+var errLinesProcessClosed = errors.New("provider output delivery stopped")
 
 // stderrRing keeps the last stderrRingBytes of a child's stderr and discards
 // the rest. os/exec writes to it from its own goroutine while the reader
@@ -64,8 +67,10 @@ func (r *stderrRing) Len() int {
 type LinesProcess struct {
 	cmd        *exec.Cmd
 	executable string
+	ctx        context.Context
 	stdin      io.WriteCloser
 	lines      chan []byte
+	stop       chan struct{}
 	// writes carries outbound lines to the single writer goroutine. Buffered so
 	// a Send does not wait on a child that is busy answering the last one.
 	writes chan []byte
@@ -126,7 +131,8 @@ func StartLinesProcess(ctx context.Context, executable string, args []string) (*
 		return nil, fmt.Errorf("starting %s: %w", executable, err)
 	}
 	process := &LinesProcess{
-		cmd: cmd, executable: executable, stdin: stdin, lines: make(chan []byte), exited: exited,
+		cmd: cmd, executable: executable, ctx: ctx, stdin: stdin, lines: make(chan []byte),
+		stop: make(chan struct{}), exited: exited,
 		writes: make(chan []byte, 8),
 	}
 	go process.read(stdout, &stderr)
@@ -139,16 +145,34 @@ func (p *LinesProcess) read(stdout io.Reader, stderr *stderrRing) {
 	defer close(p.lines)
 	var err error
 	if readErr := readProviderLines(stdout, func(line []byte) error {
-		p.lines <- line
-		return nil
+		select {
+		case p.lines <- line:
+			return nil
+		case <-p.stop:
+			return errLinesProcessClosed
+		case <-p.ctx.Done():
+			return p.ctx.Err()
+		}
 	}); readErr != nil {
-		// Reap the child on every reader failure. In particular, a provider
-		// that exceeded the line bound must not become a zombie while its
-		// descendants keep the pipe alive.
-		_ = killChild(p.cmd)
-		waitErr := p.cmd.Wait()
+		var waitErr error
+		if errors.Is(readErr, context.Canceled) || errors.Is(readErr, context.DeadlineExceeded) {
+			// CommandContext invokes cmd.Cancel when ctx ends. For a provider
+			// process that is the SIGINT -> SIGTERM -> SIGKILL ladder above;
+			// killing here would race that ladder and can skip SIGINT entirely.
+			// Wait lets the ladder own escalation while still guaranteeing a
+			// reap before the process becomes observable as exited.
+			waitErr = p.cmd.Wait()
+		} else {
+			// Reap the child on every other reader failure. In particular, a
+			// provider that exceeded the line bound must not become a zombie
+			// while its descendants keep the pipe alive.
+			_ = killChild(p.cmd)
+			waitErr = p.cmd.Wait()
+		}
 		p.hardExit = exitedHard(waitErr)
-		err = fmt.Errorf("reading %s output: %w", p.executable, readErr)
+		if !errors.Is(readErr, errLinesProcessClosed) {
+			err = fmt.Errorf("reading %s output: %w", p.executable, readErr)
+		}
 	} else if waitErr := p.cmd.Wait(); waitErr != nil {
 		p.hardExit = exitedHard(waitErr)
 		if stderr.Len() > 0 {
@@ -223,7 +247,10 @@ func (p *LinesProcess) Close() error {
 	if p == nil {
 		return nil
 	}
-	p.once.Do(func() { _ = p.stdin.Close() })
+	p.once.Do(func() {
+		close(p.stop)
+		_ = p.stdin.Close()
+	})
 	// A provider CLI is expected to exit once its stdin closes. If one does not,
 	// Kolkrabbi still owns the process and must not hang the session on exit.
 	timer := time.NewTimer(closeGrace)

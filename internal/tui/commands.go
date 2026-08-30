@@ -18,6 +18,11 @@ type CommandSpec struct {
 type ModelSpec struct {
 	ID   string
 	Name string
+	// Select is the command reference used when the row is picked. It is
+	// optional because most models can be selected by ID; subscription rows use
+	// a plan-qualified alias when the same vendor ID is offered by multiple
+	// plans.
+	Select string
 	// Cost is what picking this model does to the user's money, in one word:
 	// sub (already paid for), free, local (their own hardware), or $ (metered).
 	// The picker previously showed OpenRouter's catalog alone, so a Claude Max
@@ -213,7 +218,11 @@ func SuggestModels(models []ModelSpec, draft string, limit int) []CommandSpec {
 		if model.ID == "" {
 			continue
 		}
-		score, ok := fuzzyScoreFields([]string{model.ID, model.Name, model.Cost}, filter)
+		selection := model.ID
+		if model.Select != "" {
+			selection = model.Select
+		}
+		score, ok := fuzzyScoreFields([]string{selection, model.ID, model.Name, model.Cost}, filter)
 		if !ok {
 			continue
 		}
@@ -222,8 +231,8 @@ func SuggestModels(models []ModelSpec, draft string, limit int) []CommandSpec {
 			summary = "[" + model.Cost + "]  " + summary
 		}
 		matches = append(matches, scoredSpec{score: score, spec: CommandSpec{
-			Name: model.ID, Usage: prefix + model.ID, Summary: summary,
-			Complete: prefix + model.ID,
+			Name: selection, Usage: prefix + selection, Summary: summary,
+			Complete: prefix + selection,
 		}})
 	}
 	suggestions := rankByScore(matches)

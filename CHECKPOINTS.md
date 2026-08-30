@@ -657,6 +657,37 @@ left/right for text editing and relearning the effort-cycle key.
   not by anything failing on its own. See below.
 - [x] **H8 Codex output and subscription model selection** — bounded provider-CLI framing,
   actionable plan shortcuts, picker-effort routing, and synchronized PTY/TUI output. See below.
+- [x] **H9 post-H8 hardening** — session path confinement, cancellation ordering, complete
+  GPT-5.6 plan selection, and the workflow-pin gate. See below.
+
+### H9 built — the green gate had two real gaps left in it
+
+The first full gate after H8 exposed two defects that focused tests had not: an obsolete exported
+`SubscriptionModelShortcut` was now test-only after plan-aware callers replaced it, and the
+context-cancellation path in `LinesProcess` could SIGKILL a provider before its custom SIGINT-first
+ladder ran. The latter was a real race: the reader saw the cancelled context and killed immediately
+while `exec.CommandContext` was starting the ladder.
+
+The session package now validates every session ID before it becomes a filesystem path, and verifies
+that a decoded session ID matches the filename that supplied it. The provider reader waits for the
+cancellation ladder to reap a cancelled child, while non-cancellation reader failures still kill and
+reap immediately. The obsolete model-only shortcut was removed because shared GPT-5.6 model IDs need
+their `ChatGPT Plus/...` or `ChatGPT Pro/...` plan qualification. The previously declared but empty
+`workflow-pin-check` Make target now invokes its existing 43-check script.
+
+The Codex failure was also separated into its two observed forms. The old `bufio.Scanner: token too
+long` path is absent from the current provider reader, and exact first-turn and resume invocations
+with `gpt-5.6-sol` succeeded on the installed signed-in CLI. `Reading prompt from stdin...` is a
+provider stderr line from a nonzero exit, not evidence that the current Kolkrabbi reader rejected a
+large frame.
+
+Acceptance checklist:
+
+- [x] session traversal and filename/decoded-ID mismatch regressions pass.
+- [x] the SIGINT-first cancellation test passes repeatedly, including under `-race`.
+- [x] all affected package race tests pass; full `make check` passes with **2,802 tests**, 0 lint
+  issues, platform compilation, release, plan, smoke, and workflow-pin gates green.
+- [x] no commit or release tag was created in this checkpoint.
 
 ### H8 built — a valid large Codex frame no longer looks like an authentication failure
 

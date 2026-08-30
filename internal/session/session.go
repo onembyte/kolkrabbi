@@ -178,10 +178,27 @@ func sameDir(a, b string) bool {
 	return errA == nil && errB == nil && resolvedA == resolvedB
 }
 
-func (s *Session) path() string { return filepath.Join(s.dir, s.ID+".json") }
+func validateSessionID(id string) error {
+	if xid.KindOf(id) != xid.Session {
+		return fmt.Errorf("invalid session id %q: expected xid.Session", id)
+	}
+	return nil
+}
+
+func (s *Session) path() string {
+	if err := validateSessionID(s.ID); err != nil {
+		panic(err)
+	}
+	return filepath.Join(s.dir, s.ID+".json")
+}
 
 // CkptDir is where this session's file checkpoints are stored.
-func (s *Session) CkptDir() string { return filepath.Join(s.dir, s.ID+".ckpt") }
+func (s *Session) CkptDir() string {
+	if err := validateSessionID(s.ID); err != nil {
+		panic(err)
+	}
+	return filepath.Join(s.dir, s.ID+".ckpt")
+}
 
 // Save writes the session atomically and durably.
 //
@@ -191,6 +208,9 @@ func (s *Session) CkptDir() string { return filepath.Join(s.dir, s.ID+".ckpt") }
 // power loss) and a unique temp name (a REPL in one terminal and `kolk -p` in
 // another used to write the same "x.json.tmp" and shred each other).
 func (s *Session) Save() error {
+	if err := validateSessionID(s.ID); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
 		return err
 	}
@@ -293,6 +313,9 @@ func (s *Session) AppendMessage(msg provider.Message) {
 }
 
 func Load(dir, id string) (*Session, error) {
+	if err := validateSessionID(id); err != nil {
+		return nil, err
+	}
 	b, err := os.ReadFile(filepath.Join(dir, id+".json"))
 	if err != nil {
 		return nil, err
@@ -300,6 +323,12 @@ func Load(dir, id string) (*Session, error) {
 	var s Session
 	if err := json.Unmarshal(b, &s); err != nil {
 		return nil, err
+	}
+	if err := validateSessionID(s.ID); err != nil {
+		return nil, fmt.Errorf("invalid session id in %s.json: %w", id, err)
+	}
+	if s.ID != id {
+		return nil, fmt.Errorf("session id %q does not match filename %q", s.ID, id)
 	}
 	s.dir = dir
 	return &s, nil
@@ -344,6 +373,9 @@ func Latest(dir string) (*Session, error) {
 
 // CompactionArchives are the pre-compaction conversations kept for one session.
 func CompactionArchives(dir, id string) ([]string, error) {
+	if err := validateSessionID(id); err != nil {
+		return nil, err
+	}
 	return filepath.Glob(filepath.Join(dir, id+".pre-compact-*.json"))
 }
 
@@ -353,6 +385,9 @@ func CompactionArchives(dir, id string) ([]string, error) {
 // The archives hold the conversation a compaction replaced, so leaving them
 // behind would mean deleting a session that is still readable on disk.
 func Delete(dir, id string) error {
+	if err := validateSessionID(id); err != nil {
+		return err
+	}
 	if err := os.Remove(filepath.Join(dir, id+".json")); err != nil {
 		return err
 	}

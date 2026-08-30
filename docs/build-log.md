@@ -4539,6 +4539,32 @@ gofmt's actual output, so no mutation was applied at all, and a silently-passing
 identical to a validly-caught one. Every mutation below was confirmed by `diff` against the original
 before trusting its test result, and reverted to a byte-identical file after.
 
+## H9 post-H8 hardening (2026-08-30)
+
+**Gate:** `make check` exit 0 — **2,802 tests, 0 lint issues**, platform compilation and all
+release/workflow/verifier/smoke/plan gates green; final package `-race` tests on session, shell,
+provider, provider CLI, engine, TUI, and CLI green.
+
+The first full gate after H8 exposed two real gaps. `SubscriptionModelShortcut` had become a
+test-only export after every production caller moved to the plan-aware helper, and a cancelled
+`LinesProcess` could kill a provider immediately from its reader while `exec.CommandContext` was
+starting the provider's SIGINT → SIGTERM → SIGKILL ladder. Under scheduling pressure that skipped
+SIGINT, violating the provider's graceful cancellation contract. Session path entry points now
+validate IDs before joining paths and reject decoded IDs that do not match their filenames. A
+cancelled reader waits for the ladder to reap the child; unrelated reader failures still kill and
+reap immediately. The obsolete shortcut was removed, and the formerly empty `workflow-pin-check`
+Make target now runs its existing 43-check script.
+
+The two Codex errors are now distinguished. The current bounded `ReadSlice` provider reader has no
+`bufio.Scanner` ceiling, and exact first-turn and resume invocations with `gpt-5.6-sol` succeeded
+through the installed signed-in Codex CLI. `Reading prompt from stdin...` is stderr from a Codex
+process that exited nonzero; it is not the current reader's large-frame error.
+
+**Red/green:** the full gate first caught the dead export and the interrupt race; the signal test
+then passed 20 normal repetitions and 10 race repetitions after the wait-for-ladder change. Session
+security tests, all affected package race tests, the 43 workflow-pin checks, and the final end-to-end
+`make check` are green. No commit or release tag was created here.
+
 ## H8 Codex output and subscription model selection (2026-08-30)
 
 **Gate:** `make check` exit 0 — **2,780 tests, 0 lint issues**, platform builds and all release

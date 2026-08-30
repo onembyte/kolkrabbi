@@ -31,8 +31,8 @@ func TestResolveModelAlias(t *testing.T) {
 		{"auto", "openrouter/auto"},
 		{"claude-pro", "claude-sonnet"},
 		{"claude-max", "claude-opus"},
-		{"gpt-plus", "gpt-5.6-sol"},
-		{"gpt-pro", "gpt-5.6-pro"},
+		{"gpt-plus", "ChatGPT Plus/gpt-5.6-sol"},
+		{"gpt-pro", "ChatGPT Pro/gpt-5.6-pro"},
 		// Passthrough for full vendor IDs or unrecognized names
 		{"meta-llama/llama-3.3-70b-instruct", "meta-llama/llama-3.3-70b-instruct"},
 		{"custom/model-id", "custom/model-id"},
@@ -45,5 +45,24 @@ func TestResolveModelAlias(t *testing.T) {
 				t.Errorf("ResolveModelAlias(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestSubscriptionModelShortcutForKeepsSharedModelsPlanQualified(t *testing.T) {
+	tests := []struct {
+		plan, model, want string
+	}{
+		{"ChatGPT Plus", "gpt-5.6-sol", "gpt-plus"},
+		{"ChatGPT Plus", "gpt-5.6-terra", "gpt-plus-terra"},
+		{"ChatGPT Plus", "gpt-5.6-luna", "gpt-plus-luna"},
+		{"ChatGPT Pro", "gpt-5.6-pro", "gpt-pro"},
+		{"ChatGPT Pro", "gpt-5.6-sol", "gpt-pro-sol"},
+		{"ChatGPT Pro", "gpt-5.6-terra", "gpt-pro-terra"},
+		{"ChatGPT Pro", "gpt-5.6-luna", "gpt-pro-luna"},
+	}
+	for _, test := range tests {
+		if got := provider.SubscriptionModelShortcutFor(test.plan, test.model); got != test.want {
+			t.Errorf("SubscriptionModelShortcutFor(%q, %q) = %q, want %q", test.plan, test.model, got, test.want)
+		}
 	}
 }

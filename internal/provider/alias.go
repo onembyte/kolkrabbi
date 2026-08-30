@@ -6,13 +6,27 @@ import "strings"
 // `pro` already means Gemini Pro, so reusing it for ChatGPT Pro would make a
 // one-word shortcut change providers depending on which backend is enabled.
 var subscriptionModelAliases = map[string]string{
-	"claude-pro": "claude-sonnet",
-	"claude-max": "claude-opus",
-	"gpt-plus":   "gpt-5.6-sol",
-	"gpt-pro":    "gpt-5.6-pro",
+	"claude-pro":     "claude-sonnet",
+	"claude-max":     "claude-opus",
+	"gpt-plus":       "ChatGPT Plus/gpt-5.6-sol",
+	"gpt-plus-sol":   "ChatGPT Plus/gpt-5.6-sol",
+	"gpt-plus-terra": "ChatGPT Plus/gpt-5.6-terra",
+	"gpt-plus-luna":  "ChatGPT Plus/gpt-5.6-luna",
+	"gpt-pro":        "ChatGPT Pro/gpt-5.6-pro",
+	"gpt-pro-sol":    "ChatGPT Pro/gpt-5.6-sol",
+	"gpt-pro-terra":  "ChatGPT Pro/gpt-5.6-terra",
+	"gpt-pro-luna":   "ChatGPT Pro/gpt-5.6-luna",
+	"terra":          "gpt-5.6-terra",
+	"luna":           "gpt-5.6-luna",
 }
 
-// StandardModelAliases maps friendly user shorthands to canonical provider model IDs.
+var subscriptionModelAliasOrder = []string{
+	"claude-pro", "claude-max", "gpt-plus", "gpt-plus-sol", "gpt-plus-terra", "gpt-plus-luna",
+	"gpt-pro", "gpt-pro-sol", "gpt-pro-terra", "gpt-pro-luna", "terra", "luna",
+}
+
+// StandardModelAliases maps friendly user shorthands to canonical provider
+// model IDs or, for subscription aliases, a plan-qualified model reference.
 var StandardModelAliases = map[string]string{
 	"sonnet":      "anthropic/claude-3-7-sonnet",
 	"claude":      "anthropic/claude-3-7-sonnet",
@@ -34,8 +48,10 @@ var StandardModelAliases = map[string]string{
 	"auto":        "openrouter/auto",
 	"claude-pro":  "claude-sonnet",
 	"claude-max":  "claude-opus",
-	"gpt-plus":    "gpt-5.6-sol",
-	"gpt-pro":     "gpt-5.6-pro",
+	"gpt-plus":    "ChatGPT Plus/gpt-5.6-sol",
+	"gpt-pro":     "ChatGPT Pro/gpt-5.6-pro",
+	"terra":       "gpt-5.6-terra",
+	"luna":        "gpt-5.6-luna",
 }
 
 // ResolveModelAlias resolves a friendly model alias to its canonical model ID.
@@ -48,16 +64,42 @@ func ResolveModelAlias(alias string) string {
 	return strings.TrimSpace(alias)
 }
 
-// SubscriptionModelShortcut returns the concise command argument for a
-// subscription model, or an empty string when the model has no shortcut.
-// Keeping this beside alias resolution lets the model picker and plain REPL
-// print the same command a user can actually type.
-func SubscriptionModelShortcut(model string) string {
+// SubscriptionModelShortcutFor returns the concise, plan-qualified shortcut
+// for one catalog row. Shared model ids need this plan context; otherwise the
+// picker could print a shortcut that resolves to the wrong subscription.
+func SubscriptionModelShortcutFor(plan, model string) string {
+	plan = strings.ToLower(strings.TrimSpace(plan))
 	model = strings.ToLower(strings.TrimSpace(model))
-	for alias, target := range subscriptionModelAliases {
-		if target == model {
-			return alias
+	for _, alias := range subscriptionModelAliasOrder {
+		qualifier, target := subscriptionTarget(subscriptionModelAliases[alias])
+		if target != model || (qualifier != "" && qualifier != plan) {
+			continue
 		}
+		return alias
 	}
 	return ""
+}
+
+// SubscriptionModelID returns the provider model id behind a subscription
+// alias. Unlike ResolveModelAlias, it also understands plan-qualified aliases,
+// whose qualification must survive until ResolvePlanModel sees the reference.
+func SubscriptionModelID(alias string) string {
+	target, ok := subscriptionModelAliases[strings.ToLower(strings.TrimSpace(alias))]
+	if !ok {
+		return ""
+	}
+	return subscriptionTargetModel(target)
+}
+
+func subscriptionTarget(target string) (qualifier, model string) {
+	target = strings.ToLower(strings.TrimSpace(target))
+	if plan, rest, ok := strings.Cut(target, "/"); ok {
+		return plan, rest
+	}
+	return "", target
+}
+
+func subscriptionTargetModel(target string) string {
+	_, model := subscriptionTarget(target)
+	return model
 }

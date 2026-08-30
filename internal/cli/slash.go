@@ -384,7 +384,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			if err := a.printModelCatalog(ctx, ag.Client, d.CatalogFile(), false, ""); err != nil {
 				fmt.Fprintf(a.stderr, "could not list models: %v\n", err)
 			}
-			fmt.Fprintln(a.stdout, "\nswitch: /model <id|alias>  (shortcuts: /model claude-pro, /model claude-max, /model gpt-plus, /model gpt-pro)")
+			fmt.Fprintln(a.stdout, "\nswitch: /model <id|alias>  (shortcuts: /model claude-pro, /model claude-max, /model gpt-plus, /model gpt-plus-terra, /model gpt-plus-luna, /model gpt-pro, /model gpt-pro-sol, /model gpt-pro-terra, /model gpt-pro-luna)")
 		} else if planModel, err := a.namedPlanModel(modelRef); err != nil {
 			// A plan model the user cannot use yet is a refusal with a reason,
 			// never a catalog search that ends in an OpenRouter error.

@@ -10,7 +10,7 @@ import (
 func TestASessionNobodyIsRunningIsIdle(t *testing.T) {
 	dir := t.TempDir()
 
-	switch got := Live(dir, "s_abc"); got {
+	switch got := Live(dir, validTestSessionID); got {
 	case StateIdle:
 	case StateUnknown:
 		if lockingWorks() {
@@ -27,7 +27,7 @@ func TestHoldingASessionMakesItLive(t *testing.T) {
 	}
 	dir := t.TempDir()
 
-	held, err := Hold(dir, "s_abc")
+	held, err := Hold(dir, validTestSessionID)
 	if err != nil {
 		t.Fatalf("holding: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestHoldingASessionMakesItLive(t *testing.T) {
 
 	// "Which of these is actually running" is the first question a control
 	// plane has to answer, and a file's timestamp only ever guesses at it.
-	if got := Live(dir, "s_abc"); got != StateLive {
+	if got := Live(dir, validTestSessionID); got != StateLive {
 		t.Fatalf("liveness = %v, want live", got)
 	}
 }
@@ -46,7 +46,7 @@ func TestReleasingASessionMakesItIdleAgain(t *testing.T) {
 	}
 	dir := t.TempDir()
 
-	held, err := Hold(dir, "s_abc")
+	held, err := Hold(dir, validTestSessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestReleasingASessionMakesItIdleAgain(t *testing.T) {
 	// A session that crashed must not look live forever: the OS drops the
 	// lock when the process goes, which is why this is a lock and not a flag
 	// somebody has to remember to clear.
-	if got := Live(dir, "s_abc"); got != StateIdle {
+	if got := Live(dir, validTestSessionID); got != StateIdle {
 		t.Fatalf("liveness = %v, want idle", got)
 	}
 }
@@ -70,10 +70,10 @@ func TestLivenessDoesNotStealTheLock(t *testing.T) {
 
 	// Asking twice must not leave the asker holding it: a dashboard that
 	// polls would otherwise lock out the session it is describing.
-	Live(dir, "s_abc")
-	Live(dir, "s_abc")
+	Live(dir, validTestSessionID)
+	Live(dir, validTestSessionID)
 
-	held, err := Hold(dir, "s_abc")
+	held, err := Hold(dir, validTestSessionID)
 	if err != nil {
 		t.Fatalf("the session could not start after being inspected: %v", err)
 	}
@@ -85,13 +85,13 @@ func TestTheLockFileIsPrivate(t *testing.T) {
 		t.Skipf("advisory locks unsupported on %s", runtime.GOOS)
 	}
 	dir := t.TempDir()
-	held, err := Hold(dir, "s_abc")
+	held, err := Hold(dir, validTestSessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer held.Close()
 
-	info, err := os.Stat(filepath.Join(dir, "s_abc.lock"))
+	info, err := os.Stat(filepath.Join(dir, validTestSessionID+".lock"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestHoldingCreatesTheDirectory(t *testing.T) {
 	}
 	dir := filepath.Join(t.TempDir(), "sessions")
 
-	held, err := Hold(dir, "s_abc")
+	held, err := Hold(dir, validTestSessionID)
 	if err != nil {
 		t.Fatalf("holding in a directory that does not exist yet: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestASecondHolderIsRefused(t *testing.T) {
 		t.Skipf("advisory locks unsupported on %s", runtime.GOOS)
 	}
 	dir := t.TempDir()
-	first, err := Hold(dir, "s_abc")
+	first, err := Hold(dir, validTestSessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestASecondHolderIsRefused(t *testing.T) {
 
 	// Two processes editing one session's files is how a transcript ends up
 	// describing work neither of them did.
-	if second, err := Hold(dir, "s_abc"); err == nil {
+	if second, err := Hold(dir, validTestSessionID); err == nil {
 		_ = second.Close()
 		t.Fatal("two holders of one session")
 	}
@@ -143,7 +143,7 @@ func lockingWorks() bool {
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
 
-	held, err := Hold(dir, "probe")
+	held, err := Hold(dir, validTestSessionID)
 	if err != nil {
 		return false
 	}

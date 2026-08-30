@@ -69,6 +69,10 @@ func Overview(dir string) ([]Card, error) {
 		if entry.IsDir() || !strings.HasSuffix(name, ".json") {
 			continue
 		}
+		filenameID := strings.TrimSuffix(name, ".json")
+		if err := validateSessionID(filenameID); err != nil {
+			continue
+		}
 		body, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			continue
@@ -81,10 +85,10 @@ func Overview(dir string) ([]Card, error) {
 			// worse than one that shows a session late.
 			continue
 		}
-		id := file.ID
-		if id == "" {
-			id = strings.TrimSuffix(name, ".json")
+		if err := validateSessionID(file.ID); err != nil || file.ID != filenameID {
+			continue
 		}
+		id := file.ID
 		cards = append(cards, Card{
 			ID:        id,
 			Title:     file.Title,

@@ -46,6 +46,9 @@ type Blocked struct {
 // `permission.resolved`. Requests are correlated by id rather than by position,
 // because answering one prompt does not unblock a later one.
 func BlockedOn(dir, id string) (Blocked, bool) {
+	if err := validateSessionID(id); err != nil {
+		return Blocked{}, false
+	}
 	tail, err := readTail(filepath.Join(dir, id+".events.ndjson"), blockedTailBytes)
 	if err != nil {
 		return Blocked{}, false

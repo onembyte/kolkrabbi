@@ -65,7 +65,7 @@ func (a *app) printPlanModelChoices() error {
 	fmt.Fprintln(a.stdout, "\nsubscription models (use the shortcut or exact model id):")
 	for _, model := range models {
 		ref := model.Model
-		if shortcut := provider.SubscriptionModelShortcut(model.Model); shortcut != "" {
+		if shortcut := provider.SubscriptionModelShortcutFor(model.Plan, model.Model); shortcut != "" {
 			ref = shortcut + " → " + model.Model
 		}
 		status := model.Access

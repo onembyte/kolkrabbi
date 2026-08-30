@@ -27,3 +27,22 @@ func TestSlashPlanModelsListsAndFilters(t *testing.T) {
 		t.Fatalf("slash plan-models output = %q", got)
 	}
 }
+
+func TestBareModelChoicesGiveSharedGPT56ModelsPlanQualifiedShortcuts(t *testing.T) {
+	a, _, out := replFixture(t, "")
+	if err := a.printPlanModelChoices(); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{
+		"/model gpt-plus-terra → gpt-5.6-terra",
+		"/model gpt-plus-luna → gpt-5.6-luna",
+		"/model gpt-pro-sol → gpt-5.6-sol",
+		"/model gpt-pro-terra → gpt-5.6-terra",
+		"/model gpt-pro-luna → gpt-5.6-luna",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("plan model choices omitted %q: %s", want, got)
+		}
+	}
+}

@@ -24,8 +24,8 @@ func writeSession(t *testing.T, dir, id string, body map[string]any) {
 
 func TestOverviewListsWhatACardNeeds(t *testing.T) {
 	dir := t.TempDir()
-	writeSession(t, dir, "s_one", map[string]any{
-		"id": "s_one", "model": "vendor/model", "title": "fix the parser",
+	writeSession(t, dir, validTestSessionID, map[string]any{
+		"id": validTestSessionID, "model": "vendor/model", "title": "fix the parser",
 		"cwd": "/p", "updated_at": "2026-08-26T10:00:00Z",
 		"messages": []map[string]string{{"role": "user", "content": "hello"}},
 	})
@@ -38,7 +38,7 @@ func TestOverviewListsWhatACardNeeds(t *testing.T) {
 		t.Fatalf("got %d cards", len(cards))
 	}
 	card := cards[0]
-	if card.ID != "s_one" || card.Title != "fix the parser" || card.Model != "vendor/model" || card.CWD != "/p" {
+	if card.ID != validTestSessionID || card.Title != "fix the parser" || card.Model != "vendor/model" || card.CWD != "/p" {
 		t.Fatalf("card = %+v", card)
 	}
 	if !card.Updated.Equal(time.Date(2026, 8, 26, 10, 0, 0, 0, time.UTC)) {
@@ -51,8 +51,8 @@ func TestOverviewDoesNotReadTheTranscript(t *testing.T) {
 	// A card shows who and when, never what was said. Loading a megabyte of
 	// transcript to render one line is the difference between a list that can
 	// be polled and one that cannot.
-	writeSession(t, dir, "s_big", map[string]any{
-		"id": "s_big", "updated_at": "2026-08-26T10:00:00Z",
+	writeSession(t, dir, validTestSessionID, map[string]any{
+		"id": validTestSessionID, "updated_at": "2026-08-26T10:00:00Z",
 		"messages": []map[string]string{{"role": "user", "content": "secret contents"}},
 	})
 
@@ -71,12 +71,12 @@ func TestOverviewDoesNotReadTheTranscript(t *testing.T) {
 
 func TestOverviewIsNewestFirst(t *testing.T) {
 	dir := t.TempDir()
-	writeSession(t, dir, "s_old", map[string]any{"id": "s_old", "updated_at": "2026-08-20T10:00:00Z"})
-	writeSession(t, dir, "s_new", map[string]any{"id": "s_new", "updated_at": "2026-08-26T10:00:00Z"})
+	writeSession(t, dir, validTestSessionID, map[string]any{"id": validTestSessionID, "updated_at": "2026-08-20T10:00:00Z"})
+	writeSession(t, dir, validTestSessionID2, map[string]any{"id": validTestSessionID2, "updated_at": "2026-08-26T10:00:00Z"})
 
 	cards, _ := Overview(dir)
 
-	if len(cards) != 2 || cards[0].ID != "s_new" {
+	if len(cards) != 2 || cards[0].ID != validTestSessionID2 {
 		t.Fatalf("cards = %+v, want the newest first", cards)
 	}
 }
@@ -86,10 +86,10 @@ func TestOverviewSaysWhichSessionsAreRunning(t *testing.T) {
 		t.Skip("advisory locks unsupported")
 	}
 	dir := t.TempDir()
-	writeSession(t, dir, "s_live", map[string]any{"id": "s_live", "updated_at": "2026-08-26T10:00:00Z"})
-	writeSession(t, dir, "s_idle", map[string]any{"id": "s_idle", "updated_at": "2026-08-25T10:00:00Z"})
+	writeSession(t, dir, validTestSessionID, map[string]any{"id": validTestSessionID, "updated_at": "2026-08-26T10:00:00Z"})
+	writeSession(t, dir, validTestSessionID2, map[string]any{"id": validTestSessionID2, "updated_at": "2026-08-25T10:00:00Z"})
 
-	held, err := Hold(dir, "s_live")
+	held, err := Hold(dir, validTestSessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,24 +102,24 @@ func TestOverviewSaysWhichSessionsAreRunning(t *testing.T) {
 		byID[card.ID] = card.State
 	}
 	// The first question a control plane answers.
-	if byID["s_live"] != StateLive {
-		t.Fatalf("s_live = %v", byID["s_live"])
+	if byID[validTestSessionID] != StateLive {
+		t.Fatalf("live session = %v", byID[validTestSessionID])
 	}
-	if byID["s_idle"] != StateIdle {
-		t.Fatalf("s_idle = %v", byID["s_idle"])
+	if byID[validTestSessionID2] != StateIdle {
+		t.Fatalf("idle session = %v", byID[validTestSessionID2])
 	}
 }
 
 func TestOverviewSkipsWhatIsNotASession(t *testing.T) {
 	dir := t.TempDir()
-	writeSession(t, dir, "s_good", map[string]any{"id": "s_good", "updated_at": "2026-08-26T10:00:00Z"})
+	writeSession(t, dir, validTestSessionID, map[string]any{"id": validTestSessionID, "updated_at": "2026-08-26T10:00:00Z"})
 	if err := os.WriteFile(filepath.Join(dir, "s_bad.json"), []byte("{not json"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("hi"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(dir, "s_good.ckpt"), 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, validTestSessionID+".ckpt"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 
@@ -127,7 +127,7 @@ func TestOverviewSkipsWhatIsNotASession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("one corrupt file failed the whole list: %v", err)
 	}
-	if len(cards) != 1 || cards[0].ID != "s_good" {
+	if len(cards) != 1 || cards[0].ID != validTestSessionID {
 		t.Fatalf("cards = %+v", cards)
 	}
 }
@@ -144,7 +144,7 @@ func TestOverviewOfNothingIsNothing(t *testing.T) {
 
 func TestASessionWithNoTitleStillIdentifiesItself(t *testing.T) {
 	dir := t.TempDir()
-	writeSession(t, dir, "s_untitled", map[string]any{"id": "s_untitled", "updated_at": "2026-08-26T10:00:00Z"})
+	writeSession(t, dir, validTestSessionID, map[string]any{"id": validTestSessionID, "updated_at": "2026-08-26T10:00:00Z"})
 
 	cards, _ := Overview(dir)
 

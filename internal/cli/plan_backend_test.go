@@ -274,6 +274,38 @@ func TestSlashModelSwitchesOntoAndOffAPlanBackend(t *testing.T) {
 	}
 }
 
+func TestSlashModelSelectsEveryGPT56TierThroughThePlanAlias(t *testing.T) {
+	tests := []struct {
+		plan, alias, model string
+	}{
+		{"ChatGPT Plus", "gpt-plus-sol", "gpt-5.6-sol"},
+		{"ChatGPT Plus", "gpt-plus-terra", "gpt-5.6-terra"},
+		{"ChatGPT Plus", "gpt-plus-luna", "gpt-5.6-luna"},
+		{"ChatGPT Pro", "gpt-pro-sol", "gpt-5.6-sol"},
+		{"ChatGPT Pro", "gpt-pro-terra", "gpt-5.6-terra"},
+		{"ChatGPT Pro", "gpt-pro-luna", "gpt-5.6-luna"},
+	}
+	for _, test := range tests {
+		t.Run(test.alias, func(t *testing.T) {
+			dirs := isolateConnectorState(t)
+			signInAs(t, dirs, "openai", test.plan, "codex")
+			a, ag, out := replFixture(t, "")
+			if a.slash(context.Background(), ag, "/model "+test.alias) {
+				t.Fatal("/model must not exit the session")
+			}
+			if ag.Model != test.model {
+				t.Fatalf("alias %s selected model %q, want %q", test.alias, ag.Model, test.model)
+			}
+			if _, ok := ag.Backend.(*verifyingBackend); !ok {
+				t.Fatalf("alias %s did not select a Codex plan backend", test.alias)
+			}
+			if !strings.Contains(out.String(), test.plan) {
+				t.Fatalf("alias %s output omitted %s: %q", test.alias, test.plan, out.String())
+			}
+		})
+	}
+}
+
 func TestSlashModelPickerCommandAppliesPlanEffort(t *testing.T) {
 	dirs := isolateConnectorState(t)
 	enablePlanConnector(t, dirs)

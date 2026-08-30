@@ -259,6 +259,19 @@ func TestBuildCodexInvocationShapesTheArgv(t *testing.T) {
 	}
 }
 
+func TestCodexKnowsTheGPT56SubscriptionFamily(t *testing.T) {
+	for _, model := range []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"} {
+		if !CodexKnowsModel(model) {
+			t.Errorf("CodexKnowsModel(%q) = false, want the current GPT-5.6 subscription family", model)
+		}
+	}
+	for _, model := range []string{"gpt-5.5", "gpt-4.1", "gpt-5.6-unknown"} {
+		if CodexKnowsModel(model) {
+			t.Errorf("CodexKnowsModel(%q) = true, want an unknown model rejected", model)
+		}
+	}
+}
+
 // One captured turn through the backend: the invocation is shaped by the
 // session's mode and effort, the answer and usage land, and the thread id the
 // vendor minted becomes the handle the next turn resumes.

@@ -254,20 +254,21 @@ func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 		if !a.connectorInstalled(plan.Connector) {
 			continue
 		}
-		shortcut := provider.SubscriptionModelShortcut(plan.Model)
+		shortcut := provider.SubscriptionModelShortcutFor(plan.Plan, plan.Model)
 		shortcutNote := ""
 		if shortcut != "" {
 			shortcutNote = " · /model " + shortcut
 		}
+		selection := shortcut
 		if signedIn(plan) {
 			out = append(out, tui.ModelSpec{
-				ID: plan.Model, Cost: tui.CostSubscription, Rank: tui.ModelRank(tui.CostSubscription),
-				Name: plan.Plan + " · via your " + plan.Connector + " login" + shortcutNote,
+				ID: plan.Model, Select: selection, Cost: tui.CostSubscription, Rank: tui.ModelRank(tui.CostSubscription),
+				Name: plan.Model + " · " + plan.Plan + " · via your " + plan.Connector + " login" + shortcutNote,
 			})
 			continue
 		}
 		out = append(out, tui.ModelSpec{
-			ID: plan.Model, Cost: tui.CostSubscriptionLogin, Rank: tui.ModelRank(tui.CostSubscriptionLogin),
+			ID: plan.Model, Select: selection, Cost: tui.CostSubscriptionLogin, Rank: tui.ModelRank(tui.CostSubscriptionLogin),
 			Name: fmt.Sprintf("%s · sign in first:  kolk plans login %s %q%s", plan.Plan, plan.Provider, plan.Plan, shortcutNote),
 		})
 	}
@@ -339,9 +340,20 @@ func tuiModelPickEntries(ctx context.Context, a *app, ag *engine.Agent) []tui.Mo
 	current, _ := engine.NormalizeEffort(ag.Effort)
 	out := make([]tui.ModelPickEntry, 0, len(specs))
 	for _, spec := range specs {
-		entry := tui.ModelPickEntry{ID: spec.ID, Name: spec.Name}
+		selection := spec.ID
+		if spec.Select != "" {
+			selection = spec.Select
+		}
+		entry := tui.ModelPickEntry{ID: selection, Name: spec.Name}
+		modelID := provider.ResolveModelAlias(selection)
+		if subscriptionID := provider.SubscriptionModelID(selection); subscriptionID != "" {
+			modelID = subscriptionID
+		}
 		for _, plan := range provider.PlanModels("") {
-			if plan.Model != spec.ID {
+			if plan.Model != modelID {
+				continue
+			}
+			if spec.Select != "" && provider.SubscriptionModelShortcutFor(plan.Plan, plan.Model) != spec.Select {
 				continue
 			}
 			entry.Efforts = plan.Efforts

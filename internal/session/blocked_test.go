@@ -34,9 +34,9 @@ func other(seq int) string {
 // waiting for a person. That is the one thing a card must say.
 func TestBlockedOnFindsAnUnansweredPrompt(t *testing.T) {
 	dir := t.TempDir()
-	journal(t, dir, "s_a", requested(1, "p1", "bash"), other(2))
+	journal(t, dir, validTestSessionID, requested(1, "p1", "bash"), other(2))
 
-	blocked, ok := BlockedOn(dir, "s_a")
+	blocked, ok := BlockedOn(dir, validTestSessionID)
 	if !ok {
 		t.Fatal("an unanswered permission request was not reported as blocking")
 	}
@@ -47,9 +47,9 @@ func TestBlockedOnFindsAnUnansweredPrompt(t *testing.T) {
 
 func TestBlockedOnIgnoresAnAnsweredPrompt(t *testing.T) {
 	dir := t.TempDir()
-	journal(t, dir, "s_a", requested(1, "p1", "bash"), resolved(2, "p1"), other(3))
+	journal(t, dir, validTestSessionID, requested(1, "p1", "bash"), resolved(2, "p1"), other(3))
 
-	if _, ok := BlockedOn(dir, "s_a"); ok {
+	if _, ok := BlockedOn(dir, validTestSessionID); ok {
 		t.Error("an answered prompt still counted as blocking")
 	}
 }
@@ -58,12 +58,12 @@ func TestBlockedOnIgnoresAnAnsweredPrompt(t *testing.T) {
 // open — answering one prompt does not unblock the next.
 func TestBlockedOnMatchesRequestsToTheirOwnResolutions(t *testing.T) {
 	dir := t.TempDir()
-	journal(t, dir, "s_a",
+	journal(t, dir, validTestSessionID,
 		requested(1, "p1", "bash"),
 		requested(2, "p2", "write_file"),
 		resolved(3, "p1"),
 	)
-	blocked, ok := BlockedOn(dir, "s_a")
+	blocked, ok := BlockedOn(dir, validTestSessionID)
 	if !ok {
 		t.Fatal("a still-open second request was not reported")
 	}
@@ -73,7 +73,7 @@ func TestBlockedOnMatchesRequestsToTheirOwnResolutions(t *testing.T) {
 }
 
 func TestBlockedOnSaysNothingWithoutAJournal(t *testing.T) {
-	if _, ok := BlockedOn(t.TempDir(), "s_missing"); ok {
+	if _, ok := BlockedOn(t.TempDir(), validTestSessionID); ok {
 		t.Error("a session with no journal was reported as blocked")
 	}
 }
@@ -83,12 +83,12 @@ func TestBlockedOnSaysNothingWithoutAJournal(t *testing.T) {
 // read.
 func TestBlockedOnSurvivesAHalfWrittenLine(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "s_a.events.ndjson")
+	path := filepath.Join(dir, validTestSessionID+".events.ndjson")
 	body := requested(1, "p1", "bash") + "\n" + `{"seq":2,"type":"message.delta","dat`
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := BlockedOn(dir, "s_a"); !ok {
+	if _, ok := BlockedOn(dir, validTestSessionID); !ok {
 		t.Error("a truncated final line hid an open permission request")
 	}
 }
@@ -102,16 +102,16 @@ func TestBlockedOnReadsOnlyTheTail(t *testing.T) {
 		lines = append(lines, other(seq))
 	}
 	lines = append(lines, requested(20000, "p9", "write_file"))
-	journal(t, dir, "s_big", lines...)
+	journal(t, dir, validTestSessionID, lines...)
 
-	info, err := os.Stat(filepath.Join(dir, "s_big.events.ndjson"))
+	info, err := os.Stat(filepath.Join(dir, validTestSessionID+".events.ndjson"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if info.Size() < 2*blockedTailBytes {
 		t.Fatalf("the fixture is %d bytes, too small to prove a tail read", info.Size())
 	}
-	blocked, ok := BlockedOn(dir, "s_big")
+	blocked, ok := BlockedOn(dir, validTestSessionID)
 	if !ok {
 		t.Fatal("the last request was not found in a large journal")
 	}

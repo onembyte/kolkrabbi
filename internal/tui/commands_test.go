@@ -237,6 +237,18 @@ func TestModelPickerLabelsCostAndListsFreeThingsFirst(t *testing.T) {
 	}
 }
 
+func TestSuggestModelsUsesAnExplicitSelectionAlias(t *testing.T) {
+	got := SuggestModels([]ModelSpec{{
+		ID: "gpt-5.6-terra", Select: "gpt-plus-terra", Name: "ChatGPT Plus · via codex",
+	}}, "/model gpt-plus", 8)
+	if len(got) != 1 {
+		t.Fatalf("suggestions = %#v, want one alias match", got)
+	}
+	if got[0].Name != "gpt-plus-terra" || got[0].Usage != "/model gpt-plus-terra" || got[0].Complete != "/model gpt-plus-terra" {
+		t.Fatalf("suggestion = %#v, want the explicit selection alias", got[0])
+	}
+}
+
 // The settings panel: type /config and filter the list live, instead of
 // leaving the session to run `kolk config` and read it back.
 func TestSettingsPickerFiltersLiveAndCompletesToSet(t *testing.T) {

@@ -64,6 +64,24 @@ func TestTheCeilingAppliesToEveryVendor(t *testing.T) {
 	}
 }
 
+func TestTheCodexGPT56FamilyIsRankedByCapability(t *testing.T) {
+	want := []string{"gpt-5.6-pro", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"}
+	got := LadderRungIDs("codex")
+	if len(got) != len(want) {
+		t.Fatalf("codex ladder = %v, want %v", got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("codex ladder = %v, want %v", got, want)
+		}
+	}
+	for index := 0; index < len(want)-1; index++ {
+		if got := ClampToCeiling(want[index], want[index+1]); got != want[index+1] {
+			t.Fatalf("%s escaped the %s ceiling as %q", want[index], want[index+1], got)
+		}
+	}
+}
+
 // A ceiling on one vendor says nothing about another's bill, and silently
 // rewriting a model configured for a different provider would be its own
 // surprise.

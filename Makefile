@@ -77,6 +77,8 @@ smoke-workflow-check: ## the weekly live smoke workflow stays opt-in, free and f
 
 plan-check: ## a ticked plan item has the document it claims, and vice versa
 	./scripts/test-plan.sh
+workflow-pin-check: ## every GitHub Actions uses entry is pinned to a commit SHA
+	./scripts/test-workflow-pins.sh
 release-verifier-check: ## signed public assets, exact manifest, archives and host identity
 	./scripts/test-release-verifier.sh
 

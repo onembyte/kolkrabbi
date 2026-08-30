@@ -5,11 +5,13 @@ import (
 	"context"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/engine"
+	"github.com/onembyte/kolkrabbi/internal/local"
 	"github.com/onembyte/kolkrabbi/internal/session"
 	"github.com/onembyte/kolkrabbi/internal/tui"
 )
@@ -199,6 +201,58 @@ func TestAResumedSessionIsNotReorientated(t *testing.T) {
 	for _, unwanted := range []string{"/mode", "/effort", "/model"} {
 		if strings.Contains(got, unwanted) {
 			t.Errorf("a resumed session was re-orientated with %s: %q", unwanted, got)
+		}
+	}
+}
+
+func TestTUIModelRowsExposePlanQualifiedGPT56Selections(t *testing.T) {
+	bin := t.TempDir()
+	codex := filepath.Join(bin, "codex")
+	if err := os.WriteFile(codex, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	dirs := isolateConnectorState(t)
+	signInAs(t, dirs, "openai", "ChatGPT Plus", "codex")
+	signInAs(t, dirs, "openai", "ChatGPT Pro", "codex")
+	a, ag, _ := replFixture(t, "")
+	a.discoverHost = func(context.Context) local.Host { return local.Host{State: local.HostAbsent} }
+	a.listHostModels = func(context.Context, string, string) ([]local.HostModel, error) { return nil, nil }
+	a.probeHardware = func(context.Context, string) local.Hardware { return local.Hardware{} }
+	a.pulledNames = func() map[string]bool { return map[string]bool{} }
+
+	rows := tuiModels(context.Background(), a, ag)
+	want := map[string]bool{
+		"gpt-plus": false, "gpt-plus-terra": false, "gpt-plus-luna": false,
+		"gpt-pro-sol": false, "gpt-pro-terra": false, "gpt-pro-luna": false,
+	}
+	for _, row := range rows {
+		if row.Select != "" {
+			if _, ok := want[row.Select]; ok {
+				want[row.Select] = true
+			}
+		}
+	}
+	for alias, found := range want {
+		if !found {
+			t.Errorf("TUI rows omitted selection alias %q: %+v", alias, rows)
+		}
+	}
+
+	entries := tuiModelPickEntries(context.Background(), a, ag)
+	for _, alias := range []string{"gpt-plus", "gpt-plus-terra", "gpt-plus-luna", "gpt-pro-sol", "gpt-pro-terra", "gpt-pro-luna"} {
+		found := false
+		for _, entry := range entries {
+			if entry.ID == alias {
+				found = true
+				if len(entry.Efforts) == 0 {
+					t.Errorf("picker entry %q lost its effort dial", alias)
+				}
+				break
+			}
+		}
+		if !found {
+			t.Errorf("picker entries omitted %q", alias)
 		}
 	}
 }

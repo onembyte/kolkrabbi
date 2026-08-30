@@ -20,14 +20,20 @@ type PlanModel struct {
 var planModelCatalog = []PlanModel{
 	{Provider: "anthropic", Plan: "Claude Pro", Connector: "claude", Model: "claude-sonnet", Efforts: []string{"low", "medium", "high"}, Access: "provider CLI"},
 	{Provider: "anthropic", Plan: "Claude Max", Connector: "claude", Model: "claude-opus", Efforts: []string{"low", "medium", "high", "max"}, Access: "provider CLI"},
-	// The codex rows carry only ids the vendor's own CLI accepted on a ChatGPT
-	// login (verified 2026-08-28, codex-cli 0.149.1): gpt-4.1 errors with
-	// "model metadata not found" and gpt-5.3-codex / gpt-5.6-pro are refused by
-	// a non-Pro ChatGPT account, so until a Pro login proves otherwise, the
-	// Pro row keeps the model OpenAI markets for it even though this machine
-	// could not end-to-end verify it.
+	// The Codex rows carry the model ids the vendor exposes to ChatGPT plan
+	// logins (verified against codex-cli 0.149.1). OpenAI documents the current
+	// family as Sol (flagship), Terra (balanced), and Luna (cost-efficient); Plus
+	// and Pro can choose all three. The existing Pro-only row is retained as the
+	// higher Pro tier. `max` is deliberately not advertised here until the local
+	// CLI's accepted effort set is verified separately; the adapter currently
+	// accepts low, medium, high, and xhigh.
 	{Provider: "openai", Plan: "ChatGPT Plus", Connector: "codex", Model: "gpt-5.6-sol", Efforts: []string{"low", "medium", "high", "xhigh"}, Access: "provider CLI"},
+	{Provider: "openai", Plan: "ChatGPT Plus", Connector: "codex", Model: "gpt-5.6-terra", Efforts: []string{"low", "medium", "high", "xhigh"}, Access: "provider CLI"},
+	{Provider: "openai", Plan: "ChatGPT Plus", Connector: "codex", Model: "gpt-5.6-luna", Efforts: []string{"low", "medium", "high", "xhigh"}, Access: "provider CLI"},
 	{Provider: "openai", Plan: "ChatGPT Pro", Connector: "codex", Model: "gpt-5.6-pro", Efforts: []string{"low", "medium", "high", "xhigh"}, Access: "provider CLI"},
+	{Provider: "openai", Plan: "ChatGPT Pro", Connector: "codex", Model: "gpt-5.6-sol", Efforts: []string{"low", "medium", "high", "xhigh"}, Access: "provider CLI"},
+	{Provider: "openai", Plan: "ChatGPT Pro", Connector: "codex", Model: "gpt-5.6-terra", Efforts: []string{"low", "medium", "high", "xhigh"}, Access: "provider CLI"},
+	{Provider: "openai", Plan: "ChatGPT Pro", Connector: "codex", Model: "gpt-5.6-luna", Efforts: []string{"low", "medium", "high", "xhigh"}, Access: "provider CLI"},
 	{Provider: "google", Plan: "Google AI Pro", Connector: "gemini", Model: "gemini-2.5-pro", Efforts: []string{"low", "medium", "high"}, Access: "unsupported subscription"},
 	{Provider: "google", Plan: "Google AI Pro", Connector: "gemini", Model: "gemini-2.5-flash", Efforts: []string{"low", "medium", "high"}, Access: "unsupported subscription"},
 	{Provider: "google", Plan: "Google AI Ultra", Connector: "gemini", Model: "gemini-2.5-pro", Efforts: []string{"low", "medium", "high", "max"}, Access: "unsupported subscription"},
@@ -66,7 +72,7 @@ func ResolvePlanModel(ref string, manifest ConnectorManifest) (PlanModel, error)
 func resolvePlanModel(catalog []PlanModel, ref string, manifest ConnectorManifest) (PlanModel, error) {
 	wanted := strings.ToLower(strings.TrimSpace(ref))
 	if target, ok := subscriptionModelAliases[wanted]; ok {
-		wanted = target
+		wanted = strings.ToLower(target)
 	}
 	if wanted == "" {
 		return PlanModel{}, fmt.Errorf("name a plan model; `kolk pmodels` lists them")
@@ -81,19 +87,44 @@ func resolvePlanModel(catalog []PlanModel, ref string, manifest ConnectorManifes
 		if strings.ToLower(candidate.Model) != model {
 			continue
 		}
-		if qualifier != "" &&
-			strings.ToLower(candidate.Plan) != qualifier &&
-			strings.ToLower(candidate.Provider) != qualifier {
+		// A slash-qualified plan is intentionally different from an ordinary
+		// provider/model gateway id such as `openai/gpt-5.6-luna`. Only the
+		// human plan name qualifies a subscription row; provider prefixes remain
+		// ordinary model references.
+		if qualifier != "" && strings.ToLower(candidate.Plan) != qualifier {
 			continue
 		}
 		matches = append(matches, candidate)
 	}
 
+	var selected PlanModel
 	switch len(matches) {
 	case 0:
 		return PlanModel{}, fmt.Errorf("%w: no plan model matches %q; `kolk pmodels` lists them", ErrNotAPlanModel, ref)
 	case 1:
+		selected = matches[0]
 	default:
+		// A shared model is easy to type when only one matching plan is enabled.
+		// Select that exact plan, but never guess when two plan records are live.
+		enabled := make([]PlanModel, 0, len(matches))
+		exact := make([]PlanModel, 0, len(matches))
+		for _, candidate := range matches {
+			if candidate.Access != "provider CLI" || !connectorEnabledFor(candidate, manifest) {
+				continue
+			}
+			enabled = append(enabled, candidate)
+			if connectorExactFor(candidate, manifest) {
+				exact = append(exact, candidate)
+			}
+		}
+		if len(exact) == 1 {
+			selected = exact[0]
+			break
+		}
+		if len(enabled) == 1 {
+			selected = enabled[0]
+			break
+		}
 		// Asking someone to choose between plans that are all unusable wastes a
 		// round trip. Give the reason now.
 		if access, ok := sharedUnusableAccess(matches); ok {
@@ -108,18 +139,73 @@ func resolvePlanModel(catalog []PlanModel, ref string, manifest ConnectorManifes
 			ref, strings.Join(qualified, ", "))
 	}
 
-	selected := matches[0]
 	if selected.Access != "provider CLI" {
 		return PlanModel{}, fmt.Errorf("%s on %s is %s, so Kolkrabbi cannot use it",
 			selected.Model, selected.Plan, selected.Access)
 	}
-	for _, connector := range manifest.Connectors {
-		if connector.Provider == selected.Provider && connector.Name == selected.Connector && connector.Enabled {
-			return selected, nil
-		}
+	if connectorEnabledFor(selected, manifest) {
+		return selected, nil
 	}
 	return PlanModel{}, fmt.Errorf("%s needs the %s connector; sign in with: kolk plans login %s %q",
 		selected.Model, selected.Connector, selected.Provider, selected.Plan)
+}
+
+func connectorEnabledFor(model PlanModel, manifest ConnectorManifest) bool {
+	for _, connector := range manifest.Connectors {
+		if connector.Provider == model.Provider && connector.Name == model.Connector &&
+			connector.Enabled && planSupportsModel(connector.Plan, model.Plan, model.Provider) {
+			return true
+		}
+	}
+	return false
+}
+
+func connectorExactFor(model PlanModel, manifest ConnectorManifest) bool {
+	for _, connector := range manifest.Connectors {
+		if connector.Provider == model.Provider && connector.Plan == model.Plan &&
+			connector.Name == model.Connector && connector.Enabled {
+			return true
+		}
+	}
+	return false
+}
+
+// planSupportsModel keeps the plan matrix honest without pretending that a
+// higher subscription tier cannot use a model offered on a lower tier. The
+// connector stores the tier the user actually signed into; the catalog row
+// stores the tier under which a model is advertised.
+func planSupportsModel(connectorPlan, modelPlan, provider string) bool {
+	if strings.EqualFold(connectorPlan, modelPlan) {
+		return true
+	}
+	connectorRank, ok := subscriptionTierRank(provider, connectorPlan)
+	if !ok {
+		return false
+	}
+	modelRank, ok := subscriptionTierRank(provider, modelPlan)
+	return ok && connectorRank >= modelRank
+}
+
+func subscriptionTierRank(provider, plan string) (int, bool) {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	plan = strings.ToLower(strings.TrimSpace(plan))
+	switch provider {
+	case "anthropic":
+		switch plan {
+		case "claude pro":
+			return 1, true
+		case "claude max":
+			return 2, true
+		}
+	case "openai":
+		switch plan {
+		case "chatgpt plus":
+			return 1, true
+		case "chatgpt pro":
+			return 2, true
+		}
+	}
+	return 0, false
 }
 
 // sharedUnusableAccess reports the one reason every candidate is unusable, when

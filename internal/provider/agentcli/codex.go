@@ -344,8 +344,9 @@ func CodexKnowsModel(model string) bool {
 
 // codexRungs are the codex models kolk knows how to ask for. It mirrors the
 // codex ladder in the engine; the two are checked against each other by
-// TestEverySpawnableRungIsAModelItsAdapterAccepts.
-var codexRungs = []string{"gpt-5.6-pro", "gpt-5.6-sol"}
+// TestEverySpawnableRungIsAModelItsAdapterAccepts. OpenAI documents Sol as the
+// flagship, Terra as the balanced tier, and Luna as the cost-efficient tier.
+var codexRungs = []string{"gpt-5.6-pro", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"}
 
 // NewCodexBackendFromHandle creates a backend that resumes one vendor thread
 // (resume true, handle non-empty) or opens a brand-new one the vendor names.

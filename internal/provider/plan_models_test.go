@@ -30,6 +30,27 @@ func TestPlanModelsMetadataIsComplete(t *testing.T) {
 	}
 }
 
+func TestPlanModelsIncludeTheCompleteGPT56SubscriptionFamily(t *testing.T) {
+	want := map[string]map[string]bool{
+		"ChatGPT Plus": {"gpt-5.6-sol": true, "gpt-5.6-terra": true, "gpt-5.6-luna": true},
+		"ChatGPT Pro":  {"gpt-5.6-pro": true, "gpt-5.6-sol": true, "gpt-5.6-terra": true, "gpt-5.6-luna": true},
+	}
+	got := map[string]map[string]bool{}
+	for _, model := range PlanModels("gpt-5.6") {
+		if got[model.Plan] == nil {
+			got[model.Plan] = map[string]bool{}
+		}
+		got[model.Plan][model.Model] = true
+	}
+	for plan, models := range want {
+		for model := range models {
+			if !got[plan][model] {
+				t.Errorf("missing %s on %s from plan catalog", model, plan)
+			}
+		}
+	}
+}
+
 func enabledClaude() ConnectorManifest {
 	return ConnectorManifest{Version: connectorManifestVersion, Connectors: []Connector{
 		{Provider: "anthropic", Plan: "Claude Max", Name: "claude", LoginOwner: "provider-cli", Enabled: true},
@@ -77,6 +98,40 @@ func TestResolvePlanModelAcceptsFriendlySubscriptionAliases(t *testing.T) {
 				t.Fatalf("resolved = %+v, want %s on %s", got, test.model, test.plan)
 			}
 		})
+	}
+}
+
+func TestResolvePlanModelUsesTheEnabledPlanForAnUnqualifiedSharedModel(t *testing.T) {
+	for _, plan := range []string{"ChatGPT Plus", "ChatGPT Pro"} {
+		t.Run(plan, func(t *testing.T) {
+			got, err := ResolvePlanModel("gpt-5.6-terra", ConnectorManifest{
+				Version: connectorManifestVersion,
+				Connectors: []Connector{{
+					Provider: "openai", Plan: plan, Name: "codex",
+					LoginOwner: "provider-cli", Enabled: true,
+				}},
+			})
+			if err != nil {
+				t.Fatalf("ResolvePlanModel: %v", err)
+			}
+			if got.Model != "gpt-5.6-terra" || got.Plan != plan {
+				t.Fatalf("resolved = %+v, want Terra on %s", got, plan)
+			}
+		})
+	}
+}
+
+func TestResolvePlanModelKeepsSharedModelsAmbiguousWhenTwoPlansAreEnabled(t *testing.T) {
+	_, err := ResolvePlanModel("gpt-5.6-luna", ConnectorManifest{
+		Version: connectorManifestVersion,
+		Connectors: []Connector{
+			{Provider: "openai", Plan: "ChatGPT Plus", Name: "codex", LoginOwner: "provider-cli", Enabled: true},
+			{Provider: "openai", Plan: "ChatGPT Pro", Name: "codex", LoginOwner: "provider-cli", Enabled: true},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "ChatGPT Plus/gpt-5.6-luna") ||
+		!strings.Contains(err.Error(), "ChatGPT Pro/gpt-5.6-luna") {
+		t.Fatalf("error = %v, want both plan-qualified choices", err)
 	}
 }
 

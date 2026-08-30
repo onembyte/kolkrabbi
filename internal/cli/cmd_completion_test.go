@@ -13,7 +13,7 @@ func TestCompletionBashGeneratesValidScript(t *testing.T) {
 		t.Fatalf("kolk completion bash exit = %d (stderr: %s)", code, errOut.String())
 	}
 	output := out.String()
-	for _, want := range []string{"_kolk_completions", "complete -F _kolk_completions kolk", "model", "effort", "mode", "sonnet", "gpt-plus", "claude-max", "claude-opus"} {
+	for _, want := range []string{"_kolk_completions", "complete -F _kolk_completions kolk", "model", "effort", "mode", "sonnet", "gpt-plus", "gpt-plus-terra", "gpt-pro-luna", "claude-max", "claude-opus"} {
 		if !strings.Contains(output, want) {
 			t.Errorf("bash completion missing %q: %q", want, output)
 		}
@@ -27,7 +27,7 @@ func TestCompletionZshGeneratesValidScript(t *testing.T) {
 		t.Fatalf("kolk completion zsh exit = %d (stderr: %s)", code, errOut.String())
 	}
 	output := out.String()
-	for _, want := range []string{"#compdef kolk", "_kolk", "_arguments", "model", "effort", "gpt-plus", "claude-max", "claude-opus"} {
+	for _, want := range []string{"#compdef kolk", "_kolk", "_arguments", "model", "effort", "gpt-plus", "gpt-plus-terra", "gpt-pro-luna", "claude-max", "claude-opus"} {
 		if !strings.Contains(output, want) {
 			t.Errorf("zsh completion missing %q: %q", want, output)
 		}
@@ -41,7 +41,7 @@ func TestCompletionFishGeneratesValidScript(t *testing.T) {
 		t.Fatalf("kolk completion fish exit = %d (stderr: %s)", code, errOut.String())
 	}
 	output := out.String()
-	for _, want := range []string{"complete -c kolk", "model", "effort", "mode", "gpt-plus", "claude-max", "claude-opus"} {
+	for _, want := range []string{"complete -c kolk", "model", "effort", "mode", "gpt-plus", "gpt-plus-terra", "gpt-pro-luna", "claude-max", "claude-opus"} {
 		if !strings.Contains(output, want) {
 			t.Errorf("fish completion missing %q: %q", want, output)
 		}

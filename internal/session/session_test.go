@@ -1,6 +1,7 @@
 package session
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -40,11 +41,11 @@ func TestEffortAndConnectorRoundtrip(t *testing.T) {
 // compatibility class: absent in old files, empty rather than fatal on load.
 func TestOldSessionFileWithoutProviderStateLoadsEmpty(t *testing.T) {
 	dir := t.TempDir()
-	body := `{"id":"old-one","model":"claude-opus","title":"t","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","messages":[]}`
-	if err := os.WriteFile(filepath.Join(dir, "old-one.json"), []byte(body), 0o600); err != nil {
+	body := `{"id":"s_01J00000000000000000000000","model":"claude-opus","title":"t","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","messages":[]}`
+	if err := os.WriteFile(filepath.Join(dir, validTestSessionID+".json"), []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	got, err := Load(dir, "old-one")
+	got, err := Load(dir, validTestSessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,11 +57,11 @@ func TestOldSessionFileWithoutProviderStateLoadsEmpty(t *testing.T) {
 // Sessions written before these fields existed must load exactly as before.
 func TestOldSessionFileWithoutEffortLoadsEmpty(t *testing.T) {
 	dir := t.TempDir()
-	body := `{"id":"old-one","model":"claude-opus","title":"t","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","messages":[]}`
-	if err := os.WriteFile(filepath.Join(dir, "old-one.json"), []byte(body), 0o600); err != nil {
+	body := `{"id":"s_01J00000000000000000000000","model":"claude-opus","title":"t","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","messages":[]}`
+	if err := os.WriteFile(filepath.Join(dir, validTestSessionID+".json"), []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	got, err := Load(dir, "old-one")
+	got, err := Load(dir, validTestSessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +111,21 @@ func TestSaveLoadRoundtrip(t *testing.T) {
 }
 
 func TestLoadV0SessionFixture(t *testing.T) {
-	s, err := Load("testdata", "v0-session")
+	body, err := os.ReadFile("testdata/v0-session.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var header struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(body, &header); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, header.ID+".json"), body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Load(dir, header.ID)
 	if err != nil {
 		t.Fatalf("Load v0-session fixture: %v", err)
 	}

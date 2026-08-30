@@ -225,3 +225,31 @@ func TestLinesProcessCloseIsRepeatableAfterAFailedChild(t *testing.T) {
 		t.Fatalf("repeated Close = %v, want the same failure as %v", second, first)
 	}
 }
+
+func TestLinesProcessCloseUnblocksUnreadOutput(t *testing.T) {
+	// The provider writes a response and then stays alive. With an unbuffered
+	// lines channel and no Next caller, the reader parks trying to deliver the
+	// response; Close must cancel that delivery before waiting for the child.
+	process, err := StartLinesProcess(context.Background(), "sh", []string{"-c", "printf 'unread\\n'; sleep 30"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-time.After(100 * time.Millisecond):
+	case <-process.exited:
+		t.Fatal("provider exited before the shutdown test could exercise unread output")
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- process.Close() }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Close returned %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		_ = killChild(process.cmd)
+		t.Fatal("Close blocked on unread provider output")
+	}
+}

@@ -33,7 +33,7 @@ type vendorLadder struct {
 
 var vendorLadders = []vendorLadder{
 	{name: "claude", rungs: []string{"claude-fable", "claude-opus", "claude-sonnet", "claude-haiku"}},
-	{name: "codex", rungs: []string{"gpt-5.6-pro", "gpt-5.6-sol"}},
+	{name: "codex", rungs: []string{"gpt-5.6-pro", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"}},
 	{name: "gemini", rungs: []string{"gemini-2.5-ultra", "gemini-2.5-pro", "gemini-2.5-flash"}},
 }
 

@@ -14,7 +14,7 @@ _kolk_completions() {
     local verbs="key model effort mode config update uninstall stats serve version doctor help completion"
     local flags="-m --model -e --effort --mode -p --print -P --permission -r --resume -s --session --output-format --debug"
     local efforts="low medium high max 1 2 3 4"
-    local models="sonnet haiku opus gpt flash pro deepseek coder free auto claude-pro claude-max claude-sonnet claude-opus gpt-plus gpt-pro gpt-5.6-sol gpt-5.6-pro gemini-2.5-pro gemini-2.5-flash"
+	    local models="sonnet haiku opus gpt flash pro deepseek coder free auto claude-pro claude-max claude-sonnet claude-opus gpt-plus gpt-plus-sol gpt-plus-terra gpt-plus-luna gpt-pro gpt-pro-sol gpt-pro-terra gpt-pro-luna terra luna gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna gpt-5.6-pro gemini-2.5-pro gemini-2.5-flash"
     local modes="chat code agent"
 
     case "${prev}" in
@@ -74,7 +74,7 @@ _kolk() {
     )
 
     _arguments -C \
-        '(-m --model)'{-m,--model}'[use specific model]:model:(sonnet haiku opus gpt flash pro deepseek coder free auto claude-pro claude-max claude-sonnet claude-opus gpt-plus gpt-pro gpt-5.6-sol gpt-5.6-pro gemini-2.5-pro gemini-2.5-flash)' \
+	        '(-m --model)'{-m,--model}'[use specific model]:model:(sonnet haiku opus gpt flash pro deepseek coder free auto claude-pro claude-max claude-sonnet claude-opus gpt-plus gpt-plus-sol gpt-plus-terra gpt-plus-luna gpt-pro gpt-pro-sol gpt-pro-terra gpt-pro-luna terra luna gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna gpt-5.6-pro gemini-2.5-pro gemini-2.5-flash)' \
         '(-e --effort)'{-e,--effort}'[select model tier]:effort:(low medium high max 1 2 3 4)' \
         '--mode[operational mode]:mode:(chat code agent)' \
         '(-p --print)'{-p,--print}'[single-shot prompt]:prompt:' \
@@ -94,7 +94,7 @@ _kolk() {
                     _values 'effort' low medium high max 1 2 3 4
                     ;;
                 model)
-                    _values 'model' sonnet haiku opus gpt flash pro deepseek coder free auto claude-pro claude-max claude-sonnet claude-opus gpt-plus gpt-pro gpt-5.6-sol gpt-5.6-pro gemini-2.5-pro gemini-2.5-flash
+	                    _values 'model' sonnet haiku opus gpt flash pro deepseek coder free auto claude-pro claude-max claude-sonnet claude-opus gpt-plus gpt-plus-sol gpt-plus-terra gpt-plus-luna gpt-pro gpt-pro-sol gpt-pro-terra gpt-pro-luna terra luna gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna gpt-5.6-pro gemini-2.5-pro gemini-2.5-flash
                     ;;
                 mode)
                     _values 'mode' chat code agent
@@ -131,12 +131,12 @@ complete -c kolk -f -n "not __fish_seen_subcommand_from $verbs" -a "help" -d "sh
 complete -c kolk -f -n "not __fish_seen_subcommand_from $verbs" -a "completion" -d "generate completions"
 
 complete -c kolk -n "__fish_seen_subcommand_from effort" -f -a "low medium high max 1 2 3 4"
-complete -c kolk -n "__fish_seen_subcommand_from model" -f -a "sonnet haiku opus gpt flash pro deepseek coder free auto claude-pro claude-max claude-sonnet claude-opus gpt-plus gpt-pro gpt-5.6-sol gpt-5.6-pro gemini-2.5-pro gemini-2.5-flash"
+complete -c kolk -n "__fish_seen_subcommand_from model" -f -a "sonnet haiku opus gpt flash pro deepseek coder free auto claude-pro claude-max claude-sonnet claude-opus gpt-plus gpt-plus-sol gpt-plus-terra gpt-plus-luna gpt-pro gpt-pro-sol gpt-pro-terra gpt-pro-luna terra luna gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna gpt-5.6-pro gemini-2.5-pro gemini-2.5-flash"
 complete -c kolk -n "__fish_seen_subcommand_from mode" -f -a "chat code agent"
 complete -c kolk -n "__fish_seen_subcommand_from completion" -f -a "bash zsh fish"
 complete -c kolk -n "__fish_seen_subcommand_from config" -f -a "get set unset show"
 
-complete -c kolk -s m -l model -d "use specific model" -x -a "sonnet haiku opus gpt flash pro deepseek coder free auto claude-pro claude-max claude-sonnet claude-opus gpt-plus gpt-pro gpt-5.6-sol gpt-5.6-pro gemini-2.5-pro gemini-2.5-flash"
+complete -c kolk -s m -l model -d "use specific model" -x -a "sonnet haiku opus gpt flash pro deepseek coder free auto claude-pro claude-max claude-sonnet claude-opus gpt-plus gpt-plus-sol gpt-plus-terra gpt-plus-luna gpt-pro gpt-pro-sol gpt-pro-terra gpt-pro-luna terra luna gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna gpt-5.6-pro gemini-2.5-pro gemini-2.5-flash"
 complete -c kolk -s e -l effort -d "select model tier" -x -a "low medium high max 1 2 3 4"
 complete -c kolk -l mode -d "operational mode" -x -a "chat code agent"
 complete -c kolk -s p -l print -d "single-shot prompt"
