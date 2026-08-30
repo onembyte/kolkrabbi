@@ -5266,3 +5266,48 @@ deleted rather than allowlisted when the dead-export gate caught it losing its c
 plan's own cheap model is the other half and is not built — on a plan session the slots still resolve
 gateway ids. Saying so here matters more than the code did, because the previous line said otherwise
 to the user's face.
+
+## FR5 Stigi — agentic orchestration over vendor subscriptions (2026-08-30)
+
+Ten checkpoints, 54 tasks, built one at a time with the failing test first. The whole feature in one
+sentence: a session on model X plans a big task, labels each subtask by the capability it needs, and
+each subtask runs on its own vendor process at a rung of a ladder whose top is X.
+
+**The design was chosen by a panel, and the panel's value was not the winner.** Four architectures
+were designed independently and scored by independent readers. All four judges found the same fatal
+flaw — `planModelCatalog` has no `claude-haiku` row, so `ResolvePlanModel` returns `ErrNotAPlanModel`
+and `planBackendFor` answers with a nil backend AND a nil error. Every one of the four designs would
+have shipped looking built and changed nothing. The winning shape (capability levels, not names) was
+worth less than that single finding.
+
+**The guarantee is structural, not enforced.** X states `trivial | routine | hard`; code binds that to
+an index into a roster whose element 0 is the user's own model. A stronger model is *unrepresentable*
+rather than rejected — the clamp in `ceiling.go` stays as defence in depth for paths that still take
+a model by name, but nothing on this path can produce one. That is why the planner prompt must never
+contain a model name, and why a test checks it against `vendorLadders` itself rather than a list.
+
+**Two real bugs were fixed on the way, both pre-existing:** an unguarded `a.Model` / `a.Backend`
+written from a subagent goroutine while every other subagent read it, and an unbuffered `finished`
+channel that stranded senders when a run was cancelled.
+
+**Three tests failed for the right reason and corrected a wrong belief:**
+
+- The cancelled-run leak took three attempts to see. `runtime.NumGoroutine()` is too blunt; counting
+  by stack name is precise and still passed, because a task with the **zero `Kind` writes files** and
+  `writesFiles` serialises those — all four tasks ran one at a time, so nothing was ever in flight to
+  strand.
+- A roster assertion encoded a miscount (`claude-opus` has two cheaper rungs, not one) rather than
+  its own intent, which was that the ceiling is never checked for availability.
+- The plan-limit question goes through `a.Ask.Choose`, not the `Decider`. The first version of that
+  test was asked zero times.
+
+**And one bug caught before it shipped, by checking rather than assuming.** Having lifted codex's
+agent-mode refusal at C7, `subagentBackend` still handled only claude — so a codex session would have
+returned `(nil, nil)`, shared one backend, and interleaved its subagents into one vendor thread:
+exactly the failure the refusal existed to prevent, reintroduced by the change that removed it.
+Lifting a refusal is safe once the reason is gone, not once the plan says so.
+
+**Verification:** `make check` green at 2739 tests, `go test ./... -race` clean, `make spec` green.
+Every checkpoint verified against a built binary where it had observable behaviour.
+
+See [`STIGI.md`](../STIGI.md) for the checkpoint ledger and for what was deliberately left unbuilt.
