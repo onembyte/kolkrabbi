@@ -5311,3 +5311,19 @@ Lifting a refusal is safe once the reason is gone, not once the plan says so.
 Every checkpoint verified against a built binary where it had observable behaviour.
 
 See [`STIGI.md`](../STIGI.md) for the checkpoint ledger and for what was deliberately left unbuilt.
+
+### R1.11 v1.2.24 Stigi release
+
+**Gate:** `make check` green at 2739 tests, `go test ./... -race` clean, `make spec` green.
+
+**Publication:** commit `09ff233` on `main`, tag `v1.2.24`, checked with
+`git merge-base --is-ancestor HEAD origin/main` before tagging. Release workflow run 33311971921
+passed verify and publish. Four archives plus the Cosign-signed `checksums.txt` are public, the
+release is neither draft nor prerelease, and the latest redirect resolves to `v1.2.24`.
+
+**What a tester should know before trying it.** Agent mode works on a claude subscription; codex was
+opened in the same change. The lane prints on entering agent mode, so what a run may spend on is
+visible before it spends anything. Three things are deliberately unbuilt and would otherwise read as
+bugs: cross-vendor rungs do not yet join the roster (the gate is enforced, the ordering is not),
+`/model claude-haiku` still reports it is not a plan model (the subagent path bypasses that catalogue
+on purpose), and the fast lane still returns a gateway id on a plan session.
