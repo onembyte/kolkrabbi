@@ -655,6 +655,40 @@ left/right for text editing and relearning the effort-cycle key.
 - [x] **H7 five ways to own the terminal, and only some of them knew about each other** — found
   while verifying the merge that brought in a concurrently-developed PTY-attach feature (§below),
   not by anything failing on its own. See below.
+- [x] **H8 Codex output and subscription model selection** — bounded provider-CLI framing,
+  actionable plan shortcuts, picker-effort routing, and synchronized PTY/TUI output. See below.
+
+### H8 built — a valid large Codex frame no longer looks like an authentication failure
+
+The first live use of the newly routed Codex plan model failed before any event reached the
+translator: `bufio.Scanner` rejected a provider JSONL line above its arbitrary 1 MiB buffer and
+surfaced the opaque `bufio.Scanner: token too long`. The error appeared beside sign-in guidance,
+so it looked like an authentication problem even though the connector was already enabled.
+
+The one-shot and persistent provider readers now share a bounded `bufio.Reader.ReadSlice` framing
+loop. It accepts provider lines through 16 MiB, including the large tool-result lines Codex emits,
+and returns a named bounded-output error above that limit. Reader failures kill and reap the whole
+provider process group; the red reproduction also exposed that killing only the shell leader left
+a pipeline child holding stdout open.
+
+Model selection had two independent usability gaps. Bare `/model` in the plain REPL depended on
+the API catalog and gave no plan choices when that request failed, and the TUI picker emitted an
+effort suffix that the slash dispatcher treated as part of the model id. Bare `/model` and
+`kolk model` now print subscription choices with exact ids, `claude-pro`/`claude-max` and
+`gpt-plus`/`gpt-pro` shortcuts, plus the exact sign-in command when needed. `/model <id|alias>
+<effort>` now applies the model, session effort, and provider backend together. Shell completion,
+help, welcome text, and TUI row labels use the same vocabulary; ordinary aliases such as `flash`
+retain their existing API routing.
+
+The race gate found one adjacent ownership defect: a raw PTY child and a pending TUI renderer
+could write the same output writer concurrently. Runtime now gives both paths one synchronized
+writer, preserving escape-sequence boundaries and making embedded non-thread-safe writers safe.
+
+**Verification:** `go test ./... -count=1`, `go vet ./...`, `make lint`, package race tests for
+`internal/shell`, `internal/provider`, `internal/provider/agentcli`, `internal/tui`, and
+`internal/cli`, and `make check` all pass. `make check` reports 2,780 tests, 0 lint issues,
+9.30 MB binary, 3.4 ms cold-start p50, and all site/surface/installer/spec/release/workflow/
+verifier/smoke/plan gates green. No release tag or commit was created in this checkpoint.
 
 ### H7 built — a gap that predates this group, surfaced by merging with work that makes it likelier
 

@@ -184,8 +184,8 @@ func TestSlashHelpListsAllReleaseModes(t *testing.T) {
 			t.Fatalf("slash help does not list %s: %q", tier, out.String())
 		}
 	}
-	if !strings.Contains(out.String(), "/model [id]") || !strings.Contains(out.String(), "list available models") {
-		t.Fatalf("slash help does not describe model listing and switching: %q", out.String())
+	if !strings.Contains(out.String(), "/model [id | alias] [effort]") || !strings.Contains(out.String(), "picker") {
+		t.Fatalf("slash help does not describe model picking and switching: %q", out.String())
 	}
 	if !strings.Contains(out.String(), "/update") {
 		t.Fatalf("slash help does not list the update command: %q", out.String())
@@ -368,6 +368,11 @@ func TestSlashModelListsTheActiveProviderCatalog(t *testing.T) {
 			t.Fatalf("/model catalog omitted %q: %q", want, got)
 		}
 	}
+	for _, want := range []string{"subscription models", "/model gpt-plus", "gpt-5.6-sol", "ChatGPT Plus", "sign in: kolk plans login"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("/model plan choices omitted %q: %q", want, got)
+		}
+	}
 	if requests.Load() != 1 || errOut.Len() != 0 {
 		t.Fatalf("catalog requests = %d, stderr = %q", requests.Load(), errOut.String())
 	}
@@ -420,6 +425,9 @@ func TestSlashModelCatalogFailureKeepsTheSession(t *testing.T) {
 	if !strings.Contains(out.String(), "current model: current/model") ||
 		!strings.Contains(errOut.String(), "could not list models") {
 		t.Fatalf("catalog failure output = stdout %q, stderr %q", out.String(), errOut.String())
+	}
+	if !strings.Contains(out.String(), "/model gpt-plus") {
+		t.Fatalf("catalog failure hid subscription choices: %q", out.String())
 	}
 }
 
@@ -476,6 +484,22 @@ func TestSlashModelResolvesAliases(t *testing.T) {
 	if !strings.Contains(out.String(), "model set to google/gemini-2.5-flash") {
 		t.Errorf("output = %q", out.String())
 	}
+}
+
+func TestModelHelpNamesThePickerAndSubscriptionShortcuts(t *testing.T) {
+	for _, command := range slashCommandTable {
+		if command.name != "model" {
+			continue
+		}
+		if command.args != "[id | alias] [effort]" {
+			t.Fatalf("/model grammar = %q, want aliases called out", command.args)
+		}
+		if !strings.Contains(command.summary, "picker") {
+			t.Fatalf("/model summary = %q, want the interactive picker named", command.summary)
+		}
+		return
+	}
+	t.Fatal("/model is missing from the slash command table")
 }
 
 // The ceiling is enforced in the engine, but a limit nobody can see is one

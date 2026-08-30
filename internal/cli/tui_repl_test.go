@@ -182,7 +182,7 @@ func TestTUIStatusReResolvesModelWhenEffortChanges(t *testing.T) {
 // are invisible until someone reads the docs, which is one place too far.
 func TestANewSessionIsToldHowToChangeTheThreeDials(t *testing.T) {
 	got := tuiWelcome(0)
-	for _, want := range []string{"/mode", "/effort", "/model"} {
+	for _, want := range []string{"/mode", "/effort", "/model", "picker"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("a new session's welcome never mentions %s: %q", want, got)
 		}

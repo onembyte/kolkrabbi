@@ -1,7 +1,6 @@
 package shell
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -63,9 +62,10 @@ func (r *stderrRing) Len() int {
 // LinesProcess is one long-lived child process with line-delimited stdin and
 // stdout. It is suitable for a provider session that accepts NDJSON requests.
 type LinesProcess struct {
-	cmd   *exec.Cmd
-	stdin io.WriteCloser
-	lines chan []byte
+	cmd        *exec.Cmd
+	executable string
+	stdin      io.WriteCloser
+	lines      chan []byte
 	// writes carries outbound lines to the single writer goroutine. Buffered so
 	// a Send does not wait on a child that is busy answering the last one.
 	writes chan []byte
@@ -126,7 +126,7 @@ func StartLinesProcess(ctx context.Context, executable string, args []string) (*
 		return nil, fmt.Errorf("starting %s: %w", executable, err)
 	}
 	process := &LinesProcess{
-		cmd: cmd, stdin: stdin, lines: make(chan []byte), exited: exited,
+		cmd: cmd, executable: executable, stdin: stdin, lines: make(chan []byte), exited: exited,
 		writes: make(chan []byte, 8),
 	}
 	go process.read(stdout, &stderr)
@@ -137,14 +137,18 @@ func StartLinesProcess(ctx context.Context, executable string, args []string) (*
 func (p *LinesProcess) read(stdout io.Reader, stderr *stderrRing) {
 	defer close(p.exited)
 	defer close(p.lines)
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
-	for scanner.Scan() {
-		p.lines <- append([]byte(nil), scanner.Bytes()...)
-	}
 	var err error
-	if scanErr := scanner.Err(); scanErr != nil {
-		err = scanErr
+	if readErr := readProviderLines(stdout, func(line []byte) error {
+		p.lines <- line
+		return nil
+	}); readErr != nil {
+		// Reap the child on every reader failure. In particular, a provider
+		// that exceeded the line bound must not become a zombie while its
+		// descendants keep the pipe alive.
+		_ = killChild(p.cmd)
+		waitErr := p.cmd.Wait()
+		p.hardExit = exitedHard(waitErr)
+		err = fmt.Errorf("reading %s output: %w", p.executable, readErr)
 	} else if waitErr := p.cmd.Wait(); waitErr != nil {
 		p.hardExit = exitedHard(waitErr)
 		if stderr.Len() > 0 {

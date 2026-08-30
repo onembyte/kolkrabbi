@@ -43,3 +43,42 @@ func (a *app) runPlanModels(_ context.Context, args []string) error {
 	}
 	return nil
 }
+
+// printPlanModelChoices is the compact, command-oriented view used by bare
+// model selection. `pmodels` remains the complete matrix; this view answers a
+// different question: what can I type right now, and what sign-in command is
+// missing when I cannot use it yet?
+func (a *app) printPlanModelChoices() error {
+	dirs, err := a.resolve()
+	if err != nil {
+		return err
+	}
+	manifest, err := provider.LoadConnectors(dirs.ConnectorsFile())
+	if err != nil {
+		return err
+	}
+	models := provider.PlanModels("")
+	if len(models) == 0 {
+		return nil
+	}
+
+	fmt.Fprintln(a.stdout, "\nsubscription models (use the shortcut or exact model id):")
+	for _, model := range models {
+		ref := model.Model
+		if shortcut := provider.SubscriptionModelShortcut(model.Model); shortcut != "" {
+			ref = shortcut + " → " + model.Model
+		}
+		status := model.Access
+		if model.Access == "provider CLI" {
+			status = fmt.Sprintf("sign in: kolk plans login %s %q", model.Provider, model.Plan)
+			for _, connector := range manifest.Connectors {
+				if connector.Provider == model.Provider && connector.Name == model.Connector && connector.Enabled {
+					status = "enabled"
+					break
+				}
+			}
+		}
+		fmt.Fprintf(a.stdout, "  /model %-43s · %-16s · %s\n", ref, model.Plan, status)
+	}
+	return nil
+}

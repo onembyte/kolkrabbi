@@ -29,6 +29,10 @@ func TestResolveModelAlias(t *testing.T) {
 		{"coder", "qwen/qwen-2.5-coder-32b-instruct"},
 		{"free", "openrouter/free"},
 		{"auto", "openrouter/auto"},
+		{"claude-pro", "claude-sonnet"},
+		{"claude-max", "claude-opus"},
+		{"gpt-plus", "gpt-5.6-sol"},
+		{"gpt-pro", "gpt-5.6-pro"},
 		// Passthrough for full vendor IDs or unrecognized names
 		{"meta-llama/llama-3.3-70b-instruct", "meta-llama/llama-3.3-70b-instruct"},
 		{"custom/model-id", "custom/model-id"},

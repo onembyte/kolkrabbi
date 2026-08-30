@@ -234,6 +234,7 @@ func TestSessionRefusesAPlanModelNoAdapterCanServe(t *testing.T) {
 func TestSlashModelSwitchesOntoAndOffAPlanBackend(t *testing.T) {
 	dirs := isolateConnectorState(t)
 	enablePlanConnector(t, dirs)
+	signInAs(t, dirs, "openai", "ChatGPT Plus", "codex")
 	a, ag, out := replFixture(t, "")
 
 	if a.slash(context.Background(), ag, "/model claude-opus") {
@@ -257,6 +258,46 @@ func TestSlashModelSwitchesOntoAndOffAPlanBackend(t *testing.T) {
 	}
 	if ag.Model != "vendor/ordinary-model" {
 		t.Fatalf("model = %q", ag.Model)
+	}
+
+	if a.slash(context.Background(), ag, "/model gpt-plus") {
+		t.Fatal("friendly /model alias must not exit the session")
+	}
+	if ag.Model != "gpt-5.6-sol" {
+		t.Fatalf("friendly alias model = %q, want gpt-5.6-sol", ag.Model)
+	}
+	if _, ok := ag.Backend.(*verifyingBackend); !ok {
+		t.Fatalf("backend = %T after the friendly plan alias", ag.Backend)
+	}
+	if !strings.Contains(out.String(), "ChatGPT Plus") {
+		t.Fatalf("friendly alias output omitted the plan name: %q", out.String())
+	}
+}
+
+func TestSlashModelPickerCommandAppliesPlanEffort(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	enablePlanConnector(t, dirs)
+	a, ag, out := replFixture(t, "")
+
+	if a.slash(context.Background(), ag, "/model claude-opus high") {
+		t.Fatal("the picker's model command must not exit the session")
+	}
+	if ag.Model != "claude-opus" || ag.Effort != "high" {
+		t.Fatalf("picker selection = model %q, effort %q; want claude-opus/high", ag.Model, ag.Effort)
+	}
+	if got := ag.Sess.SessionEffort(); got != "high" {
+		t.Fatalf("session effort = %q, want the picker's high", got)
+	}
+	wrapped, ok := ag.Backend.(*verifyingBackend)
+	if !ok {
+		t.Fatalf("backend = %T, want the plan backend", ag.Backend)
+	}
+	inner, ok := wrapped.inner.(*agentcli.ClaudeBackend)
+	if !ok || inner.Effort != "high" {
+		t.Fatalf("inner backend = %#v, want Claude at high effort", wrapped.inner)
+	}
+	if !strings.Contains(out.String(), "high") {
+		t.Fatalf("picker effort was not reported: %q", out.String())
 	}
 }
 

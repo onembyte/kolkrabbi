@@ -128,6 +128,9 @@ func TestModelAndEffortTopLevelCommandsWork(t *testing.T) {
 	if !strings.Contains(out.String(), "ctx") {
 		t.Errorf("kolk model output missing catalog: %q", out.String())
 	}
+	if !strings.Contains(out.String(), "/model gpt-plus") {
+		t.Errorf("kolk model output missing subscription shortcut: %q", out.String())
+	}
 
 	// 2. kolk model <alias> sets model
 	a, out, errOut = newTestApp(t, "test-key")

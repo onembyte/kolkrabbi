@@ -46,6 +46,23 @@ type RuntimeOptions struct {
 	Meter func() (context string, cost string)
 }
 
+// synchronizedWriter serializes renderer frames with raw bytes from an
+// attached provider CLI. A terminal file is safe for concurrent writes on the
+// usual platforms, but Runtime also accepts bytes.Buffer and strings.Builder
+// in tests and embedding callers; more importantly, two writes to a terminal
+// can interleave halfway through an escape sequence. Both output owners must
+// therefore share one write boundary.
+type synchronizedWriter struct {
+	mu  sync.Mutex
+	out io.Writer
+}
+
+func (w *synchronizedWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.out.Write(p)
+}
+
 // Runtime serializes all terminal presentation through one controller. Model
 // output may stream from a worker while the main goroutine keeps accepting a
 // separate type-ahead draft.
@@ -130,6 +147,7 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 	if options.Height == nil {
 		options.Height = func() int { return defaultHeight }
 	}
+	output := &synchronizedWriter{out: options.Output}
 	controller := NewController(options.Status, defaultDraftSize)
 	controller.SetCommands(options.Commands, 8)
 	controller.SetModels(options.Models)
@@ -138,8 +156,8 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 	controller.SetSettings(options.Settings)
 	return &Runtime{
 		input: options.Input, controller: controller,
-		renderer: NewRenderer(options.Output), decoder: NewDecoder(),
-		output: options.Output,
+		renderer: NewRenderer(output), decoder: NewDecoder(),
+		output: output,
 		width:  options.Width, height: options.Height, resize: options.Resize, turn: options.Turn,
 		cyclePerm: options.CyclePermission, meter: options.Meter,
 		spinClock: realSpinnerClock{},

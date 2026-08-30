@@ -238,7 +238,7 @@ func commandTable() []command {
 	return []command{
 		{"key", "<api-key> | - | <provider> <api-key|->",
 			"add an API key for any supported provider", (*app).runKey},
-		{"model", "[id | alias]", "switch model or list available models", (*app).runModel},
+		{"model", "[id | alias]", "pick, switch, or list available models", (*app).runModel},
 		{"effort", "[low|medium|high|max]", "set default effort level", (*app).runEffort},
 		{"mode", "[chat|code|agent]", "set default operational mode", (*app).runMode},
 		{"config", "[get <k> | set <k> <v> | unset <k> | set-tier <effort> <id> | show]",

@@ -52,6 +52,34 @@ func TestResolvePlanModelIsCaseInsensitive(t *testing.T) {
 	}
 }
 
+func TestResolvePlanModelAcceptsFriendlySubscriptionAliases(t *testing.T) {
+	for _, test := range []struct {
+		alias string
+		model string
+		plan  string
+	}{
+		{alias: "claude-max", model: "claude-opus", plan: "Claude Max"},
+		{alias: "gpt-plus", model: "gpt-5.6-sol", plan: "ChatGPT Plus"},
+		{alias: "gpt-pro", model: "gpt-5.6-pro", plan: "ChatGPT Pro"},
+	} {
+		t.Run(test.alias, func(t *testing.T) {
+			manifest := enabledClaude()
+			if test.plan != "Claude Max" {
+				manifest = ConnectorManifest{Version: connectorManifestVersion, Connectors: []Connector{{
+					Provider: "openai", Plan: test.plan, Name: "codex", LoginOwner: "provider-cli", Enabled: true,
+				}}}
+			}
+			got, err := ResolvePlanModel(test.alias, manifest)
+			if err != nil {
+				t.Fatalf("ResolvePlanModel(%q): %v", test.alias, err)
+			}
+			if got.Model != test.model || got.Plan != test.plan {
+				t.Fatalf("resolved = %+v, want %s on %s", got, test.model, test.plan)
+			}
+		})
+	}
+}
+
 func TestResolvePlanModelRejectsAnUnknownReference(t *testing.T) {
 	_, err := ResolvePlanModel("no-such-model", enabledClaude())
 	if err == nil {

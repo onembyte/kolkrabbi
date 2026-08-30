@@ -254,16 +254,21 @@ func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 		if !a.connectorInstalled(plan.Connector) {
 			continue
 		}
+		shortcut := provider.SubscriptionModelShortcut(plan.Model)
+		shortcutNote := ""
+		if shortcut != "" {
+			shortcutNote = " · /model " + shortcut
+		}
 		if signedIn(plan) {
 			out = append(out, tui.ModelSpec{
 				ID: plan.Model, Cost: tui.CostSubscription, Rank: tui.ModelRank(tui.CostSubscription),
-				Name: plan.Plan + " · via your " + plan.Connector + " login",
+				Name: plan.Plan + " · via your " + plan.Connector + " login" + shortcutNote,
 			})
 			continue
 		}
 		out = append(out, tui.ModelSpec{
 			ID: plan.Model, Cost: tui.CostSubscriptionLogin, Rank: tui.ModelRank(tui.CostSubscriptionLogin),
-			Name: fmt.Sprintf("%s · sign in first:  kolk plans login %s %q", plan.Plan, plan.Provider, plan.Plan),
+			Name: fmt.Sprintf("%s · sign in first:  kolk plans login %s %q%s", plan.Plan, plan.Provider, plan.Plan, shortcutNote),
 		})
 	}
 
@@ -377,7 +382,7 @@ func tuiWelcome(messageCount int) string {
 	// way to discover and the thing that makes the three dials worth having.
 	// A resumed session has met them already, and repeating it every time is
 	// how an orientation becomes noise.
-	welcome.WriteString("Switch anytime with /mode, /effort or /model. Each lists its options.\n")
+	welcome.WriteString("Switch anytime with /mode, /effort or /model. Bare /model opens a picker.\n")
 	return welcome.String()
 }
 

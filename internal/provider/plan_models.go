@@ -65,6 +65,9 @@ func ResolvePlanModel(ref string, manifest ConnectorManifest) (PlanModel, error)
 
 func resolvePlanModel(catalog []PlanModel, ref string, manifest ConnectorManifest) (PlanModel, error) {
 	wanted := strings.ToLower(strings.TrimSpace(ref))
+	if target, ok := subscriptionModelAliases[wanted]; ok {
+		wanted = target
+	}
 	if wanted == "" {
 		return PlanModel{}, fmt.Errorf("name a plan model; `kolk pmodels` lists them")
 	}

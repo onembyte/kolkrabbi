@@ -12,6 +12,9 @@ import (
 
 func (a *app) runModel(ctx context.Context, args []string) error {
 	if len(args) == 0 {
+		if err := a.printPlanModelChoices(); err != nil {
+			return err
+		}
 		return a.runModels(ctx, nil)
 	}
 

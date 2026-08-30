@@ -24,7 +24,7 @@ var slashCommandTable = []slashCommand{
 	{"key", "<api-key> | - | <provider> <key>", "add an API key for any supported provider"},
 	{"mode", "<chat|code|agent>", "switch mode (agent = orchestrated; code is default)"},
 	{"effort", "<low|medium|high|max>", "select model tier and orchestration width"},
-	{"model", "[id]", "list available models or switch this session"},
+	{"model", "[id | alias] [effort]", "pick or switch this session's model (bare opens a picker in a terminal)"},
 	{"plans", "[filter] | login <provider> <plan>", "list plans or start provider-owned login"},
 	{"plogin", "[filter]", "search plans and start provider-owned login"},
 	{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors"},
@@ -81,6 +81,25 @@ func printSlashHelp(out interface{ Write([]byte) (int, error) }) {
 		}
 		_, _ = fmt.Fprintf(out, "%-42s %s\n", usage, command.summary)
 	}
+}
+
+// splitModelSelection separates the optional effort emitted by the model
+// picker from the model reference. Model ids are single command arguments in
+// every catalog, while the picker appends one effort word for plan-backed rows.
+// Keeping this at the slash boundary means both typed commands and picker
+// commands use exactly the same switching path.
+func splitModelSelection(arg string) (string, string) {
+	cleaned := strings.TrimSpace(arg)
+	fields := strings.Fields(cleaned)
+	if len(fields) < 2 {
+		return cleaned, ""
+	}
+	last := fields[len(fields)-1]
+	effort, ok := engine.NormalizeEffort(last)
+	if !ok {
+		return cleaned, ""
+	}
+	return strings.TrimSpace(cleaned[:len(cleaned)-len(last)]), effort
 }
 
 // reportAgentLane says what an orchestrated run may spend on.
@@ -355,27 +374,55 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 	case "/ask", "/auto-approve", "/full-auto":
 		a.setPermission(ag, strings.TrimPrefix(cmd, "/"))
 	case "/model":
-		if arg == "" {
+		modelRef, selectedEffort := splitModelSelection(arg)
+		if modelRef == "" {
 			fmt.Fprintf(a.stdout, "current model: %s\n", ag.SessionModel())
+			if err := a.printPlanModelChoices(); err != nil {
+				fmt.Fprintf(a.stderr, "could not list subscription models: %v\n", err)
+			}
 			d, _ := a.locate()
 			if err := a.printModelCatalog(ctx, ag.Client, d.CatalogFile(), false, ""); err != nil {
 				fmt.Fprintf(a.stderr, "could not list models: %v\n", err)
 			}
-			fmt.Fprintln(a.stdout, "\nswitch: /model <name|alias>")
-		} else if planModel, err := a.namedPlanModel(arg); err != nil {
+			fmt.Fprintln(a.stdout, "\nswitch: /model <id|alias>  (shortcuts: /model claude-pro, /model claude-max, /model gpt-plus, /model gpt-pro)")
+		} else if planModel, err := a.namedPlanModel(modelRef); err != nil {
 			// A plan model the user cannot use yet is a refusal with a reason,
 			// never a catalog search that ends in an OpenRouter error.
 			fmt.Fprintf(a.stdout, "%v\n", err)
-		} else if planModel || strings.Contains(arg, "/") || provider.ResolveModelAlias(arg) != arg {
-			label, err := a.switchModel(ctx, ag, arg)
+		} else if planModel || strings.Contains(modelRef, "/") || provider.ResolveModelAlias(modelRef) != modelRef {
+			previousEffort := ag.Effort
+			previousSessionEffort := ""
+			if ag.Sess != nil {
+				previousSessionEffort = ag.Sess.SessionEffort()
+			}
+			if selectedEffort != "" {
+				if err := ag.SetEffort(selectedEffort); err != nil {
+					fmt.Fprintf(a.stdout, "%v\n", err)
+					break
+				}
+				if ag.Sess != nil {
+					ag.Sess.SetEffort(ag.Effort)
+				}
+			}
+			label, err := a.switchModel(ctx, ag, modelRef)
 			if err != nil {
+				if selectedEffort != "" {
+					_ = ag.SetEffort(previousEffort)
+					if ag.Sess != nil {
+						ag.Sess.SetEffort(previousSessionEffort)
+					}
+				}
 				fmt.Fprintf(a.stdout, "%v\n", err)
 				break
 			}
-			fmt.Fprintf(a.stdout, "model set to %s\n", label)
+			if selectedEffort != "" {
+				fmt.Fprintf(a.stdout, "model set to %s at %s effort\n", label, selectedEffort)
+			} else {
+				fmt.Fprintf(a.stdout, "model set to %s\n", label)
+			}
 		} else {
 			d, _ := a.locate()
-			if err := a.printModelCatalog(ctx, ag.Client, d.CatalogFile(), false, arg); err != nil {
+			if err := a.printModelCatalog(ctx, ag.Client, d.CatalogFile(), false, modelRef); err != nil {
 				fmt.Fprintf(a.stderr, "could not list models: %v\n", err)
 			}
 			fmt.Fprintf(a.stdout, "\nswitch: /model <id|alias>\n")

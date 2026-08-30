@@ -4539,6 +4539,42 @@ gofmt's actual output, so no mutation was applied at all, and a silently-passing
 identical to a validly-caught one. Every mutation below was confirmed by `diff` against the original
 before trusting its test result, and reverted to a byte-identical file after.
 
+## H8 Codex output and subscription model selection (2026-08-30)
+
+**Gate:** `make check` exit 0 — **2,780 tests, 0 lint issues**, platform builds and all release
+workflow/verifier/smoke/plan gates green; focused `-race` tests on shell, provider, provider CLI,
+TUI, and CLI green.
+
+The first live use of the newly routed Codex plan model failed before any event reached the
+translator: `bufio.Scanner` rejected a provider JSONL line above its arbitrary 1 MiB buffer and
+surfaced the opaque `bufio.Scanner: token too long`. Because the same failure appeared beside
+sign-in guidance, it looked like authentication had failed even though the connector was enabled.
+
+Both one-shot and persistent provider readers now use one bounded `bufio.Reader.ReadSlice`
+accumulator. It accepts lines through 16 MiB, enough for the large tool-result frames these CLIs
+emit, and gives a named bounded-output error above that limit. The red reproduction also revealed
+that the old failure path killed only the shell leader: a pipeline child retained stdout and made
+the wait stall. Reader failures now kill and reap the whole provider process group.
+
+Model selection had two independent gaps. Bare `/model` in the plain REPL depended on the API
+catalog and gave no plan choices when that request failed, while the TUI picker emitted an effort
+suffix the slash dispatcher treated as part of the model id. Bare `/model` and singular `kolk model`
+now show subscription rows with exact ids, `claude-pro`/`claude-max` and `gpt-plus`/`gpt-pro`
+shortcuts, and the exact sign-in command when needed. `/model <id|alias> <effort>` applies the model,
+session effort, and provider backend together. Help, shell completions, welcome text, and TUI rows
+use the same vocabulary; ordinary aliases such as `flash` retain their existing API route.
+
+The race gate found one adjacent ownership defect: raw PTY output and a pending renderer frame
+could write the same output writer concurrently. Runtime now shares one synchronized writer between
+the renderer and attached child, preserving escape-sequence boundaries and making embedded
+non-thread-safe writers safe.
+
+**Red/green:** the large-line regression failed under the old Scanner and then passed at 12 MiB;
+the over-limit regression rejects 16 MiB+1 with a clear bounded error; alias and picker-effort
+tests failed before their routing changes and pass now; the existing `flash` alias regression
+caught and forced the plan-alias narrowing; the CLI race test caught and forced the synchronized
+writer. No release tag or commit was created here.
+
 ## H7 five ways to own the terminal, and only some of them knew about each other (2026-08-30)
 
 **Gate:** `make check` exit 0 — **2,700 tests, 0 lint issues**, `-race` green on `internal/tui`,

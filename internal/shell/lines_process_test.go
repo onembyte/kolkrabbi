@@ -142,6 +142,28 @@ func TestLinesProcessReusesOneChildForMultipleLines(t *testing.T) {
 	}
 }
 
+func TestLinesProcessAcceptsALargeProviderLine(t *testing.T) {
+	process, err := StartLinesProcess(context.Background(), "cat", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = process.Close() }()
+
+	want := bytes.Repeat([]byte("x"), 12*1024*1024)
+	if err := process.Send(want); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	got, err := process.Next(ctx)
+	if err != nil {
+		t.Fatalf("reading the large provider line: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("line length/content = %d/%q, want %d bytes of x", len(got), got[:min(len(got), 20)], len(want))
+	}
+}
+
 // withinTimeout fails instead of hanging the suite when a call blocks forever.
 func withinTimeout(t *testing.T, what string, call func()) {
 	t.Helper()
