@@ -128,7 +128,7 @@ would say they might change.
 
 ---
 
-## C3 — Cancelling a wide run leaks nothing
+## C3 — Cancelling a wide run leaks nothing  ·  **done**
 
 **Observable:** cancelling an orchestrated run with tasks in flight leaves no goroutine blocked on
 `finished <- run`.
@@ -139,9 +139,22 @@ in-flight task, because the deferred `Close` never runs.
 
 **Files:** `internal/engine/orchestrator.go`
 
-- [ ] **C3.1** Buffer the channel: `make(chan taskRun, len(tasks))`.
-- [ ] **C3.2** Confirm `runOneTask` uses the task's own `ctx` and never `context.WithoutCancel` — the parent backend deliberately survives a cancelled turn; a subagent deliberately must not.
-- [ ] **C3.3** Test, then gates.
+- [x] **C3.1** Buffer the channel: `make(chan taskRun, len(tasks))`.
+- [x] **C3.2** Confirm `runOneTask` uses the task's own `ctx` and never `context.WithoutCancel` — the parent backend deliberately survives a cancelled turn; a subagent deliberately must not.
+- [x] **C3.3** Test, then gates.
+
+**Done 2026-08-30.** The leak was real — three goroutines stranded — but it took three attempts to
+write a test that could see it, and each failure is worth keeping:
+
+1. `runtime.NumGoroutine()` is too blunt. The runtime's total drifts with whatever else the binary
+   is doing, and a leak of three inside that noise passes.
+2. Counting by *name* (`runOneTask` in the stack) is precise, and still passed — because
+3. a task with the **zero `Kind` writes files**, and `writesFiles` serialises those deliberately. All
+   four tasks ran one at a time, so nothing was ever in flight to strand. Using `KindResearch`
+   finally showed it: `3 subagent goroutines outlived the cancelled run`.
+
+C3.2 needed no change: `runOneTask` already takes the task's own `ctx`. The parent backend
+deliberately survives a cancelled turn; a subagent deliberately must not.
 
 **Tests** — `internal/engine/orchestrator_failure_test.go`
 - `TestACancelledRunLeavesNoSubagentGoroutineBehind` (baseline `runtime.NumGoroutine()`, cancel mid-run, poll back to baseline)

@@ -149,7 +149,13 @@ func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([
 	started := make([]bool, len(tasks))
 
 	limit := a.concurrencyLimit()
-	finished := make(chan taskRun)
+	// Buffered to the number of tasks, so a sender never blocks. runTasks
+	// returns from inside its loop when the user cancels, and with an
+	// unbuffered channel every goroutine that had not yet delivered its result
+	// blocked on the send forever. That leaks a goroutine today, and a vendor
+	// child process per in-flight task once a subagent owns one, because the
+	// deferred Close never runs.
+	finished := make(chan taskRun, len(tasks))
 	running, writing := 0, false
 
 	for {

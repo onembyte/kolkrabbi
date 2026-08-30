@@ -3,8 +3,10 @@ package engine
 import (
 	"context"
 	"net/http"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/enginetest"
 )
@@ -157,4 +159,68 @@ func lastRequestText(t *testing.T, srv *enginetest.Server) string {
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+// A cancelled run must not strand the subagents that were still working.
+//
+// `finished` was unbuffered while runTasks returns from inside its loop on
+// cancellation, so every goroutine that had not yet delivered its result
+// blocked forever on the send. Today that leaks a goroutine; once a subagent
+// owns a vendor process it leaks a child process per in-flight task, because
+// the deferred Close never runs.
+func TestACancelledRunLeavesNoSubagentGoroutineBehind(t *testing.T) {
+	// Responses held open, so every task is still in flight when the
+	// cancellation lands — the only state in which the leak exists.
+	held := enginetest.Step{Text: "slow", Delay: 400 * time.Millisecond}
+	srv := enginetest.New(held, held, held, held)
+	defer srv.Close()
+
+	agent, _, _, _ := newTestAgentInternal(t, srv, ModeAgent)
+	agent.MaxConcurrentTasks = 4
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		// Research kinds, because a task that writes files is deliberately
+		// serialised — with the zero Kind all four would run one at a time and
+		// there would be nothing in flight to strand.
+		_, _ = agent.runTasks(ctx, "four things", []Task{
+			{Title: "a", Kind: KindResearch}, {Title: "b", Kind: KindResearch},
+			{Title: "c", Kind: KindResearch}, {Title: "d", Kind: KindResearch},
+		})
+	}()
+
+	// Let every task reach the server, then withdraw the question.
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+	<-done
+
+	// Counted by name rather than by NumGoroutine: the runtime's total drifts
+	// with whatever else the test binary is doing, and a leak of three inside
+	// that noise is exactly what a blunt count misses.
+	deadline := time.Now().Add(5 * time.Second)
+	stranded := 0
+	for time.Now().Before(deadline) {
+		if stranded = countGoroutines("runOneTask"); stranded == 0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if stranded > 0 {
+		t.Errorf("%d subagent goroutines outlived the cancelled run, blocked sending a result nobody will receive", stranded)
+	}
+}
+
+// countGoroutines counts live goroutines whose stack names fn.
+func countGoroutines(fn string) int {
+	buffer := make([]byte, 1<<20)
+	buffer = buffer[:runtime.Stack(buffer, true)]
+	count := 0
+	for _, stack := range strings.Split(string(buffer), "\n\n") {
+		if strings.Contains(stack, fn) {
+			count++
+		}
+	}
+	return count
 }
