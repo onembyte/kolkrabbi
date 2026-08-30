@@ -4881,3 +4881,27 @@ through a local, and the struct is never written while a pump is alive.
 **The keyboard pump is deliberately not joined.** It is parked in a read on the session's terminal,
 which does not unblock when the child exits — waiting for it would hang the login until the user
 happened to press a key. `TestItReturnsWithoutWaitingForAKeystroke` pins that.
+
+### R1.10 v1.2.22 in-session-login release
+
+**Gate:** `make check` green — 2625 tests — and `go test ./... -race` clean.
+
+**Publication:** commit `ba40df3` on `main`, tag `v1.2.22`. Release workflow run 33288720527 passed
+verify and publish. Four archives plus the Cosign-signed `checksums.txt` are public and the latest
+redirect resolves to `v1.2.22`.
+
+**The first attempt failed the gate, and the release gate is the reason it was caught.** Run
+33288587029 failed at `verify`, on a test written in this session:
+`TestALoginRunsInsideTheSessionOnItsOwnTerminal` asserted the child reported `/dev/tty`. A pty slave
+is `/dev/ttysNNN` on darwin and `/dev/pts/N` on linux, so the assertion described the machine it was
+written on rather than the behaviour it meant to check. Everything ran green locally; nothing was
+wrong with the code.
+
+The fix asks `tty` the actual question — the output must name a device and must not be "not a tty" —
+and the two sibling tests in `internal/term` and `internal/shell` carried the same trap and were
+hardened with it. Worth keeping: a pty test that names a device path is testing an operating system,
+not a program. CI also proved `/dev/ptmx` is available in the runner, since the failure was the
+assertion rather than the allocation.
+
+The tag was deleted and recreated on the fixed commit rather than left pointing at a build that
+never published.
