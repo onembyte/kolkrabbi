@@ -291,7 +291,7 @@ until it happened to be used, so signing in would appear to do nothing.
 
 ---
 
-## C7 — Each subagent gets its own vendor process  ·  **engine half done**
+## C7 — Each subagent gets its own vendor process  ·  **done, both vendors**
 
 **Observable:** two concurrent subagents no longer serialise on one `ClaudeSession.mu`, and a
 subagent whose child dies no longer retires the parent's conversation. Every task still runs on the
@@ -300,11 +300,31 @@ ceiling model.
 **Files:** `internal/engine/subagent_backend.go` (new), `retry.go`, `orchestrator.go`, `internal/cli/subagent_backend.go`, `run.go`
 
 - [x] **C7.1** Port on `Options`: open a backend for one task. Nil means today's behaviour — share `a.Backend`.
-- [ ] **C7.2** Implement in `internal/cli`, constructing the adapter **directly from the connector manifest**, never through `ResolvePlanModel` — judge defect A: the catalogue has no haiku row, so that path returns a nil backend with a nil error.
+- [x] **C7.2** Implement in `internal/cli`, constructing the adapter **directly from the connector manifest**, never through `ResolvePlanModel` — judge defect A: the catalogue has no haiku row, so that path returns a nil backend with a nil error.
 - [x] **C7.3** Own it in `runOneTask`, which already owns the per-task lifetime; close on **every** path out.
 - [x] **C7.4** Teardown needs a type assertion — `ChatBackend` declares only `StreamChat`; every existing teardown goes through `io.Closer`.
 - [x] **C7.5** The graft: use the supplied backend **only while `model` still equals what it was opened for**. `streamChat` mutates `model` in-loop on free rotation and on the metered switch; after either, fall back to `backendFor` — which also preserves owned-prefix stripping.
-- [ ] **C7.6** Tests, then gates.
+- [x] **C7.6** Tests, then gates.
+
+**Done 2026-08-30.** `make check` green at 2723 tests, race clean.
+
+**Judge defect A, confirmed by reading rather than trusting.** `planBackendFor` really does return a
+nil backend AND a nil error for `claude-haiku` — `errors.Is(err, ErrNotAPlanModel)` maps to
+"ordinary model, use the gateway". A subagent routed through it would have asked OpenRouter for an id
+it has never heard of, and the whole feature would have looked built while changing nothing. The port
+constructs the adapter straight from the connector manifest instead:
+`TestOpeningACheaperRungDoesNotGoThroughThePlanCatalogue` asserts the premise is still true and that
+the port survives it.
+
+**I nearly shipped the bug I had held codex back to avoid.** Having lifted its refusal, I noticed
+`subagentBackend` only handled claude — so a codex session would have returned `(nil, nil)`, shared
+one backend, and interleaved exactly as before. Codex is now implemented in the port, with a thread
+per subagent, and only then is the refusal honest. `CodexKnowsModel` joins `ClaudeKnowsModel`, and
+`TestEverySpawnableRungIsAModelItsAdapterAccepts` now walks **both** ladders — it is what fails the
+day someone edits `vendorLadders` without editing the adapter.
+
+`(nil, nil)` from the port is a deliberate contract: not a vendor rung, so share the session's
+provider. It is what a gateway session has always done and what a nil port means.
 
 **Tests** — `internal/engine/subagent_backend_test.go`, `internal/cli/subagent_backend_test.go`
 - `TestEachSubagentTalksToItsOwnProvider`

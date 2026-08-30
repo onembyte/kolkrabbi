@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/engine"
-	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/provider/agentcli"
 )
 
@@ -29,27 +28,15 @@ import (
 // effect immediately, and a rung that then fails to open is handled where that
 // failure belongs.
 func (a *app) rungAvailable() engine.RungAvailable {
-	dirs, err := a.locate()
-	if err != nil {
-		return func(string, string) bool { return false }
-	}
-	manifest, err := provider.LoadConnectors(dirs.ConnectorsFile())
-	if err != nil {
-		return func(string, string) bool { return false }
-	}
-	signedIn := make(map[string]bool, len(manifest.Connectors))
-	for _, connector := range manifest.Connectors {
-		if connector.Enabled {
-			signedIn[strings.ToLower(connector.Name)] = true
-		}
-	}
 	return func(vendor, model string) bool {
-		if !signedIn[strings.ToLower(vendor)] {
+		if !a.connectorSignedIn(vendor) {
 			return false
 		}
 		switch strings.ToLower(vendor) {
 		case "claude":
 			return agentcli.ClaudeKnowsModel(model)
+		case "codex":
+			return agentcli.CodexKnowsModel(model)
 		default:
 			// A vendor kolk can sign into but cannot yet spawn a chosen model
 			// for offers nothing. Saying no here is what keeps the roster from

@@ -376,6 +376,11 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		Recorder:   stats.NewStore(d.Data),
 		Tiers:      cfg.Tiers,
 		Slots:      cfg.Slots,
+		// Each orchestrated task gets its own vendor process rather than
+		// sharing the session's: one backend means one conversation and one
+		// mutex, so subagents would serialise and write their briefings into a
+		// single transcript.
+		SubagentBackend: a.subagentBackend(),
 		// What to do when the plan behind the session runs out: ask (the
 		// default), switch to the metered model below, or stop (A33.7).
 		OnSubscriptionLimit: cfg.Routing.OnSubscriptionLimit,

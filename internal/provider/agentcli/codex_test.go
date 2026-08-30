@@ -229,7 +229,11 @@ func TestBuildCodexInvocationShapesTheArgv(t *testing.T) {
 		model, mode, effort string
 		want                string
 	}{
-		{"", "agent", "", "agent mode"},
+		// Agent mode is no longer among these. It was refused while every
+		// subagent shared one CodexBackend, and therefore one vendor thread —
+		// several would have interleaved into a single transcript. A backend
+		// per subagent removes the sharing, so the reason is gone; the case
+		// below asserts it is accepted rather than rejected.
 		{"", "code", "max", "effort level"},
 		{"", "sideways", "", "unknown mode"},
 		{"", "code", "", "prompt cannot be empty"},
@@ -238,6 +242,20 @@ func TestBuildCodexInvocationShapesTheArgv(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), probe.want) {
 			t.Fatalf("(model=%q mode=%q effort=%q) err = %v, want it to name %q", probe.model, probe.mode, probe.effort, err, probe.want)
 		}
+	}
+
+	// Agent mode takes the same sandbox as code mode, now that a subagent gets
+	// its own thread instead of resuming the backend's.
+	agentMode, err := BuildCodexInvocation("gpt-5.6-sol", "agent", "", "", false, "do the thing")
+	if err != nil {
+		t.Fatalf("agent mode was refused: %v", err)
+	}
+	codeMode, err := BuildCodexInvocation("gpt-5.6-sol", "code", "", "", false, "do the thing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(agentMode.Args, " ") != strings.Join(codeMode.Args, " ") {
+		t.Errorf("agent argv = %v, want the same as code %v", agentMode.Args, codeMode.Args)
 	}
 }
 

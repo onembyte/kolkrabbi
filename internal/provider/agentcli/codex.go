@@ -77,21 +77,20 @@ func CodexEffortValid(effort string) bool {
 // process: codex exec replays no argv, because there is no persistent process.
 func codexModeSandbox(mode string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
-	case "", "code":
-		return "workspace-write", nil
 	case "chat":
 		return "read-only", nil
-	case "agent":
-		// Refused for a narrower and more concrete reason than it used to give.
-		// "The vendor schedules its own work" is equally true of code mode,
-		// which is allowed. What actually breaks is the conversation: one
-		// CodexBackend holds one thread id, and every turn resumes it with
-		// `codex exec resume <thread>`. Several subagents on one backend would
-		// interleave their turns into a single vendor transcript — not a data
-		// race (the field is guarded) but one conversation where there should
-		// be several. Lifting this needs a backend per subagent, which is the
-		// same change claude needs for its own reasons.
-		return "", fmt.Errorf("codex cannot run kolk's agent mode yet: subagents would share one vendor conversation; run code mode instead")
+	// Agent mode takes the workspace-write sandbox, the same as code mode.
+	//
+	// This was refused until each subagent got its own backend. The reason was
+	// concrete: one CodexBackend holds one thread id and every turn resumes it
+	// with `codex exec resume <thread>`, so several subagents on one backend
+	// would interleave their turns into a single vendor transcript — one
+	// conversation where there should be several. It was never the data race it
+	// was once reported as; the field is guarded.
+	//
+	// A backend per subagent removes the sharing, so the reason is gone.
+	case "", "code", "agent":
+		return "workspace-write", nil
 	default:
 		return "", fmt.Errorf("unknown mode %q (chat|code|agent)", mode)
 	}
@@ -327,6 +326,26 @@ type CodexBackend struct {
 	run    lineRunner
 	mu     sync.Mutex
 }
+
+// CodexKnowsModel reports whether this adapter can spawn a model.
+//
+// Codex takes the plan catalogue's ids verbatim — it has no alias table — so
+// the answer is whether the id is one of the codex rungs kolk ranks. Asked
+// before a spawn rather than after, because a model the vendor rejects costs a
+// whole turn to discover.
+func CodexKnowsModel(model string) bool {
+	for _, rung := range codexRungs {
+		if strings.EqualFold(strings.TrimSpace(model), rung) {
+			return true
+		}
+	}
+	return false
+}
+
+// codexRungs are the codex models kolk knows how to ask for. It mirrors the
+// codex ladder in the engine; the two are checked against each other by
+// TestEverySpawnableRungIsAModelItsAdapterAccepts.
+var codexRungs = []string{"gpt-5.6-pro", "gpt-5.6-sol"}
 
 // NewCodexBackendFromHandle creates a backend that resumes one vendor thread
 // (resume true, handle non-empty) or opens a brand-new one the vendor names.
