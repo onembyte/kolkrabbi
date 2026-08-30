@@ -4539,6 +4539,37 @@ gofmt's actual output, so no mutation was applied at all, and a silently-passing
 identical to a validly-caught one. Every mutation below was confirmed by `diff` against the original
 before trusting its test result, and reverted to a byte-identical file after.
 
+## H3 a row's identity and its screen position stop being the same variable (2026-08-30)
+
+**Gate:** `make check` exit 0 — **2,632 tests, 0 lint issues**, `-race` green on `internal/tui`.
+
+The `/model` overlay could always be arrowed through; it could not be typed into. `c.modelIndex`
+now indexes a filtered, ranked view of `c.modelPicker` — recomputed by `filteredModelIndices()`
+from H0's `fuzzyScoreFields` on every keystroke — instead of the catalog itself, and typing or
+Backspace narrows or widens that view live.
+
+**The bug worth naming: `KeyLeft`/`KeyRight` mutated `c.modelPicker[c.modelIndex]` directly**, which
+was only ever safe because the displayed order and the catalog order were the same order. Once a
+filter can show a different row at index 0 than the catalog's own row 0, that line turns the
+*wrong model's* effort — silently, since both reads succeed and nothing panics unless the row it
+happens to hit has no `Efforts` at all. The fix keeps `modelPicker` as the one source of truth and
+reaches it only through `c.modelPicker[indices[c.modelIndex]]`. Mutation: revert to the direct
+index, and turning the dial on a single filtered claude row silently turns "vendor/mock"'s absent
+dial instead — the claude row's effort never moves, caught by exactly one test and none of the
+pre-existing ones, which is the point: the bug is specific to filtering, not a general regression.
+
+**A second bug in the same family, caught only because a test went looking for it.** Move the
+marker down an unfiltered list, then type a filter that narrows the list below the marker's raw
+position, and `indices[c.modelIndex]` reads past the end of a list that just got shorter. The reset
+line that prevents this already existed when the leaf was written; what didn't exist was a test
+requiring it, and mutating it away passed the whole suite silently. Same lesson H0 already taught
+with its dead scoring term: a mutation surviving is a claim about missing coverage, worth chasing
+down rather than shrugging off because the rest of the suite stayed green.
+
+Escape backs out one step — clears an active filter first, closes the overlay only once there is
+nothing left to clear — matching fzf and the rest of this group's own stated aim, implemented
+exactly as the owner scoped it before any of H's code existed rather than re-litigated here.
+
 ## H2 two small pieces, not a shared skeleton — the plan changed on contact (2026-08-30)
 
 **Gate:** `make check` exit 0 — **2,627 tests, 0 lint issues**, `-race` green on `internal/tui`.

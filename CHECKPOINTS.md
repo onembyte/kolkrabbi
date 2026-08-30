@@ -643,8 +643,7 @@ left/right for text editing and relearning the effort-cycle key.
 - [x] **H2 the two genuinely shared pieces of a filterable overlay** — narrower than first scoped;
   see below for why a full shared overlay skeleton was the wrong shape once a name existed for
   each piece.
-- [ ] **H3 the `/model` overlay gets the live filter box** — built on H2. Left/right keeps cycling
-  effort exactly as today.
+- [x] **H3 the `/model` overlay filters live** — built on H2's `filterBox`. See below.
 - [ ] **H4 a `/config` overlay** — the literal ask: a search box for settings, built on H2,
   sourcing the `SettingSpec` rows already plumbed for the inline suggestions (`c.settings`). Bare
   `/config` in the TUI opens it instead of the static dump; `/config get|set|unset <args>` is
@@ -777,6 +776,53 @@ Acceptance checklist:
   the empty-box test. Both revert to byte-identical diffs.
 - [x] `-race` green across `internal/tui`.
 - [x] full `make check` green: **2,627 tests, 0 lint issues**.
+
+### H3 built — a row's identity and its position on screen had to stop being the same variable
+
+The `/model` overlay could always be arrowed through; it could not be typed into. `c.modelIndex`
+now indexes a **filtered, ranked view** of `c.modelPicker` — recomputed by `filteredModelIndices()`
+from H0's `fuzzyScoreFields` on every keystroke — rather than the catalog itself, and typing or
+Backspace narrows or widens that view live, exactly like every inline suggestion already did before
+H1.
+
+**The one bug worth naming: a row's identity and its screen position stopped being interchangeable
+the moment filtering could reorder or hide rows, and the effort dial was still written as though
+they were the same thing.** `KeyLeft`/`KeyRight` used to mutate `c.modelPicker[c.modelIndex]`
+directly, which was safe only because the displayed order and the catalog order were always
+identical. Once a filter could show a *different* row at index 0 than the catalog's own row 0, that
+line would turn the *wrong model's* effort — silently, since both reads succeed and nothing panics
+if the row it hits happens to have its own `Efforts` slice. Fixed by keeping `modelPicker` as the
+one source of truth and never touching it except through
+`c.modelPicker[indices[c.modelIndex]]`, where `indices` is the current filtered view. Mutation
+confirms this by reverting to the direct index: turning the dial on a filtered single-claude view
+silently turns "vendor/mock"'s (absent) dial instead, and the claude row's effort never moves.
+
+**A second bug in the same family, caught only because a test went looking for it rather than
+happening to trip over it.** Moving the marker down an unfiltered list and then typing a filter
+that narrows the list below the marker's raw position — reproduced directly by
+`TestModelPickerResetsTheMarkerWhenTheFilterNarrowsPastIt` — needs the marker reset on every
+keystroke, or `indices[c.modelIndex]` reads past the end of a list that just got shorter. The reset
+line already existed when this session wrote the leaf; what did not exist was a test requiring it,
+and mutating it away passed the whole suite silently until this test was written specifically to
+require it. Recorded the same way H0's dead scoring term was: a mutation surviving is a claim about
+missing coverage, chased down rather than left alone because the rest of the suite was green.
+
+**Escape backs out one step, matching fzf and every fuzzy picker this group is meant to resemble:**
+an active filter clears first; the overlay closes only once there is nothing left to clear. This
+was one of the two decisions the owner made explicit before any of H's code was written, so it is
+implemented exactly as scoped rather than re-litigated here.
+
+Acceptance checklist:
+
+- [x] red first: `pick.Filter` referenced in four new tests before `ModelPick` had the field.
+- [x] the effort-dial identity bug caught by mutation: reverting to direct-index mutation passes
+  every pre-existing test and fails only `TestModelPickerEffortDialSurvivesFiltering` — proof the
+  bug is real and specific to filtering, not a general regression the old tests would have caught
+  anyway.
+- [x] the marker-reset bug caught the same way, by a test written to specifically require it after
+  mutation testing showed it was unproven.
+- [x] `-race` green across `internal/tui`.
+- [x] full `make check` green: **2,632 tests, 0 lint issues**.
 
 ### S10.1c built — provenance becomes mechanical, and one artifact stops being contagious
 

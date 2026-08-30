@@ -73,6 +73,10 @@ type Controller struct {
 	// line rather than to an option string.
 	modelPicker []ModelPickEntry
 	modelIndex  int
+	// modelFilter narrows modelPicker to the rows fuzzyScoreFields still
+	// accepts. Index is into that filtered, ranked view, not into modelPicker
+	// itself — the two only coincide while the filter is empty.
+	modelFilter filterBox
 	editor      *Editor
 	status      Status
 	busy        bool
