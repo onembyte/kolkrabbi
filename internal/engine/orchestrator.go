@@ -331,12 +331,17 @@ func (a *Agent) concurrencyLimit() int {
 	if a.MaxConcurrentTasks > 0 {
 		return a.MaxConcurrentTasks
 	}
-	return defaultConcurrentTasks
+	return DefaultConcurrentTasks
 }
 
-// defaultConcurrentTasks is three: small enough that the output of that many
+// DefaultConcurrentTasks is three: small enough that the output of that many
 // agents can still be read, and rate limits rather than CPU are what binds.
-const defaultConcurrentTasks = 3
+//
+// Exported so a surface reporting the default reads it from the package that
+// applies it. internal/config sits below this one and cannot import it, so the
+// literal in config/settings.go is a deliberate duplicate — this comment is
+// where anyone changing the number finds out about the other copy.
+const DefaultConcurrentTasks = 3
 
 // noteRunCost shows what the run has spent so far.
 //

@@ -57,7 +57,7 @@ tool loop. `runSubagent`'s round loop runs once; `MaxRoundsFor`, `doomLoop` and
 
 ---
 
-## C1 — The two safety valves become settable
+## C1 — The two safety valves become settable  ·  **done**
 
 **Observable:** `kolk config set max_run_cost_usd 2.50`, `kolk config set max_concurrent_tasks 2` and
 `kolk config set slot.fast claude-haiku` all succeed, and `get` / `unset` round-trip them.
@@ -67,13 +67,22 @@ brakes on a fan-out run, and today neither can be set from the command line.
 
 **Files:** `internal/cli/cmd_config.go`
 
-- [ ] **C1.1** Read the three switches (`get`, `set`, `unset`) and note where the `base_url` case sits in each — the new cases go beside it, in the same order in all three.
-- [ ] **C1.2** `set max_run_cost_usd`: `strconv.ParseFloat`, refuse negatives with a message naming the value, write `cfg.MaxRunCostUSD`.
-- [ ] **C1.3** `set max_concurrent_tasks`: `strconv.Atoi`, refuse anything below 1 (zero would mean a run that never starts a task), write `cfg.MaxConcurrentTasks`.
-- [ ] **C1.4** `set slot.<name>`: validate through `engine.ValidateSlots` so `slot.explorer` is refused **at the point of typing** with the existing four-name message, then write into `cfg.Slots`, creating the map when nil.
-- [ ] **C1.5** `get` for all three, matching how the existing keys print.
-- [ ] **C1.6** `unset` for all three; deleting the last slot must nil the map so it stays out of the JSON entirely.
-- [ ] **C1.7** Tests, then gates.
+- [x] **C1.1** Read the three switches (`get`, `set`, `unset`) and note where the `base_url` case sits in each — the new cases go beside it, in the same order in all three.
+- [x] **C1.2** `set max_run_cost_usd`: `strconv.ParseFloat`, refuse negatives with a message naming the value, write `cfg.MaxRunCostUSD`.
+- [x] **C1.3** `set max_concurrent_tasks`: `strconv.Atoi`, refuse anything below 1 (zero would mean a run that never starts a task), write `cfg.MaxConcurrentTasks`.
+- [x] **C1.4** `set slot.<name>`: validate through `engine.ValidateSlots` so `slot.explorer` is refused **at the point of typing** with the existing four-name message, then write into `cfg.Slots`, creating the map when nil.
+- [x] **C1.5** `get` for all three, matching how the existing keys print.
+- [x] **C1.6** `unset` for all three; deleting the last slot must nil the map so it stays out of the JSON entirely.
+- [x] **C1.7** Tests, then gates.
+
+**Done 2026-08-30.** `make check` green at 2648 tests, race clean, and verified against a built
+binary on a fresh config directory: every valid value written, every invalid one refused by name.
+
+Two notes worth keeping. The default width `3` now lives in `engine.DefaultConcurrentTasks` and the
+CLI reads it from there; `config/settings.go` sits below the engine and cannot import it, so its
+literal is a deliberate duplicate and the constant's comment says so. And the first verification run
+reported every command as a usage error — that was **zsh**, which does not word-split unquoted
+parameter expansions, so `$cmd` arrived as one argument. The code was correct; the harness was not.
 
 **Tests** — `internal/cli/cmd_config_test.go`
 - `TestARunCostCeilingCanBeSetAndReadBack`
