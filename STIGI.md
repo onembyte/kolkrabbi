@@ -380,7 +380,7 @@ would be a write racing the scheduler's own reads — the graft the judges asked
 
 ---
 
-## C9 — The run survives a rung that will not open, and stops when the plan does
+## C9 — The run survives a rung that will not open, and stops when the plan does  ·  **done**
 
 **Observable:** a subagent whose cheaper rung fails to spawn retries once on the ceiling and says so;
 under `on_subscription_limit stop`, the rest of the run resolves in place instead of failing N times
@@ -388,11 +388,30 @@ identically.
 
 **Files:** `internal/engine/orchestrator.go`, `subscription_limit.go`
 
-- [ ] **C9.1** One retry on the ceiling when a cheaper rung will not start.
-- [ ] **C9.2** Announce it — a silent downgrade to a more expensive model is the surprise this feature exists to prevent.
-- [ ] **C9.3** A second failure fails the task rather than climbing further.
-- [ ] **C9.4** Eight subagents hitting the plan limit ask **once**, not eight times.
-- [ ] **C9.5** Tests, then gates.
+- [x] **C9.1** One retry on the ceiling when a cheaper rung will not start.
+- [x] **C9.2** Announce it — a silent downgrade to a more expensive model is the surprise this feature exists to prevent.
+- [x] **C9.3** A second failure fails the task rather than climbing further.
+- [x] **C9.4** Eight subagents hitting the plan limit ask **once**, not eight times.
+- [x] **C9.5** Tests, then gates.
+
+**Done 2026-08-30.** `make check` green at 2736 tests, race clean.
+
+**The fallback needs no roster.** Rung 0 is the session model verbatim, so the target of a failed
+spawn is just `SessionModel()` — no manifest read, no availability question, on a path that only runs
+when something has already gone wrong.
+
+**C9.4 turned out to be already built.** `resolveSubscriptionLimit` holds `limitMu` and caches
+`limitDecided`, so eight subagents meeting one exhausted plan ask once — the other session's A33.7
+work. The checkpoint added the test that pins it, run under `-race`, rather than an implementation.
+
+Writing that test found something worth knowing: the limit question goes through **`a.Ask.Choose`**,
+the Chooser port built earlier in this session for the question picker. My first attempt used the
+`Decider` and was asked zero times — the test failed for the right reason and corrected my mental
+model of which port owns that question.
+
+**The announcement is not optional.** Quietly running on a more expensive model is the exact surprise
+this feature exists to prevent, and the direction being "up to what you already chose" does not make
+it one to discover afterwards.
 
 **Tests**
 - `TestARungThatWillNotStartFallsBackToTheModelTheUserChose`

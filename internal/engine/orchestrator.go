@@ -254,11 +254,30 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	own, release, openErr := a.openSubagentBackend(ctx, model)
 	defer release()
 
+	// A cheaper rung that will not spawn must not lose the task: the work still
+	// needs doing, and the model the user selected can always do it. Rung 0 is
+	// that model verbatim, so the fallback needs no roster to find it.
+	//
+	// Announced, never silent. Quietly running on a more expensive model is the
+	// exact surprise this feature exists to prevent — the direction being "up
+	// to what you already chose" does not make it one to discover later.
+	if openErr != nil {
+		if ceiling := a.SessionModel(); ceiling != "" && ceiling != model {
+			fmt.Fprintf(a.Out, "%s  ◆ %s could not start on %s; falling back to %s%s\n",
+				colorDim, tasks[index].Title, model, ceiling, colorReset)
+			release()
+			model = ceiling
+			own, release, openErr = a.openSubagentBackend(ctx, model)
+			defer release()
+		}
+	}
+
 	var result string
 	var err error
 	if openErr != nil {
-		// The task fails; the run does not. One provider that will not start is
-		// not a reason to throw away what the other subagents produced.
+		// One provider that will not start is not a reason to throw away what
+		// the other subagents produced. The task fails; the run does not. And
+		// there is no third attempt: the ceiling is the last rung there is.
 		err = openErr
 	} else {
 		result, err = a.runSubagent(ctx, pinnedBackend{backend: own, model: model}, out, model, userInput, tasks, results, index)
