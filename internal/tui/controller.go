@@ -679,15 +679,7 @@ func (c *Controller) windowSize() int {
 // time instead of paging under the cursor.
 func (c *Controller) showSelectedSuggestion() {
 	window := c.windowSize()
-	switch {
-	case c.suggestionIndex < c.suggestionTop:
-		c.suggestionTop = c.suggestionIndex
-	case c.suggestionIndex >= c.suggestionTop+window:
-		c.suggestionTop = c.suggestionIndex - window + 1
-	}
-	if c.suggestionTop < 0 {
-		c.suggestionTop = 0
-	}
+	c.suggestionTop = scrollWindow(c.suggestionIndex, c.suggestionTop, window)
 	c.screen.SetSuggestionWindow(c.suggestionTop, window, len(c.suggestions))
 	c.screen.SetSuggestionSelection(c.suggestionIndex)
 }

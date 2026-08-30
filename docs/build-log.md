@@ -4539,6 +4539,37 @@ gofmt's actual output, so no mutation was applied at all, and a silently-passing
 identical to a validly-caught one. Every mutation below was confirmed by `diff` against the original
 before trusting its test result, and reverted to a byte-identical file after.
 
+## H2 two small pieces, not a shared skeleton — the plan changed on contact (2026-08-30)
+
+**Gate:** `make check` exit 0 — **2,627 tests, 0 lint issues**, `-race` green on `internal/tui`.
+
+The scoped plan for this leaf was an embedded `*Editor` as a filterable overlay's query line,
+reusing its existing rune buffer. Wrong, on contact with the keys `Editor` claims: `Up`/`Down` do
+history navigation and vertical cursor movement there, and `Left`/`Right` move a text cursor — but
+a filterable overlay's `Up`/`Down` mean "select the next row", and `/model`'s `Left`/`Right`
+already mean "cycle this row's effort," by the owner's own decision earlier in this group. There is
+no cursor position left for `Editor` to move and no history for it to navigate. Wrapping it and
+disabling most of what makes it `Editor` would not be reuse of a rune buffer; it would be carrying
+a multiline, history-aware input type into a role obligated to refuse nearly everything it does.
+`filterBox` is fifteen lines — append text, remove the last rune, report whether removing one did
+anything — because that is the actual size of a query line that only ever appends and backspaces.
+
+**No shared overlay skeleton either, for the same reason `ModelPick` and `Question` already don't
+share one.** This codebase has no generic container anywhere (checked: no `[T any]` under
+`internal/`), and the two existing pickers are already separate concrete types despite looking
+alike — their own row shape, their own key handler, their own line-builder. What a future `/model`
+filter box and a future `/config` picker actually share is not the row list, which differs by
+picker, but two pieces that don't: the query buffer, and the "scroll the least amount that keeps
+the selection visible" arithmetic every windowed list needs regardless of what it lists.
+
+**The second piece already had a body; it just didn't have a name yet.** The suggestion dropdown's
+`showSelectedSuggestion` had this exact rule inlined. Writing a second, textually identical copy for
+the next overlay instead of naming the first one and calling it twice is the specific duplication
+the refactor gate exists to catch. `scrollWindow(selected, top, window)` is that rule as a pure
+function of three integers; `showSelectedSuggestion` now calls it. The regression net is the
+existing thirty-row scroll test, unchanged and still green, since the arithmetic did not move —
+only where it lives did.
+
 ## H1 a field join for fuzzy search reopened the bug the join was meant to stop (2026-08-30)
 
 **Gate:** `make check` exit 0 — **2,623 tests, 0 lint issues**, `-race` green on `internal/tui`.

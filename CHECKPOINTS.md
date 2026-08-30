@@ -640,11 +640,9 @@ left/right for text editing and relearning the effort-cycle key.
   second primitive (`fuzzyScoreFields`) had to be added mid-leaf — see below for why joining
   fields into one haystack the way `matchesFilter` always had was itself a latent bug once matching
   went fuzzy.
-- [ ] **H2 a shared filterable-overlay skeleton** — list, marker, filtered/selected index, an
-  embedded `*Editor` as the query line (reusing its existing rune-buffer rather than a new one),
-  and the windowing math the suggestion dropdown already has (`SetSuggestionWindow`) ported over,
-  since `modelPickerLines`/`questionLines` render every row unbounded today. Infrastructure only —
-  no picker's behavior changes in this leaf.
+- [x] **H2 the two genuinely shared pieces of a filterable overlay** — narrower than first scoped;
+  see below for why a full shared overlay skeleton was the wrong shape once a name existed for
+  each piece.
 - [ ] **H3 the `/model` overlay gets the live filter box** — built on H2. Left/right keeps cycling
   effort exactly as today.
 - [ ] **H4 a `/config` overlay** — the literal ask: a search box for settings, built on H2,
@@ -734,6 +732,51 @@ Acceptance checklist:
   not accidentally share behavior between surfaces that happen to look similar.
 - [x] `-race` green across `internal/tui`.
 - [x] full `make check` green: **2,623 tests, 0 lint issues**.
+
+### H2 built — two small pieces, not one shared skeleton, and why the plan changed on contact
+
+The queue line above committed to an embedded `*Editor` for a filterable overlay's query line.
+That was wrong, and wrong for a reason worth recording rather than quietly overwriting: `Editor`'s
+`Up`/`Down` do history navigation and vertical cursor movement, and `Left`/`Right` move the text
+cursor — but a filterable overlay's `Up`/`Down` mean "select the next row", and `/model`'s own
+`Left`/`Right` already mean "cycle this row's effort" by the owner's own decision at the top of
+this group. There is no cursor position left over for `Editor` to move, and no history for it to
+navigate. Wrapping it and disabling most of what makes it `Editor` would not be reuse; it would be
+carrying a multiline, history-aware input type into a role that has to refuse nearly everything it
+does. `filterBox` is fifteen lines: append text, remove the last rune, report whether removing one
+did anything. It is not a smaller `Editor` — it is the actual size of what a query line that only
+ever appends and backspaces needs to be.
+
+**This codebase has no generic container type anywhere** (checked: no `[T any]` in `internal/`),
+and `ModelPick` and `Question` already do not share a base type despite looking structurally
+similar — each is its own concrete row shape, its own key handler, its own line-builder. Following
+that precedent, H2 does not introduce a `filterableOverlay[T]` either. What actually generalizes
+across a future `/model` filter box and a future `/config` picker is not the row list — that
+differs by picker — but exactly two pieces that do not: the query buffer (`filterBox`, above) and
+the "scroll the least amount that keeps the selection visible" arithmetic every windowed list needs
+regardless of what it is a list of.
+
+**The second piece was not new; it was one line away from having a second author.** The suggestion
+dropdown's `showSelectedSuggestion` already had this exact three-comparison rule inlined against
+`c.suggestionTop`/`c.suggestionIndex`. Writing a second, textually-identical copy for the next
+overlay rather than naming the first one and calling it twice is the specific duplication the
+refactor gate exists to catch. `scrollWindow(selected, top, window int) int` is that rule extracted
+to plain integers, and `showSelectedSuggestion` now calls it instead of carrying its own copy —
+verified by the existing thirty-row scroll test passing unchanged, since the arithmetic did not
+change, only where it lives.
+
+Acceptance checklist:
+
+- [x] red first: both `filterBox` and `scrollWindow` referenced by name before either existed.
+- [x] the refactor is behavior-preserving, not a new feature: `TestSuggestionListScrollsThroughTheWholeCatalog`
+  (30-row catalog, arrow-key walk, scroll-indicator assertions) passes unchanged after
+  `showSelectedSuggestion` was rewritten to call the extracted function.
+- [x] proven non-vacuous by mutation: dropping `scrollWindow`'s upper-bound case fails both the new
+  unit test and — because the function is genuinely shared, not merely tested in parallel — the
+  pre-existing suggestion-dropdown scroll test too. Making `backspace` always report a change fails
+  the empty-box test. Both revert to byte-identical diffs.
+- [x] `-race` green across `internal/tui`.
+- [x] full `make check` green: **2,627 tests, 0 lint issues**.
 
 ### S10.1c built — provenance becomes mechanical, and one artifact stops being contagious
 
