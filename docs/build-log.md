@@ -4804,3 +4804,29 @@ and not vendor drift. It was implementation drift away from a correct spec, invi
 tests were written from the same assumption as the code and the one artifact that disagreed —
 the captured fixture — was never opened by anything. Two independent records were right and the
 third was wrong, and nothing compared them.
+
+### R1.10 v1.2.21 host-Ollama release
+
+**Gate:** `make check` green — 2607 tests — and `go test ./... -race` clean, both on the merged
+tree: the other session's 14 unpushed commits rebased onto the E series, three conflicts resolved
+by hand, and a pre-release review confirming all three preserved their intent.
+
+**Publication:** commit `352fdee` on `main`, tag `v1.2.21`. Release workflow run 33287783208
+passed verify and publish. Four archives plus the Cosign-signed `checksums.txt` and its Sigstore
+bundle are public, the release is neither draft nor prerelease, and the latest redirect resolves to
+`v1.2.20` — it still read `v1.2.20` for the first minute after publication, which was propagation
+and was re-checked rather than recorded.
+
+**Two things the release almost shipped wrong, both caught before the tag.** macOS CI failed on the
+cancel ladder: the mock vendors looped on a `sleep` child, and macOS's `/bin/sh` re-raises SIGINT
+on itself when a foreground child dies of it, so a trap that said `exit 0` read as a hard exit; the
+mocks now block in `read`, a builtin with no child. And the pre-release review found a kolk-started
+Ollama was killed the moment the request that started it ended — `StartManagedProcess` is an
+`exec.CommandContext`, and the test fake never honoured its context — so the server now starts
+detached from the caller, and a fake that does honour its context pins it. Six sentences the code
+no longer honoured went with it, and the four catalogue tests `a34.6` dropped without saying so
+are restored.
+
+**Tagged at the head, not the release commit.** `chore(release): v1.2.21` was two fixes behind by
+the time CI was green; a tag on it would have shipped the macOS-broken fixture and the
+request-bound server.
