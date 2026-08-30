@@ -4539,6 +4539,22 @@ gofmt's actual output, so no mutation was applied at all, and a silently-passing
 identical to a validly-caught one. Every mutation below was confirmed by `diff` against the original
 before trusting its test result, and reverted to a byte-identical file after.
 
+## H6 both filter boxes silently dropped a paste (2026-08-30)
+
+**Gate:** `make check` exit 0 — **2,643 tests, 0 lint issues**, `-race` green on `internal/tui`.
+
+The composer's own `Editor.Update` has always treated `KeyText` and `KeyPaste` as the same act of
+adding text (`case KeyText, KeyPaste: return EditResult{Changed: e.insert(...)}`). H3's and H4's
+filter-box key handlers wired only `KeyText`. A model ID or setting key pasted into either overlay's
+search box did nothing at all — the key fell through the switch to the default no-op branch.
+
+Red: `TestModelPickerFiltersOnPasteTheSameAsTyping` and its config-picker twin, both sending
+`Key{Kind: KeyPaste, Text: "..."}` and asserting the same filtered result typing the same text would
+give. Both failed with the filter still empty. Green: `case KeyText, KeyPaste:` in both overlays'
+switches, matching the composer's own contract exactly. Mutation on both: removing `KeyPaste` again
+fails only the paste test and leaves the typing test green, confirming each test proves what it
+claims to and nothing more.
+
 ## H5 infrastructure that named its own reason for existing, then went unused (2026-08-30)
 
 **Gate:** `make check` exit 0 — **2,641 tests, 0 lint issues**, `-race` green on `internal/tui`.

@@ -649,6 +649,9 @@ left/right for text editing and relearning the effort-cycle key.
 - [x] **H5 window the `/model` and `/config` overlays** — H2 built `scrollWindow` naming the future
   `/model` filter box and `/config` picker as the reason it existed, but H3 and H4 shipped without
   ever calling it. See below.
+- [x] **H6 pasting into either filter box** — H3 and H4 wired `KeyText` into their filter boxes but
+  never `KeyPaste`, which the composer has always treated as the same act of adding text. Both
+  overlays silently dropped a paste. One-line fix per overlay, its own mutation-tested red/green.
 
 ### H0 built — one scoring term turned out to be free
 

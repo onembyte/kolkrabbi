@@ -140,6 +140,26 @@ func TestModelPickerFiltersLiveByTyping(t *testing.T) {
 	}
 }
 
+// A pasted query must filter exactly like the same characters typed one at a
+// time — the composer treats KeyPaste and KeyText as the same act of adding
+// text, and a filter box that only wired KeyText would silently drop a paste.
+func TestModelPickerFiltersOnPasteTheSameAsTyping(t *testing.T) {
+	c := NewController(Status{}, defaultDraftSize)
+	c.RequestModelPicker([]ModelPickEntry{
+		{ID: "vendor/mock", Name: "metered"},
+		{ID: "anthropic/claude-opus", Name: "Claude Opus"},
+	})
+	c.HandleKey(Key{Kind: KeyPaste, Text: "cld"})
+
+	pick := c.ModelPicker()
+	if len(pick.Entries) != 1 || pick.Entries[0].ID != "anthropic/claude-opus" {
+		t.Fatalf("pasted filter = %+v, want just the claude row", pick)
+	}
+	if pick.Filter != "cld" {
+		t.Fatalf("filter = %q, want the pasted text", pick.Filter)
+	}
+}
+
 // Backspace edits the query in place; it does not close the overlay, and
 // widening the filter can bring rows back.
 func TestModelPickerBackspaceWidensTheFilter(t *testing.T) {

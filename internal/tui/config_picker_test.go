@@ -79,6 +79,22 @@ func TestConfigPickerFiltersLiveByTyping(t *testing.T) {
 	}
 }
 
+// A pasted query must filter exactly like the same characters typed one at a
+// time, the same gap /model's picker had.
+func TestConfigPickerFiltersOnPasteTheSameAsTyping(t *testing.T) {
+	c := NewController(Status{}, defaultDraftSize)
+	c.RequestConfigPicker([]SettingSpec{
+		{Key: "effort", Summary: "model tier"},
+		{Key: "auto_restart_after_update", Summary: "restart into the new version"},
+	})
+	c.HandleKey(Key{Kind: KeyPaste, Text: "rstrt"})
+
+	pick := c.ConfigPicker()
+	if len(pick.Entries) != 1 || pick.Entries[0].Key != "auto_restart_after_update" {
+		t.Fatalf("pasted filter = %+v, want just the restart setting", pick)
+	}
+}
+
 // Escape backs out one step at a time, the same as /model: clear the filter
 // first, close the overlay only once there is nothing left to clear.
 func TestConfigPickerEscapeClearsTheFilterBeforeClosing(t *testing.T) {

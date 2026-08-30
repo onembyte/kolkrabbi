@@ -124,7 +124,7 @@ func (c *Controller) handleModelPickerKey(key Key) Effect {
 			return Effect{}
 		}
 		return c.resolveModelPicker("")
-	case KeyText:
+	case KeyText, KeyPaste:
 		c.modelFilter.insert(key.Text)
 		c.modelIndex = 0
 		c.modelTop = 0

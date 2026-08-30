@@ -110,7 +110,7 @@ func (c *Controller) handleConfigPickerKey(key Key) Effect {
 			return Effect{}
 		}
 		return c.resolveConfigPicker("")
-	case KeyText:
+	case KeyText, KeyPaste:
 		c.configFilter.insert(key.Text)
 		c.configIndex = 0
 		c.configTop = 0
