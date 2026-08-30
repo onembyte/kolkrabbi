@@ -614,6 +614,71 @@ the moment mockagent earns its place.
   `claude-isolated.ndjson`, the CONTRACT fixture, at ~2¢. Needs the owner's vendor login, so it is
   the one leaf here that cannot be done offline.
 
+## H — the TUI's pickers match Claude Code's and Codex's, not just `/model`
+
+Opened 2026-08-30. The owner asked for every option surface — not only `/model` — to filter live
+while typing and to feel like Claude Code's and Codex's own pickers. Two concrete gaps drove the
+scope: `/model`'s full-screen overlay has arrow-key navigation but **no text filter at all** once
+open, and `/config` bare has **no overlay whatsoever** — it falls straight through to the
+non-interactive CLI dump. `H` is the first unused top-level letter (checked against every letter in
+this file: `A–G, I, L, M, P, R, S, T, U, W, X` are taken; `H, J, K, N, O, Q, V, Y, Z` are free).
+
+Two decisions the owner made explicitly before any code, so a later reader does not have to guess
+why the simpler path was chosen: matched-character highlighting (bolding the letters that matched,
+like fzf) is **deferred** rather than shipped now — the rendering core (`writeStyled`/`viewRow` in
+`model.go`) supports exactly one style per whole row today, and giving it per-character spans
+touches code every screen region depends on, the same class of change that caused U0.4g's
+raw-terminal row-displacement bug. And in the `/model` overlay, left/right **stays** the effort dial
+— the filter box takes typing and Backspace only, no mid-query cursor movement — rather than freeing
+left/right for text editing and relearning the effort-cycle key.
+
+- [x] **H0 the shared fuzzy-match primitive** — `fuzzyScore`/`fuzzyMatches` in
+  `internal/tui/fuzzy.go`. See below.
+- [ ] **H1 apply it everywhere matching happens today** — swap `matchesFilter` (`commands.go`),
+  the slash-menu's prefix-only match, and `@`-mention's plain substring match for `fuzzyScore`,
+  ranked by score. `matchesFilter` itself is untouched by H0 and remains the live matcher until
+  this leaf lands — noted so its absence here does not read as forgotten.
+- [ ] **H2 a shared filterable-overlay skeleton** — list, marker, filtered/selected index, an
+  embedded `*Editor` as the query line (reusing its existing rune-buffer rather than a new one),
+  and the windowing math the suggestion dropdown already has (`SetSuggestionWindow`) ported over,
+  since `modelPickerLines`/`questionLines` render every row unbounded today. Infrastructure only —
+  no picker's behavior changes in this leaf.
+- [ ] **H3 the `/model` overlay gets the live filter box** — built on H2. Left/right keeps cycling
+  effort exactly as today.
+- [ ] **H4 a `/config` overlay** — the literal ask: a search box for settings, built on H2,
+  sourcing the `SettingSpec` rows already plumbed for the inline suggestions (`c.settings`). Bare
+  `/config` in the TUI opens it instead of the static dump; `/config get|set|unset <args>` is
+  untouched. `/plogin` stays inline — nothing asked for an overlay there.
+
+### H0 built — one scoring term turned out to be free
+
+`fuzzyScore`/`fuzzyMatches` (`internal/tui/fuzzy.go`) report whether every whitespace token of a
+query is a case-insensitive **subsequence** of a haystack — not a contiguous substring — in any
+order across tokens, preserving `matchesFilter`'s own reason to exist ("claude max" and "max
+claude" both find the row). `ok` alone is what `matchesFilter`'s callers need; `score` is new, for
+ranking, so the row meant is usually already on top rather than three arrow-presses down.
+
+**The first draft scored three things; only two turned out to matter.** A word-boundary bonus for
+where a match starts, a contiguity bonus for characters landing right after each other, and a
+gap penalty for characters that do not. Mutating away the gap penalty or the boundary bonus each
+failed a test. Mutating away the contiguity bonus failed **nothing** — because a fully contiguous
+run already costs zero gap-penalty, which already beats a scattered run's negative one. The bonus
+was reproducing an effect the penalty already produced. Rather than write a test to justify keeping
+it, the term was deleted: the two-component version passes the identical seven tests and mutation
+now catches a defect in both remaining pieces of logic, with nothing left unproven.
+
+Acceptance checklist:
+
+- [x] red first: `go test -run TestFuzzy` failed to compile against `fuzzy_test.go` referencing
+  functions that did not exist yet — the discipline this session had already broken once earlier by
+  writing the implementation before its test, caught and undone before green.
+- [x] every one of the seven tests proven non-vacuous: `boundaryBonus` zeroed fails the
+  word-boundary ranking test; the gap-penalty neutralized (`score -= 0 * (...)`, keeping the
+  variable read so the mutation is a behavior change and not a compile error) fails the
+  tighter-run-beats-scattered test. Both revert to a byte-identical diff.
+- [x] `-race` green across `internal/tui`.
+- [x] full `make check` green: **2,614 tests, 0 lint issues**.
+
 ### S10.1c built — provenance becomes mechanical, and one artifact stops being contagious
 
 Two of §10.1's defects were never really about the two files they were found in. **A1** — a README

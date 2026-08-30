@@ -4489,6 +4489,56 @@ priority-1 `claude-*` fixtures. §10.3 prices priority 1 at **$0** with four of 
 live, so this is cheap and was passed over rather than refused — §11 sends an implementer to S3
 first precisely because its fixtures were already committed.
 
+## H0 a shared fuzzy matcher — and a scoring term that turned out to be free (2026-08-30)
+
+**Gate:** `make check` exit 0 — **2,614 tests, 0 lint issues**, `-race` green on `internal/tui`.
+
+The owner asked for every TUI option surface, not only `/model`, to filter live while typing and
+feel like Claude Code's and Codex's own pickers. Two concrete gaps: `/model`'s full-screen overlay
+has arrow-key navigation but no text filter once open, and `/config` bare has no overlay at all —
+it falls through to the static CLI dump. `internal/tui/fuzzy.go`'s `fuzzyScore`/`fuzzyMatches` is
+the first leaf: the one matching primitive every picker will route through, replacing
+`matchesFilter`'s whole-substring-per-token matching with case-insensitive **subsequence**
+matching — "cld" now finds "claude" the way "claude" itself already did — while preserving
+`matchesFilter`'s own reason to exist: "claude max" and "max claude" both still find the row, since
+each whitespace token is matched independently and every token must be found, in any order.
+
+**Two design decisions were made explicit before writing code, specifically so a later reader would
+not have to reconstruct why the simpler path was chosen.** Matched-character highlighting (bolding
+the letters that matched, the way fzf and Claude Code's own model picker do) is deferred rather than
+shipped alongside this: `writeStyled`/`viewRow` in `internal/tui/model.go` support exactly one style
+per whole rendered row today, and giving them per-character spans touches code every screen region
+in the TUI depends on — the same class of change that produced U0.4g's raw-terminal row-displacement
+bug. And in the `/model` overlay (a later leaf, H3), left/right keeps cycling effort exactly as it
+does today rather than being freed for filter-text cursor movement, so the query box only ever
+appends and backspaces — zero regression to an already-shipped keybinding.
+
+**A three-term score collapsed to two, and mutation is why.** The first draft scored a
+word-boundary bonus (does the match start where a person's eye would look for it), a contiguity
+bonus (do consecutive characters land next to each other), and a gap penalty (how far apart do they
+land when they don't). Mutating the boundary bonus to zero failed
+`TestFuzzyScoreRanksAWordBoundaryStartAboveAMidWordOne`. Mutating the gap penalty to a no-op failed
+`TestFuzzyScoreRanksATighterRunAboveAScatteredOne`. Mutating the contiguity bonus to zero **failed
+nothing** — because a fully contiguous run already pays zero gap-penalty, which already outscores a
+scattered run's negative one. The bonus was reproducing an effect the penalty already produced for
+free. Writing a test to justify keeping it would have been proving code was needed by asserting
+that it was; deleting it was the honest move, and the two-term version passes the same seven tests
+with nothing left unproven.
+
+**The session's own red-first discipline slipped, and was caught before green.** The implementation
+was written before its test — `fuzzy.go` existed when `fuzzy_test.go` was still being drafted. Caught
+on review of the very discipline this session has been enforcing on every other leaf: the
+implementation file was deleted, the test written first, `go test -run TestFuzzy` observed failing
+to compile against undefined symbols, and only then was the implementation restored. Worth recording
+plainly rather than quietly fixing, since the discipline only means something if slipping on it gets
+named.
+
+**Mutation verification used `go test`, not hand arithmetic**, after a hand-calculated prediction
+disagreed with what a first mutation attempt actually did — the `sed` pattern's spacing didn't match
+gofmt's actual output, so no mutation was applied at all, and a silently-passing suite looked
+identical to a validly-caught one. Every mutation below was confirmed by `diff` against the original
+before trusting its test result, and reverted to a byte-identical file after.
+
 ## S10.2 a fixture nobody replayed hid a dead code path (2026-08-29)
 
 **Gate:** `make check` exit 0 — **2,531 tests, 0 lint issues**, cold start 3.2 ms p50.
