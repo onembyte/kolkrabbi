@@ -53,3 +53,10 @@ are allowed during version 0, but every change is recorded here.
   `POST /v1/turns` operation. It is what a paired device needs in order to ask a session for
   something rather than only watch it; the prompt is bounded because it enters the conversation
   and is carried in every later request.
+- Add optional `level` and `model` to `subagent.started`, and optional `model` to
+  `subagent.finished`. A wide run on a subscription spends different amounts on different tasks, and
+  a reader could see how many subagents ran but not what they cost; `level` is what the planner
+  judged the task to need and `model` is the rung that answer resolved to. Both are additive and
+  omitted when unstated, so an event from a build that predates them still validates — and `model`
+  on the finished event is the rung that actually ran, which is not always the one it started on,
+  because a cheaper rung that will not spawn falls back to the model the user selected.

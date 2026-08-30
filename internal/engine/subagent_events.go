@@ -104,6 +104,11 @@ func (a *Agent) publishSubagentStarted(tasks []Task, index int, childTurn string
 		Mode:      a.Mode,
 		Index:     index + 1, // the contract is one-based; the slice is not
 		Total:     len(tasks),
+		// Which rung is about to run this, and why. "Four subagents, three on
+		// haiku" is a different fact from "four subagents", and it is the one
+		// someone watching a wide run on a subscription wants.
+		Level: string(tasks[index].Level),
+		Model: tasks[index].Model,
 	})
 	if err != nil {
 		return
@@ -120,7 +125,7 @@ func (a *Agent) publishSubagentStarted(tasks []Task, index int, childTurn string
 // Published on every path out of a task, including failure: an event that only
 // fires on success leaves a counter stuck at a number that never comes down,
 // which is worse than no counter at all.
-func (a *Agent) publishSubagentFinished(childTurn string, index int, ok bool) {
+func (a *Agent) publishSubagentFinished(childTurn string, index int, ok bool, model string) {
 	a.noteSubagents(-1)
 	if a.Bus == nil {
 		return
@@ -130,6 +135,9 @@ func (a *Agent) publishSubagentFinished(childTurn string, index int, ok bool) {
 		ChildTurn: childTurn,
 		Mode:      a.Mode,
 		OK:        ok,
+		// The rung that actually ran it, which is not always the one it
+		// started on: a cheaper rung that would not spawn falls back.
+		Model: model,
 	})
 	if err != nil {
 		return

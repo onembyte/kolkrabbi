@@ -202,6 +202,12 @@ type SubagentStartedData struct {
 	Mode      string `json:"mode"`
 	Index     int    `json:"index"`
 	Total     int    `json:"total"`
+	// Level is how much capability the planner judged this task to need, and
+	// Model is the rung that answer resolved to. Both omitted when unstated: a
+	// planner that says nothing and a run with no ladder are different from a
+	// task that was judged trivial, and an empty string would flatten them.
+	Level string `json:"level,omitempty"`
+	Model string `json:"model,omitempty"`
 }
 
 // SubagentFinishedData records the outcome of one correlated child turn. The
@@ -211,6 +217,9 @@ type SubagentFinishedData struct {
 	ChildTurn string `json:"child_turn"`
 	Mode      string `json:"mode"`
 	OK        bool   `json:"ok"`
+	// Model is the rung that actually ran it, which is not always the rung it
+	// started on: a cheaper one that would not spawn falls back to the ceiling.
+	Model string `json:"model,omitempty"`
 }
 
 // CheckpointCreatedData identifies one durable pre-write snapshot without

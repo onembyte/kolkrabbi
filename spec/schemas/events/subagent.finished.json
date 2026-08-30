@@ -3,12 +3,32 @@
   "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/events/subagent.finished.json",
   "title": "subagent.finished payload",
   "type": "object",
-  "required": ["id", "child_turn", "mode", "ok"],
+  "required": [
+    "id",
+    "child_turn",
+    "mode",
+    "ok"
+  ],
   "properties": {
-    "id": {"type": "string", "pattern": "^k_[0-7][0-9A-HJKMNP-TV-Z]{25}$"},
-    "child_turn": {"type": "string", "pattern": "^t_[0-7][0-9A-HJKMNP-TV-Z]{25}$"},
-    "mode": {"type": "string", "minLength": 1},
-    "ok": {"type": "boolean"}
+    "id": {
+      "type": "string",
+      "pattern": "^k_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "child_turn": {
+      "type": "string",
+      "pattern": "^t_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "mode": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    }
   },
   "additionalProperties": true
 }

@@ -423,17 +423,50 @@ it one to discover afterwards.
 
 ---
 
-## C10 — A reader can tell which rung did what
+## C10 — A reader can tell which rung did what  ·  **done**
 
 **Observable:** `subagent.started` and `subagent.finished` carry `level` and `model`, so a dashboard
 can say "4 subagents, 3 on haiku".
 
 **Files:** `protocol/events.go`, `spec/schemas/events/subagent.*.json`, `spec/CHANGELOG.md`, `internal/engine/subagent_events.go`
 
-- [ ] **C10.1** Add the fields to the Go structs.
-- [ ] **C10.2** Add them to the schemas as **optional** — an additive change, so an old event still validates.
-- [ ] **C10.3** Record it in `spec/CHANGELOG.md`; the spec-change gate will ask.
-- [ ] **C10.4** Tests, then gates.
+- [x] **C10.1** Add the fields to the Go structs.
+- [x] **C10.2** Add them to the schemas as **optional** — an additive change, so an old event still validates.
+- [x] **C10.3** Record it in `spec/CHANGELOG.md`; the spec-change gate will ask.
+- [x] **C10.4** Tests, then gates.
+
+**Done 2026-08-30.** `make check` green at 2739 tests, race clean, `make spec` green.
+
+**A contract test had to be re-read rather than re-pointed.** `assertSubagentSchema` asserted
+`len(properties) == len(required)` — which encodes "every declared field is required", and forbids
+exactly the additive change this checkpoint is. Its real guarantee is that no field appears
+undeclared and that the *required* set is exact, so it now lists optional fields separately and
+asserts they are **not** required. Loosening the count would have thrown away the guarantee;
+splitting it keeps it.
+
+`model` on the finished event is the rung that **actually** ran, which is not always the one the task
+started on — a cheaper rung that will not spawn falls back to the ceiling (C9), and an observer that
+reported the intended rung would be wrong exactly when it mattered.
+
+---
+
+# Stigi is complete
+
+All ten checkpoints, 54 tasks. What the user asked for works: a session on model X plans a big task,
+labels each subtask by the capability it needs, and each subtask runs on its own vendor process at a
+rung of a ladder whose top is X. A model above X is unrepresentable rather than refused, and a vendor
+not signed in through kolk never reaches the menu.
+
+**Deliberately not built, and recorded so it is not mistaken for an oversight:**
+
+- **Cross-vendor ordering.** The gate is enforced — an unsigned vendor cannot appear — but rungs from
+  a *different* vendor do not yet join the roster, because comparing a rung on one ladder against one
+  on another needs a defensible basis (relative depth, this machine's ratings, measured cost) and
+  guessing it would put a model on the menu on a comparison nobody defended.
+- **`claude-haiku` in `planModelCatalog`.** The subagent port bypasses the catalogue on purpose, so
+  spawning works — but `/model claude-haiku` still reports it is not a plan model.
+- **`SlotFast` → `FastLaneModel` returning a gateway id on a plan session.** Still true, still out of
+  scope, and still for the reason given below: it rides the most-used auxiliary path in the product.
 
 **Tests**
 - `TestASubagentEventSaysWhichRungRanIt`

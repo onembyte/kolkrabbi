@@ -25,8 +25,8 @@ func TestTheAgentCountRisesAndReturnsToZero(t *testing.T) {
 
 	a.publishSubagentStarted(tasks, 0, "t_01ARYZ6S41TSV4RRFFQ69G5FAX")
 	a.publishSubagentStarted(tasks, 1, "t_01ARYZ6S41TSV4RRFFQ69G5FAY")
-	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", 0, true)
-	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAY", 1, false)
+	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", 0, true, "")
+	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAY", 1, false, "")
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -57,7 +57,7 @@ func TestTheAgentCountIsSafeUnderConcurrency(t *testing.T) {
 		go func(index int) {
 			defer wg.Done()
 			a.publishSubagentStarted(tasks, index, "t_01ARYZ6S41TSV4RRFFQ69G5FAX")
-			a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", index, true)
+			a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", index, true, "")
 		}(i)
 	}
 	wg.Wait()

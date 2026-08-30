@@ -42,7 +42,7 @@ func TestAnOrchestratedRunPublishesOneStartAndOneFinishPerTask(t *testing.T) {
 	a.lastTurnID = "t_01ARYZ6S41TSV4RRFFQ69G5FAW"
 
 	a.publishSubagentStarted(tasks, 0, "t_01ARYZ6S41TSV4RRFFQ69G5FAX")
-	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", 0, true)
+	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", 0, true, "")
 
 	events := subagentEvents(t, b)
 	if len(events) != 2 {
@@ -76,7 +76,7 @@ func TestAStartAndItsFinishShareIdentifiers(t *testing.T) {
 	tasks := []Task{{Title: "one", Kind: KindEdit}}
 
 	a.publishSubagentStarted(tasks, 0, "t_01ARYZ6S41TSV4RRFFQ69G5FAX")
-	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", 0, false)
+	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", 0, false, "")
 
 	events := subagentEvents(t, b)
 	if len(events) != 2 {
@@ -121,7 +121,7 @@ func TestTaskIdentifiersAreStableAndDistinct(t *testing.T) {
 func TestPublishingIsSilentWithoutABus(t *testing.T) {
 	a := &Agent{Options: Options{Mode: ModeAgent}}
 	a.publishSubagentStarted([]Task{{Title: "one"}}, 0, "t_01ARYZ6S41TSV4RRFFQ69G5FAX")
-	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", 0, true)
+	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", 0, true, "")
 }
 
 func newTestBus(t *testing.T) *bus.Bus {

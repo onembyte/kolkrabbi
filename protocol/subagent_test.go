@@ -296,11 +296,31 @@ func assertSubagentSchema(t *testing.T, name string) {
 	}
 
 	wantRequired := []string{"id", "child_turn", "mode", "ok"}
+	// Optional fields are listed separately rather than folded into the count.
+	// The guarantee worth keeping is that no field appears undeclared and that
+	// the REQUIRED set is exact — not that every declared field is required,
+	// which would forbid the additive change these two are.
+	wantOptional := []string{"model"}
 	if name == "subagent.started" {
 		wantRequired = []string{"id", "child_turn", "task", "mode", "index", "total"}
+		wantOptional = []string{"level", "model"}
 	}
-	if !reflect.DeepEqual(schema.Required, wantRequired) || len(schema.Properties) != len(wantRequired) {
-		t.Errorf("schema fields = required %v, properties %v", schema.Required, schema.Properties)
+	if !reflect.DeepEqual(schema.Required, wantRequired) {
+		t.Errorf("schema required = %v, want %v", schema.Required, wantRequired)
+	}
+	if got, want := len(schema.Properties), len(wantRequired)+len(wantOptional); got != want {
+		t.Errorf("schema declares %d properties, want %d (%v required, %v optional)",
+			got, want, wantRequired, wantOptional)
+	}
+	for _, field := range wantOptional {
+		if _, declared := schema.Properties[field]; !declared {
+			t.Errorf("schema does not declare the optional %q", field)
+		}
+		for _, required := range schema.Required {
+			if required == field {
+				t.Errorf("%q is required; it is additive and an older event must still validate", field)
+			}
+		}
 	}
 	if schema.Properties["id"].Type != "string" ||
 		schema.Properties["id"].Pattern != "^k_[0-7][0-9A-HJKMNP-TV-Z]{25}$" {

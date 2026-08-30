@@ -290,7 +290,7 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	// On every path out, including failure. An event that only fires on success
 	// leaves a count stuck at a number that never comes down, which is worse
 	// than no count at all.
-	a.publishSubagentFinished(childTurn, index, err == nil)
+	a.publishSubagentFinished(childTurn, index, err == nil, model)
 
 	run := taskRun{index: index, result: result, err: err}
 	if buffered != nil {
