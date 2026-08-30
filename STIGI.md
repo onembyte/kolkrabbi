@@ -45,7 +45,7 @@ Checked in this tree. Re-verify anything you build on; do not re-litigate.
 | `claudeModelAliases` **does** carry all four rungs: sonnet, opus, haiku, fable | `internal/provider/agentcli/claude.go` |
 | `vendorLadders` rungs are bare **match prefixes**, not spawnable model ids | `internal/engine/ceiling.go` |
 | `claudeCodeTools` omits `Task`, so a vendor child cannot schedule vendor subagents | `internal/provider/agentcli/claude.go` |
-| `claudeModeFlags("agent")` errors outright; `/mode agent` is refused on a plan backend | `agentcli/claude.go`, `internal/cli/slash.go` |
+| `claudeModeFlags("agent")` and `codexModeSandbox("agent")` both support agent mode; `/mode agent` is available on the shipped plan backends | `agentcli/claude.go`, `agentcli/codex.go`, `internal/cli/slash.go` |
 | `finished := make(chan taskRun)` is unbuffered while `runTasks` returns from inside the loop | `internal/engine/orchestrator.go` |
 | `moveToMetered` writes `a.Backend` / `a.Model` / `a.Sess` unlocked, from a subagent goroutine | `internal/engine/subscription_limit.go` |
 | `slot.*`, `max_run_cost_usd`, `max_concurrent_tasks` are printed by `kolk config` and rejected by `kolk config set` | `config/settings.go` vs `cli/cmd_config.go` |
@@ -161,10 +161,11 @@ deliberately survives a cancelled turn; a subagent deliberately must not.
 
 ---
 
-## C4 — A subscription session can enter agent mode at all  ·  **done (claude only)**
+## C4 — A subscription session can enter agent mode at all  ·  **done (both vendors)**
 
-**Observable:** `kolk --model claude-sonnet` then `/mode agent` runs an orchestrated turn end to end.
-Every task still runs on Sonnet.
+**Observable:** a supported Claude or Codex subscription session followed by `/mode agent` runs an
+orchestrated turn end to end. Every task stays within the session's selected model and available
+subscription roster.
 
 **Why:** without this the entire feature is unreachable on exactly the sessions the ceiling was
 written for. The old justification — "the vendor schedules its own subagents" — was already broader
@@ -193,8 +194,8 @@ Codex's refusal message now names that reason instead of "the vendor schedules i
 was equally true of code mode — and code mode is allowed.
 
 The session-level refusal in `slash.go` fired for *every* plan connector at once. It is gone, and
-readiness is now the adapter's question: `claudeModeFlags` accepts agent mode, `codexModeSandbox`
-still refuses it, and the error surfaces from the restart either way.
+readiness is now the adapter's question: both shipped plan adapters accept agent mode, and any
+connector-specific startup error surfaces from the restart.
 
 Three tests encoded the old decision and were rewritten to assert the new one, each carrying why it
 changed. `TestTheVendorNeverGetsItsOwnSubagentScheduler` is new and pins the part that must stay true
@@ -246,9 +247,10 @@ not meaning. `"medium"`, `"VERY HARD"` and a model name stuffed into the field a
 
 ## C6 — The roster: what this session may spend on  ·  **done**
 
-**Observable:** agent mode prints the lane above the plan —
-`lane: trivial → claude-haiku · routine → claude-sonnet · hard → claude-sonnet`. Nothing binds to it
-yet. The lane is visible *before* it can cost anything, which is why this is split from C8.
+**Observable:** when the roster has something meaningful to show, entering agent mode prints the
+actual lane above the plan — `agent lane: <session model> → <available lower-rung models>`. Nothing
+binds to it yet. The lane is visible *before* it can cost anything, which is why this is split from
+C8.
 
 **Files:** `internal/engine/ceiling.go`, `roster.go` (new), `agent.go`, `internal/cli/subagent_backend.go` (new)
 

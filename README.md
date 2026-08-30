@@ -274,7 +274,8 @@ The reasoning for each, and the condition that would change it, is in
 - Local models use the Ollama you already have; kolk never installs one. A
   pulled model shows in `/model` even while Ollama is idle, and picking it
   starts the server for the session.
-- No MCP, skills, commands, or hooks yet, and no execution sandbox.
+- No MCP or skills yet, and no general execution sandbox. Markdown slash
+  commands and post-edit, post-write, and session-end hooks are available.
 - A remote device can watch a session and answer its permission prompts; it
   cannot yet send a turn.
 - Unix-only in practice (bash tool, ANSI colors); Windows is cross-built and

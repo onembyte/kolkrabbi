@@ -81,14 +81,14 @@ excludes index.html "style=[\"']" "styles must stay in styles.css for a strict C
 contains index.html 'id="providers"' "landing page has no provider wall"
 contains index.html 'class="provider-wall"' "provider wall markup is missing"
 contains index.html '<span class="provider-mark" aria-hidden="true"><svg viewBox="0 0 24 24"' "provider marks must be inline SVG, not fetched images, for a strict CSP"
-# A tile is a promise. Lit means an adapter exists in this repository today;
-# every other provider on docs/plan/24-subscription-provider-matrix.md is dim.
+# A tile is a promise. Live means an adapter exists in this repository today;
+# planned providers on docs/plan/24-subscription-provider-matrix.md stay dim.
 provider_status OpenRouter live
 provider_status Anthropic live
 provider_status Ollama live
 provider_status LiteLLM live
 provider_status vLLM live
-provider_status OpenAI planned
+provider_status OpenAI live
 provider_status Google planned
 provider_status xAI planned
 provider_status Perplexity planned

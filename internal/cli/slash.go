@@ -162,10 +162,9 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		// subagents — but the vendor's scheduler is off (its Task tool is not
 		// in the tool set), and kolk's agent mode spawns kolk's own children,
 		// which kolk starts and can stop. Whether a given connector is ready
-		// is the adapter's question, not this one's: claudeModeFlags accepts
-		// agent mode, codexModeSandbox still refuses it until each subagent
-		// gets its own vendor conversation, and the error surfaces from the
-		// restart below either way.
+		// is the adapter's question, not this one's: both shipped plan
+		// adapters accept agent mode, and any connector-specific startup
+		// error surfaces from the restart below.
 		if plan, ok := ag.SessionBackend().(*verifyingBackend); ok {
 			if err := ag.SetMode(arg); err != nil {
 				fmt.Fprintln(a.stdout, err)
@@ -182,6 +181,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 				}
 				fmt.Fprintf(a.stdout, "%s restarted in %s mode (%s)\n", connector, ag.Mode, label)
 			}
+			a.reportAgentLane(ag)
 			break
 		}
 		if err := ag.SetMode(arg); err != nil {

@@ -448,6 +448,9 @@ func TestSlashModeAcceptsAgentOnAPlanProvider(t *testing.T) {
 	if !strings.Contains(out.String(), "restarted in agent mode") {
 		t.Fatalf("output = %q, want the provider restarted into agent mode", out.String())
 	}
+	if !strings.Contains(out.String(), "agent lane:") {
+		t.Fatalf("output = %q, want the plan-backed agent lane announcement", out.String())
+	}
 }
 
 // A session can START in agent mode on a plan model, not only switch into it.
@@ -471,6 +474,23 @@ func TestASessionCanStartInAgentModeOnAPlanModel(t *testing.T) {
 	}
 	if agent.Mode != "agent" {
 		t.Errorf("mode = %q, want agent", agent.Mode)
+	}
+}
+
+// Startup agent mode must announce the same spending lane as an in-session
+// transition. Otherwise the user gets the limit information only after typing
+// /mode agent, despite both paths creating the same kind of run.
+func TestStartupAgentModeOnAPlanModelReportsTheAgentLane(t *testing.T) {
+	storeFirstRunKey(t)
+	dirs := isolateHome(t)
+	enablePlanConnector(t, dirs)
+	a, out, errOut := newTestApp(t, "")
+
+	if code := a.main(context.Background(), []string{"--model", "claude-opus", "--mode", "agent"}); code != ExitOK {
+		t.Fatalf("startup in agent mode exit = %d, stderr:\n%s", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "agent lane:") {
+		t.Fatalf("output = %q, want the startup agent lane announcement", out.String())
 	}
 }
 

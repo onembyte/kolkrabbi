@@ -57,6 +57,28 @@ func TestASubagentProviderNeedsItsVendorSignedIn(t *testing.T) {
 	}
 }
 
+// Subagent spawning must enforce the same provider/name identity as the
+// roster. A same-name connector from the wrong provider is not authorization
+// for the vendor CLI whose rung is being opened.
+func TestASubagentProviderRequiresMatchingProviderIdentity(t *testing.T) {
+	dirs := isolateHome(t)
+	a, _, _ := newTestApp(t, "")
+	a.dirs = dirs
+	signInAs(t, dirs, "openai", "ChatGPT Pro", "claude")
+	signInAs(t, dirs, "anthropic", "Claude Max", "codex")
+
+	open := a.subagentBackend()
+	for _, model := range []string{"claude-haiku", "gpt-5.6-sol"} {
+		backend, err := open(context.Background(), model, "code", "medium")
+		if closer, ok := backend.(io.Closer); ok {
+			_ = closer.Close()
+		}
+		if err == nil {
+			t.Errorf("%s was opened with a same-name connector from the wrong provider", model)
+		}
+	}
+}
+
 // A model that is not a vendor rung is not this port's business: answering
 // nothing lets the engine share the session's own provider, which is what a
 // gateway session has always done.

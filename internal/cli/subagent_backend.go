@@ -62,8 +62,32 @@ func (a *app) subagentBackend() engine.SubagentBackend {
 	}
 }
 
-// connectorSignedIn reports whether a vendor has been signed into through kolk.
+// connectorProvider returns the provider identity for an adapter connector.
+// The engine's ladders use adapter names (claude, codex), while connector
+// manifests identify the provider separately (anthropic, openai). Keeping that
+// mapping here prevents availability callers from checking only one half of
+// the connector identity.
+func connectorProvider(name string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "claude":
+		return "anthropic", true
+	case "codex":
+		return "openai", true
+	default:
+		return "", false
+	}
+}
+
+// connectorSignedIn reports whether the exact provider/name connector has been
+// signed into through kolk. Enabled is sufficient by design; verification is a
+// stronger runtime claim and is not required to make a freshly signed-in rung
+// visible.
 func (a *app) connectorSignedIn(name string) bool {
+	connectorName := strings.ToLower(strings.TrimSpace(name))
+	expectedProvider, ok := connectorProvider(connectorName)
+	if !ok {
+		return false
+	}
 	dirs, err := a.locate()
 	if err != nil {
 		return false
@@ -73,7 +97,8 @@ func (a *app) connectorSignedIn(name string) bool {
 		return false
 	}
 	for _, connector := range manifest.Connectors {
-		if strings.EqualFold(connector.Name, name) && connector.Enabled {
+		if connector.Provider == expectedProvider &&
+			connector.Name == connectorName && connector.Enabled {
 			return true
 		}
 	}

@@ -40,6 +40,10 @@ func (a *app) runDefault(ctx context.Context, args []string) (err error) {
 	if err != nil {
 		return err
 	}
+	// Agent mode has a spending lane before the first prompt or turn, just as it
+	// does after an in-session mode change. Report it once the session is fully
+	// resolved, so plan-backed and gateway-backed startup share the same contract.
+	a.reportAgentLane(ag)
 	// The engine touches no OS, so the host supplies the look. Measured at
 	// 6.7 ms on a 215 MiB repository with 544 files, which is nothing against a
 	// turn — but it is per turn, so it was measured rather than assumed.

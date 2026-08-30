@@ -73,3 +73,28 @@ func TestADisabledConnectorOffersNothing(t *testing.T) {
 		t.Error("a disabled connector still offered a rung")
 	}
 }
+
+// A connector name alone is not an identity. A malformed manifest that calls
+// an OpenAI connector "claude", or an Anthropic connector "codex", must not
+// make the corresponding vendor rung appear available.
+func TestACheaperRungRequiresMatchingProviderIdentity(t *testing.T) {
+	dirs := isolateHome(t)
+	a, _, _ := newTestApp(t, "")
+	a.dirs = dirs
+	for _, connector := range []provider.Connector{
+		{Provider: "openai", Plan: "ChatGPT Pro", Name: "claude", LoginOwner: "provider-cli", Enabled: true},
+		{Provider: "anthropic", Plan: "Claude Max", Name: "codex", LoginOwner: "provider-cli", Enabled: true},
+	} {
+		if err := provider.SaveConnector(context.Background(), dirs.ConnectorsFile(), connector); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	available := a.rungAvailable()
+	if available("claude", "claude-haiku") {
+		t.Error("a Claude rung was offered by a same-name OpenAI connector")
+	}
+	if available("codex", "gpt-5.6-sol") {
+		t.Error("a Codex rung was offered by a same-name Anthropic connector")
+	}
+}

@@ -74,8 +74,9 @@
           <div class="spec-meta"><span class="status-badge">Available now</span><span>MODELS</span></div>
           <h3>Gateway, subscription, or local</h3>
           <p>OpenRouter works today, and an OpenAI-compatible base URL points Kolkrabbi at Ollama,
-            LiteLLM, vLLM, or another compatible endpoint. A Claude plan answers turns through the
-            user's own vendor CLI, and <code>/model</code> moves the provider with the model.</p>
+            LiteLLM, vLLM, or another compatible endpoint. A Claude or Codex plan answers turns
+            through the user's own vendor CLI, and <code>/model</code> moves the provider with the
+            model.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>KEY</span></div>
@@ -220,11 +221,12 @@
             effort level that steps down to what the plan actually offers. No subscription token is
             stored. Starting a session still expects a gateway key; removing that is an open decision.</p>
         </article>
-        <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Planned</span><span>CODEX</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>CODEX</span></div>
           <h3>Codex subscription</h3>
-          <p>Codex will use the same external-agent seam after its policy review, offline fixtures,
-            login handoff, capability mapping, and redaction gates are complete.</p>
+          <p>Kolkrabbi hands sign-in to the user's own <code>codex</code> CLI and runs it as a
+            subscription backend. Agent mode gives each subagent its own vendor process while the
+            session keeps the provider, model, and plan limits visible.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>ONE SESSION</span></div>
@@ -525,8 +527,8 @@
           <h3>One revocable token per device</h3>
           <p>Each paired device gets its own token, stored only as a hash, and a device token ranks
             below the operator's: it can read the stream, while steering is a separate, higher
-            grant. Revocation exists in the store and has no command yet — <code>kolk devices</code>
-            is not written.</p>
+            grant. <code>kolk devices</code> lists paired devices, and
+            <code>kolk devices revoke &lt;id&gt;</code> withdraws one.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>REACHABILITY</span></div>

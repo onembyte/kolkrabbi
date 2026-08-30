@@ -93,6 +93,145 @@ func TestKeystrokesAreNotDecodedWhileAttached(t *testing.T) {
 	close(release)
 }
 
+// Returning from the child must hand the one reader back to the normal
+// decoder. This follows the production path through a turn rather than
+// calling RunAttached directly, so a child exit cannot leave the session
+// permanently in raw-forwarding mode.
+func TestTheLiveRuntimeReturnsInputAfterAnAttachedChildExits(t *testing.T) {
+	input, keys := io.Pipe()
+	defer input.Close()
+	var r *Runtime
+	childStarted := make(chan struct{})
+	childBytes := make(chan string, 1)
+	attachDone := make(chan error, 1)
+	r = NewRuntime(RuntimeOptions{
+		Input: input, Output: io.Discard,
+		Status: Status{Mode: "code", Lifecycle: "ready"},
+		Turn: func(ctx context.Context, prompt string) error {
+			if prompt != "login" {
+				t.Errorf("turn prompt = %q, want login", prompt)
+			}
+			err := r.RunAttached(ctx, func(in io.Reader, _ io.Writer, _, _ int) error {
+				close(childStarted)
+				buffer := make([]byte, 5)
+				n, err := io.ReadFull(in, buffer)
+				if err != nil {
+					return err
+				}
+				childBytes <- string(buffer[:n])
+				return nil
+			})
+			attachDone <- err
+			return err
+		},
+	})
+
+	runDone := make(chan error, 1)
+	go func() { runDone <- r.Run(context.Background()) }()
+	if _, err := keys.Write([]byte("login\r")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-childStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the attached child never started")
+	}
+	if _, err := keys.Write([]byte("hello")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-childBytes:
+		if got != "hello" {
+			t.Fatalf("child received %q, want hello", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the live read loop never forwarded the child input")
+	}
+	select {
+	case err := <-attachDone:
+		if err != nil {
+			t.Fatalf("attached child returned %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the runtime did not finish the attached turn")
+	}
+	waitFor(t, 2*time.Second, "the turn to return to ready", func() bool {
+		return r.Snapshot().Status.Lifecycle == "ready"
+	})
+
+	if _, err := keys.Write([]byte("after")); err != nil {
+		t.Fatal(err)
+	}
+	_ = keys.Close()
+	select {
+	case err := <-runDone:
+		if err != nil {
+			t.Fatalf("runtime returned %v after the child exited", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the runtime did not decode input after the child exited")
+	}
+	if got := r.Snapshot().Draft; got != "after" {
+		t.Fatalf("draft after child exit = %q, want after", got)
+	}
+	r.mu.Lock()
+	stillAttached := r.attached
+	r.mu.Unlock()
+	if stillAttached != nil {
+		t.Fatal("the terminal remained attached after the child exited")
+	}
+}
+
+// Cancellation reaches the turn's attached callback, which must return and
+// release the terminal before Runtime.Run closes the renderer. This is the
+// shutdown ordering used when Ctrl+C or the parent context stops a session.
+func TestCancellingAnAttachedTurnReleasesTheTerminal(t *testing.T) {
+	input, keys := io.Pipe()
+	defer input.Close()
+	var r *Runtime
+	attached := make(chan struct{})
+	r = NewRuntime(RuntimeOptions{
+		Input: input, Output: io.Discard,
+		Status: Status{Mode: "code", Lifecycle: "ready"},
+		Turn: func(ctx context.Context, _ string) error {
+			return r.RunAttached(ctx, func(io.Reader, io.Writer, int, int) error {
+				close(attached)
+				<-ctx.Done()
+				return ctx.Err()
+			})
+		},
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	runDone := make(chan error, 1)
+	go func() { runDone <- r.Run(ctx) }()
+	if _, err := keys.Write([]byte("login\r")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-attached:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the attached turn never claimed the terminal")
+	}
+	cancel()
+	_ = keys.Close()
+
+	select {
+	case err := <-runDone:
+		if err != nil && !errors.Is(err, context.Canceled) {
+			t.Fatalf("runtime cancellation returned %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("cancelling an attached turn left Runtime.Run blocked")
+	}
+	r.mu.Lock()
+	stillAttached := r.attached
+	r.mu.Unlock()
+	if stillAttached != nil {
+		t.Fatal("cancelling an attached turn left the terminal owned")
+	}
+}
+
 // Two children on one terminal is the problem this path exists to solve, so it
 // must not be reachable from inside it.
 func TestASecondAttachIsRefused(t *testing.T) {
