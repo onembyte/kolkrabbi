@@ -83,6 +83,29 @@ func printSlashHelp(out interface{ Write([]byte) (int, error) }) {
 	}
 }
 
+// reportAgentModelCeiling says which models an orchestrated run may use.
+//
+// The model the user selected is a ceiling: a run routes downward to cheaper
+// models freely and never upward. That is enforced in the engine, but a limit
+// nobody can see is one people find out about by being surprised — so entering
+// agent mode says what the run can reach, and the answer changes when they
+// change their model.
+func (a *app) reportAgentModelCeiling(ag *engine.Agent) {
+	if ag.Mode != engine.ModeAgent {
+		return
+	}
+	available := engine.ModelsAtOrBelow(ag.Model)
+	if len(available) < 2 {
+		// Either the model is on no ranked ladder, or it is already the
+		// cheapest rung. Neither is worth a line: the first would be a claim
+		// kolk cannot make, and the second says nothing the user did not just
+		// choose.
+		return
+	}
+	fmt.Fprintf(a.stdout, "agent runs may use: %s (never above %s — your pick is the ceiling)\n",
+		strings.Join(available, ", "), ag.Model)
+}
+
 // slash handles a /command typed in the REPL. It returns true when the REPL
 // should exit.
 func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
@@ -151,6 +174,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			fmt.Fprintln(a.stdout, err)
 		} else {
 			fmt.Fprintf(a.stdout, "mode: %s\n", ag.Mode)
+			a.reportAgentModelCeiling(ag)
 		}
 	case "/effort":
 		if arg == "" {

@@ -4905,3 +4905,55 @@ assertion rather than the allocation.
 
 The tag was deleted and recreated on the fixed commit rather than left pointing at a build that
 never published.
+
+### FR4.1 the selected model is a ceiling
+
+Asked for while designing agent mode over a subscription:
+
+> "never use a superior model than selected without asking thats needs to be coded... not asked to
+> the model. for example if i select sonnet model, and select agentic, only sonnet and haiku have to
+> be available. not opus or fable... and the same for other vendor subs connections"
+
+**The rule.** Orchestration routes *downward* freely — that is what the slots are for, and running a
+commit or an mkdir on the cheapest model is how a subscription lasts the day. It must never route
+*upward*. Selecting Sonnet makes {Sonnet, Haiku} the entire reachable set.
+
+**Coded, not prompted.** "that needs to be coded... not asked to the model" is the load-bearing half.
+A system-prompt line saying "prefer cheaper models" is a request, and a model reading it may decide —
+reasonably — that this particular task deserves the strong one. A filter over the candidate set is a
+guarantee, and a spending limit has to be a guarantee.
+
+**Applied at one point.** `modelForKind` was split into `routeKind` (the choice) and `modelForKind`
+(the choice held to the ceiling), so every branch — configured slot, fast lane, catalogue ranking,
+effort model — passes through `underCeiling`. A ceiling with an exception is not a ceiling, and the
+next branch someone adds would not know it was supposed to ask. A configured slot normally beats
+every ranking; it does not beat this, because the slot was configured once and the model was selected
+just now.
+
+**Ranked per vendor**, from what each vendor says about its own models: Claude's picker calls Fable
+"most capable", Sonnet "efficient for routine tasks", Haiku "fastest for quick answers". Codex and
+Gemini have their own ladders. Matching is by prefix, so `claude-sonnet`, `claude-sonnet-5` and
+`anthropic/claude-sonnet-4` all land on one rung.
+
+**Two deliberate refusals to act.** A model on no ladder is never clamped — a ceiling that guessed
+would be worse than one that admits it does not know. And a ceiling does not reach across vendors: a
+Claude ceiling says nothing about a codex model, because that is a different bill, and silently
+rewriting a model configured for another provider would be a surprise of its own.
+
+**Made visible.** Entering agent mode now prints what the run may use and says the selection is the
+ceiling. A limit nobody can see is one people find out about by being surprised. Nothing is printed
+for an unranked model or for a user already on the cheapest rung, because neither line would say
+anything true and new.
+
+### FR4.2 a test that read the maintainer's own config
+
+`TestSlashUpdateReportsRestartAndKeepsSessionAlive` began failing locally while passing on CI.
+
+`replFixture` built its `app` directly and never called `isolateHome`, so `armRestart` resolved the
+real `~/.config/kolk/config.json`. The maintainer had turned on `auto_restart_after_update`, which is
+exactly what the setting is for — and the test then saw `/update` exit the REPL, which is exactly
+what the setting does.
+
+Nothing was wrong with the code. A suite that reads the developer's settings reports the wrong thing
+on precisely one machine: the maintainer's. `replFixture` isolates now, like `newTestApp` already
+did.

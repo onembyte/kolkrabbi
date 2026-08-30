@@ -22,6 +22,13 @@ import (
 // replFixture builds a REPL over a scripted provider: no network, no key.
 func replFixture(t *testing.T, stdin string, steps ...enginetest.Step) (*app, *engine.Agent, *bytes.Buffer) {
 	t.Helper()
+	// Isolate first. Without this the app resolves the developer's own
+	// ~/.config/kolk, and any setting they happen to have turned on decides the
+	// result: `auto_restart_after_update: true` made /update exit the REPL and
+	// failed a test that passes on CI, where no config exists. A suite that
+	// depends on whose machine it runs on is a suite that reports the wrong
+	// thing on exactly one machine — the maintainer's.
+	isolateHome(t)
 	srv := enginetest.New(steps...)
 	t.Cleanup(srv.Close)
 
@@ -468,5 +475,50 @@ func TestSlashModelResolvesAliases(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "model set to google/gemini-2.5-flash") {
 		t.Errorf("output = %q", out.String())
+	}
+}
+
+// The ceiling is enforced in the engine, but a limit nobody can see is one
+// people find out about by being surprised. Entering agent mode says what an
+// orchestrated run may reach.
+func TestAgentModeSaysWhichModelsTheRunMayUse(t *testing.T) {
+	a, ag, out := replFixture(t, "")
+	ag.Model = "claude-sonnet"
+	if a.slash(context.Background(), ag, "/mode agent") {
+		t.Fatal("/mode must not exit the REPL")
+	}
+	got := out.String()
+	if !strings.Contains(got, "claude-sonnet") || !strings.Contains(got, "claude-haiku") {
+		t.Errorf("agent mode did not name the models it may use:\n%s", got)
+	}
+	// The whole point: the stronger models are not offered.
+	if strings.Contains(got, "claude-opus") || strings.Contains(got, "claude-fable") {
+		t.Errorf("agent mode offered a model above the selected one:\n%s", got)
+	}
+	if !strings.Contains(got, "ceiling") {
+		t.Errorf("the message does not say the selection is a ceiling:\n%s", got)
+	}
+}
+
+// Nothing is claimed for a model kolk has not ranked, and nothing is said when
+// the user already picked the cheapest rung.
+func TestNoCeilingLineWhenThereIsNothingToSay(t *testing.T) {
+	for _, model := range []string{"mock/model", "claude-haiku"} {
+		a, ag, out := replFixture(t, "")
+		ag.Model = model
+		a.slash(context.Background(), ag, "/mode agent")
+		if strings.Contains(out.String(), "may use") {
+			t.Errorf("model %q produced a ceiling line it cannot support:\n%s", model, out.String())
+		}
+	}
+}
+
+// Code mode is not orchestrated, so the line would be noise.
+func TestNoCeilingLineOutsideAgentMode(t *testing.T) {
+	a, ag, out := replFixture(t, "")
+	ag.Model = "claude-sonnet"
+	a.slash(context.Background(), ag, "/mode code")
+	if strings.Contains(out.String(), "may use") {
+		t.Errorf("code mode printed the agent ceiling line:\n%s", out.String())
 	}
 }
