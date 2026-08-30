@@ -35,6 +35,18 @@ func waitForRetry(ctx context.Context, delay time.Duration) error {
 // only be returned before a successful streaming response is handed to the
 // scanner, so this never replays output already shown to the user.
 func (a *Agent) streamChat(ctx context.Context, phase, model string, messages []provider.Message, toolset []provider.Tool, onToken func(string)) (provider.Message, provider.Meta, error) {
+	return a.streamChatOn(ctx, pinnedBackend{}, phase, model, messages, toolset, onToken)
+}
+
+// streamChatOn is streamChat with a provider already opened for one model.
+//
+// The pin is honoured only while `model` still equals what it was opened for.
+// This loop rewrites `model` itself — free-model rotation and the metered
+// fallback both do — and after either, the pinned provider is the wrong one:
+// a claude process asked for a gateway id burns the turn to discover it. It
+// also restores owned-prefix stripping, which backendFor performs and a
+// hand-supplied backend would otherwise skip.
+func (a *Agent) streamChatOn(ctx context.Context, pinned pinnedBackend, phase, model string, messages []provider.Message, toolset []provider.Tool, onToken func(string)) (provider.Message, provider.Meta, error) {
 	stopActivity := func() {}
 	if a.Activity != nil {
 		if stop := a.Activity.Start(ctx, phase); stop != nil {
@@ -60,6 +72,12 @@ func (a *Agent) streamChat(ctx context.Context, phase, model string, messages []
 		backend, wire, routeErr := a.backendFor(model)
 		if routeErr != nil {
 			return provider.Message{}, provider.Meta{Model: model}, routeErr
+		}
+		// Still the model this provider was opened for? Then use it. Once the
+		// loop has moved on, the route is the only thing that knows where the
+		// new model lives.
+		if own := pinned.forModel(model); own != nil {
+			backend = own
 		}
 		msg, meta, err := backend.StreamChat(ctx, wire, messages, toolset, streamToken)
 		if err == nil {

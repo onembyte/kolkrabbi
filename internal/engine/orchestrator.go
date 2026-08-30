@@ -248,7 +248,23 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	if a.Ckpt != nil && writesFiles(tasks[index].Kind) {
 		snapshot = a.Ckpt.BeginTask(ctx, tasks[index].Title)
 	}
-	result, err := a.runSubagent(ctx, out, model, userInput, tasks, results, index)
+
+	// The task's own provider, opened here because this function already owns
+	// the task's lifetime — its child turn, its snapshot, its result. Released
+	// on every path out, including the failure below: a provider owns a child
+	// process and nothing else will release it.
+	own, release, openErr := a.openSubagentBackend(ctx, model)
+	defer release()
+
+	var result string
+	var err error
+	if openErr != nil {
+		// The task fails; the run does not. One provider that will not start is
+		// not a reason to throw away what the other subagents produced.
+		err = openErr
+	} else {
+		result, err = a.runSubagent(ctx, pinnedBackend{backend: own, model: model}, out, model, userInput, tasks, results, index)
+	}
 	// Closed on every path out. A task that died half-way is exactly the one
 	// that leaves a tree nobody asked for, and it is the one worth rewinding.
 	if snapshot >= 0 {
@@ -411,7 +427,7 @@ func (a *Agent) plan(ctx context.Context, model, userInput string, maxTasks int)
 
 // runSubagent executes one task in an isolated context: its conversation
 // never enters the main session, only its final summary does.
-func (a *Agent) runSubagent(ctx context.Context, out io.Writer, model, original string, tasks []Task, results []string, idx int) (string, error) {
+func (a *Agent) runSubagent(ctx context.Context, pinned pinnedBackend, out io.Writer, model, original string, tasks []Task, results []string, idx int) (string, error) {
 	cwd := workingDir()
 	var briefing strings.Builder
 	fmt.Fprintf(&briefing, `You are subagent %d of %d in an orchestrated run on %s (working directory %s). You have tools to read/write/edit files, list directories, and run shell commands. Complete ONLY your assigned task, then reply with a short result summary (what you did, key outputs, paths touched). Be efficient: few tool calls, no exploration beyond the task.
@@ -430,7 +446,7 @@ Overall request: %s
 	// are two pieces of work, not one loop.
 	var loop doomLoop
 	for round := 0; round < maxRounds; round++ {
-		msg, meta, err := a.streamChat(ctx, activityWorking, model, msgs, tools.Definitions(), func(tok string) {
+		msg, meta, err := a.streamChatOn(ctx, pinned, activityWorking, model, msgs, tools.Definitions(), func(tok string) {
 			fmt.Fprint(out, tok)
 		})
 		if err != nil {

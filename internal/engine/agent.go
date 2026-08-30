@@ -205,6 +205,10 @@ type Options struct {
 	Activity  ActivityIndicator
 	Work      WorkIndicator
 	Decider   Decider
+	// SubagentBackend opens a provider for one orchestrated task, so each
+	// subagent gets its own vendor process instead of sharing the session's.
+	// Nil means they share, which is what happens today.
+	SubagentBackend SubagentBackend
 	// Ask puts a fixed-option question to the person running the session. Nil
 	// means nobody can be asked, and the model is told to decide and say what
 	// it assumed rather than to wait for an answer that cannot come.

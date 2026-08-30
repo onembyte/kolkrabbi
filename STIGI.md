@@ -291,7 +291,7 @@ until it happened to be used, so signing in would appear to do nothing.
 
 ---
 
-## C7 — Each subagent gets its own vendor process
+## C7 — Each subagent gets its own vendor process  ·  **engine half done**
 
 **Observable:** two concurrent subagents no longer serialise on one `ClaudeSession.mu`, and a
 subagent whose child dies no longer retires the parent's conversation. Every task still runs on the
@@ -299,11 +299,11 @@ ceiling model.
 
 **Files:** `internal/engine/subagent_backend.go` (new), `retry.go`, `orchestrator.go`, `internal/cli/subagent_backend.go`, `run.go`
 
-- [ ] **C7.1** Port on `Options`: open a backend for one task. Nil means today's behaviour — share `a.Backend`.
+- [x] **C7.1** Port on `Options`: open a backend for one task. Nil means today's behaviour — share `a.Backend`.
 - [ ] **C7.2** Implement in `internal/cli`, constructing the adapter **directly from the connector manifest**, never through `ResolvePlanModel` — judge defect A: the catalogue has no haiku row, so that path returns a nil backend with a nil error.
-- [ ] **C7.3** Own it in `runOneTask`, which already owns the per-task lifetime; close on **every** path out.
-- [ ] **C7.4** Teardown needs a type assertion — `ChatBackend` declares only `StreamChat`; every existing teardown goes through `io.Closer`.
-- [ ] **C7.5** The graft: use the supplied backend **only while `model` still equals what it was opened for**. `streamChat` mutates `model` in-loop on free rotation and on the metered switch; after either, fall back to `backendFor` — which also preserves owned-prefix stripping.
+- [x] **C7.3** Own it in `runOneTask`, which already owns the per-task lifetime; close on **every** path out.
+- [x] **C7.4** Teardown needs a type assertion — `ChatBackend` declares only `StreamChat`; every existing teardown goes through `io.Closer`.
+- [x] **C7.5** The graft: use the supplied backend **only while `model` still equals what it was opened for**. `streamChat` mutates `model` in-loop on free rotation and on the metered switch; after either, fall back to `backendFor` — which also preserves owned-prefix stripping.
 - [ ] **C7.6** Tests, then gates.
 
 **Tests** — `internal/engine/subagent_backend_test.go`, `internal/cli/subagent_backend_test.go`
