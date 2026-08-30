@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -105,6 +106,41 @@ func TestConfigPickerDrawingShowsTheValueInEffect(t *testing.T) {
 		if !strings.Contains(view, want) {
 			t.Fatalf("view does not show %q:\n%s", want, view)
 		}
+	}
+}
+
+// The same defect H2's scrollWindow exists to prevent, and the same fix
+// /model just got: a settings list longer than the window must clip rather
+// than render every row unbounded.
+func TestConfigPickerWindowsALongSettingsList(t *testing.T) {
+	settings := make([]SettingSpec, 0, 15)
+	for i := range 15 {
+		settings = append(settings, SettingSpec{Key: fmt.Sprintf("setting-%02d", i)})
+	}
+	c := NewController(Status{}, defaultDraftSize)
+	c.RequestConfigPicker(settings)
+
+	openedLines := c.configPickerLines(80)
+	opened := strings.Join(openedLines, "\n")
+	if strings.Contains(opened, "setting-08") {
+		t.Fatalf("the opening frame ignored the window:\n%s", opened)
+	}
+	if !strings.Contains(opened, "setting-07") || !hasIndicatorRow(openedLines, "↓") {
+		t.Fatalf("the opening frame is missing rows or the arrow:\n%s", opened)
+	}
+	if hasIndicatorRow(openedLines, "↑") {
+		t.Fatal("nothing is above the first row; an up arrow points at nothing")
+	}
+
+	for range 14 {
+		c.HandleKey(Key{Kind: KeyDown})
+	}
+	view := strings.Join(c.configPickerLines(80), "\n")
+	if !strings.Contains(view, "setting-14") {
+		t.Fatalf("scrolling down never reached the last setting:\n%s", view)
+	}
+	if strings.Contains(view, "setting-00") {
+		t.Fatalf("the first setting is still shown after scrolling past it:\n%s", view)
 	}
 }
 

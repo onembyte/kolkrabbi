@@ -4539,6 +4539,34 @@ gofmt's actual output, so no mutation was applied at all, and a silently-passing
 identical to a validly-caught one. Every mutation below was confirmed by `diff` against the original
 before trusting its test result, and reverted to a byte-identical file after.
 
+## H5 infrastructure that named its own reason for existing, then went unused (2026-08-30)
+
+**Gate:** `make check` exit 0 — **2,641 tests, 0 lint issues**, `-race` green on `internal/tui`.
+
+Found by re-reading H2's own commit, not by anything failing: `scrollWindow` was justified in the
+same sentence that named "a future /model filter box and a future /config picker" as the reason it
+existed. Both shipped in H3 and H4 without ever calling it. `filteredModelIndices`/
+`filteredConfigIndices` narrow and rank a catalog on every keystroke, but the line-builders still
+rendered every surviving row — a settings list or model catalog longer than the terminal would
+overflow it the moment either overlay opened with no filter typed yet, exactly the
+worse-than-arrow-keys failure this whole group exists to fix.
+
+Nothing tested this because nothing was asked to: H3's and H4's own tests all used two- or
+three-row lists, so the gap was invisible to every test either leaf actually wrote. The same shape
+as H0's dead scoring term and H3's marker-reset bug — a real gap survives not because it is hard to
+catch, but because coverage never looked at the case that would reveal it.
+
+The fix mirrors the suggestion dropdown exactly: `modelTop`/`configTop` fields track the first
+visible row via `scrollWindow` on every key that moves the marker or changes the filtered set, and
+the line-builders slice to `c.windowSize()` rows with the same `"  ↑"`/`"  ↓"` indicators — the same
+fixed window size the suggestion dropdown already uses, not one derived from the terminal's actual
+height. `Question` is untouched on purpose: a fixed, small, model-proposed menu, never a searchable
+catalog, and never in this leaf's scope.
+
+One red test was red for a mistaken reason before it was red for the right one: the first version
+undercounted how many `KeyDown`s it takes to walk from row 0 to the last of fifteen rows — caught by
+reading the failure output before trusting it as a mutation-proof.
+
 ## H4 the literal ask, and the one place its answer had to differ from /model's (2026-08-30)
 
 **Gate:** `make check` exit 0 — **2,639 tests, 0 lint issues**, `-race` green on `internal/tui` and

@@ -81,12 +81,17 @@ type Controller struct {
 	// accepts. Index is into that filtered, ranked view, not into modelPicker
 	// itself — the two only coincide while the filter is empty.
 	modelFilter filterBox
+	// modelTop is the first row of the filtered view on screen, kept in
+	// bounds by scrollWindow the same way suggestionTop is — a catalog longer
+	// than the window would otherwise render every row unbounded.
+	modelTop int
 	// configPicker is the open /config overlay, if any — the same shape as
 	// modelPicker, minus the effort dial, resolving to a setting key rather
 	// than a ready-to-run command.
 	configPicker []SettingSpec
 	configIndex  int
 	configFilter filterBox
+	configTop    int
 	editor       *Editor
 	status       Status
 	busy         bool

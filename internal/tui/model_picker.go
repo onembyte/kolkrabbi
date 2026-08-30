@@ -52,6 +52,7 @@ func (c *Controller) RequestModelPicker(entries []ModelPickEntry) {
 	copy(c.modelPicker, entries)
 	c.modelIndex = 0
 	c.modelFilter = filterBox{}
+	c.modelTop = 0
 	c.beforeQuestion = c.status.Lifecycle
 	c.setLifecycle("question")
 }
@@ -100,6 +101,7 @@ func (c *Controller) resolveModelPicker(answer string) Effect {
 	c.modelPicker = nil
 	c.modelIndex = 0
 	c.modelFilter = filterBox{}
+	c.modelTop = 0
 	c.setLifecycle(c.beforeQuestion)
 	c.beforeQuestion = ""
 	return Effect{PickModel: answer, PickDismissed: answer == ""}
@@ -118,16 +120,19 @@ func (c *Controller) handleModelPickerKey(key Key) Effect {
 		if c.modelFilter.String() != "" {
 			c.modelFilter = filterBox{}
 			c.modelIndex = 0
+			c.modelTop = 0
 			return Effect{}
 		}
 		return c.resolveModelPicker("")
 	case KeyText:
 		c.modelFilter.insert(key.Text)
 		c.modelIndex = 0
+		c.modelTop = 0
 		return Effect{}
 	case KeyBackspace:
 		if c.modelFilter.backspace() {
 			c.modelIndex = 0
+			c.modelTop = 0
 		}
 		return Effect{}
 	case KeyUp:
@@ -135,12 +140,14 @@ func (c *Controller) handleModelPickerKey(key Key) Effect {
 			return Effect{}
 		}
 		c.modelIndex = (c.modelIndex - 1 + count) % count
+		c.modelTop = scrollWindow(c.modelIndex, c.modelTop, c.windowSize())
 		return Effect{}
 	case KeyDown:
 		if count == 0 {
 			return Effect{}
 		}
 		c.modelIndex = (c.modelIndex + 1) % count
+		c.modelTop = scrollWindow(c.modelIndex, c.modelTop, c.windowSize())
 		return Effect{}
 	case KeyLeft, KeyRight:
 		if count == 0 {
@@ -193,7 +200,20 @@ func (c *Controller) modelPickerLines(width int) []string {
 	if len(indices) == 0 {
 		lines = append(lines, clipLine("no models match this filter", width))
 	}
-	for row, index := range indices {
+	// Only the window is drawn, the same rule the suggestion dropdown already
+	// follows: a catalog longer than it would otherwise render every row
+	// unbounded, which is exactly the defect scrollWindow exists to prevent.
+	window := c.windowSize()
+	first, last := 0, len(indices)
+	if window > 0 && len(indices) > window {
+		first = min(max(0, c.modelTop), max(0, len(indices)-1))
+		last = min(len(indices), first+window)
+	}
+	if first > 0 {
+		lines = append(lines, clipLine("  ↑", width))
+	}
+	for row := first; row < last; row++ {
+		index := indices[row]
 		entry := c.modelPicker[index]
 		marker := "  "
 		if row == c.modelIndex {
@@ -203,6 +223,9 @@ func (c *Controller) modelPickerLines(width int) []string {
 			"  " + sanitizeTerminalLine(entry.Name)
 		line += "  " + effortDial(entry)
 		lines = append(lines, clipLine(line, width))
+	}
+	if last < len(indices) {
+		lines = append(lines, clipLine("  ↓", width))
 	}
 	return append(lines, strings.Repeat("─", max(0, width)))
 }

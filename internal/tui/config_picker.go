@@ -30,6 +30,7 @@ func (c *Controller) RequestConfigPicker(entries []SettingSpec) {
 	copy(c.configPicker, entries)
 	c.configIndex = 0
 	c.configFilter = filterBox{}
+	c.configTop = 0
 	c.beforeQuestion = c.status.Lifecycle
 	c.setLifecycle("question")
 }
@@ -86,6 +87,7 @@ func (c *Controller) resolveConfigPicker(key string) Effect {
 	c.configPicker = nil
 	c.configIndex = 0
 	c.configFilter = filterBox{}
+	c.configTop = 0
 	c.setLifecycle(c.beforeQuestion)
 	c.beforeQuestion = ""
 	return Effect{PickConfig: key, PickDismissed: key == ""}
@@ -104,16 +106,19 @@ func (c *Controller) handleConfigPickerKey(key Key) Effect {
 		if c.configFilter.String() != "" {
 			c.configFilter = filterBox{}
 			c.configIndex = 0
+			c.configTop = 0
 			return Effect{}
 		}
 		return c.resolveConfigPicker("")
 	case KeyText:
 		c.configFilter.insert(key.Text)
 		c.configIndex = 0
+		c.configTop = 0
 		return Effect{}
 	case KeyBackspace:
 		if c.configFilter.backspace() {
 			c.configIndex = 0
+			c.configTop = 0
 		}
 		return Effect{}
 	case KeyUp:
@@ -121,12 +126,14 @@ func (c *Controller) handleConfigPickerKey(key Key) Effect {
 			return Effect{}
 		}
 		c.configIndex = (c.configIndex - 1 + count) % count
+		c.configTop = scrollWindow(c.configIndex, c.configTop, c.windowSize())
 		return Effect{}
 	case KeyDown:
 		if count == 0 {
 			return Effect{}
 		}
 		c.configIndex = (c.configIndex + 1) % count
+		c.configTop = scrollWindow(c.configIndex, c.configTop, c.windowSize())
 		return Effect{}
 	case KeyEnter:
 		if count == 0 {
@@ -155,7 +162,20 @@ func (c *Controller) configPickerLines(width int) []string {
 	if len(indices) == 0 {
 		lines = append(lines, clipLine("no settings match this filter", width))
 	}
-	for row, index := range indices {
+	// Only the window is drawn, the same rule the suggestion dropdown and the
+	// /model overlay already follow: a settings list longer than it would
+	// otherwise render every row unbounded.
+	window := c.windowSize()
+	first, last := 0, len(indices)
+	if window > 0 && len(indices) > window {
+		first = min(max(0, c.configTop), max(0, len(indices)-1))
+		last = min(len(indices), first+window)
+	}
+	if first > 0 {
+		lines = append(lines, clipLine("  ↑", width))
+	}
+	for row := first; row < last; row++ {
+		index := indices[row]
 		entry := c.configPicker[index]
 		marker := "  "
 		if row == c.configIndex {
@@ -168,6 +188,9 @@ func (c *Controller) configPickerLines(width int) []string {
 		line := marker + strconv.Itoa(row+1) + "  " + sanitizeTerminalLine(entry.Key) +
 			"  " + sanitizeTerminalLine(value)
 		lines = append(lines, clipLine(line, width))
+	}
+	if last < len(indices) {
+		lines = append(lines, clipLine("  ↓", width))
 	}
 	return append(lines, strings.Repeat("─", max(0, width)))
 }

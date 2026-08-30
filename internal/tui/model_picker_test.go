@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -239,6 +240,56 @@ func TestModelPickerResetsTheMarkerWhenTheFilterNarrowsPastIt(t *testing.T) {
 	if effect := c.HandleKey(Key{Kind: KeyEnter}); effect.PickModel != "/model anthropic/claude-opus" {
 		t.Fatalf("Enter answered %q, want the row actually on screen", effect.PickModel)
 	}
+}
+
+// H2 built scrollWindow specifically because modelPickerLines rendered every
+// row unbounded; wiring it in was left undone. A catalog longer than the
+// window must clip, the same way the suggestion dropdown already does, or a
+// long unfiltered list overflows the terminal the moment the overlay opens.
+func TestModelPickerWindowsALongCatalog(t *testing.T) {
+	entries := make([]ModelPickEntry, 0, 15)
+	for i := range 15 {
+		entries = append(entries, ModelPickEntry{ID: fmt.Sprintf("vendor/model-%02d", i)})
+	}
+	c := NewController(Status{}, defaultDraftSize)
+	c.RequestModelPicker(entries)
+
+	openedLines := c.modelPickerLines(80)
+	opened := strings.Join(openedLines, "\n")
+	if strings.Contains(opened, "model-08") {
+		t.Fatalf("the opening frame ignored the window:\n%s", opened)
+	}
+	if !strings.Contains(opened, "model-07") || !hasIndicatorRow(openedLines, "↓") {
+		t.Fatalf("the opening frame is missing rows or the arrow:\n%s", opened)
+	}
+	if hasIndicatorRow(openedLines, "↑") {
+		t.Fatal("nothing is above the first row; an up arrow points at nothing")
+	}
+
+	// Walk to the end; the last model must become visible, and the first must
+	// scroll out rather than stay pinned with the window widened.
+	for range 14 {
+		c.HandleKey(Key{Kind: KeyDown})
+	}
+	view := strings.Join(c.modelPickerLines(80), "\n")
+	if !strings.Contains(view, "model-14") {
+		t.Fatalf("scrolling down never reached the last model:\n%s", view)
+	}
+	if strings.Contains(view, "model-00") {
+		t.Fatalf("the first model is still shown after scrolling past it:\n%s", view)
+	}
+}
+
+// hasIndicatorRow reports whether one whole rendered line is the scroll
+// indicator "  "+arrow — a substring check would also match the hint line's
+// own "↑/↓" key legend, which names the arrows without being one.
+func hasIndicatorRow(lines []string, arrow string) bool {
+	for _, line := range lines {
+		if line == "  "+arrow {
+			return true
+		}
+	}
+	return false
 }
 
 func waitForPickerOpen(t *testing.T, r *Runtime) {

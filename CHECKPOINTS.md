@@ -646,6 +646,9 @@ left/right for text editing and relearning the effort-cycle key.
 - [x] **H3 the `/model` overlay filters live** — built on H2's `filterBox`. See below.
 - [x] **H4 a `/config` overlay** — the literal ask. See below. `/plogin` stays inline, as scoped —
   nothing asked for an overlay there.
+- [x] **H5 window the `/model` and `/config` overlays** — H2 built `scrollWindow` naming the future
+  `/model` filter box and `/config` picker as the reason it existed, but H3 and H4 shipped without
+  ever calling it. See below.
 
 ### H0 built — one scoring term turned out to be free
 
@@ -881,6 +884,40 @@ Acceptance checklist:
   than papering over it in the test; the fixed test run clean ten times in a row under `-race`.
 - [x] `-race` green across `internal/tui` and `internal/cli`.
 - [x] full `make check` green: **2,639 tests, 0 lint issues**.
+
+### H5 built — infrastructure that named its own reason for existing, and then went unused
+
+Found by re-reading H2's own commit rather than by anything failing: `scrollWindow` was built and
+justified in the same sentence that named "a future `/model` filter box and a future `/config`
+picker" as the reason it existed. Both shipped in H3 and H4 without ever calling it.
+`filteredModelIndices`/`filteredConfigIndices` narrow and rank a catalog on every keystroke, but the
+line-builders still rendered every surviving row — a settings list or model catalog longer than the
+terminal's own height would overflow it the moment either overlay opened with no filter typed yet,
+which is precisely the worse-than-arrow-keys failure this whole group exists to fix.
+
+**Nothing tested this because nothing was asked to.** H3's and H4's own tests all used short lists —
+two or three rows — so the gap was invisible to every test written for either leaf. This is the same
+shape of finding as H0's dead scoring term and H3's marker-reset bug: a real gap survives not
+because it is hard to catch, but because the coverage never looked at the case that would reveal it.
+
+The fix mirrors the suggestion dropdown exactly: `modelTop`/`configTop` fields track the first
+visible row, updated via `scrollWindow` on every key that moves the marker or changes the filtered
+set, and `modelPickerLines`/`configPickerLines` now slice to `c.windowSize()` rows with `"  ↑"`/`"  ↓"`
+indicators — the same visual language, the same fixed window size (not derived from the terminal's
+actual height, matching the suggestion dropdown's own existing tradeoff rather than inventing a
+second windowing scheme). `Question` is deliberately untouched: it is a fixed, small enumerated
+menu the model itself proposes, not a searchable catalog, and was never in this leaf's scope.
+
+Acceptance checklist:
+
+- [x] red first, and red for a mistaken reason once: the first version of the scroll-past-the-end
+  assertion undercounted how many `KeyDown`s it takes to reach the last row of fifteen — caught by
+  reading the failure output, not by the mutation step.
+- [x] proven non-vacuous by mutation on both overlays: dropping the window clamp, and separately
+  dropping the `scrollWindow` call on `KeyDown`, each fail exactly the new test and leave every
+  existing picker test (short lists, unaffected by windowing) green.
+- [x] `-race` green across `internal/tui`.
+- [x] full `make check` green: **2,641 tests, 0 lint issues**.
 
 ### S10.1c built — provenance becomes mechanical, and one artifact stops being contagious
 
