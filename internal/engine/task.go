@@ -38,6 +38,9 @@ type Task struct {
 	Title string
 	// Kind is what sort of work it is. Empty when the planner did not say.
 	Kind Kind
+	// Level is how much capability it needs. Empty when the planner did not
+	// say, which binds to the model the user selected.
+	Level Level
 	// Needs holds the indices of tasks whose results this one requires.
 	//
 	// This is the difference between "task 4 comes after task 3" and "task 4
@@ -52,9 +55,14 @@ type Task struct {
 // annotation is what is shown beside a task in the printed plan. A run that
 // silently treats tasks differently is a run whose cost nobody can account for.
 func (t Task) annotation() string {
-	parts := make([]string, 0, 2)
+	parts := make([]string, 0, 3)
 	if t.Kind != KindUnknown {
 		parts = append(parts, string(t.Kind))
+	}
+	// Omitted rather than shown as a gap: a planner that never states a level
+	// should read as a column of blanks, not as an empty slot in every row.
+	if t.Level != LevelUnstated {
+		parts = append(parts, string(t.Level))
 	}
 	if t.Model != "" {
 		parts = append(parts, t.Model)
@@ -71,6 +79,7 @@ func (t Task) annotation() string {
 type planTask struct {
 	Title string `json:"title"`
 	Kind  Kind   `json:"kind"`
+	Level Level  `json:"level"`
 	Needs []int  `json:"needs"`
 	// stated records whether this task said anything about its dependencies,
 	// which is not the same as saying it has none.
@@ -119,7 +128,7 @@ func parseTasks(reply string, maxTasks int) []Task {
 		if !knownKinds[kind] {
 			kind = KindUnknown
 		}
-		tasks = append(tasks, Task{Title: title, Kind: kind, Needs: one.Needs})
+		tasks = append(tasks, Task{Title: title, Kind: kind, Level: normalizeLevel(one.Level), Needs: one.Needs})
 		if !one.stated {
 			// A planner that said nothing about dependencies gets the
 			// assumption the sequential run already makes: everything before.

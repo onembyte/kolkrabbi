@@ -207,19 +207,33 @@ forever: the tool set is a string kolk sends to a vendor whose defaults are not 
 
 ---
 
-## C5 — The planner states a level and the plan shows it
+## C5 — The planner states a level and the plan shows it  ·  **done**
 
 **Observable:** a plan line reads `3. Wire the config key  [edit · routine]`. Nothing routes
 differently yet.
 
 **Files:** `internal/engine/level.go` (new), `task.go`, `orchestrator.go`
 
-- [ ] **C5.1** `level.go`: `Level` type with `LevelUnstated` (`""`), `trivial`, `routine`, `hard`, and `knownLevels`. Document why unstated binds to the ceiling: a task whose difficulty could not be read is not one to hand to the cheapest thing available.
-- [ ] **C5.2** `Task.Level` and `planTask.Level` with its JSON tag.
-- [ ] **C5.3** `parseTasks` filters through `knownLevels` exactly as it already filters `Kind` — `"medium"`, `"VERY HARD"` and a model name stuffed in the field all become `LevelUnstated`.
-- [ ] **C5.4** `Task.annotation()` grows to `kind · level · model`, each omitted when empty, so a planner that never emits levels shows as blanks rather than as a quietly expensive run.
-- [ ] **C5.5** Planner prompt gains the level field and **zero model names**; update the example object.
-- [ ] **C5.6** Tests, then gates.
+- [x] **C5.1** `level.go`: `Level` type with `LevelUnstated` (`""`), `trivial`, `routine`, `hard`, and `knownLevels`. Document why unstated binds to the ceiling: a task whose difficulty could not be read is not one to hand to the cheapest thing available.
+- [x] **C5.2** `Task.Level` and `planTask.Level` with its JSON tag.
+- [x] **C5.3** `parseTasks` filters through `knownLevels` exactly as it already filters `Kind` — `"medium"`, `"VERY HARD"` and a model name stuffed in the field all become `LevelUnstated`.
+- [x] **C5.4** `Task.annotation()` grows to `kind · level · model`, each omitted when empty, so a planner that never emits levels shows as blanks rather than as a quietly expensive run.
+- [x] **C5.5** Planner prompt gains the level field and **zero model names**; update the example object.
+- [x] **C5.6** Tests, then gates.
+
+**Done 2026-08-30.** `make check` green at 2658 tests. Nothing routes differently yet, which is the
+point of splitting this from C8.
+
+The planner prompt was inline inside `Agent.plan`, so nothing could read it. It is now
+`decompositionPrompt(maxTasks)` — named that way because `plannerPrompt` already exists for the saga
+planner, a collision the compiler caught. Extracting it is what makes
+`TestThePlannerPromptNamesNoModel` possible, and that test checks the prompt against
+`vendorLadders` itself rather than a hardcoded list, so it fails the day a rung is added and the
+prompt starts naming it.
+
+`normalizeLevel` forgives case and surrounding whitespace but not an unrecognised word: spelling is
+not meaning. `"medium"`, `"VERY HARD"` and a model name stuffed into the field all become
+`LevelUnstated`, which binds to the ceiling.
 
 **Tests** — `internal/engine/level_test.go`, `task_test.go`
 - `TestAPlannerThatStatesALevelHasItRecorded`

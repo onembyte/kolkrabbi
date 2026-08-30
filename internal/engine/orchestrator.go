@@ -366,25 +366,37 @@ func (a *Agent) noteRunCost() {
 	fmt.Fprintf(a.Out, "%s  run so far: $%.2f%s\n", colorDim, total, colorReset)
 }
 
+// plannerPrompt is what the planner is asked for, kept apart from the request
+// so a test can read it.
+//
+// It names no model, and must not: the point of asking for a level is that the
+// planner cannot name something above the user's ceiling. A model name in this
+// string would be the one place that guarantee leaks, which is why the test
+// checks it against the ladders themselves rather than a hardcoded list.
+func decompositionPrompt(maxTasks int) string {
+	return fmt.Sprintf(`Decompose the request below into at most %d concrete, self-contained tasks for coding subagents that have file and shell access but cannot talk to each other. If the request is trivial or a single step, return a single task.
+
+Respond with ONLY a JSON array. No prose, no markdown fences. Each element is an object:
+
+  {"title": "what to do", "kind": "edit", "level": "routine", "needs": [1]}
+
+"kind" is one of: edit, test, research, explain, design, boilerplate. Omit it if none fits.
+"level" is one of: trivial, routine, hard - how much capability the task needs, not how
+important it is. trivial: mechanical; the answer is obvious once you look. routine: ordinary
+implementation or analysis. hard: needs real reasoning, is subtle, or the rest of the plan
+depends on getting it right. Omit it when unsure.
+"needs" lists the task numbers (counting from 1) whose results this task actually requires.
+Omit "needs" or use [] when the task stands alone - do not list a task merely because it
+comes earlier.`, maxTasks)
+}
+
 // plan asks the planner for a strict-JSON task list.
 //
 // The reply is asked for as objects and accepted as either: a planner that
 // sends the flat array of strings this used to require still produces a
 // working plan, it just produces one that cannot be routed.
 func (a *Agent) plan(ctx context.Context, model, userInput string, maxTasks int) ([]Task, provider.Meta, error) {
-	prompt := fmt.Sprintf(`Decompose the request below into at most %d concrete, self-contained tasks for coding subagents that have file and shell access but cannot talk to each other. If the request is trivial or a single step, return a single task.
-
-Respond with ONLY a JSON array. No prose, no markdown fences. Each element is an object:
-
-  {"title": "what to do", "kind": "edit", "needs": [1]}
-
-"kind" is one of: edit, test, research, explain, design, boilerplate. Omit it if none fits.
-"needs" lists the task numbers (counting from 1) whose results this task actually requires.
-Omit "needs" or use [] when the task stands alone — do not list a task merely because it
-comes earlier.
-
-Request:
-%s`, maxTasks, userInput)
+	prompt := decompositionPrompt(maxTasks) + "\n\nRequest:\n" + userInput
 
 	msgs := []provider.Message{
 		{Role: "system", Content: "You are a planning module. You output only strict JSON."},
