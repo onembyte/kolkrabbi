@@ -96,7 +96,7 @@ func (a *Agent) orchestrationModel() string {
 // but not this: they configured the slot once and selected the model just now,
 // and the nearer choice is the one that meant it.
 func (a *Agent) underCeiling(model string) string {
-	return ClampToCeiling(model, a.Model)
+	return ClampToCeiling(model, a.SessionModel())
 }
 
 // modelForKind picks the model for one task.

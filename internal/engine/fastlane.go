@@ -28,8 +28,8 @@ const (
 // model, then the low-cost paid default when no free model exists. `slot.fast`
 // overrides all of it for anyone who disagrees.
 func (a *Agent) FastLaneModel() string {
-	if a.Model != "" && provider.ModelIsFree(provider.ModelInfo{ID: a.Model}) {
-		return a.Model
+	if model := a.SessionModel(); model != "" && provider.ModelIsFree(provider.ModelInfo{ID: model}) {
+		return model
 	}
 	if len(a.FreeModels) > 0 && provider.ModelIsFree(provider.ModelInfo{ID: a.FreeModels[0]}) {
 		return a.FreeModels[0]

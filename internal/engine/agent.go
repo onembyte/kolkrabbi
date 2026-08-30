@@ -297,7 +297,10 @@ type Agent struct {
 	// Atomic because the status footer samples it from a drawing goroutine
 	// while the turn loop writes it (see Agent.Context).
 	lastPromptTokens atomic.Int64
-	preCompact       []provider.Message
+	// modelMu guards Model and Backend, the only two Options fields that change
+	// after construction. See session_model.go for why they need it.
+	modelMu    sync.RWMutex
+	preCompact []provider.Message
 	// runSpend accumulates the cost of the orchestrated run in progress, and
 	// is nil the rest of the time.
 	runSpend *spend
@@ -329,7 +332,7 @@ func (a *Agent) Close() error {
 			}
 		}
 	}
-	if closer, ok := a.Backend.(io.Closer); ok {
+	if closer, ok := a.sessionBackend().(io.Closer); ok {
 		if err := closer.Close(); err != nil && first == nil {
 			first = err
 		}
@@ -459,7 +462,7 @@ func (a *Agent) modelFor(effort string) string {
 			return m
 		}
 	}
-	return a.Model
+	return a.SessionModel()
 }
 
 // toolsFor returns the tool set for a mode: chat gets none.
@@ -1049,7 +1052,7 @@ func (a *Agent) window() int {
 	if a.ContextWindow > 0 {
 		return a.ContextWindow
 	}
-	backend, wire, err := a.backendFor(a.Model)
+	backend, wire, err := a.backendFor(a.SessionModel())
 	if err != nil {
 		return 0
 	}

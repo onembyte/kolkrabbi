@@ -94,7 +94,7 @@ func (a *app) reportAgentModelCeiling(ag *engine.Agent) {
 	if ag.Mode != engine.ModeAgent {
 		return
 	}
-	blocked := engine.ModelsAboveCeiling(ag.Model)
+	blocked := engine.ModelsAboveCeiling(ag.SessionModel())
 	if len(blocked) == 0 {
 		// Either the model is on no ranked ladder, or it is already the
 		// strongest rung and nothing is out of reach. Neither is worth a line:
@@ -108,7 +108,7 @@ func (a *app) reportAgentModelCeiling(ag *engine.Agent) {
 	// on a plan session it is still a gateway model, so listing the plan's own
 	// cheap rungs here would promise something the router does not yet do.
 	fmt.Fprintf(a.stdout, "agent runs are capped at %s — %s out of reach\n",
-		ag.Model, strings.Join(blocked, " and ")+" stay")
+		ag.SessionModel(), strings.Join(blocked, " and ")+" stay")
 }
 
 // slash handles a /command typed in the REPL. It returns true when the REPL
@@ -153,7 +153,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		// the vendor schedules its own subagents, which kolk cannot record or
 		// stop, so binding it to kolk's orchestrator would be a claim of
 		// supervision nobody makes.
-		if plan, ok := ag.Backend.(*verifyingBackend); ok {
+		if plan, ok := ag.SessionBackend().(*verifyingBackend); ok {
 			if arg == "agent" {
 				fmt.Fprintf(a.stdout, "%s cannot run kolk's agent mode: the vendor schedules its own subagents, which kolk cannot record or stop; use code mode\n", plan.plan.Connector)
 				break
@@ -198,7 +198,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		// A provider CLI is started with its effort and replays no argv, so a
 		// new level means a new process. The restart is the dial's job, not a
 		// second command the user has to remember.
-		if plan, ok := ag.Backend.(*verifyingBackend); ok {
+		if plan, ok := ag.SessionBackend().(*verifyingBackend); ok {
 			if plan.effort == ag.Effort {
 				break
 			}
@@ -223,7 +223,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			fmt.Fprintf(a.stdout, "rated %d★ — see `kolk stats`\n", n)
 		}
 	case "/new", "/clear":
-		sess := session.New(a.dirs.Sessions(), ag.Model)
+		sess := session.New(a.dirs.Sessions(), ag.SessionModel())
 		ckpt, err := checkpoint.Open(sess.CkptDir())
 		if err != nil {
 			ckpt = nil
@@ -347,7 +347,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		a.setPermission(ag, strings.TrimPrefix(cmd, "/"))
 	case "/model":
 		if arg == "" {
-			fmt.Fprintf(a.stdout, "current model: %s\n", ag.Model)
+			fmt.Fprintf(a.stdout, "current model: %s\n", ag.SessionModel())
 			d, _ := a.locate()
 			if err := a.printModelCatalog(ctx, ag.Client, d.CatalogFile(), false, ""); err != nil {
 				fmt.Fprintf(a.stderr, "could not list models: %v\n", err)

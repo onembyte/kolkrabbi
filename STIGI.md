@@ -92,7 +92,7 @@ parameter expansions, so `$cmd` arrived as one argument. The code was correct; t
 
 ---
 
-## C2 — The session model and backend stop being racy
+## C2 — The session model and backend stop being racy  ·  **done**
 
 **Observable:** `go test -race ./internal/engine/...` is clean when a metered switch fires while
 subagents are running. No behaviour change otherwise.
@@ -102,13 +102,25 @@ happens on a subagent goroutine. This is a real race today, before any of this f
 
 **Files:** `internal/engine/agent.go`, `subscription_limit.go`, `retry.go`, `route.go`, `fastlane.go`, `compact.go`, `internal/cli/run.go`
 
-- [ ] **C2.1** Add `modelMu sync.RWMutex` to `Agent`, documented as guarding *only* the two `Options` fields that change mid-session.
-- [ ] **C2.2** Add `sessionModel()` and `sessionBackend()` readers under `RLock`.
-- [ ] **C2.3** Add exported `SetSessionModel` / `SetSessionBackend` writers under `Lock` — exported because `cli/run.go`'s `switchModel` is outside the package and must stop writing the fields directly.
-- [ ] **C2.4** Replace every read of `a.Model` (`route.go`, `agent.go` ×2, `fastlane.go` ×2, `compact.go`) and of `a.Backend` (`route_backend.go` ×2).
-- [ ] **C2.5** Route `moveToMetered`, the free-rotation branch and `cli/run.go`'s three writes through the setters. Construction stays a direct field write — no goroutine exists yet.
-- [ ] **C2.6** Grep for stragglers: `grep -rn '\ba\.Model\b\|\ba\.Backend\b' internal/engine/` should show only the setters, the readers and construction.
-- [ ] **C2.7** Tests under `-race`, then gates.
+- [x] **C2.1** Add `modelMu sync.RWMutex` to `Agent`, documented as guarding *only* the two `Options` fields that change mid-session.
+- [x] **C2.2** Add `sessionModel()` and `sessionBackend()` readers under `RLock`.
+- [x] **C2.3** Add exported `SetSessionModel` / `SetSessionBackend` writers under `Lock` — exported because `cli/run.go`'s `switchModel` is outside the package and must stop writing the fields directly.
+- [x] **C2.4** Replace every read of `a.Model` (`route.go`, `agent.go` ×2, `fastlane.go` ×2, `compact.go`) and of `a.Backend` (`route_backend.go` ×2).
+- [x] **C2.5** Route `moveToMetered`, the free-rotation branch and `cli/run.go`'s three writes through the setters. Construction stays a direct field write — no goroutine exists yet.
+- [x] **C2.6** Grep for stragglers: `grep -rn '\ba\.Model\b\|\ba\.Backend\b' internal/engine/` should show only the setters, the readers and construction.
+- [x] **C2.7** Tests under `-race`, then gates.
+
+**Done 2026-08-30.** The race was demonstrated first: with the writer locked and
+`fastlane.go` still reading the field raw, the detector named both sides. `make check` green at 2652
+tests, whole repo race clean.
+
+Three things worth keeping. `moveToMetered` reads and swaps under one lock but calls `Close`
+**outside** it — the retired provider's Close waits on a child process, and holding a session-wide
+lock across that would stall every other subagent. The accessors are exported (`SessionModel`,
+`SessionBackend`) because the surface reads these too, and a sweep now shows **zero** raw
+`ag.Model` / `ag.Backend` anywhere outside the accessors. And a mutex was deliberately not put around
+the rest of `Options`: those fields are written once before any goroutine exists, and guarding them
+would say they might change.
 
 **Tests** — `internal/engine/subscription_limit_test.go`
 - `TestAMeteredSwitchDuringAWideRunIsRaceFree` (N goroutines in `underCeiling`, one in `moveToMetered`)

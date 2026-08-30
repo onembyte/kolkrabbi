@@ -29,11 +29,11 @@ var ownedPrefixes = map[string]string{
 func (a *Agent) backendFor(model string) (ChatBackend, string, error) {
 	prefix, rest, found := strings.Cut(model, "/")
 	if !found {
-		return a.Backend, model, nil
+		return a.sessionBackend(), model, nil
 	}
 	what, owned := ownedPrefixes[prefix]
 	if !owned {
-		return a.Backend, model, nil
+		return a.sessionBackend(), model, nil
 	}
 	if backend := a.Routes[prefix]; backend != nil {
 		return backend, rest, nil
