@@ -489,12 +489,15 @@ func tuiSettings(a *app) []tui.SettingSpec {
 	return out
 }
 
-// hostModelRows lists the host's models for the picker. Local models are the
-// local cost class, labelled with what the machine will run them on and
-// whether they can take tools; cloud models bill against the Ollama plan, so
-// their row is the plan's — subscription when the connector is verified,
-// sign-in-first when not. An installed-but-idle Ollama lists nothing: starting
-// a server to populate a picker is memory spent on a model nobody picked.
+// hostModelRows lists the host's models for the picker, by the best record
+// there is. A running Ollama answers for itself, and its rows carry what the
+// machine will run them on and whether they can take tools. An installed, idle
+// one is read from its manifest tree, without starting anything; picking one
+// starts it. Catalogued models not pulled carry the exact command that would
+// pull them. Cloud models bill against the Ollama plan, so their row is the
+// plan's — subscription when the connector is verified, sign-in-first when not.
+// No Ollama at all lists nothing here; `kolk doctor` and `kolk models` name
+// the install line.
 func (a *app) hostModelRows(ctx context.Context, manifest provider.ConnectorManifest, pulled map[string]bool) []tui.ModelSpec {
 	if a.discoverHost == nil || a.listHostModels == nil {
 		return nil
@@ -504,14 +507,19 @@ func (a *app) hostModelRows(ctx context.Context, manifest provider.ConnectorMani
 		return nil
 	}
 	var models []local.HostModel
-	switch host.State {
-	case local.HostRunning:
+	fromManifest := host.State == local.HostInstalled
+	if host.State == local.HostRunning {
 		cache := ""
 		if d, err := a.locate(); err == nil {
 			cache = d.HostCatalogFile()
 		}
-		models, _ = a.listHostModels(ctx, host.Addr, cache)
-	case local.HostInstalled:
+		listed, err := a.listHostModels(ctx, host.Addr, cache)
+		models = listed
+		// A server that answered the probe but not /api/tags still has a
+		// manifest tree; falling back to it keeps every pulled model a row.
+		fromManifest = err != nil
+	}
+	if fromManifest {
 		// No server to ask, so the manifest tree says what is pulled; what
 		// each model can do is unknown until one runs.
 		for _, entry := range local.Catalog("") {

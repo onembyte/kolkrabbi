@@ -77,7 +77,15 @@ func (h *HostStarter) Ensure(ctx context.Context) (string, error) {
 	if start == nil {
 		start = managedStart
 	}
-	process, err := start(ctx, h.Binary, []string{"serve"}, CuratedEnv(h.Environ, addr))
+	// Detached from the caller's context on purpose. The starter is reached
+	// from a warm bounded at two minutes and from a turn's own context, and
+	// StartManagedProcess builds an exec.CommandContext — so a server started
+	// under either would be killed the moment that first request ended, and
+	// every later turn would find its address pointing at nothing. The
+	// server's lifetime is the session's: Close is the only thing that stops
+	// it. Readiness below still waits under the caller's context, so a
+	// cancelled first request stops waiting and the unready server is closed.
+	process, err := start(context.WithoutCancel(ctx), h.Binary, []string{"serve"}, CuratedEnv(h.Environ, addr))
 	if err != nil {
 		return "", fmt.Errorf("starting %s: %w", h.Binary, err)
 	}

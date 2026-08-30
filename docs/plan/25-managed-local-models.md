@@ -5,13 +5,14 @@ Status: contract rewritten as option E · 2026-08-29 · supersedes the managed-s
 Kolkrabbi uses the Ollama the user already has. It finds a running server on
 the loopback default, or starts one of its own on a port it chooses when the
 binary is on PATH and nothing is listening. Its models appear in the picker
-with no configuration; Ollama Cloud models appear once the user has signed in,
+with no configuration; Ollama Cloud models the user has pulled appear too, and
+run once the user has signed in — the cloud catalogue itself is E11, still queued;
 and the only thing the user is asked to do is that sign-in.
 
 ## Contract
 
-- Kolk never installs Ollama. When the binary is absent, `kolk doctor` and the
-  picker name the one command that installs it; kolk does not run it, because
+- Kolk never installs Ollama. When the binary is absent, `kolk doctor` and
+  `kolk models` name the one command that installs it; kolk does not run it, because
   kolk's own hardline forbids `curl | sh` and `sudo`, and a floor that the
   product itself steps over is not a floor.
 - Kolk probes the literal `127.0.0.1:11434` and nothing else — never
@@ -22,9 +23,11 @@ and the only thing the user is asked to do is that sign-in.
 - When nothing listens and `ollama` is on PATH, kolk starts `ollama serve` on a
   loopback port **it chooses**, with a curated environment (`HOME`, `PATH`,
   `OLLAMA_HOST`; never `OPENROUTER_API_KEY`), waits for readiness, says so once
-  in the transcript, and stops **only what it started** — with a death signal
-  on Linux and a job object on Windows, because a server that outlives kolk on
-  `SIGTERM` becomes a "host server" the next session must never touch.
+  in the transcript, and stops **only what it started** — under a death signal
+  on Linux. macOS has no death signal and Windows has no job object yet, and the
+  code says so; a server that outlives a killed kolk there is found by the next
+  session and adopted read-only, which is the safe direction. The server's
+  lifetime is the session's, never the request that first asked for it.
 - The model store is the host's. Plan 25's private store is dropped: a
   kolk-started server that cannot see the user's pulled models defeats the
   point of listing them. No model is pulled implicitly; a pull is an explicit
@@ -55,10 +58,11 @@ and the only thing the user is asked to do is that sign-in.
 Kolk reports detected accelerator type, VRAM, system RAM, and available disk
 space, but never assumes that all detected capacity is safe to consume.
 Defaults reserve headroom for the operating system and Kolk. The user may
-choose GPU offload mode and a model quantization/storage variant before a
-pull. The selected settings are persisted as non-secret local configuration
-and are passed to the managed sidecar only when supported by that sidecar
-version.
+The `local.gpu_mode`, `local.gpu_index` and `local.quantization` settings
+steer the fit plan a pull is checked against — placement, headroom, refusal —
+and nothing else. They are not passed to the user's Ollama, which chooses its
+own placement; a setting here changes what kolk is willing to approve, not
+what the server does.
 
 The planner must show the estimated model size, required VRAM/RAM, reserved
 headroom, and expected fallback before confirmation. If the selected model
@@ -159,7 +163,9 @@ stopped working" call for different repairs.
 - `/v1` cannot set `num_ctx` per request; the effective window is the server's
   default, and Ollama truncates from the **front**, which drops kolk's system
   prompt and tool schemas first. A kolk-started server sets
-  `OLLAMA_CONTEXT_LENGTH`; an adopted one is read from `/api/ps` after load.
+  ~~`OLLAMA_CONTEXT_LENGTH`~~ — refused in E8: Ollama picks that by VRAM and a
+  blind override can OOM a small card. Started and adopted servers alike are
+  read from `/api/ps` after the model loads, with 4096 assumed until then.
 - Kolk's 60 s first-byte timeout kills CPU inference: a cold 7B with a 3k-token
   system prompt takes minutes. The Ollama backend needs its own transport.
 

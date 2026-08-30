@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -50,20 +51,25 @@ func TestLocaliaReportsHardwareAndStorage(t *testing.T) {
 	}
 }
 
-func TestLocaliaNamesTheDirectoryItManages(t *testing.T) {
-	dirs := isolateConnectorState(t)
+// The store a pull lands in is the user's own Ollama's (option E), and the
+// report names it — read from the environment, so a test never names the
+// developer's real home.
+func TestLocaliaNamesTheStoreItPullsInto(t *testing.T) {
+	isolateConnectorState(t)
+	store := filepath.Join(t.TempDir(), "ollama-store")
+	t.Setenv("OLLAMA_MODELS", store)
 	a, out, _ := newTestApp(t, "")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 
 	if code := a.main(context.Background(), []string{"localia"}); code != ExitOK {
 		t.Fatal("localia must succeed")
 	}
-	if !strings.Contains(out.String(), dirs.LocalModelsDir()) {
-		t.Fatalf("localia output = %q, want the managed model directory named", out.String())
+	if !strings.Contains(out.String(), store) || !strings.Contains(out.String(), "your Ollama's") {
+		t.Fatalf("localia output = %q, want the host store named as the user's own", out.String())
 	}
 }
 
-func TestLocaliaSaysNoModelIsInstalledYet(t *testing.T) {
+func TestLocaliaSaysNothingIsPulledYet(t *testing.T) {
 	isolateConnectorState(t)
 	a, out, _ := newTestApp(t, "")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
@@ -71,8 +77,8 @@ func TestLocaliaSaysNoModelIsInstalledYet(t *testing.T) {
 	if code := a.main(context.Background(), []string{"localia"}); code != ExitOK {
 		t.Fatal("localia must succeed with no models installed")
 	}
-	if !strings.Contains(out.String(), "no local model") {
-		t.Fatalf("localia output = %q, want it to say nothing is installed", out.String())
+	if !strings.Contains(out.String(), "nothing pulled yet") {
+		t.Fatalf("localia output = %q, want it to say nothing is pulled", out.String())
 	}
 }
 

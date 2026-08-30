@@ -54,9 +54,10 @@ func (a *app) printHostModels(ctx context.Context, cacheFile, filter string) {
 	host := a.discoverHost(ctx)
 	switch host.State {
 	case local.HostInstalled:
-		fmt.Fprintf(a.stdout, "\nlocal · ollama at %s is installed but not running; its models are listed once it runs\n", host.Binary)
+		fmt.Fprintf(a.stdout, "\nlocal · ollama at %s is installed but not running; its models are listed here once it runs, and `/model` can still pick a pulled one and start it\n", host.Binary)
 		return
 	case local.HostAbsent:
+		fmt.Fprintf(a.stdout, "\nlocal · ollama is not installed; install it with: %s\n", host.InstallHint())
 		return
 	}
 	models, err := a.listHostModels(ctx, host.Addr, cacheFile)

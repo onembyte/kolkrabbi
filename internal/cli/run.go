@@ -411,7 +411,8 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 			ag.Routes = map[string]engine.ChatBackend{local.SidecarName: local.NewHostBackend(host.Addr)}
 		case local.HostInstalled:
 			// Installed and idle: kolk starts one of its own on a port it
-			// chooses, lazily on the first host-model turn (E3b) — measured
+			// chooses, lazily — when a host model is first chosen or first
+			// asked for a turn (E3b, E8) — measured
 			// at 300–440 ms to ready, which is a cost to pay once when asked
 			// for and never at every startup — and stops it at exit.
 			ag.Routes = map[string]engine.ChatBackend{local.SidecarName: local.NewLazyHostBackend(&local.HostStarter{

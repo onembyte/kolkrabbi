@@ -205,3 +205,27 @@ func TestLazyHostBackendStartsOnTheFirstTurn(t *testing.T) {
 		t.Fatal("closing the backend did not stop the server it started")
 	}
 }
+
+// The guard the first release review found missing: the process is started
+// under exec.CommandContext, so a server started with a request's context dies
+// with that request. The fake here honours its context the way the real
+// starter does, which the earlier fixture did not.
+func TestEnsureDoesNotTieTheServerToTheRequestThatStartedIt(t *testing.T) {
+	f := newStarterFixture(0, 43111)
+	var started context.Context
+	f.starter.Start = func(ctx context.Context, _ string, _, _ []string) (Process, error) {
+		started = ctx
+		return f.process, nil
+	}
+	request, cancel := context.WithCancel(context.Background())
+	if _, err := f.starter.Ensure(request); err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+	if started.Err() != nil {
+		t.Fatal("the server's context ended with the request that started it; every later turn would find a dead server")
+	}
+	if f.process.closed.Load() {
+		t.Fatal("the server was closed when the first request ended")
+	}
+}

@@ -614,8 +614,11 @@ or started for the session on a port kolk chooses; its models in the picker; Oll
 its own sign-in. Kolk never installs one.
 The contract lives in [`docs/plan/25-managed-local-models.md`](docs/plan/25-managed-local-models.md).
 
-- [x] Kolk-owned versioned sidecar, private endpoint, and a model store inside Kolk's data directory.
-- [x] Runtime lifecycle: validate before start, start at most once, close with the session.
+- [x] ~~Kolk-owned versioned sidecar, private endpoint, and a model store inside Kolk's data
+  directory~~ — superseded by option E (2026-08-29) and deleted: the user's own Ollama is found,
+  adopted read-only or started for the session, and its store is the store.
+- [x] Runtime lifecycle: start at most once and lazily, on a port kolk chooses, stop only what kolk
+  started, close with the session.
 - [ ] Hardware probe with the fixed `{accelerators, system_ram_bytes, disk_free_bytes}` shape that
   fails closed to "unknown" and never lets a missing probe authorize a pull.
 - [ ] Fit planner: show size, required VRAM/RAM, reserved headroom, and fallback before any pull;

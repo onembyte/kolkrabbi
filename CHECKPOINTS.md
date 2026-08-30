@@ -3468,6 +3468,10 @@ is deliberately late because item 34 is working in the same files.
       allowances; `localia pull` re-pointed at the host's `/api/pull` with the explicit approval
       plan 25 always required; `SidecarName`'s "never used" comment and every remaining sentence
       that says kolk never touches a host Ollama.
+- [ ] **E11 the cloud catalogue** — rows for Ollama Cloud models the user has *not* pulled, from
+      `ollama.com/api/tags` (readable unauthenticated) through the local `/api/show` proxy for
+      capabilities, so a signed-in user sees what the plan can run. Found by the v1.2.21 pre-release
+      review: the contract said cloud models "appear once signed in", and only pulled ones did.
 
 ### Owner-cleared queue — devices, failure paths, first run, a pinned runtime
 

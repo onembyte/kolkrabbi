@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -40,13 +41,15 @@ func (a *app) runLocalia(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	modelDir := dirs.LocalModelsDir()
-
-	hardware := a.hardware(ctx, modelDir)
+	// The store is the user's own Ollama's (option E): OLLAMA_MODELS or
+	// ~/.ollama/models. Free disk is measured where the pull will land, on
+	// the nearest directory of that path that exists.
+	store := local.HostModelDir(os.Environ())
+	hardware := a.hardware(ctx, existingAncestor(store))
 
 	fmt.Fprintf(a.stdout, "system RAM: %s\n", capacityLabel(hardware.SystemRAM))
 	fmt.Fprintf(a.stdout, "free disk:  %s\n", capacityLabel(hardware.DiskFree))
-	fmt.Fprintf(a.stdout, "model dir:  %s\n", modelDir)
+	fmt.Fprintf(a.stdout, "model store: %s (your Ollama's)\n", store)
 
 	fmt.Fprintln(a.stdout, "\nACCELERATORS")
 	if len(hardware.Accelerators) == 0 {
@@ -77,19 +80,56 @@ func (a *app) runLocalia(ctx context.Context, args []string) error {
 	}
 	fmt.Fprintf(a.stdout, "  change with: kolk config set %s <value>\n", config.LocalKeys[0])
 
-	installed, err := installedLocalModels(modelDir)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintln(a.stdout, "\nINSTALLED")
-	if len(installed) == 0 {
-		fmt.Fprintln(a.stdout, "  no local model is installed; Kolkrabbi never pulls one on its own")
+	// What is pulled, by the record that exists: a running server's own list,
+	// else the manifest tree the last pull left in the store.
+	fmt.Fprintln(a.stdout, "\nPULLED")
+	pulled := a.pulledModelNames(ctx)
+	if len(pulled) == 0 {
+		fmt.Fprintln(a.stdout, "  nothing pulled yet; Kolkrabbi never pulls one on its own — `kolk localia pull <model>` asks first")
 		return nil
 	}
-	for _, name := range installed {
+	for _, name := range pulled {
 		fmt.Fprintf(a.stdout, "  %s\n", name)
 	}
 	return nil
+}
+
+// pulledModelNames lists the host's pulled models: the server's own answer
+// when one runs, else the libraries the manifest tree records.
+func (a *app) pulledModelNames(ctx context.Context) []string {
+	var names []string
+	if a.discoverHost != nil && a.listHostModels != nil {
+		if host := a.discoverHost(ctx); host.State == local.HostRunning {
+			if models, err := a.listHostModels(ctx, host.Addr, ""); err == nil {
+				for _, m := range models {
+					names = append(names, m.Name)
+				}
+				sort.Strings(names)
+				return names
+			}
+		}
+	}
+	if a.pulledNames != nil {
+		for name := range a.pulledNames() {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+// existingAncestor is the nearest directory of path that exists, so free disk
+// can be measured for a store that has not been created yet.
+func existingAncestor(path string) string {
+	for p := path; p != "" && p != "."; p = filepath.Dir(p) {
+		if info, err := os.Stat(p); err == nil && info.IsDir() {
+			return p
+		}
+		if filepath.Dir(p) == p {
+			break
+		}
+	}
+	return path
 }
 
 // capacityLabel keeps "unknown" visibly different from a measured value. A
@@ -100,24 +140,6 @@ func capacityLabel(c local.Capacity) string {
 		return "unknown"
 	}
 	return local.HumanBytes(c.Bytes)
-}
-
-func installedLocalModels(dir string) ([]string, error) {
-	entries, err := os.ReadDir(dir)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("localia: read the managed model directory: %w", err)
-	}
-	names := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() {
-			names = append(names, entry.Name())
-		}
-	}
-	sort.Strings(names)
-	return names, nil
 }
 
 // printLocalCatalog lists what Kolkrabbi knows how to plan for. Runtime figures
@@ -157,7 +179,7 @@ func (a *app) printLocalPlan(ctx context.Context, name string) error {
 	if err != nil {
 		return err
 	}
-	hardware := a.hardware(ctx, dirs.LocalModelsDir())
+	hardware := a.hardware(ctx, existingAncestor(local.HostModelDir(os.Environ())))
 
 	plan, err := local.PlanFit(hardware, localRuntimeConfig(cfg), entry.Requirement())
 	if err != nil {
@@ -165,7 +187,7 @@ func (a *app) printLocalPlan(ctx context.Context, name string) error {
 	}
 
 	fmt.Fprintf(a.stdout, "%s (%s, %s)\n", entry.Name, entry.Parameters, entry.Quantization)
-	fmt.Fprintf(a.stdout, "  download:  %s into %s\n", local.HumanBytes(plan.StorageBytes), dirs.LocalModelsDir())
+	fmt.Fprintf(a.stdout, "  download:  %s into your Ollama's store, %s\n", local.HumanBytes(plan.StorageBytes), local.HostModelDir(os.Environ()))
 	fmt.Fprintf(a.stdout, "  disk free: %s\n", local.HumanBytes(plan.DiskFreeBytes))
 	fmt.Fprintf(a.stdout, "  placement: %s", plan.Placement)
 	if plan.Accelerator != "" {
@@ -249,13 +271,13 @@ func (a *app) pullLocalModel(ctx context.Context, name string, approved bool) er
 	if err != nil {
 		return err
 	}
-	plan, err := local.PlanFit(a.hardware(ctx, dirs.LocalModelsDir()), localRuntimeConfig(cfg), entry.Requirement())
+	plan, err := local.PlanFit(a.hardware(ctx, existingAncestor(local.HostModelDir(os.Environ()))), localRuntimeConfig(cfg), entry.Requirement())
 	if err != nil {
 		return err
 	}
 
 	fmt.Fprintf(a.stdout, "%s (%s, %s)\n", entry.Name, entry.Parameters, entry.Quantization)
-	fmt.Fprintf(a.stdout, "  download:  %s into %s\n", local.HumanBytes(plan.StorageBytes), dirs.LocalModelsDir())
+	fmt.Fprintf(a.stdout, "  download:  %s into your Ollama's store, %s\n", local.HumanBytes(plan.StorageBytes), local.HostModelDir(os.Environ()))
 	fmt.Fprintf(a.stdout, "  placement: %s", plan.Placement)
 	if plan.Accelerator != "" {
 		fmt.Fprintf(a.stdout, " (%s, index %d)", plan.Accelerator, plan.GPUIndex)

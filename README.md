@@ -226,7 +226,7 @@ internal/stats         local JSONL store + aggregation (the dashboard)
 internal/dash          server-rendered, loopback-only usage dashboard
 internal/bus, serve    event bus and the NDJSON / stdio / SSE surfaces
 internal/devices       pairing codes and per-device tokens for remote access
-internal/local         managed local-model runtime, hardware probe, fit planner
+internal/local         the user's own Ollama: discovery, start, models, pulls; hardware probe, fit planner
 internal/tui, term     persistent composer, status line, terminal facts
 internal/redact, secret, keystore   scrubbing and credential storage
 internal/enginetest    scripted fake OpenRouter for offline e2e testing
@@ -271,8 +271,9 @@ The reasoning for each, and the condition that would change it, is in
   a dedicated critic are not built yet.
 - A session still expects a gateway key even when a subscription plan will
   answer the turns.
-- Local models use the Ollama you already have; kolk never installs one. An
-  installed-but-idle Ollama lists nothing in `/model` until something runs it.
+- Local models use the Ollama you already have; kolk never installs one. A
+  pulled model shows in `/model` even while Ollama is idle, and picking it
+  starts the server for the session.
 - No MCP, skills, commands, or hooks yet, and no execution sandbox.
 - A remote device can watch a session and answer its permission prompts; it
   cannot yet send a turn.
