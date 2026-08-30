@@ -19,20 +19,21 @@ func SuggestFiles(files []string, draft string, limit int) []CommandSpec {
 		return nil
 	}
 
-	lowered := strings.ToLower(filter)
-	suggestions := make([]CommandSpec, 0, min(limit, len(files)))
+	matches := make([]scoredSpec, 0, len(files))
 	for _, file := range files {
-		if lowered != "" && !strings.Contains(strings.ToLower(file), lowered) {
+		score, ok := fuzzyScore(file, filter)
+		if !ok {
 			continue
 		}
-		suggestions = append(suggestions, CommandSpec{
+		matches = append(matches, scoredSpec{score: score, spec: CommandSpec{
 			Name:     file,
 			Usage:    mentionMark + file,
 			Complete: prefix + mentionMark + file,
-		})
-		if len(suggestions) == limit {
-			break
-		}
+		}})
+	}
+	suggestions := rankByScore(matches)
+	if len(suggestions) > limit {
+		suggestions = suggestions[:limit]
 	}
 	return suggestions
 }

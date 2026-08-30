@@ -83,3 +83,33 @@ func TestFuzzyMatchesIsTheBooleanShapeOfFuzzyScore(t *testing.T) {
 		t.Fatal("fuzzyMatches must refuse what fuzzyScore refuses")
 	}
 }
+
+// A caller with several unrelated fields to search (a setting's key, summary
+// and value; a plan's provider and name) must never let one query token
+// thread its subsequence through the join between two of them. "auto_restart"
+// and "after an update" each carry one 'f', so "eff" would falsely subsequence
+// e-f-f across the two if they were concatenated into one haystack first — the
+// bug this function exists to rule out.
+func TestFuzzyScoreFieldsNeverSpansATokenAcrossTwoFields(t *testing.T) {
+	if _, ok := fuzzyScoreFields([]string{"auto_restart_after_update", "restart into the new version after an update"}, "eff"); ok {
+		t.Fatal("a token matched by threading through two separate fields")
+	}
+}
+
+// Different tokens of the same query may still land in different fields —
+// "anthropic max" has to find a plan whose provider is "anthropic" and whose
+// name contains "max", the same cross-field query the picker already relies
+// on today.
+func TestFuzzyScoreFieldsLetsDifferentTokensLandInDifferentFields(t *testing.T) {
+	if _, ok := fuzzyScoreFields([]string{"anthropic", "Claude Max"}, "anthropic max"); !ok {
+		t.Fatal("a query whose words are already split across the fields did not match")
+	}
+}
+
+// A token entirely within one field must still match there — the ordinary
+// case every caller depends on most.
+func TestFuzzyScoreFieldsMatchesWithinASingleField(t *testing.T) {
+	if _, ok := fuzzyScoreFields([]string{"effort", "model tier and orchestration width", ""}, "eff"); !ok {
+		t.Fatal("effort's own key, which literally starts eff, did not match")
+	}
+}

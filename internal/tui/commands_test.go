@@ -50,6 +50,17 @@ func TestSlashSuggestionsFilterLiveByCommandPrefix(t *testing.T) {
 	}
 }
 
+// H1: every suggestion surface now tolerates a scattered query, not just a
+// contiguous prefix. "cfg" is not a prefix of "config" — a fuzzy match finds
+// it anyway, the way Claude Code's and Codex's own slash menus do.
+func TestSlashSuggestionsToleratesAScatteredQuery(t *testing.T) {
+	catalog := []CommandSpec{{Name: "config", Usage: "/config"}, {Name: "help", Usage: "/help"}}
+	got := SuggestCommands(catalog, "/cfg", nil, 5)
+	if names := suggestionNames(got); !reflect.DeepEqual(names, []string{"config"}) {
+		t.Fatalf("scattered slash query = %q, want just config", names)
+	}
+}
+
 func TestModelSuggestionsFilterLiveByArgument(t *testing.T) {
 	models := []ModelSpec{
 		{ID: "moonshotai/kimi-k2", Name: "Kimi K2"},
@@ -63,6 +74,30 @@ func TestModelSuggestionsFilterLiveByArgument(t *testing.T) {
 	}
 	if got[0].Complete != "/model moonshotai/kimi-k2" {
 		t.Fatalf("model completion = %q", got[0].Complete)
+	}
+}
+
+// "cld" is not a literal substring of "claude" — a fuzzy match finds the row
+// anyway, the way it would in Claude Code's or Codex's own model picker.
+func TestModelSuggestionsToleratesAScatteredQuery(t *testing.T) {
+	models := []ModelSpec{{ID: "anthropic/claude-opus", Name: "Claude Opus"}}
+	got := SuggestModels(models, "/model cld", 8)
+	if len(got) != 1 || got[0].Name != "anthropic/claude-opus" {
+		t.Fatalf("scattered model query = %#v", got)
+	}
+}
+
+// Ranking, not just filtering, is the point of moving to a score: the model a
+// person meant should sit on top even when a worse match for the same
+// characters was listed first.
+func TestModelSuggestionsRankTheBestMatchFirst(t *testing.T) {
+	models := []ModelSpec{
+		{ID: "local-cloud", Name: "local-cloud"},
+		{ID: "claude", Name: "claude"},
+	}
+	got := SuggestModels(models, "/model cld", 8)
+	if len(got) != 2 || got[0].Name != "claude" {
+		t.Fatalf("ranked model suggestions = %#v, want claude first", got)
 	}
 }
 
@@ -243,6 +278,16 @@ func TestSettingsPickerFiltersLiveAndCompletesToSet(t *testing.T) {
 	// than re-offering the list against the words being typed.
 	if got := SuggestSettings(settings, "/config set effort hi", 8); got != nil {
 		t.Fatalf("picker fought the value being typed: %#v", got)
+	}
+}
+
+// "rstrt" is not a literal substring of "restart" — a fuzzy match finds the
+// row anyway, the same tolerance every other picker now has.
+func TestSettingsSuggestionsToleratesAScatteredQuery(t *testing.T) {
+	settings := []SettingSpec{{Key: "auto_restart_after_update", Summary: "restart into the new version"}}
+	got := SuggestSettings(settings, "/config rstrt", 8)
+	if len(got) != 1 {
+		t.Fatalf("scattered settings query = %#v", got)
 	}
 }
 

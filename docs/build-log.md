@@ -4539,6 +4539,54 @@ gofmt's actual output, so no mutation was applied at all, and a silently-passing
 identical to a validly-caught one. Every mutation below was confirmed by `diff` against the original
 before trusting its test result, and reverted to a byte-identical file after.
 
+## H1 a field join for fuzzy search reopened the bug the join was meant to stop (2026-08-30)
+
+**Gate:** `make check` exit 0 — **2,623 tests, 0 lint issues**, `-race` green on `internal/tui`.
+
+Every list-filtering surface in the TUI — slash commands, `/model`, `/plogin`, `/config`,
+`@`-mentions — now routes through H0's `fuzzyScore`, ranked by score instead of catalog order.
+`matchesFilter` is deleted outright: all three of its call sites moved, so there was nothing left
+to leave behind for someone to forget was dead.
+
+**Nine of ten new tests were the expected shape.** A query whose letters are a scattered
+subsequence rather than one contiguous run now finds the row a literal-substring match could not —
+`/cfg` finds "config", `@mdl` finds "model.go". The tenth went red on an already-passing suite,
+which is the more useful kind of red: `/config eff` matched "auto_restart_after_update" as well as
+"effort".
+
+**The cause was inherited, not introduced.** `SuggestSettings` has always joined a setting's key,
+summary and value with spaces into one haystack before matching — `matchesFilter`'s own design.
+That join carries a hidden assumption: a query, once split into whitespace tokens, will never find
+a match by threading through the seam between two unrelated fields. Literal substring matching
+keeps that assumption true almost by accident, because a real cross-field literal run barely
+happens in natural text. Subsequence matching breaks it outright: `auto_restart_after_update` and
+`restart into the new version after an update` each carry exactly one `f`. Joined, "eff" is a valid
+subsequence — an `e` and an `f` from the key, a second `f` borrowed from the summary three fields
+later. Nothing about the setting says "effort"; the letters just lined up once concatenation made
+that possible.
+
+**The fix could not just search fields one at a time, because a legitimate feature depends on
+crossing them.** `SuggestPlanLogins` needs "anthropic max" to find a plan whose provider is
+"anthropic" and whose name is "Claude Max" — one query, two tokens, two different fields, by
+design. So the fix is not "never let a query cross a field boundary" but "never let one *token's*
+subsequence cross one" — `fuzzyScoreFields` tries every token against every field independently
+and keeps whichever field scored that token best, rather than concatenating fields before matching
+at all. Cross-token, cross-field distribution survives; cross-field spanning inside a single
+token's own subsequence does not. `fuzzyScore` is now `fuzzyScoreFields` called with one field,
+removing a second copy of the same token loop rather than keeping two in sync.
+
+**A malformed mutation earned its own line in the record instead of a quiet redo.** Proving the
+field-isolation mattered meant reverting `fuzzyScoreFields` to call `fuzzyScore` on the joined
+string — except `fuzzyScore` had just been rewritten to delegate *back* to `fuzzyScoreFields`,
+turning the "mutation" into infinite mutual recursion and a stack-overflowing test run rather than
+a result. Not a finding; a broken experiment, discarded and redone by inlining the join directly
+so the mutation could actually run to a verdict.
+
+**Seven mutations, one per call site plus the fix itself, all reverted to byte-identical diffs.**
+Each isolated to its own surface: reverting `SuggestModels`' wiring failed only its two tests,
+reverting `SuggestCommands`' failed only its one, and so on — confirming the leaf did not
+accidentally let one picker's behavior leak into another's just because the code looks similar.
+
 ## S10.2 a fixture nobody replayed hid a dead code path (2026-08-29)
 
 **Gate:** `make check` exit 0 — **2,531 tests, 0 lint issues**, cold start 3.2 ms p50.

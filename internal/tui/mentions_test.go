@@ -74,6 +74,15 @@ func TestOnlyTheMentionBeingTypedCompletes(t *testing.T) {
 	}
 }
 
+// "mdl" is not a literal substring of "model.go" — a fuzzy match finds the
+// file anyway, the same tolerance every other picker now has.
+func TestAtMentionsToleratesAScatteredQuery(t *testing.T) {
+	got := SuggestFiles(projectFiles, "see @mdl", 8)
+	if len(got) != 1 || got[0].Name != "internal/tui/model.go" {
+		t.Fatalf("scattered mention query = %#v", got)
+	}
+}
+
 func TestAMentionThatMatchesNothingSuggestsNothing(t *testing.T) {
 	if got := SuggestFiles(projectFiles, "@zzzzz", 8); len(got) != 0 {
 		t.Fatalf("got %v", got)

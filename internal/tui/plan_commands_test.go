@@ -52,6 +52,15 @@ func TestThePlanLoginPickerMatchesWordsInAnyOrder(t *testing.T) {
 	}
 }
 
+// "clmx" is not a literal substring of "anthropic Claude Max" — a fuzzy match
+// finds the row anyway, the same tolerance every other picker now has.
+func TestThePlanLoginPickerToleratesAScatteredQuery(t *testing.T) {
+	plans := []PlanSpec{{Provider: "anthropic", Name: "Claude Max", Auth: "provider CLI"}}
+	if got := SuggestPlanLogins(plans, "/plogin clmx", 8); len(got) != 1 {
+		t.Fatalf("scattered plan-login query = %#v", got)
+	}
+}
+
 // A row that is missing an Auth is not assumed unusable: PlanSpec is a
 // presentation struct and a caller that fills only the two display fields must
 // still get a menu.

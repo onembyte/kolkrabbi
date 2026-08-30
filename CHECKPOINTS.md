@@ -634,10 +634,12 @@ left/right for text editing and relearning the effort-cycle key.
 
 - [x] **H0 the shared fuzzy-match primitive** — `fuzzyScore`/`fuzzyMatches` in
   `internal/tui/fuzzy.go`. See below.
-- [ ] **H1 apply it everywhere matching happens today** — swap `matchesFilter` (`commands.go`),
-  the slash-menu's prefix-only match, and `@`-mention's plain substring match for `fuzzyScore`,
-  ranked by score. `matchesFilter` itself is untouched by H0 and remains the live matcher until
-  this leaf lands — noted so its absence here does not read as forgotten.
+- [x] **H1 applied everywhere matching happens today** — `matchesFilter` is **deleted**, not left
+  behind: every one of its three call sites, the slash-menu's prefix-only match, and `@`-mention's
+  plain substring match now route through `fuzzyScore`/`fuzzyScoreFields`, ranked by score. A
+  second primitive (`fuzzyScoreFields`) had to be added mid-leaf — see below for why joining
+  fields into one haystack the way `matchesFilter` always had was itself a latent bug once matching
+  went fuzzy.
 - [ ] **H2 a shared filterable-overlay skeleton** — list, marker, filtered/selected index, an
   embedded `*Editor` as the query line (reusing its existing rune-buffer rather than a new one),
   and the windowing math the suggestion dropdown already has (`SetSuggestionWindow`) ported over,
@@ -678,6 +680,60 @@ Acceptance checklist:
   tighter-run-beats-scattered test. Both revert to a byte-identical diff.
 - [x] `-race` green across `internal/tui`.
 - [x] full `make check` green: **2,614 tests, 0 lint issues**.
+
+### H1 built — joining fields for a fuzzy search reopened the bug the join was meant to prevent
+
+Every place a picker filtered a list — `SuggestCommands`, `SuggestModels`, `SuggestPlanLogins`,
+`SuggestSettings`, `SuggestFiles` — now routes through H0's primitive, ranked by score. `matchesFilter`
+is deleted, not deprecated: nothing calls it, so nothing was left to drift out of sync with the
+thing that replaced it.
+
+**Ten new red tests, one surprise.** Nine were the expected shape: a query whose characters are a
+scattered subsequence, not a contiguous run, now finds the row a literal-substring match could not
+— `/cfg` finds "config", `/model cld` finds "claude-opus", `@mdl` finds "model.go". The tenth —
+`/config eff` against a settings list — went **red on a passing suite**, not a missing feature: it
+matched "auto_restart_after_update" as well as the "effort" it was supposed to.
+
+**The cause was `matchesFilter`'s own field-joining, ported over unexamined.** `SuggestSettings`
+had always matched a key, a summary and a value by joining them with spaces into one haystack — a
+design that carries a hidden assumption: the query, once split into tokens, will never itself find
+a match by threading through the join between two unrelated fields. Literal substring matching
+happens to keep that assumption honest, because a real cross-field literal run is vanishingly rare
+in natural text. Subsequence matching does not: `auto_restart_after_update` and `restart into the
+new version after an update` each carry exactly one letter `f`. Joined, "eff" is a valid subsequence
+— one `e` and one `f` from the key, a second `f` borrowed from the summary three fields later. The
+setting had nothing to do with effort; the letters just happened to line up.
+
+**The fix keeps a property H1 could not give up: a query's words may still land in different
+fields.** `SuggestPlanLogins` depends on "anthropic max" finding a plan whose provider is
+"anthropic" and whose name is "Claude Max" — a real, load-bearing cross-field case, not the bug.
+So the fix is not "search one field at a time" but "let one *token* land in a field, never let a
+*token's own subsequence* span two of them": `fuzzyScoreFields` tries each token against every
+field independently and keeps the best field's score, rather than concatenating the fields first.
+Cross-token, cross-field distribution stays possible; cross-field spanning inside a single token
+does not. `fuzzyScore` itself is now `fuzzyScoreFields` called with one field, removing the
+duplicated token loop rather than maintaining two copies of it.
+
+**A malformed mutation is recorded, again, rather than quietly redone.** The first attempt at
+proving `fuzzyScoreFields`'s field-isolation mattered reverted it to call `fuzzyScore` on the
+joined string — forgetting that `fuzzyScore` now delegates *back* to `fuzzyScoreFields`, producing
+infinite mutual recursion and a stack-overflowing test run instead of a result. Discarded as a
+broken experiment, not counted as evidence, and redone by inlining the join directly.
+
+Acceptance checklist:
+
+- [x] red first: ten tests, nine failing on missing tolerance, one failing on a passing suite by
+  matching a row it should not have — the more informative kind of red, since it disproved an
+  assumption rather than confirming an absence.
+- [x] a new primitive, `fuzzyScoreFields`, with its own three tests proving the specific contract a
+  naive join would violate: a token must not span two fields; different tokens may still land in
+  different fields; a token entirely within one field still matches there.
+- [x] seven wiring mutations, one per call site plus the field-isolation fix itself, each reverted
+  to a byte-identical diff: reverting any one call site to its pre-H1 matcher fails only the
+  test(s) written for that surface, leaving every other picker's tests green — proof the leaf did
+  not accidentally share behavior between surfaces that happen to look similar.
+- [x] `-race` green across `internal/tui`.
+- [x] full `make check` green: **2,623 tests, 0 lint issues**.
 
 ### S10.1c built — provenance becomes mechanical, and one artifact stops being contagious
 

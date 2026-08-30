@@ -18,19 +18,7 @@ import "strings"
 // match starting at a word boundary (the start of the string, or right after
 // a space, `/`, `-`, `_`, `.` or `:`) outscores one starting mid-word.
 func fuzzyScore(haystack, query string) (score int, ok bool) {
-	query = strings.TrimSpace(query)
-	if query == "" {
-		return 0, true
-	}
-	lower := strings.ToLower(haystack)
-	for _, token := range strings.Fields(strings.ToLower(query)) {
-		tokenScore, matched := subsequenceScore(lower, token)
-		if !matched {
-			return 0, false
-		}
-		score += tokenScore
-	}
-	return score, true
+	return fuzzyScoreFields([]string{haystack}, query)
 }
 
 // fuzzyMatches is the boolean-only shape most call sites want, kept separate
@@ -39,6 +27,38 @@ func fuzzyScore(haystack, query string) (score int, ok bool) {
 func fuzzyMatches(haystack, query string) bool {
 	_, ok := fuzzyScore(haystack, query)
 	return ok
+}
+
+// fuzzyScoreFields is fuzzyScore's contract extended over several distinct
+// fields rather than one haystack: every whitespace token of query must be a
+// subsequence of at least one field on its own, never of their concatenation.
+// A caller with fields worth keeping apart — a setting's key, summary and
+// value; a plan's provider and name — must join them for search without a
+// single token being able to thread its subsequence through the join: two
+// unrelated fields that each carry one 'f' must not let "eff" match by taking
+// one 'f' from each. Different tokens of the same query may still land in
+// different fields — "anthropic max" still finds a plan whose provider is
+// "anthropic" and whose name is "Claude Max" — because each token is judged
+// against every field independently and only needs one field to win.
+func fuzzyScoreFields(fields []string, query string) (score int, ok bool) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return 0, true
+	}
+	for _, token := range strings.Fields(strings.ToLower(query)) {
+		best, found := 0, false
+		for _, field := range fields {
+			tokenScore, matched := subsequenceScore(strings.ToLower(field), token)
+			if matched && (!found || tokenScore > best) {
+				best, found = tokenScore, true
+			}
+		}
+		if !found {
+			return 0, false
+		}
+		score += best
+	}
+	return score, true
 }
 
 // boundaryBonus rewards a token's first character landing right where a

@@ -1,6 +1,9 @@
 package tui
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 // CommandSpec is the presentation subset of one slash command. Dispatch stays
 // in the CLI; the TUI only needs the canonical name, usage, and summary.
@@ -74,27 +77,25 @@ type PlanSpec struct {
 	Auth     string
 }
 
-// matchesFilter reports whether every word of filter appears somewhere in
-// haystack, in any order.
-//
-// Every picker in the app routes through this so they agree. Substring matching
-// on the whole filter meant a search had to be typed in the order the row
-// happens to print: "claude max" found the row and "max claude" found nothing,
-// which is not how anyone thinks about a list they are scanning. For a
-// single-word filter this is byte-for-byte the old behaviour, because a word
-// cannot span the space the fields are joined by.
-func matchesFilter(haystack, filter string) bool {
-	filter = strings.TrimSpace(filter)
-	if filter == "" {
-		return true
+// scoredSpec pairs a row with how well it matched, so a whole candidate set
+// can be scored before any of it is truncated to a limit — the row that fits
+// best is not necessarily the first one a catalog scan happens to reach.
+type scoredSpec struct {
+	spec  CommandSpec
+	score int
+}
+
+// rankByScore orders matches best first. The sort is stable, so ties keep the
+// order they were given in — which matters most for an empty query, where
+// every score ties at zero and this leaves the caller's own order (cost rank,
+// catalog order, whatever it was) untouched rather than reshuffled.
+func rankByScore(matches []scoredSpec) []CommandSpec {
+	sort.SliceStable(matches, func(i, j int) bool { return matches[i].score > matches[j].score })
+	specs := make([]CommandSpec, len(matches))
+	for index, match := range matches {
+		specs[index] = match.spec
 	}
-	haystack = strings.ToLower(haystack)
-	for _, token := range strings.Fields(strings.ToLower(filter)) {
-		if !strings.Contains(haystack, token) {
-			return false
-		}
-	}
-	return true
+	return specs
 }
 
 // CommandHistory retains bounded unique names in most-recent-first order.
@@ -154,22 +155,39 @@ func SuggestCommands(catalog []CommandSpec, draft string, recent []string, limit
 	}
 	seen := make(map[string]bool, len(catalog))
 	suggestions := make([]CommandSpec, 0, min(limit, len(catalog)))
-	appendMatch := func(name string) {
-		if len(suggestions) >= limit || seen[name] || !strings.HasPrefix(strings.ToLower(name), prefix) {
-			return
+	// Recent commands lead, in the order they were used. That recency signal
+	// is worth more than how well the letters line up, so this bucket is not
+	// reordered by score the way the rest of the catalog is below.
+	for _, name := range recent {
+		if len(suggestions) >= limit || seen[name] || !fuzzyMatches(name, prefix) {
+			continue
 		}
 		command, ok := byName[name]
 		if !ok {
-			return
+			continue
 		}
 		seen[name] = true
 		suggestions = append(suggestions, command)
 	}
-	for _, name := range recent {
-		appendMatch(name)
-	}
+	// The remainder is ranked by match quality, not catalog declaration order,
+	// so scanning the whole catalog finds the best name even when it is not
+	// the first one that happens to match.
+	remaining := make([]scoredSpec, 0, len(catalog))
 	for _, command := range catalog {
-		appendMatch(command.Name)
+		if seen[command.Name] {
+			continue
+		}
+		score, ok := fuzzyScore(command.Name, prefix)
+		if !ok {
+			continue
+		}
+		remaining = append(remaining, scoredSpec{spec: command, score: score})
+	}
+	for _, command := range rankByScore(remaining) {
+		if len(suggestions) >= limit {
+			break
+		}
+		suggestions = append(suggestions, command)
 	}
 	if len(suggestions) == 0 {
 		return nil
@@ -190,26 +208,27 @@ func SuggestModels(models []ModelSpec, draft string, limit int) []CommandSpec {
 		limit = 8
 	}
 	filter := strings.ToLower(strings.TrimSpace(draft[len(prefix):]))
-	suggestions := make([]CommandSpec, 0, min(limit, len(models)))
+	matches := make([]scoredSpec, 0, len(models))
 	for _, model := range models {
 		if model.ID == "" {
 			continue
 		}
-		if filter != "" &&
-			!matchesFilter(model.ID+" "+model.Name+" "+model.Cost, filter) {
+		score, ok := fuzzyScoreFields([]string{model.ID, model.Name, model.Cost}, filter)
+		if !ok {
 			continue
 		}
 		summary := model.Name
 		if model.Cost != "" {
 			summary = "[" + model.Cost + "]  " + summary
 		}
-		suggestions = append(suggestions, CommandSpec{
+		matches = append(matches, scoredSpec{score: score, spec: CommandSpec{
 			Name: model.ID, Usage: prefix + model.ID, Summary: summary,
 			Complete: prefix + model.ID,
-		})
-		if len(suggestions) == limit {
-			break
-		}
+		}})
+	}
+	suggestions := rankByScore(matches)
+	if len(suggestions) > limit {
+		suggestions = suggestions[:limit]
 	}
 	return suggestions
 }
@@ -224,7 +243,7 @@ func SuggestPlanLogins(plans []PlanSpec, draft string, limit int) []CommandSpec 
 		limit = 8
 	}
 	filter := strings.TrimSpace(draft[len(prefix):])
-	suggestions := make([]CommandSpec, 0, min(limit, len(plans)))
+	matches := make([]scoredSpec, 0, len(plans))
 	for _, plan := range plans {
 		// A plan signed into with an API key cannot be signed into here: the
 		// command refuses it outright. Offering it would be a menu entry whose
@@ -233,16 +252,18 @@ func SuggestPlanLogins(plans []PlanSpec, draft string, limit int) []CommandSpec 
 			continue
 		}
 		label := plan.Provider + " " + plan.Name
-		if !matchesFilter(label, filter) {
+		score, ok := fuzzyScoreFields([]string{plan.Provider, plan.Name}, filter)
+		if !ok {
 			continue
 		}
-		suggestions = append(suggestions, CommandSpec{
+		matches = append(matches, scoredSpec{score: score, spec: CommandSpec{
 			Name: label, Usage: prefix + label, Summary: "provider-owned login",
 			Complete: prefix + label,
-		})
-		if len(suggestions) == limit {
-			break
-		}
+		}})
+	}
+	suggestions := rankByScore(matches)
+	if len(suggestions) > limit {
+		suggestions = suggestions[:limit]
 	}
 	return suggestions
 }
@@ -269,28 +290,29 @@ func SuggestSettings(settings []SettingSpec, draft string, limit int) []CommandS
 		limit = 8
 	}
 	filter := strings.ToLower(rest)
-	suggestions := make([]CommandSpec, 0, min(limit, len(settings)))
+	matches := make([]scoredSpec, 0, len(settings))
 	for _, setting := range settings {
 		if setting.Key == "" {
 			continue
 		}
-		if filter != "" &&
-			!matchesFilter(setting.Key+" "+setting.Summary+" "+setting.Value, filter) {
+		score, ok := fuzzyScoreFields([]string{setting.Key, setting.Summary, setting.Value}, filter)
+		if !ok {
 			continue
 		}
 		value := setting.Value
 		if setting.Default {
 			value += " (default)"
 		}
-		suggestions = append(suggestions, CommandSpec{
+		matches = append(matches, scoredSpec{score: score, spec: CommandSpec{
 			Name:     setting.Key,
 			Usage:    setting.Key + "  " + value,
 			Summary:  setting.Summary,
 			Complete: prefix + "set " + setting.Key + " ",
-		})
-		if len(suggestions) == limit {
-			break
-		}
+		}})
+	}
+	suggestions := rankByScore(matches)
+	if len(suggestions) > limit {
+		suggestions = suggestions[:limit]
 	}
 	return suggestions
 }
