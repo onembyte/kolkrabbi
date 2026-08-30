@@ -147,6 +147,29 @@ func visibleWidth(row string) int {
 	return cells
 }
 
+// Park erases the frame and gives the terminal back, so a child process can
+// draw on a clean screen. The renderer forgets the rows it owned: the child
+// will scroll the screen by an amount nothing here can know, so the next frame
+// must start fresh rather than move the cursor up over rows that have moved.
+func (r *Renderer) Park() {
+	if !r.started || r.closed {
+		return
+	}
+	_, _ = io.WriteString(r.out, "\r"+eraseBelow+showCursor+bracketedPasteOff)
+	r.rows = 0
+	r.lastView = ""
+}
+
+// Resume takes the terminal back after a parked child has finished.
+func (r *Renderer) Resume() {
+	if !r.started || r.closed {
+		return
+	}
+	_, _ = io.WriteString(r.out, bracketedPasteOn+hideCursor)
+	r.rows = 0
+	r.lastView = ""
+}
+
 // Close erases the owned region and restores terminal modes exactly once.
 func (r *Renderer) Close() error {
 	if r.closed {

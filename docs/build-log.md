@@ -4830,3 +4830,54 @@ are restored.
 **Tagged at the head, not the release commit.** `chore(release): v1.2.21` was two fixes behind by
 the time CI was green; a tag on it would have shipped the macOS-broken fixture and the
 request-bound server.
+
+### FR3.3 the login happens inside the session
+
+"i dont want to login outside kolk. all need to be inside the same session."
+
+Then, from a real run, the reason it had become urgent:
+
+```
+❯ /plogin anthropic Claude Max
+Signing in to Claude Max — a separate terminal window is opening for claude.
+plan login error: no terminal emulator found to open a login window; set $TERMINAL
+```
+
+**The window path cannot work on a stock macOS at all.** `LoginWindow` searches `$TERMINAL`,
+`$TERM_PROGRAM` and a list of emulator binaries; Terminal.app and iTerm are `.app` bundles, not
+executables on `PATH`, so the search finds nothing and the login fails outright. The other branch —
+defer the login, end the session, run it after the screen is down — was not reachable in production
+anyway, because `newApp` always sets `handoverWindow`.
+
+**Why the child could not simply run in the session.** `Runtime.Run` owns `os.Stdin` from a read
+goroutine while the terminal is in raw mode, and `Handover` gave the child that same descriptor. Two
+readers on one fd, each taking half the keystrokes.
+
+**A pty, and one reader.** The child gets a terminal of its own that kolk owns both ends of. The read
+goroutine stays the only reader on the real terminal and *forwards* raw bytes to the pty while a
+child is attached — nothing is decoded on the way through, so a password typed at a vendor's prompt
+cannot also be interpreted as one of kolk's keys, and kolk remains a wire rather than a reader.
+
+Zero cgo, `golang.org/x/sys` only, and it lives in `internal/term` because `internal/arch` permits
+that import in exactly one package. Everything above receives `*os.File` and never learns which
+ioctl opened it. `pty_other.go` returns `ErrNoPTY` so windows/amd64 still compiles for release, and
+the window and handover paths remain as fallbacks.
+
+**Two things verified by running them rather than by reading a man page:**
+
+- *The size must be set after the slave is opened.* An earlier design sized the master immediately
+  after unlocking it, which on darwin returns `ENOTTY` — a call that looks correct and silently is
+  not. `TestAChildOnThePTYSeesARealTerminal` asserts the child reports `30 100`, so a regression here
+  fails rather than producing an invisible zero-sized terminal.
+- *The name comes from `Minor(rdev)`, not `TIOCPTYGNAME`.* The naming ioctl wants a 128-byte buffer
+  and reading it back would need `unsafe`. The device number gives the same answer with neither cgo
+  nor unsafe.
+
+**A data race the detector caught in the new code.** `RunInSession` closed the master by clearing
+`pty.Master` while both copy pumps were reading that field. `make check` does not run `-race`, so it
+passed every gate; `go test ./... -race` failed three tests immediately. The master is now held
+through a local, and the struct is never written while a pump is alive.
+
+**The keyboard pump is deliberately not joined.** It is parked in a read on the session's terminal,
+which does not unblock when the child exits — waiting for it would hang the login until the user
+happened to press a key. `TestItReturnsWithoutWaitingForAKeystroke` pins that.

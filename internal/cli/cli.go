@@ -137,6 +137,12 @@ type app struct {
 	// Nil means this kolk build has no such path and the screen-down flow
 	// below is the only way.
 	handoverWindow func(context.Context, string, []string) error
+	// loginInSession runs a provider login on a pty inside the running session,
+	// which is where a person asking to sign in expects it to happen. It is
+	// nil outside a TUI session, and preferred over every other runner when
+	// set: a window kolk opens is a second place to look, and on a stock macOS
+	// there is no emulator on PATH for it to open at all.
+	loginInSession func(context.Context, string, []string) error
 }
 
 func newApp() *app {
