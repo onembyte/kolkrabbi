@@ -283,7 +283,11 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
 - [x] **F14.1 tasks carry structure** — a plan is records with a kind and real dependencies, and a subagent is briefed with only the results it asked for.
 - [x] **E13.7 "always" means a rule you can read** — the prompt proposes the rule it would keep, in both the TUI and the plain REPL, and keeps it where /permissions can show it.
 - [x] **C12.7 fast-lane session naming** — a session earns a real name once enough has happened, without delaying the answer or overwriting a name a person chose.
-- [!] **L13.5b4 pin a reviewed runtime release** — blocked on the owner: choose an upstream build, verify it, and record version, URL and SHA-256. Nobody should invent these.
+- [x] **L13.5b4 / L13.5b4a runtime pin proposal** — **superseded by E10.** The E-group (E1–E11,
+  merged 2026-08-28) pivoted local models from a kolk-managed sidecar to the user's own Ollama on
+  PATH. `pinnedRuntime` and `InstallRuntime` were deleted by E10; the `L13.6` group that depended
+  on them was retired. These two checkpoints, asking the owner to choose an upstream build for a
+  deleted install path, can now only never be satisfied. Marked closed, superseded.
 - [x] **L13.5c GPU and quantization settings** — the five local settings live in the existing config surface, validated where they are typed and shown by `localia`.
 - [x] **S10 codex spawn backend** — `codex exec --json` becomes a kolk backend, with the model and
   effort dials working inside the subscription. Written 2026-08-28, gates closed 2026-08-29 by a
@@ -562,8 +566,10 @@ Acceptance checklist:
   the 30 s failure, since `killGroup`'s negative pid then resolves to no group.
 - [x] `-race` green, and the windows/amd64 cross-build green with the honest no-op.
 - [x] full `make check` green: **2,534 tests, 0 lint issues**.
-- [ ] **not done, and not ticked:** the bounded drain, the SIGINT-first ladder, the read-end close,
-  and `EPIPE`-tolerant async stdin.
+- [ ] **not done, and not ticked:** the bounded drain that does not kill on `result` (P6). The
+  SIGINT-first ladder (S10.1d3, shipped), `EPIPE`-tolerant async stdin (S10.1d7, shipped), and the
+  drain that keeps cancelled-turn accounting (S10.1d6, shipped) were all built after this list was
+  written. Only the **read-end close** remains genuinely open.
 
 ### S10.1d1 built — a session-long buffer nobody was emptying
 
@@ -7405,9 +7411,11 @@ Scope:
 - `internal/local.Runtime` owns one sidecar for its caller's lifetime with an injected `StartFunc`,
   so no test needs an Ollama binary; `shell.StartManagedProcess` is the real starter.
 
-Non-goals:
+Non-goals (updated 2026-08-30 — the E-group pivoted from kolk-managed to user-owned):
 
-- Kolk never discovers, starts, stops, or connects to a host-owned Ollama service.
+- **Kolk starts the user's own Ollama on PATH, lazily, and stops only that one.** E10 deleted
+  the kolk-managed sidecar and the install path it owned. The architecture now wraps the existing
+  Ollama.
 - No implicit model pull. Every pull is an explicit, sized, confirmed user action.
 
 Acceptance checklist:
@@ -7417,11 +7425,14 @@ Acceptance checklist:
   (`dbf8dc4a`, `7e38af6d`).
 - [x] the sidecar starter lives in `internal/shell` and keeps `os/exec` inside its one owner
   (`031b0847`).
-- [ ] the hardware probe returns the documented `{accelerators, system_ram_bytes, disk_free_bytes}`
-  shape, fails closed to "unknown", and never lets a missing probe authorize a pull.
-- [ ] the fit planner shows model size, required VRAM/RAM, reserved headroom, and the expected
-  fallback, and refuses a pull that does not fit instead of degrading into swap.
-- [ ] `/localia` and its CLI twin exist, with parity tests that need neither a GPU nor Ollama.
+- [x] the hardware probe returns the documented `{accelerators, system_ram_bytes, disk_free_bytes}`
+  shape, fails closed to "unknown", and never lets a missing probe authorize a pull. Done:
+  `NewSystemProber(...).Probe()` at `cmd_localia.go:219`.
+- [x] the fit planner shows model size, required VRAM/RAM, reserved headroom, and the expected
+  fallback, and refuses a pull that does not fit instead of degrading into swap. Done: `PlanFit(...)`
+  at `cmd_localia.go:184`.
+- [x] `/localia` and its CLI twin exist, with parity tests that need neither a GPU nor Ollama.
+  Registered identically at `slash.go:31` and `cli.go:243`.
 
 ### U0.4g persistent purple composer — verified detail
 
