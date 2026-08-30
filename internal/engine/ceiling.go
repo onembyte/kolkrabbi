@@ -44,15 +44,23 @@ func modelRank(model string) (ladder string, rung int, known bool) {
 	if normalized == "" {
 		return "", 0, false
 	}
-	// The catalogue prefixes some ids with their provider, and a plan model
-	// carries none. Comparing the tail handles both without a second table.
+	// Ids arrive in three shapes: a bare plan model (`claude-haiku`), a
+	// catalogue id carrying its provider (`anthropic/claude-haiku`), and a
+	// namespaced route (`claude/haiku`). All three name the same rung, so all
+	// three are tried — matching only the tail would leave `claude/haiku`
+	// unranked, and an unranked model is never clamped, which would make a
+	// whole id namespace invisible to the ceiling.
+	forms := []string{normalized}
 	if slash := strings.LastIndex(normalized, "/"); slash >= 0 {
-		normalized = normalized[slash+1:]
+		forms = append(forms,
+			normalized[slash+1:],
+			// `claude/haiku` -> `claude-haiku`: the namespace IS the vendor.
+			normalized[:slash]+"-"+normalized[slash+1:])
 	}
 	best, bestLadder, found := 0, "", false
 	for _, candidate := range vendorLadders {
 		for index, rung := range candidate.rungs {
-			if !strings.HasPrefix(normalized, rung) {
+			if !matchesAnyForm(forms, rung) {
 				continue
 			}
 			// Longest match wins, so `claude-opus` does not shadow a future
@@ -66,6 +74,16 @@ func modelRank(model string) (ladder string, rung int, known bool) {
 		return "", 0, false
 	}
 	return bestLadder, best, true
+}
+
+// matchesAnyForm reports whether any spelling of an id names this rung.
+func matchesAnyForm(forms []string, rung string) bool {
+	for _, form := range forms {
+		if strings.HasPrefix(form, rung) {
+			return true
+		}
+	}
+	return false
 }
 
 // ClampToCeiling returns chosen, or ceiling when chosen is the more capable of
@@ -91,22 +109,22 @@ func ClampToCeiling(chosen, ceiling string) string {
 	return chosen
 }
 
-// ModelsAtOrBelow is every model on the ceiling's ladder that may be used,
-// most capable first. It is what a picker should offer once a ceiling is set:
-// selecting Sonnet leaves Sonnet and Haiku, and Opus and Fable are simply not
-// on the menu.
-func ModelsAtOrBelow(ceiling string) []string {
+// ModelsAboveCeiling is every model on the ceiling's ladder that this session
+// may NOT use. It is what a session can honestly state: the ceiling refuses
+// these, which is a guarantee, where naming the cheaper rungs would predict a
+// routing decision that has not been made.
+func ModelsAboveCeiling(ceiling string) []string {
 	ladderName, rung, known := modelRank(ceiling)
-	if !known {
+	if !known || rung == 0 {
 		return nil
 	}
 	for _, candidate := range vendorLadders {
 		if candidate.name != ladderName {
 			continue
 		}
-		allowed := make([]string, 0, len(candidate.rungs)-rung)
-		allowed = append(allowed, candidate.rungs[rung:]...)
-		return allowed
+		blocked := make([]string, 0, rung)
+		blocked = append(blocked, candidate.rungs[:rung]...)
+		return blocked
 	}
 	return nil
 }

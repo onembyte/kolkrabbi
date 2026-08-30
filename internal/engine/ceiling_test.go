@@ -25,25 +25,29 @@ func TestSelectingSonnetPutsOpusAndFableOutOfReach(t *testing.T) {
 	}
 }
 
-// What a picker should offer once a ceiling is set.
-func TestOnlyTheCeilingAndBelowAreAvailable(t *testing.T) {
-	got := ModelsAtOrBelow("claude-sonnet")
-	want := []string{"claude-sonnet", "claude-haiku"}
+// What a session can honestly state: which models the ceiling refuses.
+func TestTheModelsAboveTheCeilingAreNamed(t *testing.T) {
+	got := ModelsAboveCeiling("claude-sonnet")
+	want := []string{"claude-fable", "claude-opus"}
 	if len(got) != len(want) {
-		t.Fatalf("available = %v, want %v", got, want)
+		t.Fatalf("blocked = %v, want %v", got, want)
 	}
 	for i := range want {
 		if got[i] != want[i] {
-			t.Fatalf("available = %v, want %v", got, want)
+			t.Fatalf("blocked = %v, want %v", got, want)
 		}
 	}
-	// Selecting the top of the ladder leaves everything available.
-	if all := ModelsAtOrBelow("claude-fable"); len(all) != 4 {
-		t.Errorf("selecting the strongest model left %v, want the whole ladder", all)
+	// Selecting the strongest model refuses nothing, so there is nothing to say.
+	if top := ModelsAboveCeiling("claude-fable"); len(top) != 0 {
+		t.Errorf("the strongest model reported %v as out of reach", top)
 	}
-	// Selecting the bottom leaves only itself.
-	if bottom := ModelsAtOrBelow("claude-haiku"); len(bottom) != 1 || bottom[0] != "claude-haiku" {
-		t.Errorf("selecting the cheapest model left %v, want only itself", bottom)
+	// And the cheapest rung refuses everything above it.
+	if bottom := ModelsAboveCeiling("claude-haiku"); len(bottom) != 3 {
+		t.Errorf("the cheapest model reported %v out of reach, want three", bottom)
+	}
+	// A model on no ladder makes no claim either way.
+	if unranked := ModelsAboveCeiling("mystery-model"); unranked != nil {
+		t.Errorf("an unranked model invented a ladder: %v", unranked)
 	}
 }
 
@@ -78,8 +82,8 @@ func TestAnUnrankedModelIsLeftAlone(t *testing.T) {
 	if got := ClampToCeiling("mystery-model", "also-unknown"); got != "mystery-model" {
 		t.Errorf("two unranked models were compared anyway: %q", got)
 	}
-	if got := ModelsAtOrBelow("mystery-model"); got != nil {
-		t.Errorf("ModelsAtOrBelow invented a ladder: %v", got)
+	if got := ModelsAboveCeiling("mystery-model"); got != nil {
+		t.Errorf("an unranked model invented a ladder: %v", got)
 	}
 }
 
@@ -101,21 +105,21 @@ func TestAnEmptyChoiceBecomesTheCeiling(t *testing.T) {
 	}
 }
 
-// Every rung has to be reachable as a ceiling, or a user selecting it would be
-// left with nothing to route to.
+// Every rung has to work as a ceiling: itself allowed, everything above it not.
 func TestEveryRungIsAUsableCeiling(t *testing.T) {
 	for _, ladder := range vendorLadders {
-		for _, rung := range ladder.rungs {
-			available := ModelsAtOrBelow(rung)
-			if len(available) == 0 {
-				t.Errorf("%s leaves nothing available", rung)
+		for rung, model := range ladder.rungs {
+			if got := ClampToCeiling(model, model); got != model {
+				t.Errorf("%s rewrote itself to %s", model, got)
 			}
-			if len(available) > 0 && available[0] != rung {
-				t.Errorf("%s is not its own first choice: %v", rung, available)
+			for _, above := range ladder.rungs[:rung] {
+				if got := ClampToCeiling(above, model); got != model {
+					t.Errorf("under ceiling %s, %s was allowed (got %s)", model, above, got)
+				}
 			}
-			for _, candidate := range available {
-				if got := ClampToCeiling(candidate, rung); got != candidate {
-					t.Errorf("%s was offered under ceiling %s but clamped to %s", candidate, rung, got)
+			for _, below := range ladder.rungs[rung+1:] {
+				if got := ClampToCeiling(below, model); got != below {
+					t.Errorf("under ceiling %s, cheaper %s was clamped to %s", model, below, got)
 				}
 			}
 		}
@@ -196,5 +200,22 @@ func TestAnUnrankedSessionModelChangesNothing(t *testing.T) {
 	}}
 	if got := agent.modelForKind(KindEdit); got != "claude-opus" {
 		t.Errorf("an unranked session model rewrote the slot to %q", got)
+	}
+}
+
+// An id can arrive in three shapes and all three name the same rung. Matching
+// only the tail left `claude/haiku` unranked — and an unranked model is never
+// clamped, so a whole namespace would have been invisible to the ceiling.
+func TestEverySpellingOfAModelFindsItsRung(t *testing.T) {
+	for _, spelling := range []string{"claude-opus", "anthropic/claude-opus", "claude/opus"} {
+		if got := ClampToCeiling(spelling, "claude-sonnet"); got != "claude-sonnet" {
+			t.Errorf("%q escaped the ceiling: got %q", spelling, got)
+		}
+	}
+	// And the cheap end still routes through under each spelling.
+	for _, spelling := range []string{"claude-haiku", "claude/haiku", "anthropic/claude-haiku"} {
+		if got := ClampToCeiling(spelling, "claude-sonnet"); got != spelling {
+			t.Errorf("%q was clamped when it is below the ceiling: got %q", spelling, got)
+		}
 	}
 }

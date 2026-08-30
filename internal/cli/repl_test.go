@@ -488,26 +488,32 @@ func TestAgentModeSaysWhichModelsTheRunMayUse(t *testing.T) {
 		t.Fatal("/mode must not exit the REPL")
 	}
 	got := out.String()
-	if !strings.Contains(got, "claude-sonnet") || !strings.Contains(got, "claude-haiku") {
-		t.Errorf("agent mode did not name the models it may use:\n%s", got)
+	// Stated as what is refused, which is the part that is guaranteed. Naming
+	// the cheaper rungs would predict a routing decision the router does not
+	// yet make on a plan session, where slots still resolve gateway models.
+	if !strings.Contains(got, "capped at claude-sonnet") {
+		t.Errorf("agent mode did not say what it is capped at:\n%s", got)
 	}
-	// The whole point: the stronger models are not offered.
-	if strings.Contains(got, "claude-opus") || strings.Contains(got, "claude-fable") {
-		t.Errorf("agent mode offered a model above the selected one:\n%s", got)
+	for _, blocked := range []string{"claude-opus", "claude-fable"} {
+		if !strings.Contains(got, blocked) {
+			t.Errorf("agent mode did not say %s is out of reach:\n%s", blocked, got)
+		}
 	}
-	if !strings.Contains(got, "ceiling") {
-		t.Errorf("the message does not say the selection is a ceiling:\n%s", got)
+	if !strings.Contains(got, "out of reach") {
+		t.Errorf("the message does not say the stronger models are refused:\n%s", got)
 	}
 }
 
 // Nothing is claimed for a model kolk has not ranked, and nothing is said when
 // the user already picked the cheapest rung.
 func TestNoCeilingLineWhenThereIsNothingToSay(t *testing.T) {
-	for _, model := range []string{"mock/model", "claude-haiku"} {
+	// An unranked model, and the strongest rung: nothing is out of reach in
+	// either case, so there is nothing true to say.
+	for _, model := range []string{"mock/model", "claude-fable"} {
 		a, ag, out := replFixture(t, "")
 		ag.Model = model
 		a.slash(context.Background(), ag, "/mode agent")
-		if strings.Contains(out.String(), "may use") {
+		if strings.Contains(out.String(), "capped at") {
 			t.Errorf("model %q produced a ceiling line it cannot support:\n%s", model, out.String())
 		}
 	}
@@ -518,7 +524,7 @@ func TestNoCeilingLineOutsideAgentMode(t *testing.T) {
 	a, ag, out := replFixture(t, "")
 	ag.Model = "claude-sonnet"
 	a.slash(context.Background(), ag, "/mode code")
-	if strings.Contains(out.String(), "may use") {
+	if strings.Contains(out.String(), "capped at") {
 		t.Errorf("code mode printed the agent ceiling line:\n%s", out.String())
 	}
 }

@@ -94,16 +94,21 @@ func (a *app) reportAgentModelCeiling(ag *engine.Agent) {
 	if ag.Mode != engine.ModeAgent {
 		return
 	}
-	available := engine.ModelsAtOrBelow(ag.Model)
-	if len(available) < 2 {
+	blocked := engine.ModelsAboveCeiling(ag.Model)
+	if len(blocked) == 0 {
 		// Either the model is on no ranked ladder, or it is already the
-		// cheapest rung. Neither is worth a line: the first would be a claim
-		// kolk cannot make, and the second says nothing the user did not just
-		// choose.
+		// strongest rung and nothing is out of reach. Neither is worth a line:
+		// the first would be a claim kolk cannot make, and the second says
+		// nothing the user did not just choose.
 		return
 	}
-	fmt.Fprintf(a.stdout, "agent runs may use: %s (never above %s — your pick is the ceiling)\n",
-		strings.Join(available, ", "), ag.Model)
+	// Stated as what is REFUSED, not as what will be chosen. The ceiling is a
+	// guarantee — a stronger model cannot be reached — and that is true today.
+	// Which cheaper model a task actually lands on is the router's decision and
+	// on a plan session it is still a gateway model, so listing the plan's own
+	// cheap rungs here would promise something the router does not yet do.
+	fmt.Fprintf(a.stdout, "agent runs are capped at %s — %s out of reach\n",
+		ag.Model, strings.Join(blocked, " and ")+" stay")
 }
 
 // slash handles a /command typed in the REPL. It returns true when the REPL

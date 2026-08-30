@@ -4957,3 +4957,34 @@ what the setting does.
 Nothing was wrong with the code. A suite that reads the developer's settings reports the wrong thing
 on precisely one machine: the maintainer's. `replFixture` isolates now, like `newTestApp` already
 did.
+
+### FR4.3 two corrections the adversarial pass found in FR4.1
+
+A four-way design investigation into agent mode over vendor CLIs, each investigation then checked by
+an adversarial reader, found two defects in the ceiling shipped an hour earlier. Both were in code
+already pushed, and neither had failed a test.
+
+**A whole id namespace the ceiling could not see.** `modelRank` normalised by stripping everything up
+to the last `/`, so `claude/haiku` became `haiku`, which does not prefix-match the rung
+`claude-haiku`. An unranked model is deliberately never clamped — so any `vendor/model` route would
+have been invisible to the ceiling, silently exempt from the one guarantee it exists to provide. All
+three spellings a model arrives in are now tried: the bare plan name, the catalogue's
+`provider/model`, and the namespaced `claude/haiku` folded to `claude-haiku`.
+
+**A message that promised what the router does not do.** Entering agent mode printed
+`agent runs may use: claude-sonnet, claude-haiku`. The ceiling is real, but that line predicted a
+routing decision rather than stating a guarantee — and the prediction is wrong today. On a plan
+session `a.Catalog` is still the gateway catalogue (`run.go` loads it regardless of backend), so
+`SlotExplore` ranks gateway rows and `SlotFast` returns `FastLaneModel`, which on a non-free session
+model is `google/gemini-2.5-flash`. The clamp then correctly leaves it alone — a different ladder is
+a different bill — but the user had been told to expect their plan's own models.
+
+It now says what is guaranteed: `agent runs are capped at claude-sonnet — claude-fable and
+claude-opus stay out of reach`. Refusal is a guarantee; selection is not yet. `ModelsAtOrBelow` was
+deleted rather than allowlisted when the dead-export gate caught it losing its caller, and
+`ModelsAboveCeiling` replaced it.
+
+**Recorded as the honest state of the work:** the ceiling is enforced. Routing a subagent to the
+plan's own cheap model is the other half and is not built — on a plan session the slots still resolve
+gateway ids. Saying so here matters more than the code did, because the previous line said otherwise
+to the user's face.
