@@ -5,6 +5,7 @@ package shell
 import (
 	"bytes"
 	"context"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -83,12 +84,12 @@ func TestACancelledContextEndsTheChild(t *testing.T) {
 // the keyboard pump is parked in a read that does not unblock on child exit, so
 // joining it would hang until the next keystroke.
 func TestItReturnsWithoutWaitingForAKeystroke(t *testing.T) {
-	blocked, done := make(chan struct{}), make(chan struct{})
+	blocked, readerDone, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	var out bytes.Buffer
 	go func() {
 		defer close(done)
 		_ = RunInSession(context.Background(), "sh", []string{"-c", "echo hi"},
-			blockingReader{blocked}, &out, 80, 24)
+			blockingReader{blocked, readerDone}, &out, 80, 24)
 	}()
 	select {
 	case <-done:
@@ -96,12 +97,39 @@ func TestItReturnsWithoutWaitingForAKeystroke(t *testing.T) {
 		t.Fatal("RunInSession waited for input that was never going to arrive")
 	}
 	close(blocked)
+	select {
+	case <-readerDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the keyboard pump outlived its released input reader")
+	}
 }
 
 // blockingReader never returns, the way a terminal with nobody typing does not.
-type blockingReader struct{ release chan struct{} }
+type blockingReader struct {
+	release chan struct{}
+	done    chan struct{}
+}
 
 func (r blockingReader) Read([]byte) (int, error) {
 	<-r.release
-	return 0, nil
+	close(r.done)
+	return 0, io.EOF
+}
+
+// A child can exit before the output pump gets scheduled. The bytes already
+// written to the pty still belong to this login and must reach the caller
+// before RunInSession returns.
+func TestRunInSessionPreservesImmediateFinalOutput(t *testing.T) {
+	const want = "final-output"
+	for i := 0; i < 20; i++ {
+		var out bytes.Buffer
+		err := RunInSession(context.Background(), "sh", []string{"-c", "printf 'final-output'"},
+			strings.NewReader(""), &out, 80, 24)
+		if err != nil {
+			t.Fatalf("RunInSession: %v", err)
+		}
+		if got := out.String(); got != want {
+			t.Fatalf("iteration %d output = %q, want %q", i, got, want)
+		}
+	}
 }

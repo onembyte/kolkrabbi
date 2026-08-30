@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"sync"
+	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/term"
 )
@@ -25,6 +25,12 @@ import (
 // frame parked by the caller. Nothing is interpreted on the way through: kolk
 // is a wire here, not a reader, which is what keeps the promise that it never
 // sees the credential.
+
+// ptyDrainGrace gives a descendant that still holds the slave a short chance
+// to release it after the direct child exits. The normal path reaches EOF on
+// its own; this bound keeps a detached child from freezing the login forever.
+const ptyDrainGrace = time.Second
+
 func RunInSession(ctx context.Context, executable string, args []string, in io.Reader, out io.Writer, width, height int) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -55,10 +61,9 @@ func RunInSession(ctx context.Context, executable string, args []string, in io.R
 	// build, a nil dereference in whichever pump lost.
 	master := pty.Master
 
-	var wg sync.WaitGroup
-	wg.Add(1)
+	outputDone := make(chan struct{})
 	go func() {
-		defer wg.Done()
+		defer close(outputDone)
 		// Child to screen. Ends when the child exits and the master reports EOF.
 		_, _ = io.Copy(out, master)
 	}()
@@ -68,12 +73,24 @@ func RunInSession(ctx context.Context, executable string, args []string, in io.R
 	go func() { _, _ = io.Copy(master, in) }()
 
 	waitErr := cmd.Wait()
-	// Closing the master is what ends the output pump: it turns the pump's
-	// pending read into an error rather than leaving it parked forever.
+	// The child may have exited before the output pump was scheduled. Let the
+	// pump observe the slave's EOF and drain bytes already written to the pty
+	// before closing the master. If a descendant keeps the slave open, the
+	// bounded fallback still guarantees that login shutdown cannot hang.
+	timer := time.NewTimer(ptyDrainGrace)
+	select {
+	case <-outputDone:
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+	case <-timer.C:
+		_ = master.Close()
+		<-outputDone
+	}
 	_ = master.Close()
-	// Drain before returning, so the child's last output reaches the screen
-	// ahead of whatever the caller prints next.
-	wg.Wait()
 
 	if waitErr != nil {
 		return fmt.Errorf("%s login exited unsuccessfully: %w", executable, waitErr)
