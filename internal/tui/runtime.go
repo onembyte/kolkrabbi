@@ -91,9 +91,11 @@ type Runtime struct {
 	// modelPick is the reply channel of the surface waiting on the /model
 	// overlay. Empty answer means dismissed.
 	modelPick chan string
-	quit      chan struct{}
-	quitOnce  sync.Once
-	resize    <-chan struct{}
+	// configPick is modelPick's counterpart for the /config overlay.
+	configPick chan string
+	quit       chan struct{}
+	quitOnce   sync.Once
+	resize     <-chan struct{}
 	// closing is set once the read loop has exited. A queued request must not
 	// start after that: turns.Wait has begun, so Add would race it, and a
 	// session that is ending should not send one more message.
@@ -253,6 +255,10 @@ func (r *Runtime) HandleKey(key Key) Effect {
 	if (effect.PickModel != "" || effect.PickDismissed) && r.modelPick != nil {
 		r.modelPick <- effect.PickModel
 		r.modelPick = nil
+	}
+	if (effect.PickConfig != "" || effect.PickDismissed) && r.configPick != nil {
+		r.configPick <- effect.PickConfig
+		r.configPick = nil
 	}
 	if effect.CyclePermission && r.cyclePerm != nil {
 		if tier := r.cyclePerm(); tier != "" {
@@ -510,7 +516,7 @@ func (r *Runtime) AskModel(ctx context.Context, entries []ModelPickEntry) (strin
 	}
 	reply := make(chan string, 1)
 	r.mu.Lock()
-	if r.question != nil || r.approval != nil || r.modelPick != nil {
+	if r.question != nil || r.approval != nil || r.modelPick != nil || r.configPick != nil {
 		r.mu.Unlock()
 		return "", false
 	}
@@ -531,6 +537,44 @@ func (r *Runtime) AskModel(ctx context.Context, entries []ModelPickEntry) (strin
 		r.mu.Lock()
 		if r.modelPick == reply {
 			r.modelPick = nil
+			_ = r.controller.HandleKey(Key{Kind: KeyInterrupt})
+			r.renderLocked()
+		}
+		r.mu.Unlock()
+		return "", false
+	}
+}
+
+// AskConfig opens the /config picker and returns the setting key chosen, or
+// false when the picker was dismissed or refused (another overlay is already
+// open, or no rows were given). Unlike AskModel's answer, the key returned is
+// never itself a command: resolving it already filled the composer's draft
+// with `/config set <key> `, so the caller has nothing further to submit.
+func (r *Runtime) AskConfig(ctx context.Context, entries []SettingSpec) (string, bool) {
+	if len(entries) == 0 {
+		return "", false
+	}
+	reply := make(chan string, 1)
+	r.mu.Lock()
+	if r.question != nil || r.approval != nil || r.modelPick != nil || r.configPick != nil {
+		r.mu.Unlock()
+		return "", false
+	}
+	r.configPick = reply
+	r.controller.RequestConfigPicker(entries)
+	r.renderLocked()
+	r.mu.Unlock()
+
+	select {
+	case answer := <-reply:
+		if answer == "" {
+			return "", false
+		}
+		return answer, true
+	case <-ctx.Done():
+		r.mu.Lock()
+		if r.configPick == reply {
+			r.configPick = nil
 			_ = r.controller.HandleKey(Key{Kind: KeyInterrupt})
 			r.renderLocked()
 		}
@@ -580,6 +624,16 @@ func (r *Runtime) Snapshot() Snapshot {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.controller.Snapshot()
+}
+
+// ConfigPicker reports the open /config overlay, race-safe for a caller
+// outside this package: Controller.ConfigPicker reads state HandleKey and
+// AskConfig mutate under this Runtime's own lock, so a caller polling it
+// without going through here would be racing them.
+func (r *Runtime) ConfigPicker() *ConfigPick {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.controller.ConfigPicker()
 }
 
 // SetStatus updates mode/model/session labels after a slash command without

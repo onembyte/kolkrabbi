@@ -644,10 +644,8 @@ left/right for text editing and relearning the effort-cycle key.
   see below for why a full shared overlay skeleton was the wrong shape once a name existed for
   each piece.
 - [x] **H3 the `/model` overlay filters live** — built on H2's `filterBox`. See below.
-- [ ] **H4 a `/config` overlay** — the literal ask: a search box for settings, built on H2,
-  sourcing the `SettingSpec` rows already plumbed for the inline suggestions (`c.settings`). Bare
-  `/config` in the TUI opens it instead of the static dump; `/config get|set|unset <args>` is
-  untouched. `/plogin` stays inline — nothing asked for an overlay there.
+- [x] **H4 a `/config` overlay** — the literal ask. See below. `/plogin` stays inline, as scoped —
+  nothing asked for an overlay there.
 
 ### H0 built — one scoring term turned out to be free
 
@@ -823,6 +821,66 @@ Acceptance checklist:
   mutation testing showed it was unproven.
 - [x] `-race` green across `internal/tui`.
 - [x] full `make check` green: **2,632 tests, 0 lint issues**.
+
+### H4 built — the literal ask, and the one place its answer had to differ from `/model`'s
+
+Bare `/config` in the TUI opened nothing: it fell straight through to `a.runConfig`, the
+non-interactive dump `kolk config` itself prints. `ConfigPicker` (`internal/tui/config_picker.go`)
+gives it the same overlay `/model` has — `filteredConfigIndices` filters and ranks `SettingSpec`
+rows through H0's `fuzzyScoreFields` exactly the way `filteredModelIndices` does, and the whole
+key-handling shape (type to filter, Backspace to edit, Escape clears-then-closes) is deliberately
+the twin of H3's, because a person who has learned one picker in this app should not have to learn
+a second set of rules for the other. No new CLI-side data plumbing was needed: `tuiSettings(a)`
+already built exactly this row shape for the inline `/config` suggestions, so the picker's rows and
+the dropdown's rows now come from the same call.
+
+**The one place it could not just copy `/model`: what Enter does.** `/model`'s Enter answers with a
+complete, ready-to-run command — the picker has resolved the whole choice. `/config`'s Enter cannot:
+a setting still needs its **value** typed, and no picker in this app should try to guess it.
+`resolveConfigPicker` therefore does not hand a string back up through the same reply-channel path
+`/model` uses to submit a command — it calls the identical two lines `completeSuggestion` already
+uses for the inline dropdown's own Tab-completion (`c.editor.setDraft(...)`, `c.screen.SetDraft(...)`)
+and fills the composer with `/config set <key> `, leaving the user exactly where choosing the same
+row from the dropdown already leaves them. One behavior for "a setting was chosen," however it was
+reached, rather than a second one invented for the overlay.
+
+**Wiring it into the CLI is one `else if` beside the existing `/model` check** (`tui_repl.go`'s
+`Turn`), because `AskConfig` mirrors `AskModel`'s blocking contract exactly — same mutual-exclusion
+guard extended in both directions (`AskModel` now also refuses to open over an active config picker,
+and vice versa), same context-cancellation teardown. `/config get|set|unset <args>` never reaches
+the new function at all: the guard is `prompt == "/config"` exactly, so the CLI's existing command
+runs unchanged for every other shape.
+
+**A second red-first slip in this same session, corrected the same way as the first.** The CLI
+wiring (`tuiConfigPickerCommand`) was written and working before its two tests existed, so they
+passed the moment they were written — never observed failing for their own reason. Caught on the
+same self-check this session has been applying to every other leaf: each test's exact claim was
+mutated away (the bare-`/config` guard forced to always refuse; the args-guard loosened to a
+prefix check) and both were confirmed to fail for precisely the reason they exist, before being
+trusted.
+
+**A genuine data race, not a flake, in the CLI-layer test itself.** `internal/tui`'s own picker
+tests read controller state directly under `r.mu` because they live inside the `tui` package;
+`internal/cli`'s new test cannot reach that private field. Polling `screen.Controller().ConfigPicker()`
+without it raced against `AskConfig` mutating the same state from the picker's own goroutine — caught
+by `-race`, not by inspection. Fixed with `Runtime.ConfigPicker()`, a thin locked passthrough
+mirroring the existing `Snapshot()`/`SetStatus()` pattern, rather than working around the race in the
+test.
+
+Acceptance checklist:
+
+- [x] red first: `ConfigPicker`/`RequestConfigPicker`/`AskConfig` referenced by name before any of
+  the three existed, at both the `internal/tui` and `internal/cli` layers.
+- [x] mutation-proven at the `internal/tui` layer: no draft set on pick, a draft wrongly set on
+  dismissal, fuzzy filtering disabled, and Escape always closing — four mutations, each caught by
+  exactly the test written for it, each reverted byte-identical.
+- [x] mutation-proven at the `internal/cli` layer, after the red-first slip was caught and
+  corrected: the bare-`/config` guard forced to always-refuse, and the args-guard loosened to a
+  prefix match — both fail for their intended reason, both reverted byte-identical.
+- [x] the cross-package race caught by `-race`, fixed by adding a proper locked accessor rather
+  than papering over it in the test; the fixed test run clean ten times in a row under `-race`.
+- [x] `-race` green across `internal/tui` and `internal/cli`.
+- [x] full `make check` green: **2,639 tests, 0 lint issues**.
 
 ### S10.1c built — provenance becomes mechanical, and one artifact stops being contagious
 

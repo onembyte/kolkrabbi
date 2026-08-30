@@ -38,6 +38,10 @@ type Effect struct {
 	// PickDismissed distinguishes closing the picker untouched from a pick.
 	PickModel     string
 	PickDismissed bool
+	// PickConfig is the setting key the /config picker resolved to. Unlike
+	// PickModel it is never itself a command to run — a setting still needs
+	// its value typed — so resolving it fills the composer's draft instead.
+	PickConfig string
 	// CyclePermission asks the surface to advance the permission tier. The
 	// controller cannot do it itself: what the tiers are, and what changing
 	// one means, belongs to the engine rather than to a screen.
@@ -77,9 +81,15 @@ type Controller struct {
 	// accepts. Index is into that filtered, ranked view, not into modelPicker
 	// itself — the two only coincide while the filter is empty.
 	modelFilter filterBox
-	editor      *Editor
-	status      Status
-	busy        bool
+	// configPicker is the open /config overlay, if any — the same shape as
+	// modelPicker, minus the effort dial, resolving to a setting key rather
+	// than a ready-to-run command.
+	configPicker []SettingSpec
+	configIndex  int
+	configFilter filterBox
+	editor       *Editor
+	status       Status
+	busy         bool
 	// queued holds a request submitted while a turn was still running. The
 	// engine session is stateful, so two turns cannot run at once; the request
 	// waits here and starts the moment the running one finishes.
@@ -118,6 +128,9 @@ func (c *Controller) HandleKey(key Key) Effect {
 	}
 	if c.modelPicker != nil {
 		return c.handleModelPickerKey(key)
+	}
+	if c.configPicker != nil {
+		return c.handleConfigPickerKey(key)
 	}
 	if c.question != nil {
 		return c.handleQuestionKey(key)
@@ -405,6 +418,9 @@ func (c *Controller) RenderView(width, height int) string {
 func (c *Controller) renderView(width, height int, styled bool) string {
 	if c.modelPicker != nil {
 		return c.overlayView(c.modelPickerLines(width), width, height, styled)
+	}
+	if c.configPicker != nil {
+		return c.overlayView(c.configPickerLines(width), width, height, styled)
 	}
 	if c.question != nil {
 		return c.overlayView(c.questionLines(width), width, height, styled)

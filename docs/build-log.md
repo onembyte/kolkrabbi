@@ -4539,6 +4539,42 @@ gofmt's actual output, so no mutation was applied at all, and a silently-passing
 identical to a validly-caught one. Every mutation below was confirmed by `diff` against the original
 before trusting its test result, and reverted to a byte-identical file after.
 
+## H4 the literal ask, and the one place its answer had to differ from /model's (2026-08-30)
+
+**Gate:** `make check` exit 0 — **2,639 tests, 0 lint issues**, `-race` green on `internal/tui` and
+`internal/cli`.
+
+Bare `/config` fell straight through to the non-interactive dump `kolk config` itself prints.
+`ConfigPicker` gives it the overlay `/model` already has: `filteredConfigIndices` filters and ranks
+`SettingSpec` rows through H0's `fuzzyScoreFields`, the twin of H3's `filteredModelIndices`, and the
+key handling — type to filter, Backspace to edit, Escape clears-then-closes — is deliberately
+identical in shape, so learning one picker in this app does not mean learning a second rulebook for
+the other. `tuiSettings(a)`, which already built this exact row shape for the inline `/config`
+suggestions, feeds the picker too — no new CLI-side data plumbing needed.
+
+**The one place it could not just copy /model: what Enter does.** `/model`'s Enter answers with a
+complete command; `/config`'s cannot, because a setting still needs its value typed and no picker
+should guess it. `resolveConfigPicker` calls the identical two lines `completeSuggestion` already
+uses for the inline dropdown's Tab-completion — `c.editor.setDraft(...)`, `c.screen.SetDraft(...)`
+— rather than inventing a second way to say "a setting was chosen." Wiring the CLI side is one
+`else if` beside the existing `/model` check, because `AskConfig` mirrors `AskModel`'s blocking
+contract exactly, including the mutual-exclusion guard now extended in both directions.
+
+**A second red-first slip, corrected the same way as the first one this session made.** The CLI
+wiring was written and working before its two tests existed, so they passed on arrival — never
+observed failing for their own reason. Caught by the same self-check applied to every other leaf:
+mutating away each test's exact claim (force the bare-`/config` guard to always refuse; loosen the
+args-guard to a prefix check) confirmed both fail for precisely the reason they exist, before
+either was trusted.
+
+**A genuine data race, not a flake.** `internal/tui`'s own picker tests read controller state
+directly under its lock because they live inside the `tui` package; a test in `internal/cli` cannot
+reach that private field, and polling it without the lock raced `AskConfig` mutating the same state
+from the picker's own goroutine — caught by `-race`, not by inspection. Fixed with
+`Runtime.ConfigPicker()`, a thin locked passthrough mirroring the existing `Snapshot()`/`SetStatus()`
+pattern, rather than working around the race inside the test. Ten repeated `-race` runs after the
+fix, all clean.
+
 ## H3 a row's identity and its screen position stop being the same variable (2026-08-30)
 
 **Gate:** `make check` exit 0 — **2,632 tests, 0 lint issues**, `-race` green on `internal/tui`.

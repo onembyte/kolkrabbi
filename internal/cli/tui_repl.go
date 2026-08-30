@@ -149,6 +149,11 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 						return nil // dismissed
 					}
 					prompt = picked
+				} else if tuiConfigPickerCommand(turnContext, screen, a, prompt) {
+					// The picker either filled the composer's draft with a
+					// chosen setting or was dismissed; either way there is
+					// nothing here to run.
+					return nil
 				}
 				shouldExit := a.slash(turnContext, ag, prompt)
 				screen.SetStatus(tuiStatus(ag, "ready", folder))
@@ -272,6 +277,22 @@ func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Rank < out[j].Rank })
 	return out
+}
+
+// tuiConfigPickerCommand opens the /config overlay for a bare `/config`,
+// the searchable list rather than the plain-text dump `kolk config` prints.
+// Unlike the model picker's answer, resolving a row is never itself a
+// command to run — a setting still needs its value typed — so the overlay
+// fills the composer's draft internally (Controller.resolveConfigPicker) and
+// there is nothing here for the caller to submit. `/config get|set|unset`
+// with arguments never reaches this function: shown is false and the CLI's
+// existing command runs exactly as it does today.
+func tuiConfigPickerCommand(ctx context.Context, screen *tui.Runtime, a *app, prompt string) bool {
+	if strings.TrimSpace(prompt) != "/config" {
+		return false
+	}
+	screen.AskConfig(ctx, tuiSettings(a))
+	return true
 }
 
 // tuiModelPickerCommand turns a bare `/model` into the picker's command. It

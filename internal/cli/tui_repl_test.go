@@ -7,9 +7,11 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/session"
+	"github.com/onembyte/kolkrabbi/internal/tui"
 )
 
 func TestTUIReplOwnsAndRestoresOneInteractiveTerminal(t *testing.T) {
@@ -197,6 +199,50 @@ func TestAResumedSessionIsNotReorientated(t *testing.T) {
 	for _, unwanted := range []string{"/mode", "/effort", "/model"} {
 		if strings.Contains(got, unwanted) {
 			t.Errorf("a resumed session was re-orientated with %s: %q", unwanted, got)
+		}
+	}
+}
+
+// A bare /config opens the searchable overlay rather than falling through to
+// the plain-text dump `kolk config` prints — the literal ask this leaf exists
+// to answer.
+func TestBareSlashConfigOpensTheSearchableOverlay(t *testing.T) {
+	a, _, _ := newTestApp(t, "")
+	screen := tui.NewRuntime(tui.RuntimeOptions{})
+
+	done := make(chan bool, 1)
+	go func() {
+		done <- tuiConfigPickerCommand(context.Background(), screen, a, "/config")
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for screen.ConfigPicker() == nil {
+		if time.Now().After(deadline) {
+			t.Fatal("bare /config never opened the overlay")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	screen.HandleKey(tui.Key{Kind: tui.KeyEscape})
+
+	select {
+	case shown := <-done:
+		if !shown {
+			t.Fatal("tuiConfigPickerCommand reported bare /config as not its own")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("closing the overlay never unblocked the caller")
+	}
+}
+
+// `/config get|set|unset <key>` is already past the picker — the CLI's own
+// command runs it, exactly as it does today. If the picker claimed this too,
+// typing a value would fight the overlay for the same keystrokes.
+func TestSlashConfigWithArgumentsIsNotThePickers(t *testing.T) {
+	a, _, _ := newTestApp(t, "")
+	screen := tui.NewRuntime(tui.RuntimeOptions{})
+	for _, prompt := range []string{"/config get effort", "/config set effort high", "/model"} {
+		if tuiConfigPickerCommand(context.Background(), screen, a, prompt) {
+			t.Fatalf("%q was claimed by the config picker", prompt)
 		}
 	}
 }
