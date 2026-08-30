@@ -381,6 +381,9 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		// mutex, so subagents would serialise and write their briefings into a
 		// single transcript.
 		SubagentBackend: a.subagentBackend(),
+		// What the run may climb down to: a cheaper rung of a vendor the user
+		// has actually signed into through kolk.
+		RungAvailable: a.rungAvailable(),
 		// What to do when the plan behind the session runs out: ask (the
 		// default), switch to the metered model below, or stop (A33.7).
 		OnSubscriptionLimit: cfg.Routing.OnSubscriptionLimit,

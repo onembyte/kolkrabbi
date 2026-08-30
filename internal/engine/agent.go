@@ -209,6 +209,10 @@ type Options struct {
 	// subagent gets its own vendor process instead of sharing the session's.
 	// Nil means they share, which is what happens today.
 	SubagentBackend SubagentBackend
+	// RungAvailable reports whether a vendor can run one of its cheaper
+	// models on this machine. Nil means none can, so a run stays on the
+	// session's own model — which is what happens today.
+	RungAvailable RungAvailable
 	// Ask puts a fixed-option question to the person running the session. Nil
 	// means nobody can be asked, and the model is told to decide and say what
 	// it assumed rather than to wait for an answer that cannot come.

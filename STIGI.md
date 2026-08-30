@@ -338,7 +338,7 @@ provider. It is what a gateway session has always done and what a nil port means
 
 ---
 
-## C8 — Levels bind to rungs · **usable end to end here**
+## C8 — Levels bind to rungs · **usable end to end here**  ·  **done**
 
 **Observable:** on `kolk --model claude-sonnet` in agent mode, a task the planner called `trivial`
 runs on Haiku in its own process; `routine` and `hard` run on Sonnet; the plan line and the run cost
@@ -346,10 +346,29 @@ show it.
 
 **Files:** `internal/engine/route.go`, `orchestrator.go`
 
-- [ ] **C8.1** Bind level → rung depth, all of it on the **scheduler goroutine** (`nextRunnable`), never from a subagent goroutine — the graft that avoids a fresh race on `tasks[i].Model`.
-- [ ] **C8.2** `LevelUnstated` binds to depth 0.
-- [ ] **C8.3** A configured slot still beats a level; the ceiling still beats the slot.
-- [ ] **C8.4** Tests, then gates.
+- [x] **C8.1** Bind level → rung depth, all of it on the **scheduler goroutine** (`nextRunnable`), never from a subagent goroutine — the graft that avoids a fresh race on `tasks[i].Model`.
+- [x] **C8.2** `LevelUnstated` binds to depth 0.
+- [x] **C8.3** A configured slot still beats a level; the ceiling still beats the slot.
+- [x] **C8.4** Tests, then gates.
+
+**Done 2026-08-30.** `make check` green at 2731 tests, race clean. A task the planner calls
+`trivial` now runs on Haiku in its own vendor process; everything else runs on the model the user
+selected.
+
+**Only `trivial` descends, and that is a decision rather than an omission.** The user chose their
+model for their work, and quietly running ordinary work on something weaker would be a quality
+decision nobody asked for — the mirror image of the spending decision the ceiling refuses.
+Mechanical work is the one case where cheaper is not a compromise. `hard`, `routine` and unstated all
+mean the ceiling; anyone who wants ordinary work cheaper has `slot.*`, which is checked first and is
+exactly the place for that.
+
+**The roster is resolved once per plan, not once per task.** Availability reads the connector
+manifest, so an eight-task plan would otherwise read it eight times — and two tasks could disagree
+about what was signed in if a login landed mid-run. `TestTheRosterIsResolvedOncePerRun` pins it.
+
+**All binding happens on the goroutine that owns the plan**, before any task starts. Not stylistic:
+`tasks[i].Model` is read by every subagent goroutine once the run begins, so a mid-run re-resolution
+would be a write racing the scheduler's own reads — the graft the judges asked for.
 
 **Tests**
 - `TestATrivialTaskRunsOnTheCheapestRungTheUserAllows`

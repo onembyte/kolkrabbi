@@ -78,9 +78,7 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 
 	// Routing is resolved before anything is printed, so the plan a person
 	// reads is the plan that runs, models included.
-	for i := range tasks {
-		tasks[i].Model = a.modelForKind(tasks[i].Kind)
-	}
+	a.assignModels(tasks)
 
 	fmt.Fprintf(a.Out, "%s◆ plan (%d tasks):%s\n", colorMag, len(tasks), colorReset)
 	for i, task := range tasks {
