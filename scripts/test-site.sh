@@ -61,7 +61,7 @@ contains index.html 'https://kolkrabbi.francomichetti.com/install.sh' "install U
 contains index.html 'kolk key &lt;API_KEY&gt;' "API-key command drifted"
 contains index.html '<code class="key-command"><span class="prompt" aria-hidden="true">$</span> kolk key &lt;API_KEY&gt;</code>' "API-key command is not in the run step"
 contains index.html '<code class="use-command"><span class="prompt" aria-hidden="true">$</span> kolk</code>' "use step must contain only the final kolk command"
-contains index.html 'Installer ships with v1.2.29' "current installer release status is missing"
+contains index.html 'Installer ships with v1.2.30' "current installer release status is missing"
 contains index.html 'https://github.com/onembyte/kolkrabbi' "GitHub link is wrong"
 contains index.html 'Apache-2.0 License' "license link or label does not match LICENSE"
 contains index.html 'Chat, code, and agent' "landing page does not name all three modes"
