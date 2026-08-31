@@ -20,6 +20,20 @@ func testBus(t *testing.T) *bus.Bus {
 	return b
 }
 
+func shortUnixSocketPath(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "kolk-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Errorf("remove Unix socket test directory: %v", err)
+		}
+	})
+	return filepath.Join(dir, "s")
+}
+
 func TestListenNeverDeletesARegularFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "not-a-socket")
 	if err := os.WriteFile(path, []byte("keep"), 0o600); err != nil {
@@ -34,13 +48,24 @@ func TestListenNeverDeletesARegularFile(t *testing.T) {
 }
 
 func TestListenRemovesOnlyAStaleSocket(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "kolk.sock")
+	path := shortUnixSocketPath(t)
 	old, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatal(err)
 	}
+	unixOld, ok := old.(*net.UnixListener)
+	if !ok {
+		old.Close()
+		t.Fatalf("net.Listen returned %T, want *net.UnixListener", old)
+	}
+	unixOld.SetUnlinkOnClose(false)
 	if err := old.Close(); err != nil {
 		t.Fatal(err)
+	}
+	if info, err := os.Lstat(path); err != nil {
+		t.Fatalf("stale Unix socket is missing: %v", err)
+	} else if info.Mode()&os.ModeSocket == 0 {
+		t.Fatalf("stale Unix socket has mode %v", info.Mode())
 	}
 	listener, err := Listen("unix:" + path)
 	if err != nil {
