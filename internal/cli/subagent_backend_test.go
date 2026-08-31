@@ -8,6 +8,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/provider/agentcli"
 )
 
 // The defect every judge found independently: planModelCatalog has no
@@ -41,6 +42,25 @@ func TestOpeningACheaperRungDoesNotGoThroughThePlanCatalogue(t *testing.T) {
 	}
 	if closer, ok := backend.(io.Closer); ok {
 		_ = closer.Close()
+	}
+}
+
+func TestHardCodexSubagentTranslatesCanonicalMaxToXHigh(t *testing.T) {
+	dirs := isolateHome(t)
+	a, _, _ := newTestApp(t, "")
+	a.dirs = dirs
+	signInAs(t, dirs, "openai", "ChatGPT Pro", "codex")
+
+	backend, err := a.subagentBackend()(context.Background(), "gpt-5.6-luna", "code", engine.EffortMax)
+	if err != nil {
+		t.Fatalf("open hard codex subagent: %v", err)
+	}
+	codex, ok := backend.(*agentcli.CodexBackend)
+	if !ok {
+		t.Fatalf("backend = %T, want *agentcli.CodexBackend", backend)
+	}
+	if codex.Effort != "xhigh" {
+		t.Fatalf("codex effort = %q, want provider-native xhigh", codex.Effort)
 	}
 }
 

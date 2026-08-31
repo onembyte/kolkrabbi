@@ -228,12 +228,13 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 		// keeps a task that arrived without one from asking for an empty model.
 		model = a.modelForKind(tasks[index].Kind)
 	}
+	effort := effortForTask(tasks[index].Level, a.Effort)
 	// A child turn of its own, so a reader can tell one subagent's work from
 	// another's and from the parent's. Published around the call rather than
 	// inside runSubagent: the event is about the task's lifetime, and the task
 	// is what this function owns.
 	childTurn := xid.New(xid.Turn)
-	a.publishSubagentStarted(tasks, index, childTurn)
+	a.publishSubagentStarted(tasks, index, childTurn, model, effort)
 	// A snapshot per writing subagent, so a task that makes a mess is
 	// rewindable on its own rather than by undoing the whole turn (A33.8).
 	// Only writing kinds: research and explain change no files, so a snapshot
@@ -251,7 +252,7 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	// the task's lifetime — its child turn, its snapshot, its result. Released
 	// on every path out, including the failure below: a provider owns a child
 	// process and nothing else will release it.
-	own, release, openErr := a.openSubagentBackend(ctx, model)
+	own, release, openErr := a.openSubagentBackend(ctx, model, effort)
 	defer release()
 
 	// A cheaper rung that will not spawn must not lose the task: the work still
@@ -267,7 +268,8 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 				colorDim, tasks[index].Title, model, ceiling, colorReset)
 			release()
 			model = ceiling
-			own, release, openErr = a.openSubagentBackend(ctx, model)
+			a.updateSubagentStatusRoute(index, model, effort)
+			own, release, openErr = a.openSubagentBackend(ctx, model, effort)
 			defer release()
 		}
 	}
@@ -280,7 +282,7 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 		// there is no third attempt: the ceiling is the last rung there is.
 		err = openErr
 	} else {
-		result, err = a.runSubagent(ctx, pinnedBackend{backend: own, model: model}, out, model, userInput, tasks, results, index)
+		result, err = a.runSubagent(ctx, pinnedBackend{backend: own, model: model}, out, model, effort, buffered == nil, userInput, tasks, results, index)
 	}
 	// Closed on every path out. A task that died half-way is exactly the one
 	// that leaves a tree nobody asked for, and it is the one worth rewinding.
@@ -290,7 +292,7 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	// On every path out, including failure. An event that only fires on success
 	// leaves a count stuck at a number that never comes down, which is worse
 	// than no count at all.
-	a.publishSubagentFinished(childTurn, index, err == nil, model)
+	a.publishSubagentFinished(childTurn, index, err == nil, model, effort)
 
 	run := taskRun{index: index, result: result, err: err}
 	if buffered != nil {
@@ -444,7 +446,7 @@ func (a *Agent) plan(ctx context.Context, model, userInput string, maxTasks int)
 
 // runSubagent executes one task in an isolated context: its conversation
 // never enters the main session, only its final summary does.
-func (a *Agent) runSubagent(ctx context.Context, pinned pinnedBackend, out io.Writer, model, original string, tasks []Task, results []string, idx int) (string, error) {
+func (a *Agent) runSubagent(ctx context.Context, pinned pinnedBackend, out io.Writer, model, effort string, tokensVisible bool, original string, tasks []Task, results []string, idx int) (string, error) {
 	cwd := workingDir()
 	var briefing strings.Builder
 	fmt.Fprintf(&briefing, `You are subagent %d of %d in an orchestrated run on %s (working directory %s). You have tools to read/write/edit files, list directories, and run shell commands. Complete ONLY your assigned task, then reply with a short result summary (what you did, key outputs, paths touched). Be efficient: few tool calls, no exploration beyond the task.
@@ -458,20 +460,20 @@ Overall request: %s
 		{Role: "user", Content: "Your task: " + tasks[idx].Title},
 	}
 
-	maxRounds := MaxRoundsFor(ModeCode, a.Effort)
+	maxRounds := MaxRoundsFor(ModeCode, effort)
 	// A subagent gets its own counter: two children repeating different calls
 	// are two pieces of work, not one loop.
 	var loop doomLoop
 	for round := 0; round < maxRounds; round++ {
 		msg, meta, err := a.streamChatOn(ctx, pinned, activityWorking, model, msgs, tools.Definitions(), func(tok string) {
 			fmt.Fprint(out, tok)
-		})
+		}, tokensVisible)
 		if err != nil {
 			fmt.Fprintln(out)
 			return "", err
 		}
 		fmt.Fprintln(out)
-		a.record("subagent", meta, len(msg.ToolCalls))
+		a.recordAtEffort("subagent", meta, len(msg.ToolCalls), effort)
 		msgs = append(msgs, msg)
 
 		if len(msg.ToolCalls) == 0 {
@@ -488,7 +490,7 @@ Overall request: %s
 			}
 			if result == "" {
 				var err error
-				result, err = a.executeSubagentTool(ctx, tc, out)
+				result, err = a.executeSubagentTool(ctx, tc, out, effort)
 				if err != nil {
 					result = "Error: " + err.Error()
 				}

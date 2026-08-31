@@ -111,6 +111,10 @@ func StartLinesProcess(ctx context.Context, executable string, args []string) (*
 		return nil, err
 	}
 	cmd := exec.CommandContext(ctx, path, args...)
+	// Provider-owned CLIs are still untrusted from Kolkrabbi's perspective:
+	// they can run vendor tools and report output back into the session. Keep
+	// the normal environment, but do not give them Kolkrabbi's ambient keys.
+	cmd.Env = inheritedEnv(nil)
 	// Created before Start so the cancel ladder can observe the child leaving
 	// and stop climbing; read() closes it once the exit status is final.
 	exited := make(chan struct{})

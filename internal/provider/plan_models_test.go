@@ -121,17 +121,65 @@ func TestResolvePlanModelUsesTheEnabledPlanForAnUnqualifiedSharedModel(t *testin
 	}
 }
 
-func TestResolvePlanModelKeepsSharedModelsAmbiguousWhenTwoPlansAreEnabled(t *testing.T) {
-	_, err := ResolvePlanModel("gpt-5.6-luna", ConnectorManifest{
+func TestResolvePlanModelChoosesTheHighestKnownTierWhenStaleRecordsOverlap(t *testing.T) {
+	got, err := ResolvePlanModel("gpt-5.6-luna", ConnectorManifest{
 		Version: connectorManifestVersion,
 		Connectors: []Connector{
 			{Provider: "openai", Plan: "ChatGPT Plus", Name: "codex", LoginOwner: "provider-cli", Enabled: true},
 			{Provider: "openai", Plan: "ChatGPT Pro", Name: "codex", LoginOwner: "provider-cli", Enabled: true},
 		},
 	})
-	if err == nil || !strings.Contains(err.Error(), "ChatGPT Plus/gpt-5.6-luna") ||
-		!strings.Contains(err.Error(), "ChatGPT Pro/gpt-5.6-luna") {
-		t.Fatalf("error = %v, want both plan-qualified choices", err)
+	if err != nil {
+		t.Fatalf("ResolvePlanModel: %v", err)
+	}
+	if got.Model != "gpt-5.6-luna" || got.Plan != "ChatGPT Pro" {
+		t.Fatalf("resolved = %+v, want Luna through the highest enabled known tier", got)
+	}
+}
+
+func TestResolvePlanModelKnownTierChoiceDoesNotDependOnCatalogOrder(t *testing.T) {
+	catalog := []PlanModel{
+		{Provider: "openai", Plan: "ChatGPT Pro", Connector: "codex", Model: "shared", Access: "provider CLI"},
+		{Provider: "openai", Plan: "ChatGPT Plus", Connector: "codex", Model: "shared", Access: "provider CLI"},
+	}
+	manifest := ConnectorManifest{Connectors: []Connector{
+		{Provider: "openai", Plan: "ChatGPT Plus", Name: "codex", Enabled: true},
+		{Provider: "openai", Plan: "ChatGPT Pro", Name: "codex", Enabled: true},
+	}}
+	got, err := resolvePlanModel(catalog, "shared", manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Plan != "ChatGPT Pro" {
+		t.Fatalf("resolved plan = %q, want the higher tier despite reversed catalog order", got.Plan)
+	}
+}
+
+func TestResolvePlanModelDoesNotLetADisabledHigherTierOverrideAnEnabledOne(t *testing.T) {
+	got, err := ResolvePlanModel("gpt-5.6-terra", ConnectorManifest{Connectors: []Connector{
+		{Provider: "openai", Plan: "ChatGPT Plus", Name: "codex", Enabled: true},
+		{Provider: "openai", Plan: "ChatGPT Pro", Name: "codex", Enabled: false},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Plan != "ChatGPT Plus" {
+		t.Fatalf("resolved plan = %q, want the only enabled tier", got.Plan)
+	}
+}
+
+func TestResolvePlanModelKeepsUnknownTierFamiliesAmbiguous(t *testing.T) {
+	catalog := []PlanModel{
+		{Provider: "vendor", Plan: "Basic", Connector: "vendor-cli", Model: "shared", Access: "provider CLI"},
+		{Provider: "vendor", Plan: "Premium", Connector: "vendor-cli", Model: "shared", Access: "provider CLI"},
+	}
+	manifest := ConnectorManifest{Connectors: []Connector{
+		{Provider: "vendor", Plan: "Basic", Name: "vendor-cli", Enabled: true},
+		{Provider: "vendor", Plan: "Premium", Name: "vendor-cli", Enabled: true},
+	}}
+	_, err := resolvePlanModel(catalog, "shared", manifest)
+	if err == nil || !strings.Contains(err.Error(), "name one of") {
+		t.Fatalf("error = %v, want ambiguity for an unknown tier hierarchy", err)
 	}
 }
 
@@ -239,6 +287,23 @@ func TestEffortForPlanKeepsALevelThePlanOffers(t *testing.T) {
 	got, changed := EffortForPlan("high", []string{"low", "medium", "high", "max"})
 	if got != "high" || changed {
 		t.Fatalf("effort = %q changed = %v", got, changed)
+	}
+}
+
+func TestEffortForPlanTreatsMaxAndXHighAsTheSameCapability(t *testing.T) {
+	for _, tc := range []struct {
+		requested string
+		offered   []string
+		want      string
+	}{
+		{requested: "max", offered: []string{"low", "medium", "high", "xhigh"}, want: "xhigh"},
+		{requested: "xhigh", offered: []string{"low", "medium", "high", "max"}, want: "max"},
+	} {
+		got, changed := EffortForPlan(tc.requested, tc.offered)
+		if got != tc.want || changed {
+			t.Errorf("EffortForPlan(%q, %v) = (%q, %v), want (%q, false)",
+				tc.requested, tc.offered, got, changed, tc.want)
+		}
 	}
 }
 

@@ -196,7 +196,7 @@ func TestReleasingASubagentProviderIsAlwaysSafe(t *testing.T) {
 	agent := &Agent{}
 
 	// No port at all.
-	backend, release, err := agent.openSubagentBackend(context.Background(), "m")
+	backend, release, err := agent.openSubagentBackend(context.Background(), "m", EffortMedium)
 	if err != nil || backend != nil {
 		t.Fatalf("no port gave backend=%v err=%v, want both nil", backend, err)
 	}
@@ -206,7 +206,7 @@ func TestReleasingASubagentProviderIsAlwaysSafe(t *testing.T) {
 	agent.SubagentBackend = func(context.Context, string, string, string) (ChatBackend, error) {
 		return notACloser{}, nil
 	}
-	if _, release, err = agent.openSubagentBackend(context.Background(), "m"); err != nil {
+	if _, release, err = agent.openSubagentBackend(context.Background(), "m", EffortMedium); err != nil {
 		t.Fatalf("open: %v", err)
 	}
 	release()
@@ -215,7 +215,7 @@ func TestReleasingASubagentProviderIsAlwaysSafe(t *testing.T) {
 	agent.SubagentBackend = func(context.Context, string, string, string) (ChatBackend, error) {
 		return nil, errors.New("nope")
 	}
-	if _, release, err = agent.openSubagentBackend(context.Background(), "m"); err == nil {
+	if _, release, err = agent.openSubagentBackend(context.Background(), "m", EffortMedium); err == nil {
 		t.Error("a failed open reported success")
 	}
 	release()

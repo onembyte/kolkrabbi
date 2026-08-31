@@ -316,7 +316,15 @@ func Load(dir, id string) (*Session, error) {
 	if err := validateSessionID(id); err != nil {
 		return nil, err
 	}
-	b, err := os.ReadFile(filepath.Join(dir, id+".json"))
+	path := filepath.Join(dir, id+".json")
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("session file %s is not a regular file", path)
+	}
+	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}

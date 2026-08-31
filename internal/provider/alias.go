@@ -80,26 +80,10 @@ func SubscriptionModelShortcutFor(plan, model string) string {
 	return ""
 }
 
-// SubscriptionModelID returns the provider model id behind a subscription
-// alias. Unlike ResolveModelAlias, it also understands plan-qualified aliases,
-// whose qualification must survive until ResolvePlanModel sees the reference.
-func SubscriptionModelID(alias string) string {
-	target, ok := subscriptionModelAliases[strings.ToLower(strings.TrimSpace(alias))]
-	if !ok {
-		return ""
-	}
-	return subscriptionTargetModel(target)
-}
-
 func subscriptionTarget(target string) (qualifier, model string) {
 	target = strings.ToLower(strings.TrimSpace(target))
 	if plan, rest, ok := strings.Cut(target, "/"); ok {
 		return plan, rest
 	}
 	return "", target
-}
-
-func subscriptionTargetModel(target string) string {
-	_, model := subscriptionTarget(target)
-	return model
 }

@@ -16,10 +16,10 @@ import (
 // growing a parallel one: one overlay open at a time, one way to resolve it,
 // and the same Escape semantics throughout.
 
-// ModelPickEntry is one row of the picker. ID and Name are the same fields a
-// ModelSpec suggestion carries; Efforts is the ladder of effort levels the
-// model's plan offers, empty for models where effort is not a dial kolk sets
-// on the provider.
+// ModelPickEntry is one row of the picker. ID is both the visible model
+// identity and the reference dispatched on Enter. Efforts is the ladder of
+// effort levels the model offers, empty for models where effort is not a dial
+// kolk sets on the provider.
 type ModelPickEntry struct {
 	ID   string
 	Name string

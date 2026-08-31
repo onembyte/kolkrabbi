@@ -23,10 +23,10 @@ func TestTheAgentCountRisesAndReturnsToZero(t *testing.T) {
 	a.lastTurnID = "t_01ARYZ6S41TSV4RRFFQ69G5FAW"
 	tasks := []Task{{Title: "one"}, {Title: "two"}}
 
-	a.publishSubagentStarted(tasks, 0, "t_01ARYZ6S41TSV4RRFFQ69G5FAX")
-	a.publishSubagentStarted(tasks, 1, "t_01ARYZ6S41TSV4RRFFQ69G5FAY")
-	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", 0, true, "")
-	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAY", 1, false, "")
+	a.publishSubagentStarted(tasks, 0, "t_01ARYZ6S41TSV4RRFFQ69G5FAX", "", EffortMedium)
+	a.publishSubagentStarted(tasks, 1, "t_01ARYZ6S41TSV4RRFFQ69G5FAY", "", EffortMedium)
+	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", 0, true, "", EffortMedium)
+	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAY", 1, false, "", EffortMedium)
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -56,8 +56,8 @@ func TestTheAgentCountIsSafeUnderConcurrency(t *testing.T) {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
-			a.publishSubagentStarted(tasks, index, "t_01ARYZ6S41TSV4RRFFQ69G5FAX")
-			a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", index, true, "")
+			a.publishSubagentStarted(tasks, index, "t_01ARYZ6S41TSV4RRFFQ69G5FAX", "", EffortMedium)
+			a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", index, true, "", EffortMedium)
 		}(i)
 	}
 	wg.Wait()
@@ -105,7 +105,7 @@ func TestARealRunMovesTheCount(t *testing.T) {
 func TestTheCountIsSilentWithoutAnObserver(t *testing.T) {
 	a := &Agent{Options: Options{Mode: ModeAgent}}
 	a.lastTurnID = "t_01ARYZ6S41TSV4RRFFQ69G5FAW"
-	a.publishSubagentStarted([]Task{{Title: "one"}}, 0, "t_01ARYZ6S41TSV4RRFFQ69G5FAX")
+	a.publishSubagentStarted([]Task{{Title: "one"}}, 0, "t_01ARYZ6S41TSV4RRFFQ69G5FAX", "", EffortMedium)
 	if running := a.RunningSubagents(); running != 1 {
 		t.Errorf("the count is %d without an observer, want it kept anyway", running)
 	}

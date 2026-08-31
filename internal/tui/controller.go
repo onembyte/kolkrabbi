@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -88,13 +89,14 @@ type Controller struct {
 	// configPicker is the open /config overlay, if any — the same shape as
 	// modelPicker, minus the effort dial, resolving to a setting key rather
 	// than a ready-to-run command.
-	configPicker []SettingSpec
-	configIndex  int
-	configFilter filterBox
-	configTop    int
-	editor       *Editor
-	status       Status
-	busy         bool
+	configPicker  []SettingSpec
+	configIndex   int
+	configFilter  filterBox
+	configTop     int
+	editor        *Editor
+	status        Status
+	agentStatuses map[string]AgentStatus
+	busy          bool
 	// queued holds a request submitted while a turn was still running. The
 	// engine session is stateful, so two turns cannot run at once; the request
 	// waits here and starts the moment the running one finishes.
@@ -332,6 +334,7 @@ func (c *Controller) SetStatus(status Status) {
 	if strings.TrimSpace(c.queued) != "" {
 		status.Queued = 1
 	}
+	status.Agents = c.runningAgentCount()
 	c.status = status
 	c.screen.SetStatus(status)
 }
@@ -353,6 +356,7 @@ const interruptedNotice = "  · interrupted\n"
 // runtime uses it when it starts a queued request, so a queued turn is
 // indistinguishable from a typed one: busy, working, no stale activity row.
 func (c *Controller) BeginTurn() {
+	c.clearAgentStatuses()
 	c.busy = true
 	c.screen.SetActivity("")
 	c.setLifecycle("working")
@@ -381,6 +385,7 @@ func (c *Controller) syncQueued() {
 }
 
 func (c *Controller) FinishTurn(lifecycle string) {
+	c.clearAgentStatuses()
 	c.busy = false
 	c.screen.SetActivity("")
 	c.setLifecycle(lifecycle)
@@ -588,6 +593,63 @@ func (c *Controller) resolveApproval(decision Decision, interrupt, exit bool) Ef
 func (c *Controller) SetAgents(running int) {
 	c.status.Agents = running
 	c.screen.SetStatus(c.status)
+}
+
+// SetAgentStatus inserts or replaces one lifecycle row. IDs are the stable
+// correlation key; rows are sorted by plan ordinal so concurrent starts never
+// make the display jump into goroutine completion order.
+func (c *Controller) SetAgentStatus(status AgentStatus) {
+	key := status.ID
+	if key == "" {
+		key = fmt.Sprintf("agent-%d", status.Index)
+	}
+	if c.agentStatuses == nil {
+		c.agentStatuses = map[string]AgentStatus{}
+	}
+	c.agentStatuses[key] = status
+	c.syncAgentStatuses()
+}
+
+func (c *Controller) syncAgentStatuses() {
+	statuses := make([]AgentStatus, 0, len(c.agentStatuses))
+	for _, status := range c.agentStatuses {
+		statuses = append(statuses, status)
+	}
+	sort.SliceStable(statuses, func(i, j int) bool {
+		if statuses[i].Index == statuses[j].Index {
+			return statuses[i].ID < statuses[j].ID
+		}
+		return statuses[i].Index < statuses[j].Index
+	})
+	c.status.Agents = runningAgentStatuses(statuses)
+	c.screen.SetAgentStatuses(statuses)
+	c.screen.SetStatus(c.status)
+}
+
+func (c *Controller) clearAgentStatuses() {
+	c.agentStatuses = nil
+	c.status.Agents = 0
+	c.screen.SetAgentStatuses(nil)
+}
+
+func (c *Controller) runningAgentCount() int {
+	count := 0
+	for _, status := range c.agentStatuses {
+		if status.State == "working" {
+			count++
+		}
+	}
+	return count
+}
+
+func runningAgentStatuses(statuses []AgentStatus) int {
+	count := 0
+	for _, status := range statuses {
+		if status.State == "working" {
+			count++
+		}
+	}
+	return count
 }
 
 // SetUsage updates only the footer's context and cost cells. The CLI could

@@ -12,6 +12,7 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/local"
+	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/session"
 	"github.com/onembyte/kolkrabbi/internal/tui"
 )
@@ -205,7 +206,7 @@ func TestAResumedSessionIsNotReorientated(t *testing.T) {
 	}
 }
 
-func TestTUIModelRowsExposePlanQualifiedGPT56Selections(t *testing.T) {
+func TestTUIModelRowsUnifySharedSubscriptionModels(t *testing.T) {
 	bin := t.TempDir()
 	codex := filepath.Join(bin, "codex")
 	if err := os.WriteFile(codex, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
@@ -222,38 +223,121 @@ func TestTUIModelRowsExposePlanQualifiedGPT56Selections(t *testing.T) {
 	a.pulledNames = func() map[string]bool { return map[string]bool{} }
 
 	rows := tuiModels(context.Background(), a, ag)
-	want := map[string]bool{
-		"gpt-plus": false, "gpt-plus-terra": false, "gpt-plus-luna": false,
-		"gpt-pro-sol": false, "gpt-pro-terra": false, "gpt-pro-luna": false,
+	want := map[string]int{
+		"gpt-5.6-sol": 0, "gpt-5.6-terra": 0, "gpt-5.6-luna": 0, "gpt-5.6-pro": 0,
 	}
 	for _, row := range rows {
-		if row.Select != "" {
-			if _, ok := want[row.Select]; ok {
-				want[row.Select] = true
+		if row.Cost != tui.CostSubscription {
+			continue
+		}
+		if _, ok := want[row.ID]; ok {
+			want[row.ID]++
+			if strings.Contains(row.Name, "ChatGPT Plus") || strings.Contains(row.Name, "ChatGPT Pro") {
+				t.Errorf("subscription limits leaked into model row %q: %q", row.ID, row.Name)
+			}
+			if strings.Contains(row.Name, row.ID) {
+				t.Errorf("model row repeats canonical ID %q in its supplementary label: %q", row.ID, row.Name)
 			}
 		}
 	}
-	for alias, found := range want {
-		if !found {
-			t.Errorf("TUI rows omitted selection alias %q: %+v", alias, rows)
+	for model, count := range want {
+		if count != 1 {
+			t.Errorf("TUI rows contain %d subscription rows for %q, want exactly one: %+v", count, model, rows)
 		}
 	}
 
 	entries := tuiModelPickEntries(context.Background(), a, ag)
-	for _, alias := range []string{"gpt-plus", "gpt-plus-terra", "gpt-plus-luna", "gpt-pro-sol", "gpt-pro-terra", "gpt-pro-luna"} {
-		found := false
+	for model := range want {
+		count := 0
 		for _, entry := range entries {
-			if entry.ID == alias {
-				found = true
+			if entry.ID == model {
+				count++
 				if len(entry.Efforts) == 0 {
-					t.Errorf("picker entry %q lost its effort dial", alias)
+					t.Errorf("picker entry %q lost its effort dial", model)
 				}
-				break
 			}
 		}
-		if !found {
-			t.Errorf("picker entries omitted %q", alias)
+		if count != 1 {
+			t.Errorf("picker entries contain %d rows for %q, want exactly one: %+v", count, model, entries)
 		}
+	}
+}
+
+func TestTUISubscriptionModelGroupsCollapseOnlySelectableSharedModels(t *testing.T) {
+	bin := t.TempDir()
+	for _, name := range []string{"claude", "codex", "gemini"} {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin)
+
+	a, _, _ := replFixture(t, "")
+	groups := tuiSubscriptionModelGroups(a)
+	counts := make(map[string]int)
+	planCounts := make(map[string]int)
+	for _, group := range groups {
+		key := group[0].Connector + "/" + group[0].Model
+		counts[key]++
+		planCounts[key] = len(group)
+		for _, plan := range group {
+			if plan.Access != "provider CLI" {
+				t.Errorf("selector included unusable subscription row: %+v", plan)
+			}
+		}
+	}
+	for _, key := range []string{
+		"codex/gpt-5.6-sol", "codex/gpt-5.6-terra", "codex/gpt-5.6-luna",
+	} {
+		if counts[key] != 1 || planCounts[key] != 2 {
+			t.Errorf("group %q: rows=%d plans=%d, want one row carrying two plans", key, counts[key], planCounts[key])
+		}
+	}
+	if counts["gemini/gemini-2.5-pro"] != 0 {
+		t.Errorf("unsupported Gemini subscription appeared in selectable groups: %+v", groups)
+	}
+}
+
+func TestPreferredTUISubscriptionPlanFollowsTheUsableLogin(t *testing.T) {
+	var terra []provider.PlanModel
+	for _, plan := range provider.PlanModels("") {
+		if plan.Provider == "openai" && plan.Model == "gpt-5.6-terra" {
+			terra = append(terra, plan)
+		}
+	}
+	if len(terra) != 2 {
+		t.Fatalf("terra catalog rows = %d, want Plus and Pro", len(terra))
+	}
+
+	tests := []struct {
+		name     string
+		manifest provider.ConnectorManifest
+		wantPlan string
+		usable   bool
+	}{
+		{name: "signed out", wantPlan: "ChatGPT Plus"},
+		{
+			name: "plus login",
+			manifest: provider.ConnectorManifest{Connectors: []provider.Connector{
+				{Provider: "openai", Plan: "ChatGPT Plus", Name: "codex", Enabled: true},
+			}},
+			wantPlan: "ChatGPT Plus", usable: true,
+		},
+		{
+			name: "pro login",
+			manifest: provider.ConnectorManifest{Connectors: []provider.Connector{
+				{Provider: "openai", Plan: "ChatGPT Pro", Name: "codex", Enabled: true},
+			}},
+			wantPlan: "ChatGPT Pro", usable: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, usable := preferredTUISubscriptionPlan(terra, test.manifest)
+			if got.Plan != test.wantPlan || usable != test.usable {
+				t.Fatalf("preferred plan = %q, usable=%t; want %q, usable=%t", got.Plan, usable, test.wantPlan, test.usable)
+			}
+		})
 	}
 }
 
@@ -301,14 +385,16 @@ func TestSlashConfigWithArgumentsIsNotThePickers(t *testing.T) {
 	}
 }
 
-// A count nothing feeds reads zero forever and looks correct. This asserts the
-// wire exists: the engine's observer reaches the controller that draws it.
-func TestTheAgentCountIsWiredToTheScreen(t *testing.T) {
+// A status port nothing feeds looks empty forever and looks correct. This
+// asserts the typed engine update reaches the runtime method that owns the
+// screen lock; calling Controller directly would race concurrent subagents.
+func TestAgentLifecycleIsWiredThroughTheRuntime(t *testing.T) {
 	source, err := os.ReadFile("tui_repl.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(source), "ag.Agents = func(running int) { screen.Controller().SetAgents(running) }") {
-		t.Error("the running-agent count is not attached to the screen, so the status would never move")
+	if !strings.Contains(string(source), "ag.Subagents = func(status engine.SubagentStatus)") ||
+		!strings.Contains(string(source), "screen.SetAgentStatus(tui.AgentStatus{") {
+		t.Error("the typed subagent lifecycle is not attached through the race-safe runtime boundary")
 	}
 }

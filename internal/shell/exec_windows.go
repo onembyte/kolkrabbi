@@ -51,9 +51,7 @@ func command(ctx context.Context, c Cmd) (*exec.Cmd, error) {
 
 	cmd.Dir = c.Dir
 	cmd.Stdin = c.Stdin
-	if len(c.Env) > 0 {
-		cmd.Env = append(os.Environ(), c.Env...)
-	}
+	cmd.Env = inheritedEnv(c.Env)
 
 	// Process-group teardown on Windows needs a job object, which is step 13
 	// work. Until then a cancelled command kills the interpreter but may leave

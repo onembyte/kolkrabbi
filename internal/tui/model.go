@@ -40,11 +40,12 @@ type Status struct {
 // Snapshot is an immutable copy of the screen regions. Tests and future
 // protocol frontends use it to prove one region cannot corrupt another.
 type Snapshot struct {
-	Transcript  string
-	Activity    string
-	Draft       string
-	Status      Status
-	Suggestions []CommandSpec
+	Transcript    string
+	Activity      string
+	Draft         string
+	Status        Status
+	AgentStatuses []AgentStatus
+	Suggestions   []CommandSpec
 }
 
 // Model contains logical screen state only. One terminal event loop owns a
@@ -55,6 +56,7 @@ type Model struct {
 	activity         string
 	draft            string
 	status           Status
+	agentStatuses    []AgentStatus
 	suggestions      []CommandSpec
 	suggestionTop    int
 	suggestionWindow int
@@ -81,6 +83,12 @@ func (m *Model) SetDraft(draft string) { m.draft = draft }
 
 // SetStatus atomically replaces the compact state row.
 func (m *Model) SetStatus(status Status) { m.status = status }
+
+// SetAgentStatuses replaces the ephemeral per-task rows without touching the
+// spinner activity or transcript.
+func (m *Model) SetAgentStatuses(statuses []AgentStatus) {
+	m.agentStatuses = append(m.agentStatuses[:0], statuses...)
+}
 
 // SetSuggestions replaces the ephemeral slash-command menu.
 func (m *Model) SetSuggestions(suggestions []CommandSpec) {
@@ -109,11 +117,12 @@ func (m *Model) SetSuggestionSelection(selected int) {
 // Snapshot returns independent values rather than aliases into mutable state.
 func (m *Model) Snapshot() Snapshot {
 	return Snapshot{
-		Transcript:  string(m.transcript),
-		Activity:    m.activity,
-		Draft:       m.draft,
-		Status:      m.status,
-		Suggestions: append([]CommandSpec(nil), m.suggestions...),
+		Transcript:    string(m.transcript),
+		Activity:      m.activity,
+		Draft:         m.draft,
+		Status:        m.status,
+		AgentStatuses: append([]AgentStatus(nil), m.agentStatuses...),
+		Suggestions:   append([]CommandSpec(nil), m.suggestions...),
 	}
 }
 
@@ -244,6 +253,12 @@ func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 			activity = append(activity, viewRow{text: clipLine(line, width), style: stylePurple})
 		}
 	}
+	agentRows := make([]viewRow, 0, len(m.agentStatuses))
+	for _, status := range m.agentStatuses {
+		agentRows = append(agentRows, viewRow{
+			text: clipLine(formatAgentStatusLine(status), width), style: stylePurpleMuted,
+		})
+	}
 	statusLine := []viewRow{}
 	for _, status := range formatStatus(m.status) {
 		statusLine = append(statusLine, viewRow{text: clipLine(status, width), style: stylePurpleMuted})
@@ -300,14 +315,17 @@ func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 	if height > 0 && len(composer) > height {
 		composer = composer[len(composer)-height:]
 	}
-	for height > 0 && len(activity)+len(statusLine)+len(composer) > height && len(activity) > 0 {
+	for height > 0 && len(activity)+len(agentRows)+len(statusLine)+len(composer) > height && len(activity) > 0 {
 		activity = nil
+	}
+	for height > 0 && len(agentRows)+len(statusLine)+len(composer) > height && len(agentRows) > 0 {
+		agentRows = agentRows[1:]
 	}
 	for height > 0 && len(statusLine)+len(composer) > height && len(statusLine) > 0 {
 		statusLine = nil
 	}
 	if height > 0 {
-		available := max(0, height-len(activity)-len(statusLine)-len(composer))
+		available := max(0, height-len(activity)-len(agentRows)-len(statusLine)-len(composer))
 		if len(suggestions) > available {
 			suggestions = suggestions[:available]
 		}
@@ -318,7 +336,7 @@ func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 	// transcript, and nothing should be committed out from under it.
 	budget := -1
 	if height > 0 {
-		available := height - len(activity) - len(statusLine) - len(suggestions) - len(composer)
+		available := height - len(activity) - len(agentRows) - len(statusLine) - len(suggestions) - len(composer)
 		budget = max(0, available)
 		if available <= 0 {
 			transcriptRows = nil
@@ -339,7 +357,7 @@ func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 		}
 	}
 
-	rows := make([]viewRow, 0, len(transcriptRows)+len(activity)+len(statusLine)+len(suggestions)+len(composer))
+	rows := make([]viewRow, 0, len(transcriptRows)+len(activity)+len(agentRows)+len(statusLine)+len(suggestions)+len(composer))
 	for _, row := range transcriptRows {
 		// A request the user sent is theirs, and reads as theirs: the same
 		// purple the composer uses, so the eye can find "what did I ask" in a
@@ -351,6 +369,7 @@ func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 		rows = append(rows, viewRow{text: row.text, style: row.style})
 	}
 	rows = append(rows, activity...)
+	rows = append(rows, agentRows...)
 	rows = append(rows, suggestions...)
 	rows = append(rows, composer...)
 	rows = append(rows, statusLine...)

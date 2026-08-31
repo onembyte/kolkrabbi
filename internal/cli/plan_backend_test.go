@@ -306,6 +306,31 @@ func TestSlashModelSelectsEveryGPT56TierThroughThePlanAlias(t *testing.T) {
 	}
 }
 
+func TestSlashModelSelectsCanonicalSharedIDsOnEveryOpenAIPlan(t *testing.T) {
+	for _, plan := range []string{"ChatGPT Plus", "ChatGPT Pro"} {
+		for _, model := range []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"} {
+			t.Run(plan+"/"+model, func(t *testing.T) {
+				dirs := isolateConnectorState(t)
+				signInAs(t, dirs, "openai", plan, "codex")
+				a, ag, out := replFixture(t, "")
+
+				if a.slash(context.Background(), ag, "/model "+model) {
+					t.Fatal("canonical /model must not exit the session")
+				}
+				if ag.Model != model {
+					t.Fatalf("selected model = %q, want %q", ag.Model, model)
+				}
+				if _, ok := ag.Backend.(*verifyingBackend); !ok {
+					t.Fatalf("canonical %s did not select a Codex plan backend", model)
+				}
+				if !strings.Contains(out.String(), plan) {
+					t.Fatalf("canonical %s output omitted %s: %q", model, plan, out.String())
+				}
+			})
+		}
+	}
+}
+
 func TestSlashModelPickerCommandAppliesPlanEffort(t *testing.T) {
 	dirs := isolateConnectorState(t)
 	enablePlanConnector(t, dirs)

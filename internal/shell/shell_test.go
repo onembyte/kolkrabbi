@@ -98,6 +98,21 @@ func TestRunPassesExtraEnv(t *testing.T) {
 	}
 }
 
+func TestRunDoesNotInheritCredentialEnvironment(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "shell-env-canary")
+	cmd := "echo $OPENROUTER_API_KEY"
+	if runtime.GOOS == "windows" {
+		cmd = "Write-Output $env:OPENROUTER_API_KEY"
+	}
+	res, err := New().Run(context.Background(), Cmd{Command: cmd})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if strings.Contains(res.Output, "shell-env-canary") {
+		t.Fatalf("credential environment reached the shell: %q", res.Output)
+	}
+}
+
 // A timeout must say it timed out. "signal: killed" sends whoever reads it
 // looking for the wrong bug.
 func TestRunTimesOutWithAReadableMessage(t *testing.T) {

@@ -184,10 +184,16 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 	ag.Out = screen
 	ag.Activity = screen
 	ag.Work = screen
-	// The count from A33.1's events, straight to the row above the composer. A
-	// count nothing feeds reads zero forever and looks correct, which is the
-	// one way this feature fails silently.
-	ag.Agents = func(running int) { screen.Controller().SetAgents(running) }
+	// Per-task lifecycle goes through Runtime rather than reaching into its
+	// controller: subagents publish concurrently, while Runtime owns the lock
+	// protecting rendering and snapshots.
+	ag.Subagents = func(status engine.SubagentStatus) {
+		screen.SetAgentStatus(tui.AgentStatus{
+			ID: status.ID, Index: status.Index, Total: status.Total,
+			Model: status.Model, Effort: status.Effort, Summary: status.Summary,
+			State: string(status.State),
+		})
+	}
 	ag.Decider = tuiDecider{runtime: screen}
 	ag.Ask = tuiChooser{runtime: screen}
 
@@ -242,34 +248,20 @@ func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 	if a.pulledNames != nil {
 		pulled = a.pulledNames()
 	}
-	signedIn := func(plan provider.PlanModel) bool {
-		for _, connector := range manifest.Connectors {
-			if connector.Provider == plan.Provider && connector.Name == plan.Connector && connector.Enabled {
-				return true
-			}
-		}
-		return false
-	}
-	for _, plan := range provider.PlanModels("") {
-		if !a.connectorInstalled(plan.Connector) {
-			continue
-		}
-		shortcut := provider.SubscriptionModelShortcutFor(plan.Plan, plan.Model)
-		shortcutNote := ""
-		if shortcut != "" {
-			shortcutNote = " · /model " + shortcut
-		}
-		selection := shortcut
-		if signedIn(plan) {
+	for _, group := range tuiSubscriptionModelGroups(a) {
+		plan, signedIn := preferredTUISubscriptionPlan(group, manifest)
+		if signedIn {
 			out = append(out, tui.ModelSpec{
-				ID: plan.Model, Select: selection, Cost: tui.CostSubscription, Rank: tui.ModelRank(tui.CostSubscription),
-				Name: plan.Model + " · " + plan.Plan + " · via your " + plan.Connector + " login" + shortcutNote,
+				ID: plan.Model, Name: "via your " + plan.Connector + " login",
+				Efforts: append([]string(nil), plan.Efforts...),
+				Cost:    tui.CostSubscription, Rank: tui.ModelRank(tui.CostSubscription),
 			})
 			continue
 		}
 		out = append(out, tui.ModelSpec{
-			ID: plan.Model, Select: selection, Cost: tui.CostSubscriptionLogin, Rank: tui.ModelRank(tui.CostSubscriptionLogin),
-			Name: fmt.Sprintf("%s · sign in first:  kolk plans login %s %q%s", plan.Plan, plan.Provider, plan.Plan, shortcutNote),
+			ID: plan.Model, Name: fmt.Sprintf("sign in first:  kolk plans login %s %q", plan.Provider, plan.Plan),
+			Efforts: append([]string(nil), plan.Efforts...),
+			Cost:    tui.CostSubscriptionLogin, Rank: tui.ModelRank(tui.CostSubscriptionLogin),
 		})
 	}
 
@@ -297,6 +289,45 @@ func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Rank < out[j].Rank })
 	return out
+}
+
+// tuiSubscriptionModelGroups collapses subscription tiers that expose the
+// same provider model through the same CLI. Plans still matter to login and
+// dispatch, but they are limits/account metadata rather than distinct models.
+func tuiSubscriptionModelGroups(a *app) [][]provider.PlanModel {
+	groups := make([][]provider.PlanModel, 0, len(provider.PlanModels("")))
+	indices := make(map[string]int)
+	for _, plan := range provider.PlanModels("") {
+		if plan.Access != "provider CLI" || !a.connectorInstalled(plan.Connector) {
+			continue
+		}
+		key := strings.ToLower(plan.Provider + "\x00" + plan.Connector + "\x00" + plan.Model)
+		if index, ok := indices[key]; ok {
+			groups[index] = append(groups[index], plan)
+			continue
+		}
+		indices[key] = len(groups)
+		groups = append(groups, []provider.PlanModel{plan})
+	}
+	return groups
+}
+
+// preferredTUISubscriptionPlan chooses the route metadata carried by one
+// canonical row: connector status, effort ladder, and a signed-out login
+// instruction. The last usable candidate selects the exact/higher tier when a
+// higher-tier login can also use a lower-tier catalog row. With no usable
+// connector, the first row supplies a stable, least-tier login instruction.
+func preferredTUISubscriptionPlan(plans []provider.PlanModel, manifest provider.ConnectorManifest) (provider.PlanModel, bool) {
+	selected := plans[0]
+	usable := false
+	for _, plan := range plans {
+		if _, err := provider.ResolvePlanModel(plan.Plan+"/"+plan.Model, manifest); err != nil {
+			continue
+		}
+		selected = plan
+		usable = true
+	}
+	return selected, usable
 }
 
 // tuiConfigPickerCommand opens the /config overlay for a bare `/config`,
@@ -340,32 +371,14 @@ func tuiModelPickEntries(ctx context.Context, a *app, ag *engine.Agent) []tui.Mo
 	current, _ := engine.NormalizeEffort(ag.Effort)
 	out := make([]tui.ModelPickEntry, 0, len(specs))
 	for _, spec := range specs {
-		selection := spec.ID
-		if spec.Select != "" {
-			selection = spec.Select
-		}
-		entry := tui.ModelPickEntry{ID: selection, Name: spec.Name}
-		modelID := provider.ResolveModelAlias(selection)
-		if subscriptionID := provider.SubscriptionModelID(selection); subscriptionID != "" {
-			modelID = subscriptionID
-		}
-		for _, plan := range provider.PlanModels("") {
-			if plan.Model != modelID {
-				continue
-			}
-			if spec.Select != "" && provider.SubscriptionModelShortcutFor(plan.Plan, plan.Model) != spec.Select {
-				continue
-			}
-			entry.Efforts = plan.Efforts
-			if resolved, _ := provider.EffortForPlan(current, plan.Efforts); resolved != "" {
-				for index, effort := range plan.Efforts {
-					if strings.EqualFold(effort, resolved) {
-						entry.Effort = index
-						break
-					}
+		entry := tui.ModelPickEntry{ID: spec.ID, Name: spec.Name, Efforts: append([]string(nil), spec.Efforts...)}
+		if resolved, _ := provider.EffortForPlan(current, spec.Efforts); resolved != "" {
+			for index, effort := range spec.Efforts {
+				if strings.EqualFold(effort, resolved) {
+					entry.Effort = index
+					break
 				}
 			}
-			break
 		}
 		out = append(out, entry)
 	}

@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -77,6 +78,36 @@ type Shell interface {
 func New() Shell { return &platformShell{} }
 
 type platformShell struct{}
+
+// inheritedEnv keeps normal process configuration while withholding common
+// credential variables from model- and hook-authored shell commands. Output
+// scrubbing cannot prevent `curl -d "$OPENROUTER_API_KEY" ...` from exfiltrating
+// a key before it reaches the transcript. Explicit Cmd.Env entries remain
+// available to tightly scoped callers such as hooks.
+func inheritedEnv(extra []string) []string {
+	env := make([]string, 0, len(os.Environ())+len(extra))
+	for _, entry := range os.Environ() {
+		name, _, _ := strings.Cut(entry, "=")
+		if sensitiveEnvName(name) {
+			continue
+		}
+		env = append(env, entry)
+	}
+	return append(env, extra...)
+}
+
+func sensitiveEnvName(name string) bool {
+	upper := strings.ToUpper(name)
+	if upper == "OPENROUTER_API_KEY" || upper == "SSH_AUTH_SOCK" {
+		return true
+	}
+	for _, suffix := range []string{"_API_KEY", "_TOKEN", "_PASSWORD", "_PASSWD", "_SECRET", "_CREDENTIAL"} {
+		if strings.HasSuffix(upper, suffix) {
+			return true
+		}
+	}
+	return strings.Contains(upper, "PRIVATE_KEY") || strings.Contains(upper, "SECRET_KEY")
+}
 
 func (s *platformShell) Name() string { return interpreterName() }
 

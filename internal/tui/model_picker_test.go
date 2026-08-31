@@ -46,6 +46,29 @@ func TestModelPickerAnswersAReadyCommand(t *testing.T) {
 	}
 }
 
+// Enter submits exactly the canonical model ID drawn on screen. Plan limits
+// are resolver metadata, not a second model identity hidden behind the row.
+func TestModelPickerDispatchesTheCanonicalIDItShows(t *testing.T) {
+	c := NewController(Status{}, defaultDraftSize)
+	c.RequestModelPicker([]ModelPickEntry{
+		{
+			ID:      "gpt-5.6-terra",
+			Name:    "via your codex login",
+			Efforts: []string{"low", "medium", "high", "xhigh"},
+			Effort:  3,
+		},
+	})
+
+	view := strings.Join(c.modelPickerLines(120), "\n")
+	if !strings.Contains(view, "gpt-5.6-terra") {
+		t.Fatalf("picker did not draw the canonical model ID:\n%s", view)
+	}
+	effect := c.HandleKey(Key{Kind: KeyEnter})
+	if effect.PickModel != "/model gpt-5.6-terra xhigh" {
+		t.Fatalf("picker answer = %q, want the displayed canonical ID and chosen effort", effect.PickModel)
+	}
+}
+
 // Left and right turn the effort dial of the selected model and nothing else:
 // the row stays put, and a model without efforts ignores the key.
 func TestModelPickerArrowsTurnTheEffortDial(t *testing.T) {

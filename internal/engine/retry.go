@@ -35,7 +35,7 @@ func waitForRetry(ctx context.Context, delay time.Duration) error {
 // only be returned before a successful streaming response is handed to the
 // scanner, so this never replays output already shown to the user.
 func (a *Agent) streamChat(ctx context.Context, phase, model string, messages []provider.Message, toolset []provider.Tool, onToken func(string)) (provider.Message, provider.Meta, error) {
-	return a.streamChatOn(ctx, pinnedBackend{}, phase, model, messages, toolset, onToken)
+	return a.streamChatOn(ctx, pinnedBackend{}, phase, model, messages, toolset, onToken, true)
 }
 
 // streamChatOn is streamChat with a provider already opened for one model.
@@ -46,7 +46,7 @@ func (a *Agent) streamChat(ctx context.Context, phase, model string, messages []
 // a claude process asked for a gateway id burns the turn to discover it. It
 // also restores owned-prefix stripping, which backendFor performs and a
 // hand-supplied backend would otherwise skip.
-func (a *Agent) streamChatOn(ctx context.Context, pinned pinnedBackend, phase, model string, messages []provider.Message, toolset []provider.Tool, onToken func(string)) (provider.Message, provider.Meta, error) {
+func (a *Agent) streamChatOn(ctx context.Context, pinned pinnedBackend, phase, model string, messages []provider.Message, toolset []provider.Tool, onToken func(string), tokensVisible bool) (provider.Message, provider.Meta, error) {
 	stopActivity := func() {}
 	if a.Activity != nil {
 		if stop := a.Activity.Start(ctx, phase); stop != nil {
@@ -58,7 +58,11 @@ func (a *Agent) streamChatOn(ctx context.Context, pinned pinnedBackend, phase, m
 	defer stop()
 
 	streamToken := onToken
-	if onToken != nil {
+	// A visible token replaces the spinner, so retire it immediately before
+	// drawing that token. Parallel subagents write into private buffers: their
+	// tokens replace nothing on screen, and stopping here would leave the user
+	// staring at a frozen row while the provider was still working.
+	if onToken != nil && tokensVisible {
 		streamToken = func(token string) {
 			stop()
 			onToken(token)

@@ -1,6 +1,9 @@
 package serve
 
 import (
+	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -15,6 +18,35 @@ func testBus(t *testing.T) *bus.Bus {
 		t.Fatal(err)
 	}
 	return b
+}
+
+func TestListenNeverDeletesARegularFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "not-a-socket")
+	if err := os.WriteFile(path, []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Listen("unix:" + path); err == nil {
+		t.Fatal("Listen accepted a regular file as a stale Unix socket")
+	}
+	if body, err := os.ReadFile(path); err != nil || string(body) != "keep" {
+		t.Fatalf("regular file was removed or changed: body=%q err=%v", body, err)
+	}
+}
+
+func TestListenRemovesOnlyAStaleSocket(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "kolk.sock")
+	old, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := old.Close(); err != nil {
+		t.Fatal(err)
+	}
+	listener, err := Listen("unix:" + path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
 }
 
 func TestAWildcardBindIsNotLoopback(t *testing.T) {

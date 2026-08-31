@@ -68,6 +68,17 @@ func CodexEffortValid(effort string) bool {
 	return codexEfforts[strings.ToLower(strings.TrimSpace(effort))]
 }
 
+// codexProviderEffort translates Kolkrabbi's canonical maximum into the word
+// accepted by Codex. The engine deliberately has one four-rung vocabulary;
+// provider spellings belong at the adapter boundary.
+func codexProviderEffort(effort string) string {
+	effort = strings.ToLower(strings.TrimSpace(effort))
+	if effort == "max" {
+		return "xhigh"
+	}
+	return effort
+}
+
 // codexModeSandbox turns kolk's session mode into the vendor sandbox that
 // enforces it. "chat cannot touch your files" is the vendor's read-only
 // sandbox; code mode works because the vendor's own tool loop runs inside its
@@ -112,6 +123,7 @@ func BuildCodexInvocation(model, mode, effort, handle string, resume bool, promp
 	if err != nil {
 		return CodexInvocation{}, err
 	}
+	effort = codexProviderEffort(effort)
 	if effort != "" && !CodexEffortValid(effort) {
 		return CodexInvocation{}, fmt.Errorf("codex has no %q effort level; use low, medium, high or xhigh", effort)
 	}
@@ -126,7 +138,7 @@ func BuildCodexInvocation(model, mode, effort, handle string, resume bool, promp
 	if model = codexModelAlias(model); model != "" {
 		args = append(args, "-m", model)
 	}
-	if effort = strings.ToLower(strings.TrimSpace(effort)); effort != "" {
+	if effort != "" {
 		args = append(args, "-c", "model_reasoning_effort="+effort)
 	}
 	if handle != "" && resume {
@@ -354,6 +366,7 @@ func NewCodexBackendFromHandle(model, mode, effort, handle string, resume bool) 
 	if _, err := codexModeSandbox(mode); err != nil {
 		return nil, err
 	}
+	effort = codexProviderEffort(effort)
 	if effort != "" && !CodexEffortValid(effort) {
 		return nil, fmt.Errorf("codex has no %q effort level; use low, medium, high or xhigh", effort)
 	}

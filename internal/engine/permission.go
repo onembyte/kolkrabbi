@@ -177,16 +177,18 @@ func pathHasSegment(clean, segment string) bool {
 	return false
 }
 
-// hardlineCommand looks at what a command would actually do. It reads the
-// command's own words rather than substrings, so a command that merely mentions
-// a dangerous string — writing documentation about `rm -rf /`, grepping for
-// "sudo" — is not caught.
+// hardlineCommand looks at what a command would actually do. It checks command
+// words for destructive operations and explicitly referenced credential
+// material; ordinary prose mentioning a dangerous command is not caught.
 func hardlineCommand(command string) (string, bool) {
 	words := strings.Fields(command)
 	if len(words) == 0 {
 		return "", false
 	}
 	lowered := strings.ToLower(command)
+	if mentionsCredential(command) {
+		return "the command reaches credential material; Kolkrabbi never exposes it to tools", true
+	}
 
 	for i, word := range words {
 		switch {
@@ -213,6 +215,37 @@ func hardlineCommand(command string) (string, bool) {
 		return "a force push can discard work that is not yours", true
 	}
 	return "", false
+}
+
+// mentionsCredential catches the shell spelling of the same credential
+// locations protected by file-tool confinement. Shell commands do not carry a
+// resolved Path, so checking only Request.Path lets `cat ~/.ssh/id_ed25519` or
+// `printenv OPENROUTER_API_KEY` bypass the floor.
+func mentionsCredential(command string) bool {
+	lowered := strings.ToLower(strings.ReplaceAll(command, "\\", "/"))
+	for _, dir := range credentialDirs {
+		// Include the exact directory spelling as well as descendants; a
+		// command such as `ls ~/.ssh` must not evade the check by omitting the
+		// trailing slash.
+		if strings.Contains(lowered, "/"+dir) || strings.Contains(lowered, "~/"+dir) {
+			return true
+		}
+	}
+	for _, name := range credentialFiles {
+		if strings.Contains(lowered, strings.ToLower(name)) {
+			return true
+		}
+	}
+	for _, name := range []string{
+		"openrouter_api_key", "anthropic_api_key", "openai_api_key",
+		"aws_secret_access_key", "github_token", "npm_token",
+	} {
+		if strings.Contains(lowered, "$"+name) || strings.Contains(lowered, name) &&
+			(strings.Contains(lowered, "printenv") || strings.Contains(lowered, "env ") || strings.Contains(lowered, "export ")) {
+			return true
+		}
+	}
+	return false
 }
 
 // dangerousRemove catches a recursive delete aimed at a root, a home, or the
@@ -249,7 +282,11 @@ func dangerousRemove(words []string) (string, bool) {
 // the shape that turns a download into execution.
 func pipesIntoShell(lowered string) bool {
 	for _, segment := range strings.Split(lowered, "|")[1:] {
-		switch strings.Fields(segment)[0] {
+		fields := strings.Fields(segment)
+		if len(fields) == 0 {
+			continue
+		}
+		switch fields[0] {
 		case "sh", "bash", "zsh", "python", "python3", "perl", "ruby", "node":
 			return true
 		}

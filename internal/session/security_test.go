@@ -75,3 +75,22 @@ func TestLoadRejectsAFileWhoseDecodedIDDoesNotMatchItsFilename(t *testing.T) {
 		t.Fatalf("Load reported a missing file instead of validating its contents: %v", err)
 	}
 }
+
+func TestLoadRejectsASessionSymlink(t *testing.T) {
+	dir := t.TempDir()
+	id := xid.New(xid.Session)
+	target := filepath.Join(t.TempDir(), "outside.json")
+	body, err := json.Marshal(map[string]any{"id": id, "messages": []any{map[string]any{"role": "user", "content": "outside"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(dir, id+".json")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if _, err := Load(dir, id); err == nil {
+		t.Fatal("Load followed a session symlink outside its storage directory")
+	}
+}

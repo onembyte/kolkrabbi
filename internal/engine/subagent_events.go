@@ -18,10 +18,8 @@ import (
 
 // RunningSubagents is how many subagents are working right now.
 //
-// It is what A33.1's events were for: the count answers the two questions a
-// person actually asks of a long orchestrated run — is this still working, and
-// how wide did it go. Item 29's test applies and this passes it; anything more
-// (per-agent progress, tokens, elapsed) is a number nobody would act on.
+// The count remains available to compact or non-interactive surfaces; richer
+// interactive surfaces consume the typed Subagents lifecycle instead.
 func (a *Agent) RunningSubagents() int {
 	a.subagentMu.Lock()
 	defer a.subagentMu.Unlock()
@@ -68,6 +66,7 @@ func (a *Agent) subagentTaskID(index int) string {
 	if a.subagentIDTurn != a.lastTurnID {
 		a.subagentIDTurn = a.lastTurnID
 		a.subagentIDs = nil
+		a.subagentStatus = nil
 	}
 	if id, minted := a.subagentIDs[index]; minted {
 		return id
@@ -80,27 +79,87 @@ func (a *Agent) subagentTaskID(index int) string {
 	return id
 }
 
+func (a *Agent) startSubagentStatus(tasks []Task, index int, model, effort string) SubagentStatus {
+	summary := tasks[index].Title
+	if summary == "" {
+		summary = "task " + itoa(index+1)
+	}
+	status := SubagentStatus{
+		ID:      a.subagentTaskID(index),
+		Index:   index + 1,
+		Total:   len(tasks),
+		Model:   model,
+		Effort:  effort,
+		Summary: summary,
+		State:   SubagentWorking,
+	}
+	a.subagentMu.Lock()
+	if a.subagentStatus == nil {
+		a.subagentStatus = map[int]SubagentStatus{}
+	}
+	a.subagentStatus[index] = status
+	a.subagentMu.Unlock()
+	return status
+}
+
+func (a *Agent) finishSubagentStatus(index int, ok bool, model, effort string) SubagentStatus {
+	id := a.subagentTaskID(index)
+	a.subagentMu.Lock()
+	status, found := a.subagentStatus[index]
+	if !found {
+		status = SubagentStatus{ID: id, Index: index + 1, Total: index + 1}
+	}
+	status.Model = model
+	status.Effort = effort
+	status.State = SubagentFailed
+	if ok {
+		status.State = SubagentDone
+	}
+	if a.subagentStatus == nil {
+		a.subagentStatus = map[int]SubagentStatus{}
+	}
+	a.subagentStatus[index] = status
+	a.subagentMu.Unlock()
+	return status
+}
+
+func (a *Agent) updateSubagentStatusRoute(index int, model, effort string) {
+	a.subagentMu.Lock()
+	status, found := a.subagentStatus[index]
+	if found {
+		status.Model = model
+		status.Effort = effort
+		a.subagentStatus[index] = status
+	}
+	a.subagentMu.Unlock()
+	if found {
+		a.notifySubagent(status)
+	}
+}
+
+func (a *Agent) notifySubagent(status SubagentStatus) {
+	if a.Subagents != nil {
+		a.Subagents(status)
+	}
+}
+
 // publishSubagentStarted announces one child turn.
-func (a *Agent) publishSubagentStarted(tasks []Task, index int, childTurn string) {
+func (a *Agent) publishSubagentStarted(tasks []Task, index int, childTurn, model, effort string) {
 	if index < 0 || index >= len(tasks) {
 		return
 	}
 	// Counted before the bus check: the count is a separate consumer, and a
 	// session with no bus still has a person watching the composer.
 	a.noteSubagents(1)
+	status := a.startSubagentStatus(tasks, index, model, effort)
+	a.notifySubagent(status)
 	if a.Bus == nil {
 		return
 	}
-	title := tasks[index].Title
-	if title == "" {
-		// The contract refuses an empty task, and an unlabelled one is still a
-		// running agent that the count must include.
-		title = "task " + itoa(index+1)
-	}
 	data, err := json.Marshal(protocol.SubagentStartedData{
-		ID:        a.subagentTaskID(index),
+		ID:        status.ID,
 		ChildTurn: childTurn,
-		Task:      title,
+		Task:      status.Summary,
 		Mode:      a.Mode,
 		Index:     index + 1, // the contract is one-based; the slice is not
 		Total:     len(tasks),
@@ -108,7 +167,7 @@ func (a *Agent) publishSubagentStarted(tasks []Task, index int, childTurn string
 		// haiku" is a different fact from "four subagents", and it is the one
 		// someone watching a wide run on a subscription wants.
 		Level: string(tasks[index].Level),
-		Model: tasks[index].Model,
+		Model: status.Model,
 	})
 	if err != nil {
 		return
@@ -125,13 +184,15 @@ func (a *Agent) publishSubagentStarted(tasks []Task, index int, childTurn string
 // Published on every path out of a task, including failure: an event that only
 // fires on success leaves a counter stuck at a number that never comes down,
 // which is worse than no counter at all.
-func (a *Agent) publishSubagentFinished(childTurn string, index int, ok bool, model string) {
+func (a *Agent) publishSubagentFinished(childTurn string, index int, ok bool, model, effort string) {
 	a.noteSubagents(-1)
+	status := a.finishSubagentStatus(index, ok, model, effort)
+	a.notifySubagent(status)
 	if a.Bus == nil {
 		return
 	}
 	data, err := json.Marshal(protocol.SubagentFinishedData{
-		ID:        a.subagentTaskID(index),
+		ID:        status.ID,
 		ChildTurn: childTurn,
 		Mode:      a.Mode,
 		OK:        ok,

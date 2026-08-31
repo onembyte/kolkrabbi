@@ -90,6 +90,8 @@ func TestFullAutoStillHasAFloor(t *testing.T) {
 		bashOf("git push --force origin main"),
 		bashOf("dd if=/dev/zero of=/dev/sda"),
 		bashOf("mkfs.ext4 /dev/sda1"),
+		bashOf("cat ~/.config/kolk/credentials.json"),
+		bashOf("printenv OPENROUTER_API_KEY"),
 	}
 	for _, request := range denied {
 		for _, tier := range []Permission{PermissionAsk, PermissionAutoApprove, PermissionFullAuto} {
@@ -118,6 +120,15 @@ func TestTheFloorDoesNotSwallowOrdinaryWork(t *testing.T) {
 	for _, command := range allowed {
 		if verdict, reason := PermissionFullAuto.Judge(bashOf(command)); verdict == VerdictDeny {
 			t.Fatalf("%q was refused: %s", command, reason)
+		}
+	}
+}
+
+func TestTrailingPipeDoesNotCrashThePermissionGuard(t *testing.T) {
+	for _, command := range []string{"echo x |", "echo x ||", "|"} {
+		verdict, _ := PermissionFullAuto.Judge(bashOf(command))
+		if verdict == VerdictDeny {
+			t.Fatalf("malformed pipeline %q was unexpectedly denied", command)
 		}
 	}
 }

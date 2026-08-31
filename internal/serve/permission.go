@@ -2,6 +2,7 @@ package serve
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/onembyte/kolkrabbi/protocol"
@@ -30,7 +31,7 @@ func permissionResolveHandler(resolver PermissionResolver) http.HandlerFunc {
 		}
 
 		var req resolveRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.NewDecoder(io.LimitReader(r.Body, 4<<10)).Decode(&req); err != nil {
 			http.Error(w, `{"error":"bad_request","message":"invalid json payload"}`, http.StatusBadRequest)
 			return
 		}

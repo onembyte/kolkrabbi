@@ -54,7 +54,7 @@ const (
 
 var CanonicalEfforts = []string{EffortLow, EffortMedium, EffortHigh, EffortMax}
 
-var Efforts = []string{EffortLow, EffortMedium, EffortHigh, EffortMax, "quick", "standard", "deep", "ultra"}
+var Efforts = []string{EffortLow, EffortMedium, EffortHigh, EffortMax, "xhigh", "quick", "standard", "deep", "ultra"}
 
 // NormalizeEffort maps any valid effort name, alias, or numeric string (1..4)
 // to its canonical value ("low", "medium", "high", "max"). It returns false
@@ -67,7 +67,7 @@ func NormalizeEffort(s string) (string, bool) {
 		return EffortMedium, true
 	case "high", "h", "3", "deep":
 		return EffortHigh, true
-	case "max", "x", "4", "ultra":
+	case "max", "xhigh", "x", "4", "ultra":
 		return EffortMax, true
 	default:
 		return "", false
@@ -250,6 +250,10 @@ type Options struct {
 	// Agents is told how many subagents are running whenever that changes, so a
 	// surface can show it. Nil means nobody is watching.
 	Agents func(running int)
+	// Subagents receives the typed lifecycle of each orchestrated task. Unlike
+	// Agents, it can render which task is working, on which model and effort.
+	// Callers must be concurrency-safe: several task goroutines publish here.
+	Subagents func(SubagentStatus)
 
 	// PostWrite is called after a file-modifying tool succeeded, so the host
 	// can run hooks. It cannot veto: the work is already done, which is what
@@ -284,6 +288,7 @@ type Agent struct {
 	// carry, and subagentIDTurn is the turn they belong to. Both are under
 	// subagentMu: the per-task goroutines mint ids concurrently.
 	subagentIDs    map[int]string
+	subagentStatus map[int]SubagentStatus
 	subagentIDTurn string
 	// subagentRunning is how many subagents are working, written from a
 	// goroutine per task and read by whatever is drawing the screen.
@@ -619,6 +624,12 @@ func (a *Agent) save() {
 
 // record appends a stats line; never fatal, warn once.
 func (a *Agent) record(role string, meta provider.Meta, toolCalls int) {
+	a.recordAtEffort(role, meta, toolCalls, a.Effort)
+}
+
+// recordAtEffort records work that intentionally runs at a different effort
+// from the parent session, as orchestrated subagents do.
+func (a *Agent) recordAtEffort(role string, meta provider.Meta, toolCalls int, effort string) {
 	// Accounted before the recorder is consulted: what a run costs is true
 	// whether or not stats are being written anywhere.
 	a.runSpend.add(meta.Cost)
@@ -631,7 +642,7 @@ func (a *Agent) record(role string, meta provider.Meta, toolCalls int) {
 		Session:             a.Sess.SessionID(),
 		Turn:                a.lastTurnID,
 		Mode:                a.Mode,
-		Effort:              a.Effort,
+		Effort:              effort,
 		Role:                role,
 		Model:               meta.Model,
 		PromptTokens:        meta.PromptTokens,
@@ -935,16 +946,16 @@ func sanitizeToolText(value string) string {
 
 // executeTool runs one tool for the main session, where a person can answer.
 func (a *Agent) executeTool(ctx context.Context, tc provider.ToolCall) (string, error) {
-	return a.executeToolWith(ctx, tc, a.Out, a.guard, true)
+	return a.executeToolWith(ctx, tc, a.Out, a.Effort, a.guard, true)
 }
 
 // executeSubagentTool runs one tool for an orchestrated subagent, where nobody
 // can.
-func (a *Agent) executeSubagentTool(ctx context.Context, tc provider.ToolCall, out io.Writer) (string, error) {
-	return a.executeToolWith(ctx, tc, out, a.subagentGuard, false)
+func (a *Agent) executeSubagentTool(ctx context.Context, tc provider.ToolCall, out io.Writer, effort string) (string, error) {
+	return a.executeToolWith(ctx, tc, out, effort, a.subagentGuard, false)
 }
 
-func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, out io.Writer, guard func(context.Context, io.Writer) tools.Guard, mayAsk bool) (string, error) {
+func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, out io.Writer, effort string, guard func(context.Context, io.Writer) tools.Guard, mayAsk bool) (string, error) {
 	// Answered before any of the machinery below: a question waits on a person,
 	// so a spinner saying "working" and a confinement guard over a path neither
 	// applies nor makes sense.
@@ -963,7 +974,7 @@ func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, out i
 	toolCtx := ctx
 	if tc.Function.Name == "bash" {
 		var cancel context.CancelFunc
-		toolCtx, cancel = context.WithTimeout(ctx, TimeoutForEffort(a.Effort))
+		toolCtx, cancel = context.WithTimeout(ctx, TimeoutForEffort(effort))
 		defer cancel()
 	}
 	result, err := tools.Execute(toolCtx, tc.Function.Name, tc.Function.Arguments, tools.Options{

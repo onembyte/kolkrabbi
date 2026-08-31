@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -45,6 +46,26 @@ func TestTheCountIsOnlyACount(t *testing.T) {
 	}
 }
 
+func TestAgentStatusIsACompactSingleLinePreview(t *testing.T) {
+	got := formatAgentStatusLine(AgentStatus{
+		Index: 1, Total: 3, Model: "gpt-5.6-luna", Effort: "medium",
+		Summary: "Review the architecture\nthen inspect every runtime path and report the important findings",
+		State:   "working",
+	})
+	if !strings.HasPrefix(got, "agent [1/3] - gpt-5.6-luna - medium - ") {
+		t.Fatalf("agent row = %q, want the compact agent prefix", got)
+	}
+	if strings.ContainsAny(got, "\r\n") {
+		t.Fatalf("agent preview escaped its one-line boundary: %q", got)
+	}
+	if len([]rune(got)) > 120 {
+		t.Fatalf("agent preview is %d runes, want at most 120: %q", len([]rune(got)), got)
+	}
+	if !strings.Contains(got, "working") {
+		t.Fatalf("agent state is missing from the preview: %q", got)
+	}
+}
+
 // The controller updates one field and re-renders, the way SetApproval does.
 func TestSetAgentsUpdatesTheLiveStatus(t *testing.T) {
 	c := NewController(Status{Mode: "agent", Effort: "medium", Lifecycle: "working"}, 4096)
@@ -56,5 +77,73 @@ func TestSetAgentsUpdatesTheLiveStatus(t *testing.T) {
 	c.SetAgents(0)
 	if got := c.Snapshot().Status.Agents; got != 0 {
 		t.Errorf("the count did not come back down: %d", got)
+	}
+}
+
+func TestAgentLifecycleRowsRemainThroughSynthesisThenClear(t *testing.T) {
+	c := NewController(Status{Mode: "agent", Effort: "high", Lifecycle: "working"}, 4096)
+	first := AgentStatus{
+		ID: "task-1", Index: 1, Total: 2, Model: "gpt-5.6-luna", Effort: "low",
+		Summary: "Inspect the repository", State: "working",
+	}
+	second := AgentStatus{
+		ID: "task-2", Index: 2, Total: 2, Model: "gpt-5.6-sol", Effort: "max",
+		Summary: "Reason about the concurrency boundary", State: "working",
+	}
+	c.SetAgentStatus(second)
+	c.SetAgentStatus(first)
+
+	got := c.Snapshot()
+	if got.Status.Agents != 2 || len(got.AgentStatuses) != 2 {
+		t.Fatalf("running status = %+v, agents = %+v", got.Status, got.AgentStatuses)
+	}
+	if got.AgentStatuses[0].ID != "task-1" || got.AgentStatuses[1].ID != "task-2" {
+		t.Fatalf("agent rows are not stable plan order: %+v", got.AgentStatuses)
+	}
+	view := c.View(160, 20)
+	for _, want := range []string{
+		"agent [1/2] - gpt-5.6-luna - low - working: Inspect the repository",
+		"agent [2/2] - gpt-5.6-sol - max - working: Reason about the concurrency boundary",
+	} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("view is missing %q:\n%s", want, view)
+		}
+	}
+
+	first.State = "done"
+	c.SetAgentStatus(first)
+	if got := c.Snapshot(); got.Status.Agents != 1 || got.AgentStatuses[0].State != "done" {
+		t.Fatalf("finished agent did not remain visible through synthesis: %+v", got)
+	}
+	second.State = "failed"
+	c.SetAgentStatus(second)
+	if got := c.Snapshot(); got.Status.Agents != 0 || got.AgentStatuses[1].State != "failed" {
+		t.Fatalf("failed agent did not leave the running count and remain visible: %+v", got)
+	}
+
+	c.FinishTurn("ready")
+	if got := c.Snapshot(); got.Status.Agents != 0 || len(got.AgentStatuses) != 0 {
+		t.Fatalf("finished turn retained stale agent rows: %+v", got)
+	}
+}
+
+func TestRuntimeAgentStatusUpdatesAreRaceSafe(t *testing.T) {
+	runtime := NewRuntime(RuntimeOptions{})
+	var wg sync.WaitGroup
+	for i := 1; i <= 32; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			runtime.SetAgentStatus(AgentStatus{
+				ID: string(rune(index)), Index: index, Total: 32,
+				Model: "gpt-5.6-luna", Effort: "medium", Summary: "task", State: "working",
+			})
+		}(i)
+	}
+	wg.Wait()
+
+	got := runtime.Snapshot()
+	if got.Status.Agents != 32 || len(got.AgentStatuses) != 32 {
+		t.Fatalf("concurrent updates lost agents: count %d rows %d", got.Status.Agents, len(got.AgentStatuses))
 	}
 }

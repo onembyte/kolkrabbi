@@ -687,6 +687,15 @@ func (r *Runtime) SetStatus(status Status) {
 	r.renderLocked()
 }
 
+// SetAgentStatus applies one concurrent subagent lifecycle update under the
+// same lock that owns rendering and snapshots.
+func (r *Runtime) SetAgentStatus(status AgentStatus) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.controller.SetAgentStatus(status)
+	r.renderLocked()
+}
+
 // Approval returns a race-free copy of the active permission overlay.
 func (r *Runtime) Approval() *Approval {
 	r.mu.Lock()

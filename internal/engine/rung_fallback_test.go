@@ -64,6 +64,38 @@ func TestTheFallbackToTheCeilingIsAnnouncedNotSilent(t *testing.T) {
 	}
 }
 
+func TestFallbackUpdatesTheLiveSubagentRouteWhileItIsWorking(t *testing.T) {
+	srv := enginetest.New(enginetest.Step{Text: "done"})
+	defer srv.Close()
+	agent, _, _, _ := newTestAgentInternal(t, srv, ModeAgent)
+	agent.SetSessionModel("claude-sonnet")
+	agent.MaxConcurrentTasks = 1
+	agent.SubagentBackend = func(_ context.Context, model, _, _ string) (ChatBackend, error) {
+		if model == "claude-haiku" {
+			return nil, errors.New("no such vendor process")
+		}
+		return &openedBackend{model: model, inner: agent.sessionBackend()}, nil
+	}
+	var seen []SubagentStatus
+	agent.Subagents = func(status SubagentStatus) { seen = append(seen, status) }
+
+	_, _ = agent.runTasks(context.Background(), "one thing",
+		[]Task{{Title: "inspect", Kind: KindResearch, Model: "claude-haiku"}})
+
+	if len(seen) != 3 {
+		t.Fatalf("lifecycle updates = %+v, want initial route, fallback route, and finish", seen)
+	}
+	if seen[0].Model != "claude-haiku" || seen[0].State != SubagentWorking {
+		t.Fatalf("initial status = %+v, want the attempted cheap route", seen[0])
+	}
+	if seen[1].Model != "claude-sonnet" || seen[1].State != SubagentWorking {
+		t.Fatalf("fallback status = %+v, want the live row moved to the session model", seen[1])
+	}
+	if seen[2].Model != "claude-sonnet" || seen[2].State != SubagentDone {
+		t.Fatalf("finished status = %+v, want the route that actually completed", seen[2])
+	}
+}
+
 // A ceiling that will not start either is a real failure. Climbing further is
 // not possible and retrying forever is not a plan.
 func TestASecondFailureOnTheCeilingFailsTheTask(t *testing.T) {

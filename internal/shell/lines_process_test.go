@@ -48,6 +48,23 @@ exit 3`
 	}
 }
 
+func TestLinesProcessDoesNotInheritCredentialEnvironment(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "lines-process-canary")
+	process, err := StartLinesProcess(context.Background(), "sh", []string{"-c", "printf '%s\\n' \"$OPENROUTER_API_KEY\""})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = process.Close() }()
+
+	line, err := process.Next(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(line)) != "" {
+		t.Fatalf("provider child inherited a credential environment variable: %q", line)
+	}
+}
+
 // Cancelling a provider session must take the vendor's own children with it.
 // Running the vendor's tool loop is the entire premise of this backend, so a
 // `bash`, an `npm test`, a language server it started are all grandchildren of

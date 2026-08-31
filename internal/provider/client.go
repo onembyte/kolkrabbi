@@ -192,10 +192,15 @@ func NewClient(apiKey string) *Client {
 		Base:  tr,
 	}
 	return &Client{
-		BaseURL:    DefaultBaseURL,
-		HTTPClient: &http.Client{Transport: auth},
-		AppName:    "Kolkrabbi",
-		auth:       auth,
+		BaseURL: DefaultBaseURL,
+		// Refuse redirects so the auth transport cannot attach the bearer to a
+		// different host selected by a response.
+		HTTPClient: &http.Client{
+			Transport:     auth,
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		},
+		AppName: "Kolkrabbi",
+		auth:    auth,
 	}
 }
 

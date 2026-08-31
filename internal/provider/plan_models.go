@@ -104,8 +104,8 @@ func resolvePlanModel(catalog []PlanModel, ref string, manifest ConnectorManifes
 	case 1:
 		selected = matches[0]
 	default:
-		// A shared model is easy to type when only one matching plan is enabled.
-		// Select that exact plan, but never guess when two plan records are live.
+		// Prefer the exact enabled plan. Overlapping records from one known tier
+		// family are resolved below; unrelated products retain their ambiguity.
 		enabled := make([]PlanModel, 0, len(matches))
 		exact := make([]PlanModel, 0, len(matches))
 		for _, candidate := range matches {
@@ -121,8 +121,16 @@ func resolvePlanModel(catalog []PlanModel, ref string, manifest ConnectorManifes
 			selected = exact[0]
 			break
 		}
+		if preferred, ok := highestKnownSubscriptionTier(exact); ok {
+			selected = preferred
+			break
+		}
 		if len(enabled) == 1 {
 			selected = enabled[0]
+			break
+		}
+		if preferred, ok := highestKnownSubscriptionTier(enabled); ok {
+			selected = preferred
 			break
 		}
 		// Asking someone to choose between plans that are all unusable wastes a
@@ -148,6 +156,36 @@ func resolvePlanModel(catalog []PlanModel, ref string, manifest ConnectorManifes
 	}
 	return PlanModel{}, fmt.Errorf("%s needs the %s connector; sign in with: kolk plans login %s %q",
 		selected.Model, selected.Connector, selected.Provider, selected.Plan)
+}
+
+// highestKnownSubscriptionTier resolves overlapping records only when they
+// are tiers of the same provider model through the same connector. This makes
+// stale Plus+Pro manifests deterministic without guessing between unrelated
+// products that happen to use the same model ID. Every candidate must belong
+// to a tier hierarchy we know; otherwise the caller retains the ambiguity.
+func highestKnownSubscriptionTier(candidates []PlanModel) (PlanModel, bool) {
+	if len(candidates) < 2 {
+		return PlanModel{}, false
+	}
+	first := candidates[0]
+	selected := first
+	highest := -1
+	for _, candidate := range candidates {
+		if !strings.EqualFold(candidate.Provider, first.Provider) ||
+			!strings.EqualFold(candidate.Connector, first.Connector) ||
+			!strings.EqualFold(candidate.Model, first.Model) {
+			return PlanModel{}, false
+		}
+		rank, ok := subscriptionTierRank(candidate.Provider, candidate.Plan)
+		if !ok {
+			return PlanModel{}, false
+		}
+		if rank > highest {
+			selected = candidate
+			highest = rank
+		}
+	}
+	return selected, true
 }
 
 func connectorEnabledFor(model PlanModel, manifest ConnectorManifest) bool {
@@ -235,8 +273,14 @@ func EffortForPlan(effort string, offered []string) (string, bool) {
 		return effort, false
 	}
 	rank := func(level string) int {
+		// Codex calls the shared maximum capability xhigh. It is a provider
+		// spelling, not a fifth rung: translating between it and max must not
+		// be reported as a downgrade.
+		if strings.EqualFold(strings.TrimSpace(level), "xhigh") {
+			level = "max"
+		}
 		for i, name := range planEffortOrder {
-			if strings.EqualFold(name, level) {
+			if strings.EqualFold(name, strings.TrimSpace(level)) {
 				return i
 			}
 		}
@@ -250,8 +294,8 @@ func EffortForPlan(effort string, offered []string) (string, bool) {
 		if at < 0 {
 			continue
 		}
-		if strings.EqualFold(level, effort) {
-			return effort, false
+		if wanted >= 0 && at == wanted {
+			return level, false
 		}
 		if at < lowestRank {
 			lowest, lowestRank = level, at

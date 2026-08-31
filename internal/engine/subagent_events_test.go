@@ -41,8 +41,8 @@ func TestAnOrchestratedRunPublishesOneStartAndOneFinishPerTask(t *testing.T) {
 	a := &Agent{Options: Options{Bus: b, Mode: ModeAgent}}
 	a.lastTurnID = "t_01ARYZ6S41TSV4RRFFQ69G5FAW"
 
-	a.publishSubagentStarted(tasks, 0, "t_01ARYZ6S41TSV4RRFFQ69G5FAX")
-	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", 0, true, "")
+	a.publishSubagentStarted(tasks, 0, "t_01ARYZ6S41TSV4RRFFQ69G5FAX", "", EffortMedium)
+	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", 0, true, "", EffortMedium)
 
 	events := subagentEvents(t, b)
 	if len(events) != 2 {
@@ -75,8 +75,8 @@ func TestAStartAndItsFinishShareIdentifiers(t *testing.T) {
 	a.lastTurnID = "t_01ARYZ6S41TSV4RRFFQ69G5FAW"
 	tasks := []Task{{Title: "one", Kind: KindEdit}}
 
-	a.publishSubagentStarted(tasks, 0, "t_01ARYZ6S41TSV4RRFFQ69G5FAX")
-	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", 0, false, "")
+	a.publishSubagentStarted(tasks, 0, "t_01ARYZ6S41TSV4RRFFQ69G5FAX", "", EffortMedium)
+	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", 0, false, "", EffortMedium)
 
 	events := subagentEvents(t, b)
 	if len(events) != 2 {
@@ -120,8 +120,8 @@ func TestTaskIdentifiersAreStableAndDistinct(t *testing.T) {
 // A run with no bus attached must behave exactly as before.
 func TestPublishingIsSilentWithoutABus(t *testing.T) {
 	a := &Agent{Options: Options{Mode: ModeAgent}}
-	a.publishSubagentStarted([]Task{{Title: "one"}}, 0, "t_01ARYZ6S41TSV4RRFFQ69G5FAX")
-	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", 0, true, "")
+	a.publishSubagentStarted([]Task{{Title: "one"}}, 0, "t_01ARYZ6S41TSV4RRFFQ69G5FAX", "", EffortMedium)
+	a.publishSubagentFinished("t_01ARYZ6S41TSV4RRFFQ69G5FAX", 0, true, "", EffortMedium)
 }
 
 func newTestBus(t *testing.T) *bus.Bus {

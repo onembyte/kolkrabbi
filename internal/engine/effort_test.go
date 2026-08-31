@@ -24,6 +24,9 @@ func TestNormalizeEffort(t *testing.T) {
 		{"medium", engine.EffortMedium, true},
 		{"high", engine.EffortHigh, true},
 		{"max", engine.EffortMax, true},
+		// Codex calls the highest reasoning level xhigh; Kolkrabbi's shared
+		// session dial represents that same level as max.
+		{"xhigh", engine.EffortMax, true},
 
 		// Numeric aliases
 		{"1", engine.EffortLow, true},

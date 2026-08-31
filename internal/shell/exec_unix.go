@@ -5,7 +5,6 @@ package shell
 import (
 	"context"
 	"errors"
-	"os"
 	"os/exec"
 	"syscall"
 	"time"
@@ -21,9 +20,7 @@ func command(ctx context.Context, c Cmd) (*exec.Cmd, error) {
 	cmd := exec.CommandContext(ctx, "bash", "-c", c.Command)
 	cmd.Dir = c.Dir
 	cmd.Stdin = c.Stdin
-	if len(c.Env) > 0 {
-		cmd.Env = append(os.Environ(), c.Env...)
-	}
+	cmd.Env = inheritedEnv(c.Env)
 
 	// Put the child in its own process group so a kill reaches everything it
 	// started. Without this, `npm test &` or a shell pipeline leaves orphans

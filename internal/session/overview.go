@@ -73,7 +73,12 @@ func Overview(dir string) ([]Card, error) {
 		if err := validateSessionID(filenameID); err != nil {
 			continue
 		}
-		body, err := os.ReadFile(filepath.Join(dir, name))
+		path := filepath.Join(dir, name)
+		info, err := os.Lstat(path)
+		if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			continue
+		}
+		body, err := os.ReadFile(path)
 		if err != nil {
 			continue
 		}

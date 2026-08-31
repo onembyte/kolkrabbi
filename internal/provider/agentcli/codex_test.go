@@ -225,6 +225,14 @@ func TestBuildCodexInvocationShapesTheArgv(t *testing.T) {
 		t.Fatalf("resume argv = %v, want `resume <id>` with the prompt still on stdin", resumed.Args)
 	}
 
+	canonicalMax, err := BuildCodexInvocation("gpt-5.6-sol", "code", "max", "", false, "think deeply")
+	if err != nil {
+		t.Fatalf("canonical max was not translated for codex: %v", err)
+	}
+	if joined := strings.Join(canonicalMax.Args, " "); !strings.Contains(joined, "model_reasoning_effort=xhigh") {
+		t.Fatalf("max argv = %v, want provider-native xhigh", canonicalMax.Args)
+	}
+
 	for _, probe := range []struct {
 		model, mode, effort string
 		want                string
@@ -234,7 +242,7 @@ func TestBuildCodexInvocationShapesTheArgv(t *testing.T) {
 		// several would have interleaved into a single transcript. A backend
 		// per subagent removes the sharing, so the reason is gone; the case
 		// below asserts it is accepted rather than rejected.
-		{"", "code", "max", "effort level"},
+		{"", "code", "impossible", "effort level"},
 		{"", "sideways", "", "unknown mode"},
 		{"", "code", "", "prompt cannot be empty"},
 	} {
@@ -256,6 +264,16 @@ func TestBuildCodexInvocationShapesTheArgv(t *testing.T) {
 	}
 	if strings.Join(agentMode.Args, " ") != strings.Join(codeMode.Args, " ") {
 		t.Errorf("agent argv = %v, want the same as code %v", agentMode.Args, codeMode.Args)
+	}
+}
+
+func TestCodexBackendStoresCanonicalMaxAsProviderNativeXHigh(t *testing.T) {
+	backend, err := NewCodexBackendFromHandle("gpt-5.6-sol", "code", "max", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if backend.Effort != "xhigh" {
+		t.Fatalf("backend effort = %q, want xhigh", backend.Effort)
 	}
 }
 

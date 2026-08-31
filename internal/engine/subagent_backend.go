@@ -28,11 +28,11 @@ type SubagentBackend func(ctx context.Context, model, mode, effort string) (Chat
 // The release is always safe to call: a nil port, a backend that is not a
 // Closer, and a failed open all return one that does nothing. That matters
 // because the caller defers it before it can know which case it got.
-func (a *Agent) openSubagentBackend(ctx context.Context, model string) (ChatBackend, func(), error) {
+func (a *Agent) openSubagentBackend(ctx context.Context, model, effort string) (ChatBackend, func(), error) {
 	if a.SubagentBackend == nil {
 		return nil, func() {}, nil
 	}
-	backend, err := a.SubagentBackend(ctx, model, ModeCode, a.Effort)
+	backend, err := a.SubagentBackend(ctx, model, ModeCode, effort)
 	if err != nil {
 		return nil, func() {}, err
 	}

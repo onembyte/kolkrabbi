@@ -237,15 +237,15 @@ func TestModelPickerLabelsCostAndListsFreeThingsFirst(t *testing.T) {
 	}
 }
 
-func TestSuggestModelsUsesAnExplicitSelectionAlias(t *testing.T) {
+func TestSuggestModelsCompletesTheCanonicalModelID(t *testing.T) {
 	got := SuggestModels([]ModelSpec{{
-		ID: "gpt-5.6-terra", Select: "gpt-plus-terra", Name: "ChatGPT Plus · via codex",
-	}}, "/model gpt-plus", 8)
+		ID: "gpt-5.6-terra", Name: "via codex",
+	}}, "/model terra", 8)
 	if len(got) != 1 {
-		t.Fatalf("suggestions = %#v, want one alias match", got)
+		t.Fatalf("suggestions = %#v, want one canonical model match", got)
 	}
-	if got[0].Name != "gpt-plus-terra" || got[0].Usage != "/model gpt-plus-terra" || got[0].Complete != "/model gpt-plus-terra" {
-		t.Fatalf("suggestion = %#v, want the explicit selection alias", got[0])
+	if got[0].Name != "gpt-5.6-terra" || got[0].Usage != "/model gpt-5.6-terra" || got[0].Complete != "/model gpt-5.6-terra" {
+		t.Fatalf("suggestion = %#v, want the displayed canonical model ID", got[0])
 	}
 }
 

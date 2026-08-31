@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/enginetest"
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -37,6 +38,38 @@ type recordingActivity struct {
 	events *activityEvents
 }
 
+type blockedTokenBackend struct {
+	token       chan struct{}
+	release     chan struct{}
+	returned    chan struct{}
+	releaseOnce sync.Once
+}
+
+func (b *blockedTokenBackend) releaseNow() {
+	b.releaseOnce.Do(func() { close(b.release) })
+}
+
+func newBlockedTokenBackend() *blockedTokenBackend {
+	return &blockedTokenBackend{
+		token: make(chan struct{}), release: make(chan struct{}), returned: make(chan struct{}),
+	}
+}
+
+func (b *blockedTokenBackend) StreamChat(ctx context.Context, model string, _ []provider.Message,
+	_ []provider.Tool, onToken func(string)) (provider.Message, provider.Meta, error) {
+	if onToken != nil {
+		onToken("hidden token")
+	}
+	close(b.token)
+	select {
+	case <-b.release:
+		close(b.returned)
+		return provider.Message{Role: "assistant", Content: "done"}, provider.Meta{Model: model}, nil
+	case <-ctx.Done():
+		return provider.Message{}, provider.Meta{Model: model}, ctx.Err()
+	}
+}
+
 func (a *recordingActivity) Start(ctx context.Context, phase string) func() {
 	a.events.add("start:" + phase)
 	if ctx.Err() != nil {
@@ -65,6 +98,82 @@ func TestActivityStopsBeforeFirstVisibleToken(t *testing.T) {
 	}
 	if eventCount(got, "start:thinking") != 1 || eventCount(got, "stop:thinking") != 1 {
 		t.Fatalf("activity lifecycle was not exactly once: %#v", got)
+	}
+}
+
+func TestBufferedSubagentTokensKeepActivityUntilEachBackendReturns(t *testing.T) {
+	first, second := newBlockedTokenBackend(), newBlockedTokenBackend()
+	t.Cleanup(first.releaseNow)
+	t.Cleanup(second.releaseNow)
+	srv := enginetest.New()
+	defer srv.Close()
+	agent, _, _, _ := newTestAgentInternal(t, srv, ModeAgent)
+	agent.MaxConcurrentTasks = 2
+	events := &activityEvents{}
+	agent.Activity = &recordingActivity{events: events}
+	backends := map[string]ChatBackend{"model/first": first, "model/second": second}
+	agent.SubagentBackend = func(_ context.Context, model, _, _ string) (ChatBackend, error) {
+		return backends[model], nil
+	}
+
+	runDone := make(chan error, 1)
+	go func() {
+		_, err := agent.runTasks(context.Background(), "two checks", []Task{
+			{Title: "first", Kind: KindResearch, Model: "model/first"},
+			{Title: "second", Kind: KindResearch, Model: "model/second"},
+		})
+		runDone <- err
+	}()
+
+	waitSignal(t, first.token, "first hidden token")
+	waitSignal(t, second.token, "second hidden token")
+	prematureStops := eventCount(events.snapshot(), "stop:working")
+
+	first.releaseNow()
+	waitSignal(t, first.returned, "first backend return")
+	waitForEventCount(t, events, "stop:working", 1)
+	activeAfterFirst := eventCount(events.snapshot(), "start:working") -
+		eventCount(events.snapshot(), "stop:working")
+
+	second.releaseNow()
+	waitSignal(t, second.returned, "second backend return")
+	select {
+	case err := <-runDone:
+		if err != nil {
+			t.Fatalf("runTasks: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("subagent run did not finish")
+	}
+
+	if prematureStops != 0 {
+		t.Errorf("%d activities stopped on hidden buffered tokens, want none", prematureStops)
+	}
+	if activeAfterFirst != 1 {
+		t.Errorf("active activities after first backend = %d, want the second spinner still alive", activeAfterFirst)
+	}
+	if starts, stops := eventCount(events.snapshot(), "start:working"), eventCount(events.snapshot(), "stop:working"); starts != 2 || stops != 2 {
+		t.Errorf("activity lifecycle = %d starts/%d stops, want 2/2", starts, stops)
+	}
+}
+
+func waitSignal(t *testing.T, signal <-chan struct{}, name string) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for %s", name)
+	}
+}
+
+func waitForEventCount(t *testing.T, events *activityEvents, want string, count int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for eventCount(events.snapshot(), want) < count && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if got := eventCount(events.snapshot(), want); got < count {
+		t.Fatalf("%s count = %d, want at least %d", want, got, count)
 	}
 }
 

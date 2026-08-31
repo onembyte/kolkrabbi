@@ -126,6 +126,34 @@ func TestStreamChat_HTTPError(t *testing.T) {
 	}
 }
 
+func TestClientDoesNotForwardCredentialsAcrossRedirects(t *testing.T) {
+	var leaked string
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		leaked = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+
+	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+"/chat/completions", http.StatusFound)
+	}))
+	defer redirect.Close()
+
+	c := NewClient("sk-or-v1-redirect-canary")
+	c.BaseURL = redirect.URL
+	_, _, err := c.StreamChat(context.Background(), "any/model", []Message{{Role: "user", Content: "hi"}}, nil, nil)
+	if err != nil {
+		// The redirect response is intentionally not a valid stream; the
+		// security assertion is that the next host was never contacted.
+		if !strings.Contains(err.Error(), "HTTP 302") {
+			t.Fatalf("StreamChat error = %v, want the refused redirect response", err)
+		}
+	}
+	if leaked != "" {
+		t.Fatalf("redirect target received Authorization %q", leaked)
+	}
+}
+
 func TestStreamChat_HTTPErrorPreservesRateLimitClassification(t *testing.T) {
 	const echoedKey = "sk-or-v1-0123456789abcdef0123456789abcdef"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -113,8 +113,12 @@ func New(opts Options) (*Server, error) {
 	}
 	return &Server{
 		httpServer: &http.Server{
-			Addr:    opts.Addr,
-			Handler: handler,
+			Addr:              opts.Addr,
+			Handler:           handler,
+			ReadHeaderTimeout: 5 * time.Second,
+			ReadTimeout:       30 * time.Second,
+			IdleTimeout:       60 * time.Second,
+			MaxHeaderBytes:    1 << 20,
 		},
 	}, nil
 }
