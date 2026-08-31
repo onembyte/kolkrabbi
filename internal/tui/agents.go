@@ -16,9 +16,15 @@ type AgentStatus struct {
 	Effort  string
 	Summary string
 	State   string
+	Phase   string
+	Step    string
+	// Sequence is the engine's monotonic per-task replacement token. It is
+	// not rendered; the controller uses it to reject an older callback that
+	// reaches the TUI after a newer observed boundary.
+	Sequence uint64
 }
 
-const maxAgentStatusRunes = 120
+const maxAgentStatusRunes = 160
 
 // formatAgentStatusLine renders the stable one-row shape shown while an
 // orchestrated task is in flight. Planner text is untrusted terminal content,
@@ -35,9 +41,13 @@ func formatAgentStatusLine(status AgentStatus) string {
 	effort := compactAgentField(status.Effort, "effort default")
 	state := compactAgentField(status.State, "working")
 	summary := compactAgentField(status.Summary, "task")
+	step := compactAgentField(status.Step, "")
 
-	line := fmt.Sprintf("agent [%d/%d] - %s - %s - %s: %s",
+	line := fmt.Sprintf("agent [%d/%d] · %s · %s · %s: %s",
 		index, total, model, effort, state, summary)
+	if step != "" && step != state {
+		line += " — " + step
+	}
 	return truncateAgentLine(line, maxAgentStatusRunes)
 }
 

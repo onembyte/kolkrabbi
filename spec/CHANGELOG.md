@@ -15,10 +15,15 @@ are allowed during version 0, but every change is recorded here.
 - Define `tool.started` correlation and execution ownership.
 - Define `tool.output` correlation, possibly empty content, and execution ownership.
 - Define `tool.finished` correlation, boolean tool outcome, and execution ownership.
+- Add optional paired `task_id`/`child_turn` coordinates to every tool event so concurrent
+  subagent-owned tool work remains attributable while old main-tool frames stay unchanged.
 - Define `permission.requested` identity, tool detail, and optional diff preview.
 - Define `permission.resolved` correlation, decisions, and optional reason.
 - Define parent/child correlation, presentation identity, mode, and outcome for the subagent
   lifecycle.
+- Define ordered `work.updated` observations for main and subagent roles, with closed state/phase
+  vocabularies, monotonic per-work sequence, bounded step text, and child coordinates only where
+  they exist.
 - Define per-attempt `usage.reported` accounting, optional measurement presence, cost provenance,
   and comparability classes.
 - Define typed `score.recorded` values, target kinds, and human, judge, or implicit provenance.
@@ -28,7 +33,7 @@ are allowed during version 0, but every change is recorded here.
   mapping.
 - Define `error` as an event wrapper around the shared error entity with no duplicate failure
   fields or policy.
-- Publish the ordered 23-event catalog and require constants, schemas, IDs, and goldens to remain a
+- Publish the ordered 24-event catalog and require constants, schemas, IDs, and goldens to remain a
   closed, exact set.
 - Promote the `usage.reported` accounting row to a shared usage entity while preserving the event
   payload as an alias and schema reference.

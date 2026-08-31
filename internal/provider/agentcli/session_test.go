@@ -97,6 +97,30 @@ func TestClaudeSessionStreamsTheVendorToolLoopAsATrail(t *testing.T) {
 	}
 }
 
+func TestClaudeSessionObservedStreamKeepsProviderToolIdentity(t *testing.T) {
+	process := &fakeLineProcess{lines: [][]byte{
+		[]byte(`{"type":"assistant","message":{"content":[{"type":"tool_use","id":"toolu_1","name":"Read","input":{"path":"README.md"}}]}}`),
+		[]byte(`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"README.md: 12 lines"}]}}`),
+		[]byte(`{"type":"result","result":"done","subtype":"success"}`),
+	}}
+	session, err := newClaudeSession(context.Background(), "opus", "code", "high", func(context.Context, string, []string) (lineProcess, error) {
+		return process, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var observed []provider.ProgressEvent
+	if _, _, err := session.TurnObserved(context.Background(), []provider.Message{{Role: "user", Content: "read it"}}, "opus", nil,
+		func(event provider.ProgressEvent) { observed = append(observed, event) }); err != nil {
+		t.Fatal(err)
+	}
+	if len(observed) < 2 || observed[0].Kind != provider.ProgressToolStarted ||
+		observed[1].Kind != provider.ProgressToolFinished || observed[0].ID != observed[1].ID ||
+		observed[0].Name != "Read" || observed[1].Name != "Read" {
+		t.Fatalf("provider progress = %+v", observed)
+	}
+}
+
 // A failing tool is still part of the record: the trail marks it as an error
 // and quotes the vendor's complaint.
 func TestClaudeSessionTrailMarksAFailedToolRun(t *testing.T) {

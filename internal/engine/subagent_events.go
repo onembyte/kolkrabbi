@@ -2,6 +2,7 @@ package engine
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/onembyte/kolkrabbi/internal/bus"
 	"github.com/onembyte/kolkrabbi/internal/xid"
@@ -79,19 +80,29 @@ func (a *Agent) subagentTaskID(index int) string {
 	return id
 }
 
-func (a *Agent) startSubagentStatus(tasks []Task, index int, model, effort string) SubagentStatus {
+func (a *Agent) newSubagentStatus(tasks []Task, index int, childTurn, model, effort string) SubagentStatus {
 	summary := tasks[index].Title
 	if summary == "" {
 		summary = "task " + itoa(index+1)
 	}
-	status := SubagentStatus{
-		ID:      a.subagentTaskID(index),
-		Index:   index + 1,
-		Total:   len(tasks),
-		Model:   model,
-		Effort:  effort,
-		Summary: summary,
-		State:   SubagentWorking,
+	return SubagentStatus{
+		ID:        a.subagentTaskID(index),
+		ChildTurn: childTurn,
+		Index:     index + 1,
+		Total:     len(tasks),
+		Model:     model,
+		Effort:    effort,
+		Summary:   summary,
+	}
+}
+
+func (a *Agent) queueSubagentStatus(tasks []Task, index int, childTurn, model, effort string) SubagentStatus {
+	status, err := advanceSubagentStatus(
+		a.newSubagentStatus(tasks, index, childTurn, model, effort),
+		SubagentQueued, SubagentPhaseSchedule, "queued",
+	)
+	if err != nil {
+		return SubagentStatus{}
 	}
 	a.subagentMu.Lock()
 	if a.subagentStatus == nil {
@@ -102,25 +113,82 @@ func (a *Agent) startSubagentStatus(tasks []Task, index int, model, effort strin
 	return status
 }
 
-func (a *Agent) finishSubagentStatus(index int, ok bool, model, effort string) SubagentStatus {
-	id := a.subagentTaskID(index)
+func (a *Agent) startSubagentStatus(tasks []Task, index int, childTurn, model, effort string) SubagentStatus {
 	a.subagentMu.Lock()
 	status, found := a.subagentStatus[index]
+	a.subagentMu.Unlock()
 	if !found {
-		status = SubagentStatus{ID: id, Index: index + 1, Total: index + 1}
+		status = a.newSubagentStatus(tasks, index, childTurn, model, effort)
 	}
+	status.ChildTurn = childTurn
 	status.Model = model
 	status.Effort = effort
-	status.State = SubagentFailed
-	if ok {
-		status.State = SubagentDone
+	status, err := advanceSubagentStatus(status, SubagentWorking, SubagentPhaseSchedule, "started")
+	if err != nil {
+		return SubagentStatus{}
 	}
+	a.subagentMu.Lock()
 	if a.subagentStatus == nil {
 		a.subagentStatus = map[int]SubagentStatus{}
 	}
 	a.subagentStatus[index] = status
 	a.subagentMu.Unlock()
 	return status
+}
+
+func (a *Agent) updateSubagentStatus(index int, state SubagentState, phase SubagentPhase, step string) bool {
+	a.subagentMu.Lock()
+	status, found := a.subagentStatus[index]
+	if !found {
+		a.subagentMu.Unlock()
+		return false
+	}
+	step = compactSubagentStep(step)
+	if status.State == state && status.Phase == phase && status.Step == step {
+		a.subagentMu.Unlock()
+		return false
+	}
+	next, err := advanceSubagentStatus(status, state, phase, step)
+	if err != nil {
+		a.subagentMu.Unlock()
+		return false
+	}
+	a.subagentStatus[index] = next
+	a.subagentMu.Unlock()
+	a.notifySubagent(next)
+	return true
+}
+
+func (a *Agent) finishSubagentStatus(index int, ok bool, model, effort string) (SubagentStatus, bool) {
+	id := a.subagentTaskID(index)
+	a.subagentMu.Lock()
+	status, found := a.subagentStatus[index]
+	if !found {
+		status, _ = advanceSubagentStatus(
+			SubagentStatus{ID: id, Index: index + 1, Total: index + 1},
+			SubagentWorking, SubagentPhaseProvider, "starting provider",
+		)
+	}
+	status.Model = model
+	status.Effort = effort
+	if status.State == SubagentDone || status.State == SubagentFailed || status.State == SubagentBlocked {
+		a.subagentStatus[index] = status
+		a.subagentMu.Unlock()
+		return status, false
+	}
+	state := SubagentFailed
+	step := "failed"
+	if ok {
+		state = SubagentDone
+		step = "completed"
+	}
+	status, _ = advanceSubagentStatus(status, state, SubagentPhaseComplete, step)
+	if a.subagentStatus == nil {
+		a.subagentStatus = map[int]SubagentStatus{}
+	}
+	a.subagentStatus[index] = status
+	a.subagentMu.Unlock()
+	return status, true
 }
 
 func (a *Agent) updateSubagentStatusRoute(index int, model, effort string) {
@@ -129,6 +197,8 @@ func (a *Agent) updateSubagentStatusRoute(index int, model, effort string) {
 	if found {
 		status.Model = model
 		status.Effort = effort
+		status, _ = advanceSubagentStatus(status, SubagentWorking, SubagentPhaseProvider,
+			fmt.Sprintf("falling back to %s", model))
 		a.subagentStatus[index] = status
 	}
 	a.subagentMu.Unlock()
@@ -137,10 +207,42 @@ func (a *Agent) updateSubagentStatusRoute(index int, model, effort string) {
 	}
 }
 
+func (a *Agent) blockSubagentStatus(index int, reason string) {
+	a.updateSubagentStatus(index, SubagentBlocked, SubagentPhaseComplete, reason)
+}
+
 func (a *Agent) notifySubagent(status SubagentStatus) {
 	if a.Subagents != nil {
 		a.Subagents(status)
 	}
+	a.publishSubagentWork(status)
+}
+
+func (a *Agent) publishSubagentWork(status SubagentStatus) {
+	if a.Bus == nil || status.ID == "" || status.ChildTurn == "" || status.Sequence == 0 {
+		return
+	}
+	data, err := json.Marshal(protocol.WorkUpdatedData{
+		ID:        status.ID,
+		ChildTurn: status.ChildTurn,
+		Role:      protocol.WorkRoleSubagent,
+		State:     protocol.WorkState(status.State),
+		Phase:     protocol.WorkPhase(status.Phase),
+		Step:      status.Step,
+		Sequence:  status.Sequence,
+		Index:     status.Index,
+		Total:     status.Total,
+		Model:     status.Model,
+		Effort:    status.Effort,
+	})
+	if err != nil {
+		return
+	}
+	_, _ = a.Bus.Publish(bus.Event{
+		Turn: a.lastTurnID,
+		Type: protocol.EventWorkUpdated,
+		Data: data,
+	})
 }
 
 // publishSubagentStarted announces one child turn.
@@ -151,9 +253,9 @@ func (a *Agent) publishSubagentStarted(tasks []Task, index int, childTurn, model
 	// Counted before the bus check: the count is a separate consumer, and a
 	// session with no bus still has a person watching the composer.
 	a.noteSubagents(1)
-	status := a.startSubagentStatus(tasks, index, model, effort)
-	a.notifySubagent(status)
+	status := a.startSubagentStatus(tasks, index, childTurn, model, effort)
 	if a.Bus == nil {
+		a.notifySubagent(status)
 		return
 	}
 	data, err := json.Marshal(protocol.SubagentStartedData{
@@ -177,6 +279,7 @@ func (a *Agent) publishSubagentStarted(tasks []Task, index int, childTurn, model
 		Type: protocol.EventSubagentStarted,
 		Data: data,
 	})
+	a.notifySubagent(status)
 }
 
 // publishSubagentFinished records how one child turn ended.
@@ -186,8 +289,10 @@ func (a *Agent) publishSubagentStarted(tasks []Task, index int, childTurn, model
 // which is worse than no counter at all.
 func (a *Agent) publishSubagentFinished(childTurn string, index int, ok bool, model, effort string) {
 	a.noteSubagents(-1)
-	status := a.finishSubagentStatus(index, ok, model, effort)
-	a.notifySubagent(status)
+	status, changed := a.finishSubagentStatus(index, ok, model, effort)
+	if changed {
+		a.notifySubagent(status)
+	}
 	if a.Bus == nil {
 		return
 	}

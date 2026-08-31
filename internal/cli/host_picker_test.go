@@ -28,6 +28,8 @@ func hostPickerApp(t *testing.T, connectorVerified *bool, accelerators int) (*ap
 			{Name: "gpt-oss:120b-cloud", Cloud: true, ContextLength: 131072, Tools: true, CapabilitiesKnown: true},
 		}, nil
 	}
+	a.listCloudCatalog = nil
+	a.listCloudModels = nil
 	a.probeHardware = func(context.Context, string) local.Hardware {
 		hw := local.Hardware{}
 		for range accelerators {
@@ -40,6 +42,16 @@ func hostPickerApp(t *testing.T, connectorVerified *bool, accelerators int) (*ap
 		t.Fatal(err)
 	}
 	return a, agent
+}
+
+func countRowsByID(rows []tui.ModelSpec, id string) int {
+	count := 0
+	for _, row := range rows {
+		if row.ID == id {
+			count++
+		}
+	}
+	return count
 }
 
 func rowByID(rows []tui.ModelSpec, id string) (tui.ModelSpec, bool) {
@@ -101,6 +113,88 @@ func TestPickerLabelsCloudRowsByTheConnector(t *testing.T) {
 	row, _ = rowByID(tuiModels(context.Background(), a, agent), "ollama/gpt-oss:120b-cloud")
 	if row.Cost != tui.CostSubscriptionLogin {
 		t.Errorf("no connector: cloud row cost = %q, want sign-in-first", row.Cost)
+	}
+}
+
+func TestPickerMergesPulledAndUnpulledCloudRows(t *testing.T) {
+	verified := true
+	a, agent := hostPickerApp(t, &verified, 0)
+	a.listCloudCatalog = func(context.Context) ([]local.CloudCatalogModel, error) {
+		return []local.CloudCatalogModel{
+			{Name: "gpt-oss:120b", Digest: "pulled-cloud"},
+			{Name: "glm-5.1", Digest: "unpulled-cloud", Parameters: "355B"},
+		}, nil
+	}
+	a.listCloudModels = func(context.Context, string, string, string, []local.CloudCatalogModel) ([]local.HostModel, error) {
+		return []local.HostModel{
+			{Name: "gpt-oss:120b-cloud", Cloud: true, RemoteHost: "https://ollama.com:443", CapabilitiesKnown: true},
+			{Name: "glm-5.1:cloud", Cloud: true, RemoteHost: "https://ollama.com:443", NotPulled: true, Parameters: "355B", CapabilitiesKnown: true},
+		}, nil
+	}
+
+	rows := tuiModels(context.Background(), a, agent)
+	if got := countRowsByID(rows, "ollama/gpt-oss:120b-cloud"); got != 1 {
+		t.Fatalf("pulled Cloud row appeared %d times after merge, want 1", got)
+	}
+	row, ok := rowByID(rows, "ollama/glm-5.1:cloud")
+	if !ok || row.Cost != tui.CostSubscription || !strings.Contains(row.Name, "not pulled: ollama pull glm-5.1:cloud") || !strings.Contains(row.Name, "Ollama Pro") {
+		t.Fatalf("unpulled verified Cloud row = %+v, want one subscription row with pull guidance", row)
+	}
+	pulled, _ := rowByID(rows, "ollama/gpt-oss:120b-cloud")
+	if strings.Contains(pulled.Name, "not pulled") {
+		t.Fatalf("pulled Cloud row was labelled not pulled: %+v", pulled)
+	}
+}
+
+func TestPickerKeepsUnpulledCloudRowsActionableWhenSignedOut(t *testing.T) {
+	unverified := false
+	a, agent := hostPickerApp(t, &unverified, 0)
+	a.listCloudCatalog = func(context.Context) ([]local.CloudCatalogModel, error) {
+		return []local.CloudCatalogModel{{Name: "glm-5.1"}}, nil
+	}
+	a.listCloudModels = func(context.Context, string, string, string, []local.CloudCatalogModel) ([]local.HostModel, error) {
+		return []local.HostModel{{Name: "glm-5.1:cloud", Cloud: true, RemoteHost: "https://ollama.com:443", NotPulled: true}}, nil
+	}
+
+	row, ok := rowByID(tuiModels(context.Background(), a, agent), "ollama/glm-5.1:cloud")
+	if !ok || row.Cost != tui.CostSubscriptionLogin || !strings.Contains(row.Name, "not pulled: ollama pull glm-5.1:cloud") || !strings.Contains(row.Name, "sign in first") {
+		t.Fatalf("unverified unpulled Cloud row = %+v, want pull and login guidance", row)
+	}
+}
+
+func TestPickerPreservesHostRowsWhenCloudDiscoveryFails(t *testing.T) {
+	a, agent := hostPickerApp(t, nil, 0)
+	a.listCloudCatalog = func(context.Context) ([]local.CloudCatalogModel, error) {
+		return nil, context.DeadlineExceeded
+	}
+	a.listCloudModels = func(context.Context, string, string, string, []local.CloudCatalogModel) ([]local.HostModel, error) {
+		t.Fatal("cloud enrichment ran after public catalogue failure")
+		return nil, nil
+	}
+
+	if _, ok := rowByID(tuiModels(context.Background(), a, agent), "ollama/qwen2.5-coder:7b"); !ok {
+		t.Fatal("known host row disappeared when optional Cloud discovery failed")
+	}
+}
+
+func TestPickerDeduplicatesPartialHostAndManifestRows(t *testing.T) {
+	isolateConnectorState(t)
+	storeFirstRunKey(t)
+	a, _, _ := newTestApp(t, "")
+	a.discoverHost = func(context.Context) local.Host {
+		return local.Host{State: local.HostRunning, Addr: "127.0.0.1:11434", Version: "0.33.1"}
+	}
+	a.listHostModels = func(context.Context, string, string) ([]local.HostModel, error) {
+		return []local.HostModel{{Name: "qwen2.5-coder:7b"}}, context.DeadlineExceeded
+	}
+	a.pulledNames = func() map[string]bool { return map[string]bool{"qwen2.5-coder": true} }
+	agent, err := a.newAgent(context.Background(), &options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := countRowsByID(tuiModels(context.Background(), a, agent), "ollama/qwen2.5-coder:7b"); got != 1 {
+		t.Fatalf("partial host and manifest produced %d duplicate rows, want 1", got)
 	}
 }
 

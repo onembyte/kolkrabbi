@@ -395,6 +395,43 @@ func TestCodexBackendStreamsTheToolLoopTrail(t *testing.T) {
 	}
 }
 
+func TestCodexBackendObservedStreamKeepsProviderToolIdentity(t *testing.T) {
+	backend, err := NewCodexBackendFromHandle("gpt-5.6-sol", "code", "", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend.run = func(_ context.Context, _ string, _ []string, _ io.Reader, onLine func([]byte) error) error {
+		for _, line := range codexFixtureLines(t, "codex-tool-use.jsonl") {
+			if err := onLine(line); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	var observed []provider.ProgressEvent
+	if _, _, err := backend.StreamChatObserved(context.Background(), "gpt-5.6-sol",
+		[]provider.Message{{Role: "user", Content: "write hello.txt"}}, nil, nil,
+		func(event provider.ProgressEvent) { observed = append(observed, event) }); err != nil {
+		t.Fatal(err)
+	}
+	var start, finish *provider.ProgressEvent
+	for index := range observed {
+		event := &observed[index]
+		if event.Kind == provider.ProgressToolStarted && start == nil {
+			start = event
+		}
+		if event.Kind == provider.ProgressToolFinished && finish == nil {
+			finish = event
+		}
+	}
+	if start == nil || finish == nil {
+		t.Fatalf("provider progress = %+v, want a tool start and finish", observed)
+	}
+	if start.ID == "" || start.ID != finish.ID || start.Name == "" || start.Name != finish.Name {
+		t.Fatalf("tool correlation = start %+v, finish %+v", start, finish)
+	}
+}
+
 // A failing turn reads as the vendor's own cause, not a wall of escaped JSON.
 func TestCodexBackendSurfacesTheVendorCause(t *testing.T) {
 	playback, err := NewCodexBackendFromHandle("gpt-5.6-sol", "code", "", "", false)

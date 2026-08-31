@@ -65,6 +65,7 @@ func (a *app) printHostModels(ctx context.Context, cacheFile, filter string) {
 		fmt.Fprintf(a.stdout, "\nlocal · ollama %s at %s answered, but its model list did not: %v\n", host.Version, host.Addr, err)
 		return
 	}
+	models = mergeHostModels(models, a.cloudHostModels(ctx, host, cacheFile))
 	renderHostModels(a.stdout, host, models, filter)
 }
 
@@ -80,7 +81,14 @@ func renderHostModels(out io.Writer, host local.Host, models []local.HostModel, 
 		if filter != "" && !strings.Contains(strings.ToLower(info.ID), filter) {
 			continue
 		}
-		fmt.Fprintf(out, "%-48s ctx %-9d %s\n", info.ID, info.ContextLength, info.Description)
+		description := info.Description
+		if m.NotPulled {
+			if description != "" {
+				description += " · "
+			}
+			description += "not pulled: ollama pull " + m.Name
+		}
+		fmt.Fprintf(out, "%-48s ctx %-9d %s\n", info.ID, info.ContextLength, description)
 	}
 }
 

@@ -390,6 +390,11 @@ func (b *CodexBackend) ProviderHandle() string {
 func (b *CodexBackend) Close() error { return nil }
 
 func (b *CodexBackend) StreamChat(ctx context.Context, model string, messages []provider.Message, tools []provider.Tool, onToken func(string)) (provider.Message, provider.Meta, error) {
+	return b.StreamChatObserved(ctx, model, messages, tools, onToken, nil)
+}
+
+// StreamChatObserved is StreamChat with optional typed provider boundaries.
+func (b *CodexBackend) StreamChatObserved(ctx context.Context, model string, messages []provider.Message, tools []provider.Tool, onToken func(string), observe func(provider.ProgressEvent)) (provider.Message, provider.Meta, error) {
 	// The tool schemas the gateway seam passes are deliberately ignored: codex
 	// owns tool execution behind its sandbox and never sees kolk's schemas.
 	prompt, err := promptFromMessages(messages)
@@ -408,6 +413,7 @@ func (b *CodexBackend) StreamChat(ctx context.Context, model string, messages []
 	// starts and its outcome under the same id, so kolk neither executes nor
 	// pretends to have executed anything.
 	pending := make(map[string]string)
+	progressPending := make(map[string]string)
 	runner := b.run
 	run := RunCodex
 	if runner != nil {
@@ -422,6 +428,7 @@ func (b *CodexBackend) StreamChat(ctx context.Context, model string, messages []
 			b.thread = event.SessionID
 			b.mu.Unlock()
 		}
+		observeProviderEvent(observe, event, progressPending)
 		if onToken == nil {
 			return
 		}

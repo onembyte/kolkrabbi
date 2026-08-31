@@ -35,18 +35,18 @@ func waitForRetry(ctx context.Context, delay time.Duration) error {
 // only be returned before a successful streaming response is handed to the
 // scanner, so this never replays output already shown to the user.
 func (a *Agent) streamChat(ctx context.Context, phase, model string, messages []provider.Message, toolset []provider.Tool, onToken func(string)) (provider.Message, provider.Meta, error) {
-	return a.streamChatOn(ctx, pinnedBackend{}, phase, model, messages, toolset, onToken, true)
+	return a.streamChatObserved(ctx, phase, model, messages, toolset, onToken, nil)
 }
 
-// streamChatOn is streamChat with a provider already opened for one model.
-//
-// The pin is honoured only while `model` still equals what it was opened for.
-// This loop rewrites `model` itself — free-model rotation and the metered
-// fallback both do — and after either, the pinned provider is the wrong one:
-// a claude process asked for a gateway id burns the turn to discover it. It
-// also restores owned-prefix stripping, which backendFor performs and a
-// hand-supplied backend would otherwise skip.
-func (a *Agent) streamChatOn(ctx context.Context, pinned pinnedBackend, phase, model string, messages []provider.Message, toolset []provider.Tool, onToken func(string), tokensVisible bool) (provider.Message, provider.Meta, error) {
+// streamChatObserved is streamChat with optional typed provider boundaries.
+// Backends that only implement ChatBackend keep the original call path.
+func (a *Agent) streamChatObserved(ctx context.Context, phase, model string, messages []provider.Message, toolset []provider.Tool, onToken func(string), observe func(provider.ProgressEvent)) (provider.Message, provider.Meta, error) {
+	return a.streamChatOnObserved(ctx, pinnedBackend{}, phase, model, messages, toolset, onToken, true, observe)
+}
+
+// streamChatOnObserved retains streamChatOn's retry/routing behaviour while
+// projecting meaningful provider-owned boundaries when a backend exposes them.
+func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, phase, model string, messages []provider.Message, toolset []provider.Tool, onToken func(string), tokensVisible bool, observe func(provider.ProgressEvent)) (provider.Message, provider.Meta, error) {
 	stopActivity := func() {}
 	if a.Activity != nil {
 		if stop := a.Activity.Start(ctx, phase); stop != nil {
@@ -83,7 +83,29 @@ func (a *Agent) streamChatOn(ctx context.Context, pinned pinnedBackend, phase, m
 		if own := pinned.forModel(model); own != nil {
 			backend = own
 		}
-		msg, meta, err := backend.StreamChat(ctx, wire, messages, toolset, streamToken)
+		messageSeen := false
+		observeAttempt := func(event provider.ProgressEvent) {
+			// A provider can stream thousands of text deltas. The work ledger
+			// records the transition into responding once per physical attempt;
+			// tool, error, and limit boundaries remain individually observable.
+			if event.Kind == provider.ProgressMessage {
+				if messageSeen {
+					return
+				}
+				messageSeen = true
+			}
+			if observe != nil {
+				observe(event)
+			}
+		}
+		var msg provider.Message
+		var meta provider.Meta
+		var err error
+		if observed, ok := backend.(provider.ObservedChatBackend); ok && observe != nil {
+			msg, meta, err = observed.StreamChatObserved(ctx, wire, messages, toolset, streamToken, observeAttempt)
+		} else {
+			msg, meta, err = backend.StreamChat(ctx, wire, messages, toolset, streamToken)
+		}
 		if err == nil {
 			return msg, meta, nil
 		}

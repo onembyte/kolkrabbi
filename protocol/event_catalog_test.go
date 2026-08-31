@@ -22,6 +22,7 @@ func TestEventVocabularyIsClosedAcrossCodeSchemasAndGoldens(t *testing.T) {
 		EventToolRequested, EventToolStarted, EventToolOutput, EventToolFinished,
 		EventPermissionRequested, EventPermissionResolved,
 		EventSubagentStarted, EventSubagentFinished,
+		EventWorkUpdated,
 		EventUsageReported, EventScoreRecorded, EventCheckpointCreated, EventError, EventLog,
 		EventSessionStarted, EventSessionUpdated, EventSessionEnded,
 		EventTurnStarted, EventTurnFinished, EventTurnCancelled,

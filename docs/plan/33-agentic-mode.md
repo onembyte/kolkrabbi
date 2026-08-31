@@ -29,10 +29,35 @@ subagent, carrying the task index, its kind and the model chosen. The TUI keeps 
 minus finished and renders it in the row above the composer, beside the existing mode/effort/model
 status — a place a person is already looking, rather than a new panel.
 
-**What it must not become:** a progress bar. Item 29 refused resource telemetry on the test that
-nobody could name a decision it would change; a live agent count passes that test only because it
-answers *"is this thing still working, and how wide did it go?"* — the two questions people actually
-ask a long orchestrated run. It shows a count, the kinds in flight, and nothing else.
+**Superseded presentation decision (2026-08-31):** the original surface stopped at a running-agent
+count. Live use with concurrent subscription-backed agents showed that the count cannot answer
+which task is blocked, which model/effort actually ran it, or what step is currently moving. H10
+therefore adds one bounded live row per planned task and a durable typed task-step ledger. This is
+still not an estimated progress bar: there are no percentages, elapsed-time theatre, or ETAs. The
+new rows report observed state transitions only.
+
+The projection contract is deliberately smaller than the journal. Every typed task transition is
+ordered and persisted for later inspection, while the live TUI replaces each task's row with its
+latest sanitized step. Independent read-only work continues concurrently; dependencies and
+shared-tree writers retain the scheduler's existing serialization rules. Completion milestones may
+arrive chronologically, but buffered full reports are emitted in plan-index order so concurrency
+never turns the transcript into interleaved prose.
+
+The journal remains authoritative when a live surface falls behind: bounded subscribers disconnect
+instead of blocking task publication, and spilled frames replay on reopen with their original
+ordering and task/child correlation. A reconnecting surface therefore reconstructs observed work
+from the ledger rather than from an in-memory progress guess.
+
+The live row is intentionally one line and one grammar: `agent [i/n] · model · effort · state:
+summary — step`. Its fixed state colour is decoration, not information: queued is muted,
+waiting/blocked yellow, working purple, done green, and failed red; the state word stays explicit so
+`NO_COLOR` produces the same meaning. A monotonic per-task sequence prevents an older concurrent
+callback from replacing a newer observed step.
+
+Resize is a projection concern, not a new lifecycle: the runtime redraws the same ordered task
+snapshot at the current width. Rows clip to that width and sanitize every task field again at the
+display boundary, so reflow cannot expose a stale order, hide the state word, or turn untrusted
+planner/provider text into terminal control input.
 
 ### 2. One sandbox, and the reason is the goal
 

@@ -71,6 +71,11 @@ func (b *ClaudeBackend) ProviderHandle() string {
 }
 
 func (b *ClaudeBackend) StreamChat(ctx context.Context, model string, messages []provider.Message, tools []provider.Tool, onToken func(string)) (provider.Message, provider.Meta, error) {
+	return b.StreamChatObserved(ctx, model, messages, tools, onToken, nil)
+}
+
+// StreamChatObserved is StreamChat with optional typed provider boundaries.
+func (b *ClaudeBackend) StreamChatObserved(ctx context.Context, model string, messages []provider.Message, tools []provider.Tool, onToken func(string), observe func(provider.ProgressEvent)) (provider.Message, provider.Meta, error) {
 	// The tool schemas the gateway seam passes are deliberately ignored: the
 	// vendor owns tool execution here, and --allowedTools takes names, not
 	// JSON Schema. Pretending to forward them would claim a definition of the
@@ -99,7 +104,7 @@ func (b *ClaudeBackend) StreamChat(ctx context.Context, model string, messages [
 				onToken(token)
 			}
 		}
-		message, meta, turnErr := session.Turn(ctx, messages, model, watch)
+		message, meta, turnErr := session.TurnObserved(ctx, messages, model, watch, observe)
 		// A killed process leaves the vendor's turn unfinished with nothing
 		// recorded, and the vendor CONTINUES that turn on the next --resume.
 		// Resuming here would let it execute the tool calls kolk has already
@@ -146,7 +151,7 @@ func (b *ClaudeBackend) StreamChat(ctx context.Context, model string, messages [
 			// that had already failed.
 			if retrying {
 				if replacement, startErr := b.getSession(ctx); startErr == nil {
-					message, meta, turnErr = replacement.Turn(ctx, messages, model, watch)
+					message, meta, turnErr = replacement.TurnObserved(ctx, messages, model, watch, observe)
 					if replacement.Unusable() {
 						b.dropSession(replacement)
 					}
@@ -157,6 +162,7 @@ func (b *ClaudeBackend) StreamChat(ctx context.Context, model string, messages [
 	}
 	start := time.Now()
 	events := make([]Event, 0, 8)
+	progressPending := make(map[string]string)
 	runner := b.run
 	run := RunClaude
 	if runner != nil {
@@ -166,6 +172,7 @@ func (b *ClaudeBackend) StreamChat(ctx context.Context, model string, messages [
 	}
 	err = run(ctx, invocation, func(event Event) {
 		events = append(events, event)
+		observeProviderEvent(observe, event, progressPending)
 		if event.Kind == EventMessageDelta && onToken != nil {
 			onToken(event.Text)
 		}

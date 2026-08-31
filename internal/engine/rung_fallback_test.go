@@ -2,12 +2,14 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/onembyte/kolkrabbi/internal/enginetest"
+	"github.com/onembyte/kolkrabbi/protocol"
 )
 
 // A cheaper rung that will not spawn must not lose the task. The work still
@@ -82,17 +84,84 @@ func TestFallbackUpdatesTheLiveSubagentRouteWhileItIsWorking(t *testing.T) {
 	_, _ = agent.runTasks(context.Background(), "one thing",
 		[]Task{{Title: "inspect", Kind: KindResearch, Model: "claude-haiku"}})
 
-	if len(seen) != 3 {
-		t.Fatalf("lifecycle updates = %+v, want initial route, fallback route, and finish", seen)
+	if len(seen) != 6 {
+		t.Fatalf("lifecycle updates = %+v, want queued, started, both provider opens, fallback, and finish", seen)
 	}
-	if seen[0].Model != "claude-haiku" || seen[0].State != SubagentWorking {
-		t.Fatalf("initial status = %+v, want the attempted cheap route", seen[0])
+	if seen[0].Model != "claude-haiku" || seen[0].State != SubagentQueued {
+		t.Fatalf("initial status = %+v, want the queued cheap route", seen[0])
 	}
-	if seen[1].Model != "claude-sonnet" || seen[1].State != SubagentWorking {
-		t.Fatalf("fallback status = %+v, want the live row moved to the session model", seen[1])
+	if seen[1].Model != "claude-haiku" || seen[1].State != SubagentWorking {
+		t.Fatalf("started status = %+v, want the attempted cheap route", seen[1])
 	}
-	if seen[2].Model != "claude-sonnet" || seen[2].State != SubagentDone {
-		t.Fatalf("finished status = %+v, want the route that actually completed", seen[2])
+	if seen[2].Model != "claude-haiku" || seen[2].Step != "opening claude-haiku" {
+		t.Fatalf("first provider status = %+v", seen[2])
+	}
+	if seen[3].Model != "claude-sonnet" || seen[3].State != SubagentWorking ||
+		seen[3].Step != "falling back to claude-sonnet" {
+		t.Fatalf("fallback status = %+v, want the live row moved to the session model", seen[3])
+	}
+	if seen[4].Model != "claude-sonnet" || seen[4].Step != "opening claude-sonnet" {
+		t.Fatalf("fallback provider status = %+v", seen[4])
+	}
+	if seen[5].Model != "claude-sonnet" || seen[5].State != SubagentDone {
+		t.Fatalf("finished status = %+v, want the route that actually completed", seen[5])
+	}
+}
+
+// The live callback is not the recovery contract. A reconnecting surface must
+// see the same route change and terminal model in the durable task ledger.
+func TestFallbackPreservesOneMonotonicDurableTaskLedger(t *testing.T) {
+	srv := enginetest.New(enginetest.Step{Text: "done"})
+	defer srv.Close()
+	agent, _, _, _ := newTestAgentInternal(t, srv, ModeAgent)
+	agent.SetSessionModel("claude-sonnet")
+	agent.lastTurnID = "t_01ARYZ6S41TSV4RRFFQ69G5FAW"
+	agent.Bus = newTestBus(t)
+	agent.SubagentBackend = func(_ context.Context, model, _, _ string) (ChatBackend, error) {
+		if model == "claude-haiku" {
+			return nil, errors.New("no such vendor process")
+		}
+		return &openedBackend{model: model, inner: agent.sessionBackend()}, nil
+	}
+
+	outcomes, err := agent.runTasks(context.Background(), "one thing", []Task{{
+		Title: "inspect", Kind: KindResearch, Model: "claude-haiku",
+	}})
+	if err != nil || len(outcomes) != 1 || outcomes[0].Status == statusFailed {
+		t.Fatalf("fallback run = %+v, %v", outcomes, err)
+	}
+
+	var updates []protocol.WorkUpdatedData
+	for _, envelope := range workEvents(t, agent.Bus) {
+		var update protocol.WorkUpdatedData
+		if err := json.Unmarshal(envelope.Data, &update); err != nil {
+			t.Fatal(err)
+		}
+		updates = append(updates, update)
+	}
+	if len(updates) != 6 {
+		t.Fatalf("fallback durable updates = %+v, want queue/start/open/fallback/open/done", updates)
+	}
+	want := []struct {
+		state protocol.WorkState
+		phase protocol.WorkPhase
+		step  string
+		model string
+	}{
+		{protocol.WorkStateQueued, protocol.WorkPhaseSchedule, "queued", "claude-haiku"},
+		{protocol.WorkStateWorking, protocol.WorkPhaseSchedule, "started", "claude-haiku"},
+		{protocol.WorkStateWorking, protocol.WorkPhaseProvider, "opening claude-haiku", "claude-haiku"},
+		{protocol.WorkStateWorking, protocol.WorkPhaseProvider, "falling back to claude-sonnet", "claude-sonnet"},
+		{protocol.WorkStateWorking, protocol.WorkPhaseProvider, "opening claude-sonnet", "claude-sonnet"},
+		{protocol.WorkStateDone, protocol.WorkPhaseComplete, "completed", "claude-sonnet"},
+	}
+	for index, update := range updates {
+		if update.Role != protocol.WorkRoleSubagent || update.ID == "" || update.ChildTurn == "" ||
+			update.Index != 1 || update.Total != 1 || update.Sequence != uint64(index+1) ||
+			update.State != want[index].state || update.Phase != want[index].phase ||
+			update.Step != want[index].step || update.Model != want[index].model {
+			t.Fatalf("fallback durable update[%d] = %+v, want %+v", index, update, want[index])
+		}
 	}
 }
 

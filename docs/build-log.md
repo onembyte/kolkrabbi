@@ -5389,3 +5389,123 @@ visible before it spends anything. Three things are deliberately unbuilt and wou
 bugs: cross-vendor rungs do not yet join the roster (the gate is enforced, the ordering is not),
 `/model claude-haiku` still reports it is not a plan model (the subagent path bypasses that catalogue
 on purpose), and the fast lane still returns a gateway id on a plan session.
+
+## H10 — ordered agent-work ledger and trace polish (2026-08-31)
+
+**Status:** complete, pending the user's separate commit/release decision.
+
+Agent mode now preserves an ordered, durable `work.updated` ledger for the main agent and every
+subagent. Each task has a stable ID and child turn, a monotonic update sequence, an observed state
+and phase, plus one bounded/sanitized current step. Provider and local-tool boundaries publish into
+that ledger without exposing raw tool arguments or unbounded output. The TUI projects the latest row
+as `agent [i/n] · model · effort · state: summary — step`, with semantic colour that remains explicit
+under `NO_COLOR`; concise milestones stay chronological while full child reports flush in plan order.
+
+**Hardening:** concurrent task updates survive a one-event in-memory journal, an unread subscriber,
+spill-file reopen, retry, provider fallback, cancellation, and wide/narrow/wide terminal resize.
+The final gate also corrected Saga artifact discovery so a world-writable ancestor such as `/tmp`
+cannot make an unrelated temporary checkout inherit its `SAGA.md`; normal non-Git project-ancestor
+discovery remains covered.
+
+**Verification:** affected bus/engine/TUI/CLI/provider/protocol packages passed normally and under
+`-race`; `make spec` passed 29 checks; final `TMPDIR=/var/tmp make check` passed at **2,946 tests**,
+with 0 lint issues, four platform compile matrices, and every budget/site/surface/installer/spec/
+release/workflow/plan/pin gate green. No tag or release was created here.
+
+## E11.0 — Cloud catalogue contract and boundaries (2026-08-31)
+
+The Cloud catalogue work starts with a corrected contract. The public
+`https://ollama.com/api/tags` response is metadata only and is never given a
+Kolkrabbi or Ollama credential. Each direct model name will be normalized to
+the local Ollama Cloud selector (`:cloud` for an untagged name,
+`-cloud` after an explicit tag) and verified through the local `/api/show`;
+capabilities and context are accepted only from that response, and only a
+response identifying a remote host becomes a Cloud row.
+
+Rows absent from the local `/api/tags` result are explicitly **not pulled** and
+will show `ollama pull <name>`. They are not classified as local or free, and
+no command path will pull them implicitly. Public-catalogue or proxy failure
+is best effort: already-known host rows remain available and startup or
+`/model` does not fail solely because discovery is unavailable.
+
+The previous plan sentence claiming Cloud models ran with no prior pull was
+wrong for current Ollama behavior and was corrected. The official Cloud
+contract requires pulling the Cloud stub before local use; the local source
+parser confirms the `:cloud`/`-cloud` normalization and `/api/show` proxy
+boundary. `git diff --check` and `make plan-check` passed (98 checks). No
+production code changed in this leaf.
+
+### E11.1 bounded public catalogue (2026-08-31)
+
+Added `internal/local/cloudcatalog.go` with a fixed
+`https://ollama.com/api/tags` endpoint and an injectable test helper. The
+request has no authorization header, strips caller cookies, refuses redirects,
+and carries the caller's cancellation through a three-second ceiling. The
+response is bounded to 1 MiB and 256 rows; names and retained metadata fields
+are bounded and terminal-hostile names are rejected. A valid `models: null`
+means an empty catalogue, while a null document, malformed JSON, non-200
+response, oversized body, excessive rows, or invalid field is an error.
+
+Verification: `TMPDIR=/var/tmp go test ./internal/local` and
+`TMPDIR=/var/tmp go test -race ./internal/local` pass. Seven targeted mutations
+were caught and reverted: cookie isolation, body limit, row limit, null
+document guard, unsafe-name guard, metadata-field limit, and redirect refusal.
+`git diff --check` is clean. The public client is not wired into the picker in
+this leaf; that belongs to E11.2/E11.3.
+
+### E11.2 local proxy enrichment (2026-08-31)
+
+Added `internal/local/cloudmodels.go`. Public entries are normalized using
+Ollama's source rules: an untagged name becomes `name:cloud`, an explicitly
+tagged name becomes `name-tag-cloud`, and already normalized selectors remain
+stable. Each candidate is sent to the local `/api/show`; a row is accepted
+only when that response identifies a non-empty `remote_host`. Capabilities,
+thinking/tools/vision flags, and context length come only from that response;
+public metadata supplies display size/family/parameter/quantization fields.
+
+The existing `/api/show` decoder now bounds response bodies to 1 MiB. Cloud
+enrichment is bounded to the public row limit and five seconds, honors
+cancellation, rejects invalid candidates, and reuses only cache entries whose
+name, Cloud flag, and remote-host proof all match the current digest/version.
+Returned Cloud rows are marked `NotPulled`; merge and presentation remain the
+next leaf.
+
+Verification: `TMPDIR=/var/tmp go test ./internal/local` and
+`TMPDIR=/var/tmp go test -race ./internal/local` pass. Focused mutations for
+remote proof, cache proof, alias selection, and the `/api/show` body limit all
+failed and were reverted. `git diff --check` is clean.
+
+### E11.3 merged presentation (2026-08-31)
+
+Added separate CLI seams for public Cloud discovery and local enrichment. A
+running host contributes pulled rows first, then verified Cloud catalogue rows;
+duplicate normalized names keep the pulled record. Cloud discovery is
+best-effort, so a public fetch or proxy failure does not hide known host rows.
+The `/model` picker and `kolk models` now both distinguish a pulled Cloud row
+from an unpulled catalogue row. The latter says `ollama pull <name>` while
+retaining the Cloud subscription or sign-in-first label; it is never classified
+as local or free. Tests keep the new production seams disabled unless a test
+explicitly supplies them, preventing accidental network access.
+
+Verification: `TMPDIR=/var/tmp go test ./internal/cli` and
+`TMPDIR=/var/tmp go test -race ./internal/cli` pass. Targeted mutations removing
+picker merge, command merge, deduplication, picker pull guidance, and command
+pull guidance all failed and were reverted. `git diff --check` is clean.
+
+### E11.4 final hardening and gate (2026-08-31)
+
+The final audit added one regression for partial `/api/tags` results followed
+by manifest fallback, proving that a pulled model is not duplicated when the
+host listing is degraded. Its merge guard mutation failed and was reverted.
+All E11 code was then formatted and checked without changing the earlier H10
+work already present in this dirty worktree.
+
+Final verification: `TMPDIR=/var/tmp make check` passed at **2,975 tests**;
+architecture, purity, build tags, Darwin/Linux/Windows platform matrices,
+lint, budgets, site, v0.1 surface, installer, protocol/spec, release,
+workflow, plan, and workflow-pin gates all passed. Focused local and CLI race
+suites passed earlier in E11. The local environment has Ollama installed but
+no server listening on `127.0.0.1:11434`, so live `/api/show` and picker
+rendering could not be smoke-tested; deterministic HTTP fixtures cover those
+paths. No temporary mutation or review artifact remains in the repository.
+No commit, push, tag, or release was created.

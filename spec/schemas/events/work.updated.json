@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/events/work.updated.json",
+  "title": "work.updated payload",
+  "type": "object",
+  "required": [
+    "id",
+    "role",
+    "state",
+    "phase",
+    "step",
+    "sequence"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[kt]_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "child_turn": {
+      "type": "string",
+      "pattern": "^t_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "main",
+        "subagent"
+      ]
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "waiting",
+        "working",
+        "done",
+        "failed",
+        "blocked"
+      ]
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "planning",
+        "schedule",
+        "provider",
+        "tool",
+        "checkpoint",
+        "synthesis",
+        "complete"
+      ]
+    },
+    "step": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "index": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "total": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "effort": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "role": {
+            "const": "main"
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "then": {
+        "properties": {
+          "id": {
+            "pattern": "^t_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          }
+        },
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "child_turn"
+              ]
+            },
+            {
+              "required": [
+                "index"
+              ]
+            },
+            {
+              "required": [
+                "total"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "role": {
+            "const": "subagent"
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "then": {
+        "required": [
+          "child_turn",
+          "index",
+          "total"
+        ],
+        "properties": {
+          "id": {
+            "pattern": "^k_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "enum": [
+              "done",
+              "failed",
+              "blocked"
+            ]
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "phase": {
+            "const": "complete"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "phase": {
+            "not": {
+              "const": "complete"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": true
+}

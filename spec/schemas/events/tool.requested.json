@@ -8,7 +8,9 @@
     "id": {"type": "string", "minLength": 1},
     "name": {"type": "string", "minLength": 1},
     "arguments": {"type": "string", "minLength": 1},
-    "executor": {"type": "string", "enum": ["kolk", "provider"]}
+    "executor": {"type": "string", "enum": ["kolk", "provider"]},
+    "task_id": {"type": "string", "minLength": 1},
+    "child_turn": {"type": "string", "minLength": 1}
   },
   "additionalProperties": true
 }

@@ -6,7 +6,9 @@
   "required": ["id", "executor"],
   "properties": {
     "id": {"type": "string", "minLength": 1},
-    "executor": {"type": "string", "enum": ["kolk", "provider"]}
+    "executor": {"type": "string", "enum": ["kolk", "provider"]},
+    "task_id": {"type": "string", "minLength": 1},
+    "child_turn": {"type": "string", "minLength": 1}
   },
   "additionalProperties": true
 }

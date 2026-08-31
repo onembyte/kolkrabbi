@@ -659,6 +659,549 @@ left/right for text editing and relearning the effort-cycle key.
   actionable plan shortcuts, picker-effort routing, and synchronized PTY/TUI output. See below.
 - [x] **H9 post-H8 hardening** — session path confinement, cancellation ordering, complete
   GPT-5.6 plan selection, and the workflow-pin gate. See below.
+- [x] **H10 ordered agent work ledger and trace polish** — keep the scheduler's proven
+  dependency/write safety, but make every task's current step inspectable, persist the ordered
+  lifecycle, and render compact state-aware rows instead of the present collection of unrelated
+  lifecycle/tool formats. The owner explicitly superseded A33.2's old "count only" presentation
+  decision after using concurrent agent mode live.
+
+### H10 checkpoint plan — one hardened leaf at a time
+
+- [x] **H10.0 contract and boundaries** — preserve concurrent independent readers, dependency
+  ordering, and one shared-tree writer; persist every typed transition while projecting only the
+  latest bounded step per task into the live TUI; keep durable milestones chronological and flush
+  buffered task reports in stable plan order; never infer percentages or ETAs.
+- [x] **H10.1 typed task-step state** — add queued/waiting/working/done/failed/blocked states,
+  monotonic per-task step sequence, phase, and latest-step text, with transition and sanitization
+  tests before wiring producers.
+- [x] **H10.2 durable event ledger** — add the protocol/schema/golden contract for intermediate
+  main/subagent work updates and prove concurrent publication remains globally ordered in the
+  session journal.
+- [x] **H10.3 scheduler projection** — publish planned, dependency-waiting, writer-waiting,
+  started, fallback, checkpoint, completion, failure, and blocked transitions without changing
+  which tasks may overlap.
+  - [x] **H10.3a pending states** — queued, dependency-waiting, writer-waiting, blocked, and
+    over-budget tasks appear once with stable identity and never inflate the running count.
+  - [x] **H10.3b active states** — started, checkpoint, provider-open/fallback, success, and failure
+    advance one task's sequence around its real execution boundaries.
+  - [x] **H10.3c main phases and scheduler invariants** — planning, delegation, synthesis, and
+    terminal main work are durable; independent readers still overlap, dependencies still wait,
+    and shared-tree writers still serialize.
+- [x] **H10.4 provider and Kolkrabbi tool steps** — retain typed provider-owned tool events before
+  their human trail is flattened, publish Kolkrabbi-owned tool start/output/finish events, and
+  update the owning task's latest step without leaking raw unbounded output into the status row.
+  - [x] **H10.4a observed provider seam** — add an optional backward-compatible observed-stream
+    interface so adapters retain typed provider tool/message/error boundaries while old backends keep
+    the existing `StreamChat` contract.
+  - [x] **H10.4b work-step producers** — map provider and Kolkrabbi tool/model boundaries to main or
+    child work updates, preserving task identity and reporting one bounded latest step at a time.
+    - [x] **H10.4b1 provider-to-work routing** — accept the optional provider observer at the
+      retry boundary, emit only meaningful provider boundaries, and route each to its exact parent
+      or child ledger without turning text deltas into an unbounded event stream.
+    - [x] **H10.4b2 Kolkrabbi-tool lifecycle** — record requested/started/output/finished local
+      tool work with task correlation, including denied and failed paths, while preserving the one
+      executor chokepoint.
+      - [x] **H10.4b2a tool-work correlation contract** — add optional, validated task/child
+        coordinates to local tool events so concurrent work remains attributable without changing
+        old main-tool frames.
+      - [x] **H10.4b2b execution lifecycle producer** — publish one ordered local tool lifecycle
+        around the existing executor and make its owning main/child ledger state name the same
+        boundary.
+      - [x] **H10.4b2c refusal and error producer** — make skipped, denied, and execution-error
+        paths terminally legible without claiming that a tool actually ran.
+    - [x] **H10.4b3 producer integration** — prove the planner, synthesis, direct-agent loop, and
+      concurrent child paths have deterministic ownership and do not change scheduler overlap.
+  - [x] **H10.4c micro-step hardening** — prove ordered starts/outputs/finishes, redaction and bounds,
+    retries/failures/cancellation, and no duplicate or cross-task status updates.
+    - [x] **H10.4c1 lifecycle ordering and ownership** — prove each executed local call has exactly
+      one requested → started → output → finished chain, the matching ledger update belongs only to
+      that owner, and concurrent children cannot cross-correlate or duplicate a boundary.
+    - [x] **H10.4c2 redaction and bounds** — prove hostile provider/tool details and errors are
+      scrubbed, terminal-safe, and bounded in the latest-step projection while durable tool output
+      remains within its established safe payload limit.
+    - [x] **H10.4c3 retry, failure, and cancellation** — prove a new physical provider retry opens
+      one new observed step, terminal failures/cancellation remain legible, and no path emits a
+      duplicate terminal lifecycle boundary.
+      - [x] **H10.4c3a retry observation** — prove repeated provider message deltas coalesce within
+        one physical attempt but the first message of each retry is independently durable.
+      - [x] **H10.4c3b terminal error and cancellation** — prove child provider failure and parent
+        cancellation each emit exactly one terminal ledger result and the matching terminal event.
+- [x] **H10.5 polished presentation** — use one compact grammar and semantic state colours for
+  live rows, concise chronological milestone lines, and deterministic plan-index ordering for
+  full task reports; preserve `NO_COLOR`, narrow-terminal clipping, and terminal sanitization.
+  - [x] **H10.5a live row grammar** — carry the latest sanitized step and sequence to the TUI,
+    render one stable `agent [i/n] · model · effort · state: summary — step` row, reject stale
+    replacements, and colour the row by its closed state vocabulary.
+  - [x] **H10.5b milestone and report ordering** — render concise durable main/child milestones in
+    journal order while retaining buffered full child reports in stable plan order.
+    - [x] **H10.5b1 chronological durable replay** — render each `work.updated` frame as a compact,
+      typed main or child milestone in the journal order supplied to the plain event renderer.
+    - [x] **H10.5b2 stable full-report flush** — hold only buffered child prose until delegation
+      completes, emit concise completion milestones when they occur, then flush verbose reports in
+      plan-index order without changing dependency or writer scheduling.
+  - [x] **H10.5c surface fallback hardening** — prove semantic colours respect `NO_COLOR`, narrow
+    frames clip safely, and all row fields remain terminal-safe at the final renderer boundary.
+- [x] **H10.6 recovery and bounds** — verify cancellation, retries, provider fallback, slow bus
+  subscribers, spill-file recovery, terminal resize, long/hostile text, and race safety.
+  - [x] **H10.6a journal and subscriber recovery** — prove ordered work survives spill/reopen and a
+    slow replay consumer cannot stall concurrent task publication or corrupt correlation.
+  - [x] **H10.6b retry/fallback/cancellation continuity** — prove provider retry, route fallback,
+    and cancellation retain a monotonic, terminally legible work trail under their real boundaries.
+  - [x] **H10.6c resize and hostile-surface continuity** — prove live task rows retain plan order,
+    clipping, and state meaning across resize while long/hostile input never escapes the renderer.
+- [x] **H10.7 full hardening gate** — targeted mutation checks for each state/ordering guard,
+  package race tests, full `make check`, and acceptance evidence in `docs/build-log.md`.
+  - [x] **H10.7a affected-package and specification gates** — run the engine, TUI, CLI, provider,
+    protocol, and specification suites normally and under the race detector where concurrent paths
+    changed.
+  - [x] **H10.7b repository-wide gate** — run the repository's canonical `make check` and inspect
+    every failing command rather than reducing a release gate to its final exit code.
+  - [x] **H10.7c handoff audit** — confirm no temporary mutation remains, inspect the complete H10
+    diff for unintended scope, record verification in the persistent build log, and leave the
+    worktree ready for the user's separate commit/release decision.
+
+### H10.1 built — a task update now says what changed, not merely that it exists
+
+`SubagentStatus` now carries a closed observed-state and phase vocabulary, a bounded latest-step
+preview, and a monotonic per-task sequence. The pure transition function permits repeated
+non-terminal updates, rejects backward and post-terminal transitions, requires terminal states to
+use the complete phase, folds whitespace, consumes ANSI/terminal controls as units, and truncates
+before any surface sees the text. Existing start/fallback/finish lifecycle updates now advance that
+sequence rather than replacing fields invisibly.
+
+Acceptance:
+
+- [x] red first on missing state, phase, step, sequence, and transition symbols.
+- [x] engine package green normally and under `-race`; `git diff --check` green.
+- [x] three independent mutations were caught by their exact tests: disabling sequence increment,
+  reopening a terminal task, and removing the step bound; every mutation was reverted.
+- [x] no scheduler, protocol, or presentation behavior changed in this leaf.
+
+### H10.2 built — observed work now survives the screen that displayed it
+
+The additive `work.updated` protocol event represents both main and subagent work with closed role,
+state, and phase vocabularies; a monotonic per-work sequence; a bounded step; and strict identity
+rules. Main work uses its turn ID and cannot carry child coordinates. Subagent work uses its task ID
+and repeats child turn plus one-based index/total, so an isolated NDJSON row remains attributable.
+The event has a schema, golden frame, Go validation, changelog entry, and a place in the now
+24-event closed catalog.
+
+Every existing subagent status replacement now publishes through the session bus. A planned
+queued/waiting `work.updated` may precede `subagent.started`; once execution begins, active updates
+sit between `subagent.started` and `subagent.finished`. Concurrent children retain globally
+increasing bus sequence, and closing/reopening a spill file recovers both start and terminal work
+updates.
+
+Acceptance:
+
+- [x] protocol red first on undefined event/data vocabulary, then schema/golden closure red, then
+  engine red on zero emitted work updates.
+- [x] `make spec` passes all 29 spec-change checks; protocol, bus, and engine are green under
+  `-race`; `git diff --check` is green.
+- [x] publisher removal and catalog removal mutations were caught by their exact tests.
+- [x] the first correlation mutation unexpectedly passed, exposing a vacuous test whose fixture
+  also violated index/total. The fixture was narrowed to child-turn alone; the same mutation then
+  failed for the intended reason and was reverted.
+
+### H10.3a built — waiting now names what it is waiting for
+
+`runTasks` mints every task's stable task/child identity and publishes all queued rows in plan order
+before launching a goroutine. Declared dependencies transition to `waiting for task …`; a runnable
+writer held behind the one shared-tree writer says so once; dependency failures and budget stops
+become terminal blocked updates even though those tasks never start. Pending states do not touch the
+running-agent count.
+
+Acceptance:
+
+- [x] red fixtures observed only working/done before this leaf, no dependency/writer explanation,
+  and no status at all for an over-budget task.
+- [x] engine package and focused scheduler invariants pass, including under `-race`.
+- [x] four independent mutations—queue notification, dependency wait, writer wait, and budget
+  block—each failed its exact behavioral test and were reverted.
+- [x] existing reader overlap, dependency serialization, and writer serialization tests remain
+  green; this projection did not change the scheduler decision.
+
+### H10.3b built — active work names the boundary it actually crossed
+
+An active task now advances from `started` to rollback-checkpoint creation, provider opening, any
+explicit fallback and second provider opening, optional checkpoint finalization, then exactly one
+terminal result. Failures preserve the scrubbed provider error in their final step instead of being
+silently flattened to `failed`; the lifecycle publisher recognizes that pre-recorded terminal state
+and does not emit a duplicate row.
+
+Acceptance:
+
+- [x] red fixtures initially saw only queued/started/completed or a generic failure; they now pin
+  checkpoint, provider-open, fallback, and reason-preserving terminal boundaries with sequence
+  order.
+- [x] focused active/checkpoint/fallback tests and the engine package pass normally and under
+  `-race`.
+- [x] four independent mutations—checkpoint start, provider open, failure reason, and terminal
+  de-duplication—each failed its dedicated behavioral assertion and were reverted.
+
+### H10.3c built — the parent is visible without pretending it is a child
+
+The parent agent records planning, delegation, synthesis, and its terminal outcome using the parent
+turn ID, with its own monotonic sequence that resets exactly at the next turn. It carries no child
+turn or plan coordinates. A failed planner ends the parent work ledger explicitly before the usual
+turn cancellation/finish event, so a replay can distinguish "the turn ended" from "the agent
+completed its work."
+
+Acceptance:
+
+- [x] red integration tests first observed no parent work rows on either a successful run or planner
+failure; they now prove phase order, identity, no child leakage, terminal state, and per-turn reset.
+- [x] planning publisher, terminal publisher, and sequence increment mutations each fail their exact
+test and were reverted.
+- [x] protocol, bus, and engine pass normally and relevant packages pass under `-race`; independent
+reader overlap, dependency ordering, writer serialization, and conservative unknown-kind behavior
+all remain green.
+
+### H10.4a built — provider facts survive before the display trail flattens them
+
+`ObservedChatBackend` is an additive interface beside the unchanged `StreamChat` seam. Engine callers
+can opt in when they need structured provider boundaries; gateway and test backends that only support
+the original call remain valid. Claude's persistent stream, its one-shot runner, and Codex now all
+emit a scrubbed, one-line `ProgressEvent` for provider message, tool start, tool finish, error, and
+plan-limit boundaries. Start/finish correlation remains scoped to one stream, so an id-only vendor
+completion preserves the name announced by its matching start without pretending Kolkrabbi executed
+the provider's tool.
+
+Acceptance:
+
+- [x] direct adapter tests pin tool identity through Codex, persistent Claude, and one-shot Claude;
+  a focused boundary test pins message/error/limit kinds, failed-tool marking, correlation, and
+  one-line plan-limit detail.
+- [x] compile-time assertions keep both supported provider backends on the optional observed-stream
+  contract while existing `StreamChat` call sites retain their original signature.
+- [x] five behavioral mutations were caught and reverted: dropping each Codex, persistent-Claude,
+  and one-shot-Claude observer call; dropping the id-to-name cache; and blurring a provider error
+  into ordinary message prose.
+- [x] `git diff --check`, normal provider/adapter tests, and their `-race` variants pass.
+
+### H10.4b1 built — provider observations reach the work owner, not the transcript by accident
+
+The retry boundary has an additive observed-stream path: it calls an `ObservedChatBackend` when the
+caller asks for provider progress and falls back unchanged to `ChatBackend.StreamChat` otherwise.
+The first text delta in each physical attempt becomes one `model is responding` observation; later
+deltas cannot flood the persistent work ledger. Tool starts, finishes, errors, and plan limits stay
+individual. The child adapter advances only the matching task's status; the parent adapter records
+the same compact step as main work with no child coordinates. Planner and synthesis now use that
+path, as does the direct agent loop when it is reached from agent mode.
+
+Acceptance:
+
+- [x] a concurrent two-child fixture proves provider work from each observed backend stays on that
+  child's ledger; a main-ledger fixture proves parent identity, provider phase, sequence, and
+  one-text-delta coalescing.
+- [x] a complete two-task agent run proves its real planner and synthesis calls use the observed
+  path, rather than a unit test merely invoking the helper directly.
+- [x] three behavioral mutations were caught and reverted: dropping the child observer, bypassing
+  the planner observer, and allowing every message delta into the main work ledger.
+- [x] `git diff --check`, engine tests, and engine `-race` pass.
+
+### H10.4b2a built — a tool event can say whose concurrent work it describes
+
+All four tool lifecycle payloads now have additive `task_id` and `child_turn` fields. They are
+omitted for main work, preserving old JSON frames byte-for-byte; when either is present, both must
+be canonical `k_`/`t_` identifiers. A concurrent consumer can therefore attribute local tool events
+to the same durable child ledger that owns the matching `work.updated` row, instead of trying to
+infer ownership from interleaved parent-turn timestamps.
+
+Acceptance:
+
+- [x] typed frames for requested, started, output, and finished events accept one paired child
+  correlation; every partial or malformed pair is rejected on every event type.
+- [x] all four JSON schemas describe the optional non-empty fields, while existing golden frames
+  and their exact typed round trips remain unchanged.
+- [x] validator removal and schema-field removal mutations each fail their dedicated tests and were
+  reverted.
+- [x] `git diff --check`, protocol normal/race tests, and `make spec` pass.
+
+### H10.4b2b built — one existing tool executor now has an observable lifecycle
+
+The main and subagent loops both call one local-tool publisher around the existing `tools.Execute`
+path. A call produces `tool.requested → tool.started → tool.output → tool.finished`, marked as
+`kolk`-executed. Child events include their task/child pair; direct agent work omits both. The same
+start and finish boundaries advance the owning work ledger with a compact tool description, never
+tool output. No executor was duplicated or moved: permission, timeout, checkpoint, and output
+scrubbing remain in their previous chokepoint.
+
+Acceptance:
+
+- [x] a real subagent `list_dir` call proves event order, child correlation, and matching child
+  start/finish work rows; a one-task agent run proves the direct main path has the same event order,
+  deliberately omits child coordinates, and advances main tool work.
+- [x] removing a child start boundary, one child task coordinate, or the main finished boundary each
+  fails its focused behavioral assertion and was reverted.
+- [x] `git diff --check`, engine/protocol normal tests, and both package race tests pass.
+
+### H10.4b2c built — a refusal is visible without being rewritten as a tool run
+
+An executor failure remains a real run: it emits the full lifecycle and `tool.finished.ok:false`,
+and the owner reports `failed <tool>`. A doomed repeat is different. Its request and denial output
+remain durable, but it has no start or finished event because it never reached the executor; its
+work ledger instead says `skipped <tool>: repeated call`. This preserves the useful evidence without
+creating a false audit trail that claims Kolkrabbi ran an action it deliberately prevented.
+
+Acceptance:
+
+- [x] a three-call subagent loop proves the first two calls have complete lifecycles while the
+  guarded third has requested/output only and an explicit skipped work step.
+- [x] a local missing-file failure proves its finished event is `ok:false` and its child ledger names
+  the failed tool.
+- [x] removing the skipped step, changing failure to `ok:true`, and adding a false start to a skipped
+  call each fail their focused regression and were reverted.
+- [x] `git diff --check`, engine/protocol normal and race tests, and `make spec` pass.
+
+### H10.4b3 built — every producer is wired without changing who may overlap
+
+Provider observation now covers the real planner and synthesis calls; the direct agent fallback
+carries parent provider and local-tool work; and concurrent children carry their own provider and
+Kolkrabbi-tool records. A two-child local-tool fixture proves that global bus interleaving does not
+mix their task IDs or change each individual lifecycle order. The scheduler itself was not rewritten:
+the pre-existing reader-overlap, width-limit, dependency, writer-serialization, and unknown-kind
+tests still exercise the same decisions.
+
+Acceptance:
+
+- [x] concurrent child local-tool events retain their exact task owner and ordered per-tool lifecycle;
+  planner/synthesis, direct-agent, provider and local-tool paths are each covered by real runs in
+  the preceding H10.4b leaves.
+- [x] all previous targeted producer mutations remain covered, and the full engine race suite plus
+  the unchanged scheduler invariant suite remain green.
+- [x] `git diff --check`, protocol tests, and `make spec` pass.
+
+### H10.4c1 built — local-tool audit chains stay exact under real interleaving
+
+The concurrent-child regression now deliberately gives both providers the same local call ID. It
+proves that call ID is never used as an ownership shortcut: every child instead has exactly one
+`requested → started → output → finished` chain under its own paired task and child-turn
+coordinates. Each child’s live ledger has exactly its own tool-start and tool-finish row, in order;
+one child cannot receive another’s status update even while the global journal interleaves work.
+
+Acceptance:
+
+- [x] a two-child real local-tool run with identical call IDs proves complete per-owner event
+  chains, exact task/child coordinates, two and only two local tool rows per child, and consecutive
+  per-task sequences.
+- [x] three focused mutations failed the same regression and were reverted byte-identically:
+  omitting `child_turn` from one `tool.started`, publishing a duplicate `tool.finished`, and routing
+  every child tool row to index zero.
+- [x] focused main/child, skipped, error, and concurrent lifecycle tests plus the concurrent test
+  under `-race` pass; `git diff --check` passes.
+
+### H10.4c2 built — hostile details cannot turn a status row or request frame into a leak
+
+Provider progress now applies its 160-rune terminal-safe compaction after composing the event's
+name and detail, rather than only to the two fragments. Local tool descriptions now scrub command,
+description, path, and fallback name before rendering the live row. Local `tool.requested` data
+also scrubs its provider-supplied name and JSON arguments before serialization; the bus retains its
+existing defensive scrub as a second boundary. Tool output continues to use the existing executor
+cap and output scrubber, and never becomes a live work-step string.
+
+Acceptance:
+
+- [x] hostile provider name/detail input containing an ANSI escape, a key-shaped value, and hundreds
+  of runes produces a redacted, control-free work step at or below 160 runes.
+- [x] a real child `bash` call proves key-shaped arguments, output, and status detail stay redacted
+  in the durable journal and live row; a direct request-data construction test proves the producer
+  itself scrubs before the bus receives it.
+- [x] a real over-12KB `read_file` result proves the durable output retains the existing truncation
+  bound and redaction while the associated status row contains neither output nor the secret.
+- [x] removing final provider compaction, request-frame scrubbing, or description scrubbing each
+  fails its dedicated regression and was reverted; full engine normal and `-race` suites plus
+  `git diff --check` pass.
+
+### H10.4c3a built — one retry is one newly observable provider attempt
+
+The provider retry latch remains inside the physical-attempt loop. Several message deltas from one
+stream still create one `model is responding` step, but an HTTP 429 retry begins a new attempt and
+therefore creates one new step with the next main-work sequence. This avoids event floods without
+making a waiting retry look stalled.
+
+Acceptance:
+
+- [x] an observed backend emits two message deltas, returns 429, then emits two more and succeeds;
+  exactly two ordered provider work rows result.
+- [x] widening `messageSeen` to the whole retry loop makes that regression fail because the retry
+  loses its visible step; the mutation was reverted.
+- [x] focused main/provider/retry/cancellation tests and the retry regression under `-race` pass;
+  `git diff --check` passes.
+
+### H10.4c3b built — terminal work says failure or cancellation once, and only once
+
+A child provider failure keeps its precise failed complete work row and publishes exactly one
+`subagent.finished` frame with `ok:false`. A cancelled parent planning call publishes one terminal
+main row (`failed` state with the explicit `cancelled` step), one `turn.cancelled`, and no normal
+turn-finished event. The closed work-state vocabulary has no fictional cancellation state; the step
+therefore carries the truthful distinction without weakening the protocol contract.
+
+Acceptance:
+
+- [x] a real failed child provider run proves one failed-complete child work row, one matching
+  terminal status, and one `subagent.finished(ok:false)` frame.
+- [x] a cancellable observed planner run proves one cancelled terminal main work row, one
+  `turn.cancelled`, and no `turn.finished`; bounded handshakes prevent the test from hanging.
+- [x] duplicating either child `subagent.finished` or the parent terminal work publish makes its
+  dedicated regression fail; both mutations were reverted.
+- [x] full engine normal and `-race`, protocol tests, `make spec`, and `git diff --check` pass.
+
+### H10.5a built — one compact row now says which task moved and how
+
+The TUI adapter retains the engine's latest sanitized `Step`, `Phase`, and monotonic `Sequence`
+instead of reducing a task to a static planner title. Each live row now has one predictable shape:
+`agent [i/n] · model · effort · state: summary — step`. The controller rejects a nonzero sequence
+that is not newer than the current row, so a delayed callback cannot redraw an old waiting state over
+current work. Whole rows use only fixed semantic styles: muted queued, yellow waiting/blocked,
+purple working, green done, and red failed; the visible state word remains present when colour is
+disabled.
+
+Acceptance:
+
+- [x] row tests prove bullet grammar, one-line terminal-safe truncation, summary plus latest step,
+  stable plan order, and semantic styles for every closed state.
+- [x] the CLI-to-runtime adapter explicitly carries step and sequence through its race-safe boundary.
+- [x] accepting an older per-task sequence, flattening every row to muted purple, and dropping the
+  `Step` adapter field each fail their exact regression and were reverted.
+- [x] full TUI normal and `-race` suites, full CLI suite, and `git diff --check` pass.
+
+### H10.5b1 built — durable replay follows the journal, not scheduler completion order
+
+`PlainRenderer` now understands `work.updated`. It writes each supplied frame immediately rather
+than collecting or sorting it: a parent appears as `◆ main · phase · state: step`; a child uses the
+same compact task coordinates, model, effort, state, and step grammar as the live surface but does
+not invent a planner title the standalone frame does not carry. This makes a session-journal replay
+read as the durable record it is.
+
+Acceptance:
+
+- [x] a deliberately non-plan-ordered sequence of main, child-waiting, and child-working frames
+  produces exactly those three concise lines in supplied journal order.
+- [x] removing the `work.updated` dispatch makes the replay regression fail; the mutation was
+  reverted.
+- [x] full TUI normal and `-race` suites plus `git diff --check` pass.
+
+### H10.5b2 built — real-time completion stays real-time; verbose reports stay readable
+
+When a child resolves, the engine immediately emits a concise completion, failure, or incomplete
+milestone in actual completion order. Its already-private output buffer is retained, then every
+buffered child report is flushed after delegation in ascending plan index. This changes no task
+launch decision, dependency resolution, writer lock, or buffered transport: it only chooses when
+the existing complete buffers reach the shared terminal.
+
+Acceptance:
+
+- [x] a deterministic slow task 1 and fast task 2 prove task 2's completion milestone arrives
+  first, while the verbose `slow` report still prints before the verbose `fast` report.
+- [x] removing the deferred plan-order flush makes that regression fail; the mutation was reverted.
+- [x] full engine normal and `-race` suites plus `git diff --check` pass.
+
+### H10.5c built — display fallbacks preserve meaning and now have a race-free palette
+
+The final display boundary proves that a semantic state is still written as text when `NO_COLOR`
+removes every ANSI sequence, and that an agent row clips on terminal cells without adding a newline
+or exceeding a narrow frame. Standalone durable milestone fields are sanitised and bounded again at
+the plain-renderer boundary, so a hostile replay frame cannot use terminal controls or a long step
+to escape its one-line surface. The race pass also found and fixed a real issue: a deferred runtime
+repaint could read the process palette while `SetPalette` wrote it. Palette selection and lookup now
+share a small read/write lock.
+
+Acceptance:
+
+- [x] `NO_COLOR` keeps the explicit waiting state and latest step while emitting no ANSI; a 42-cell
+  frame clips a long agent row safely; hostile durable model/effort/step text stays single-line,
+  control-free, meaningful, and bounded.
+- [x] re-enabling the palette for `none`, bypassing row clipping, and bypassing durable-step
+  sanitisation each fail their dedicated regression and were reverted.
+- [x] removing palette synchronization reproduces a real race between `SetPalette` and deferred
+  frame rendering; restoration makes the full TUI `-race` suite pass.
+- [x] full TUI normal/race and CLI suites plus `git diff --check` pass.
+
+### H10.6a built — the task ledger survives the reader that falls behind
+
+The durable work journal now has an end-to-end recovery regression, not only independent bus and
+status tests. Two concurrent child tasks publish into a one-event replay window backed by a spill
+file while an intentionally unread live subscriber has a one-event buffer. The run must finish
+within two seconds; the unread subscriber is disconnected with `ErrSlowSubscriber` and can later
+resume from its cursor. Reopening the same session replays every child update from disk, with each
+task retaining its own task ID, child turn, coordinates, strictly increasing per-task sequence, and
+terminal `done/complete` state.
+
+Acceptance:
+
+- [x] focused normal and `-race` runs pass for
+  `TestConcurrentTaskWorkSurvivesSpillReopenAndSlowSubscriber`, and `git diff --check` passes.
+- [x] replacing non-blocking live fan-out with a direct channel send triggers only this regression's
+  bounded slow-subscriber timeout; the mutation was reverted.
+- [x] omitting spilled `work.updated` frames makes its recovered-ledger assertion fail; the mutation
+  was reverted byte-identical.
+
+### H10.6b built — exceptional boundaries do not erase the work trail
+
+The retry and cancellation boundaries already prove their durable work semantics at the actual
+provider and turn boundaries: each physical retry contributes one new observed provider step, while
+a cancelled turn emits exactly one failed/complete parent row with `cancelled`, one
+`turn.cancelled`, and no normal finish. This leaf closes the missing route-fallback proof. An
+unstartable cheap child now has a regression that reads the bus rather than only the live callback:
+its one task ledger records queued, started, cheap-provider opening, the named ceiling fallback,
+ceiling-provider opening, then a terminal done row; identity and sequence remain continuous.
+
+Acceptance:
+
+- [x] focused normal and `-race` runs cover retry observation, durable child fallback, and parent
+  cancellation; `git diff --check` passes.
+- [x] omitting `updateSubagentStatusRoute` removes the fallback frame and leaves the next provider
+  open on the old model, causing only the durable fallback regression to fail; the mutation was
+  reverted.
+
+### H10.6c built — a resize cannot rewrite what a task means
+
+The runtime now has an integration regression over its actual paced render and resize path. It
+receives task 2 before task 1, then reflows wide → narrow → wide while each row contains oversized
+and terminal-hostile planner/provider fields. At every size, the frame keeps task 1 before task 2,
+keeps explicit `working` and `waiting` state words, remains within terminal width, and contains no
+control input. The immutable runtime snapshot proves that resize did not mutate order or state.
+
+Acceptance:
+
+- [x] focused normal runtime-resize plus runtime-update `-race` checks pass, and `git diff --check`
+  passes.
+- [x] bypassing agent-row clipping overflows the resized frame; bypassing final task-field
+  sanitisation exposes the injected CSI sequence. Both mutations fail the new runtime regression and
+  were reverted.
+
+### H10.7a verified — affected producers, journal, adapters, and surfaces agree
+
+The changed concurrency and protocol boundaries pass together: bus, engine, TUI, CLI, provider,
+provider-agentcli, and protocol test packages are green normally and with Go's race detector. The
+specification gate is also green with 29 checks, so the new event/schema contract and the runtime
+projection are checked from both sides of the boundary.
+
+### H10.7b verified — the repository-wide gate is green at 2,946 tests
+
+The first canonical gate exposed a genuine ambient-state weakness in the Saga resolver: a stale
+`/tmp/SAGA.md` was inherited by every temporary child directory. The resolver now stops non-Git
+ancestor discovery at a world-writable boundary, while retaining normal non-Git project-ancestor
+discovery; the new red regression proves both sides. The same gate then exposed the unreferenced
+`streamChatOn` forwarding wrapper left after observed-progress wiring. Removing that dead unexported
+wrapper restored the lint closure without changing call behavior.
+
+Acceptance:
+
+- [x] the shared-directory boundary mutation makes only its Saga isolation regression fail; it was
+  reverted. Both shared-boundary refusal and ordinary non-Git ancestor discovery are covered.
+- [x] final `TMPDIR=/var/tmp make check` passes: 2,946 tests, 0 lint issues, all four platform
+  compile matrices, budgets, site/surface/installer, spec, release, workflow, plan, and pin gates
+  green.
+
+### H10.7c verified — the handoff has no hidden state
+
+The final audit found no temporary mutation, formatting drift, or unintended scratch artifact. The
+tracked H10 changes are the ledger/protocol/producers/projection/docs plus the gate-discovered Saga
+shared-directory boundary; the untracked files are the new ledger, progress, tool-work, scheduler,
+and protocol/schema tests and fixtures. `docs/build-log.md` now holds the durable verification
+record. No commit, tag, push, or release was created: those remain the user's separate decision.
 
 ### H9 built — the green gate had two real gaps left in it
 
@@ -3902,10 +4445,32 @@ is deliberately late because item 34 is working in the same files.
       allowances; `localia pull` re-pointed at the host's `/api/pull` with the explicit approval
       plan 25 always required; `SidecarName`'s "never used" comment and every remaining sentence
       that says kolk never touches a host Ollama.
-- [ ] **E11 the cloud catalogue** — rows for Ollama Cloud models the user has *not* pulled, from
+- [x] **E11 the cloud catalogue** — rows for Ollama Cloud models the user has *not* pulled, from
       `ollama.com/api/tags` (readable unauthenticated) through the local `/api/show` proxy for
       capabilities, so a signed-in user sees what the plan can run. Found by the v1.2.21 pre-release
       review: the contract said cloud models "appear once signed in", and only pulled ones did.
+
+  - [x] **E11.0 contract and boundaries** — the public list is metadata only and never receives
+    credentials; each candidate is normalized to Ollama's `:cloud`/`-cloud` selector and checked
+    through the local `/api/show`; only a remote response becomes a Cloud row. Unpulled rows say
+    `ollama pull <name>`, are not free/local, and never trigger a pull. Public/proxy failure is
+    best-effort and preserves known host rows. Current upstream behavior requiring a Cloud stub
+    pull is recorded in `docs/plan/25-managed-local-models.md`.
+  - [x] **E11.1 bounded public catalogue** — strict response decoding, fixed endpoint, request/body/
+    row limits, timeout and cancellation, with no credential or redirect leakage. Red/green tests
+    cover valid/null/malformed responses, non-OK status, all bounds, cancellation, cookies, and
+    redirects; normal and race package tests pass, and each guard survived a targeted mutation.
+  - [x] **E11.2 local proxy enrichment** — bounded `/api/show` probing, capability/context decoding,
+    remote-host proof, alias normalization, and cache behavior tested before picker wiring. Normal
+    and race local tests pass; targeted mutations caught remote proof, cache proof, alias selection,
+    and the `/api/show` body bound.
+  - [x] **E11.3 merged presentation** — deduplicate pulled and unpulled Cloud rows, preserve local
+    rows and connector login/subscription labels, and expose the same honest state in `/model` and
+    `kolk models` without making unpulled models runnable by implication. Normal and race CLI tests
+    pass; merge, both surfaces, both pull labels, and discovery fallback survived targeted mutations.
+  - [x] **E11.4 hardening and gates** — failure matrix, cancellation/race tests, mutation checks,
+    full `make check`, and the final build-log evidence. The exact current tree passes the final
+    gate at 2,975 tests; no local Ollama server was running for a live `/api/show` smoke test.
 
 ### Owner-cleared queue — devices, failure paths, first run, a pinned runtime
 

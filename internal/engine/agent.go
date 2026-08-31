@@ -284,6 +284,12 @@ type ChatBackend interface {
 type Agent struct {
 	Options
 	lastTurnID string
+	// mainWork serializes the parent turn's durable work ledger. Subagent work
+	// has one sequence per task under subagentMu; the parent has one sequence
+	// per turn and never carries child coordinates.
+	mainWorkMu       sync.Mutex
+	mainWorkTurn     string
+	mainWorkSequence uint64
 	// subagentIDs pairs a task index with the id both of its lifecycle events
 	// carry, and subagentIDTurn is the turn they belong to. Both are under
 	// subagentMu: the per-task goroutines mint ids concurrently.
@@ -868,8 +874,11 @@ func describeToolCall(tc provider.ToolCall) string {
 		Path        string `json:"path"`
 	}
 	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-		return "Using tool — " + compactToolText(tc.Function.Name)
+		return "Using tool — " + compactToolText(secret.Scrub(tc.Function.Name))
 	}
+	args.Command = secret.Scrub(args.Command)
+	args.Description = secret.Scrub(args.Description)
+	args.Path = secret.Scrub(args.Path)
 	path := compactToolPath(args.Path)
 	switch tc.Function.Name {
 	case "bash":
@@ -898,7 +907,7 @@ func describeToolCall(tc provider.ToolCall) string {
 		}
 		return "Listing directory — " + path
 	}
-	return "Using tool — " + compactToolText(tc.Function.Name)
+	return "Using tool — " + compactToolText(secret.Scrub(tc.Function.Name))
 }
 
 // activityWidth is how much of one tool line is shown. Long enough to be
@@ -1084,6 +1093,7 @@ func (a *Agent) window() int {
 // RunTurn dispatches a user message according to the current mode.
 func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 	a.lastTurnID = xid.New(xid.Turn)
+	a.resetMainWork()
 	if a.Ckpt != nil {
 		a.Ckpt.BeginTurn(ctx)
 	}
@@ -1123,7 +1133,18 @@ func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 	if err == nil {
 		a.titleSessionIfNeeded(ctx)
 	}
-
+	if a.Mode == ModeAgent {
+		state := protocol.WorkStateDone
+		step := "completed"
+		if err != nil {
+			state = protocol.WorkStateFailed
+			step = "failed: " + err.Error()
+			if ctx.Err() != nil {
+				step = "cancelled"
+			}
+		}
+		a.publishMainWork(state, protocol.WorkPhaseComplete, step, a.orchestrationModel(), a.Effort)
+	}
 	if a.Bus != nil {
 		if err != nil {
 			if ctx.Err() != nil {
@@ -1174,10 +1195,14 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 	overflowRecovered := false
 	toolRounds := 0
 	maxRounds := MaxRoundsFor(a.Mode, a.Effort)
+	var observeProvider func(provider.ProgressEvent)
+	if a.Mode == ModeAgent {
+		observeProvider = a.mainProviderProgress(model, a.Effort)
+	}
 
 	for {
 		fmt.Fprintf(a.Out, "%s%s%s ", colorCyan, a.responseLabel(), colorReset)
-		msg, meta, err := a.streamChat(ctx, activityThinking, model, requestMessages, toolset, func(tok string) {
+		msg, meta, err := a.streamChatObserved(ctx, activityThinking, model, requestMessages, toolset, func(tok string) {
 			if a.Bus != nil {
 				deltaData, _ := json.Marshal(protocol.MessageDeltaData{Text: tok})
 				_, _ = a.Bus.Publish(bus.Event{
@@ -1187,7 +1212,7 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 				})
 			}
 			fmt.Fprint(a.Out, tok)
-		})
+		}, observeProvider)
 		if err != nil {
 			fmt.Fprintln(a.Out)
 			// A refusal for length is recoverable exactly once: compact what the
@@ -1252,50 +1277,39 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 		}
 
 		for _, tc := range msg.ToolCalls {
-			if a.Bus != nil {
-				reqData, _ := json.Marshal(protocol.ToolRequestedData{
-					ID:        tc.ID,
-					Name:      tc.Function.Name,
-					Arguments: tc.Function.Arguments,
-					Executor:  protocol.ToolExecutorKolk,
-				})
-				_, _ = a.Bus.Publish(bus.Event{
-					Turn: a.lastTurnID,
-					Type: protocol.EventToolRequested,
-					Data: reqData,
-				})
-			}
+			owner := a.mainToolWork(model, a.Effort)
+			a.publishKolkToolRequested(tc, owner)
 			// Checked before the call runs, because a call that has proved
 			// three times over that it changes nothing should not be made a
 			// fourth time. The result half of the rule comes from the two that
 			// already settled.
 			var result string
 			var err error
+			executed := false
+			skipped := false
 			if loop.wouldRepeat(tc.Function.Name, tc.Function.Arguments) {
 				denial, stop := a.answerDoomLoop(ctx, &loop, tc, false)
 				if stop != nil {
 					return stop
 				}
 				result = denial
+				skipped = result != ""
 			}
 			if result == "" {
+				executed = true
+				a.publishKolkToolStarted(tc, owner)
 				result, err = a.executeTool(ctx, tc)
 				if err != nil {
 					result = "Error: " + err.Error()
 				}
 				loop.observe(tc.Function.Name, tc.Function.Arguments, result)
 			}
-			if a.Bus != nil {
-				outData, _ := json.Marshal(protocol.ToolOutputData{
-					ID:       tc.ID,
-					Output:   result,
-					Executor: protocol.ToolExecutorKolk,
-				})
-				_, _ = a.Bus.Publish(bus.Event{
-					Turn: a.lastTurnID,
-					Type: protocol.EventToolOutput,
-					Data: outData,
-				})
+			if skipped {
+				a.publishKolkToolSkipped(tc, owner)
+			}
+			a.publishKolkToolOutput(tc, result, owner)
+			if executed {
+				a.publishKolkToolFinished(tc, err, owner)
 			}
 			if a.Sess != nil {
 				a.Sess.AppendMessage(provider.Message{

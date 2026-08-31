@@ -394,7 +394,9 @@ func TestAgentLifecycleIsWiredThroughTheRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(source), "ag.Subagents = func(status engine.SubagentStatus)") ||
-		!strings.Contains(string(source), "screen.SetAgentStatus(tui.AgentStatus{") {
+		!strings.Contains(string(source), "screen.SetAgentStatus(tui.AgentStatus{") ||
+		!strings.Contains(string(source), "Step: status.Step") ||
+		!strings.Contains(string(source), "Sequence: status.Sequence") {
 		t.Error("the typed subagent lifecycle is not attached through the race-safe runtime boundary")
 	}
 }

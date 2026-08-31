@@ -22,6 +22,52 @@ func TestSagaStatusNoActiveSaga(t *testing.T) {
 
 }
 
+// A shared scratch directory is not a project root. Without this boundary a
+// stale /tmp/SAGA.md hijacks every unrelated directory below it, including
+// Go's test directories and a person's temporary checkout.
+func TestSagaArtifactDoesNotInheritFromWorldWritableAncestor(t *testing.T) {
+	shared := t.TempDir()
+	if err := os.Chmod(shared, 0o1777); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shared, "SAGA.md"), []byte("# SAGA: other project\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	nested := filepath.Join(shared, "unrelated", "nested")
+	if err := os.MkdirAll(nested, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(nested)
+
+	path, err := sagaArtifactPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(nested, "SAGA.md"); path != want {
+		t.Fatalf("saga artifact = %q, want isolated child path %q", path, want)
+	}
+}
+
+func TestSagaArtifactStillInheritsFromNormalNonGitAncestor(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "SAGA.md"), []byte("# SAGA: local project\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	nested := filepath.Join(root, "src", "nested")
+	if err := os.MkdirAll(nested, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(nested)
+
+	path, err := sagaArtifactPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(root, "SAGA.md"); path != want {
+		t.Fatalf("saga artifact = %q, want normal ancestor path %q", path, want)
+	}
+}
+
 func TestSagaNoArgsReturnsUsage(t *testing.T) {
 	a, _, errOut := newTestApp(t, "")
 	code := a.main(context.Background(), []string{"saga"})

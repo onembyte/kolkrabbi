@@ -97,6 +97,12 @@ type app struct {
 	// listHostModels reads what that Ollama serves; injected for the same
 	// reason.
 	listHostModels func(ctx context.Context, addr, cacheFile string) ([]local.HostModel, error)
+	// listCloudCatalog reads the public Ollama Cloud metadata list without
+	// credentials; listCloudModels proves candidates through the local server.
+	// Both are separate seams so host rows remain useful when optional Cloud
+	// discovery is unavailable, and tests never touch a real endpoint.
+	listCloudCatalog func(context.Context) ([]local.CloudCatalogModel, error)
+	listCloudModels  func(ctx context.Context, addr, version, cacheFile string, catalog []local.CloudCatalogModel) ([]local.HostModel, error)
 	// signIn asks that Ollama whether it is signed in to ollama.com, and
 	// signInBudget is how long a login waits for the browser half to finish.
 	// warmHost loads a host model ahead of its first turn; injected so a test
@@ -158,6 +164,8 @@ func newApp() *app {
 		return local.DiscoverHost(ctx, local.HostDiscovery{Addr: local.DefaultHostAddr, LookPath: shell.LookPath})
 	}
 	a.listHostModels = local.ListHostModels
+	a.listCloudCatalog = local.ListCloudCatalog
+	a.listCloudModels = local.ListCloudModels
 	a.signIn = local.SignIn
 	a.pulledNames = func() map[string]bool { return local.PulledNames(local.HostModelDir(os.Environ())) }
 	a.signInBudget = 2 * time.Minute

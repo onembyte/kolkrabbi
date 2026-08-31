@@ -58,11 +58,39 @@ func sagaArtifactPath() (string, error) {
 	if root, ok := ancestorContaining(start, ".git"); ok {
 		return filepath.Join(root, "SAGA.md"), nil
 	}
-	// Not a repository: honour an artifact an ancestor already owns.
-	if root, ok := ancestorContaining(start, "SAGA.md"); ok {
+	// Not a repository: honour an artifact a normal ancestor already owns.
+	// A shared scratch directory such as /tmp is not a project boundary: its
+	// SAGA.md must not seize every unrelated temporary checkout below it.
+	if root, ok := ancestorSagaArtifact(start); ok {
 		return filepath.Join(root, "SAGA.md"), nil
 	}
 	return filepath.Join(start, "SAGA.md"), nil
+}
+
+func ancestorSagaArtifact(start string) (string, bool) {
+	for dir, first := start, true; ; {
+		// A caller standing in a shared directory can still use its own
+		// explicit artifact. Descendants stop before inheriting that directory.
+		if !first && isWorldWritableDir(dir) {
+			return "", false
+		}
+		if _, err := os.Stat(filepath.Join(dir, "SAGA.md")); err == nil {
+			return dir, true
+		}
+		if isWorldWritableDir(dir) {
+			return "", false
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", false
+		}
+		dir, first = parent, false
+	}
+}
+
+func isWorldWritableDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir() && info.Mode().Perm()&0o002 != 0
 }
 
 func ancestorContaining(start, entry string) (string, bool) {

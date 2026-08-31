@@ -126,6 +126,11 @@ type claudeInput struct {
 
 // Turn sends one request through the existing process and waits for its result.
 func (s *ClaudeSession) Turn(ctx context.Context, messages []provider.Message, model string, onToken func(string)) (provider.Message, provider.Meta, error) {
+	return s.TurnObserved(ctx, messages, model, onToken, nil)
+}
+
+// TurnObserved is Turn with an optional typed provider-boundary observer.
+func (s *ClaudeSession) TurnObserved(ctx context.Context, messages []provider.Message, model string, onToken func(string), observe func(provider.ProgressEvent)) (provider.Message, provider.Meta, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -150,6 +155,7 @@ func (s *ClaudeSession) Turn(ctx context.Context, messages []provider.Message, m
 	// The tool ids this turn has seen, so a tool_result — which names only the
 	// id — can be reported under the tool's name.
 	pending := make(map[string]string)
+	progressPending := make(map[string]string)
 	for {
 		line, err := s.process.Next(ctx)
 		if err != nil {
@@ -174,6 +180,7 @@ func (s *ClaudeSession) Turn(ctx context.Context, messages []provider.Message, m
 		completed := false
 		for _, event := range translated {
 			events = append(events, event)
+			observeProviderEvent(observe, event, progressPending)
 			switch {
 			case event.Kind == EventMessageDelta && onToken != nil:
 				onToken(event.Text)

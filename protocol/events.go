@@ -34,6 +34,8 @@ const (
 	EventSubagentStarted EventType = "subagent.started"
 	// EventSubagentFinished records one child turn's terminal outcome.
 	EventSubagentFinished EventType = "subagent.finished"
+	// EventWorkUpdated records one observed main-agent or subagent work step.
+	EventWorkUpdated EventType = "work.updated"
 	// EventUsageReported carries one model row for one physical attempt.
 	EventUsageReported EventType = "usage.reported"
 	// EventScoreRecorded carries one typed evaluation of a protocol target.
@@ -71,6 +73,7 @@ var knownEventTypes = []EventType{
 	EventPermissionResolved,
 	EventSubagentStarted,
 	EventSubagentFinished,
+	EventWorkUpdated,
 	EventUsageReported,
 	EventScoreRecorded,
 	EventCheckpointCreated,
@@ -133,28 +136,36 @@ type ToolRequestedData struct {
 	Name      string       `json:"name"`
 	Arguments string       `json:"arguments"`
 	Executor  ToolExecutor `json:"executor"`
+	TaskID    string       `json:"task_id,omitempty"`
+	ChildTurn string       `json:"child_turn,omitempty"`
 }
 
 // ToolStartedData is the payload of EventToolStarted.
 type ToolStartedData struct {
-	ID       string       `json:"id"`
-	Executor ToolExecutor `json:"executor"`
+	ID        string       `json:"id"`
+	Executor  ToolExecutor `json:"executor"`
+	TaskID    string       `json:"task_id,omitempty"`
+	ChildTurn string       `json:"child_turn,omitempty"`
 }
 
 // ToolOutputData is the payload of EventToolOutput. Output may be empty when
 // the tool completed without display text.
 type ToolOutputData struct {
-	ID       string       `json:"id"`
-	Output   string       `json:"output"`
-	Executor ToolExecutor `json:"executor"`
+	ID        string       `json:"id"`
+	Output    string       `json:"output"`
+	Executor  ToolExecutor `json:"executor"`
+	TaskID    string       `json:"task_id,omitempty"`
+	ChildTurn string       `json:"child_turn,omitempty"`
 }
 
 // ToolFinishedData is the payload of EventToolFinished. OK reports whether
 // the invocation produced a valid tool result.
 type ToolFinishedData struct {
-	ID       string       `json:"id"`
-	OK       bool         `json:"ok"`
-	Executor ToolExecutor `json:"executor"`
+	ID        string       `json:"id"`
+	OK        bool         `json:"ok"`
+	Executor  ToolExecutor `json:"executor"`
+	TaskID    string       `json:"task_id,omitempty"`
+	ChildTurn string       `json:"child_turn,omitempty"`
 }
 
 // PermissionRequestedData is the payload of EventPermissionRequested. Diff is
@@ -220,6 +231,80 @@ type SubagentFinishedData struct {
 	// Model is the rung that actually ran it, which is not always the rung it
 	// started on: a cheaper one that would not spawn falls back to the ceiling.
 	Model string `json:"model,omitempty"`
+}
+
+// WorkRole identifies which execution scope owns one observed work step.
+type WorkRole string
+
+const (
+	WorkRoleMain     WorkRole = "main"
+	WorkRoleSubagent WorkRole = "subagent"
+)
+
+func validWorkRole(role WorkRole) bool {
+	return role == WorkRoleMain || role == WorkRoleSubagent
+}
+
+// WorkState is observed task state, never an estimated completion value.
+type WorkState string
+
+const (
+	WorkStateQueued  WorkState = "queued"
+	WorkStateWaiting WorkState = "waiting"
+	WorkStateWorking WorkState = "working"
+	WorkStateDone    WorkState = "done"
+	WorkStateFailed  WorkState = "failed"
+	WorkStateBlocked WorkState = "blocked"
+)
+
+func validWorkState(state WorkState) bool {
+	switch state {
+	case WorkStateQueued, WorkStateWaiting, WorkStateWorking,
+		WorkStateDone, WorkStateFailed, WorkStateBlocked:
+		return true
+	default:
+		return false
+	}
+}
+
+// WorkPhase says which broad execution boundary owns the observed step.
+type WorkPhase string
+
+const (
+	WorkPhasePlanning   WorkPhase = "planning"
+	WorkPhaseSchedule   WorkPhase = "schedule"
+	WorkPhaseProvider   WorkPhase = "provider"
+	WorkPhaseTool       WorkPhase = "tool"
+	WorkPhaseCheckpoint WorkPhase = "checkpoint"
+	WorkPhaseSynthesis  WorkPhase = "synthesis"
+	WorkPhaseComplete   WorkPhase = "complete"
+)
+
+func validWorkPhase(phase WorkPhase) bool {
+	switch phase {
+	case WorkPhasePlanning, WorkPhaseSchedule, WorkPhaseProvider, WorkPhaseTool,
+		WorkPhaseCheckpoint, WorkPhaseSynthesis, WorkPhaseComplete:
+		return true
+	default:
+		return false
+	}
+}
+
+// WorkUpdatedData is one ordered, durable step. Main work uses the parent turn
+// as ID and omits child coordinates. Subagent work uses its task ID and repeats
+// child-turn/index/total correlation so a standalone journal row is useful.
+type WorkUpdatedData struct {
+	ID        string    `json:"id"`
+	ChildTurn string    `json:"child_turn,omitempty"`
+	Role      WorkRole  `json:"role"`
+	State     WorkState `json:"state"`
+	Phase     WorkPhase `json:"phase"`
+	Step      string    `json:"step"`
+	Sequence  uint64    `json:"sequence"`
+	Index     int       `json:"index,omitempty"`
+	Total     int       `json:"total,omitempty"`
+	Model     string    `json:"model,omitempty"`
+	Effort    string    `json:"effort,omitempty"`
 }
 
 // CheckpointCreatedData identifies one durable pre-write snapshot without
@@ -407,7 +492,7 @@ func validateEventData(event EventType, raw json.RawMessage) error {
 		if !validToolExecutor(data.Executor) {
 			return fmt.Errorf("protocol: %s data.executor must be %q or %q", event, ToolExecutorKolk, ToolExecutorProvider)
 		}
-		return nil
+		return validateToolWorkCorrelation(event, data.TaskID, data.ChildTurn)
 	case EventToolStarted:
 		var data ToolStartedData
 		if err := json.Unmarshal(raw, &data); err != nil {
@@ -419,12 +504,14 @@ func validateEventData(event EventType, raw json.RawMessage) error {
 		if !validToolExecutor(data.Executor) {
 			return fmt.Errorf("protocol: %s data.executor must be %q or %q", event, ToolExecutorKolk, ToolExecutorProvider)
 		}
-		return nil
+		return validateToolWorkCorrelation(event, data.TaskID, data.ChildTurn)
 	case EventToolOutput:
 		var data struct {
-			ID       string       `json:"id"`
-			Output   *string      `json:"output"`
-			Executor ToolExecutor `json:"executor"`
+			ID        string       `json:"id"`
+			Output    *string      `json:"output"`
+			Executor  ToolExecutor `json:"executor"`
+			TaskID    string       `json:"task_id"`
+			ChildTurn string       `json:"child_turn"`
 		}
 		if err := json.Unmarshal(raw, &data); err != nil {
 			return fmt.Errorf("protocol: %s data: %w", event, err)
@@ -438,12 +525,14 @@ func validateEventData(event EventType, raw json.RawMessage) error {
 		if !validToolExecutor(data.Executor) {
 			return fmt.Errorf("protocol: %s data.executor must be %q or %q", event, ToolExecutorKolk, ToolExecutorProvider)
 		}
-		return nil
+		return validateToolWorkCorrelation(event, data.TaskID, data.ChildTurn)
 	case EventToolFinished:
 		var data struct {
-			ID       string       `json:"id"`
-			OK       *bool        `json:"ok"`
-			Executor ToolExecutor `json:"executor"`
+			ID        string       `json:"id"`
+			OK        *bool        `json:"ok"`
+			Executor  ToolExecutor `json:"executor"`
+			TaskID    string       `json:"task_id"`
+			ChildTurn string       `json:"child_turn"`
 		}
 		if err := json.Unmarshal(raw, &data); err != nil {
 			return fmt.Errorf("protocol: %s data: %w", event, err)
@@ -457,7 +546,7 @@ func validateEventData(event EventType, raw json.RawMessage) error {
 		if !validToolExecutor(data.Executor) {
 			return fmt.Errorf("protocol: %s data.executor must be %q or %q", event, ToolExecutorKolk, ToolExecutorProvider)
 		}
-		return nil
+		return validateToolWorkCorrelation(event, data.TaskID, data.ChildTurn)
 	case EventPermissionRequested:
 		var fields map[string]json.RawMessage
 		if err := json.Unmarshal(raw, &fields); err != nil {
@@ -544,6 +633,50 @@ func validateEventData(event EventType, raw json.RawMessage) error {
 		}
 		if data.OK == nil {
 			return fmt.Errorf("protocol: %s data.ok must be present and boolean-valued", event)
+		}
+		return nil
+	case EventWorkUpdated:
+		var data WorkUpdatedData
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		if !validWorkRole(data.Role) {
+			return fmt.Errorf("protocol: %s data.role is not defined", event)
+		}
+		if !validWorkState(data.State) {
+			return fmt.Errorf("protocol: %s data.state is not defined", event)
+		}
+		if !validWorkPhase(data.Phase) {
+			return fmt.Errorf("protocol: %s data.phase is not defined", event)
+		}
+		terminal := data.State == WorkStateDone || data.State == WorkStateFailed || data.State == WorkStateBlocked
+		if terminal != (data.Phase == WorkPhaseComplete) {
+			return fmt.Errorf("protocol: %s data.state %q is incompatible with phase %q", event, data.State, data.Phase)
+		}
+		if data.Step == "" {
+			return fmt.Errorf("protocol: %s data.step must be non-empty", event)
+		}
+		if data.Sequence < 1 {
+			return fmt.Errorf("protocol: %s data.sequence must be at least 1", event)
+		}
+		switch data.Role {
+		case WorkRoleMain:
+			if !validID(data.ID, 't') {
+				return fmt.Errorf("protocol: %s main data.id must be a canonical t_ ULID", event)
+			}
+			if data.ChildTurn != "" || data.Index != 0 || data.Total != 0 {
+				return fmt.Errorf("protocol: %s main work must omit child correlation", event)
+			}
+		case WorkRoleSubagent:
+			if !validID(data.ID, 'k') {
+				return fmt.Errorf("protocol: %s subagent data.id must be a canonical k_ ULID", event)
+			}
+			if !validID(data.ChildTurn, 't') {
+				return fmt.Errorf("protocol: %s subagent data.child_turn must be a canonical t_ ULID", event)
+			}
+			if data.Index < 1 || data.Total < 1 || data.Index > data.Total {
+				return fmt.Errorf("protocol: %s subagent index/total must be valid one-based coordinates", event)
+			}
 		}
 		return nil
 	case EventUsageReported:
@@ -741,6 +874,25 @@ func validateSubagentCorrelation(event EventType, id, childTurn, mode string) er
 	}
 	if mode == "" {
 		return fmt.Errorf("protocol: %s data.mode must be non-empty", event)
+	}
+	return nil
+}
+
+// validateToolWorkCorrelation keeps tool events attributable when they belong
+// to a concurrent child. Main-tool frames omit both coordinates; a subagent
+// frame always carries the task and its child turn together.
+func validateToolWorkCorrelation(event EventType, taskID, childTurn string) error {
+	if taskID == "" && childTurn == "" {
+		return nil
+	}
+	if taskID == "" || childTurn == "" {
+		return fmt.Errorf("protocol: %s tool work correlation requires task_id and child_turn together", event)
+	}
+	if !validID(taskID, 'k') {
+		return fmt.Errorf("protocol: %s data.task_id must be a canonical k_ ULID", event)
+	}
+	if !validID(childTurn, 't') {
+		return fmt.Errorf("protocol: %s data.child_turn must be a canonical t_ ULID", event)
 	}
 	return nil
 }

@@ -6,6 +6,7 @@ package tui
 import (
 	"strconv"
 	"strings"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 )
@@ -159,6 +160,7 @@ const (
 	styleMeta
 	styleAdd
 	styleDel
+	styleWarn
 )
 
 const (
@@ -182,6 +184,7 @@ var palette256 = palette{
 	styleMeta:        "\x1b[2m",
 	styleAdd:         "\x1b[38;5;114m",
 	styleDel:         "\x1b[38;5;174m",
+	styleWarn:        "\x1b[38;5;221m",
 }
 
 var palette16 = palette{
@@ -191,17 +194,23 @@ var palette16 = palette{
 	styleMeta:        "\x1b[2m",
 	styleAdd:         "\x1b[32m",
 	styleDel:         "\x1b[31m",
+	styleWarn:        "\x1b[33m",
 }
 
 // activePalette is process state, not screen state: the terminal's colour
 // capability cannot change while kolk is attached to it, and every render
 // reads it. The CLI picks the tier once at startup, honouring NO_COLOR.
-var activePalette = palette256
+var (
+	paletteMu     sync.RWMutex
+	activePalette = palette256
+)
 
 // SetPalette selects the escape tier: "256", "16", or "none". It is called
 // once by the CLI before the first frame, from the same capability probe the
 // legacy line REPL uses for its colour.
 func SetPalette(tier string) {
+	paletteMu.Lock()
+	defer paletteMu.Unlock()
 	switch tier {
 	case "16":
 		activePalette = palette16
@@ -256,7 +265,7 @@ func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 	agentRows := make([]viewRow, 0, len(m.agentStatuses))
 	for _, status := range m.agentStatuses {
 		agentRows = append(agentRows, viewRow{
-			text: clipLine(formatAgentStatusLine(status), width), style: stylePurpleMuted,
+			text: clipLine(formatAgentStatusLine(status), width), style: agentStatusStyle(status),
 		})
 	}
 	statusLine := []viewRow{}
@@ -374,6 +383,24 @@ func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 	rows = append(rows, composer...)
 	rows = append(rows, statusLine...)
 	return rows, budget
+}
+
+// agentStatusStyle colours structural state, never model-provided text. The
+// visible state word remains in the row, so NO_COLOR loses decoration rather
+// than meaning.
+func agentStatusStyle(status AgentStatus) rowStyle {
+	switch status.State {
+	case "working":
+		return stylePurple
+	case "done":
+		return styleAdd
+	case "failed":
+		return styleDel
+	case "waiting", "blocked":
+		return styleWarn
+	default: // queued and legacy/unknown producers stay deliberately quiet.
+		return stylePurpleMuted
+	}
 }
 
 // CommitOverflow removes the transcript that no longer fits on screen and
@@ -494,7 +521,9 @@ func writeStyled(output *strings.Builder, text string, style rowStyle, styled bo
 		output.WriteString(text)
 		return
 	}
+	paletteMu.RLock()
 	sequence := activePalette[style]
+	paletteMu.RUnlock()
 	if sequence == "" {
 		output.WriteString(text)
 		return

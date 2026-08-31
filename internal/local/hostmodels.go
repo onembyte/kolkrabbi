@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -22,6 +23,8 @@ const HostPrefix = "ollama/"
 // hostListBudget bounds the whole listing. A server that is up but wedged
 // must not hold the picker hostage; a partial answer is reported as partial.
 const hostListBudget = 5 * time.Second
+
+const hostShowMaxBodyBytes = 1 << 20
 
 // capabilitiesSince is the first Ollama whose /api/show says what a model can
 // do. Before it nothing can be claimed, and a model with no claim gets no tool
@@ -184,6 +187,7 @@ type shownModel struct {
 	tools, vision       bool
 	thinking            bool
 	remote              bool
+	remoteHost          string
 }
 
 // showHostModel asks /api/show for one model. Context comes from
@@ -213,10 +217,18 @@ func showHostModel(ctx context.Context, client *http.Client, base, name string) 
 		} `json:"details"`
 		ModelInfo map[string]json.RawMessage `json:"model_info"`
 	}
-	if err := json.NewDecoder(response.Body).Decode(&reply); err != nil {
+	body, err = io.ReadAll(io.LimitReader(response.Body, hostShowMaxBodyBytes+1))
+	if err != nil {
 		return shownModel{}, false
 	}
-	shown := shownModel{contextLength: reply.Details.ContextLength, capabilitiesPresent: reply.Capabilities != nil, remote: reply.RemoteHost != ""}
+	if len(body) > hostShowMaxBodyBytes {
+		return shownModel{}, false
+	}
+	if err := json.Unmarshal(body, &reply); err != nil {
+		return shownModel{}, false
+	}
+	remoteHost := strings.TrimSpace(reply.RemoteHost)
+	shown := shownModel{contextLength: reply.Details.ContextLength, capabilitiesPresent: reply.Capabilities != nil, remote: remoteHost != "", remoteHost: remoteHost}
 	for _, capability := range reply.Capabilities {
 		switch strings.ToLower(capability) {
 		case "tools":

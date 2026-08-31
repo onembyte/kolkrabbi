@@ -168,7 +168,7 @@ func assertToolOutputSchema(t *testing.T) {
 		t.Error("schema root does not define a forward-compatible tool.output payload")
 	}
 	wantRequired := []string{"id", "output", "executor"}
-	if !reflect.DeepEqual(schema.Required, wantRequired) || len(schema.Properties) != len(wantRequired) {
+	if !reflect.DeepEqual(schema.Required, wantRequired) || len(schema.Properties) != len(wantRequired)+2 {
 		t.Errorf("schema fields = required %v, properties %v", schema.Required, schema.Properties)
 	}
 	id := schema.Properties["id"]

@@ -65,3 +65,25 @@ func TestDoctorCountsTheHostsModels(t *testing.T) {
 		t.Errorf("doctor does not count the models:\n%s", out.String())
 	}
 }
+
+func TestModelsListsAnUnpulledCloudCatalogueRowWithItsPullCommand(t *testing.T) {
+	a, out, _ := newTestApp(t, "")
+	a.discoverHost = func(context.Context) local.Host {
+		return local.Host{State: local.HostRunning, Addr: "127.0.0.1:11434", Version: "0.33.1"}
+	}
+	a.listHostModels = func(context.Context, string, string) ([]local.HostModel, error) {
+		return []local.HostModel{{Name: "qwen2.5-coder:7b"}}, nil
+	}
+	a.listCloudCatalog = func(context.Context) ([]local.CloudCatalogModel, error) {
+		return []local.CloudCatalogModel{{Name: "gpt-oss:120b"}}, nil
+	}
+	a.listCloudModels = func(context.Context, string, string, string, []local.CloudCatalogModel) ([]local.HostModel, error) {
+		return []local.HostModel{{Name: "gpt-oss:120b-cloud", Cloud: true, NotPulled: true, RemoteHost: "https://ollama.com:443"}}, nil
+	}
+
+	a.printHostModels(context.Background(), "", "")
+	text := out.String()
+	if !strings.Contains(text, "ollama/gpt-oss:120b-cloud") || !strings.Contains(text, "not pulled: ollama pull gpt-oss:120b-cloud") {
+		t.Fatalf("kolk models omitted Cloud pull guidance:\n%s", text)
+	}
+}

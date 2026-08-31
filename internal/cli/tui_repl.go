@@ -191,7 +191,8 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 		screen.SetAgentStatus(tui.AgentStatus{
 			ID: status.ID, Index: status.Index, Total: status.Total,
 			Model: status.Model, Effort: status.Effort, Summary: status.Summary,
-			State: string(status.State),
+			State: string(status.State), Phase: string(status.Phase), Step: status.Step,
+			Sequence: status.Sequence,
 		})
 	}
 	ag.Decider = tuiDecider{runtime: screen}
@@ -573,16 +574,17 @@ func (a *app) hostModelRows(ctx context.Context, manifest provider.ConnectorMani
 	}
 	var models []local.HostModel
 	fromManifest := host.State == local.HostInstalled
+	cache := ""
+	if d, err := a.locate(); err == nil {
+		cache = d.HostCatalogFile()
+	}
 	if host.State == local.HostRunning {
-		cache := ""
-		if d, err := a.locate(); err == nil {
-			cache = d.HostCatalogFile()
-		}
 		listed, err := a.listHostModels(ctx, host.Addr, cache)
 		models = listed
 		// A server that answered the probe but not /api/tags still has a
 		// manifest tree; falling back to it keeps every pulled model a row.
 		fromManifest = err != nil
+		models = mergeHostModels(models, a.cloudHostModels(ctx, host, cache))
 	}
 	if fromManifest {
 		// No server to ask, so the manifest tree says what is pulled; what
@@ -593,6 +595,7 @@ func (a *app) hostModelRows(ctx context.Context, manifest provider.ConnectorMani
 			}
 		}
 	}
+	models = mergeHostModels(models)
 	listed := map[string]bool{}
 	for _, m := range models {
 		listed[m.Name] = true
@@ -625,16 +628,20 @@ func (a *app) hostModelRows(ctx context.Context, manifest provider.ConnectorMani
 	for _, m := range models {
 		id := local.HostPrefix + m.Name
 		if m.Cloud {
+			label := sizeLabel(m)
+			if m.NotPulled {
+				label += "not pulled: ollama pull " + m.Name + " · "
+			}
 			if cloudVerified {
 				rows = append(rows, tui.ModelSpec{
 					ID: id, Cost: tui.CostSubscription, Rank: tui.ModelRank(tui.CostSubscription),
-					Name: sizeLabel(m) + "cloud via ollama.com · " + plan,
+					Name: label + "cloud via ollama.com · " + plan,
 				})
 				continue
 			}
 			rows = append(rows, tui.ModelSpec{
 				ID: id, Cost: tui.CostSubscriptionLogin, Rank: tui.ModelRank(tui.CostSubscriptionLogin),
-				Name: fmt.Sprintf("%scloud via ollama.com · sign in first:  kolk plans login ollama %q", sizeLabel(m), plan),
+				Name: fmt.Sprintf("%scloud via ollama.com · sign in first:  kolk plans login ollama %q", label, plan),
 			})
 			continue
 		}

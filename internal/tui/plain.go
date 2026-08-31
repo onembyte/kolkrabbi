@@ -75,6 +75,19 @@ func (p *PlainRenderer) RenderEvent(env protocol.Envelope) error {
 			return err
 		}
 
+	case protocol.EventWorkUpdated:
+		var d protocol.WorkUpdatedData
+		if err := json.Unmarshal(env.Data, &d); err != nil {
+			return err
+		}
+		line := formatWorkUpdatedLine(d)
+		if p.color {
+			_, err := fmt.Fprintf(p.out, "%s%s%s\n", plainColorDim, line, plainColorReset)
+			return err
+		}
+		_, err := fmt.Fprintln(p.out, line)
+		return err
+
 	case protocol.EventUsageReported:
 		var d protocol.UsageReportedData
 		if err := json.Unmarshal(env.Data, &d); err != nil {
@@ -115,4 +128,30 @@ func (p *PlainRenderer) RenderEvent(env protocol.Envelope) error {
 		return err
 	}
 	return nil
+}
+
+// formatWorkUpdatedLine keeps durable milestones chronological and compact.
+// A replay normally receives them in journal order; this function deliberately
+// does not accumulate or sort them, because an observer needs to see the
+// order work was recorded. The main agent has no task coordinates, while a
+// child retains the same compact grammar as its live row without pretending a
+// replay knows the planner title.
+func formatWorkUpdatedLine(data protocol.WorkUpdatedData) string {
+	state := compactAgentField(string(data.State), "working")
+	phase := compactAgentField(string(data.Phase), "working")
+	step := compactAgentField(data.Step, "updated")
+	if data.Role == protocol.WorkRoleMain {
+		return truncateAgentLine(fmt.Sprintf("◆ main · %s · %s: %s", phase, state, step), maxAgentStatusRunes)
+	}
+	index, total := data.Index, data.Total
+	if index < 1 {
+		index = 1
+	}
+	if total < index {
+		total = index
+	}
+	model := compactAgentField(data.Model, "model unknown")
+	effort := compactAgentField(data.Effort, "effort default")
+	return truncateAgentLine(fmt.Sprintf("agent [%d/%d] · %s · %s · %s: %s",
+		index, total, model, effort, state, step), maxAgentStatusRunes)
 }

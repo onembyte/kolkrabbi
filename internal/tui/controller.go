@@ -606,6 +606,9 @@ func (c *Controller) SetAgentStatus(status AgentStatus) {
 	if c.agentStatuses == nil {
 		c.agentStatuses = map[string]AgentStatus{}
 	}
+	if current, found := c.agentStatuses[key]; found && status.Sequence != 0 && status.Sequence <= current.Sequence {
+		return
+	}
 	c.agentStatuses[key] = status
 	c.syncAgentStatuses()
 }

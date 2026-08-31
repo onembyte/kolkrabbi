@@ -1,13 +1,13 @@
 # 25. Local models through a host Ollama
 
-Status: contract rewritten as option E · 2026-08-29 · supersedes the managed-sidecar contract of 2026-08-26
+Status: E11 contract active · 2026-08-31 · supersedes the managed-sidecar contract of 2026-08-26
 
 Kolkrabbi uses the Ollama the user already has. It finds a running server on
 the loopback default, or starts one of its own on a port it chooses when the
 binary is on PATH and nothing is listening. Its models appear in the picker
 with no configuration; Ollama Cloud models the user has pulled appear too, and
-run once the user has signed in — the cloud catalogue itself is E11, still queued;
-and the only thing the user is asked to do is that sign-in.
+run once the user has signed in. E11 adds bounded, best-effort rows for Cloud
+models not yet pulled, with the exact pull command visible; no pull is implicit.
 
 ## Contract
 
@@ -41,6 +41,19 @@ and the only thing the user is asked to do is that sign-in.
   and the vendor CLI has neither. Cloud models go through the **same** local
   server, which signs upstream requests with its own key; kolk never holds a
   credential for ollama.com.
+- The Cloud catalogue is metadata only: kolk reads the fixed public
+  `https://ollama.com/api/tags` endpoint without forwarding credentials, then
+  asks the local server's `/api/show` about each candidate. A direct catalogue
+  name without an explicit tag gets the local `:cloud` selector; a tagged name
+  gets the legacy-compatible `-cloud` suffix (for example,
+  `gpt-oss:120b` becomes `gpt-oss:120b-cloud`). Only a `/api/show` response that
+  identifies a remote host becomes a Cloud row, and capabilities/context come
+  from that response rather than from the public list or the model name.
+- A Cloud catalogue row that is absent from the local `/api/tags` result is
+  marked **not pulled** and says `ollama pull <name>`. It is not treated as a
+  local model, free model, or proof that the model can run immediately. A
+  failed public fetch or proxy enrichment leaves already-known host rows
+  usable and does not make startup or `/model` fail.
 - The cloud connector is verified by `POST /api/me` on the local server — `200`
   with the plan, or `401` with a `signin_url` kolk prints — **not** by a first
   answered turn. A local model answering proves nothing about a sign-in, and a
@@ -144,10 +157,11 @@ stopped working" call for different repairs.
 
 ### What the review confirmed, so nobody re-derives it
 
-- Cloud models run **through the local server** with no prior pull when the
-  name carries `:cloud` or `-cloud`; `/api/show` proxies cloud names and
-  returns `capabilities` and context length; the cloud catalogue is readable
-  unauthenticated at `ollama.com/api/tags`.
+- Cloud models run **through the local server** after their Cloud stub has been
+  pulled; an explicit `:cloud` or `-cloud` source selector makes the local
+  server proxy the request, and `/api/show` can return remote capabilities and
+  context length. The direct Cloud API catalogue is readable unauthenticated
+  at `ollama.com/api/tags`, but it is not the local host's pulled-model list.
 - `/api/show` has carried `capabilities` (`completion`, `tools`, `vision`,
   `thinking`, …) since v0.6.4; `/v1` has streamed tool calls since v0.8.0.
   Plan 03's note that Ollama omits the tool-call `index` is stale upstream.

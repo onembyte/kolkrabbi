@@ -101,6 +101,52 @@ func TestPlainRendererRendersToolExecutionAndUsage(t *testing.T) {
 	}
 }
 
+func TestPlainRendererRendersWorkMilestonesInSuppliedJournalOrder(t *testing.T) {
+	var buf bytes.Buffer
+	r := NewPlainRenderer(&buf)
+	r.color = false
+	frames := []protocol.WorkUpdatedData{
+		{ID: "t_01ARYZ6S41TSV4RRFFQ69G5FAW", Role: protocol.WorkRoleMain,
+			State: protocol.WorkStateWorking, Phase: protocol.WorkPhasePlanning, Step: "planning tasks", Sequence: 1},
+		{ID: "k_01ARYZ6S41TSV4RRFFQ69G5FAV", ChildTurn: "t_01ARYZ6S41TSV4RRFFQ69G5FAX", Role: protocol.WorkRoleSubagent,
+			State: protocol.WorkStateWaiting, Phase: protocol.WorkPhaseSchedule, Step: "waiting for task 1", Sequence: 2,
+			Index: 2, Total: 2, Model: "gpt-5.6-luna", Effort: "high"},
+		{ID: "k_01ARYZ6S41TSV4RRFFQ69G5FAY", ChildTurn: "t_01ARYZ6S41TSV4RRFFQ69G5FAZ", Role: protocol.WorkRoleSubagent,
+			State: protocol.WorkStateWorking, Phase: protocol.WorkPhaseProvider, Step: "model is responding", Sequence: 1,
+			Index: 1, Total: 2, Model: "gpt-5.6-sol", Effort: "medium"},
+	}
+	for sequence, data := range frames {
+		raw, err := json.Marshal(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := r.RenderEvent(protocol.Envelope{Seq: uint64(sequence + 1), Type: protocol.EventWorkUpdated, Data: raw}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := "◆ main · planning · working: planning tasks\n" +
+		"agent [2/2] · gpt-5.6-luna · high · waiting: waiting for task 1\n" +
+		"agent [1/2] · gpt-5.6-sol · medium · working: model is responding\n"
+	if got := buf.String(); got != want {
+		t.Fatalf("work milestone replay = %q, want %q", got, want)
+	}
+}
+
+func TestWorkMilestoneSanitizesAndBoundsHostileDurableText(t *testing.T) {
+	line := formatWorkUpdatedLine(protocol.WorkUpdatedData{
+		ID: "k_01ARYZ6S41TSV4RRFFQ69G5FAV", ChildTurn: "t_01ARYZ6S41TSV4RRFFQ69G5FAX",
+		Role: protocol.WorkRoleSubagent, State: protocol.WorkStateFailed, Phase: protocol.WorkPhaseComplete,
+		Index: 1, Total: 1, Model: "gpt-5.6-luna\x1b[31m", Effort: "medium\n",
+		Step: "\x1b]8;;https://example.invalid\aunsafe\x1b]8;;\a\n" + strings.Repeat("detail ", 80),
+	})
+	if strings.Contains(line, "\x1b") || strings.ContainsAny(line, "\r\n") || len([]rune(line)) > maxAgentStatusRunes {
+		t.Fatalf("hostile durable milestone escaped its boundary: %q", line)
+	}
+	if !strings.Contains(line, "unsafe") || !strings.Contains(line, "failed") {
+		t.Fatalf("hostile durable milestone lost its safe meaning: %q", line)
+	}
+}
+
 func jsonMarshal(v any) string {
 	b, _ := json.Marshal(v)
 	return string(b)

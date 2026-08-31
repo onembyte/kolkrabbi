@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"bytes"
 	"strings"
 	"sync"
 	"testing"
@@ -50,19 +51,19 @@ func TestAgentStatusIsACompactSingleLinePreview(t *testing.T) {
 	got := formatAgentStatusLine(AgentStatus{
 		Index: 1, Total: 3, Model: "gpt-5.6-luna", Effort: "medium",
 		Summary: "Review the architecture\nthen inspect every runtime path and report the important findings",
-		State:   "working",
+		State:   "working", Step: "provider tool Read file started",
 	})
-	if !strings.HasPrefix(got, "agent [1/3] - gpt-5.6-luna - medium - ") {
+	if !strings.HasPrefix(got, "agent [1/3] · gpt-5.6-luna · medium · working: ") {
 		t.Fatalf("agent row = %q, want the compact agent prefix", got)
 	}
 	if strings.ContainsAny(got, "\r\n") {
 		t.Fatalf("agent preview escaped its one-line boundary: %q", got)
 	}
-	if len([]rune(got)) > 120 {
-		t.Fatalf("agent preview is %d runes, want at most 120: %q", len([]rune(got)), got)
+	if len([]rune(got)) > maxAgentStatusRunes {
+		t.Fatalf("agent preview is %d runes, want at most %d: %q", len([]rune(got)), maxAgentStatusRunes, got)
 	}
-	if !strings.Contains(got, "working") {
-		t.Fatalf("agent state is missing from the preview: %q", got)
+	if !strings.Contains(got, "working") || !strings.Contains(got, "provider tool") {
+		t.Fatalf("agent state or latest step is missing from the preview: %q", got)
 	}
 }
 
@@ -84,11 +85,11 @@ func TestAgentLifecycleRowsRemainThroughSynthesisThenClear(t *testing.T) {
 	c := NewController(Status{Mode: "agent", Effort: "high", Lifecycle: "working"}, 4096)
 	first := AgentStatus{
 		ID: "task-1", Index: 1, Total: 2, Model: "gpt-5.6-luna", Effort: "low",
-		Summary: "Inspect the repository", State: "working",
+		Summary: "Inspect the repository", State: "working", Step: "model is responding", Sequence: 1,
 	}
 	second := AgentStatus{
 		ID: "task-2", Index: 2, Total: 2, Model: "gpt-5.6-sol", Effort: "max",
-		Summary: "Reason about the concurrency boundary", State: "working",
+		Summary: "Reason about the concurrency boundary", State: "working", Step: "opening gpt-5.6-sol", Sequence: 1,
 	}
 	c.SetAgentStatus(second)
 	c.SetAgentStatus(first)
@@ -102,20 +103,20 @@ func TestAgentLifecycleRowsRemainThroughSynthesisThenClear(t *testing.T) {
 	}
 	view := c.View(160, 20)
 	for _, want := range []string{
-		"agent [1/2] - gpt-5.6-luna - low - working: Inspect the repository",
-		"agent [2/2] - gpt-5.6-sol - max - working: Reason about the concurrency boundary",
+		"agent [1/2] · gpt-5.6-luna · low · working: Inspect the repository — model is responding",
+		"agent [2/2] · gpt-5.6-sol · max · working: Reason about the concurrency boundary — opening gpt-5.6-sol",
 	} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("view is missing %q:\n%s", want, view)
 		}
 	}
 
-	first.State = "done"
+	first.State, first.Step, first.Sequence = "done", "completed", 2
 	c.SetAgentStatus(first)
 	if got := c.Snapshot(); got.Status.Agents != 1 || got.AgentStatuses[0].State != "done" {
 		t.Fatalf("finished agent did not remain visible through synthesis: %+v", got)
 	}
-	second.State = "failed"
+	second.State, second.Step, second.Sequence = "failed", "provider refused", 2
 	c.SetAgentStatus(second)
 	if got := c.Snapshot(); got.Status.Agents != 0 || got.AgentStatuses[1].State != "failed" {
 		t.Fatalf("failed agent did not leave the running count and remain visible: %+v", got)
@@ -124,6 +125,157 @@ func TestAgentLifecycleRowsRemainThroughSynthesisThenClear(t *testing.T) {
 	c.FinishTurn("ready")
 	if got := c.Snapshot(); got.Status.Agents != 0 || len(got.AgentStatuses) != 0 {
 		t.Fatalf("finished turn retained stale agent rows: %+v", got)
+	}
+}
+
+func TestAgentStatusIgnoresAnOlderPerTaskUpdate(t *testing.T) {
+	c := NewController(Status{Mode: "agent", Lifecycle: "working"}, 4096)
+	c.SetAgentStatus(AgentStatus{
+		ID: "task-1", Index: 1, Total: 1, Model: "gpt-5.6-luna", Effort: "medium",
+		Summary: "Review runtime", State: "working", Step: "running tests", Sequence: 4,
+	})
+	c.SetAgentStatus(AgentStatus{
+		ID: "task-1", Index: 1, Total: 1, Model: "gpt-5.6-luna", Effort: "medium",
+		Summary: "Review runtime", State: "waiting", Step: "waiting for task 0", Sequence: 3,
+	})
+	got := c.Snapshot().AgentStatuses
+	if len(got) != 1 || got[0].State != "working" || got[0].Step != "running tests" || got[0].Sequence != 4 {
+		t.Fatalf("stale task update replaced the latest row: %+v", got)
+	}
+}
+
+func TestAgentStatusRowsUseSemanticStateStyles(t *testing.T) {
+	for _, test := range []struct {
+		state string
+		want  rowStyle
+	}{
+		{state: "queued", want: stylePurpleMuted},
+		{state: "waiting", want: styleWarn},
+		{state: "working", want: stylePurple},
+		{state: "done", want: styleAdd},
+		{state: "failed", want: styleDel},
+		{state: "blocked", want: styleWarn},
+	} {
+		t.Run(test.state, func(t *testing.T) {
+			m := New(Status{Mode: "agent"})
+			m.SetAgentStatuses([]AgentStatus{{
+				ID: "task-1", Index: 1, Total: 1, Model: "gpt-5.6-luna", Effort: "medium",
+				Summary: "Review", State: test.state, Step: "current step",
+			}})
+			for _, row := range m.viewRows(200, 20, 0) {
+				if strings.HasPrefix(row.text, "agent [1/1]") {
+					if row.style != test.want {
+						t.Fatalf("state %q style = %v, want %v", test.state, row.style, test.want)
+					}
+					return
+				}
+			}
+			t.Fatalf("agent row missing for state %q", test.state)
+		})
+	}
+}
+
+func TestAgentStatusRowsRemainMeaningfulWithoutColour(t *testing.T) {
+	SetPalette("none")
+	t.Cleanup(func() { SetPalette("256") })
+	c := NewController(Status{Mode: "agent", Lifecycle: "working"}, 4096)
+	c.SetAgentStatus(AgentStatus{
+		ID: "task-1", Index: 1, Total: 1, Model: "gpt-5.6-luna", Effort: "medium",
+		Summary: "Review runtime", State: "waiting", Step: "waiting for task 1",
+	})
+	view := c.RenderView(160, 20)
+	if strings.Contains(view, "\x1b[") {
+		t.Fatalf("NO_COLOR agent row contains ANSI: %q", view)
+	}
+	if !strings.Contains(view, "waiting: Review runtime — waiting for task 1") {
+		t.Fatalf("NO_COLOR agent row lost its state: %q", view)
+	}
+}
+
+func TestAgentStatusRowsClipSafelyInANarrowFrame(t *testing.T) {
+	m := New(Status{Mode: "agent"})
+	m.SetAgentStatuses([]AgentStatus{{
+		ID: "task-1", Index: 1, Total: 1, Model: "gpt-5.6-luna", Effort: "medium",
+		Summary: strings.Repeat("summary ", 20), State: "working", Step: strings.Repeat("step ", 20),
+	}})
+	const width = 42
+	for _, row := range m.viewRows(width, 20, 0) {
+		if strings.HasPrefix(row.text, "agent [1/1]") {
+			if cellWidth(row.text) > width || !strings.HasSuffix(row.text, "…") || strings.ContainsAny(row.text, "\r\n") {
+				t.Fatalf("narrow agent row is unsafe: %q", row.text)
+			}
+			return
+		}
+	}
+	t.Fatal("narrow frame lost its agent row")
+}
+
+// Resize must redraw the same ordered task rows, not reconstruct them from
+// stale renderer output. Drive the Runtime path (where concurrent engine
+// callbacks and terminal reflow meet) with deliberately hostile fields.
+func TestRuntimeAgentRowsKeepOrderMeaningAndSafetyAcrossResize(t *testing.T) {
+	SetPalette("none")
+	t.Cleanup(func() { SetPalette("256") })
+
+	var output bytes.Buffer
+	width := 120
+	runtime := NewRuntime(RuntimeOptions{
+		Output: &output,
+		Width:  func() int { return width },
+		Height: func() int { return 18 },
+		Status: Status{Mode: "agent", Lifecycle: "working"},
+	})
+	// Send index 2 first, as concurrent child callbacks naturally do.
+	runtime.SetAgentStatus(AgentStatus{
+		ID: "task-2", Index: 2, Total: 2, Model: "luna", Effort: "low",
+		Summary: "second task\x1b[2J\n" + strings.Repeat("detail ", 24),
+		State:   "waiting", Step: "waiting for task 1\x1b]8;;https://invalid\a",
+		Sequence: 1,
+	})
+	runtime.SetAgentStatus(AgentStatus{
+		ID: "task-1", Index: 1, Total: 2, Model: "luna", Effort: "low",
+		Summary: "first task\r" + strings.Repeat("detail ", 24),
+		State:   "working", Step: "provider tool read started\x1b[31m",
+		Sequence: 1,
+	})
+
+	assertRuntimeAgentResizeFrame(t, runtime, 120)
+	width = 48
+	runtime.Resize()
+	assertRuntimeAgentResizeFrame(t, runtime, 48)
+	width = 96
+	runtime.Resize()
+	assertRuntimeAgentResizeFrame(t, runtime, 96)
+
+	got := runtime.Snapshot().AgentStatuses
+	if len(got) != 2 || got[0].ID != "task-1" || got[1].ID != "task-2" ||
+		got[0].State != "working" || got[1].State != "waiting" {
+		t.Fatalf("resize changed task order or state meaning: %+v", got)
+	}
+}
+
+func assertRuntimeAgentResizeFrame(t *testing.T, runtime *Runtime, width int) {
+	t.Helper()
+	// The pacing timer deliberately coalesces ordinary updates; close it here
+	// so each size assertion reads the exact frame the runtime would paint at
+	// the resize boundary without a timing-dependent sleep.
+	runtime.mu.Lock()
+	runtime.flushFrameLocked()
+	frame := runtime.renderer.lastView
+	runtime.mu.Unlock()
+
+	if strings.Contains(frame, "\x1b") || strings.ContainsAny(frame, "\r\x07") {
+		t.Fatalf("hostile task text reached resized frame: %q", frame)
+	}
+	first, second := strings.Index(frame, "agent [1/2] · luna · low · working:"),
+		strings.Index(frame, "agent [2/2] · luna · low · waiting:")
+	if first < 0 || second < 0 || first >= second {
+		t.Fatalf("resized frame lost ordered state rows at width %d:\n%s", width, frame)
+	}
+	for _, line := range strings.Split(frame, "\n") {
+		if cellWidth(line) > width {
+			t.Fatalf("resized frame exceeds %d cells: %q", width, line)
+		}
 	}
 }
 

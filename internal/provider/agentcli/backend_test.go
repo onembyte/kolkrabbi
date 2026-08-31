@@ -159,6 +159,34 @@ func TestClaudeBackendStreamsTextThroughEngineCallback(t *testing.T) {
 	}
 }
 
+func TestClaudeBackendObservedOneShotKeepsProviderToolIdentity(t *testing.T) {
+	backend := ClaudeBackend{
+		run: func(_ context.Context, _ string, _ []string, _ io.Reader, onLine func([]byte) error) error {
+			for _, line := range [][]byte{
+				[]byte(`{"type":"assistant","message":{"content":[{"type":"tool_use","id":"toolu_1","name":"Read","input":{"path":"README.md"}}]}}`),
+				[]byte(`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"README.md: 12 lines"}]}}`),
+				[]byte(`{"type":"result","result":"done","subtype":"success"}`),
+			} {
+				if err := onLine(line); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	}
+	var observed []provider.ProgressEvent
+	if _, _, err := backend.StreamChatObserved(context.Background(), "opus",
+		[]provider.Message{{Role: "user", Content: "read it"}}, nil, nil,
+		func(event provider.ProgressEvent) { observed = append(observed, event) }); err != nil {
+		t.Fatal(err)
+	}
+	if len(observed) < 2 || observed[0].Kind != provider.ProgressToolStarted ||
+		observed[1].Kind != provider.ProgressToolFinished || observed[0].ID != observed[1].ID ||
+		observed[0].Name != "Read" || observed[1].Name != "Read" {
+		t.Fatalf("provider progress = %+v", observed)
+	}
+}
+
 func TestClaudeBackendReusesPersistentSession(t *testing.T) {
 	process := &fakeLineProcess{lines: [][]byte{
 		[]byte(`{"type":"assistant","message":{"model":"opus","content":[{"type":"text","text":"one"}]}}`),
