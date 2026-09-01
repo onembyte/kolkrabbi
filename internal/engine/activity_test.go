@@ -38,6 +38,12 @@ type recordingActivity struct {
 	events *activityEvents
 }
 
+type persistentRecordingActivity struct {
+	*recordingActivity
+}
+
+func (persistentRecordingActivity) KeepActivityDuringOutput() bool { return true }
+
 type blockedTokenBackend struct {
 	token       chan struct{}
 	release     chan struct{}
@@ -98,6 +104,29 @@ func TestActivityStopsBeforeFirstVisibleToken(t *testing.T) {
 	}
 	if eventCount(got, "start:thinking") != 1 || eventCount(got, "stop:thinking") != 1 {
 		t.Fatalf("activity lifecycle was not exactly once: %#v", got)
+	}
+}
+
+func TestPersistentActivityStaysVisibleThroughVisibleTokens(t *testing.T) {
+	srv := enginetest.New(enginetest.Step{Text: "visible answer"})
+	defer srv.Close()
+
+	ag, _, _, _ := newTestAgentInternal(t, srv, ModeCode)
+	events := &activityEvents{}
+	ag.Out = events
+	ag.Activity = persistentRecordingActivity{recordingActivity: &recordingActivity{events: events}}
+	if err := ag.RunTurn(context.Background(), "answer"); err != nil {
+		t.Fatal(err)
+	}
+	got := events.snapshot()
+	start := eventIndex(got, "start:thinking")
+	stop := eventIndex(got, "stop:thinking")
+	content := eventIndexContaining(got, "visible")
+	if start < 0 || content <= start || stop <= content {
+		t.Fatalf("persistent activity/token order = %#v", got)
+	}
+	if eventCount(got, "start:thinking") != 1 || eventCount(got, "stop:thinking") != 1 {
+		t.Fatalf("persistent activity lifecycle was not exactly once: %#v", got)
 	}
 }
 

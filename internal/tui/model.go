@@ -272,17 +272,6 @@ func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 	for _, status := range formatStatus(m.status) {
 		statusLine = append(statusLine, viewRow{text: clipLine(status, width), style: stylePurpleMuted})
 	}
-	// The indicator sits at the right end of the first status row: beside the
-	// state it describes, below the composer, rather than on a row of its own
-	// above it that pushed the whole screen down whenever a turn started.
-	// Multi-line activity, and a terminal too narrow to share the row, keep the
-	// old placement.
-	if len(statusLine) > 0 && len(activity) == 1 &&
-		cellWidth(statusLine[0].text)+cellWidth(activity[0].text)+1 <= width {
-		statusLine[0].right = activity[0].text
-		statusLine[0].rightStyle = stylePurple
-		activity = nil
-	}
 	// Only the window is drawn. The selection may sit anywhere in the full
 	// list; the controller keeps top such that it is inside this slice.
 	first, last := 0, len(m.suggestions)
@@ -324,14 +313,30 @@ func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 	if height > 0 && len(composer) > height {
 		composer = composer[len(composer)-height:]
 	}
-	for height > 0 && len(activity)+len(agentRows)+len(statusLine)+len(composer) > height && len(activity) > 0 {
-		activity = nil
-	}
 	for height > 0 && len(agentRows)+len(statusLine)+len(composer) > height && len(agentRows) > 0 {
 		agentRows = agentRows[1:]
 	}
 	for height > 0 && len(statusLine)+len(composer) > height && len(statusLine) > 0 {
-		statusLine = nil
+		// Keep the first row, which carries the permission tier, mode and
+		// lifecycle state; the secondary session/model row is less urgent than
+		// proving that an active turn is still alive.
+		statusLine = statusLine[:len(statusLine)-1]
+	}
+	for height > 0 && len(activity)+len(composer) > height && len(activity) > 0 {
+		// This is only reachable when the terminal has no row beyond the
+		// composer for the indicator. Preserve input usability in that
+		// impossible-to-share frame; every normal active frame keeps activity.
+		activity = nil
+	}
+	// The indicator sits at the right end of the first status row when it fits:
+	// beside the state it describes, below the composer. If it does not fit
+	// horizontally, it remains its own row, which the height priority above
+	// protects from being crowded out by agent details.
+	if len(statusLine) > 0 && len(activity) == 1 &&
+		cellWidth(statusLine[0].text)+cellWidth(activity[0].text)+1 <= width {
+		statusLine[0].right = activity[0].text
+		statusLine[0].rightStyle = stylePurple
+		activity = nil
 	}
 	if height > 0 {
 		available := max(0, height-len(activity)-len(agentRows)-len(statusLine)-len(composer))

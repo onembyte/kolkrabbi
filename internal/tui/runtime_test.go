@@ -147,6 +147,35 @@ func TestRuntimeToolWorkUsesOnlyTheEphemeralActivityRegion(t *testing.T) {
 	}
 }
 
+// The redraw runtime owns separate transcript and activity regions. Visible
+// answer tokens therefore must not retire the only liveness indicator while
+// the provider call is still open.
+func TestRuntimeKeepsSpinnerWhileVisibleTranscriptStreams(t *testing.T) {
+	runtime := NewRuntime(RuntimeOptions{
+		Output: io.Discard,
+		Status: Status{Mode: "code", Lifecycle: "working"},
+	})
+	clock := newFakeSpinnerClock()
+	runtime.spinClock = clock
+	stop := runtime.Start(context.Background(), "thinking")
+	if got := runtime.Snapshot().Activity; got != activityLine(0, "thinking") {
+		t.Fatalf("initial activity = %q, want %q", got, activityLine(0, "thinking"))
+	}
+	if _, err := runtime.Write([]byte("visible token")); err != nil {
+		t.Fatal(err)
+	}
+	if got := runtime.Snapshot().Activity; got == "" {
+		t.Fatal("visible transcript output retired the active spinner")
+	}
+	timer := nextSpinnerTimer(t, clock, spinnerInterval)
+	timer.fire()
+	waitForActivity(t, runtime, activityLine(1, "thinking"))
+	stop()
+	if got := runtime.Snapshot().Activity; got != "" {
+		t.Fatalf("stopped activity = %q, want empty", got)
+	}
+}
+
 type fakeSpinnerTimer struct {
 	delay time.Duration
 	c     chan time.Time

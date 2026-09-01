@@ -16,22 +16,16 @@ builder; ox-alpha (Kolkrabbi agent) assists as an independent builder/verifier. 
 4. Record evidence (commands + results) under the checkpoint's acceptance section when
    closing it.
 
-## Ownership right now (2026-08-26 05:05)
+## Ownership right now (2026-08-31)
 
-- **No agent is holding a leaf.** No Copilot, Gemini, or Codex process was running at 05:05 and no
-  repository file had been touched for 25 minutes. Claim a leaf here before you start.
-- **Worktree state:** `main` is level with `origin/main` at `031b0847`. Four files carry an
-  uncommitted, tested change — `internal/cli/cli.go`, `cmd_plans.go`, `cmd_plans_test.go`,
-  `tui_repl.go` — which is checkpoint **P11.6** (suspend raw mode around a provider login and
-  restore it afterwards). It is unowned; whoever picks it up should commit it as its own leaf.
-- **`internal/cli/SAGA.md` is untracked and stale** — a real `kolk saga fix all tests` run from
-  inside `internal/cli` at 04:03 left it there. The saga tests use `t.Chdir(t.TempDir())` and do not
-  produce it. Leave it alone unless the owner says otherwise; it is not test output.
-- **Ledger correction (claude, 2026-08-26):** S10.4 was closable and is now closed. The plans,
-  connector, Claude-backend, and managed-local work of 2026-08-26 had shipped with no ledger entry
-  and is now recorded as groups **P11**, **B12**, and **L13** in `CHECKPOINTS.md`. The next open
-  leaves are P11.6, L13.4, L13.5, and the S-series leaf that finally drives the engine saga loop
-  from `kolk saga`.
+- **No production V34 leaf is active.** Codex completed the documentation-only planning record in
+  `PLAN.md`, `CHECKPOINTS.md`, and `docs/plan/34-vision-completion.md`; the next builder must claim
+  exactly one queued V34 leaf before changing production code.
+- **Worktree baseline:** `main` is at `4406cf19` (`release: v1.2.31`) and was clean before the
+  documentation update. Re-check `git status` and recent mtimes before claiming a build leaf.
+- The 2026-08-26 ownership note is historical. Its P11.6/S10/L13 work has since landed; do not use
+  its list of open leaves as the current execution queue. The current forward queue is V34 in
+  `PLAN.md` and `CHECKPOINTS.md`.
 
 ## Project pointers
 

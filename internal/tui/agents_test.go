@@ -2,6 +2,7 @@ package tui
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -33,6 +34,56 @@ func TestRunningAgentsAppearInTheStatus(t *testing.T) {
 func TestNoAgentsShowsNothing(t *testing.T) {
 	if out := strings.Join(statusWith(0), "\n"); strings.Contains(out, "agents") {
 		t.Errorf("a session with no subagents still mentions them:\n%s", out)
+	}
+}
+
+// An active turn must never leave the footer saying "state working" after the
+// layout has discarded the only animated indicator. Agent rows are useful
+// detail, but the spinner is the liveness proof the whole run is still alive.
+func TestWorkingStateKeepsItsSpinnerWhenAgentRowsUseTheHeight(t *testing.T) {
+	m := New(Status{
+		Mode: "agent", Effort: "medium", Approval: "full-auto", Lifecycle: "working",
+	})
+	m.SetActivity(activityLine(0, "working"))
+	for index := 1; index <= 3; index++ {
+		m.SetAgentStatuses(append(m.Snapshot().AgentStatuses, AgentStatus{
+			ID: fmt.Sprintf("task-%d", index), Index: index, Total: 3,
+			Model: "gpt-5.6-luna", Effort: "medium", Summary: "task", State: "working",
+		}))
+	}
+
+	view := m.View(80, 7)
+	if !strings.Contains(view, "working") {
+		t.Fatalf("working state disappeared from the constrained frame:\n%s", view)
+	}
+	if !strings.Contains(view, activityLine(0, "working")) {
+		t.Fatalf("working state has no visible spinner in the constrained frame:\n%s", view)
+	}
+}
+
+func TestWorkingStateAndSpinnerStayConsistentAcrossUsableFrames(t *testing.T) {
+	for _, width := range []int{32, 48, 80, 120, 160} {
+		for height := 4; height <= 14; height++ {
+			t.Run(fmt.Sprintf("%dx%d", width, height), func(t *testing.T) {
+				m := New(Status{
+					Mode: "agent", Effort: "medium", Approval: "full-auto", Lifecycle: "working",
+				})
+				m.SetActivity(activityLine(0, "working"))
+				statuses := make([]AgentStatus, 0, 6)
+				for index := 1; index <= 6; index++ {
+					statuses = append(statuses, AgentStatus{
+						ID: fmt.Sprintf("task-%d", index), Index: index, Total: 6,
+						Model: "gpt-5.6-luna", Effort: "medium", Summary: "task", State: "working",
+					})
+				}
+				m.SetAgentStatuses(statuses)
+
+				view := m.View(width, height)
+				if strings.Contains(view, "state working") && !strings.Contains(view, "working…") {
+					t.Fatalf("working state rendered without its spinner at %dx%d:\n%s", width, height, view)
+				}
+			})
+		}
 	}
 }
 

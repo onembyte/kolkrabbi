@@ -149,6 +149,16 @@ type ActivityIndicator interface {
 	Start(context.Context, string) func()
 }
 
+// PersistentActivityIndicator opts into keeping the activity indicator visible
+// while visible model tokens are being written. Redraw-based surfaces can keep
+// the spinner in their owned status row without interleaving terminal bytes;
+// legacy line renderers must omit this interface so their spinner cannot race
+// streamed text on the same output line.
+type PersistentActivityIndicator interface {
+	ActivityIndicator
+	KeepActivityDuringOutput() bool
+}
+
 // WorkIndicator presents one local tool action independently from provider
 // waiting. Surfaces may render it ephemerally; the engine still writes one
 // durable, human-readable activity line to Out.

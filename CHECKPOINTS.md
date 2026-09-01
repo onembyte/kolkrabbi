@@ -9676,6 +9676,35 @@ put correctness before the surface that displays it, and put permissions before 
 sits after the accounting fix deliberately — a dashboard built on the pre-B12.11 numbers would have
 been confidently wrong.
 
+## Vision completion program — V34
+
+The historical phase queue above is a record of feature delivery. It is not the current proof that
+the product is safe, recoverable, and ready to claim completion. [`docs/plan/34-vision-completion.md`](docs/plan/34-vision-completion.md)
+is the authoritative forward hierarchy; these rows are its execution index. Do not claim a V34 leaf
+until V34.0 has reconciled the exact baseline and the owner has accepted the bounded v1 scope.
+
+| Phase | Sub-checkpoints | Phase exit |
+|---|---|---|
+| V34.0 baseline | V34.0a evidence; V34.0b ledger; V34.0c scope freeze | reproducible definition of shipped vs deferred scope |
+| V34.1 security | V34.1a endpoint credential; b child env; c checkpoint safety; d output/argv/userinfo; e full-auto floor | exploit regression and independent bypass review |
+| V34.2 integrity | V34.2a process close; b session snapshots; c task rewind; d event replay; e cancellation join; f cost reservation | race/cancellation/replay proof and terminal-outcome audit |
+| V34.3 saga | V34.3a lock/stop; b durable state; c clean rollback; d full accounting; e fault injection | isolated stop/resume/rollback failure matrix |
+| V34.4 product truth | V34.4a subscription tier; b Codex catalog; c provider matrix; d local claims | every selector row has supported capability evidence |
+| V34.5 release proof | V34.5a platforms; b clean machine; c reproducible release; d surface docs; e independent audit | stable release candidate and fresh-install transcript |
+| V34.6 closure | V34.6a owner trial; b closure audit; c release decision | honest v1/beta statement with no hidden P0/P1 |
+
+### V34 leaf acceptance and review record
+
+Before a leaf is `[x]`, record its scope/non-goals/invariant, red reproduction, focused green test,
+adversarial failure-path test, independent reviewer plus rerun command, repository-gate result, and
+documentation walk-back. Concurrency leaves require `-race` and bounded cancellation; security
+leaves require a concrete bypass attempt; persistence/saga leaves require fault injection or restart
+evidence; release leaves require a clean-environment transcript. The builder and independent reviewer
+must be different people or agents.
+
+All V34 leaves are queued. The existing historical “Active group” convention remains in force: claim
+one leaf, name its owner, and do not begin another implementation leaf until its evidence is recorded.
+
 ## Migration queue — one checkpoint group at a time
 
 These are intentionally coarse until they become active; their detailed red/green checklist is

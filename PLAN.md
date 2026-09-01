@@ -240,6 +240,29 @@ its prior-art section in docs/research/opencode.md, and the hardened doc it amen
 docs/plan/README.md; tick the item with a one-line decision. Stop when all three are hardened.
 ```
 
+### Phase K — vision completion and release truth · item 34
+
+Added 2026-08-31 after a fresh architecture, security, lifecycle, subscription-routing, and release
+review. The historical phase table records how features landed; it is **not** a statement that their
+failure paths are ready to ship. This phase is the single forward queue for turning the product
+vision into a supportable release: contain security boundaries first, then make concurrent and saga
+work recoverable, then make catalog/provider claims true, then prove the release on clean machines.
+
+“100%” means every accepted v1 promise has an implementation, test evidence, independent review,
+and release evidence; it does not mean silently treating every possible future provider, desktop
+client, or OS sandbox as committed scope. Such work must be explicitly accepted or recorded as
+post-v1 before the release claim is made.
+
+**Exit:** every V34 checkpoint in [`docs/plan/34-vision-completion.md`](docs/plan/34-vision-completion.md)
+is closed or explicitly owner-deferred, no acknowledged P0/P1 defect remains in accepted scope, and
+a clean-machine release rehearsal plus an independent final review has passed.
+
+```
+/loop build phase K of PLAN.md: claim exactly one V34 leaf from CHECKPOINTS.md; write its red,
+green, failure-path, and independent-review evidence before marking it complete. Do not start the
+next leaf until the current leaf's focused gate, review, and ledger walk-back are recorded.
+```
+
 ## 0. Ground truth — what exists today (verified 2026-08-21)
 
 Extracted from `kolkrabbi.tar` into this directory. Go 1.22 module `kolkrabbi` (built here with
@@ -789,6 +812,19 @@ prompt copy are fixed, and the interaction with item 13's blocklist is stated.
 **Today:** four slots and six kinds exist and are configurable; nothing fills the slots, nothing knows about subscriptions, and the fast lane bills paid sessions for mechanical work.
 **Hardened when:** done — the doc records the decisions and A33.1–A33.8 are the build.
 **Inputs:** `internal/engine/route.go`, `internal/engine/orchestrator.go`, `internal/engine/fastlane.go`, `protocol/events.go`
+
+### [~] 34. Vision completion, independent review, and release truth
+**Started 2026-08-31** ([`docs/plan/34-vision-completion.md`](docs/plan/34-vision-completion.md)):
+the project now has one forward completion program rather than a mixture of historical phase rows,
+open-ended provider ideas, and audit findings. It prioritizes credential and filesystem safety,
+concurrency and saga integrity, subscription/model truth, and reproducible release evidence.
+**Scope:** define the accepted v1 finish line and the only order in which remaining work may claim
+to close it.
+**Hardened when:** no — this remains active until the owner accepts the bounded v1 scope, every V34
+leaf is closed or deliberately deferred, and the final independent review and clean-machine trial
+have evidence.
+**Inputs:** `CHECKPOINTS.md`, `docs/plan/10-saga-loop.md`, `docs/plan/21-quality-testing-security.md`,
+the 2026-08-31 architecture/security/routing/release review.
 
 ### [x] 32. Shadow-git snapshots — checkpoint what `bash` did too
 **Hardened 2026-08-27** ([`docs/plan/32-shadow-git-snapshots.md`](docs/plan/32-shadow-git-snapshots.md)): `/undo` restores what kolk's own file tools changed and nothing else, and the README admitting it is honest rather than a fix — the user's model is "kolk changed my files, kolk can put them back", and the carve-out is exactly where a destructive turn lands. Both stores are adopted, not "probably both": the copy store is the only one that works outside a repository or without `git`, and the shadow store is the only one that sees what `bash` did. Measured on this repository rather than guessed — 544 files, a 222 MB `.git` — the first snapshot costs 63 ms, every later one 15 ms, and the store is 148 KB because `objects/info/alternates` reuses the project's blobs instead of rehashing them. Two properties were verified rather than assumed: a `sed -i` made outside kolk shows up in the shadow store, and the user's own `git status` stayed byte-identical throughout, with no index entry, stash or reflog motion. No git version is checked — a version comparison is a guess made once and never revisited, so the probe is the operation itself and any failure falls back to copying for the rest of the session. Cadence is per turn, matching what `/undo` and `/rewind` already mean and what the port's `BeginTurn` already provides. Retention is the session's life, deletion goes with the session, size is reported in `kolk sessions`, and there is no background `git gc` — a daemon collecting garbage a user cannot see is the kind of surprise this project refuses elsewhere. The store is never exposed as a branch or through `/diff --since`: exposing it would make a storage strategy an interface, and there is no branch to offer in a directory that is not a repository. Nothing migrates: existing sessions keep rewinding from their `.bak` files, and the manifest records which strategy captured each turn.

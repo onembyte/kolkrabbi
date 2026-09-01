@@ -59,10 +59,14 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 
 	streamToken := onToken
 	// A visible token replaces the spinner, so retire it immediately before
-	// drawing that token. Parallel subagents write into private buffers: their
-	// tokens replace nothing on screen, and stopping here would leave the user
-	// staring at a frozen row while the provider was still working.
-	if onToken != nil && tokensVisible {
+	// drawing that token for line-oriented renderers. A redraw-based surface can
+	// keep the indicator in its owned status row while appending the token to a
+	// different region, so it opts into the persistent path explicitly.
+	keepActivity := false
+	if persistent, ok := a.Activity.(PersistentActivityIndicator); ok {
+		keepActivity = persistent.KeepActivityDuringOutput()
+	}
+	if onToken != nil && tokensVisible && !keepActivity {
 		streamToken = func(token string) {
 			stop()
 			onToken(token)

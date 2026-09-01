@@ -343,6 +343,13 @@ func (r *Runtime) StartWork(ctx context.Context, _ string) func() {
 	return r.startActivity(ctx, "working")
 }
 
+// KeepActivityDuringOutput tells the engine that streamed tokens are appended
+// to a separate transcript region. The spinner therefore remains meaningful
+// during a long answer and is retired only when the provider boundary ends.
+// This is deliberately an explicit capability: a line renderer sharing one
+// cursor line with model output must keep the old stop-before-token behavior.
+func (r *Runtime) KeepActivityDuringOutput() bool { return true }
+
 // activityEntry is one in-flight piece of work. The phase is kept so that when
 // the newest finishes the row can fall back to what is still running instead of
 // going blank.
