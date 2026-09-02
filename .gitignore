@@ -47,3 +47,37 @@ docs/research/
 
 # Session state a test wrote through an unset app.dirs: never source.
 internal/cli/sessions/
+
+# Go tooling output. Coverage and profile files are written into whatever
+# directory the command ran in, which is usually a package directory inside
+# internal/ — `go test -coverprofile` and `go test -cpuprofile` both do it, and
+# the F5 efficiency work produces them by the handful.
+*.out
+*.prof
+*.pprof
+*.mem
+
+# Patch and merge leftovers. `git add -A` after a conflict is how a .orig file
+# gets committed, and it is never wanted.
+*.orig
+*.rej
+
+# Editor scratch and OS metadata. .DS_Store matters here: this project ships
+# macOS builds, so a maintainer on a Mac creates them by opening a folder.
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.#*
+\#*#
+
+# Coding-agent local state. This repository is built by more than one agent at
+# a time (AGENTS.md), and each keeps machine-local settings — permissions
+# granted on this machine, local overrides — that are nobody else's business.
+# Shared agent definitions are NOT ignored: only the files whose names say they
+# are local.
+.claude/settings.local.json
+.claude/*.local.json
+.cursor/
+.aider*
