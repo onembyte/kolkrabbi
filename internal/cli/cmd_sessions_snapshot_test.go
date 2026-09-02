@@ -105,8 +105,10 @@ func TestSessionsWarnsAboutASharedCheckout(t *testing.T) {
 	}
 	dir := d.Sessions()
 
-	// Two sessions in one directory, both held, so both are live.
+	// Two sessions in one directory, both held, so both are live. The listing
+	// is scoped to the folder you are standing in, so stand in theirs.
 	shared := t.TempDir()
+	t.Chdir(shared)
 	for _, id := range []string{"first", "second"} {
 		sess := session.New(dir, "test/model")
 		sess.CWD = shared

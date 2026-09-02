@@ -12,7 +12,6 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/bus"
 	"github.com/onembyte/kolkrabbi/internal/devices"
 	"github.com/onembyte/kolkrabbi/internal/serve"
-	"github.com/onembyte/kolkrabbi/internal/xid"
 )
 
 func (a *app) runServe(ctx context.Context, args []string) error {
@@ -23,12 +22,23 @@ func (a *app) runServe(ctx context.Context, args []string) error {
 	token := fs.String("token", os.Getenv("KOLK_AUTH_TOKEN"), "bearer auth token (or KOLK_AUTH_TOKEN env)")
 	stdio := fs.Bool("stdio", false, "run as stdio event stream instead of HTTP server")
 	pair := fs.Bool("pair", false, "open a two-minute window for a new device to pair")
+	serveSession := fs.String("session", "", "serve this saved session instead of asking")
+	serveNew := fs.Bool("new", false, "serve a new session without asking")
 
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
-	sessionID := xid.New(xid.Session)
+	// Which conversation the server hosts is asked before anything binds: a
+	// listener opened first would have to be closed again on a refused answer.
+	dirs, err := a.resolve()
+	if err != nil {
+		return err
+	}
+	sessionID, err := a.pickServedSession(dirs.Sessions(), *serveSession, *serveNew)
+	if err != nil {
+		return err
+	}
 	b, err := bus.New(sessionID, bus.Options{})
 	if err != nil {
 		return fmt.Errorf("initializing event bus: %w", err)
@@ -39,11 +49,7 @@ func (a *app) runServe(ctx context.Context, args []string) error {
 		return serve.ServeStdio(ctx, os.Stdin, a.stdout, b)
 	}
 
-	d, err := a.resolve()
-	if err != nil {
-		return err
-	}
-	deviceFile := d.DevicesFile()
+	deviceFile := dirs.DevicesFile()
 	deviceStore, err := devices.Load(deviceFile)
 	if err != nil {
 		return fmt.Errorf("reading paired devices: %w", err)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -20,6 +21,19 @@ func (a *app) runSessions(_ context.Context, args []string) error {
 	}
 	sdir := d.Sessions()
 
+	// --all widens every listing back to the machine. It is accepted anywhere
+	// in the arguments because it is a modifier, not a subcommand.
+	everywhere := false
+	filtered := args[:0:0]
+	for _, arg := range args {
+		if arg == "--all" {
+			everywhere = true
+			continue
+		}
+		filtered = append(filtered, arg)
+	}
+	args = filtered
+
 	if len(args) > 0 {
 		switch args[0] {
 		case "rm":
@@ -35,7 +49,7 @@ func (a *app) runSessions(_ context.Context, args []string) error {
 			if len(args) < 2 {
 				return usagef("usage: kolk sessions search <text>")
 			}
-			return a.searchSessions(sdir, strings.Join(args[1:], " "))
+			return a.searchSessions(sdir, strings.Join(args[1:], " "), everywhere)
 		case "rename":
 			if len(args) < 3 {
 				return usagef("usage: kolk sessions rename <id> <title>")
@@ -71,6 +85,13 @@ func (a *app) runSessions(_ context.Context, args []string) error {
 		fmt.Fprintln(a.stdout, "no sessions yet.")
 		return nil
 	}
+	all, elsewhere := scopeSessionsToFolder(all, everywhere)
+	if len(all) == 0 {
+		here, _ := os.Getwd()
+		fmt.Fprintf(a.stdout, "no sessions started in %s.\n", here)
+		reportSessionsElsewhere(a.stdout, elsewhere)
+		return nil
+	}
 	wanted := make(map[string]bool, len(all))
 	for _, s := range all {
 		wanted[s.ID] = true
@@ -89,17 +110,83 @@ func (a *app) runSessions(_ context.Context, args []string) error {
 	}
 	a.reportBlockedSessions(sdir)
 	a.warnAboutSharedCheckouts(sdir)
+	reportSessionsElsewhere(a.stdout, elsewhere)
 	fmt.Fprintln(a.stdout, "\nresume the latest with `kolk -r`, or a specific one with `kolk -s <id>`")
 	return nil
 }
 
+// scopeSessionsToFolder keeps the sessions that belong to where you are
+// standing: started in this directory, or anywhere beneath it.
+//
+// `kolk sessions` is the command you run to decide which conversation to open,
+// and the answer is almost always one from this project. A global list makes
+// the useful rows harder to find on a machine that has been used for a while,
+// so the folder is the default and `--all` is the way to see everything.
+//
+// A session written before Session.CWD existed has no directory and cannot be
+// attributed to one. Those are counted rather than shown, and named in a line
+// that says how to see them: hiding them silently would lose them.
+func scopeSessionsToFolder(all []*session.Session, everywhere bool) (kept []*session.Session, elsewhere int) {
+	if everywhere {
+		return all, 0
+	}
+	here, err := os.Getwd()
+	if err != nil {
+		// Without a working directory there is no folder to scope to, and a
+		// list that silently showed nothing would be worse than a wide one.
+		return all, 0
+	}
+	if resolved, err := filepath.EvalSymlinks(here); err == nil {
+		here = resolved
+	}
+	for _, candidate := range all {
+		if sessionIsUnder(candidate.CWD, here) {
+			kept = append(kept, candidate)
+			continue
+		}
+		elsewhere++
+	}
+	return kept, elsewhere
+}
+
+// sessionIsUnder reports whether a session's directory is this one or inside
+// it. Comparison is on cleaned, symlink-resolved paths and on whole path
+// segments, so /repo does not match /repo-two.
+func sessionIsUnder(cwd, root string) bool {
+	if strings.TrimSpace(cwd) == "" {
+		return false
+	}
+	if resolved, err := filepath.EvalSymlinks(cwd); err == nil {
+		cwd = resolved
+	}
+	cwd = filepath.Clean(cwd)
+	root = filepath.Clean(root)
+	if cwd == root {
+		return true
+	}
+	relative, err := filepath.Rel(root, cwd)
+	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
+}
+
+func reportSessionsElsewhere(out io.Writer, elsewhere int) {
+	if elsewhere == 0 {
+		return
+	}
+	noun := "sessions"
+	if elsewhere == 1 {
+		noun = "session"
+	}
+	fmt.Fprintf(out, "\n%d %s started in other folders (or before kolk recorded one) — `kolk sessions --all` lists every one\n", elsewhere, noun)
+}
+
 // searchSessions matches a phrase against titles and message content, which is
 // how a session is actually remembered: by what was said in it, not by its id.
-func (a *app) searchSessions(dir, phrase string) error {
+func (a *app) searchSessions(dir, phrase string, everywhere bool) error {
 	all, err := session.List(dir)
 	if err != nil {
 		return err
 	}
+	all, elsewhere := scopeSessionsToFolder(all, everywhere)
 	needle := strings.ToLower(strings.TrimSpace(phrase))
 	matched := 0
 	for _, candidate := range all {
@@ -114,6 +201,7 @@ func (a *app) searchSessions(dir, phrase string) error {
 	if matched == 0 {
 		fmt.Fprintf(a.stdout, "no session matches %q\n", phrase)
 	}
+	reportSessionsElsewhere(a.stdout, elsewhere)
 	return nil
 }
 

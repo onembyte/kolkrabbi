@@ -315,8 +315,6 @@ func (a *app) runHelp(_ context.Context, args []string) error {
 	return nil
 }
 
-// usageLine renders a command's argument grammar from the table, so a "usage:"
-// message can never drift from what dispatch actually accepts.
 // usageLine is the usage a command prints when it is used wrongly, generated
 // from the registry the command actually lives in.
 //
@@ -336,21 +334,57 @@ func usageLine(name string) string {
 	return "usage: /" + name
 }
 
+// printUsage is the front door.
+//
+// `kolk help` is the one command someone runs before they know anything, and
+// since 2026-09-02 it has a second job: the session is where the commands are,
+// so help has to say that plainly or a new user will look for `kolk model` and
+// conclude it was removed rather than moved. It prints what Kolkrabbi is, the
+// build and licence, both surfaces in full, the flags, and where its state
+// lives.
 func (a *app) printUsage() {
-	fmt.Fprint(a.stdout, `kolk — chat / code / agent in one CLI, any model, any provider
+	build := buildinfo.Get()
+	fmt.Fprintf(a.stdout, `kolk — chat, code, and ordered agents in one terminal, on any model
 
-Usage:
-  kolk                          interactive session (mode: code)
-  kolk "do the thing"           single-shot: one turn, then exit
-  kolk <command> [args]
+  Kolkrabbi runs a conversation that can read and write files, run commands,
+  and split a long job into ordered tasks. It works against OpenRouter, any
+  OpenAI-compatible endpoint, a Claude or Codex subscription through its own
+  CLI, or a model on this machine. Every call is logged locally so you can see
+  what each model costs and how well it did; nothing is sent anywhere else.
 
-Commands:
-`)
+  version %s (%s)   ·   Apache-2.0   ·   https://github.com/onembyte/kolkrabbi
+
+Open a session — this is the normal way in:
+  kolk                          a session, in code mode
+  kolk "do the thing"           one turn, then exit
+  kolk -r                       reopen the most recent session
+  kolk --mode chat              start in another mode
+
+Inside the session, everything is a /command:
+`, build.Version, build.Go)
+
 	w := tabwriter.NewWriter(a.stdout, 0, 0, 2, ' ', 0)
-	for _, c := range commandTable() {
-		fmt.Fprintf(w, "  %s\t%s\n", c.name, c.summary)
+	for _, c := range slashCommandTable {
+		usage := "/" + c.name
+		if c.args != "" {
+			usage += " " + c.args
+		}
+		fmt.Fprintf(w, "  %s\t%s\n", usage, c.summary)
 	}
 	_ = w.Flush() // a failed write to a terminal is not actionable
+
+	fmt.Fprint(a.stdout, `
+Outside a session there are four commands and no more, because only these are
+things a session cannot do:
+`)
+	// Name and summary only: `kolk sessions` grammar is long enough to push
+	// every summary off the right edge, and `kolk help <command>` is where a
+	// grammar belongs.
+	w = tabwriter.NewWriter(a.stdout, 0, 0, 2, ' ', 0)
+	for _, c := range commandTable() {
+		fmt.Fprintf(w, "  kolk %s\t%s\n", c.name, c.summary)
+	}
+	_ = w.Flush()
 
 	fmt.Fprint(a.stdout, "\nFlags:\n")
 	w = tabwriter.NewWriter(a.stdout, 0, 0, 2, ' ', 0)
@@ -361,21 +395,34 @@ Commands:
 		}
 		fmt.Fprintf(w, "  %s\t%s\n", strings.TrimSpace(name+" "+f.arg), f.summary)
 	}
-	_ = w.Flush() // a failed write to a terminal is not actionable
+	_ = w.Flush()
 
 	fmt.Fprint(a.stdout, `
-Run 'kolk help <command>' for a command's arguments.
+What it can do:
+  three modes        /mode chat (no tools) · code (the tool loop) · agent
+                     (plans tasks, routes each to a model, runs them, answers once)
+  an effort dial     /effort low|medium|high|max picks the model tier, the tool-round
+                     limit, the shell timeout, and how wide an agent run may go
+  any provider       OpenRouter, any OpenAI-compatible URL (Ollama, LiteLLM, vLLM),
+                     a Claude or Codex subscription through its own CLI, or local Ollama
+  your money's rules a model you pick is a ceiling: an orchestrated run may route to
+                     something cheaper, never to something dearer
+  permission tiers   /permissions ask · auto-approve · full-auto — and a floor no tier
+                     removes: credential files, system paths, sudo, curl-into-shell
+  local accounting   every call's tokens, cost and latency in ~/.config/kolk/stats.jsonl;
+                     /rate 1-5 adds your judgement, /stats and /dash read it back
+  checkpoints        /diff, /changes, /undo and /rewind take back what a turn wrote
+  careful progression append /saga to a request to work it in committed chapters
+  project memory     KOLKRABBI.md or AGENTS.md in the working directory joins the prompt
 
 Env:
   OPENROUTER_API_KEY            overrides the stored OpenRouter key
   OPENROUTER_BASE_URL           overrides the saved base URL
+  KOLK_CONFIG_DIR / _DATA_DIR / _CACHE_DIR
+                                override where settings, sessions and caches live
 
-Effort tiers map effort levels to models (quick→cheap, deep→frontier).
-Unset tiers fall back to the session model, so zero config always works.
-In agent mode, effort also scales orchestration width.
-
-Project memory: KOLKRABBI.md or AGENTS.md in the working directory is added to
-the system prompt (like CLAUDE.md in Claude Code).
+Run 'kolk help <command>' for one of the four commands above; inside a session,
+/help lists every command with its arguments.
 `)
 }
 

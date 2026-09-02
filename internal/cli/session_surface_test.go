@@ -64,3 +64,48 @@ func TestEveryHandledCommandIsAdvertised(t *testing.T) {
 		}
 	}
 }
+
+// `kolk help` is the front door: it says what Kolkrabbi is, which build and
+// licence, both surfaces in full, and what it can do — because it is the one
+// command someone runs before they know anything.
+func TestHelpIsTheFrontDoor(t *testing.T) {
+	a, out, _ := newTestApp(t, "")
+	if code := a.main(context.Background(), []string{"help"}); code != ExitOK {
+		t.Fatalf("kolk help exit = %d", code)
+	}
+	got := out.String()
+	for _, want := range []string{
+		"chat, code, and ordered agents", // what it is
+		"Apache-2.0",                     // licence
+		"version ",                       // build
+		"Open a session",                 // the normal way in
+		"kolk -r",                        // resume
+		"Inside the session, everything is a /command", // where the commands are
+		"Outside a session there are four commands and no more",
+		"What it can do:",
+		"three modes", "an effort dial", "any provider", "permission tiers",
+		"local accounting", "checkpoints", "project memory",
+		"OPENROUTER_API_KEY", "KOLK_CONFIG_DIR",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("kolk help does not mention %q", want)
+		}
+	}
+	// Both registries in full, so nothing is discoverable only by reading source.
+	for _, sc := range slashCommandTable {
+		if !strings.Contains(got, "/"+sc.name) {
+			t.Errorf("kolk help omits the in-session command /%s", sc.name)
+		}
+	}
+	for _, c := range commandTable() {
+		if !strings.Contains(got, "kolk "+c.name) {
+			t.Errorf("kolk help omits the outside-session command %q", c.name)
+		}
+	}
+	// And it never advertises a verb that was retired.
+	for _, gone := range []string{"kolk config", "kolk key", "kolk stats", "kolk completion"} {
+		if strings.Contains(got, gone) {
+			t.Errorf("kolk help still advertises %q", gone)
+		}
+	}
+}

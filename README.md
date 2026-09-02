@@ -142,11 +142,17 @@ kolk --base-url http://localhost:11434/v1 -m qwen2.5-coder:14b "..."  # Ollama �
 Outside a session, there are four commands and no more:
 
 ```bash
-kolk sessions                      # this folder's saved conversations: search / fork / export / rm
-kolk serve --addr 127.0.0.1:7777   # host a session for a client
+kolk sessions                      # this folder's saved conversations (--all for the machine)
+kolk sessions search <text>        # …and search, rename, fork, export or rm one
+kolk serve --addr 127.0.0.1:7777   # host a session for a client — it asks which one, or start a new one
 kolk uninstall                     # remove kolk and everything it stored
 kolk help                          # what kolk is, and every command in and out of a session
 ```
+
+`kolk sessions` lists the conversations started in this folder or below it, because
+that is the question you are asking when you run it; `--all` widens it back to the
+machine. `kolk serve` asks which saved session to host before it binds anything —
+`--session <id>` or `--new` answer it up front, and a piped stdin is never blocked.
 
 Everything else is in-session: `/key`, `/model`, `/config`, `/stats`, `/dash`,
 `/localia`, `/plans`, `/pmodels`, `/update`, `/doctor`, `/devices`, `/version`,

@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -267,5 +268,81 @@ func TestStatsIsSilentWhenNothingWasSkipped(t *testing.T) {
 	}
 	if strings.Contains(out.String(), "incomplete") {
 		t.Fatalf("output = %q, want no warning when nothing was lost", out.String())
+	}
+}
+
+// `kolk sessions` answers "which conversation here do I want to open", so it
+// lists this folder's sessions — started here or anywhere beneath — and says
+// how many it left out rather than hiding them.
+func TestSessionsListsThisFoldersSessions(t *testing.T) {
+	a, out, _ := newTestApp(t, "")
+	d, err := a.resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := d.Sessions()
+
+	here := t.TempDir()
+	nested := filepath.Join(here, "internal", "cli")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	elsewhere := t.TempDir()
+	for _, tc := range []struct{ title, cwd string }{
+		{"in this folder", here},
+		{"in a subfolder", nested},
+		{"somewhere else", elsewhere},
+		{"before cwd was recorded", ""},
+	} {
+		sess := session.New(dir, "test/model")
+		sess.CWD = tc.cwd
+		sess.Title = tc.title
+		if err := sess.Save(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Chdir(here)
+
+	if err := a.runSessions(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{"in this folder", "in a subfolder"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("listing omitted %q:\n%s", want, got)
+		}
+	}
+	for _, unwanted := range []string{"somewhere else", "before cwd was recorded"} {
+		if strings.Contains(got, unwanted) {
+			t.Fatalf("listing showed %q from outside this folder:\n%s", unwanted, got)
+		}
+	}
+	if !strings.Contains(got, "2 sessions started in other folders") || !strings.Contains(got, "--all") {
+		t.Fatalf("listing did not account for what it left out:\n%s", got)
+	}
+
+	// --all is the way back to the machine-wide list.
+	out.Reset()
+	if err := a.runSessions(context.Background(), []string{"--all"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"in this folder", "somewhere else", "before cwd was recorded"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("--all omitted %q:\n%s", want, out.String())
+		}
+	}
+
+	// A neighbouring folder is not this one: /repo must not match /repo-two.
+	sibling := here + "-two"
+	if err := os.MkdirAll(sibling, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(sibling)
+	out.Reset()
+	if err := a.runSessions(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), "in this folder") {
+		t.Fatalf("a folder with a shared prefix matched:\n%s", out.String())
 	}
 }
