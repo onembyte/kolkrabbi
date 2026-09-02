@@ -18,7 +18,7 @@ type SubagentCapabilities struct {
 	Provider       string
 }
 
-// SubagentBackend opens a provider for one task.
+// SubagentBackend opens a provider for one task, inside a declared envelope.
 //
 // A subagent that shares the session's backend shares everything the backend
 // owns: one vendor process, one conversation, one mutex. Several tasks then
@@ -33,12 +33,14 @@ type SubagentCapabilities struct {
 // mode is always code — never the session's own. A subagent asked to run agent
 // mode would be a vendor orchestrating, which is the thing kolk's bus cannot
 // represent.
-type SubagentBackend func(ctx context.Context, model, mode, effort string) (ChatBackend, error)
-
-// SubagentBackendWithCapabilities is the capability-aware form of
-// SubagentBackend. It is separate so existing embedders and test doubles keep
-// compiling while hosts migrate to an explicit child-process envelope.
-type SubagentBackendWithCapabilities func(ctx context.Context, model, mode, effort string, capabilities SubagentCapabilities) (ChatBackend, error)
+//
+// There used to be a second, simpler port that took no capabilities, and
+// openSubagentBackend silently preferred it when a host set only that one. A
+// host reaching for the simpler name got a child with no workspace
+// confinement and no network declaration, and nothing said so — not the
+// compiler, not a test. A port that cannot carry the envelope cannot be
+// confined, so there is one port and it carries it.
+type SubagentBackend func(ctx context.Context, model, mode, effort string, capabilities SubagentCapabilities) (ChatBackend, error)
 
 // Subagent network policy. A delegated child either reaches the network or
 // it does not, and the briefing, the status line, and the vendor flag must
@@ -138,7 +140,7 @@ func subagentCapabilitySummary(capabilities SubagentCapabilities) string {
 
 func (a *Agent) subagentOpeningStep(model string, capabilities SubagentCapabilities) string {
 	step := "opening " + model
-	if a.SubagentBackendWithCapabilities != nil {
+	if a.SubagentBackend != nil {
 		step += "; " + subagentCapabilitySummary(capabilities)
 	}
 	return step
@@ -151,32 +153,19 @@ func (a *Agent) subagentOpeningStep(model string, capabilities SubagentCapabilit
 // Closer, and a failed open all return one that does nothing. That matters
 // because the caller defers it before it can know which case it got.
 func (a *Agent) openSubagentBackend(ctx context.Context, model, effort string, kind Kind) (ChatBackend, func(), error) {
-	if a.SubagentBackendWithCapabilities != nil {
-		capabilities := a.subagentCapabilities(kind, model)
-		if strings.TrimSpace(capabilities.Workspace) == "" || !filepath.IsAbs(capabilities.Workspace) {
-			return nil, func() {}, fmt.Errorf("subagent workspace is not a verified absolute directory")
-		}
-		backend, err := a.SubagentBackendWithCapabilities(ctx, model, ModeCode, effort, capabilities)
-		if err != nil {
-			return nil, func() {}, err
-		}
-		owned, release := releaseSubagentBackend(backend)
-		return owned, release, nil
-	}
 	if a.SubagentBackend == nil {
 		return nil, func() {}, nil
 	}
-	backend, err := a.SubagentBackend(ctx, model, ModeCode, effort)
+	capabilities := a.subagentCapabilities(kind, model)
+	if strings.TrimSpace(capabilities.Workspace) == "" || !filepath.IsAbs(capabilities.Workspace) {
+		return nil, func() {}, fmt.Errorf("subagent workspace is not a verified absolute directory")
+	}
+	backend, err := a.SubagentBackend(ctx, model, ModeCode, effort, capabilities)
 	if err != nil {
 		return nil, func() {}, err
 	}
-	// ChatBackend declares StreamChat and nothing else, so teardown is found
-	// rather than required — the same assertion Agent.Close already makes.
-	closer, ok := backend.(io.Closer)
-	if !ok {
-		return backend, func() {}, nil
-	}
-	return backend, func() { _ = closer.Close() }, nil
+	owned, release := releaseSubagentBackend(backend)
+	return owned, release, nil
 }
 
 func releaseSubagentBackend(backend ChatBackend) (ChatBackend, func()) {

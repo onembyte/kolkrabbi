@@ -99,7 +99,8 @@ func TestEachSubagentBackendReceivesTheTaskEffort(t *testing.T) {
 
 	var mu sync.Mutex
 	got := make(map[string]string)
-	agent.SubagentBackend = func(_ context.Context, model, mode, effort string) (ChatBackend, error) {
+	agent.Root = t.TempDir()
+	agent.SubagentBackend = func(_ context.Context, model, mode, effort string, _ SubagentCapabilities) (ChatBackend, error) {
 		if mode != ModeCode {
 			t.Errorf("backend mode = %q, want %q", mode, ModeCode)
 		}

@@ -30,7 +30,7 @@ func TestOpeningACheaperRungDoesNotGoThroughThePlanCatalogue(t *testing.T) {
 	signIn(t, dirs)
 
 	for _, rung := range engine.LadderRungIDs("claude") {
-		backend, err := a.subagentBackend()(context.Background(), rung, "code", "medium")
+		backend, err := a.subagentBackend()(context.Background(), rung, "code", "medium", engine.SubagentCapabilities{Workspace: t.TempDir(), NetworkAccess: true})
 		if err != nil {
 			t.Fatalf("opening %s failed: %v", rung, err)
 		}
@@ -49,7 +49,7 @@ func TestHardCodexSubagentTranslatesCanonicalMaxToXHigh(t *testing.T) {
 	a.dirs = dirs
 	signInAs(t, dirs, "openai", "ChatGPT Pro", "codex")
 
-	backend, err := a.subagentBackend()(context.Background(), "gpt-5.6-luna", "code", engine.EffortMax)
+	backend, err := a.subagentBackend()(context.Background(), "gpt-5.6-luna", "code", engine.EffortMax, engine.SubagentCapabilities{Workspace: t.TempDir(), NetworkAccess: true})
 	if err != nil {
 		t.Fatalf("open hard codex subagent: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestCapabilityAwareSubagentFactoryRequiresAWorkspaceAndBuildsWithinIt(t *te
 	a, _, _ := newTestApp(t, "")
 	a.dirs = dirs
 	signInAs(t, dirs, "openai", "ChatGPT Pro", "codex")
-	open := a.subagentBackendWithCapabilities()
+	open := a.subagentBackend()
 
 	if _, err := open(context.Background(), "gpt-5.6-luna", "code", "medium", engine.SubagentCapabilities{NetworkAccess: true, Workspace: "relative"}); err == nil {
 		t.Fatal("capability-aware factory accepted an unverified relative workspace")
@@ -95,7 +95,7 @@ func TestASubagentProviderNeedsItsVendorSignedIn(t *testing.T) {
 	a, _, _ := newTestApp(t, "")
 	a.dirs = dirs
 
-	if _, err := a.subagentBackend()(context.Background(), "claude-haiku", "code", "medium"); err == nil {
+	if _, err := a.subagentBackend()(context.Background(), "claude-haiku", "code", "medium", engine.SubagentCapabilities{Workspace: t.TempDir(), NetworkAccess: true}); err == nil {
 		t.Error("a rung was opened with no connector signed in")
 	}
 }
@@ -112,7 +112,7 @@ func TestASubagentProviderRequiresMatchingProviderIdentity(t *testing.T) {
 
 	open := a.subagentBackend()
 	for _, model := range []string{"claude-haiku", "gpt-5.6-sol"} {
-		backend, err := open(context.Background(), model, "code", "medium")
+		backend, err := open(context.Background(), model, "code", "medium", engine.SubagentCapabilities{Workspace: t.TempDir(), NetworkAccess: true})
 		if closer, ok := backend.(io.Closer); ok {
 			_ = closer.Close()
 		}
@@ -131,7 +131,7 @@ func TestAGatewayModelIsLeftToTheSessionProvider(t *testing.T) {
 	a.dirs = dirs
 	signIn(t, dirs)
 
-	backend, err := a.subagentBackend()(context.Background(), "openrouter/free", "code", "medium")
+	backend, err := a.subagentBackend()(context.Background(), "openrouter/free", "code", "medium", engine.SubagentCapabilities{Workspace: t.TempDir(), NetworkAccess: true})
 	if err != nil {
 		t.Fatalf("a gateway model produced an error: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestEverySpawnableRungIsAModelItsAdapterAccepts(t *testing.T) {
 	open := a.subagentBackend()
 	rungs := append(engine.LadderRungIDs("claude"), engine.LadderRungIDs("codex")...)
 	for _, id := range rungs {
-		backend, err := open(context.Background(), id, "code", "medium")
+		backend, err := open(context.Background(), id, "code", "medium", engine.SubagentCapabilities{Workspace: t.TempDir(), NetworkAccess: true})
 		if err != nil {
 			t.Errorf("rung %q is on the ladder but cannot be opened: %v", id, err)
 			continue

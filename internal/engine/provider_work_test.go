@@ -182,7 +182,8 @@ func TestObservedProviderBoundariesAdvanceOnlyTheirOwningSubagent(t *testing.T) 
 	}, text: "second done"}
 	a := &Agent{Options: Options{
 		Mode: ModeAgent, Out: io.Discard, Permission: PermissionFullAuto,
-		SubagentBackend: func(_ context.Context, model, _ string, _ string) (ChatBackend, error) {
+		Root: t.TempDir(),
+		SubagentBackend: func(_ context.Context, model, _ string, _ string, _ SubagentCapabilities) (ChatBackend, error) {
 			switch model {
 			case "provider/first":
 				return first, nil
@@ -303,7 +304,8 @@ func TestObservedProviderRetryGetsOneWorkStepPerPhysicalAttempt(t *testing.T) {
 func TestFailedSubagentEmitsOneTerminalWorkAndFinishedEvent(t *testing.T) {
 	a := &Agent{Options: Options{
 		Mode: ModeAgent, Out: io.Discard, Permission: PermissionFullAuto,
-		SubagentBackend: func(context.Context, string, string, string) (ChatBackend, error) {
+		Root: t.TempDir(),
+		SubagentBackend: func(context.Context, string, string, string, SubagentCapabilities) (ChatBackend, error) {
 			return failingObservedWorkBackend{}, nil
 		},
 	}}
@@ -461,7 +463,9 @@ func TestSubagentToolWorkScrubsSecretArgumentsOutputAndStatus(t *testing.T) {
 	}}
 	a := &Agent{Options: Options{
 		Mode: ModeAgent, Out: io.Discard, Root: t.TempDir(), Permission: PermissionFullAuto,
-		SubagentBackend: func(context.Context, string, string, string) (ChatBackend, error) { return backend, nil },
+		SubagentBackend: func(context.Context, string, string, string, SubagentCapabilities) (ChatBackend, error) {
+			return backend, nil
+		},
 	}}
 	a.lastTurnID = "t_01ARYZ6S41TSV4RRFFQ69G5FAW"
 	b := newTestBus(t)
@@ -502,7 +506,9 @@ func TestSubagentToolOutputKeepsItsExistingBoundOutsideTheStatusRow(t *testing.T
 	}}
 	a := &Agent{Options: Options{
 		Mode: ModeAgent, Out: io.Discard, Root: root, Permission: PermissionFullAuto,
-		SubagentBackend: func(context.Context, string, string, string) (ChatBackend, error) { return backend, nil },
+		SubagentBackend: func(context.Context, string, string, string, SubagentCapabilities) (ChatBackend, error) {
+			return backend, nil
+		},
 	}}
 	a.lastTurnID = "t_01ARYZ6S41TSV4RRFFQ69G5FAW"
 	b := newTestBus(t)
@@ -553,7 +559,8 @@ func TestOrchestratedPlannerAndSynthesisUseTheObservedProviderSeam(t *testing.T)
 		}, text: "all done"},
 	}}
 	a.Backend = main
-	a.SubagentBackend = func(context.Context, string, string, string) (ChatBackend, error) {
+	a.Root = t.TempDir()
+	a.SubagentBackend = func(context.Context, string, string, string, SubagentCapabilities) (ChatBackend, error) {
 		return observedWorkBackend{text: "task done"}, nil
 	}
 	b := newTestBus(t)
@@ -816,7 +823,7 @@ func TestConcurrentSubagentToolLifecyclesKeepTheirExactOwner(t *testing.T) {
 	}}
 	a := &Agent{Options: Options{
 		Mode: ModeAgent, Out: io.Discard, Root: t.TempDir(), Permission: PermissionFullAuto,
-		SubagentBackend: func(_ context.Context, model, _ string, _ string) (ChatBackend, error) {
+		SubagentBackend: func(_ context.Context, model, _ string, _ string, _ SubagentCapabilities) (ChatBackend, error) {
 			switch model {
 			case "provider/first":
 				return first, nil

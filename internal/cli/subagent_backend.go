@@ -29,13 +29,6 @@ import (
 // catalogue answers "which plans exist", which is a different question from
 // "can this machine spawn this model", and only the second one matters here.
 func (a *app) subagentBackend() engine.SubagentBackend {
-	open := a.subagentBackendWithCapabilities()
-	return func(ctx context.Context, model, mode, effort string) (engine.ChatBackend, error) {
-		return open(ctx, model, mode, effort, engine.SubagentCapabilities{})
-	}
-}
-
-func (a *app) subagentBackendWithCapabilities() engine.SubagentBackendWithCapabilities {
 	return func(ctx context.Context, model, mode, effort string, capabilities engine.SubagentCapabilities) (engine.ChatBackend, error) {
 		store := a.vendorCatalogs()
 		vendor := ""

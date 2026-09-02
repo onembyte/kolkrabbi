@@ -51,7 +51,8 @@ func TestEachSubagentTalksToItsOwnProvider(t *testing.T) {
 
 	var mu sync.Mutex
 	var opened []*openedBackend
-	agent.SubagentBackend = func(_ context.Context, model, _, _ string) (ChatBackend, error) {
+	agent.Root = t.TempDir()
+	agent.SubagentBackend = func(_ context.Context, model, _, _ string, _ SubagentCapabilities) (ChatBackend, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		backend := &openedBackend{model: model, inner: agent.sessionBackend()}
@@ -86,7 +87,7 @@ func TestCapabilityAwareSubagentBackendReceivesTheDeclaredEnvelope(t *testing.T)
 			AdditionalDirs: []string{additional},
 		},
 		SubagentNetwork: SubagentNetworkOn,
-		SubagentBackendWithCapabilities: func(_ context.Context, _ string, _ string, _ string, capabilities SubagentCapabilities) (ChatBackend, error) {
+		SubagentBackend: func(_ context.Context, _ string, _ string, _ string, capabilities SubagentCapabilities) (ChatBackend, error) {
 			got = capabilities
 			return notACloser{}, nil
 		},
@@ -113,8 +114,9 @@ func TestCapabilityAwareSubagentBackendReceivesTheDeclaredEnvelope(t *testing.T)
 
 func TestCapabilityAwareSubagentBackendRejectsAnUnverifiedWorkspace(t *testing.T) {
 	called := false
+	// Deliberately no Root: this is the case the guard exists for.
 	agent := &Agent{Options: Options{
-		SubagentBackendWithCapabilities: func(context.Context, string, string, string, SubagentCapabilities) (ChatBackend, error) {
+		SubagentBackend: func(context.Context, string, string, string, SubagentCapabilities) (ChatBackend, error) {
 			called = true
 			return notACloser{}, nil
 		},
@@ -143,7 +145,8 @@ func TestASubagentBackendIsClosedOnEveryPathOutOfATask(t *testing.T) {
 			agent, _, _, _ := newTestAgentInternal(t, srv, ModeAgent)
 
 			var opened *openedBackend
-			agent.SubagentBackend = func(_ context.Context, model, _, _ string) (ChatBackend, error) {
+			agent.Root = t.TempDir()
+			agent.SubagentBackend = func(_ context.Context, model, _, _ string, _ SubagentCapabilities) (ChatBackend, error) {
 				opened = &openedBackend{model: model, inner: agent.sessionBackend()}
 				return opened, nil
 			}
@@ -167,7 +170,8 @@ func TestASubagentIsAlwaysOpenedInCodeMode(t *testing.T) {
 	agent, _, _, _ := newTestAgentInternal(t, srv, ModeAgent)
 
 	var gotMode string
-	agent.SubagentBackend = func(_ context.Context, model, mode, _ string) (ChatBackend, error) {
+	agent.Root = t.TempDir()
+	agent.SubagentBackend = func(_ context.Context, model, mode, _ string, _ SubagentCapabilities) (ChatBackend, error) {
 		gotMode = mode
 		return &openedBackend{model: model, inner: agent.sessionBackend()}, nil
 	}
@@ -184,6 +188,7 @@ func TestWithoutThePortEverySubagentSharesTheSessionBackend(t *testing.T) {
 	srv := enginetest.New(enginetest.Step{Text: "one"}, enginetest.Step{Text: "two"})
 	defer srv.Close()
 	agent, _, _, _ := newTestAgentInternal(t, srv, ModeAgent)
+	agent.Root = t.TempDir()
 	agent.SubagentBackend = nil
 
 	outcomes, err := agent.runTasks(context.Background(), "two things", []Task{
@@ -203,7 +208,8 @@ func TestATaskWhoseProviderWillNotOpenFails(t *testing.T) {
 	srv := enginetest.New(enginetest.Step{Text: "unused"})
 	defer srv.Close()
 	agent, _, _, _ := newTestAgentInternal(t, srv, ModeAgent)
-	agent.SubagentBackend = func(context.Context, string, string, string) (ChatBackend, error) {
+	agent.Root = t.TempDir()
+	agent.SubagentBackend = func(context.Context, string, string, string, SubagentCapabilities) (ChatBackend, error) {
 		return nil, errors.New("no such provider")
 	}
 	outcomes, err := agent.runTasks(context.Background(), "one thing", []Task{{Title: "a", Kind: KindResearch}})
@@ -256,7 +262,8 @@ func TestReleasingASubagentProviderIsAlwaysSafe(t *testing.T) {
 	release()
 
 	// A backend that is not a Closer.
-	agent.SubagentBackend = func(context.Context, string, string, string) (ChatBackend, error) {
+	agent.Root = t.TempDir()
+	agent.SubagentBackend = func(context.Context, string, string, string, SubagentCapabilities) (ChatBackend, error) {
 		return notACloser{}, nil
 	}
 	if _, release, err = agent.openSubagentBackend(context.Background(), "m", EffortMedium, KindEdit); err != nil {
@@ -265,7 +272,7 @@ func TestReleasingASubagentProviderIsAlwaysSafe(t *testing.T) {
 	release()
 
 	// A failed open.
-	agent.SubagentBackend = func(context.Context, string, string, string) (ChatBackend, error) {
+	agent.SubagentBackend = func(context.Context, string, string, string, SubagentCapabilities) (ChatBackend, error) {
 		return nil, errors.New("nope")
 	}
 	if _, release, err = agent.openSubagentBackend(context.Background(), "m", EffortMedium, KindEdit); err == nil {
@@ -320,7 +327,7 @@ func TestBackgroundTaskKindsRunWithoutNetwork(t *testing.T) {
 	var got []SubagentCapabilities
 	agent := &Agent{Options: Options{
 		Root: workspace,
-		SubagentBackendWithCapabilities: func(_ context.Context, _ string, _ string, _ string, capabilities SubagentCapabilities) (ChatBackend, error) {
+		SubagentBackend: func(_ context.Context, _ string, _ string, _ string, capabilities SubagentCapabilities) (ChatBackend, error) {
 			got = append(got, capabilities)
 			return notACloser{}, nil
 		},

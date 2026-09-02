@@ -60,7 +60,12 @@ func NewClaudeBackendFromHandleWithOptions(model, mode, effort, handle string, r
 	if err != nil {
 		return nil, err
 	}
-	if err := validateClaudeExecutionOptions(options); err != nil {
+	// The constructor knows which provider it is building for; the caller may
+	// not have said. Naming it here is what makes the network rule apply.
+	if options.Provider == "" {
+		options.Provider = "claude"
+	}
+	if err := validateExecutionOptions(options); err != nil {
 		return nil, err
 	}
 	return &ClaudeBackend{

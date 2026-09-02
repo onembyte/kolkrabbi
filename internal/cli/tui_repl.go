@@ -144,16 +144,9 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 			// Inline SAGA must win over slash dispatch when the marker begins
 			// the request. The shared boundary preserves the current agent and
 			// the Runtime owns the cancellable turn context and final lifecycle.
-			if goal, marked := inlineSagaPrompt(trimmedPrompt); marked && goal != "" {
-				err := a.runInteractivePrompt(turnContext, ag, trimmedPrompt)
-				screen.SetStatus(tuiStatus(ag, tuiTurnLifecycle(turnContext, err), folder))
-				if err != nil && !errors.Is(err, context.Canceled) {
-					_, _ = fmt.Fprintf(screen, "\nerror: %v\n", err)
-					writeAdvice(screen, err)
-				}
-				return err
-			}
-			if strings.HasPrefix(trimmedPrompt, "/") {
+			goal, markedSaga := inlineSagaPrompt(trimmedPrompt)
+			sagaRequest := markedSaga && goal != ""
+			if strings.HasPrefix(trimmedPrompt, "/") && !sagaRequest {
 				prompt = trimmedPrompt
 				// `/model` with no argument is the picker, not a catalog dump: the
 				// screen can offer every model with an effort dial alongside, so
@@ -177,7 +170,10 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 				}
 				return nil
 			}
-			err := a.runInteractivePrompt(turnContext, ag, prompt)
+			// One boundary for every ordinary request, marked or not — the
+			// marked case used to be a branch of its own above, with this same
+			// status-and-error block copied under it.
+			err := a.runInteractivePrompt(turnContext, ag, trimmedPrompt)
 			screen.SetStatus(tuiStatus(ag, tuiTurnLifecycle(turnContext, err), folder))
 			if err != nil && !errors.Is(err, context.Canceled) {
 				_, _ = fmt.Fprintf(screen, "\nerror: %v\n", err)

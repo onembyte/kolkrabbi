@@ -77,7 +77,12 @@ func BuildClaudeInvocationWithOptions(model, mode, effort, prompt string, option
 	if err != nil {
 		return ClaudeInvocation{}, err
 	}
-	if err := validateClaudeExecutionOptions(options); err != nil {
+	// The constructor knows which provider it is building for; the caller may
+	// not have said. Naming it here is what makes the network rule apply.
+	if options.Provider == "" {
+		options.Provider = "claude"
+	}
+	if err := validateExecutionOptions(options); err != nil {
 		return ClaudeInvocation{}, err
 	}
 	args, err := claudeArgsWithOptions(mode, model, effort, "", false, false, options)

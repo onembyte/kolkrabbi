@@ -11083,6 +11083,50 @@ Quoting is unaffected (`kolk "version"` is one argument and never equals a verb)
 `kolk fix the failing test` still works. The budget script now measures `kolk help`, which is in the
 closed set and cannot quietly stop existing. Cold start back to 3.6 ms.
 
+#### F6 — one implementation per rule — complete 2026-09-02
+
+Program leaf from `FABLE_OPTIMIZATION.md`. **Risk:** P3 — no defect today; four rules with more than
+one implementation, which is where the next one comes from. **Invariant:** no product behaviour
+changes.
+
+- **F6.1** `shell.VerifiedDir(label, dir)` is the one implementation of absolute → symlinks resolved
+  → exists → is a directory. Three copies called it four checks each with three different wordings.
+  The label stays a parameter so an error still names which directory the user got wrong; that is a
+  deliberate deviation from the plan's "one error wording".
+- **F6.2** Both REPLs collapse to one boundary. The marked-SAGA check now decides only routing — a
+  marked request beats slash dispatch — and every ordinary line goes through `runInteractivePrompt`,
+  including the plain one that used to call `ag.RunTurn` directly under a copy of the same
+  interrupt/error block.
+- **F6.3** `SagaRunner.step` is the only path to a chapter, so no caller can reopen a completed or
+  blocked saga. Failure *policy* stays with each caller, because a wake stopping and a continuous run
+  continuing is a real difference rather than duplication. Extracting it surfaced a distinction the
+  two copies had blurred: a planner failure is not a chapter failure, and counting it as one made a
+  broken planner loop until the doom threshold. `plannerError` marks it;
+  `TestAPlannerThatFailsStopsTheRun` failed the moment the distinction was lost, which is the test
+  doing exactly its job. Recorded for the owner: `SagaRunner.Run` has no production caller — SAGA is
+  inline, one wake per request — and is kept only because deleting a tested public method is not a
+  cleanup's decision.
+- **F6.4** The `posture` option and its pass-through are deleted; nothing ever assigned the field, and
+  posture is set by `ag.SetPosture` at wake time. `ExecutionOptions.Provider` is kept and now used —
+  it keys F6.5's table — which answers R14's "drop it or use it" the other way.
+- **F6.5** One subagent port, carrying the envelope. The capability-less form was removed rather than
+  shimmed: `openSubagentBackend` silently *preferred* it, so a host that reached for the simpler name
+  got a child with no workspace confinement and no network declaration and nothing said so. Every
+  child now passes the workspace check. `validateClaudeExecutionOptions` — a free function named for
+  one vendor, which is how Codex came to lack the invariant — becomes `providerNetworkSwitch`, a table
+  keyed on the envelope's own Provider, and each constructor names its provider so the rule applies
+  even when the caller did not.
+
+Consequence recorded rather than smoothed over: every subagent test now declares a workspace, and the
+Claude ones declare network, because the single port enforces what the product always enforced in
+production. Two tests asserted a status line without the envelope summary — they had been written
+against the unconfined port — and now match by prefix.
+
+Verification greps after the change: one `EvalSymlinks` for verified directories, zero
+`SubagentBackendWithCapabilities`, zero `validateClaudeExecutionOptions`, zero `posture` option, and
+the only remaining `ag.RunTurn` calls are the boundary itself, markdown-command expansion, and the
+single-shot path. Gates: `make check`, `-race` on engine, cli, agentcli, shell.
+
 #### C5 — TUI progress-log observability — queued
 
 This is a separate surface checkpoint. It must make long-running work legible without turning the

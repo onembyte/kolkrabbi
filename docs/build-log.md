@@ -6220,6 +6220,34 @@ compiles and the tests pass. Every place that *types* the old name has to be fou
 script that types it twenty times an hour is worse than a user who types it once, because nobody
 reads its output.
 
+## F6 — four rules that had more than one implementation (2026-09-02)
+
+Nothing here was broken, which is the point: these are the places where the next break would have
+come from. Four checks on a directory, written three times with three wordings. Two REPLs, each with
+a branch that called the shared prompt boundary and another that inlined what the boundary does,
+under a copy of the same error block. A saga loop with two bodies that had already drifted. And a
+subagent port that could not carry the execution envelope, which `openSubagentBackend` silently
+preferred whenever a host set it — so reaching for the simpler name got you a child with no
+workspace confinement and no network declaration, with nothing to tell you.
+
+That last one is the reason a shim was the wrong answer. The plan allowed one; a port that cannot
+carry the envelope cannot be confined, so keeping it under any name keeps the hole. It went, and
+every subagent test grew a workspace as a result — which is the product's own invariant arriving in
+the tests, not an accommodation.
+
+The extraction paid for itself immediately. Folding the two saga loops into one `step` lost a
+distinction the copies had held by accident: a *planner* that fails has produced no chapter, so
+counting it as a chapter failure and continuing asks a broken planner the same question until the
+doom threshold stops it. `TestAPlannerThatFailsStopsTheRun` went red on the first run with the
+message "a failing planner reported success", which is a test earning its keep years after it was
+written.
+
+One thing worth saying about the vendor rule. `validateClaudeExecutionOptions` was a free function
+named for one vendor, called from Claude's three constructors and nowhere else — which is exactly how
+Codex ended up without the invariant. It is a table keyed on the envelope's provider now: Claude has
+no network switch and is refused a network-disabled envelope, Codex has one, and the next provider is
+a row rather than a call site someone has to remember.
+
 ## F5 — the work a turn was doing twice (2026-09-02)
 
 Measure first was the rule, and it paid: the guess would have been "argv building is cheap, leave

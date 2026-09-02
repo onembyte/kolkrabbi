@@ -141,7 +141,8 @@ func TestBufferedSubagentTokensKeepActivityUntilEachBackendReturns(t *testing.T)
 	events := &activityEvents{}
 	agent.Activity = &recordingActivity{events: events}
 	backends := map[string]ChatBackend{"model/first": first, "model/second": second}
-	agent.SubagentBackend = func(_ context.Context, model, _, _ string) (ChatBackend, error) {
+	agent.Root = t.TempDir()
+	agent.SubagentBackend = func(_ context.Context, model, _, _ string, _ SubagentCapabilities) (ChatBackend, error) {
 		return backends[model], nil
 	}
 

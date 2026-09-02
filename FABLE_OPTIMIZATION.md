@@ -497,39 +497,49 @@ across the package boundary needs either a trapdoor (`shell` exporting a way to 
 without doing it) or the shared `shell.VerifiedDir` that F6.1 is already for. A trapdoor for six
 allocations is a bad trade; the refactor is the right home.
 
-## F6 — One implementation per rule  ·  `[ ]`
+## F6 — One implementation per rule  ·  **done 2026-09-02**
 
-**Observable:** no behaviour change; `go test ./... -count=1` and `-race` green; the dead-export and
-arch gates pass; each rule below has exactly one implementation and one test.
+**Observable:** one `EvalSymlinks`-based directory check for verified paths; one subagent port; one
+provider network rule as data; one prompt boundary per REPL; no dead `posture` plumbing. No product
+behaviour changed.
 
-**Why:** the review found the same logic hand-copied three times, two REPLs duplicating the same
-error block, a saga loop body that already diverged from its copy, and dead plumbing that implies a
-CLI feature which does not exist. Duplicates are where the next Fable-path defect will come from.
+- [x] **F6.1 (R10)** `shell.VerifiedDir(label, dir)` is the single implementation of
+  absolute → symlinks resolved → exists → is a directory. `shell.normalizeProcessOptions`,
+  `agentcli.normalizeExecutionDirectory` and `cli.verifiedProjectRoot` call it. The label is the
+  caller's noun, so an error still says *which* directory ("workspace", "project workspace",
+  "process working directory") — sharing the logic does not mean sharing the sentence, which is why
+  this deviates from the plan's "one error wording".
+- [x] **F6.2 (R11)** Both REPLs have one boundary. Each had a marked-SAGA branch that called
+  `runInteractivePrompt` and a plain branch that duplicated its interrupt/error block; the marker
+  check now only decides *routing* (a marked request beats slash dispatch), and every ordinary line
+  goes through `runInteractivePrompt`. `repl.go`'s direct `ag.RunTurn` is gone.
+- [x] **F6.3 (R12)** `SagaRunner.step` is the only path to a chapter: cancellation, terminal status,
+  budget, and choosing-or-planning live there, so no caller can reopen a completed saga. What is
+  *not* shared is what to do with a failed chapter — a wake stops, a continuous run counts and
+  continues — because that is a policy difference between callers, not duplication. Extracting it
+  surfaced a real distinction the copies had blurred: a **planner** failure is not a chapter failure,
+  and treating it as one made a broken planner loop. `plannerError` marks it, and
+  `TestAPlannerThatFailsStopsTheRun` is what caught it.
+  Recorded: `SagaRunner.Run` has **no production caller** — SAGA is inline, one wake per request —
+  and is kept only because deleting a tested public method is the owner's call.
+- [x] **F6.4 (R14)** The `posture` option and its `Options.Posture` pass-through are deleted: nothing
+  ever assigned the field, and posture is set by `ag.SetPosture` at wake time. `ExecutionOptions.Provider`
+  is kept and now **used** — it keys the network rule below, which is R14's "drop it or use it".
+- [x] **F6.5 (R15)** One port: `SubagentBackend` takes the envelope, and the capability-less form is
+  gone. It had to go rather than be shimmed — a port that cannot carry the envelope cannot be
+  confined, and `openSubagentBackend` silently *preferred* it, so a host reaching for the simpler
+  name got a child with no workspace confinement and no network declaration, with no compiler signal.
+  Every child now goes through the workspace check. `validateClaudeExecutionOptions` is replaced by
+  `providerNetworkSwitch`, a table keyed on `Provider`: Claude has no switch and is refused a
+  network-disabled envelope, Codex has one and is accepted, and a new provider is a row rather than a
+  function someone must remember to call — which is how Codex came to lack the invariant in the first
+  place. Each constructor names its own provider, so the rule applies even when the caller did not say.
+- [x] **F6.6** `make check` green; `-race` on engine, cli, agentcli, shell.
 
-**Files:** `internal/shell/process_options.go`, `internal/provider/agentcli/execution_options.go`,
-`internal/cli/run.go`, `repl.go`, `tui_repl.go`, `flags.go`, `internal/engine/saga_executor.go`,
-`subagent_backend.go`.
-
-- [ ] **F6.1 (R10)** Export one `shell.VerifiedDir(path) (string, error)`; `agentcli.normalizeExecutionDirectory`
-  and `cli.verifiedProjectRoot` call it. One error wording. Grep for `EvalSymlinks` should show one
-  implementation outside tests.
-- [ ] **F6.2 (R11)** `runInteractivePrompt` is the single boundary for every non-`/` line in both
-  REPLs; marker detection lives only inside it; `repl.go:88`'s direct `ag.RunTurn` and the three
-  copies of the interrupt/error block collapse to one.
-- [ ] **F6.3 (R12)** Extract `step(ctx, repoDir, state) (StopReason, error)` from `Run`/`RunWake`;
-  `RunWake` calls it once, `Run` loops it. Terminal-status guard moves into `nextChapter` so no third
-  caller can reopen a completed/blocked saga. Replace the `"blocked"` literal with `SagaStatusBlocked`.
-  This is where F1.1's deleted guard lands.
-- [ ] **F6.4 (R14)** Delete the `posture` option and `Options.Posture` pass-through (posture is set by
-  `ag.SetPosture` at wake time only), or wire a real `--posture`; drop `ExecutionOptions.Provider` or
-  use it. The dead-export gate decides which.
-- [ ] **F6.5 (R15)** One factory: `SubagentBackend` takes capabilities (shim at the boundary for the
-  3-arg callers, removed once none remain); provider network capability becomes **data** on each
-  backend's constructor/`ExecutionOptions`, so the Claude-only `validateClaudeExecutionOptions` free
-  function disappears and Codex gets the same invariant by construction.
-- [ ] **F6.6** `make check` and a diff review that confirms "no behaviour change" line by line.
-
----
+**Test migration, recorded because it is a real consequence.** Making the single port carry the
+envelope means every subagent test declares a workspace, and Claude's declare network — the tests
+previously used the unconfined port and asserted a status line without the envelope summary. Those
+are the product's own invariants arriving in the tests, not accommodations.
 
 ## F7 — Proof and walk-back  ·  `[ ]`
 

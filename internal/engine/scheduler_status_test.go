@@ -145,7 +145,8 @@ func TestActiveTaskReportsCheckpointProviderAndTerminalBoundaries(t *testing.T) 
 func TestActiveTaskFailureKeepsTheProviderReason(t *testing.T) {
 	a := &Agent{Options: Options{
 		Mode: ModeAgent, Model: "gpt-5.6-luna", Out: io.Discard,
-		SubagentBackend: func(context.Context, string, string, string) (ChatBackend, error) {
+		Root: t.TempDir(),
+		SubagentBackend: func(context.Context, string, string, string, SubagentCapabilities) (ChatBackend, error) {
 			return nil, errors.New("provider would not start")
 		},
 	}}

@@ -415,6 +415,15 @@ func NewCodexBackendFromHandleWithOptions(model, mode, effort, handle string, re
 	if err != nil {
 		return nil, err
 	}
+	if options.Provider == "" {
+		options.Provider = "codex"
+	}
+	// The same rule Claude's constructors apply, from the same table: Codex
+	// has a network switch, so a network-disabled envelope is accepted here
+	// and stated on the child's argv.
+	if err := validateExecutionOptions(options); err != nil {
+		return nil, err
+	}
 	effort = codexProviderEffort(effort)
 	if !effortAllowed(effort, options.Efforts, codexEfforts) {
 		return nil, fmt.Errorf("codex has no %q effort level; %s", effort, codexEffortHint(options.Efforts))

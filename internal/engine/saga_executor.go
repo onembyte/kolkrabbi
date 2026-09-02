@@ -18,6 +18,19 @@ func (e *artifactPersistError) Error() string {
 
 func (e *artifactPersistError) Unwrap() error { return e.err }
 
+// plannerError marks a failure to choose the next chapter, as opposed to a
+// failure to work one.
+//
+// The distinction is the whole reason it exists. A chapter that fails is
+// ordinary — a continuous run counts it and tries the next one. A planner that
+// fails has produced no chapter to try, so counting it as a failure and looping
+// is asking a broken planner the same question forever. The message is the
+// inner one, so nothing a user reads changes.
+type plannerError struct{ err error }
+
+func (e *plannerError) Error() string { return e.err.Error() }
+func (e *plannerError) Unwrap() error { return e.err }
+
 // StopNoWork halts a run that has no chapter left to attempt.
 //
 // Distinct from StopGoalComplete: the chapters are done, which is not the same
@@ -79,7 +92,76 @@ type SagaRunner struct {
 	Out io.Writer
 }
 
+// step is one chapter attempt, and the only path to one.
+//
+// Everything before the work is here — the cancellation check, the artifact's
+// terminal status, the budget, and choosing or planning the chapter — because
+// Run and RunWake had a copy each and the copies had already drifted: one
+// counted failures in a local variable and the other in the artifact, one
+// checked the budget after its chapter and the other before the next. Keeping
+// the pre-work in one place is what stops a third caller reopening a completed
+// or blocked saga, which is the failure this guards.
+//
+// What is deliberately NOT here is what to do about a chapter that failed. A
+// wake stops and reports it; a continuous run counts it and tries the next
+// chapter. That is a policy difference between two callers, not duplication,
+// so each states it in its own words.
+//
+// A non-empty reason means the saga stopped, and the stop is already
+// persisted. A nil error with an empty reason means one chapter was worked and
+// verified.
+func (r *SagaRunner) step(ctx context.Context, repoDir string, state *SagaState, failures int, elapsed time.Duration) (StopReason, error) {
+	if err := ctx.Err(); err != nil {
+		// Cancellation is the user stopping, not the budget refusing.
+		return StopNone, err
+	}
+	if reason := terminalSagaStop(state); reason != StopNone {
+		return r.finishStop(repoDir, state, reason)
+	}
+	if reason := r.Budget.Check(state, failures, elapsed); reason != StopNone {
+		return r.finishStop(repoDir, state, reason)
+	}
+
+	index, ok := nextChapter(state)
+	if !ok {
+		planned, err := r.planNext(ctx, state)
+		if err != nil {
+			return StopNone, &plannerError{err: err}
+		}
+		if !planned {
+			return r.finishStop(repoDir, state, r.noMoreWork())
+		}
+		index = len(state.Chapters) - 1
+	}
+
+	if err := r.RunChapter(ctx, repoDir, state, index); err != nil {
+		if cancelErr := sagaCancellationResult(ctx, err); cancelErr != nil {
+			// Preserve cleanup failures alongside cancellation. Returning only
+			// ctx.Err() would make a failed durable resume boundary invisible.
+			return StopNone, cancelErr
+		}
+		var persistErr *artifactPersistError
+		if errors.As(err, &persistErr) {
+			// The chapter has not been worked when its pre-work marker could
+			// not be persisted. Do not describe that as a chapter failure or
+			// spend a strike on storage being unavailable.
+			return StopNone, err
+		}
+		r.say("chapter %d failed: %v", state.Chapters[index].Number, err)
+		return StopNone, err
+	}
+	if cancelErr := sagaCancellationResult(ctx, nil); cancelErr != nil {
+		return StopNone, cancelErr
+	}
+	return StopNone, nil
+}
+
 // Run works chapters until the budget, the plan or the user stops it.
+//
+// No product surface calls this: SAGA is inline, one bounded wake per request
+// (docs/plan/10 §4), and RunWake is what the CLI uses. It is kept because a
+// continuous loop is the obvious second caller for step, and because deleting
+// a tested public method is the owner's call rather than a cleanup's.
 func (r *SagaRunner) Run(ctx context.Context, repoDir string, state *SagaState) (StopReason, error) {
 	if state == nil {
 		return StopNone, fmt.Errorf("saga: state is required")
@@ -88,44 +170,27 @@ func (r *SagaRunner) Run(ctx context.Context, repoDir string, state *SagaState) 
 	failures := 0
 
 	for {
-		if err := ctx.Err(); err != nil {
-			// Cancellation is the user stopping, not the budget refusing.
-			return StopNone, err
+		reason, err := r.step(ctx, repoDir, state, failures, r.now().Sub(started))
+		if reason != StopNone {
+			return reason, err
 		}
-		if reason := terminalSagaStop(state); reason != StopNone {
-			return r.finishStop(repoDir, state, reason)
-		}
-		if reason := r.Budget.Check(state, failures, r.now().Sub(started)); reason != StopNone {
-			return r.finishStop(repoDir, state, reason)
-		}
-
-		index, ok := nextChapter(state)
-		if !ok {
-			planned, err := r.planNext(ctx, state)
-			if err != nil {
-				return StopNone, err
-			}
-			if !planned {
-				return r.finishStop(repoDir, state, r.noMoreWork())
-			}
-			index = len(state.Chapters) - 1
-		}
-
-		err := r.RunChapter(ctx, repoDir, state, index)
 		if err != nil {
 			if cancelErr := sagaCancellationResult(ctx, err); cancelErr != nil {
 				return StopNone, cancelErr
 			}
 			var persistErr *artifactPersistError
-			if errors.As(err, &persistErr) {
+			var planErr *plannerError
+			if errors.As(err, &persistErr) || errors.As(err, &planErr) {
+				// Neither is a chapter that failed: one is storage, the other
+				// is having no chapter at all. Retrying either would be asking
+				// the same broken thing the same question.
 				return StopNone, err
 			}
+			// A continuous run counts the failure and keeps going: the next
+			// chapter may be the one that works, and the doom threshold is
+			// what stops it when none of them are.
 			failures++
-			r.say("chapter %d failed: %v", state.Chapters[index].Number, err)
 			continue
-		}
-		if cancelErr := sagaCancellationResult(ctx, nil); cancelErr != nil {
-			return StopNone, cancelErr
 		}
 		failures = 0
 	}
@@ -140,50 +205,18 @@ func (r *SagaRunner) RunWake(ctx context.Context, repoDir string, state *SagaSta
 		return StopNone, fmt.Errorf("saga: state is required")
 	}
 	started := r.now()
-	if err := ctx.Err(); err != nil {
-		return StopNone, err
+	// The wake counts failures where they are durable: the artifact's own
+	// strike line, which outlives the process, rather than a variable that
+	// starts at zero every time a wake begins.
+	reason, err := r.step(ctx, repoDir, state, state.Strikes, 0)
+	if reason != StopNone {
+		return reason, err
 	}
-	if reason := terminalSagaStop(state); reason != StopNone {
-		return r.finishStop(repoDir, state, reason)
-	}
-	if reason := r.Budget.Check(state, state.Strikes, 0); reason != StopNone {
-		return r.finishStop(repoDir, state, reason)
-	}
-
-	index, ok := nextChapter(state)
-	if !ok {
-		planned, err := r.planNext(ctx, state)
-		if err != nil {
-			return StopNone, err
-		}
-		if !planned {
-			return r.finishStop(repoDir, state, r.noMoreWork())
-		}
-		index = len(state.Chapters) - 1
-	}
-
-	err := r.RunChapter(ctx, repoDir, state, index)
 	if err != nil {
-		if cancelErr := sagaCancellationResult(ctx, err); cancelErr != nil {
-			// Preserve cleanup failures alongside cancellation. Returning only
-			// ctx.Err() would make a failed durable resume boundary invisible.
-			return StopNone, cancelErr
-		}
-		var persistErr *artifactPersistError
-		if errors.As(err, &persistErr) {
-			// The chapter has not been worked when its pre-work marker could
-			// not be persisted. Do not describe that as a chapter failure or
-			// spend a strike on storage being unavailable.
-			return StopNone, err
-		}
-		r.say("chapter %d failed: %v", state.Chapters[index].Number, err)
 		if state.Status == SagaStatusBlocked {
 			return StopDoomLoop, nil
 		}
 		return StopNone, err
-	}
-	if cancelErr := sagaCancellationResult(ctx, nil); cancelErr != nil {
-		return StopNone, cancelErr
 	}
 	if reason := r.Budget.Check(state, state.Strikes, r.now().Sub(started)); reason != StopNone {
 		return r.finishStop(repoDir, state, reason)

@@ -2,9 +2,9 @@ package agentcli
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
+
+	"github.com/onembyte/kolkrabbi/internal/shell"
 )
 
 // ExecutionOptions is the bounded capability envelope for a provider-owned
@@ -97,9 +97,33 @@ func normalizeExecutionOptions(options ExecutionOptions) (ExecutionOptions, erro
 	return options, nil
 }
 
-func validateClaudeExecutionOptions(options ExecutionOptions) error {
-	if (options.Workspace != "" || len(options.AdditionalDirs) > 0) && !options.NetworkAccess {
-		return fmt.Errorf("claude cannot prove network-disabled delegated execution; enable network for this child or use a provider with an explicit network switch")
+// providerNetworkSwitch says whether a provider's child process can be told
+// not to use the network.
+//
+// Data, not a special case. This was a free function named for one vendor,
+// which meant the invariant existed wherever someone remembered to call it —
+// Claude's three constructors did, Codex's did not, and nothing would have
+// told a fourth provider it was supposed to. Keyed on the envelope's own
+// Provider field, the rule applies to whoever is being constructed, and adding
+// a provider means adding a row.
+//
+// Codex has `sandbox_workspace_write.network_access`, which F2 states both
+// ways on every delegated envelope. Claude Code has no such switch: its Bash
+// tool reaches the network whatever web tools are listed, so an envelope that
+// claims network-disabled delegated execution is a claim the child can
+// contradict, and it is refused rather than believed.
+var providerNetworkSwitch = map[string]bool{
+	"claude": false,
+	"codex":  true,
+}
+
+func validateExecutionOptions(options ExecutionOptions) error {
+	delegated := options.Workspace != "" || len(options.AdditionalDirs) > 0
+	if !delegated || options.NetworkAccess {
+		return nil
+	}
+	if canSwitch, known := providerNetworkSwitch[options.Provider]; known && !canSwitch {
+		return fmt.Errorf("%s cannot prove network-disabled delegated execution; enable network for this child or use a provider with an explicit network switch", options.Provider)
 	}
 	return nil
 }
@@ -111,19 +135,7 @@ func normalizeExecutionDirectory(label, directory string, optional bool) (string
 		}
 		return "", nil
 	}
-	if !filepath.IsAbs(directory) {
-		return "", fmt.Errorf("%s must be absolute: %q", label, directory)
-	}
-	resolved, err := filepath.EvalSymlinks(directory)
-	if err != nil {
-		return "", fmt.Errorf("resolving %s %q: %w", label, directory, err)
-	}
-	info, err := os.Stat(resolved)
-	if err != nil {
-		return "", fmt.Errorf("checking %s %q: %w", label, directory, err)
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("%s is not a directory: %q", label, directory)
-	}
-	return resolved, nil
+	// One implementation of the four checks, in internal/shell (F6.1). The
+	// label keeps this error saying "workspace" or "additional directory".
+	return shell.VerifiedDir(label, directory)
 }

@@ -187,7 +187,8 @@ func TestConcurrentTaskWorkSurvivesSpillReopenAndSlowSubscriber(t *testing.T) {
 
 	a := &Agent{Options: Options{
 		Mode: ModeAgent, Out: io.Discard, Permission: PermissionFullAuto, Bus: b,
-		SubagentBackend: func(_ context.Context, model, _ string, _ string) (ChatBackend, error) {
+		Root: t.TempDir(),
+		SubagentBackend: func(_ context.Context, model, _ string, _ string, _ SubagentCapabilities) (ChatBackend, error) {
 			return observedWorkBackend{events: []provider.ProgressEvent{{
 				Kind: provider.ProgressMessage, Detail: "thinking",
 			}}, text: model + " done"}, nil

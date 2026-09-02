@@ -24,6 +24,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/provider/agentcli"
 	"github.com/onembyte/kolkrabbi/internal/session"
+	"github.com/onembyte/kolkrabbi/internal/shell"
 	"github.com/onembyte/kolkrabbi/internal/stats"
 	"github.com/onembyte/kolkrabbi/protocol"
 )
@@ -371,7 +372,6 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		Model:      model,
 		Mode:       o.mode,
 		Effort:     effort,
-		Posture:    o.posture,
 		Permission: permission,
 		Root:       root,
 		SubagentCapabilities: engine.SubagentCapabilities{
@@ -393,7 +393,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		// sharing the session's: one backend means one conversation and one
 		// mutex, so subagents would serialise and write their briefings into a
 		// single transcript.
-		SubagentBackendWithCapabilities: a.subagentBackendWithCapabilities(),
+		SubagentBackend: a.subagentBackend(),
 		// What the run may climb down to: a cheaper rung of a vendor the user
 		// has actually signed into through kolk.
 		RungAvailable: a.rungAvailable(),
@@ -642,21 +642,11 @@ func projectRoot() string {
 // its capability envelope; it never inherits an incidental parent cwd.
 func verifiedProjectRoot() (string, error) {
 	root := projectRoot()
-	if root == "" || !filepath.IsAbs(root) {
+	if root == "" {
 		return "", fmt.Errorf("project workspace is not an absolute directory")
 	}
-	resolved, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		return "", fmt.Errorf("resolving project workspace %q: %w", root, err)
-	}
-	info, err := os.Stat(resolved)
-	if err != nil {
-		return "", fmt.Errorf("checking project workspace %q: %w", root, err)
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("project workspace is not a directory: %q", root)
-	}
-	return resolved, nil
+	// One implementation of the four checks, in internal/shell (F6.1).
+	return shell.VerifiedDir("project workspace", root)
 }
 
 // contextWindowFor reports the advertised context size of one model, or zero

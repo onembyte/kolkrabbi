@@ -229,15 +229,15 @@ type Options struct {
 	Activity  ActivityIndicator
 	Work      WorkIndicator
 	Decider   Decider
-	// SubagentBackend opens a provider for one orchestrated task, so each
-	// subagent gets its own vendor process instead of sharing the session's.
-	// Nil means they share, which is what happens today.
+	// SubagentBackend opens a provider for one orchestrated task, inside the
+	// declared envelope, so each subagent gets its own vendor process instead
+	// of sharing the session's. Nil means they share, which is what happens
+	// today for a host that has not wired it.
 	SubagentBackend SubagentBackend
-	// SubagentCapabilities is the host-verified execution envelope used by the
-	// capability-aware factory. Network access is opt-in; an empty envelope is
+	// SubagentCapabilities is the host-verified execution envelope. Network
+	// access is decided per task from SubagentNetwork; an empty envelope is
 	// not a permission to fall back to the parent process's directory.
-	SubagentCapabilities            SubagentCapabilities
-	SubagentBackendWithCapabilities SubagentBackendWithCapabilities
+	SubagentCapabilities SubagentCapabilities
 	// SubagentNetwork is the network policy for delegated children: auto
 	// (research tasks only, plus vendors with no switch), on, or off. Empty
 	// means auto. The envelope's NetworkAccess is decided per task from this,

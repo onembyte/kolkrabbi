@@ -14,7 +14,6 @@ type options struct {
 	model        string
 	mode         string
 	effort       string
-	posture      engine.Posture
 	session      string
 	baseURL      string
 	prompt       string

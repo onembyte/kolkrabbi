@@ -21,7 +21,8 @@ func TestARungThatWillNotStartFallsBackToTheModelTheUserChose(t *testing.T) {
 	agent.SetSessionModel("claude-sonnet")
 
 	var opened []string
-	agent.SubagentBackend = func(_ context.Context, model, _, _ string) (ChatBackend, error) {
+	agent.Root = t.TempDir()
+	agent.SubagentBackend = func(_ context.Context, model, _, _ string, _ SubagentCapabilities) (ChatBackend, error) {
 		opened = append(opened, model)
 		if model == "claude-haiku" {
 			return nil, errors.New("no such vendor process")
@@ -50,7 +51,8 @@ func TestTheFallbackToTheCeilingIsAnnouncedNotSilent(t *testing.T) {
 	defer srv.Close()
 	agent, out, _, _ := newTestAgentInternal(t, srv, ModeAgent)
 	agent.SetSessionModel("claude-sonnet")
-	agent.SubagentBackend = func(_ context.Context, model, _, _ string) (ChatBackend, error) {
+	agent.Root = t.TempDir()
+	agent.SubagentBackend = func(_ context.Context, model, _, _ string, _ SubagentCapabilities) (ChatBackend, error) {
 		if model == "claude-haiku" {
 			return nil, errors.New("no such vendor process")
 		}
@@ -72,7 +74,8 @@ func TestFallbackUpdatesTheLiveSubagentRouteWhileItIsWorking(t *testing.T) {
 	agent, _, _, _ := newTestAgentInternal(t, srv, ModeAgent)
 	agent.SetSessionModel("claude-sonnet")
 	agent.MaxConcurrentTasks = 1
-	agent.SubagentBackend = func(_ context.Context, model, _, _ string) (ChatBackend, error) {
+	agent.Root = t.TempDir()
+	agent.SubagentBackend = func(_ context.Context, model, _, _ string, _ SubagentCapabilities) (ChatBackend, error) {
 		if model == "claude-haiku" {
 			return nil, errors.New("no such vendor process")
 		}
@@ -93,14 +96,15 @@ func TestFallbackUpdatesTheLiveSubagentRouteWhileItIsWorking(t *testing.T) {
 	if seen[1].Model != "claude-haiku" || seen[1].State != SubagentWorking {
 		t.Fatalf("started status = %+v, want the attempted cheap route", seen[1])
 	}
-	if seen[2].Model != "claude-haiku" || seen[2].Step != "opening claude-haiku" {
+	// The step carries the envelope summary now: one port, always declared.
+	if seen[2].Model != "claude-haiku" || !strings.HasPrefix(seen[2].Step, "opening claude-haiku") {
 		t.Fatalf("first provider status = %+v", seen[2])
 	}
 	if seen[3].Model != "claude-sonnet" || seen[3].State != SubagentWorking ||
 		seen[3].Step != "falling back to claude-sonnet" {
 		t.Fatalf("fallback status = %+v, want the live row moved to the session model", seen[3])
 	}
-	if seen[4].Model != "claude-sonnet" || seen[4].Step != "opening claude-sonnet" {
+	if seen[4].Model != "claude-sonnet" || !strings.HasPrefix(seen[4].Step, "opening claude-sonnet") {
 		t.Fatalf("fallback provider status = %+v", seen[4])
 	}
 	if seen[5].Model != "claude-sonnet" || seen[5].State != SubagentDone {
@@ -117,7 +121,8 @@ func TestFallbackPreservesOneMonotonicDurableTaskLedger(t *testing.T) {
 	agent.SetSessionModel("claude-sonnet")
 	agent.lastTurnID = "t_01ARYZ6S41TSV4RRFFQ69G5FAW"
 	agent.Bus = newTestBus(t)
-	agent.SubagentBackend = func(_ context.Context, model, _, _ string) (ChatBackend, error) {
+	agent.Root = t.TempDir()
+	agent.SubagentBackend = func(_ context.Context, model, _, _ string, _ SubagentCapabilities) (ChatBackend, error) {
 		if model == "claude-haiku" {
 			return nil, errors.New("no such vendor process")
 		}
@@ -156,10 +161,12 @@ func TestFallbackPreservesOneMonotonicDurableTaskLedger(t *testing.T) {
 		{protocol.WorkStateDone, protocol.WorkPhaseComplete, "completed", "claude-sonnet"},
 	}
 	for index, update := range updates {
+		// An "opening <model>" step carries the envelope summary after it —
+		// one port, always declared — so the step is matched by prefix.
 		if update.Role != protocol.WorkRoleSubagent || update.ID == "" || update.ChildTurn == "" ||
 			update.Index != 1 || update.Total != 1 || update.Sequence != uint64(index+1) ||
 			update.State != want[index].state || update.Phase != want[index].phase ||
-			update.Step != want[index].step || update.Model != want[index].model {
+			!strings.HasPrefix(update.Step, want[index].step) || update.Model != want[index].model {
 			t.Fatalf("fallback durable update[%d] = %+v, want %+v", index, update, want[index])
 		}
 	}
@@ -174,7 +181,8 @@ func TestASecondFailureOnTheCeilingFailsTheTask(t *testing.T) {
 	agent.SetSessionModel("claude-sonnet")
 
 	attempts := 0
-	agent.SubagentBackend = func(context.Context, string, string, string) (ChatBackend, error) {
+	agent.Root = t.TempDir()
+	agent.SubagentBackend = func(context.Context, string, string, string, SubagentCapabilities) (ChatBackend, error) {
 		attempts++
 		return nil, errors.New("nothing will start")
 	}
@@ -201,7 +209,8 @@ func TestATaskAlreadyOnTheCeilingIsNotRetried(t *testing.T) {
 	agent.SetSessionModel("claude-sonnet")
 
 	attempts := 0
-	agent.SubagentBackend = func(context.Context, string, string, string) (ChatBackend, error) {
+	agent.Root = t.TempDir()
+	agent.SubagentBackend = func(context.Context, string, string, string, SubagentCapabilities) (ChatBackend, error) {
 		attempts++
 		return nil, errors.New("nothing will start")
 	}

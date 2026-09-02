@@ -56,24 +56,9 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 		// `/saga` is an inline marker, including when it begins the line. A
 		// non-empty marked request must beat slash dispatch or `/saga build`
 		// would be treated as an unknown command instead of a normal goal.
-		if goal, marked := inlineSagaPrompt(line); marked && goal != "" {
-			tctx, stop := signal.NotifyContext(ctx, os.Interrupt)
-			err = a.runInteractivePrompt(tctx, ag, line)
-			stop()
-			switch {
-			case errors.Is(err, context.Canceled):
-				fmt.Fprintln(a.stdout, "\033[2m(interrupted)\033[0m")
-			case err != nil:
-				fmt.Fprintf(a.stderr, "\033[31merror:\033[0m %v\n", err)
-				writeAdvice(a.stderr, err)
-			}
-			if eof {
-				return nil
-			}
-			continue
-		}
-
-		if strings.HasPrefix(line, "/") {
+		goal, markedSaga := inlineSagaPrompt(line)
+		sagaRequest := markedSaga && goal != ""
+		if strings.HasPrefix(line, "/") && !sagaRequest {
 			tctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 			shouldExit := a.slash(tctx, ag, line)
 			stop()
@@ -83,9 +68,15 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 			continue
 		}
 
+		// Everything else is an ordinary request, and there is one boundary
+		// for those: runInteractivePrompt decides marked from unmarked and
+		// runs the turn. This branch used to be two — one that called the
+		// boundary and one that called RunTurn directly — with the same
+		// interrupt-and-error block copied under each.
+		//
 		// Per-turn interrupt: Ctrl+C cancels this turn only, not the REPL.
 		tctx, stop := signal.NotifyContext(ctx, os.Interrupt)
-		err = ag.RunTurn(tctx, line)
+		err = a.runInteractivePrompt(tctx, ag, line)
 		stop()
 		switch {
 		case errors.Is(err, context.Canceled):

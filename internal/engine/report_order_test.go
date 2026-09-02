@@ -28,7 +28,8 @@ func TestConcurrentTaskMilestonesStayChronologicalWhileReportsFlushInPlanOrder(t
 	var out bytes.Buffer
 	a := &Agent{Options: Options{
 		Mode: ModeAgent, Out: &out, Permission: PermissionFullAuto, MaxConcurrentTasks: 2,
-		SubagentBackend: func(_ context.Context, model, _ string, _ string) (ChatBackend, error) {
+		Root: t.TempDir(),
+		SubagentBackend: func(_ context.Context, model, _ string, _ string, _ SubagentCapabilities) (ChatBackend, error) {
 			switch model {
 			case "provider/slow":
 				return delayedReportBackend{delay: 50 * time.Millisecond, text: "slow report"}, nil
