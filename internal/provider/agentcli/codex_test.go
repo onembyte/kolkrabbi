@@ -366,7 +366,7 @@ func TestRunCodexWithOptionsPassesTheDeclaredProcessDirectory(t *testing.T) {
 }
 
 func TestCodexBackendStoresCanonicalMaxAsProviderNativeXHigh(t *testing.T) {
-	backend, err := NewCodexBackendFromHandle("gpt-5.6-sol", "code", "max", "", false)
+	backend, err := NewCodexBackendFromHandleWithOptions("gpt-5.6-sol", "code", "max", "", false, ExecutionOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -394,7 +394,7 @@ func TestCodexKnowsTheGPT56SubscriptionFamily(t *testing.T) {
 func TestCodexBackendLearnsTheThreadAndResumesIt(t *testing.T) {
 	var spawnArgs [][]string
 	var prompts []string
-	playback, err := NewCodexBackendFromHandle("gpt-5.6-sol", "code", "high", "", false)
+	playback, err := NewCodexBackendFromHandleWithOptions("gpt-5.6-sol", "code", "high", "", false, ExecutionOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -461,7 +461,7 @@ func TestCodexBackendLearnsTheThreadAndResumesIt(t *testing.T) {
 // tool run and its outcome, and the turn's answer is only the last thing codex
 // said, not every prose line between the tools.
 func TestCodexBackendStreamsTheToolLoopTrail(t *testing.T) {
-	backend, err := NewCodexBackendFromHandle("gpt-5.6-sol", "code", "", "", false)
+	backend, err := NewCodexBackendFromHandleWithOptions("gpt-5.6-sol", "code", "", "", false, ExecutionOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -494,7 +494,7 @@ func TestCodexBackendStreamsTheToolLoopTrail(t *testing.T) {
 }
 
 func TestCodexBackendObservedStreamKeepsProviderToolIdentity(t *testing.T) {
-	backend, err := NewCodexBackendFromHandle("gpt-5.6-sol", "code", "", "", false)
+	backend, err := NewCodexBackendFromHandleWithOptions("gpt-5.6-sol", "code", "", "", false, ExecutionOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -532,7 +532,7 @@ func TestCodexBackendObservedStreamKeepsProviderToolIdentity(t *testing.T) {
 
 // A failing turn reads as the vendor's own cause, not a wall of escaped JSON.
 func TestCodexBackendSurfacesTheVendorCause(t *testing.T) {
-	playback, err := NewCodexBackendFromHandle("gpt-5.6-sol", "code", "", "", false)
+	playback, err := NewCodexBackendFromHandleWithOptions("gpt-5.6-sol", "code", "", "", false, ExecutionOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -553,4 +553,32 @@ func TestCodexBackendSurfacesTheVendorCause(t *testing.T) {
 		t.Fatalf("err = %v, want the vendor's unwrapped cause %q", err, want)
 	}
 	_ = meta
+}
+
+// An effort the vendor listed is accepted, one it did not is refused with the
+// vendor's set named; without a discovered set the seed applies.
+func TestCodexEffortsFollowTheDiscoveredSet(t *testing.T) {
+	discovered := []string{"low", "medium", "high", "xhigh", "max", "ultra"}
+	if _, err := BuildCodexInvocationWithOptions("gpt-5.6-sol", "code", "ultra", "", false, "go", ExecutionOptions{Efforts: discovered}); err != nil {
+		t.Fatalf("a discovered effort was refused: %v", err)
+	}
+	if _, err := BuildCodexInvocationWithOptions("gpt-5.6-sol", "code", "ultra", "", false, "go", ExecutionOptions{}); err == nil {
+		t.Fatal("ultra was accepted from the seed set, which does not list it")
+	}
+	_, err := BuildCodexInvocationWithOptions("gpt-5.6-sol", "code", "extreme", "", false, "go", ExecutionOptions{Efforts: []string{"low", "high"}})
+	if err == nil || !strings.Contains(err.Error(), "the vendor lists low, high") {
+		t.Fatalf("an undiscovered effort = %v, want the vendor's set named", err)
+	}
+	backend, err := NewCodexBackendFromHandleWithOptions("gpt-5.6-sol", "code", "max", "", false, ExecutionOptions{Efforts: discovered})
+	if err != nil || backend.Effort != "xhigh" {
+		t.Fatalf("max with a discovered set = %v, effort %q; want accepted as the vendor's xhigh", err, backend.Effort)
+	}
+	// Efforts alone do not make an envelope: the session's own invocation
+	// must not gain a network override from them.
+	invocation, _ := BuildCodexInvocationWithOptions("gpt-5.6-sol", "code", "high", "", false, "go", ExecutionOptions{Efforts: discovered})
+	for _, arg := range invocation.Args {
+		if strings.HasPrefix(arg, "sandbox_workspace_write.network_access=") {
+			t.Fatalf("a discovered effort set turned the session invocation into a delegated envelope: %v", invocation.Args)
+		}
+	}
 }

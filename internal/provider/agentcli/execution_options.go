@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // ExecutionOptions is the bounded capability envelope for a provider-owned
@@ -15,6 +16,30 @@ type ExecutionOptions struct {
 	AdditionalDirs []string
 	NetworkAccess  bool
 	Provider       string
+	// Efforts is the effort set the vendor's catalog listed for this model,
+	// when discovery has one. Non-empty, it replaces the adapter's seed set
+	// for validation: a level the vendor lists today is accepted today, and
+	// one it dropped is refused, without a code change either way. It is not
+	// part of the execution envelope and never makes the options non-empty.
+	Efforts []string
+}
+
+// effortAllowed validates one provider-spelled effort against the discovered
+// set when there is one, and the adapter's seed set otherwise.
+func effortAllowed(effort string, discovered []string, seed map[string]bool) bool {
+	effort = strings.ToLower(strings.TrimSpace(effort))
+	if effort == "" {
+		return true
+	}
+	if len(discovered) == 0 {
+		return seed[effort]
+	}
+	for _, level := range discovered {
+		if strings.EqualFold(strings.TrimSpace(level), effort) {
+			return true
+		}
+	}
+	return false
 }
 
 func executionOptionsEmpty(options ExecutionOptions) bool {

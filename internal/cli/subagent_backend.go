@@ -37,11 +37,12 @@ func (a *app) subagentBackend() engine.SubagentBackend {
 
 func (a *app) subagentBackendWithCapabilities() engine.SubagentBackendWithCapabilities {
 	return func(ctx context.Context, model, mode, effort string, capabilities engine.SubagentCapabilities) (engine.ChatBackend, error) {
+		store := a.vendorCatalogs()
 		vendor := ""
 		switch {
-		case agentcli.ClaudeKnowsModel(model):
+		case a.vendorKnowsModel(store, "claude", model):
 			vendor = "claude"
-		case agentcli.CodexKnowsModel(model):
+		case a.vendorKnowsModel(store, "codex", model):
 			vendor = "codex"
 		default:
 			// Not a vendor rung: not this port's business. Answering nothing
@@ -57,6 +58,7 @@ func (a *app) subagentBackendWithCapabilities() engine.SubagentBackendWithCapabi
 			AdditionalDirs: capabilities.AdditionalDirs,
 			NetworkAccess:  capabilities.NetworkAccess,
 			Provider:       vendor,
+			Efforts:        a.discoveredEfforts(store, vendor, model),
 		}
 		if vendor == "codex" {
 			// One thread per subagent. Sharing one was the whole reason codex

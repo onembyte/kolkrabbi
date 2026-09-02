@@ -6130,6 +6130,24 @@ last catalog and is reported, never blanked — yesterday's list with a warning 
 recorded-but-disabled connector is not asked; the mutation for that guard only went red once the
 fixture contained one, which is the difference between a test that passes and a test that proves.
 
+## F4.5 — the seed ranks, the vendor decides (2026-09-02)
+
+The question this leaf had to answer was what to do with a ladder. The engine's ceiling needs an
+order — strongest first — and a vendor catalog gives names, not an order kolk can trust for
+routing: Codex's `priority` puts `gpt-5.2` below `gpt-5.4-mini`, which says where the picker lists
+them, not which is cheaper to run a commit on. So the seed ladder keeps the ranking and the vendor
+catalog decides availability: a rung the vendor no longer lists is not offered however long the
+ladder has named it, a model the vendor lists and the seed never heard of is selectable but not
+descended to, and a vendor that has not been asked answers from its seed as before. `gpt-5.6-pro`
+stops being a rung the day the vendor stops listing it; `gpt-5.5` and `ultra` arrive without a code
+change; neither becomes a routing decision kolk cannot defend.
+
+Then the ratchet earned its keep. With every surface reading the derived catalog, four exported
+seed-only functions had no production caller left, and the dead-export test named all four in the
+same run. They were deleted, not allowlisted: a seed row presented as resolvable is the burned-in
+claim this whole phase exists to end, and an entry point that only tests can reach is how it would
+have crept back.
+
 ## TUI progress-log observability — C5 queued 2026-09-01
 
 The requested Codex/Claude-style work log is recorded as a dedicated future checkpoint. It will

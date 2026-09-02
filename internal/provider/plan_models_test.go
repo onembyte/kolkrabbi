@@ -7,7 +7,7 @@ import (
 )
 
 func TestPlanModelsFilterAndEfforts(t *testing.T) {
-	got := PlanModels("gemini")
+	got := PlanModelsFrom(VendorCatalogs{}, "gemini")
 	if len(got) == 0 {
 		t.Fatal("gemini plan models should be present")
 	}
@@ -22,7 +22,7 @@ func TestPlanModelsFilterAndEfforts(t *testing.T) {
 }
 
 func TestPlanModelsMetadataIsComplete(t *testing.T) {
-	for _, model := range PlanModels("") {
+	for _, model := range PlanModelsFrom(VendorCatalogs{}, "") {
 		if model.Provider == "" || model.Plan == "" || model.Connector == "" ||
 			model.Model == "" || model.Access == "" || len(model.Efforts) == 0 {
 			t.Errorf("incomplete plan model metadata: %+v", model)
@@ -36,7 +36,7 @@ func TestPlanModelsIncludeTheCompleteGPT56SubscriptionFamily(t *testing.T) {
 		"ChatGPT Pro":  {"gpt-5.6-pro": true, "gpt-5.6-sol": true, "gpt-5.6-terra": true, "gpt-5.6-luna": true},
 	}
 	got := map[string]map[string]bool{}
-	for _, model := range PlanModels("gpt-5.6") {
+	for _, model := range PlanModelsFrom(VendorCatalogs{}, "gpt-5.6") {
 		if got[model.Plan] == nil {
 			got[model.Plan] = map[string]bool{}
 		}
@@ -58,7 +58,7 @@ func enabledClaude() ConnectorManifest {
 }
 
 func TestResolvePlanModelReturnsAnEnabledPlanModel(t *testing.T) {
-	got, err := ResolvePlanModel("claude-opus", enabledClaude())
+	got, err := ResolvePlanModelFrom(VendorCatalogs{}, "claude-opus", enabledClaude())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestResolvePlanModelReturnsAnEnabledPlanModel(t *testing.T) {
 }
 
 func TestResolvePlanModelIsCaseInsensitive(t *testing.T) {
-	if _, err := ResolvePlanModel("  Claude-Opus  ", enabledClaude()); err != nil {
+	if _, err := ResolvePlanModelFrom(VendorCatalogs{}, "  Claude-Opus  ", enabledClaude()); err != nil {
 		t.Fatalf("a user typing the model with different case got %v", err)
 	}
 }
@@ -90,9 +90,9 @@ func TestResolvePlanModelAcceptsFriendlySubscriptionAliases(t *testing.T) {
 					Provider: "openai", Plan: test.plan, Name: "codex", LoginOwner: "provider-cli", Enabled: true,
 				}}}
 			}
-			got, err := ResolvePlanModel(test.alias, manifest)
+			got, err := ResolvePlanModelFrom(VendorCatalogs{}, test.alias, manifest)
 			if err != nil {
-				t.Fatalf("ResolvePlanModel(%q): %v", test.alias, err)
+				t.Fatalf("ResolvePlanModelFrom(VendorCatalogs{}, %q): %v", test.alias, err)
 			}
 			if got.Model != test.model || got.Plan != test.plan {
 				t.Fatalf("resolved = %+v, want %s on %s", got, test.model, test.plan)
@@ -104,7 +104,7 @@ func TestResolvePlanModelAcceptsFriendlySubscriptionAliases(t *testing.T) {
 func TestResolvePlanModelUsesTheEnabledPlanForAnUnqualifiedSharedModel(t *testing.T) {
 	for _, plan := range []string{"ChatGPT Plus", "ChatGPT Pro"} {
 		t.Run(plan, func(t *testing.T) {
-			got, err := ResolvePlanModel("gpt-5.6-terra", ConnectorManifest{
+			got, err := ResolvePlanModelFrom(VendorCatalogs{}, "gpt-5.6-terra", ConnectorManifest{
 				Version: connectorManifestVersion,
 				Connectors: []Connector{{
 					Provider: "openai", Plan: plan, Name: "codex",
@@ -122,7 +122,7 @@ func TestResolvePlanModelUsesTheEnabledPlanForAnUnqualifiedSharedModel(t *testin
 }
 
 func TestResolvePlanModelChoosesTheHighestKnownTierWhenStaleRecordsOverlap(t *testing.T) {
-	got, err := ResolvePlanModel("gpt-5.6-luna", ConnectorManifest{
+	got, err := ResolvePlanModelFrom(VendorCatalogs{}, "gpt-5.6-luna", ConnectorManifest{
 		Version: connectorManifestVersion,
 		Connectors: []Connector{
 			{Provider: "openai", Plan: "ChatGPT Plus", Name: "codex", LoginOwner: "provider-cli", Enabled: true},
@@ -156,7 +156,7 @@ func TestResolvePlanModelKnownTierChoiceDoesNotDependOnCatalogOrder(t *testing.T
 }
 
 func TestResolvePlanModelDoesNotLetADisabledHigherTierOverrideAnEnabledOne(t *testing.T) {
-	got, err := ResolvePlanModel("gpt-5.6-terra", ConnectorManifest{Connectors: []Connector{
+	got, err := ResolvePlanModelFrom(VendorCatalogs{}, "gpt-5.6-terra", ConnectorManifest{Connectors: []Connector{
 		{Provider: "openai", Plan: "ChatGPT Plus", Name: "codex", Enabled: true},
 		{Provider: "openai", Plan: "ChatGPT Pro", Name: "codex", Enabled: false},
 	}})
@@ -184,7 +184,7 @@ func TestResolvePlanModelKeepsUnknownTierFamiliesAmbiguous(t *testing.T) {
 }
 
 func TestResolvePlanModelRejectsAnUnknownReference(t *testing.T) {
-	_, err := ResolvePlanModel("no-such-model", enabledClaude())
+	_, err := ResolvePlanModelFrom(VendorCatalogs{}, "no-such-model", enabledClaude())
 	if err == nil {
 		t.Fatal("an unknown plan model must be rejected")
 	}
@@ -200,7 +200,7 @@ func TestResolvePlanModelDoesNotTreatAnUnusableOneAsOrdinary(t *testing.T) {
 	// A plan model the user cannot use yet must stop the session with its
 	// reason, never fall through to an ordinary provider.
 	for _, ref := range []string{"claude-opus", "gemini-2.5-flash"} {
-		_, err := ResolvePlanModel(ref, ConnectorManifest{Version: connectorManifestVersion})
+		_, err := ResolvePlanModelFrom(VendorCatalogs{}, ref, ConnectorManifest{Version: connectorManifestVersion})
 		if err == nil {
 			t.Fatalf("%s resolved without an enabled connector", ref)
 		}
@@ -227,7 +227,7 @@ func TestResolvePlanModelReportsAmbiguityWithTheQualifiedForms(t *testing.T) {
 }
 
 func TestResolvePlanModelAcceptsAPlanQualifiedReference(t *testing.T) {
-	got, err := ResolvePlanModel("Google AI Ultra/gemini-2.5-pro", ConnectorManifest{
+	got, err := ResolvePlanModelFrom(VendorCatalogs{}, "Google AI Ultra/gemini-2.5-pro", ConnectorManifest{
 		Version: connectorManifestVersion,
 		Connectors: []Connector{{
 			Provider: "google", Plan: "Google AI Ultra", Name: "gemini",
@@ -246,7 +246,7 @@ func TestResolvePlanModelAcceptsAPlanQualifiedReference(t *testing.T) {
 }
 
 func TestResolvePlanModelTellsTheUserHowToEnableAConnector(t *testing.T) {
-	_, err := ResolvePlanModel("claude-opus", ConnectorManifest{Version: connectorManifestVersion})
+	_, err := ResolvePlanModelFrom(VendorCatalogs{}, "claude-opus", ConnectorManifest{Version: connectorManifestVersion})
 	if err == nil {
 		t.Fatal("a plan model whose connector is not enabled must be rejected")
 	}
@@ -256,7 +256,7 @@ func TestResolvePlanModelTellsTheUserHowToEnableAConnector(t *testing.T) {
 }
 
 func TestResolvePlanModelRejectsADisabledConnector(t *testing.T) {
-	_, err := ResolvePlanModel("claude-opus", ConnectorManifest{
+	_, err := ResolvePlanModelFrom(VendorCatalogs{}, "claude-opus", ConnectorManifest{
 		Version: connectorManifestVersion,
 		Connectors: []Connector{{
 			Provider: "anthropic", Plan: "Claude Max", Name: "claude",
@@ -271,7 +271,7 @@ func TestResolvePlanModelRejectsADisabledConnector(t *testing.T) {
 func TestResolvePlanModelExplainsWhenEveryPlanOfferingItIsUnusable(t *testing.T) {
 	// Two Google plans offer gemini-2.5-pro and neither may be reused. Asking
 	// the user to pick one of them would only produce a second refusal.
-	_, err := ResolvePlanModel("gemini-2.5-pro", enabledClaude())
+	_, err := ResolvePlanModelFrom(VendorCatalogs{}, "gemini-2.5-pro", enabledClaude())
 	if err == nil {
 		t.Fatal("an unusable model must be refused")
 	}
@@ -349,7 +349,7 @@ func TestPlanCatalogListsFableAndHaikuWithVerifiedEfforts(t *testing.T) {
 		"claude-fable":  {"Claude Max", "low,medium,high,max"},
 	}
 	seen := map[string]bool{}
-	for _, model := range PlanModels("anthropic") {
+	for _, model := range PlanModelsFrom(VendorCatalogs{}, "anthropic") {
 		expected, ok := want[model.Model]
 		if !ok {
 			t.Errorf("unexpected anthropic row %+v", model)
@@ -374,17 +374,107 @@ func TestFableNeedsMaxAndHaikuIsOnEveryClaudePlan(t *testing.T) {
 		{Provider: "anthropic", Plan: "Claude Pro", Name: "claude", LoginOwner: "provider-cli", Enabled: true},
 	}}
 	for _, model := range []string{"claude-haiku", "claude-sonnet", "claude-opus", "claude-fable"} {
-		if _, err := ResolvePlanModel(model, enabledClaude()); err != nil {
+		if _, err := ResolvePlanModelFrom(VendorCatalogs{}, model, enabledClaude()); err != nil {
 			t.Errorf("Max login cannot select %s: %v", model, err)
 		}
 	}
 	for _, model := range []string{"claude-haiku", "claude-sonnet"} {
-		if _, err := ResolvePlanModel(model, pro); err != nil {
+		if _, err := ResolvePlanModelFrom(VendorCatalogs{}, model, pro); err != nil {
 			t.Errorf("Pro login cannot select %s: %v", model, err)
 		}
 	}
-	_, err := ResolvePlanModel("claude-fable", pro)
+	_, err := ResolvePlanModelFrom(VendorCatalogs{}, "claude-fable", pro)
 	if err == nil || !strings.Contains(err.Error(), `kolk plans login anthropic "Claude Max"`) {
 		t.Fatalf("Pro login selecting fable = %v, want the Max sign-in named", err)
+	}
+}
+
+// The plan catalog as the vendors describe it. Codex on 2026-09-02: the seed's
+// gpt-5.6-pro is gone, gpt-5.5 arrives on every Codex tier with the vendor's
+// efforts including ultra, and Sol keeps its tiers but takes the vendor's
+// efforts and status. Claude, previewed: the family rows carry unverified.
+// A vendor never asked keeps its seed rows, marked unverified.
+func TestDerivedPlanCatalogIsWhatTheVendorsSaid(t *testing.T) {
+	var store VendorCatalogs
+	store.Replace(VendorCatalog{Vendor: "codex", VendorVersion: "0.149.1", Models: []DiscoveredModel{
+		{ID: "gpt-5.6-sol", Rank: 1, Efforts: []string{"low", "medium", "high", "xhigh", "max", "ultra"}, Context: 272000, Status: StatusListed},
+		{ID: "gpt-5.6-terra", Rank: 2, Efforts: []string{"low", "medium", "high", "xhigh", "max", "ultra"}, Status: StatusListed},
+		{ID: "gpt-5.6-luna", Rank: 3, Efforts: []string{"low", "medium", "high", "xhigh", "max"}, Status: StatusListed},
+		{ID: "gpt-5.5", Rank: 7, Efforts: []string{"low", "medium", "high", "xhigh"}, Status: StatusListed},
+		{ID: "gpt-5.4", Rank: 16, Hidden: true, Status: StatusListed},
+	}})
+	store.Replace(VendorCatalog{Vendor: "claude", Models: []DiscoveredModel{
+		{ID: "claude-fable", Rank: 1, Efforts: []string{"low", "medium", "high", "xhigh", "max"}, Context: 1000000, Status: StatusUnverified},
+		{ID: "claude-opus", Rank: 2, Status: StatusVerified},
+	}})
+
+	derived := DerivePlanModels(store)
+	find := func(plan, model string) (PlanModel, bool) {
+		for _, row := range derived {
+			if row.Plan == plan && strings.EqualFold(row.Model, model) {
+				return row, true
+			}
+		}
+		return PlanModel{}, false
+	}
+	pro, _ := find("ChatGPT Pro", "gpt-5.6-pro")
+	if pro.Status != StatusGone {
+		t.Fatalf("gpt-5.6-pro = %+v, want gone: the vendor does not list it", pro)
+	}
+	sol, _ := find("ChatGPT Plus", "gpt-5.6-sol")
+	if sol.Status != StatusListed || strings.Join(sol.Efforts, ",") != "low,medium,high,xhigh,max,ultra" || sol.Context != 272000 {
+		t.Fatalf("sol = %+v, want the vendor's efforts (with ultra) and context", sol)
+	}
+	for _, plan := range []string{"ChatGPT Plus", "ChatGPT Pro"} {
+		row, ok := find(plan, "gpt-5.5")
+		if !ok || row.Status != StatusListed || row.Provider != "openai" || row.Access != "provider CLI" || strings.Join(row.Efforts, ",") != "low,medium,high,xhigh" {
+			t.Fatalf("gpt-5.5 on %s = %+v, %v; want added from the vendor catalog", plan, row, ok)
+		}
+	}
+	if _, ok := find("ChatGPT Plus", "gpt-5.4"); ok {
+		t.Fatal("a hidden vendor row became a plan row")
+	}
+	fable, _ := find("Claude Max", "claude-fable")
+	if fable.Status != StatusUnverified || fable.Context != 1000000 {
+		t.Fatalf("fable = %+v, want the preview's status and context", fable)
+	}
+	if opus, _ := find("Claude Max", "claude-opus"); opus.Status != StatusVerified {
+		t.Fatalf("opus = %+v, want the turn's verification carried into the plan row", opus)
+	}
+	if haiku, _ := find("Claude Pro", "claude-haiku"); haiku.Status != StatusGone {
+		t.Fatalf("haiku = %+v, want gone: the vendor was asked and did not name it", haiku)
+	}
+	gemini, _ := find("Google AI Pro", "gemini-2.5-pro")
+	if gemini.Status != StatusUnverified {
+		t.Fatalf("a vendor never asked = %+v, want its seed row marked unverified", gemini)
+	}
+	if bare := PlanModelsFrom(VendorCatalogs{}, ""); bare[0].Status != StatusUnverified {
+		t.Fatalf("with no vendor asked, a seed row = %+v, want unverified", bare[0])
+	}
+}
+
+// Resolution reads the derived catalog: a discovered model resolves, a gone
+// model is refused by name with the vendor's version, and an unknown name is
+// still not a plan model.
+func TestResolvePlanModelFromTheVendorCatalog(t *testing.T) {
+	codex := ConnectorManifest{Version: connectorManifestVersion, Connectors: []Connector{
+		{Provider: "openai", Plan: "ChatGPT Plus", Name: "codex", LoginOwner: "provider-cli", Enabled: true},
+	}}
+	var store VendorCatalogs
+	store.Replace(VendorCatalog{Vendor: "codex", VendorVersion: "0.149.1", Models: []DiscoveredModel{
+		{ID: "gpt-5.6-sol", Rank: 1, Status: StatusListed}, {ID: "gpt-5.5", Rank: 7, Status: StatusListed},
+	}})
+	if got, err := ResolvePlanModelFrom(store, "gpt-5.5", codex); err != nil || got.Model != "gpt-5.5" || got.Plan != "ChatGPT Plus" {
+		t.Fatalf("a discovered model = %+v, %v", got, err)
+	}
+	_, err := ResolvePlanModelFrom(store, "gpt-5.6-pro", codex)
+	if !errors.Is(err, ErrModelGone) || !strings.Contains(err.Error(), "codex 0.149.1 does not list gpt-5.6-pro") {
+		t.Fatalf("a gone model = %v, want ErrModelGone naming the vendor and version", err)
+	}
+	if _, err := ResolvePlanModelFrom(store, "gpt-9", codex); !errors.Is(err, ErrNotAPlanModel) {
+		t.Fatalf("an unknown name = %v, want ErrNotAPlanModel", err)
+	}
+	if _, err := ResolvePlanModelFrom(VendorCatalogs{}, "gpt-5.6-pro", ConnectorManifest{Version: connectorManifestVersion, Connectors: []Connector{{Provider: "openai", Plan: "ChatGPT Pro", Name: "codex", LoginOwner: "provider-cli", Enabled: true}}}); err != nil {
+		t.Fatalf("with no vendor catalog the seed still resolves: %v", err)
 	}
 }

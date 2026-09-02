@@ -271,7 +271,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		a.refreshOllamaConnector(ctx, d.ConnectorsFile(), host)
 		if connectors, err := provider.LoadConnectors(d.ConnectorsFile()); err == nil {
 			gateway := choice.Model
-			choice = chooseSessionModel(choice, connectors)
+			choice = chooseSessionModel(a.planModels(""), choice, connectors)
 			// Remember what the gateway would have answered with. When the
 			// subscription runs out mid-run, that is the model there is to fall
 			// back to — and it is only a fallback if a subscription was
@@ -513,7 +513,7 @@ func (a *app) planBackendFor(model, mode, effort, state string, note func(string
 	if err != nil {
 		return nil, provider.PlanModel{}, err
 	}
-	planModel, err := provider.ResolvePlanModel(model, manifest)
+	planModel, err := a.resolvePlanModel(model, manifest)
 	if errors.Is(err, provider.ErrNotAPlanModel) {
 		return nil, provider.PlanModel{}, nil
 	}
@@ -538,7 +538,10 @@ func (a *app) planBackendFor(model, mode, effort, state string, note func(string
 		// process to keep. The sandbox is the vendor's own, chosen by kolk's
 		// session mode.
 		resolved := a.planEffort(effort, planModel)
-		inner, err := agentcli.NewCodexBackendFromHandle(planModel.Model, mode, resolved, state, state != "")
+		// The vendor's own effort set for this model, when discovery has
+		// one, so a level the vendor lists today is accepted today.
+		inner, err := agentcli.NewCodexBackendFromHandleWithOptions(planModel.Model, mode, resolved, state, state != "",
+			agentcli.ExecutionOptions{Efforts: planModel.Efforts})
 		if err != nil {
 			return nil, provider.PlanModel{}, err
 		}
@@ -560,7 +563,7 @@ func (a *app) namedPlanModel(ref string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if _, err := provider.ResolvePlanModel(ref, manifest); err != nil {
+	if _, err := a.resolvePlanModel(ref, manifest); err != nil {
 		if errors.Is(err, provider.ErrNotAPlanModel) {
 			return false, nil
 		}

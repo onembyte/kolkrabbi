@@ -17,7 +17,7 @@ func verifiedManifest() provider.ConnectorManifest {
 // the plainest waste this project can produce, so a session that names no model
 // should reach for it first.
 func TestAVerifiedSubscriptionIsPreferredOverTheGateway(t *testing.T) {
-	choice := chooseSessionModel(chooseDefaultModel(sampleCatalog()), verifiedManifest())
+	choice := chooseSessionModel(provider.PlanModelsFrom(provider.VendorCatalogs{}, ""), chooseDefaultModel(sampleCatalog()), verifiedManifest())
 	if !strings.Contains(strings.ToLower(choice.Model), "claude") {
 		t.Errorf("session chose %q with a verified Claude subscription available", choice.Model)
 	}
@@ -36,7 +36,7 @@ func TestAnUnverifiedConnectorIsNotUsed(t *testing.T) {
 		{Provider: "anthropic", Plan: "Claude Pro", Name: "claude"},
 	} {
 		manifest := provider.ConnectorManifest{Version: 1, Connectors: []provider.Connector{connector}}
-		choice := chooseSessionModel(chooseDefaultModel(sampleCatalog()), manifest)
+		choice := chooseSessionModel(provider.PlanModelsFrom(provider.VendorCatalogs{}, ""), chooseDefaultModel(sampleCatalog()), manifest)
 		if strings.Contains(strings.ToLower(choice.Model), "claude") {
 			t.Errorf("a connector that is enabled=%v verified=%v was used anyway",
 				connector.Enabled, connector.Verified)
@@ -47,7 +47,7 @@ func TestAnUnverifiedConnectorIsNotUsed(t *testing.T) {
 // With no subscription at all, nothing changes: the free-first discovery that
 // already exists is still the right answer.
 func TestNoSubscriptionLeavesTheChoiceAlone(t *testing.T) {
-	withNone := chooseSessionModel(chooseDefaultModel(sampleCatalog()), provider.ConnectorManifest{Version: 1})
+	withNone := chooseSessionModel(provider.PlanModelsFrom(provider.VendorCatalogs{}, ""), chooseDefaultModel(sampleCatalog()), provider.ConnectorManifest{Version: 1})
 	direct := chooseDefaultModel(sampleCatalog())
 	if withNone.Model != direct.Model {
 		t.Errorf("with no connector the session chose %q, want the usual default %q",

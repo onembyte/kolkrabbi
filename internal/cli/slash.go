@@ -114,7 +114,20 @@ func (a *app) reportAgentLane(ag *engine.Agent) {
 		return
 	}
 	roster := ag.Roster(a.rungAvailable())
-	blocked := engine.ModelsAboveCeiling(ag.SessionModel())
+	// Only rungs the vendor still lists are worth naming as refused: telling
+	// someone gpt-5.6-pro is out of reach when the vendor no longer offers it
+	// is a limit on nothing.
+	store := a.vendorCatalogs()
+	var blocked []string
+	for _, rung := range engine.ModelsAboveCeiling(ag.SessionModel()) {
+		vendor, _, _ := strings.Cut(rung, "-")
+		if vendor == "gpt" {
+			vendor = "codex"
+		}
+		if _, known := store.Vendors[vendor]; !known || a.vendorKnowsModel(store, vendor, rung) {
+			blocked = append(blocked, rung)
+		}
+	}
 	if len(roster.Rungs) < 2 && len(blocked) == 0 {
 		// On no ranked ladder, or at the top of one with nothing cheaper
 		// signed in. The first is not worth a line: it would be a claim kolk

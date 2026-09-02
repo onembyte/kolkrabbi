@@ -10872,7 +10872,7 @@ silently and is V34.4c's, with an owner decision. Walk-back: `docs/plan/24` Anth
 one-turn provider calls were made on the owner's own login for the fire-and-check above; no
 credential, push, tag, release, or remote state changed.
 
-#### F4 — discover, don't burn — in progress; F4.1 port, F4.2 Codex lister, F4.3 Claude preview and first-turn verification, F4.4 hooks complete 2026-09-02
+#### F4 — discover, don't burn — in progress; F4.1 port, F4.2 Codex lister, F4.3 Claude preview and first-turn verification, F4.4 hooks, F4.5 derivation complete 2026-09-02
 
 Owner decision (verbatim in `FABLE_OPTIMIZATION.md` §F4): map every vendor's models on every start
 and every login, never burn names, show only mapped rows with their info. **Risk:** P1 product truth
@@ -10953,8 +10953,23 @@ ignored, a failure blanking the catalog, the login hook removed — each failed 
 byte-identically; the first only went red once the fixture recorded a disabled connector, which is
 the case the guard exists for. `make check` green at 3,229 tests.
 
-Remaining: F4.5 (derivation of rungs, efforts, ladders from the catalog), F4.6 (surfaces), F4.7
-(proof). No provider turn was spent; one `codex debug models` and one `codex
+Green, F4.5 (decision: seed ladder = ranking; vendor catalog = availability): `DerivePlanModels`,
+`PlanModelsFrom`, `ResolvePlanModelFrom` with `ErrModelGone`; `PlanModel.Status`/`Context`;
+`ExecutionOptions.Efforts` and `effortAllowed` (discovered set replaces the seed for validation;
+efforts never make an envelope); cli `vendorKnowsModel`/`discoveredEfforts`/`planModels`/
+`resolvePlanModel` behind `rungAvailable`, the subagent factory, `planBackendFor` (Codex opened
+with the discovered efforts), `pmodels`, the TUI groups, the subscription-first default, and the
+agent-lane "out of reach" line (a rung the vendor no longer lists is not named as refused).
+`PlanModels`, `ResolvePlanModel`, `CodexEffortValid`, `NewCodexBackendFromHandle` deleted: the
+dead-export ratchet flagged all four the moment production stopped calling them. Tests:
+`TestDerivedPlanCatalogIsWhatTheVendorsSaid`, `TestResolvePlanModelFromTheVendorCatalog`,
+`TestCodexEffortsFollowTheDiscoveredSet`, `TestRungAvailabilityFollowsTheVendorCatalog` (before
+discovery the seed answers; after, gpt-5.6-pro is no rung and gpt-5.5 is; a vendor not asked still
+answers from its seed; a gone name at the prompt is `ErrModelGone`). Four mutations — seed never
+gone, gone still resolves, availability ignoring the catalog, efforts ignoring discovery — each
+failed its test and restored byte-identically. `make check` green.
+
+Remaining: F4.6 (surfaces), F4.7 (proof). No provider turn was spent; one `codex debug models` and one `codex
 --version` ran on this machine. No credential, push, tag, release, or remote state changed.
 
 #### C5 — TUI progress-log observability — queued

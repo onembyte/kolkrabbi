@@ -21,7 +21,7 @@ func (a *app) runPlanModels(_ context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	models := provider.PlanModels(strings.TrimSpace(strings.Join(args, " ")))
+	models := a.planModels(strings.TrimSpace(strings.Join(args, " ")))
 	if len(models) == 0 {
 		fmt.Fprintf(a.stdout, "no plan models match %q\n", strings.Join(args, " "))
 		return nil
@@ -57,7 +57,7 @@ func (a *app) printPlanModelChoices() error {
 	if err != nil {
 		return err
 	}
-	models := provider.PlanModels("")
+	models := a.planModels("")
 	if len(models) == 0 {
 		return nil
 	}

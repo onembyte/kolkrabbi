@@ -15,6 +15,12 @@ type PlanModel struct {
 	Model     string
 	Efforts   []string
 	Access    string
+	// Status is how kolk knows the row: what the vendor listed, what a turn
+	// verified, a seed nothing has confirmed, or a name the vendor no longer
+	// lists. Empty on the bare seed catalog; DerivePlanModels fills it.
+	Status ModelStatus
+	// Context is the vendor's context window when discovery reported one.
+	Context int
 }
 
 var planModelCatalog = []PlanModel{
@@ -50,36 +56,16 @@ var planModelCatalog = []PlanModel{
 	{Provider: "google", Plan: "Google AI Ultra", Connector: "gemini", Model: "gemini-2.5-pro", Efforts: []string{"low", "medium", "high", "max"}, Access: "unsupported subscription"},
 }
 
-func PlanModels(filter string) []PlanModel {
-	filter = strings.ToLower(strings.TrimSpace(filter))
-	out := make([]PlanModel, 0, len(planModelCatalog))
-	for _, model := range planModelCatalog {
-		if filter != "" &&
-			!strings.Contains(strings.ToLower(model.Provider), filter) &&
-			!strings.Contains(strings.ToLower(model.Plan), filter) &&
-			!strings.Contains(strings.ToLower(model.Connector), filter) &&
-			!strings.Contains(strings.ToLower(model.Model), filter) &&
-			!strings.Contains(strings.ToLower(model.Access), filter) {
-			continue
-		}
-		out = append(out, model)
-	}
-	return out
-}
-
 // ErrNotAPlanModel distinguishes "the user named an ordinary model" from "the
 // user named a plan model that cannot be used yet". Only the second is worth
 // stopping a session over.
 var ErrNotAPlanModel = errors.New("not a plan model")
 
-// ResolvePlanModel finds the plan model a user named and refuses, with the
-// reason and the next command, when it cannot be used. A plan model is usable
-// only when its plan is reachable through a provider CLI and the user has
-// already signed into that connector in a terminal Kolkrabbi does not own.
-func ResolvePlanModel(ref string, manifest ConnectorManifest) (PlanModel, error) {
-	return resolvePlanModel(planModelCatalog, ref, manifest)
-}
-
+// A plan model is usable only when its plan is reachable through a provider
+// CLI and the user has already signed into that connector in a terminal
+// Kolkrabbi does not own. Resolution always reads the derived catalog
+// (ResolvePlanModelFrom); there is no seed-only entry point, because a seed
+// row presented as resolvable is the burned-in claim this file exists to end.
 func resolvePlanModel(catalog []PlanModel, ref string, manifest ConnectorManifest) (PlanModel, error) {
 	wanted := strings.ToLower(strings.TrimSpace(ref))
 	if target, ok := subscriptionModelAliases[wanted]; ok {
@@ -322,4 +308,135 @@ func EffortForPlan(effort string, offered []string) (string, bool) {
 		return lowest, true
 	}
 	return effort, false
+}
+
+// DerivePlanModels is the plan catalog as the vendors describe it: the seed
+// rows above, corrected by what each vendor's catalog said when it was last
+// asked. No row here is true because it is in the source.
+//
+// For a vendor the store knows: a seed row the vendor lists keeps its tiers
+// and takes the vendor's efforts, context, and status; a seed row the vendor
+// no longer lists becomes `gone`; a model the vendor lists and the seed never
+// heard of is added on every tier the seed uses for that connector, because
+// the vendor's catalog is what a login sees and tier gating is not in it. For
+// a vendor the store does not know, the seed rows stand, marked `unverified`.
+func DerivePlanModels(store VendorCatalogs) []PlanModel {
+	out := make([]PlanModel, 0, len(planModelCatalog)+8)
+	tiers := map[string][]string{}
+	tierSeen := map[string]bool{}
+	for _, seed := range planModelCatalog {
+		key := seed.Connector + "\x00" + seed.Plan
+		if !tierSeen[key] {
+			tierSeen[key] = true
+			tiers[seed.Connector] = append(tiers[seed.Connector], seed.Plan)
+		}
+	}
+	listed := map[string]bool{}
+	for _, seed := range planModelCatalog {
+		row := seed
+		row.Status = StatusUnverified
+		catalog, known := store.Vendors[seed.Connector]
+		if known {
+			if discovered, ok := catalog.Find(seed.Model); ok {
+				row.Status = discovered.Status
+				if len(discovered.Efforts) > 0 {
+					row.Efforts = append([]string(nil), discovered.Efforts...)
+				}
+				row.Context = discovered.Context
+				listed[seed.Connector+"\x00"+strings.ToLower(seed.Model)] = true
+			} else if seed.Access == "provider CLI" {
+				row.Status = StatusGone
+			}
+		}
+		out = append(out, row)
+	}
+	for connector, catalog := range store.Vendors {
+		plans := tiers[connector]
+		if len(plans) == 0 {
+			continue
+		}
+		providerName := ""
+		for _, seed := range planModelCatalog {
+			if seed.Connector == connector {
+				providerName = seed.Provider
+				break
+			}
+		}
+		for _, discovered := range catalog.Visible() {
+			if listed[connector+"\x00"+strings.ToLower(discovered.ID)] {
+				continue
+			}
+			for _, plan := range plans {
+				out = append(out, PlanModel{
+					Provider: providerName, Plan: plan, Connector: connector, Model: discovered.ID,
+					Efforts: append([]string(nil), discovered.Efforts...), Access: "provider CLI",
+					Status: discovered.Status, Context: discovered.Context,
+				})
+			}
+		}
+	}
+	return out
+}
+
+// PlanModelsFrom is PlanModels over the derived catalog.
+func PlanModelsFrom(store VendorCatalogs, filter string) []PlanModel {
+	return filterPlanModels(DerivePlanModels(store), filter)
+}
+
+func filterPlanModels(catalog []PlanModel, filter string) []PlanModel {
+	filter = strings.ToLower(strings.TrimSpace(filter))
+	out := make([]PlanModel, 0, len(catalog))
+	for _, model := range catalog {
+		if filter != "" &&
+			!strings.Contains(strings.ToLower(model.Provider), filter) &&
+			!strings.Contains(strings.ToLower(model.Plan), filter) &&
+			!strings.Contains(strings.ToLower(model.Connector), filter) &&
+			!strings.Contains(strings.ToLower(model.Model), filter) &&
+			!strings.Contains(strings.ToLower(model.Access), filter) {
+			continue
+		}
+		out = append(out, model)
+	}
+	return out
+}
+
+// ErrModelGone is wrapped when a reference names a model the vendor no longer
+// lists. It is not ErrNotAPlanModel: the user named something kolk knew, and
+// the answer is what happened to it, not "use the gateway".
+var ErrModelGone = errors.New("the vendor no longer lists this model")
+
+// ResolvePlanModelFrom is ResolvePlanModel over the derived catalog. A
+// reference whose every match is `gone` is refused with the vendor named,
+// so the user learns the model was retired rather than that it never existed.
+func ResolvePlanModelFrom(store VendorCatalogs, ref string, manifest ConnectorManifest) (PlanModel, error) {
+	derived := DerivePlanModels(store)
+	live := make([]PlanModel, 0, len(derived))
+	var gone []PlanModel
+	for _, model := range derived {
+		if model.Status == StatusGone {
+			gone = append(gone, model)
+			continue
+		}
+		live = append(live, model)
+	}
+	resolved, err := resolvePlanModel(live, ref, manifest)
+	if err == nil || !errors.Is(err, ErrNotAPlanModel) {
+		return resolved, err
+	}
+	wanted := strings.ToLower(strings.TrimSpace(ref))
+	if _, rest, ok := strings.Cut(wanted, "/"); ok {
+		wanted = rest
+	}
+	for _, model := range gone {
+		if strings.ToLower(model.Model) != wanted {
+			continue
+		}
+		version := ""
+		if catalog, ok := store.Vendors[model.Connector]; ok && catalog.VendorVersion != "" {
+			version = " " + catalog.VendorVersion
+		}
+		return PlanModel{}, fmt.Errorf("%w: %s%s does not list %s; `kolk models` shows what it does",
+			ErrModelGone, model.Connector, version, model.Model)
+	}
+	return resolved, err
 }

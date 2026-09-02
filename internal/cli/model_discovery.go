@@ -272,3 +272,62 @@ func describeVendorDiscovery(result vendorDiscovery) string {
 	return fmt.Sprintf("%s%s: %d models listed by %s: %s%s — `kolk models` shows them",
 		result.Connector, version, len(visible), result.Catalog.Source, strings.Join(names, ", "), changed)
 }
+
+// vendorCatalogs is the vendor catalog file as it stands. A missing or
+// unreadable file is an empty store: every caller falls back to the seed and
+// says so through Status, never by refusing to answer.
+func (a *app) vendorCatalogs() provider.VendorCatalogs {
+	dirs, err := a.resolve()
+	if err != nil {
+		return provider.VendorCatalogs{}
+	}
+	store, err := provider.LoadVendorCatalogs(dirs.VendorCatalogFile())
+	if err != nil {
+		return provider.VendorCatalogs{}
+	}
+	return store
+}
+
+// vendorKnowsModel is availability as the vendor states it. When the vendor
+// has been asked, its catalog is the answer — a row that is listed, verified,
+// or previewed is spawnable and a row that is gone is not. When it has not
+// been asked, the adapter's seed answers, which is what happened before
+// discovery existed.
+func (a *app) vendorKnowsModel(store provider.VendorCatalogs, vendor, model string) bool {
+	if catalog, ok := store.Vendors[strings.ToLower(vendor)]; ok {
+		row, found := catalog.Find(model)
+		return found && row.Status != provider.StatusGone
+	}
+	switch strings.ToLower(vendor) {
+	case "claude":
+		return agentcli.ClaudeKnowsModel(model)
+	case "codex":
+		return agentcli.CodexKnowsModel(model)
+	default:
+		return false
+	}
+}
+
+// discoveredEfforts is the effort set the vendor listed for a model, or nil
+// when the vendor has not been asked, so the adapter's seed set applies.
+func (a *app) discoveredEfforts(store provider.VendorCatalogs, vendor, model string) []string {
+	catalog, ok := store.Vendors[strings.ToLower(vendor)]
+	if !ok {
+		return nil
+	}
+	row, found := catalog.Find(model)
+	if !found {
+		return nil
+	}
+	return append([]string(nil), row.Efforts...)
+}
+
+// planModels and resolvePlanModel are the plan catalog as the vendors
+// describe it; every surface reads through these, never the bare seed.
+func (a *app) planModels(filter string) []provider.PlanModel {
+	return provider.PlanModelsFrom(a.vendorCatalogs(), filter)
+}
+
+func (a *app) resolvePlanModel(ref string, manifest provider.ConnectorManifest) (provider.PlanModel, error) {
+	return provider.ResolvePlanModelFrom(a.vendorCatalogs(), ref, manifest)
+}

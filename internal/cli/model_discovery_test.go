@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -260,5 +261,53 @@ func TestPlanLoginRunsTheVendorMappingBeforeReturning(t *testing.T) {
 	}
 	if _, ok := store.Vendors["codex"].Find("gpt-5.6-sol"); !ok {
 		t.Fatalf("login left no vendor catalog: %+v", store.Vendors)
+	}
+}
+
+// Availability as the vendor states it. Once codex has been asked, the ladder's
+// gpt-5.6-pro is not a rung the roster may descend to, and the vendor's
+// gpt-5.5 is spawnable although kolk's seed never heard of it; a vendor not
+// yet asked answers from the seed.
+func TestRungAvailabilityFollowsTheVendorCatalog(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	signInAs(t, dirs, "openai", "ChatGPT Plus", "codex")
+	signInAs(t, dirs, "anthropic", "Claude Max", "claude")
+	a, _, _ := newTestApp(t, "")
+	a.dirs = dirs
+
+	before := a.rungAvailable()
+	if !before("codex", "gpt-5.6-pro") || before("codex", "gpt-5.5") {
+		t.Fatal("before discovery the seed must answer: gpt-5.6-pro yes, gpt-5.5 no")
+	}
+
+	var store provider.VendorCatalogs
+	store.Replace(provider.VendorCatalog{Vendor: "codex", VendorVersion: "0.149.1", Models: []provider.DiscoveredModel{
+		{ID: "gpt-5.6-sol", Rank: 1, Status: provider.StatusListed}, {ID: "gpt-5.5", Rank: 7, Status: provider.StatusListed},
+	}})
+	if err := provider.SaveVendorCatalogs(dirs.VendorCatalogFile(), store); err != nil {
+		t.Fatal(err)
+	}
+	after := a.rungAvailable()
+	if after("codex", "gpt-5.6-pro") {
+		t.Fatal("gpt-5.6-pro is still a rung after the vendor stopped listing it")
+	}
+	if !after("codex", "gpt-5.5") || !after("codex", "gpt-5.6-sol") {
+		t.Fatal("a model the vendor lists is not available")
+	}
+	if !after("claude", "claude-haiku") {
+		t.Fatal("a vendor not yet asked stopped answering from its seed")
+	}
+
+	// A gone model named at the prompt is refused with what happened to it.
+	manifest, _ := provider.LoadConnectors(dirs.ConnectorsFile())
+	_, err := a.resolvePlanModel("gpt-5.6-pro", manifest)
+	if !errors.Is(err, provider.ErrModelGone) {
+		t.Fatalf("selecting a gone model = %v, want ErrModelGone", err)
+	}
+	if got, err := a.resolvePlanModel("gpt-5.5", manifest); err != nil || got.Model != "gpt-5.5" {
+		t.Fatalf("selecting a discovered model = %+v, %v", got, err)
+	}
+	if !strings.Contains(fmt.Sprint(a.planModels("gpt-5.5")), "gpt-5.5") {
+		t.Fatal("pmodels does not carry the discovered model")
 	}
 }

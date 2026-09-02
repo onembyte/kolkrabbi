@@ -24,8 +24,8 @@ import (
 // It takes the choice already made rather than re-deriving it: startup injects
 // its own chooser, and calling the real one again from here would ignore that
 // seam — which is exactly how this first broke two existing tests.
-func chooseSessionModel(fallback defaultModelChoice, manifest provider.ConnectorManifest) defaultModelChoice {
-	if plan, ok := verifiedPlanModel(manifest); ok {
+func chooseSessionModel(catalog []provider.PlanModel, fallback defaultModelChoice, manifest provider.ConnectorManifest) defaultModelChoice {
+	if plan, ok := verifiedPlanModel(catalog, manifest); ok {
 		return defaultModelChoice{
 			Model: plan.Model,
 			Free:  true, // to the user: already paid for, so this turn costs nothing new
@@ -42,7 +42,7 @@ func chooseSessionModel(fallback defaultModelChoice, manifest provider.Connector
 // The order is the plan catalogue's, so the answer is stable: two runs on one
 // machine choose the same plan, and a session nobody can predict is a session
 // nobody trusts.
-func verifiedPlanModel(manifest provider.ConnectorManifest) (provider.PlanModel, bool) {
+func verifiedPlanModel(catalog []provider.PlanModel, manifest provider.ConnectorManifest) (provider.PlanModel, bool) {
 	usable := map[string]bool{}
 	for _, connector := range manifest.Connectors {
 		if connector.Enabled && connector.Verified {
@@ -52,7 +52,7 @@ func verifiedPlanModel(manifest provider.ConnectorManifest) (provider.PlanModel,
 	if len(usable) == 0 {
 		return provider.PlanModel{}, false
 	}
-	for _, plan := range provider.PlanModels("") {
+	for _, plan := range catalog {
 		if usable[strings.ToLower(plan.Connector)] {
 			return plan, true
 		}

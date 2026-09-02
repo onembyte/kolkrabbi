@@ -324,8 +324,9 @@ func TestTUISubscriptionModelGroupsCollapseOnlySelectableSharedModels(t *testing
 }
 
 func TestPreferredTUISubscriptionPlanFollowsTheUsableLogin(t *testing.T) {
+	a, _, _ := newTestApp(t, "")
 	var terra []provider.PlanModel
-	for _, plan := range provider.PlanModels("") {
+	for _, plan := range provider.PlanModelsFrom(provider.VendorCatalogs{}, "") {
 		if plan.Provider == "openai" && plan.Model == "gpt-5.6-terra" {
 			terra = append(terra, plan)
 		}
@@ -358,7 +359,7 @@ func TestPreferredTUISubscriptionPlanFollowsTheUsableLogin(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, usable := preferredTUISubscriptionPlan(terra, test.manifest)
+			got, usable := preferredTUISubscriptionPlan(a, terra, test.manifest)
 			if got.Plan != test.wantPlan || usable != test.usable {
 				t.Fatalf("preferred plan = %q, usable=%t; want %q, usable=%t", got.Plan, usable, test.wantPlan, test.usable)
 			}

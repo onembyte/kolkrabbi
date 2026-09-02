@@ -1,10 +1,7 @@
 package cli
 
 import (
-	"strings"
-
 	"github.com/onembyte/kolkrabbi/internal/engine"
-	"github.com/onembyte/kolkrabbi/internal/provider/agentcli"
 )
 
 // rungAvailable answers, for the engine, whether a cheaper model can actually
@@ -28,20 +25,14 @@ import (
 // effect immediately, and a rung that then fails to open is handled where that
 // failure belongs.
 func (a *app) rungAvailable() engine.RungAvailable {
+	store := a.vendorCatalogs()
 	return func(vendor, model string) bool {
 		if !a.connectorSignedIn(vendor) {
 			return false
 		}
-		switch strings.ToLower(vendor) {
-		case "claude":
-			return agentcli.ClaudeKnowsModel(model)
-		case "codex":
-			return agentcli.CodexKnowsModel(model)
-		default:
-			// A vendor kolk can sign into but cannot yet spawn a chosen model
-			// for offers nothing. Saying no here is what keeps the roster from
-			// promising a rung that would fail at the first task.
-			return false
-		}
+		// Availability as the vendor states it (F4.5): a rung the vendor's
+		// catalog no longer lists is not offered, however long kolk's ladder
+		// has named it; a vendor kolk cannot spawn for offers nothing.
+		return a.vendorKnowsModel(store, vendor, model)
 	}
 }

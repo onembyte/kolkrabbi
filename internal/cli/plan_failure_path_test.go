@@ -12,7 +12,7 @@ import (
 // the command that fixes it. A refusal that only says "no" costs the user a
 // search through `kolk plans` for a string kolk already knows.
 func TestANamedPlanModelWithoutItsConnectorSaysHowToSignIn(t *testing.T) {
-	_, err := provider.ResolvePlanModel("claude-sonnet", provider.ConnectorManifest{Version: 1})
+	_, err := provider.ResolvePlanModelFrom(provider.VendorCatalogs{}, "claude-sonnet", provider.ConnectorManifest{Version: 1})
 	if err == nil {
 		t.Fatal("resolving a plan model with no connector succeeded, want a refusal")
 	}

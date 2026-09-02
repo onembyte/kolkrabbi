@@ -263,7 +263,7 @@ func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 		pulled = a.pulledNames()
 	}
 	for _, group := range tuiSubscriptionModelGroups(a) {
-		plan, signedIn := preferredTUISubscriptionPlan(group, manifest)
+		plan, signedIn := preferredTUISubscriptionPlan(a, group, manifest)
 		if signedIn {
 			out = append(out, tui.ModelSpec{
 				ID: plan.Model, Name: "via your " + plan.Connector + " login",
@@ -309,9 +309,10 @@ func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 // same provider model through the same CLI. Plans still matter to login and
 // dispatch, but they are limits/account metadata rather than distinct models.
 func tuiSubscriptionModelGroups(a *app) [][]provider.PlanModel {
-	groups := make([][]provider.PlanModel, 0, len(provider.PlanModels("")))
+	catalog := a.planModels("")
+	groups := make([][]provider.PlanModel, 0, len(catalog))
 	indices := make(map[string]int)
-	for _, plan := range provider.PlanModels("") {
+	for _, plan := range catalog {
 		if plan.Access != "provider CLI" || !a.connectorInstalled(plan.Connector) {
 			continue
 		}
@@ -331,11 +332,11 @@ func tuiSubscriptionModelGroups(a *app) [][]provider.PlanModel {
 // instruction. The last usable candidate selects the exact/higher tier when a
 // higher-tier login can also use a lower-tier catalog row. With no usable
 // connector, the first row supplies a stable, least-tier login instruction.
-func preferredTUISubscriptionPlan(plans []provider.PlanModel, manifest provider.ConnectorManifest) (provider.PlanModel, bool) {
+func preferredTUISubscriptionPlan(a *app, plans []provider.PlanModel, manifest provider.ConnectorManifest) (provider.PlanModel, bool) {
 	selected := plans[0]
 	usable := false
 	for _, plan := range plans {
-		if _, err := provider.ResolvePlanModel(plan.Plan+"/"+plan.Model, manifest); err != nil {
+		if _, err := a.resolvePlanModel(plan.Plan+"/"+plan.Model, manifest); err != nil {
 			continue
 		}
 		selected = plan

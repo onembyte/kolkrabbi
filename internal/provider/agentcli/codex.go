@@ -76,13 +76,13 @@ func runCodexWithOptions(ctx context.Context, invocation CodexInvocation, run li
 // of letting the vendor fail the turn with its own stack trace.
 var codexEfforts = map[string]bool{"low": true, "medium": true, "high": true, "xhigh": true}
 
-// CodexEffortValid reports whether one level belongs to the vendor's closed
-// effort set.
-func CodexEffortValid(effort string) bool {
-	if effort == "" {
-		return true
+// codexEffortHint names the accepted set: the vendor's when discovered, the
+// seed otherwise.
+func codexEffortHint(discovered []string) string {
+	if len(discovered) > 0 {
+		return "the vendor lists " + strings.Join(discovered, ", ")
 	}
-	return codexEfforts[strings.ToLower(strings.TrimSpace(effort))]
+	return "use low, medium, high or xhigh"
 }
 
 // codexProviderEffort translates Kolkrabbi's canonical maximum into the word
@@ -152,8 +152,8 @@ func BuildCodexInvocationWithOptions(model, mode, effort, handle string, resume 
 		return CodexInvocation{}, err
 	}
 	effort = codexProviderEffort(effort)
-	if effort != "" && !CodexEffortValid(effort) {
-		return CodexInvocation{}, fmt.Errorf("codex has no %q effort level; use low, medium, high or xhigh", effort)
+	if !effortAllowed(effort, options.Efforts, codexEfforts) {
+		return CodexInvocation{}, fmt.Errorf("codex has no %q effort level; %s", effort, codexEffortHint(options.Efforts))
 	}
 	if strings.TrimSpace(prompt) == "" {
 		return CodexInvocation{}, fmt.Errorf("codex prompt cannot be empty")
@@ -405,12 +405,6 @@ func CodexKnowsModel(model string) bool {
 // flagship, Terra as the balanced tier, and Luna as the cost-efficient tier.
 var codexRungs = []string{"gpt-5.6-pro", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"}
 
-// NewCodexBackendFromHandle creates a backend that resumes one vendor thread
-// (resume true, handle non-empty) or opens a brand-new one the vendor names.
-func NewCodexBackendFromHandle(model, mode, effort, handle string, resume bool) (*CodexBackend, error) {
-	return NewCodexBackendFromHandleWithOptions(model, mode, effort, handle, resume, ExecutionOptions{})
-}
-
 // NewCodexBackendFromHandleWithOptions creates a backend with an explicit
 // delegated-process capability envelope.
 func NewCodexBackendFromHandleWithOptions(model, mode, effort, handle string, resume bool, options ExecutionOptions) (*CodexBackend, error) {
@@ -422,8 +416,8 @@ func NewCodexBackendFromHandleWithOptions(model, mode, effort, handle string, re
 		return nil, err
 	}
 	effort = codexProviderEffort(effort)
-	if effort != "" && !CodexEffortValid(effort) {
-		return nil, fmt.Errorf("codex has no %q effort level; use low, medium, high or xhigh", effort)
+	if !effortAllowed(effort, options.Efforts, codexEfforts) {
+		return nil, fmt.Errorf("codex has no %q effort level; %s", effort, codexEffortHint(options.Efforts))
 	}
 	return &CodexBackend{
 		Model:     model,

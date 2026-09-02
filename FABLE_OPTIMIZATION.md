@@ -290,7 +290,7 @@ max` each completed a one-turn `-p` call (`stop_reason: end_turn`). `claude --he
 `claude-opus`, not `claude-fable`. Changing what a shorthand means moves users' models silently;
 that is V34.4c's catalog disposition, with an owner decision.
 
-## F4 — Discover, don't burn: every vendor's models are mapped before they are shown  ·  `[~]` F4.1–F4.4 done 2026-09-02
+## F4 — Discover, don't burn: every vendor's models are mapped before they are shown  ·  `[~]` F4.1–F4.5 done 2026-09-02
 
 **Owner decision, 2026-09-02** (verbatim): *"when kolk see models availables, ID them, do not burn
 model names before knowing what's available. because if not, tomorrow claude or codex will update
@@ -382,12 +382,29 @@ wrong three days later. Feeds V34.4a/b/c/d.
   same version carries it forward), `TestPlanLoginRunsTheVendorMappingBeforeReturning` (through the
   real login path). Mutations: disabled vendors asked, version change ignored, failure blanking the
   catalog, login hook removed.
-- [ ] **F4.5 Derivation.** `planModelCatalog`, `codexRungs`, `ClaudeKnowsModel`/`CodexKnowsModel`,
-  `CodexEffortValid`, and the Codex ladder in `vendorLadders` are derived from the vendor catalog
-  when one exists and fall back to the seed only when none does — and a seed row is always shown
-  as `unverified`. Rank: Codex from `priority`; Claude from the family order (fable > opus > sonnet
-  > haiku) applied to whatever names are `verified`; anything else `unranked`, which the ceiling
-  already treats as "never clamped" and the roster as "never descended to".
+- [x] **F4.5 Derivation.** Decision: the seed ladder stays the *ranking* (kolk ranks only what it
+  knows how to rank); **availability** — which rungs the roster may descend to, which names resolve,
+  which efforts are accepted — comes from the vendor catalog when the vendor has been asked, and
+  from the seed only when it has not. `provider.DerivePlanModels(store)`: a seed row the vendor lists
+  takes the vendor's efforts, context, and status; a seed row the vendor no longer lists is `gone`; a
+  model the vendor lists and the seed never heard of is added on every tier the seed uses for that
+  connector; a vendor never asked keeps its seed rows as `unverified`. `PlanModelsFrom`,
+  `ResolvePlanModelFrom` (a `gone` name is refused with `ErrModelGone` naming the vendor and version;
+  an unknown name is still not a plan model). `PlanModel` gains `Status` and `Context`. In cli:
+  `vendorKnowsModel(store, vendor, model)` answers `rungAvailable` and the subagent factory's vendor
+  detection; `discoveredEfforts` feeds `agentcli.ExecutionOptions.Efforts`, which replaces the seed
+  effort set for validation (`ultra` accepted when listed, never from the seed; efforts alone never
+  make an envelope); every surface (`pmodels`, TUI groups, subscription-first default, plan resolution,
+  the agent-lane "out of reach" line) reads `a.planModels`/`a.resolvePlanModel`. The seed-only entry
+  points `PlanModels`, `ResolvePlanModel`, `CodexEffortValid`, `NewCodexBackendFromHandle` were
+  deleted — the dead-export ratchet caught them the moment production stopped calling them, which is
+  the ratchet doing its job. Tests: `TestDerivedPlanCatalogIsWhatTheVendorsSaid` (gpt-5.6-pro gone,
+  gpt-5.5 on both tiers with the vendor's efforts, hidden rows out, Claude preview status, a
+  never-asked vendor unverified), `TestResolvePlanModelFromTheVendorCatalog`,
+  `TestCodexEffortsFollowTheDiscoveredSet`, `TestRungAvailabilityFollowsTheVendorCatalog`. Mutations:
+  seed never gone, gone still resolves, availability ignoring the catalog, efforts ignoring discovery.
+  Known limit, recorded: kolk's dial has four levels, so a vendor's `ultra` shows in the catalog and
+  is accepted by name but is not reachable through `/effort` (V34.4b).
 - [ ] **F4.6 Surfaces.** `kolk models`, `/model`, `pmodels`, and the bare-model chooser render
   from the vendor catalog: `MODEL  STATUS  EFFORTS  DEFAULT  CONTEXT  TIER  SOURCE  FETCHED`. A
   `gone` model the user has configured is named at startup with what replaced it, not silently
