@@ -84,6 +84,12 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 			} else {
 				fmt.Fprintf(a.stdout, "(unset — inherits %d)\n", engine.DefaultConcurrentTasks)
 			}
+		case key == "subagent_network":
+			if cfg.SubagentNetwork != "" {
+				fmt.Fprintln(a.stdout, cfg.SubagentNetwork)
+			} else {
+				fmt.Fprintf(a.stdout, "(unset — inherits %s)\n", engine.SubagentNetworkAuto)
+			}
 		case strings.HasPrefix(key, "slot."):
 			if model := cfg.Slots[strings.TrimPrefix(key, "slot.")]; model != "" {
 				fmt.Fprintln(a.stdout, model)
@@ -186,6 +192,19 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintf(a.stdout, "max_concurrent_tasks → %d\n", width)
+		case key == "subagent_network":
+			policy, ok := engine.NormalizeSubagentNetwork(val)
+			if !ok {
+				return usagef("subagent_network: %q is not a policy; use auto, on, or off", val)
+			}
+			cfg.SubagentNetwork = policy
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "subagent_network → %s\n", policy)
+			if policy == engine.SubagentNetworkOff {
+				fmt.Fprintln(a.stdout, "strict: a claude child has no network switch and will be refused; codex children run with network off")
+			}
 		case strings.HasPrefix(key, "slot."):
 			name := strings.TrimPrefix(key, "slot.")
 			// Validated at the point of typing. The alternative is a warning at
@@ -279,6 +298,12 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 			}
 			fmt.Fprintf(a.stdout, "removed max_concurrent_tasks; back to %d at a time\n",
 				engine.DefaultConcurrentTasks)
+		case key == "subagent_network":
+			cfg.SubagentNetwork = ""
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "removed subagent_network; back to %s\n", engine.SubagentNetworkAuto)
 		case strings.HasPrefix(key, "slot."):
 			name := strings.TrimPrefix(key, "slot.")
 			delete(cfg.Slots, name)

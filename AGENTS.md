@@ -21,8 +21,10 @@ builder; ox-alpha (Kolkrabbi agent) assists as an independent builder/verifier. 
 - **V34.1a credential-to-endpoint binding is closed 2026-09-02.** V34.1a.0–.2 were built by Codex;
   V34.1a.3 (adversarial matrix) and V34.1a.4 (walk-back, mutations, independent closeout) were
   completed by the Claude Code session at the owner's request, with the independent reviewer's
-  U+0130 finding fixed and re-reviewed CLEAN. **V34.1b child environment minimization is next and
-  unclaimed** — claim it here before starting. V34.0 is closed and V34.1f delegated execution
+  U+0130 finding fixed and re-reviewed CLEAN. **V34.1b child environment minimization is part-done**:
+  F2 of `FABLE_OPTIMIZATION.md` (Claude Code session, 2026-09-02) proved both delegated child paths
+  scrub a sentinel set and decided the per-task network policy; the `kolk plans login` PTY path
+  remains and is unclaimed. V34.0 is closed and V34.1f delegated execution
   capability is already complete; V34.1c–e remain queued. See also `FABLE_OPTIMIZATION.md` for the
   F1–F6 queue that follows F0/V34.1a.
   C5 progress-log observability remains queued under partial V34.3f. OS-level sandboxing is accepted

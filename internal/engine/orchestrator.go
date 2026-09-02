@@ -271,7 +271,7 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	// inside runSubagent: the event is about the task's lifetime, and the task
 	// is what this function owns.
 	a.publishSubagentStarted(tasks, index, childTurn, model, effort)
-	capabilities := a.subagentCapabilities()
+	capabilities := a.subagentCapabilities(tasks[index].Kind, model)
 	// A snapshot per writing subagent, so a task that makes a mess is
 	// rewindable on its own rather than by undoing the whole turn (A33.8).
 	// Only writing kinds: research and explain change no files, so a snapshot
@@ -291,7 +291,7 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	// on every path out, including the failure below: a provider owns a child
 	// process and nothing else will release it.
 	a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseProvider, a.subagentOpeningStep(model, capabilities))
-	own, release, openErr := a.openSubagentBackend(ctx, model, effort)
+	own, release, openErr := a.openSubagentBackend(ctx, model, effort, tasks[index].Kind)
 	defer release()
 
 	// A cheaper rung that will not spawn must not lose the task: the work still
@@ -307,9 +307,11 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 				colorDim, tasks[index].Title, model, ceiling, colorReset)
 			release()
 			model = ceiling
+			// A different vendor may have a different network answer.
+			capabilities = a.subagentCapabilities(tasks[index].Kind, model)
 			a.updateSubagentStatusRoute(index, model, effort)
 			a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseProvider, a.subagentOpeningStep(model, capabilities))
-			own, release, openErr = a.openSubagentBackend(ctx, model, effort)
+			own, release, openErr = a.openSubagentBackend(ctx, model, effort, tasks[index].Kind)
 			defer release()
 		}
 	}
@@ -521,7 +523,7 @@ func (a *Agent) plan(ctx context.Context, model, userInput string, maxTasks int)
 // runSubagent executes one task in an isolated context: its conversation
 // never enters the main session, only its final summary does.
 func (a *Agent) runSubagent(ctx context.Context, pinned pinnedBackend, out io.Writer, model, effort string, tokensVisible bool, original string, tasks []Task, results []string, idx int) (string, error) {
-	capabilities := a.subagentCapabilities()
+	capabilities := a.subagentCapabilities(tasks[idx].Kind, model)
 	cwd := capabilities.Workspace
 	if cwd == "" {
 		cwd = workingDir()

@@ -188,52 +188,55 @@ This is the "hardest and longest-running tasks" path — the one the top rung is
 
 ---
 
-## F2 — Delegated execution says what it does, and does what it says  ·  `[ ]`
+## F2 — Delegated execution says what it does, and does what it says  ·  **done 2026-09-02**
 
-**Observable:** `kolk` status/briefing `network=disabled` ⇒ the child cannot reach the network, on
-both Claude and Codex, regardless of `~/.codex/config.toml`; a background `explain`/`research` task
-that the user did not ask to reach the network runs with network off; a Codex user authenticated via
-`OPENAI_API_KEY` still logs in, while a sentinel `SOMETHING_ELSE_API_KEY` is provably absent from
-every provider child.
+**Observable:** the status line and the briefing are rendered from the same per-task envelope the
+child is opened with; `network=disabled` on Codex means `-c sandbox_workspace_write.network_access=false`
+on the child's argv regardless of `~/.codex/config.toml`; an `edit`/`test`/`explain`/unlabelled task
+runs without network by default while a `research` task has it; a Claude child is declared
+`network=enabled` because the vendor has no switch, and under the strict policy is refused rather than
+quietly given it; `kolk config set subagent_network auto|on|off` round-trips; a sentinel secret in the
+parent — including the vendor's own API key, `AWS_SECRET_ACCESS_KEY`, `GITHUB_PAT`, and
+`OPENAI_API_KEY_BACKUP` — is provably absent from both child paths while `GOFLAGS` survives.
 
-**Why:** R5–R7 are policy-vs-code divergences in the security boundary that Fable subagents run inside.
-`docs/plan/13` in this same diff promises "network enabled for user-requested research, no silent
-network access for unrequested background work"; the code has no switch. Feeds V34.1b and V34.1f.
+**Why:** R5–R7 were policy-vs-code divergences in the boundary Fable subagents run inside. Feeds
+V34.1b (child environment) and V34.1f (envelope).
 
-**Files:** `internal/cli/run.go`, `internal/engine/subagent_backend.go`,
-`internal/provider/agentcli/codex.go`, `internal/provider/agentcli/claude.go`,
-`internal/provider/agentcli/execution_options.go`, `internal/shell/lines.go`,
-`internal/shell/process_options.go`, `internal/config/settings.go`.
+**Files:** `internal/engine/subagent_backend.go`, `orchestrator.go`, `agent.go`, `internal/cli/run.go`,
+`cmd_config.go`, `internal/config/config.go`, `settings.go`, `internal/provider/agentcli/codex.go`,
+`internal/shell/shell.go`.
 
-- [ ] **F2.1 (R5)** Replace the constant with a per-task decision:
-  `NetworkAccess = task.Kind ∈ {research, web} && cfg.SubagentNetwork != off`, default policy written in
-  `docs/plan/13` (proposed: `subagent_network = ask | on | off`, default `ask` meaning
-  user-requested kinds only). `kolk config set subagent_network off` round-trips. Red: an `explain`
-  task must build a Codex argv **without** `network_access=true` and a Claude argv without web tools.
-- [ ] **F2.2 (R7)** Codex fails **closed**: a disabled envelope passes
-  `-c sandbox_workspace_write.network_access=false` explicitly. Red: user config
-  `[sandbox_workspace_write] network_access = true` + `NetworkAccess:false` ⇒ argv carries `=false`.
-- [ ] **F2.3 (R6)** Child environment is an explicit per-provider allowlist, not a pattern scrub:
-  Codex receives `OPENAI_API_KEY`/`CODEX_HOME` and the login-required basics; Claude receives
-  `ANTHROPIC_API_KEY`/`CLAUDE_CONFIG_DIR` and the same basics; nothing else with `KEY|TOKEN|SECRET` in
-  its name crosses. Red: a sentinel `KOLK_TEST_SECRET_TOKEN` in the parent must be absent in the child
-  for both providers, and `OPENAI_API_KEY` must be present for Codex only.
-- [ ] **F2.4** `subagentCapabilitySummary` and the `runSubagent` briefing are rendered **from** the
-  envelope actually passed to the child (same struct, one source), so the status line cannot drift.
-- [ ] **F2.5** Adversarial: attempt the bypass in each direction — child reads config to re-enable
-  network; parent env carries a lookalike var (`OPENAI_API_KEY_BACKUP`); symlinked
-  `AdditionalDirs`. Record attempts and outcomes.
-- [ ] **F2.6** Walk-back: `docs/plan/13`, `site/capabilities.html`, and the status help agree with
-  the shipped default. `make check`.
+- [x] **F2.1 (R5)** The hard-coded `NetworkAccess: true` is gone. `Agent.subagentNetwork(kind, model)`
+  decides per task from `Options.SubagentNetwork` (`auto` default: `research` only, plus vendors with
+  no switch; `on`; `off` strict) and the ceiling ladder's vendor. `openSubagentBackend` and
+  `subagentCapabilities` take the task kind. `kolk config set subagent_network` validates at the point
+  of typing. `TestSubagentNetworkFollowsPolicyKindAndVendorSwitch` (12 rows),
+  `TestBackgroundTaskKindsRunWithoutNetwork`, `TestSubagentNetworkPolicyRoundTripsAndRejectsUnknown`.
+- [x] **F2.2 (R7)** Codex states network both ways in every delegated envelope
+  (`network_access=%t`); only the bare, envelope-less session invocation leaves the vendor's config
+  in charge. `TestCodexNetworkDisabledIsExplicitNotOmitted`.
+- [x] **F2.3 (R6)** Decided against the allowlist: a delegated coding child runs the repository's build
+  tools, which read whatever the user's shell exported, and an allowlist would have to know them all.
+  The denylist stays and gains `_ACCESS_KEY`, `_PAT`, `_PASSPHRASE`, and anywhere-in-name `API_KEY`,
+  `SECRET`, `PASSWORD`. The vendor's own API key stays scrubbed **on purpose**: a claude or codex
+  child that received it would bill the API instead of the plan — the spend rule violated sideways.
+  The `OPENAI_API_KEY`-authenticated Codex user the reviewer described is a metered-API user, and that
+  is not the subscription handoff this backend is; `docs/plan/13` §7.1 says so.
+  `TestChildrenNeverInheritASentinelSecretOnEitherPath` (10 sentinels × 2 paths, `GOFLAGS` kept).
+- [x] **F2.4** `subagentCapabilitySummary` and the briefing are both rendered from
+  `subagentCapabilities(kind, model)` — the same call the factory receives, recomputed when the
+  fallback changes vendor. One source; drift is structurally impossible.
+- [x] **F2.5** Adversarial: `-c` on argv overrides `~/.codex/config.toml` by vendor precedence, so a
+  config-side re-enable cannot win; `OPENAI_API_KEY_BACKUP`, `MY_SECRET_2`, `DB_PASSWORD_PROD` now
+  scrubbed; symlinked `AdditionalDirs` were already canonicalised by `normalizeExecutionOptions`.
+  Three mutations (network always on, Codex omits `false`, denylist loses `_ACCESS_KEY`) each fail
+  their focused test and restore byte-identically. `-race` clean on engine/shell/agentcli/cli.
+- [x] **F2.6** Walk-back: `docs/plan/13` §7.1 (policy table, the API-key decision), `docs/plan/34`
+  V34.1b marked part-done with what remains (the interactive login/PTY path), `AGENTS.md`,
+  `CHECKPOINTS.md` §F2, build log. `make check` green.
 
-**Tests** — `internal/provider/agentcli/codex_test.go`, `argv_test.go`, `internal/shell/lines_process_test.go`,
-`internal/engine/subagent_backend_test.go`
-- `TestBackgroundTaskKindsRunWithoutNetwork`
-- `TestCodexNetworkDisabledIsExplicitNotOmitted`
-- `TestProviderLoginVariableSurvivesEnvMinimization`
-- `TestSentinelSecretNeverReachesAChild`
-
----
+**Exit met 2026-09-02.** Carried to V34.1b's remainder: the `kolk plans login` PTY/handover path is
+not covered by these two child paths and still needs its own sentinel proof.
 
 ## F3 — Fable is a model the harness can actually select and route below  ·  `[ ]`
 

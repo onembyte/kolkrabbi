@@ -40,12 +40,87 @@ type SubagentBackend func(ctx context.Context, model, mode, effort string) (Chat
 // compiling while hosts migrate to an explicit child-process envelope.
 type SubagentBackendWithCapabilities func(ctx context.Context, model, mode, effort string, capabilities SubagentCapabilities) (ChatBackend, error)
 
-func (a *Agent) subagentCapabilities() SubagentCapabilities {
+// Subagent network policy. A delegated child either reaches the network or
+// it does not, and the briefing, the status line, and the vendor flag must
+// all say the same thing — so the decision is made once, here, before any of
+// them is written, from three inputs: the policy the user set, what kind of
+// work the task is, and whether the vendor's child process has a switch at
+// all.
+const (
+	// SubagentNetworkAuto gives the network to research tasks — the kind a
+	// user asks for when they want the web consulted — and withholds it from
+	// everything else, except on a vendor whose child has no switch.
+	SubagentNetworkAuto = "auto"
+	// SubagentNetworkOn gives every child the network.
+	SubagentNetworkOn = "on"
+	// SubagentNetworkOff withholds it from every child. Strict: a vendor
+	// that cannot run without network is refused rather than quietly given
+	// it, and the task falls back or fails visibly.
+	SubagentNetworkOff = "off"
+)
+
+// NormalizeSubagentNetwork resolves a policy name, accepting the empty
+// string as auto.
+func NormalizeSubagentNetwork(policy string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(policy)) {
+	case "", SubagentNetworkAuto:
+		return SubagentNetworkAuto, true
+	case SubagentNetworkOn, "enabled", "true":
+		return SubagentNetworkOn, true
+	case SubagentNetworkOff, "disabled", "false":
+		return SubagentNetworkOff, true
+	default:
+		return "", false
+	}
+}
+
+// networkSwitchless names the vendor ladders whose child process has no
+// network switch. Claude Code's sandbox has no network toggle kolk can set
+// from the outside, and its Bash tool reaches the network regardless of which
+// web tools are listed; declaring such a child "network disabled" would be a
+// status line the child could contradict. Codex has
+// sandbox_workspace_write.network_access and is switched explicitly.
+var networkSwitchless = map[string]bool{"claude": true}
+
+// vendorLacksNetworkSwitch reports whether a model's vendor child cannot be
+// run without network. Unranked models are assumed switchable: the gateway
+// path runs in-process where kolk's own tools decide.
+func vendorLacksNetworkSwitch(model string) bool {
+	ladder, _, known := modelRank(model)
+	return known && networkSwitchless[ladder]
+}
+
+// kindWantsNetwork is the closed list of task kinds a user expects to reach
+// the network. Research means "go and find out"; everything else works on
+// what is already in the repository.
+func kindWantsNetwork(kind Kind) bool {
+	return kind == KindResearch
+}
+
+// subagentNetwork decides one child's network access.
+func (a *Agent) subagentNetwork(kind Kind, model string) bool {
+	policy, _ := NormalizeSubagentNetwork(a.SubagentNetwork)
+	switch policy {
+	case SubagentNetworkOn:
+		return true
+	case SubagentNetworkOff:
+		return false
+	default:
+		return kindWantsNetwork(kind) || vendorLacksNetworkSwitch(model)
+	}
+}
+
+// subagentCapabilities is the envelope one task's child is opened with. It is
+// computed from the task and the model rather than copied from the host's
+// static declaration, so the same call answers the briefing, the status line,
+// and the factory — one source, no drift between what is said and what runs.
+func (a *Agent) subagentCapabilities(kind Kind, model string) SubagentCapabilities {
 	capabilities := a.SubagentCapabilities
 	if capabilities.Workspace == "" {
 		capabilities.Workspace = a.Root
 	}
 	capabilities.AdditionalDirs = append([]string(nil), capabilities.AdditionalDirs...)
+	capabilities.NetworkAccess = a.subagentNetwork(kind, model)
 	return capabilities
 }
 
@@ -75,9 +150,9 @@ func (a *Agent) subagentOpeningStep(model string, capabilities SubagentCapabilit
 // The release is always safe to call: a nil port, a backend that is not a
 // Closer, and a failed open all return one that does nothing. That matters
 // because the caller defers it before it can know which case it got.
-func (a *Agent) openSubagentBackend(ctx context.Context, model, effort string) (ChatBackend, func(), error) {
+func (a *Agent) openSubagentBackend(ctx context.Context, model, effort string, kind Kind) (ChatBackend, func(), error) {
 	if a.SubagentBackendWithCapabilities != nil {
-		capabilities := a.subagentCapabilities()
+		capabilities := a.subagentCapabilities(kind, model)
 		if strings.TrimSpace(capabilities.Workspace) == "" || !filepath.IsAbs(capabilities.Workspace) {
 			return nil, func() {}, fmt.Errorf("subagent workspace is not a verified absolute directory")
 		}

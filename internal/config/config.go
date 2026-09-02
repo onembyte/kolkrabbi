@@ -35,8 +35,13 @@ type Config struct {
 	MaxRunCostUSD float64 `json:"max_run_cost_usd,omitempty"`
 	// MaxConcurrentTasks is how many orchestrated tasks may run at once.
 	// Zero means the default of three; one makes a run sequential.
-	MaxConcurrentTasks int           `json:"max_concurrent_tasks,omitempty"`
-	Local              LocalSettings `json:"local,omitempty"`
+	MaxConcurrentTasks int `json:"max_concurrent_tasks,omitempty"`
+	// SubagentNetwork is the network policy for orchestrated children:
+	// "auto" (research tasks only; a vendor with no switch always has it),
+	// "on", or "off" (strict — a vendor that cannot run without network is
+	// refused). Empty means auto.
+	SubagentNetwork string        `json:"subagent_network,omitempty"`
+	Local           LocalSettings `json:"local,omitempty"`
 	// Routing decides what happens when the model behind the session stops
 	// being able to answer — today, when a subscription runs out mid-run.
 	Routing RoutingSettings `json:"routing,omitempty"`

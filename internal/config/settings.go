@@ -49,6 +49,7 @@ func (c *Config) settingRows(defaultModel, defaultBaseURL string) []Setting {
 	if c.MaxConcurrentTasks > 0 {
 		tasks, tasksDefault = strconv.Itoa(c.MaxConcurrentTasks), false
 	}
+	network, networkDefault := text(c.SubagentNetwork, "auto")
 
 	return []Setting{
 		{"model", model, modelDefault, "the model a new session starts on"},
@@ -59,6 +60,8 @@ func (c *Config) settingRows(defaultModel, defaultBaseURL string) []Setting {
 			"restart into the new version after `kolk update`, keeping the session"},
 		{"max_run_cost_usd", cost, costDefault, "stop an orchestrated run once it has cost this much"},
 		{"max_concurrent_tasks", tasks, tasksDefault, "how many orchestrated tasks may run at once"},
+		{"subagent_network", network, networkDefault,
+			"network for orchestrated children: auto (research tasks; claude has no switch) · on · off (strict)"},
 		{"routing.on_subscription_limit", onLimit, onLimitDefault,
 			"when a subscription runs out: ask · switch to a metered model · stop"},
 		{"routing.on_free_exhausted", onFree, onFreeDefault,

@@ -108,6 +108,35 @@ exists; background `bash` interacts with U0.4f's detached-process handling and n
 | macOS | no OS sandbox | select and prove a native profile under V34.1e; Seatbelt/sandbox profiles remain candidates | — |
 | any | — | — | container execution for `saga` |
 
+#### 7.1 Delegated network policy (decided 2026-09-02, F2 of `FABLE_OPTIMIZATION.md`)
+
+A delegated child either reaches the network or it does not, and the briefing, the status line, and
+the vendor flag must say the same thing. The decision is made once, in the engine, before any of
+them is written, from the policy, the task's kind, and whether the vendor's child has a switch.
+
+| `subagent_network` | `research` task | any other kind | Claude child (no switch) |
+|---|---|---|---|
+| `auto` (default) | enabled | disabled | **enabled, and said so** — the vendor's Bash reaches the network whatever web tools are listed, and a "disabled" that the child could contradict is worse than an honest "enabled" |
+| `on` | enabled | enabled | enabled |
+| `off` (strict) | disabled | disabled | **refused** — the envelope asks for what the vendor cannot do, the open fails visibly, and the task falls back or fails |
+
+Codex states the switch both ways on every delegated envelope
+(`-c sandbox_workspace_write.network_access=true|false`); omitting it would leave
+`~/.codex/config.toml` in charge and let a user-side `network_access = true` contradict kolk's status
+line. Only the bare session invocation — the user's own process, not a delegate — leaves the vendor's
+config to decide.
+
+**Child environment.** Both child paths (the persistent one Claude uses, the one-shot one Codex
+uses) inherit the parent environment minus a denylist of credential-shaped names (`*_API_KEY`,
+`*_TOKEN`, `*_SECRET`, `*_ACCESS_KEY`, `*_PAT`, `*_PASSPHRASE`, `*_PASSWORD`, and `API_KEY`/`SECRET`/
+`PASSWORD` anywhere in the name; `SSH_AUTH_SOCK`). Not an allowlist: a coding child runs the
+repository's own build tools, which read `GOFLAGS`, `NVM_DIR`, `CARGO_HOME` and whatever else the
+user's shell exported, and an allowlist would have to know them all. The vendor's own API key is on
+the denylist **on purpose**: a claude or codex child that received `ANTHROPIC_API_KEY` or
+`OPENAI_API_KEY` would bill the API instead of the plan the user signed in with. Subscription children
+authenticate through the vendor's own login, never through the parent environment. A user who wants
+the metered API is not using the subscription handoff and should use the gateway path.
+
 `--yolo` **inside** a sandbox is the intended default for `saga`, and only there: the sandbox is what
 makes "stop asking me" safe, and until one exists, `saga` inherits the same blocklist as everything
 else.

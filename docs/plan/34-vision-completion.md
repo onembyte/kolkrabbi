@@ -99,8 +99,11 @@ credential or write outside its intended boundary.
   query/fragment, cancellation, host/compatible routes) covers catalog, turn, and key-verification
   requests; one targeted mutation per guard is caught by a focused test; an independent reviewer
   attempted an equivalent exfiltration. Evidence in `CHECKPOINTS.md` §V34.1a.3–.4.
-- [ ] **V34.1b child environment minimization** — ensure provider login/handover/PTY paths receive
-  only the environment explicitly required for that provider; prove a sentinel secret is absent.
+- [~] **V34.1b child environment minimization** — part-done 2026-09-02 (F2 of
+  `FABLE_OPTIMIZATION.md`): both delegated child paths (persistent and one-shot) scrub a denylist of
+  credential-shaped names, the vendor's own API key included by decision, with a ten-sentinel proof
+  on each path and an ordinary build variable kept. Remaining: the interactive `kolk plans login`
+  PTY/handover path needs its own sentinel proof.
 - [ ] **V34.1c confidential, symlink-safe checkpoints** — prevent backups from copying secrets
   without policy, reject link/race escapes on restore, and preserve restrictive source modes.
 - [ ] **V34.1d bounded and scrubbed outputs** — bound child capture before allocation; redact durable

@@ -10783,6 +10783,54 @@ Walk-back: `docs/plan/10` §3.1 and §4 (wake table, reset rule, doom threshold 
 `FABLE_OPTIMIZATION.md` F1 ticked. Gates: `go test ./... -count=1` green; `make check` recorded in
 the build log. No provider turn, credential, push, tag, release, or remote state changed.
 
+#### F2 — delegated execution says what it does, and does what it says — complete 2026-09-02
+
+Program leaf from `FABLE_OPTIMIZATION.md`; feeds V34.1b and V34.1f. **Risk:** P1 — the network
+policy `docs/plan/13` promised was not what shipped, and one vendor could contradict the status line.
+**Invariant:** a child's network access is decided once per task, before the briefing, the status
+line, and the vendor flag are written, and all three say the same thing; a child that cannot be run
+without network is declared to have it or refused, never pretended; no credential-shaped variable
+in the parent environment reaches either child path.
+
+Red, from the 2026-09-02 review: `run.go` declared `NetworkAccess: true` for every child; Codex
+expressed "disabled" by omitting `sandbox_workspace_write.network_access`, so a user's
+`~/.codex/config.toml` could enable it while `subagentCapabilitySummary` said `network=disabled`; the
+one-shot path scrubbed `*_API_KEY` while `AWS_SECRET_ACCESS_KEY` and `OPENAI_API_KEY_BACKUP` passed.
+
+Green:
+
+- `engine.SubagentNetwork` policy (`auto` | `on` | `off`, `NormalizeSubagentNetwork`);
+  `Agent.subagentNetwork(kind, model)` decides from the policy, `kindWantsNetwork` (research only),
+  and `vendorLacksNetworkSwitch` (the ceiling ladder's `claude`). `subagentCapabilities(kind, model)`
+  and `openSubagentBackend(…, kind)` take the task; the orchestrator recomputes the envelope when the
+  fallback changes model. `run.go` passes `cfg.SubagentNetwork`; the config key `subagent_network` is
+  settable, gettable, unsettable, and validated at the point of typing.
+- `BuildCodexInvocationWithOptions` states `network_access=%t` on every non-empty envelope; a bare
+  invocation still leaves the vendor's config in charge.
+- `sensitiveEnvName` gains `_ACCESS_KEY`, `_PAT`, `_PASSPHRASE` and anywhere-in-name `API_KEY`,
+  `SECRET`, `PASSWORD`; `TOKEN` stays suffix-only (`TOKENIZERS_PARALLELISM`).
+
+Decision recorded, not a defect: the vendor's own API key stays scrubbed. A claude or codex child
+that received it would bill the API instead of the plan the user signed in with; the reviewer's
+`OPENAI_API_KEY`-authenticated Codex user is a metered-API user, which is not the subscription
+handoff this backend is. `docs/plan/13` §7.1 carries the rule and the allowlist-vs-denylist reasoning.
+
+Tests: `TestSubagentNetworkFollowsPolicyKindAndVendorSwitch` (12 rows over policy × kind × vendor),
+`TestBackgroundTaskKindsRunWithoutNetwork` (edit without, research with; summary agrees),
+`TestCodexNetworkDisabledIsExplicitNotOmitted` (and the bare invocation carries no override),
+`TestChildrenNeverInheritASentinelSecretOnEitherPath` (ten sentinels on both paths, `GOFLAGS` kept),
+`TestSubagentNetworkPolicyRoundTripsAndRejectsUnknown`. The existing declared-envelope test now proves
+policy `on` reaches the factory.
+
+Adversarial: three mutations — network always on, Codex omitting `false`, denylist without
+`_ACCESS_KEY` — each failed its focused test and restored byte-identically. A config-side re-enable
+cannot beat an explicit `-c` by the vendor's own precedence. Symlinked additional directories were
+already canonicalised. `go test -race` clean on `engine`, `shell`, `agentcli`, `cli`.
+
+Walk-back: `docs/plan/13` §7.1, `docs/plan/34` V34.1b part-done (PTY/login path remains),
+`AGENTS.md`, `FABLE_OPTIMIZATION.md` F2. Gates: `go test ./... -count=1` green; `make check` green at
+3,202 tests. No provider turn, credential, push, tag, release, or remote state changed.
+
 #### C5 — TUI progress-log observability — queued
 
 This is a separate surface checkpoint. It must make long-running work legible without turning the

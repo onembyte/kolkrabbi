@@ -117,3 +117,34 @@ func TestUnsettingTheBrakesSaysWhatTheyFallBackTo(t *testing.T) {
 		t.Errorf("unsetting the width did not name the default:\n%s", got)
 	}
 }
+
+// The child network policy is validated where it is typed and round-trips
+// through get and unset like the other orchestration switches.
+func TestSubagentNetworkPolicyRoundTripsAndRejectsUnknown(t *testing.T) {
+	a, out, _ := newTestApp(t, "")
+	if err := a.runConfig(context.Background(), []string{"set", "subagent_network", "sometimes"}); err == nil {
+		t.Fatal("an unknown network policy was accepted")
+	}
+	for _, policy := range []string{"off", "on", "auto"} {
+		if err := a.runConfig(context.Background(), []string{"set", "subagent_network", policy}); err != nil {
+			t.Fatalf("set %s: %v", policy, err)
+		}
+		out.Reset()
+		if err := a.runConfig(context.Background(), []string{"get", "subagent_network"}); err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.TrimSpace(out.String()); got != policy {
+			t.Fatalf("get after set %s = %q", policy, got)
+		}
+	}
+	if err := a.runConfig(context.Background(), []string{"unset", "subagent_network"}); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	if err := a.runConfig(context.Background(), []string{"get", "subagent_network"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "auto") {
+		t.Fatalf("get after unset = %q, want the auto default named", out.String())
+	}
+}

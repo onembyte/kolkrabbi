@@ -372,16 +372,20 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		Permission: permission,
 		Root:       root,
 		SubagentCapabilities: engine.SubagentCapabilities{
-			Workspace:     root,
-			NetworkAccess: true,
+			Workspace: root,
 		},
-		Sess:     sess,
-		Ckpt:     ckpt,
-		In:       a.in,
-		Out:      a.stdout,
-		Recorder: stats.NewStore(d.Data),
-		Tiers:    cfg.Tiers,
-		Slots:    cfg.Slots,
+		// Network for each child is decided per task from this policy, not
+		// declared here: a research task may reach the web, an edit task may
+		// not, and a vendor with no switch is said to have it rather than
+		// pretended not to.
+		SubagentNetwork: cfg.SubagentNetwork,
+		Sess:            sess,
+		Ckpt:            ckpt,
+		In:              a.in,
+		Out:             a.stdout,
+		Recorder:        stats.NewStore(d.Data),
+		Tiers:           cfg.Tiers,
+		Slots:           cfg.Slots,
 		// Each orchestrated task gets its own vendor process rather than
 		// sharing the session's: one backend means one conversation and one
 		// mutex, so subagents would serialise and write their briefings into a

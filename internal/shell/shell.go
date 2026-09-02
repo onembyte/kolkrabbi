@@ -101,12 +101,34 @@ func sensitiveEnvName(name string) bool {
 	if upper == "OPENROUTER_API_KEY" || upper == "SSH_AUTH_SOCK" {
 		return true
 	}
-	for _, suffix := range []string{"_API_KEY", "_TOKEN", "_PASSWORD", "_PASSWD", "_SECRET", "_CREDENTIAL"} {
+	// A denylist by name shape, not an allowlist: a delegated coding child
+	// runs the repository's own build tools, which read GOFLAGS, NVM_DIR,
+	// CARGO_HOME and whatever else the user's shell set, and an allowlist
+	// would have to know them all. The shapes below are what credentials
+	// look like in the wild; _ACCESS_KEY catches AWS_SECRET_ACCESS_KEY, which
+	// the _SECRET suffix did not, and _PAT the GitHub/Azure spelling.
+	//
+	// The vendor's own API key is on this list on purpose. A claude or codex
+	// child that receives ANTHROPIC_API_KEY or OPENAI_API_KEY bills the API
+	// instead of the plan the user signed in with, and switching someone's
+	// bill from a subscription to metered because a variable happened to be
+	// exported is the spend rule violated sideways. Subscription children
+	// authenticate through the vendor's own login, never through the parent
+	// environment.
+	for _, suffix := range []string{"_API_KEY", "_TOKEN", "_PASSWORD", "_PASSWD", "_SECRET", "_CREDENTIAL", "_ACCESS_KEY", "_PAT", "_PASSPHRASE"} {
 		if strings.HasSuffix(upper, suffix) {
 			return true
 		}
 	}
-	return strings.Contains(upper, "PRIVATE_KEY") || strings.Contains(upper, "SECRET_KEY")
+	// Anywhere in the name, not only at the end: OPENAI_API_KEY_BACKUP and
+	// MY_SECRET_2 are still credentials. TOKEN stays suffix-only because
+	// TOKENIZERS_PARALLELISM is a build variable, not a credential.
+	for _, fragment := range []string{"API_KEY", "PRIVATE_KEY", "SECRET", "PASSWORD"} {
+		if strings.Contains(upper, fragment) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *platformShell) Name() string { return interpreterName() }

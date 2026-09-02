@@ -6018,6 +6018,27 @@ REPL-level test is the one to keep: chapter 1 done, `continue /saga`, and the as
 scripted provider received exactly one request — the planner — is the difference between a saga
 and a chapter.
 
+## F2 — delegated execution says what it does, and does what it says (complete 2026-09-02)
+
+Three places described a child's network access — the briefing, the status line, and the vendor's
+argv — and nothing made them agree. `run.go` declared network for every child; Codex expressed
+"disabled" by saying nothing, which left the user's own config in charge; and the plan doc promised a
+policy the code did not have. Now the decision is made once, in the engine, per task, from three
+inputs: the `subagent_network` policy, the task's kind, and whether the vendor's child has a switch.
+`auto` gives the network to research and withholds it from everything else; Codex is told both ways;
+Claude, which has no switch, is declared enabled rather than pretended disabled, and under the strict
+policy is refused. Everything downstream renders from that one answer.
+
+The reviewer's third finding was reconsidered rather than fixed as filed. The one-shot path now
+scrubs the vendor's own API key, and the reviewer read that as a regression for a Codex user who
+authenticates with `OPENAI_API_KEY`. It is — and it is right. A subscription child that receives the
+API key bills the API instead of the plan, which is the spend rule violated sideways, and the
+`ProcessOptions` comment had already recorded that environment is not a thing a caller may hand a
+provider child. What the scrub did need was the shapes it missed: `AWS_SECRET_ACCESS_KEY`,
+`GITHUB_PAT`, and `OPENAI_API_KEY_BACKUP` all passed through a suffix-only list. An allowlist was
+considered and rejected: a coding child runs the repository's build tools, which read whatever the
+user's shell exported, and a list that had to know them all would break the tools first.
+
 ## TUI progress-log observability — C5 queued 2026-09-01
 
 The requested Codex/Claude-style work log is recorded as a dedicated future checkpoint. It will

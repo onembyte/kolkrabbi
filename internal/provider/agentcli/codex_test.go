@@ -311,13 +311,31 @@ func TestBuildCodexInvocationWithExecutionOptionsRejectsUnverifiedWorkspace(t *t
 	}
 }
 
-func TestBuildCodexInvocationWithExecutionOptionsOmitsNetworkByDefault(t *testing.T) {
+// A delegated envelope with network disabled says so to the vendor. Omitting
+// the flag left ~/.codex/config.toml in charge, so a user with
+// `network_access = true` there got a child with network while kolk's status
+// line said "disabled". Only the bare, envelope-less invocation — the
+// session's own process — leaves the vendor's config to decide.
+func TestCodexNetworkDisabledIsExplicitNotOmitted(t *testing.T) {
 	invocation, err := BuildCodexInvocationWithOptions("gpt-5.6-sol", "agent", "high", "", false, "inspect", ExecutionOptions{Workspace: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !slices.Contains(invocation.Args, "sandbox_workspace_write.network_access=false") {
+		t.Fatalf("network-disabled envelope did not tell the vendor: %v", invocation.Args)
+	}
 	if slices.Contains(invocation.Args, "sandbox_workspace_write.network_access=true") {
 		t.Fatalf("network override was enabled without a declaration: %v", invocation.Args)
+	}
+
+	bare, err := BuildCodexInvocation("gpt-5.6-sol", "agent", "high", "", false, "inspect")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, arg := range bare.Args {
+		if strings.HasPrefix(arg, "sandbox_workspace_write.network_access=") {
+			t.Fatalf("the session's own invocation overrode the vendor's network config: %v", bare.Args)
+		}
 	}
 }
 

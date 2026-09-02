@@ -170,8 +170,14 @@ func BuildCodexInvocationWithOptions(model, mode, effort, handle string, resume 
 		args = append(args, "--add-dir", directory)
 	}
 	args = append(args, "-s", sandbox)
-	if options.NetworkAccess {
-		args = append(args, "-c", "sandbox_workspace_write.network_access=true")
+	// A delegated envelope states network both ways. Omitting the flag when
+	// network is disabled would leave ~/.codex/config.toml in charge, so a
+	// user with network_access = true there would get a child with network
+	// while kolk's status line said "disabled". Only a bare invocation with
+	// no envelope at all — the session's own process — leaves the vendor's
+	// config to decide, because that process is the user's, not a delegate.
+	if !executionOptionsEmpty(options) {
+		args = append(args, "-c", fmt.Sprintf("sandbox_workspace_write.network_access=%t", options.NetworkAccess))
 	}
 	if model = codexModelAlias(model); model != "" {
 		args = append(args, "-m", model)

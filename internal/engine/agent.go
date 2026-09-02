@@ -238,6 +238,11 @@ type Options struct {
 	// not a permission to fall back to the parent process's directory.
 	SubagentCapabilities            SubagentCapabilities
 	SubagentBackendWithCapabilities SubagentBackendWithCapabilities
+	// SubagentNetwork is the network policy for delegated children: auto
+	// (research tasks only, plus vendors with no switch), on, or off. Empty
+	// means auto. The envelope's NetworkAccess is decided per task from this,
+	// never copied from SubagentCapabilities.
+	SubagentNetwork string
 	// RungAvailable reports whether a vendor can run one of its cheaper
 	// models on this machine. Nil means none can, so a run stays on the
 	// session's own model — which is what happens today.

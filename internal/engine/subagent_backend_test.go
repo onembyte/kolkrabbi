@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 
@@ -83,15 +84,15 @@ func TestCapabilityAwareSubagentBackendReceivesTheDeclaredEnvelope(t *testing.T)
 		Root: workspace,
 		SubagentCapabilities: SubagentCapabilities{
 			AdditionalDirs: []string{additional},
-			NetworkAccess:  true,
 		},
+		SubagentNetwork: SubagentNetworkOn,
 		SubagentBackendWithCapabilities: func(_ context.Context, _ string, _ string, _ string, capabilities SubagentCapabilities) (ChatBackend, error) {
 			got = capabilities
 			return notACloser{}, nil
 		},
 	}}
 
-	backend, release, err := agent.openSubagentBackend(context.Background(), "model", EffortMedium)
+	backend, release, err := agent.openSubagentBackend(context.Background(), "model", EffortMedium, KindEdit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +119,7 @@ func TestCapabilityAwareSubagentBackendRejectsAnUnverifiedWorkspace(t *testing.T
 			return notACloser{}, nil
 		},
 	}}
-	if _, release, err := agent.openSubagentBackend(context.Background(), "model", EffortMedium); err == nil {
+	if _, release, err := agent.openSubagentBackend(context.Background(), "model", EffortMedium, KindEdit); err == nil {
 		release()
 		t.Fatal("capability-aware factory ran without a verified workspace")
 	}
@@ -248,7 +249,7 @@ func TestReleasingASubagentProviderIsAlwaysSafe(t *testing.T) {
 	agent := &Agent{}
 
 	// No port at all.
-	backend, release, err := agent.openSubagentBackend(context.Background(), "m", EffortMedium)
+	backend, release, err := agent.openSubagentBackend(context.Background(), "m", EffortMedium, KindEdit)
 	if err != nil || backend != nil {
 		t.Fatalf("no port gave backend=%v err=%v, want both nil", backend, err)
 	}
@@ -258,7 +259,7 @@ func TestReleasingASubagentProviderIsAlwaysSafe(t *testing.T) {
 	agent.SubagentBackend = func(context.Context, string, string, string) (ChatBackend, error) {
 		return notACloser{}, nil
 	}
-	if _, release, err = agent.openSubagentBackend(context.Background(), "m", EffortMedium); err != nil {
+	if _, release, err = agent.openSubagentBackend(context.Background(), "m", EffortMedium, KindEdit); err != nil {
 		t.Fatalf("open: %v", err)
 	}
 	release()
@@ -267,7 +268,7 @@ func TestReleasingASubagentProviderIsAlwaysSafe(t *testing.T) {
 	agent.SubagentBackend = func(context.Context, string, string, string) (ChatBackend, error) {
 		return nil, errors.New("nope")
 	}
-	if _, release, err = agent.openSubagentBackend(context.Background(), "m", EffortMedium); err == nil {
+	if _, release, err = agent.openSubagentBackend(context.Background(), "m", EffortMedium, KindEdit); err == nil {
 		t.Error("a failed open reported success")
 	}
 	release()
@@ -278,4 +279,66 @@ type notACloser struct{}
 func (notACloser) StreamChat(context.Context, string, []provider.Message, []provider.Tool,
 	func(string)) (provider.Message, provider.Meta, error) {
 	return provider.Message{}, provider.Meta{}, nil
+}
+
+// One decision, three inputs. The briefing, the status line, and the vendor
+// flag are all written from this answer, so it is the only place a child's
+// network access is decided.
+func TestSubagentNetworkFollowsPolicyKindAndVendorSwitch(t *testing.T) {
+	cases := []struct {
+		policy string
+		kind   Kind
+		model  string
+		want   bool
+		why    string
+	}{
+		{"", KindEdit, "gpt-5.6-luna", false, "auto withholds network from an edit task on a switchable vendor"},
+		{"", KindTest, "gpt-5.6-luna", false, "auto withholds network from a test task"},
+		{"", KindExplain, "gpt-5.6-luna", false, "auto withholds network from an explain task"},
+		{"", KindUnknown, "gpt-5.6-luna", false, "auto withholds network from an unlabelled task"},
+		{"", KindResearch, "gpt-5.6-luna", true, "auto gives network to research"},
+		{"", KindEdit, "claude-haiku", true, "auto declares network on a vendor with no switch"},
+		{"", KindEdit, "anthropic/claude-sonnet-4", true, "the ladder recognises every spelling of the vendor"},
+		{"", KindEdit, "mock/model", false, "an unranked model is treated as switchable"},
+		{SubagentNetworkOn, KindEdit, "gpt-5.6-luna", true, "on is on"},
+		{SubagentNetworkOff, KindResearch, "gpt-5.6-luna", false, "off is off, even for research"},
+		{SubagentNetworkOff, KindResearch, "claude-haiku", false, "off is strict: the switchless vendor is asked for what it cannot do, and refuses downstream"},
+		{"garbage", KindEdit, "gpt-5.6-luna", false, "an unknown policy falls back to auto"},
+	}
+	for _, tc := range cases {
+		agent := &Agent{Options: Options{SubagentNetwork: tc.policy}}
+		if got := agent.subagentNetwork(tc.kind, tc.model); got != tc.want {
+			t.Errorf("policy %q kind %q model %q: network = %v, want %v (%s)", tc.policy, tc.kind, tc.model, got, tc.want, tc.why)
+		}
+	}
+}
+
+// The envelope the factory receives is the one the task's kind earned, and
+// the summary written next to it agrees.
+func TestBackgroundTaskKindsRunWithoutNetwork(t *testing.T) {
+	workspace := t.TempDir()
+	var got []SubagentCapabilities
+	agent := &Agent{Options: Options{
+		Root: workspace,
+		SubagentBackendWithCapabilities: func(_ context.Context, _ string, _ string, _ string, capabilities SubagentCapabilities) (ChatBackend, error) {
+			got = append(got, capabilities)
+			return notACloser{}, nil
+		},
+	}}
+	for _, kind := range []Kind{KindEdit, KindResearch} {
+		_, release, err := agent.openSubagentBackend(context.Background(), "gpt-5.6-luna", EffortMedium, kind)
+		if err != nil {
+			t.Fatal(err)
+		}
+		release()
+	}
+	if len(got) != 2 || got[0].NetworkAccess || !got[1].NetworkAccess {
+		t.Fatalf("envelopes = %+v, want edit without network and research with it", got)
+	}
+	if summary := subagentCapabilitySummary(got[0]); !strings.Contains(summary, "network=disabled") {
+		t.Fatalf("edit summary = %q, want network=disabled", summary)
+	}
+	if summary := subagentCapabilitySummary(got[1]); !strings.Contains(summary, "network=enabled") {
+		t.Fatalf("research summary = %q, want network=enabled", summary)
+	}
 }

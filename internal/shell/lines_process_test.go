@@ -350,3 +350,53 @@ func TestLinesProcessCloseUnblocksUnreadOutput(t *testing.T) {
 		t.Fatal("Close blocked on unread provider output")
 	}
 }
+
+// Both provider child paths — the persistent one Claude uses and the one-shot
+// one Codex uses — scrub the same shapes. The list includes the vendor's own
+// API key on purpose: a subscription child that received it would bill the
+// API instead of the plan, and AWS_SECRET_ACCESS_KEY, which the old suffix
+// list let through.
+func TestChildrenNeverInheritASentinelSecretOnEitherPath(t *testing.T) {
+	sentinels := []string{
+		"OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
+		"AWS_SECRET_ACCESS_KEY", "GITHUB_PAT", "KOLK_TEST_SECRET_TOKEN", "SSH_PASSPHRASE",
+		"OPENAI_API_KEY_BACKUP", "MY_SECRET_2", "DB_PASSWORD_PROD",
+	}
+	for _, name := range sentinels {
+		t.Setenv(name, name+"-canary")
+	}
+	t.Setenv("GOFLAGS", "-mod=mod") // an ordinary build variable must survive
+	var script strings.Builder
+	script.WriteString("printf '%s' \"$GOFLAGS\"; ")
+	for _, name := range sentinels {
+		fmt.Fprintf(&script, "printf '|%%s' \"$%s\"; ", name)
+	}
+	script.WriteString("echo")
+	args := []string{"-c", script.String()}
+
+	var oneShot string
+	err := RunLinesWithOptions(context.Background(), "sh", args, nil, func(line []byte) error {
+		oneShot += string(line)
+		return nil
+	}, ProcessOptions{Dir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "-mod=mod" + strings.Repeat("|", len(sentinels))
+	if strings.TrimSpace(oneShot) != want {
+		t.Fatalf("one-shot child environment = %q, want %q", oneShot, want)
+	}
+
+	process, err := StartLinesProcessWithOptions(context.Background(), "sh", args, ProcessOptions{Dir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = process.Close() }()
+	line, err := process.Next(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(line)) != want {
+		t.Fatalf("persistent child environment = %q, want %q", line, want)
+	}
+}
