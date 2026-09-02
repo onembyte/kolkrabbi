@@ -8,6 +8,7 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/local"
 	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/provider/agentcli"
 )
 
 // The port contract, enforced: a connector without a lister cannot exist.
@@ -40,7 +41,7 @@ func TestEveryConnectorCanListItsModels(t *testing.T) {
 			if l.Reason == "" {
 				t.Errorf("connector %q is NotListable without a reason", plan.Connector)
 			}
-		case provider.GatewayPreviewLister:
+		case provider.GatewayPreviewLister, agentcli.ClaudePreviewLister:
 			catalog, err := l.Discover(context.Background())
 			if err != nil {
 				t.Errorf("connector %q gateway preview: %v", plan.Connector, err)
@@ -64,8 +65,8 @@ func TestClaudePreviewCarriesTheVendorEffortSet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(catalog.Models) != 1 || strings.Join(catalog.Models[0].Efforts, ",") != "low,medium,high,xhigh,max" {
-		t.Fatalf("claude preview = %+v, want the CLI's five efforts on the exact gateway id", catalog.Models)
+	if len(catalog.Models) != 1 || catalog.Models[0].ID != "claude-sonnet" || strings.Join(catalog.Models[0].Efforts, ",") != "low,medium,high,xhigh,max" || catalog.Models[0].ExactIDs[0] != "anthropic/claude-sonnet-5" {
+		t.Fatalf("claude preview = %+v, want the family row with the CLI's five efforts and the exact gateway id", catalog.Models)
 	}
 }
 

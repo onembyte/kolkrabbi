@@ -25,9 +25,9 @@ func modelListerFor(connector string, gateway []provider.ModelInfo) provider.Mod
 		return agentcli.CodexLister{}
 	case "claude":
 		// Previewed, not listed: the CLI has no catalog command, and the
-		// gateway carries the exact ids it publishes. The efforts are the
-		// CLI's own closed set. F4.3 groups these by family.
-		return provider.GatewayPreviewLister{Vendor: "claude", Prefix: "anthropic", Efforts: agentcli.ClaudeEfforts(), Gateway: gateway}
+		// gateway carries the exact ids it publishes. One row per family the
+		// CLI's aliases name, unverified until the first prompt's init.model.
+		return agentcli.ClaudePreviewLister{Gateway: gateway}
 	case "gemini":
 		return provider.GatewayPreviewLister{Vendor: "gemini", Prefix: "google", Gateway: gateway}
 	case "xai-api":
@@ -86,4 +86,31 @@ func (o ollamaCloudLister) Discover(ctx context.Context) (provider.VendorCatalog
 		})
 	}
 	return catalog, nil
+}
+
+// recordVendorModelOutcome is what a turn teaches the vendor catalog: a turn
+// that answered proves the model the session asked for, on the exact id the
+// vendor reported; a refusal by name retires the row. Best effort, like the
+// connector confirmation beside it — a session that works must never fail
+// because a note about it could not be written.
+func (a *app) recordVendorModelOutcome(vendor, asked string, meta provider.Meta, turnErr error) {
+	dirs, err := a.resolve()
+	if err != nil {
+		return
+	}
+	store, err := provider.LoadVendorCatalogs(dirs.VendorCatalogFile())
+	if err != nil {
+		return
+	}
+	switch {
+	case turnErr == nil:
+		store.Verify(vendor, asked, meta.Model, time.Now())
+	case agentcli.IsModelRefusal(turnErr):
+		if !store.Gone(vendor, asked) {
+			return
+		}
+	default:
+		return
+	}
+	_ = provider.SaveVendorCatalogs(dirs.VendorCatalogFile(), store)
 }

@@ -290,7 +290,7 @@ max` each completed a one-turn `-p` call (`stop_reason: end_turn`). `claude --he
 `claude-opus`, not `claude-fable`. Changing what a shorthand means moves users' models silently;
 that is V34.4c's catalog disposition, with an owner decision.
 
-## F4 — Discover, don't burn: every vendor's models are mapped before they are shown  ·  `[~]` F4.1–F4.2 done 2026-09-02
+## F4 — Discover, don't burn: every vendor's models are mapped before they are shown  ·  `[~]` F4.1–F4.3 done 2026-09-02
 
 **Owner decision, 2026-09-02** (verbatim): *"when kolk see models availables, ID them, do not burn
 model names before knowing what's available. because if not, tomorrow claude or codex will update
@@ -344,20 +344,27 @@ wrong three days later. Feeds V34.4a/b/c/d.
   *refreshed* catalog lists `gpt-5.4`/`gpt-5.4-mini` where the bundled one hides them — the vendor's
   own answer moved between the binary and the service, which is the reason to ask live. Mutations:
   hidden ignored, rank dropped.
-- [ ] **F4.3 Gateway preview for every vendor without a catalog — Claude first.** Owner correction
+- [x] **F4.3 Gateway preview for every vendor without a catalog — Claude first.** Owner correction
   2026-09-02: *"we could get the exact name from openrouter, and show the available models and
   efforts from there to be the first thing that kolk do when 1st prompt to claude. and the same
-  behaviour for every vendor that do not expose the models like codex does."* `provider.
-  GatewayPreviewLister{Prefix}` (built in F4.1) previews a vendor from the gateway catalog: exact
-  ids, display names, context, no `:batch`/`:fast` variants, all `unverified`. For Claude, the
-  agentcli lister groups those ids by family (`fable`, `opus`, `sonnet`, `haiku` — the CLI's own
-  aliases) so a row reads `claude-fable → anthropic/claude-fable-5 (1M ctx) · efforts low…max ·
-  unverified`; records `claude --version`; the session's first stream-json `init.model` promotes the
-  family to `verified` with the exact id the vendor resolved; `unrecognized_model` marks it `gone`.
-  The same lister, by provider prefix, serves every API-key connector (`x-ai/`, `perplexity/`,
-  `mistralai/`, `deepseek/`, `qwen/`, `cohere/`) and `gemini` (`google/`); a vendor with neither a
-  catalog command nor a gateway prefix (copilot) is `NotListable` with the reason, never blank. No
-  turn is ever spent to discover.
+  behaviour for every vendor that do not expose the models like codex does."* Built:
+  `agentcli.ClaudePreviewLister` groups the gateway's `anthropic/claude-*` ids by the CLI's own
+  family aliases (`fable`, `opus`, `sonnet`, `haiku` — both the modern `claude-opus-5` and the legacy
+  `claude-3.5-sonnet` spellings), one row per family strongest first, exact ids newest first,
+  the largest context, the CLI's five efforts, `unverified`; `:batch`/`-fast` variants never match;
+  a family the CLI does not name is never invented. `provider.VendorCatalogs` store
+  (`vendor-models.json`, atomic, creates its directory): `Replace` carries a turn's `verified` forward
+  and keeps a dropped row as `gone`; `Verify` promotes and records the vendor's resolved id first;
+  `Gone` retires only a listed row. `verifyingBackend` now observes every turn:
+  `recordVendorModelOutcome` → `Verify(vendor, asked, meta.Model)` on success (the stream-json
+  `init.model`), `Gone` on `IsModelRefusal` (the vendor's own phrasing only), nothing on any other
+  error. `StatusVerified` left the dead-export allowlist. The registry's `claude` entry is the family
+  lister; every API-key connector keeps the prefix preview. Tests:
+  `TestClaudePreviewGroupsTheGatewayByTheCLIsFamilies`, `TestClaudePreviewNeedsAGatewayAndAKnownFamily`,
+  `TestIsModelRefusalMatchesOnlyTheVendorsPhrasing`, `TestVendorCatalogStoreRoundTripsAndStartsEmpty`,
+  `TestATurnPromotesAndARefusalRetires`, `TestReplaceCarriesVerificationForwardAndRetiresTheDropped`,
+  `TestTheFirstPromptVerifiesTheModelInTheVendorCatalog`. Mutations: family pattern loosened to
+  accept variants, refusal match loosened, `Replace` forgetting `verified`, the turn teaching nothing.
 - [ ] **F4.4 Cache and hooks.** `paths.VendorCatalogFile()` (`vendor-models.json`), atomic write,
   one entry per vendor with `FetchedAt` and `VendorVersion`. Refreshed: on every `kolk plans login
   <connector>` after `SaveConnector` (before the "recorded" line prints); at startup for every

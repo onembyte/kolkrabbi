@@ -129,6 +129,10 @@ func (d Dirs) CatalogFile() string { return filepath.Join(d.Cache, "models.json"
 // catalog and for the same reason: rebuildable, so it lives in Cache.
 func (d Dirs) HostCatalogFile() string { return filepath.Join(d.Cache, "host-models.json") }
 
+// VendorCatalogFile is what every vendor offered when it was last asked, and
+// what a turn has since verified: rebuildable by asking again, so Cache.
+func (d Dirs) VendorCatalogFile() string { return filepath.Join(d.Cache, "vendor-models.json") }
+
 // EnsureConfig creates the config directory. 0700 because the prototype wrote
 // keys here and old installs still do.
 func (d Dirs) EnsureConfig() error { return mkdir(d.Config) }

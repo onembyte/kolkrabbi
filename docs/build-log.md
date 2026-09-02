@@ -6097,6 +6097,24 @@ lines instead of one and quietly broke the registry's default case. The cli suit
 the same run. A mutation script is code too; anchor its reversals on a marker, not on a phrase the
 file may contain twice.
 
+## F4.3 — the first prompt is the verification (2026-09-02)
+
+The owner's correction turned Claude's missing catalog from a problem into a shape: the gateway
+knows the exact names, the CLI takes a family alias, so a Claude row is a family — `opus` with
+`anthropic/claude-opus-5`, `4.8`, `4.5` behind it, the biggest context among them, the CLI's five
+efforts — shown before any prompt and marked `unverified`, because the gateway knowing a name is
+not the same as this login being able to use it. The first prompt settles that: the stream-json
+`init` frame reports the model the vendor actually resolved, and the verifying backend — which
+already existed to confirm the connector on its first answered turn — now records that id and
+promotes the row. A refusal in the vendor's own words retires the row; anything else teaches the
+catalog nothing, because a network error is not information about a model.
+
+Two small honesties from the mutations. `Replace` had to carry `verified` forward across a
+re-discovery — a vendor listing a model again does not un-prove a turn — and keep a dropped row as
+`gone`, so the person who configured it is told rather than left with a name that silently stopped
+resolving. And one planned mutation did not go red: the explicit skip of `:batch`/`-fast` variants
+was redundant with the family pattern, so it was deleted; a guard nothing can prove is not a guard.
+
 ## TUI progress-log observability — C5 queued 2026-09-01
 
 The requested Codex/Claude-style work log is recorded as a dedicated future checkpoint. It will

@@ -34,9 +34,13 @@ type verifyingBackend struct {
 	// note records provider-side state worth resuming — for Claude, the vendor
 	// conversation handle — into the session file, so /model switches and later
 	// Kolkrabbi runs land on the same conversation.
-	note      func(string)
-	confirm   func(context.Context)
-	explain   func()
+	note    func(string)
+	confirm func(context.Context)
+	explain func()
+	// observe teaches the vendor catalog what this turn proved: the model
+	// asked for answered on the vendor's resolved id, or was refused by name.
+	// Every turn, not once — a session may switch models.
+	observe   func(asked string, meta provider.Meta, err error)
 	confirmed sync.Once
 	explained sync.Once
 }
@@ -72,11 +76,17 @@ func (a *app) verifyingBackend(inner engine.ChatBackend, plan provider.PlanModel
 			fmt.Fprintf(a.stderr, "%s has not answered successfully yet. If it is not signed in, run this in another terminal:\n", plan.Connector)
 			fmt.Fprintf(a.stderr, "  kolk plans login %s %q\n", plan.Provider, plan.Plan)
 		},
+		observe: func(asked string, meta provider.Meta, err error) {
+			a.recordVendorModelOutcome(plan.Connector, asked, meta, err)
+		},
 	}
 }
 
 func (b *verifyingBackend) StreamChat(ctx context.Context, model string, messages []provider.Message, tools []provider.Tool, onToken func(string)) (provider.Message, provider.Meta, error) {
 	message, meta, err := b.inner.StreamChat(ctx, model, messages, tools, onToken)
+	if b.observe != nil {
+		b.observe(model, meta, err)
+	}
 	if err != nil {
 		b.explained.Do(b.explain)
 		return message, meta, err

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/provider/agentcli"
 )
 
 type stubBackend struct {
@@ -181,5 +182,68 @@ func TestABackendWithoutAHandleNotesNothing(t *testing.T) {
 	}
 	if noted != "" {
 		t.Fatalf("noted %q from a backend that owns no vendor state", noted)
+	}
+}
+
+type modelReportingBackend struct {
+	model string
+	err   error
+}
+
+func (b modelReportingBackend) StreamChat(context.Context, string, []provider.Message, []provider.Tool, func(string)) (provider.Message, provider.Meta, error) {
+	if b.err != nil {
+		return provider.Message{}, provider.Meta{}, b.err
+	}
+	return provider.Message{Role: "assistant", Content: "hi"}, provider.Meta{Model: b.model}, nil
+}
+
+// The first prompt is the verification. A turn that answered promotes the
+// model the session asked for to verified and records the exact id the vendor
+// resolved it to; a refusal by name retires it; any other failure teaches
+// nothing about the catalog.
+func TestTheFirstPromptVerifiesTheModelInTheVendorCatalog(t *testing.T) {
+	a, planModel := unverifiedClaude(t)
+	dirs, err := a.resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	preview, err := agentcli.ClaudePreviewLister{Gateway: []provider.ModelInfo{{ID: "anthropic/claude-opus-5", ContextLength: 1000000}, {ID: "anthropic/claude-haiku-4.5", ContextLength: 200000}}}.Discover(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var store provider.VendorCatalogs
+	store.Replace(preview)
+	if err := provider.SaveVendorCatalogs(dirs.VendorCatalogFile(), store); err != nil {
+		t.Fatal(err)
+	}
+
+	backend := a.verifyingBackend(modelReportingBackend{model: "claude-opus-5-20260801"}, planModel, "code", "high", nil)
+	if _, _, err := backend.StreamChat(context.Background(), "claude-opus", nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	store, err = provider.LoadVendorCatalogs(dirs.VendorCatalogFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	opus, _ := store.Vendors["claude"].Find("claude-opus")
+	if opus.Status != provider.StatusVerified || opus.ExactIDs[0] != "claude-opus-5-20260801" {
+		t.Fatalf("after the first prompt: %+v, want verified on the vendor's resolved id", opus)
+	}
+	if haiku, _ := store.Vendors["claude"].Find("claude-haiku"); haiku.Status != provider.StatusUnverified {
+		t.Fatalf("a turn on opus touched haiku: %+v", haiku)
+	}
+
+	refusing := a.verifyingBackend(modelReportingBackend{err: errors.New("claude exited unsuccessfully: [claude-code:unrecognized_model]")}, planModel, "code", "high", nil)
+	_, _, _ = refusing.StreamChat(context.Background(), "claude-haiku", nil, nil, nil)
+	store, _ = provider.LoadVendorCatalogs(dirs.VendorCatalogFile())
+	if haiku, _ := store.Vendors["claude"].Find("claude-haiku"); haiku.Status != provider.StatusGone {
+		t.Fatalf("after a refusal by name: %+v, want gone", haiku)
+	}
+
+	failing := a.verifyingBackend(modelReportingBackend{err: errors.New("dial tcp: connection refused")}, planModel, "code", "high", nil)
+	_, _, _ = failing.StreamChat(context.Background(), "claude-opus", nil, nil, nil)
+	store, _ = provider.LoadVendorCatalogs(dirs.VendorCatalogFile())
+	if opus, _ := store.Vendors["claude"].Find("claude-opus"); opus.Status != provider.StatusVerified {
+		t.Fatalf("a network failure changed a verified row: %+v", opus)
 	}
 }

@@ -10872,7 +10872,7 @@ silently and is V34.4c's, with an owner decision. Walk-back: `docs/plan/24` Anth
 one-turn provider calls were made on the owner's own login for the fire-and-check above; no
 credential, push, tag, release, or remote state changed.
 
-#### F4 — discover, don't burn — in progress; F4.1 port and F4.2 Codex lister complete 2026-09-02
+#### F4 — discover, don't burn — in progress; F4.1 port, F4.2 Codex lister, F4.3 Claude preview and first-turn verification complete 2026-09-02
 
 Owner decision (verbatim in `FABLE_OPTIMIZATION.md` §F4): map every vendor's models on every start
 and every login, never burn names, show only mapped rows with their info. **Risk:** P1 product truth
@@ -10913,9 +10913,32 @@ restored byte-identically (one reverse pattern was over-broad on the first run a
 removes the entry. `go test -race` clean on `provider`, `agentcli`, `cli`. `make check` green at
 3,218 tests.
 
-Remaining: F4.3 (Claude family grouping + first-turn `init.model` promotion), F4.4 (cache file and
-the start/login hooks), F4.5 (derivation of rungs, efforts, ladders from the catalog), F4.6
-(surfaces), F4.7 (proof). No provider turn was spent; one `codex debug models` and one `codex
+Green, F4.3 (owner correction: preview from the gateway, verify on the first prompt, same for every
+vendor without a catalog): `agentcli.ClaudePreviewLister` — one row per family the CLI's aliases
+name, strongest first, built from the gateway's `anthropic/claude-*` ids (modern and legacy
+spellings), exact ids newest first, largest context, `ClaudeEfforts()`, `unverified`; variants
+never match the family pattern; an unknown family is never a row. `provider.VendorCatalogs` in
+`vendor-models.json` (`paths.VendorCatalogFile`, atomic, creates the cache directory): `Replace`
+carries `verified` forward and keeps dropped rows as `gone`; `Verify` promotes and records the
+vendor's resolved id first; `Gone` retires only a listed row. `verifyingBackend.observe` runs on
+every turn: success → `Verify(connector, asked, meta.Model)` where `meta.Model` is the stream-json
+`init.model`; `agentcli.IsModelRefusal` (the vendor's `unrecognized_model` marker or its "issue with
+the selected model … may not exist" prose, nothing looser) → `Gone`; any other failure teaches
+nothing. `StatusVerified` left the dead-export allowlist the same day it entered. Tests:
+`TestClaudePreviewGroupsTheGatewayByTheCLIsFamilies` (fable/opus/sonnet/haiku from twelve gateway
+rows incl. `-fast`, `:batch`, legacy `claude-3-haiku`), `TestClaudePreviewNeedsAGatewayAndAKnownFamily`,
+`TestIsModelRefusalMatchesOnlyTheVendorsPhrasing`, `TestVendorCatalogStoreRoundTripsAndStartsEmpty`
+(a corrupt file is an error, never a silent restart), `TestATurnPromotesAndARefusalRetires`,
+`TestReplaceCarriesVerificationForwardAndRetiresTheDropped`,
+`TestTheFirstPromptVerifiesTheModelInTheVendorCatalog` (opus promoted with the resolved id, haiku
+untouched, a refusal retires haiku, a network error changes nothing). Four mutations — family
+pattern accepting variants, refusal match loosened, `Replace` forgetting `verified`, the turn
+teaching nothing — each failed its test and restored byte-identically; a fifth (an explicit
+variant skip) did not go red because the pattern already excluded variants, so the redundant skip
+was deleted rather than kept as a guard that proves nothing. `make check` green at 3,225 tests.
+
+Remaining: F4.4 (start/login hooks and staleness), F4.5 (derivation of rungs, efforts, ladders from
+the catalog), F4.6 (surfaces), F4.7 (proof). No provider turn was spent; one `codex debug models` and one `codex
 --version` ran on this machine. No credential, push, tag, release, or remote state changed.
 
 #### C5 — TUI progress-log observability — queued
