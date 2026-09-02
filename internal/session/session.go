@@ -55,6 +55,12 @@ type Session struct {
 	// lands at the same width of effort instead of the configured default.
 	// Written before this field existed are sessions with none.
 	Effort string `json:"effort,omitempty"`
+	// Mode is the mode the session was left in — chat, code or agent —
+	// persisted so a resume lands in it instead of the default. Plan 06 §3
+	// promised this from the start ("written on switch and on save; resume
+	// restores it") and nothing had built it: the F7.2 transcript re-issued
+	// /mode agent on every wake. Sessions written before this field have none.
+	Mode string `json:"mode,omitempty"`
 	// Connector records the subscription connector the session ran on, when
 	// it ran on one. A plan model re-derives its connector from its name, so
 	// this is display state, never routing state.
@@ -285,6 +291,8 @@ func (s *Session) ModelName() string             { return s.Model }
 func (s *Session) SetModelName(m string)         { s.Model = m }
 func (s *Session) SessionEffort() string         { return s.Effort }
 func (s *Session) SetEffort(level string)        { s.Effort = level }
+func (s *Session) SessionMode() string           { return s.Mode }
+func (s *Session) SetMode(mode string)           { s.Mode = mode }
 func (s *Session) ConnectorName() string         { return s.Connector }
 func (s *Session) SetConnector(n string)         { s.Connector = n }
 func (s *Session) ProviderStateName() string     { return s.ProviderState }

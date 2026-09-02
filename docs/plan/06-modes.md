@@ -800,7 +800,7 @@ not a re-litigation of the ergonomics claim.
 | **model / effort** | **unchanged.** A mode does not touch either unless it declares a slot, and neither built-in does. | same |
 | **trust (`/yolo`)** | **does not reset.** Separate dial. | same |
 | **checkpoints** | `Ckpt` untouched; `/changes` and `/rewind` still see the code-mode turns | same |
-| **persistence** | `session.Mode` is written on switch and on save; resume restores it | same |
+| **persistence** | `session.Mode` is written on switch and on save; resume restores it. Built 2026-09-02: the F7.2 transcript found it missing (every `-r` reopened in code); the engine writes it in `SetMode`, startup records the resolved mode, and resume applies `--mode` flag > the session's mode > code | same |
 | **protocol** | `session.updated{mode:{…}}` | same |
 
 **Resume is fixed.** Verified against HEAD: resuming a session whose `Messages[0]` was the chat

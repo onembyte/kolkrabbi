@@ -11177,8 +11177,13 @@ lands, so a partial F7 is still a truthful one.
      **Open:** which call asked the Claude child for a gateway id — config is empty, tiers and slots
      unset, the saga path names no model, the planner schema carries none. The note the recorder
      prints now will name it on the next occurrence.
-  6. *Resume.* `-r` restores model and effort (run.go precedence) but the session does not persist
-     mode, so `/mode agent` was repeated on every wake. Not built here; a session-schema change.
+  6. *Resume.* `-r` restores model and effort (run.go precedence) but the session did not persist
+     mode, so `/mode agent` was repeated on every wake. **Built 2026-09-02** at the owner's request:
+     `session.Mode` (plan 06 §3 had promised it), written by `Agent.SetMode` so every surface that
+     switches records it, recorded at startup, restored with `--mode` flag > session > code.
+     `TestModeRoundtrips`, `TestResumeRestoresTheSessionsModeAndTheFlagBeatsIt`,
+     `TestSwitchingModeWritesItToTheSession`; both guards red under mutation. The fix also caught
+     `newAgent` passing the raw `--mode` flag to the engine instead of the resolved mode.
   Quota: seven agent turns on `claude-fable-5-1` (12,982 tokens by kolk's count) plus the two
   failed attempts and four one-turn diagnostic `claude -p` calls.
 - **F7.3 — independent review of F1–F3. Done.** Reviewer: an independent Claude agent

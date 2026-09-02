@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -125,5 +126,18 @@ func TestToolCallDescriptionsAreReadableAndNeverExposeRawPayloads(t *testing.T) 
 				t.Fatalf("description exposed raw tool arguments: %q", got)
 			}
 		})
+	}
+}
+
+// A mode switch is written to the session at the moment it happens — one
+// place, for every surface that can switch — so a resume lands in it.
+func TestSwitchingModeWritesItToTheSession(t *testing.T) {
+	sess := enginetest.NewFakeSession("s", "m")
+	agent := &Agent{Options: Options{Sess: sess, Out: io.Discard}}
+	if err := agent.SetMode(ModeAgent); err != nil {
+		t.Fatal(err)
+	}
+	if got := sess.SessionMode(); got != ModeAgent {
+		t.Fatalf("session mode after the switch = %q, want agent", got)
 	}
 }

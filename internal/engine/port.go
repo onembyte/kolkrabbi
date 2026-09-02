@@ -20,6 +20,10 @@ type SessionPort interface {
 	SetConnector(string)
 	SessionEffort() string
 	ConnectorName() string
+	// SetMode and SessionMode do the same for the mode, so a resumed run opens
+	// in the mode it was left in. The engine writes it on every switch.
+	SetMode(string)
+	SessionMode() string
 	// ProviderState carries the provider-side state worth resuming across
 	// Kolkrabbi restarts — for Claude, the vendor conversation handle. Empty
 	// means "start a fresh one".

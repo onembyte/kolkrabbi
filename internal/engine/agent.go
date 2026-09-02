@@ -458,6 +458,8 @@ func (a *Agent) SetMode(mode string) error {
 		if m == mode {
 			a.Mode = mode
 			if a.Sess != nil {
+				// Written on switch, so a resume lands in this mode (plan 06 §3).
+				a.Sess.SetMode(mode)
 				msgs := a.Sess.GetMessages()
 				if len(msgs) > 0 {
 					msgs[0] = provider.Message{Role: "system", Content: a.systemPrompt(mode)}

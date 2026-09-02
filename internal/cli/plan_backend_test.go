@@ -669,3 +669,37 @@ func TestTopRungLaneSaysWhatASignInWouldUnlock(t *testing.T) {
 		t.Fatalf("unranked model produced a lane line: %q", out.String())
 	}
 }
+
+// A session left in agent mode resumes in agent mode; the flag still wins,
+// because it is the more recent choice. Before this, every `-r` reopened in
+// code and the F7.2 transcript re-issued /mode agent on all seven wakes.
+func TestResumeRestoresTheSessionsModeAndTheFlagBeatsIt(t *testing.T) {
+	dirs := storeFirstRunKey(t)
+	if err := dirs.EnsureData(); err != nil {
+		t.Fatal(err)
+	}
+	stored := session.New(dirs.Sessions(), "vendor/model")
+	stored.SetMode(engine.ModeAgent)
+	if err := stored.Save(); err != nil {
+		t.Fatal(err)
+	}
+	a, _, _ := newTestApp(t, "")
+	ag, err := a.newAgent(context.Background(), &options{session: stored.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ag.Mode != engine.ModeAgent {
+		t.Fatalf("resumed mode = %q, want the session's agent", ag.Mode)
+	}
+	b, _, _ := newTestApp(t, "")
+	ag, err = b.newAgent(context.Background(), &options{session: stored.ID, mode: engine.ModeChat})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ag.Mode != engine.ModeChat {
+		t.Fatalf("mode with --mode chat = %q, want the flag's chat", ag.Mode)
+	}
+	if got := ag.Sess.SessionMode(); got != engine.ModeChat {
+		t.Fatalf("session now records %q, want the mode this run actually runs in", got)
+	}
+}

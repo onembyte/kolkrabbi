@@ -233,3 +233,22 @@ func TestLatestEmptyDir(t *testing.T) {
 		t.Errorf("Latest on empty dir = (%v, %v), want (nil, nil)", got, err)
 	}
 }
+
+// The mode a session was left in is part of what it remembers, exactly like
+// the effort dial: plan 06 §3 promised it and the F7.2 transcript showed it
+// missing, with /mode agent re-issued on every resumed wake.
+func TestModeRoundtrips(t *testing.T) {
+	dir := t.TempDir()
+	s := New(dir, "vendor/model")
+	s.SetMode("agent")
+	if err := s.Save(); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(dir, s.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Mode != "agent" || got.SessionMode() != "agent" {
+		t.Fatalf("mode = %q / %q, want agent", got.Mode, got.SessionMode())
+	}
+}

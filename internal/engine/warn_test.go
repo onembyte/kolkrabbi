@@ -19,6 +19,8 @@ func (s *failingSaveSession) ModelName() string                { return "vendor/
 func (s *failingSaveSession) SetModelName(string)              {}
 func (s *failingSaveSession) SessionEffort() string            { return "" }
 func (s *failingSaveSession) SetEffort(string)                 {}
+func (s *failingSaveSession) SessionMode() string              { return "" }
+func (s *failingSaveSession) SetMode(string)                   {}
 func (s *failingSaveSession) ConnectorName() string            { return "" }
 func (s *failingSaveSession) SetConnector(string)              {}
 func (s *failingSaveSession) ProviderStateName() string        { return "" }

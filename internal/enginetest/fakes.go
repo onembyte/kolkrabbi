@@ -16,6 +16,7 @@ type FakeSession struct {
 	title         string
 	autoTitled    bool
 	effort        string
+	mode          string
 	connector     string
 	providerState string
 	messages      []provider.Message
@@ -63,6 +64,18 @@ func (s *FakeSession) SetEffort(level string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.effort = level
+}
+
+func (s *FakeSession) SessionMode() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.mode
+}
+
+func (s *FakeSession) SetMode(mode string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.mode = mode
 }
 
 func (s *FakeSession) ConnectorName() string {

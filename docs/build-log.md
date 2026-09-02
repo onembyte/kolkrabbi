@@ -6220,6 +6220,17 @@ compiles and the tests pass. Every place that *types* the old name has to be fou
 script that types it twenty times an hour is worse than a user who types it once, because nobody
 reads its output.
 
+## Mode survives a resume (2026-09-02)
+
+Plan 06 §3 has said for a long time that `session.Mode` is written on switch and restored on resume.
+It was not: the session file carried model and effort and nothing about mode, so every `kolk -r`
+reopened in code, and the F7.2 transcript re-issued `/mode agent` on all seven wakes. The owner
+asked for it to be built, and it is one field with one writer: `Agent.SetMode` records the mode the
+moment it changes, for every surface that can change it, startup records what the run actually
+runs in, and resume applies the same precedence effort uses — flag, then session, then the default.
+Along the way, `newAgent` turned out to hand the engine the raw `--mode` flag rather than the mode it
+had resolved, which the new resume test caught before the mutation did.
+
 ## v1.3.0 — the release that the closed surface had quietly broken (2026-09-02)
 
 The v1.2.33 tag never became a release. Its verify job built all four archives, extracted the host

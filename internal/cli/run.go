@@ -239,9 +239,13 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	if model == "" {
 		model = sess.Model
 	}
-	// The engine defaults an unset mode to code; the plan backend needs the
-	// same resolved value, because mode is part of its spawn contract.
+	// Mode follows effort's shape: --mode flag > the resumed session's mode >
+	// code. The plan backend needs the same resolved value, because mode is
+	// part of its spawn contract.
 	mode := o.mode
+	if mode == "" {
+		mode = sess.SessionMode()
+	}
 	if mode == "" {
 		mode = engine.ModeCode
 	}
@@ -370,7 +374,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		Client:     client,
 		Backend:    backend,
 		Model:      model,
-		Mode:       o.mode,
+		Mode:       mode,
 		Effort:     effort,
 		Permission: permission,
 		Root:       root,
@@ -450,6 +454,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	// level, and the connector that answers for it — the same state /effort
 	// and /model keep current as the run goes on.
 	sess.SetEffort(ag.Effort)
+	sess.SetMode(ag.Mode)
 	if wrapped, ok := backend.(*verifyingBackend); ok {
 		sess.SetConnector(wrapped.plan.Connector)
 	} else {
