@@ -131,6 +131,15 @@ func claudeModeFlags(mode string) ([]string, error) {
 // refusing what will not take effect beats running what will not be honored.
 var claudeEfforts = map[string]bool{"low": true, "medium": true, "high": true, "xhigh": true, "max": true}
 
+// ClaudeEfforts is the same closed set in the order the vendor's help lists
+// it (`--effort (low, medium, high, xhigh, max)`, claude 2.1.258), for a
+// catalog row to show. Discovery does not learn this from the vendor — the
+// CLI has no catalog command — so it is the one thing a Claude row carries
+// from kolk rather than from a listing, and it is stated as such.
+func ClaudeEfforts() []string {
+	return []string{"low", "medium", "high", "xhigh", "max"}
+}
+
 // ClaudeEffortValid reports whether one level belongs to the vendor's closed
 // effort set.
 func ClaudeEffortValid(effort string) bool {

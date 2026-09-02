@@ -52,4 +52,12 @@ var DeadExportAllowlist = map[string]string{
 	// "waiting on I26.7" now reads as waiting on something already done, so the
 	// entry names the half that is actually outstanding.
 	"NewPlainRenderer": "A7.4's event renderer, waiting on I26.7's client page",
+
+	// F4 of FABLE_OPTIMIZATION.md, 2026-09-02. The discovery vocabulary has
+	// four statuses and F4.1/F4.2 wire three: listed (a vendor catalog),
+	// unverified (a gateway preview), gone (a refusal by name). `verified` is
+	// set by the first real turn's init.model, which is F4.3's leaf; until
+	// that lands this constant is named here so the vocabulary ships whole
+	// and the ratchet still catches the day F4.3 forgets to use it.
+	"StatusVerified": "set by F4.3 (first-turn init.model promotion); remove this entry when it lands",
 }

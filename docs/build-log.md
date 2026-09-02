@@ -6078,6 +6078,25 @@ carry both under one status vocabulary. Recorded as F4 of `FABLE_OPTIMIZATION.md
 efficiency and cleanup phases, because a model command that lies is worse than a slow one. The
 2026-09-02 Codex catalog is checked in as a fixture.
 
+## F4.1–F4.2 — the discovery port, and Codex answers it (2026-09-02)
+
+The port is small on purpose: `Discover(ctx) (VendorCatalog, error)`, four statuses, and a rule that
+"cannot list" is an answer with a reason rather than an absence. What makes it a contract is the
+registry test — every plan kolk can name must resolve to a lister — and what makes it the owner's
+rule is that the gateway preview serves every vendor without a catalog by prefix, so a new API-key
+connector gets a row the day it is added and never a hand-typed table.
+
+Codex answered on the first try: `codex --version`, `codex debug models`, eight rows, fifty
+milliseconds, through the same scrubbed child path a subagent uses. The checked-in fixture is the
+`--bundled` catalog; the live one differed already — `gpt-5.4` and its mini are hidden in the binary
+and listed by the service — which is the small daily drift the owner was describing, observed the
+same afternoon.
+
+One thing worth keeping from the mutations: a reverse `sed` that matched `return nil` restored two
+lines instead of one and quietly broke the registry's default case. The cli suite caught it inside
+the same run. A mutation script is code too; anchor its reversals on a marker, not on a phrase the
+file may contain twice.
+
 ## TUI progress-log observability — C5 queued 2026-09-01
 
 The requested Codex/Claude-style work log is recorded as a dedicated future checkpoint. It will

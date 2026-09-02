@@ -10872,6 +10872,52 @@ silently and is V34.4c's, with an owner decision. Walk-back: `docs/plan/24` Anth
 one-turn provider calls were made on the owner's own login for the fire-and-check above; no
 credential, push, tag, release, or remote state changed.
 
+#### F4 — discover, don't burn — in progress; F4.1 port and F4.2 Codex lister complete 2026-09-02
+
+Owner decision (verbatim in `FABLE_OPTIMIZATION.md` §F4): map every vendor's models on every start
+and every login, never burn names, show only mapped rows with their info. **Risk:** P1 product truth
+— a model command that names what the vendor no longer offers. **Invariant:** every connector kolk
+can sign into answers with a lister; a lister answers with rows or with a reason, never nil and
+never an empty success; a row's status says how kolk knows.
+
+Red: `codexRungs` and `planModelCatalog` carry `gpt-5.6-pro`; `codex debug models` (0.149.1,
+2026-09-02) does not list it, lists `gpt-5.5`/`gpt-5.2` kolk does not know, and Sol/Terra accept
+`ultra`, which `codexEfforts` refuses. Claude Code has no listing command; `--max-turns 0` still
+spends a turn; an invalid name fails locally for free; the gateway catalog carries the exact ids.
+
+Green, F4.1: `provider.ModelLister` port, `VendorCatalog`/`DiscoveredModel`, statuses `listed`,
+`verified`, `unverified`, `gone`, `NotListable`, `GatewayPreviewLister` (exact ids by provider
+prefix, variants dropped, `unverified`). Registry `cli.modelListerFor` with
+`TestEveryConnectorCanListItsModels` over `provider.Plans("")`: codex → catalog; claude, gemini,
+xai-api, perplexity-api, mistral-api, deepseek-api, qwen-api, cohere-api → gateway preview; ollama →
+ollama.com `/api/tags`; copilot → `NotListable` with the reason. `agentcli.ClaudeEfforts()` exported
+for the preview (the one thing a Claude row carries from kolk, stated as such).
+
+Green, F4.2: `agentcli.CodexLister` (`--version`, then `debug models`, scrubbed child path) and
+`ParseCodexModelCatalog`; fixture `internal/provider/agentcli/testdata/codex_debug_models_2026-09-02.json`.
+Tests: `TestCodexCatalogIsWhatTheVendorListsNotWhatKolkWroteDown` (eight rows, Sol rank 1 with six
+efforts including `ultra`, `gpt-5.4` hidden not missing, `gpt-5.6-pro` absent, visible order by
+priority), `TestCodexCatalogToleratesNewFieldsAndRefusesTheWrongShape`,
+`TestCodexListerRunsTheVendorAndRecordsItsVersion` (missing binary → reason), env-gated
+`TestLiveCodexCatalogAnswers` (ran: 0.149.1, eight models, 50 ms; the refreshed catalog lists
+`gpt-5.4`/`gpt-5.4-mini` that the bundled one hides). Also `TestGatewayPreviewListsExactIDsAsUnverified`,
+`TestGatewayPreviewFailsLoudlyWithNothingToPreviewFrom`, `TestNotListableIsAnAnswerNotAnOmission`,
+`TestVisibleOrdersByRankAndDropsHiddenAndGone`, `TestClaudePreviewCarriesTheVendorEffortSet`,
+`TestOllamaListerAsksTheCloudCatalogAndReportsFailure`.
+
+Adversarial: five mutations — hidden rows kept visible, `:batch` variants kept, Codex `hide`
+ignored, priority dropped, the codex connector returning nil — each failed its focused test and
+restored byte-identically (one reverse pattern was over-broad on the first run and rewrote a second
+`return nil`; caught by the cli suite, repaired, the script fixed to anchor on a marker).
+`StatusVerified` is allowlisted in `arch.DeadExportAllowlist` with the note that F4.3 wires it and
+removes the entry. `go test -race` clean on `provider`, `agentcli`, `cli`. `make check` green at
+3,218 tests.
+
+Remaining: F4.3 (Claude family grouping + first-turn `init.model` promotion), F4.4 (cache file and
+the start/login hooks), F4.5 (derivation of rungs, efforts, ladders from the catalog), F4.6
+(surfaces), F4.7 (proof). No provider turn was spent; one `codex debug models` and one `codex
+--version` ran on this machine. No credential, push, tag, release, or remote state changed.
+
 #### C5 — TUI progress-log observability — queued
 
 This is a separate surface checkpoint. It must make long-running work legible without turning the

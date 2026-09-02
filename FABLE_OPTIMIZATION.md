@@ -290,7 +290,7 @@ max` each completed a one-turn `-p` call (`stop_reason: end_turn`). `claude --he
 `claude-opus`, not `claude-fable`. Changing what a shorthand means moves users' models silently;
 that is V34.4c's catalog disposition, with an owner decision.
 
-## F4 — Discover, don't burn: every vendor's models are mapped before they are shown  ·  `[ ]`
+## F4 — Discover, don't burn: every vendor's models are mapped before they are shown  ·  `[~]` F4.1–F4.2 done 2026-09-02
 
 **Owner decision, 2026-09-02** (verbatim): *"when kolk see models availables, ID them, do not burn
 model names before knowing what's available. because if not, tomorrow claude or codex will update
@@ -317,7 +317,7 @@ wrong three days later. Feeds V34.4a/b/c/d.
 | Vendor | Listing surface | Cost | Shape |
 |---|---|---|---|
 | Codex 0.149.1 | `codex debug models` (`--bundled` skips refresh); also cached at `~/.codex/models_cache.json` | zero | `{models:[{slug, display_name, visibility: list\|hide, priority, context_window, default_reasoning_level, supported_reasoning_levels:[{effort, description}]}]}`; `priority` ascends with distance from the flagship |
-| Claude Code 2.1.258 | **none** — no subcommand lists models; `--help` names alias examples (`fable`, `opus`, `sonnet`); stream-json `init.model` carries the resolved id of whatever alias was used | a valid name can only be confirmed by a turn (`--max-turns 0` still spends one, $0.0088); an invalid name fails locally at zero cost with `[claude-code:unrecognized_model]`; an unreachable-API probe retries with backoff for minutes and is unusable | seed aliases → `unverified` until `init.model` confirms; `unrecognized_model` → `gone` |
+| Claude Code 2.1.258 | **none of its own** — no subcommand lists models; `--help` names alias examples (`fable`, `opus`, `sonnet`) and the effort set; stream-json `init.model` carries the resolved id of whatever alias was used. **The gateway catalog carries the exact ids** (`anthropic/claude-fable-5`, `claude-opus-5`, `claude-sonnet-5`, `claude-haiku-4.5`, … with context lengths) | a valid name can only be confirmed by a turn (`--max-turns 0` still spends one, $0.0088); an invalid name fails locally at zero cost with `[claude-code:unrecognized_model]`; an unreachable-API probe retries with backoff for minutes and is unusable | **preview from the gateway** (owner correction 2026-09-02): exact ids grouped by family → CLI alias, efforts from `--help`, shown as `unverified` before the first prompt; the first prompt's `init.model` → `verified`; `unrecognized_model` → `gone` |
 | OpenRouter gateway | `GET /models` (already cached at `models.json`) | zero | already mapped; gains STATUS |
 | Ollama host / cloud | `GET /api/tags` (already `host-models.json`) | zero | already mapped; gains STATUS |
 | Gemini, future | must supply a lister to be registered | — | — |
@@ -327,20 +327,37 @@ wrong three days later. Feeds V34.4a/b/c/d.
 `internal/engine/ceiling.go`, `internal/cli/{cmd_plans,cmd_models,cmd_plan_models,run,slash}.go`,
 `internal/paths/paths.go`.
 
-- [ ] **F4.1 The port.** `provider.ModelLister` — `Discover(ctx) (VendorCatalog, error)` returning
-  `{Vendor, Source, VendorVersion, FetchedAt, Models []DiscoveredModel{ID, Display, Efforts,
-  DefaultEffort, Context, Rank, Hidden, Status}}`. The connector registry takes a lister with every
-  connector; `TestEveryConnectorCanListItsModels` iterates the registry and fails on any without
-  one. A fake vendor in tests proves the contract end to end.
-- [ ] **F4.2 Codex lister.** Runs `codex debug models` through the scrubbed child path, parses the
-  JSON, maps `slug → ID`, `visibility hide → Hidden`, `priority → Rank`,
-  `supported_reasoning_levels → Efforts` (so `ultra` arrives without a code change). Fixture: the
-  eight-model output captured 2026-09-02. Malformed JSON, a missing binary, and a non-zero exit each
-  yield "no catalog" with the reason, never an empty success.
-- [ ] **F4.3 Claude lister.** Records `claude --version`; seeds the four family aliases as
-  `unverified`; parses `--help` for alias examples and adds any it names; the session's first
-  stream-json `init.model` promotes the alias to `verified` and records the full id beside it;
-  `unrecognized_model` on a turn marks it `gone`. No turn is ever spent to discover.
+- [x] **F4.1 The port.** `internal/provider/discovery.go`: `ModelLister`, `VendorCatalog`
+  (`Find`, `Visible` — hidden and gone out, ranked first), `DiscoveredModel`, the four statuses,
+  `NotListable{Reason}` (an answer, never blank), and `GatewayPreviewLister{Prefix}` (exact gateway
+  ids, no `:batch`/`:fast` variants, `unverified`). The registry is `cli.modelListerFor(connector,
+  gateway)`; `TestEveryConnectorCanListItsModels` iterates `provider.Plans("")` and fails on any
+  connector without a lister — today: codex (catalog), claude/gemini/xai/perplexity/mistral/deepseek/
+  qwen/cohere (gateway preview by prefix), ollama (ollama.com `/api/tags`), copilot (`NotListable`,
+  with the reason). Mutations: hidden kept visible, variants kept, a connector returning nil.
+- [x] **F4.2 Codex lister.** `agentcli.CodexLister` runs `codex --version` then `codex debug
+  models` through the scrubbed child path; `ParseCodexModelCatalog` maps slug/display/visibility/
+  priority/context/levels, tolerates unknown fields, and refuses non-JSON, an empty list, and rows
+  without slugs. Fixture `testdata/codex_debug_models_2026-09-02.json` (the `--bundled` catalog):
+  eight models, Sol rank 1 with `ultra`, `gpt-5.4` hidden, **`gpt-5.6-pro` absent**. Live run
+  (`KOLK_LIVE_VENDOR=1`, env-gated test): codex 0.149.1 answered in 50 ms with the same eight, and the
+  *refreshed* catalog lists `gpt-5.4`/`gpt-5.4-mini` where the bundled one hides them — the vendor's
+  own answer moved between the binary and the service, which is the reason to ask live. Mutations:
+  hidden ignored, rank dropped.
+- [ ] **F4.3 Gateway preview for every vendor without a catalog — Claude first.** Owner correction
+  2026-09-02: *"we could get the exact name from openrouter, and show the available models and
+  efforts from there to be the first thing that kolk do when 1st prompt to claude. and the same
+  behaviour for every vendor that do not expose the models like codex does."* `provider.
+  GatewayPreviewLister{Prefix}` (built in F4.1) previews a vendor from the gateway catalog: exact
+  ids, display names, context, no `:batch`/`:fast` variants, all `unverified`. For Claude, the
+  agentcli lister groups those ids by family (`fable`, `opus`, `sonnet`, `haiku` — the CLI's own
+  aliases) so a row reads `claude-fable → anthropic/claude-fable-5 (1M ctx) · efforts low…max ·
+  unverified`; records `claude --version`; the session's first stream-json `init.model` promotes the
+  family to `verified` with the exact id the vendor resolved; `unrecognized_model` marks it `gone`.
+  The same lister, by provider prefix, serves every API-key connector (`x-ai/`, `perplexity/`,
+  `mistralai/`, `deepseek/`, `qwen/`, `cohere/`) and `gemini` (`google/`); a vendor with neither a
+  catalog command nor a gateway prefix (copilot) is `NotListable` with the reason, never blank. No
+  turn is ever spent to discover.
 - [ ] **F4.4 Cache and hooks.** `paths.VendorCatalogFile()` (`vendor-models.json`), atomic write,
   one entry per vendor with `FetchedAt` and `VendorVersion`. Refreshed: on every `kolk plans login
   <connector>` after `SaveConnector` (before the "recorded" line prints); at startup for every
