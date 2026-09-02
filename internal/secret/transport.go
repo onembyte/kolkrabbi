@@ -1,9 +1,23 @@
 package secret
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
+	"sync"
 )
+
+// ErrCredentialOrigin is returned before network I/O when a transport would
+// otherwise attach a credential to an origin it was not constructed to trust.
+var ErrCredentialOrigin = errors.New("secret: credential origin is not allowed")
+
+type credentialOrigin struct {
+	scheme string
+	host   string
+	port   string
+}
 
 // AuthTransport attaches a credential to outgoing requests without the caller
 // ever holding one.
@@ -26,9 +40,10 @@ import (
 // no way for a caller to leak it by accident, and no rule anyone has to
 // remember.
 type AuthTransport struct {
-	// Token is attached to every request. It is a Secret rather than a string
-	// so that AuthTransport itself is safe to print.
-	Token Secret
+	// token is private and synchronized so RoundTrip can validate and attach
+	// one immutable snapshot while SetToken runs concurrently.
+	tokenMu sync.RWMutex
+	token   Secret
 
 	// Scheme defaults to "Bearer".
 	Scheme string
@@ -42,16 +57,70 @@ type AuthTransport struct {
 
 	// Base defaults to http.DefaultTransport.
 	Base http.RoundTripper
+
+	// allowedOrigin is private so changing a request URL cannot silently move
+	// the credential's trust boundary. Credential-bearing transports must be
+	// created with NewAuthTransport.
+	allowedOrigin credentialOrigin
+}
+
+// NewAuthTransport constructs a transport whose credential is bound to the
+// origin of allowedURL. Paths do not participate in an HTTP origin; scheme,
+// host, and effective port do. The normalized binding is private and cannot be
+// changed after construction.
+func NewAuthTransport(token Secret, allowedURL string, base http.RoundTripper) (*AuthTransport, error) {
+	u, err := url.Parse(allowedURL)
+	if err != nil {
+		return nil, fmt.Errorf("secret: invalid credential origin: %w", err)
+	}
+	origin, err := normalizeCredentialOrigin(u)
+	if err != nil {
+		return nil, err
+	}
+	return &AuthTransport{
+		token:         token,
+		Base:          base,
+		allowedOrigin: origin,
+	}, nil
+}
+
+// Token returns a synchronized credential snapshot. The Secret remains safe
+// to print; revealing it still requires an explicit Reveal call.
+func (t *AuthTransport) Token() Secret {
+	if t == nil {
+		return Secret{}
+	}
+	t.tokenMu.RLock()
+	defer t.tokenMu.RUnlock()
+	return t.token
+}
+
+// SetToken atomically replaces the credential used by future requests.
+func (t *AuthTransport) SetToken(token Secret) {
+	if t == nil {
+		return
+	}
+	t.tokenMu.Lock()
+	t.token = token
+	t.tokenMu.Unlock()
 }
 
 // RoundTrip implements http.RoundTripper.
 func (t *AuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	token := t.Token()
+	if !token.IsZero() {
+		origin, err := normalizeCredentialOrigin(req.URL)
+		if err != nil || origin != t.allowedOrigin || t.allowedOrigin == (credentialOrigin{}) {
+			return nil, ErrCredentialOrigin
+		}
+	}
+
 	// Clone, always. The contract of RoundTripper is that it must not modify
 	// the request it is given, and here that contract is also the security
 	// boundary: the caller's request stays free of the token.
 	r := req.Clone(req.Context())
 
-	if !t.Token.IsZero() {
+	if !token.IsZero() {
 		scheme := t.Scheme
 		if scheme == "" {
 			scheme = "Bearer"
@@ -60,7 +129,7 @@ func (t *AuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		if header == "" {
 			header = "Authorization"
 		}
-		r.Header.Set(header, scheme+" "+t.Token.Reveal())
+		r.Header.Set(header, scheme+" "+token.Reveal())
 	}
 	for k, v := range t.Extra {
 		if r.Header.Get(k) == "" {
@@ -82,10 +151,54 @@ func (t *AuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
+func normalizeCredentialOrigin(u *url.URL) (credentialOrigin, error) {
+	if u == nil || !u.IsAbs() || u.Host == "" || u.User != nil {
+		return credentialOrigin{}, ErrCredentialOrigin
+	}
+
+	scheme := strings.ToLower(u.Scheme)
+	host := strings.ToLower(u.Hostname())
+	if host == "" {
+		return credentialOrigin{}, ErrCredentialOrigin
+	}
+	port := u.Port()
+	if port == "" {
+		switch scheme {
+		case "https":
+			port = "443"
+		case "http":
+			port = "80"
+		default:
+			return credentialOrigin{}, ErrCredentialOrigin
+		}
+	}
+	return credentialOrigin{scheme: scheme, host: host, port: port}, nil
+}
+
+// SameOrigin reports whether two absolute HTTP URLs share the normalized
+// scheme, host, and effective port used by AuthTransport. Invalid or
+// userinfo-bearing URLs never match.
+func SameOrigin(first, second string) bool {
+	leftURL, err := url.Parse(first)
+	if err != nil {
+		return false
+	}
+	rightURL, err := url.Parse(second)
+	if err != nil {
+		return false
+	}
+	left, err := normalizeCredentialOrigin(leftURL)
+	if err != nil {
+		return false
+	}
+	right, err := normalizeCredentialOrigin(rightURL)
+	return err == nil && left == right
+}
+
 // String keeps AuthTransport itself printable. Without it, %+v on a client that
 // holds one would print the struct field by field and defeat the point.
 func (t *AuthTransport) String() string {
-	return fmt.Sprintf("secret.AuthTransport{Token: %s}", t.Token)
+	return fmt.Sprintf("secret.AuthTransport{Token: %s}", t.Token())
 }
 
 // GoString covers %#v for the same reason.

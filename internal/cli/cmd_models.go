@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -23,10 +22,11 @@ func (a *app) runModels(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	// T0.3 replaces this temporary environment-only source with the complete
-	// credential chain. Config itself must never regain a credential field.
-	client := provider.NewClient(os.Getenv("OPENROUTER_API_KEY"))
-	client.BaseURL = config.ResolveBaseURL("", cfg)
+	endpoint := config.ResolveBaseURL("", cfg)
+	client, err := providerClientForEndpoint(ctx, endpoint, d.CredentialsFile())
+	if err != nil {
+		return err
+	}
 
 	forceRefresh := false
 	var filterArgs []string

@@ -65,6 +65,10 @@ type app struct {
 	// projectHooksApproved remembers this session's answer per hooks-file
 	// fingerprint. Session-scoped on purpose: see approveProjectHooks.
 	projectHooksApproved map[string]bool
+	// sagaWake is a narrow test seam for the inline SAGA boundary. Production
+	// uses runSagaLoop with the current agent; tests can prove routing and
+	// posture restoration without opening a provider or changing a chapter.
+	sagaWake func(context.Context, *engine.Agent) error
 	// sessionRules are permission rules the user added for this process only.
 	// They are deliberately not written anywhere: a rule that outlives the
 	// session someone scoped it to is a rule nobody consented to.
@@ -263,7 +267,6 @@ func commandTable() []command {
 		{"serve", "[--addr <addr>] [--token <tok>] [--stdio]", "start headless event server or stdio bridge", (*app).runServe},
 		{"devices", "", "list the devices paired with this machine", (*app).runDevices},
 		{"version", "[--json]", "print the running build", (*app).runVersion},
-		{"saga", "[goal | run | resume | status | stop | rewind]", "careful-progression autonomous loop", (*app).runSaga},
 		{"completion", "<bash|zsh|fish>", "generate shell completions", (*app).runCompletion},
 		{"doctor", "", "check keys, directories, terminal and network", (*app).runDoctor},
 		{"help", "", "show this help", (*app).runHelp},

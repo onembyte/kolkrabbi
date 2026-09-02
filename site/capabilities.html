@@ -343,7 +343,7 @@
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>SAGA</span></div>
           <h3>Careful long-running progression</h3>
-          <p><code>kolk saga</code> advances one bounded chapter at a time — plan, act, verify,
+          <p>Include <code>/saga</code> in a normal request to advance one bounded chapter at a time — plan, act, verify,
             checkpoint, report — with the project's own tests as the gate, a commit only on green,
             and a chapter limit, dollar budget, timeout, and doom-loop detector around it.</p>
         </article>
@@ -423,11 +423,14 @@
             Orchestrated work never prompts: what its tier would ask about is refused, with the way
             to allow it.</p>
         </article>
-        <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Planned</span><span>SANDBOX</span></div>
-          <h3>Optional execution sandboxes</h3>
-          <p>Platform isolation and container paths will let unattended work run inside declared
-            boundaries. Full-auto inside a sandbox stays different from unrestricted host access.</p>
+        <article class="spec-card" data-status="designed">
+          <div class="spec-meta"><span class="status-badge">Designed, not shipped</span><span>SANDBOX</span></div>
+          <h3>OS-level execution sandboxes</h3>
+          <p>OS-level isolation on supported Linux and macOS targets is accepted v1 scope, with a
+            shared refusal contract and native negative tests required before it can be called
+            available. The current binary still relies on its in-process path, permission, and
+            capability boundaries; full-auto inside a future sandbox remains distinct from
+            unrestricted host access.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>PROTOCOL</span></div>

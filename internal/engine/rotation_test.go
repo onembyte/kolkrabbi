@@ -26,8 +26,7 @@ func TestFreeModel429AutoRotates(t *testing.T) {
 	)
 	defer srv.Close()
 
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := provider.NewCompatibleClient(srv.URL)
 
 	var out bytes.Buffer
 	ag := engine.New(engine.Options{
@@ -64,8 +63,7 @@ func TestPinnedModelNeverAutoRotatesOn429(t *testing.T) {
 	)
 	defer srv.Close()
 
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := provider.NewCompatibleClient(srv.URL)
 
 	var out bytes.Buffer
 	ag := engine.New(engine.Options{
@@ -102,8 +100,7 @@ func TestFreeModelRotationUsesEachCandidateOncePerTurn(t *testing.T) {
 	)
 	defer srv.Close()
 
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := provider.NewCompatibleClient(srv.URL)
 	var out bytes.Buffer
 	ag := engine.New(engine.Options{
 		Client:     client,

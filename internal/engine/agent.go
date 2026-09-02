@@ -45,6 +45,16 @@ const (
 
 var Modes = []string{ModeChat, ModeCode, ModeAgent}
 
+// Posture is the internal purpose of an agent run. It is separate from Mode:
+// mode selects the tool loop, while posture tells the system prompt which
+// durable workflow owns the turn. A posture is never a user-selectable model
+// or provider value.
+type Posture string
+
+const (
+	PostureSaga Posture = "saga"
+)
+
 const (
 	EffortLow    = "low"
 	EffortMedium = "medium"
@@ -187,6 +197,10 @@ type Options struct {
 	// ExtraSystem is a standing instruction appended to the system prompt,
 	// used by plan mode to say what the session is for. Empty most of the time.
 	ExtraSystem string
+	// Posture is an internal workflow marker. PostureSaga adds its short
+	// progression directive to system construction without putting workflow
+	// instructions into user messages or durable conversation turns.
+	Posture Posture
 	// MaxConcurrentTasks is how many orchestrated tasks may run at once. Three
 	// is small enough that the output of that many agents can still be read,
 	// and rate limits rather than CPU are the binding constraint. One is
@@ -219,6 +233,11 @@ type Options struct {
 	// subagent gets its own vendor process instead of sharing the session's.
 	// Nil means they share, which is what happens today.
 	SubagentBackend SubagentBackend
+	// SubagentCapabilities is the host-verified execution envelope used by the
+	// capability-aware factory. Network access is opt-in; an empty envelope is
+	// not a permission to fall back to the parent process's directory.
+	SubagentCapabilities            SubagentCapabilities
+	SubagentBackendWithCapabilities SubagentBackendWithCapabilities
 	// RungAvailable reports whether a vendor can run one of its cheaper
 	// models on this machine. Nil means none can, so a run stays on the
 	// session's own model — which is what happens today.
@@ -446,6 +465,36 @@ func (a *Agent) SetMode(mode string) error {
 	return fmt.Errorf("unknown mode %q (chat|code|agent)", mode)
 }
 
+// SetPosture changes the internal workflow purpose of the current agent and
+// refreshes the existing session's system message. The empty posture is the
+// ordinary session; SAGA is the only named workflow posture. Restricting the
+// values here keeps a caller from smuggling arbitrary user text into system
+// construction while still letting an inline SAGA request reuse one session.
+func (a *Agent) SetPosture(posture Posture) error {
+	switch posture {
+	case Posture(""), PostureSaga:
+		// accepted internal values
+	default:
+		return fmt.Errorf("unknown posture %q", posture)
+	}
+	a.Posture = posture
+	a.refreshSystemPrompt()
+	return nil
+}
+
+func (a *Agent) refreshSystemPrompt() {
+	if a.Sess == nil {
+		return
+	}
+	msgs := a.Sess.GetMessages()
+	if len(msgs) == 0 || msgs[0].Role != "system" {
+		return
+	}
+	msgs[0] = provider.Message{Role: "system", Content: a.systemPrompt(a.Mode)}
+	a.Sess.SetMessages(msgs)
+	a.save()
+}
+
 // SetEffort validates, normalizes and sets the effort level.
 func (a *Agent) SetEffort(effort string) error {
 	if canonical, ok := NormalizeEffort(effort); ok {
@@ -539,8 +588,16 @@ Some decisions are the user's rather than yours: which framework or database to 
 		// anything standing.
 		sys += "\n\n" + extra
 	}
+	if a.Posture == PostureSaga {
+		// This is deliberately a fixed internal system directive. Repeating it
+		// in each SAGA user prompt would spend context and could be lost during
+		// compaction; placing it here makes the posture durable and inspectable.
+		sys += "\n\n" + sagaPostureInstruction
+	}
 	return sys
 }
+
+const sagaPostureInstruction = `SAGA posture is active. Advance one bounded chapter at a time, verify it with the configured quality gates, record an honest outcome, and stop at the wake boundary. Do not claim completion without evidence.`
 
 // SetExtraSystem changes the standing instruction appended to the system
 // prompt and rebuilds it in the running session.

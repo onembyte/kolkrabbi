@@ -32,8 +32,7 @@ func replFixture(t *testing.T, stdin string, steps ...enginetest.Step) (*app, *e
 	srv := enginetest.New(steps...)
 	t.Cleanup(srv.Close)
 
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := provider.NewCompatibleClient(srv.URL)
 
 	var out bytes.Buffer
 	a := &app{stdout: &out, stderr: &out, in: bufio.NewReader(strings.NewReader(stdin))}
@@ -345,8 +344,7 @@ func TestSlashModelListsTheActiveProviderCatalog(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := provider.NewCompatibleClient(srv.URL)
 	a, out, errOut := newTestApp(t, "")
 	ag := engine.New(engine.Options{
 		Client: client, Model: "current/model", Sess: session.New(t.TempDir(), "current/model"), Out: io.Discard,
@@ -384,8 +382,7 @@ func TestSlashModelDirectSwitchDoesNotFetchCatalog(t *testing.T) {
 		requests.Add(1)
 	}))
 	defer srv.Close()
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := provider.NewCompatibleClient(srv.URL)
 	a, ag, out := replFixture(t, "")
 	ag.Client = client
 
@@ -409,8 +406,7 @@ func TestSlashModelCatalogFailureKeepsTheSession(t *testing.T) {
 		http.Error(w, "catalog unavailable", http.StatusServiceUnavailable)
 	}))
 	defer srv.Close()
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := provider.NewCompatibleClient(srv.URL)
 	a, out, errOut := newTestApp(t, "")
 	ag := engine.New(engine.Options{
 		Client: client, Model: "current/model", Sess: session.New(t.TempDir(), "current/model"), Out: io.Discard,

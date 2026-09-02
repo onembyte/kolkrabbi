@@ -9,9 +9,39 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/onembyte/kolkrabbi/internal/secret"
 )
+
+func newTestAuthenticatedClient(t testing.TB, baseURL, key string) *Client {
+	t.Helper()
+	auth, err := secret.NewAuthTransport(secret.New(key), baseURL, http.DefaultTransport)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &Client{
+		BaseURL: baseURL,
+		HTTPClient: &http.Client{
+			Transport:     auth,
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		},
+		AppName: "Kolkrabbi",
+		auth:    auth,
+	}
+}
+
+func newCanonicalOpenRouterClient(t testing.TB, key string) *Client {
+	t.Helper()
+	client, err := NewOpenRouterClient(DefaultBaseURL, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return client
+}
 
 // simulates a real OpenRouter/OpenAI streaming response: content in a few
 // chunks, then a tool call whose name and arguments arrive fragmented across
@@ -62,8 +92,7 @@ func TestStreamChat_ToolCallAccumulation(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(mockSSEHandler))
 	defer srv.Close()
 
-	c := NewClient("test-key")
-	c.BaseURL = srv.URL
+	c := newTestAuthenticatedClient(t, srv.URL, "test-key")
 
 	var tokens strings.Builder
 	msg, meta, err := c.StreamChat(context.Background(), "any/model", []Message{{Role: "user", Content: "list files"}}, nil, func(tok string) {
@@ -114,8 +143,7 @@ func TestStreamChat_HTTPError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient("bad-key")
-	c.BaseURL = srv.URL
+	c := newTestAuthenticatedClient(t, srv.URL, "bad-key")
 
 	_, _, err := c.StreamChat(context.Background(), "any/model", []Message{{Role: "user", Content: "hi"}}, nil, nil)
 	if err == nil {
@@ -127,30 +155,241 @@ func TestStreamChat_HTTPError(t *testing.T) {
 }
 
 func TestClientDoesNotForwardCredentialsAcrossRedirects(t *testing.T) {
-	var leaked string
+	var targetCalls int
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		leaked = r.Header.Get("Authorization")
+		targetCalls++
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer target.Close()
 
+	var sourceCalls int
+	var sourceAuth string
 	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sourceCalls++
+		sourceAuth = r.Header.Get("Authorization")
 		http.Redirect(w, r, target.URL+"/chat/completions", http.StatusFound)
 	}))
 	defer redirect.Close()
 
-	c := NewClient("sk-or-v1-redirect-canary")
-	c.BaseURL = redirect.URL
+	const key = "sk-or-v1-redirect-canary"
+	c := newTestAuthenticatedClient(t, redirect.URL, key)
 	_, _, err := c.StreamChat(context.Background(), "any/model", []Message{{Role: "user", Content: "hi"}}, nil, nil)
-	if err != nil {
-		// The redirect response is intentionally not a valid stream; the
-		// security assertion is that the next host was never contacted.
-		if !strings.Contains(err.Error(), "HTTP 302") {
-			t.Fatalf("StreamChat error = %v, want the refused redirect response", err)
-		}
+	if err == nil || !strings.Contains(err.Error(), "HTTP 302") {
+		t.Fatalf("StreamChat error = %v, want the refused redirect response", err)
 	}
-	if leaked != "" {
-		t.Fatalf("redirect target received Authorization %q", leaked)
+	if sourceCalls != 1 || sourceAuth != "Bearer "+key {
+		t.Fatalf("redirect source calls/auth = %d/%q, want one authenticated request", sourceCalls, sourceAuth)
+	}
+	if targetCalls != 0 {
+		t.Fatalf("redirect target received %d requests, want 0", targetCalls)
+	}
+}
+
+func TestClientRefusesCredentialAfterBaseURLMutationBeforeNetwork(t *testing.T) {
+	const key = "sk-or-v1-origin-mutation-canary"
+	var calls int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"data":[]}`)
+	}))
+	defer srv.Close()
+
+	client := newCanonicalOpenRouterClient(t, key)
+	client.BaseURL = srv.URL
+	_, err := client.ListModels(context.Background())
+	if err == nil {
+		t.Fatal("mutated authenticated client contacted the replacement origin")
+	}
+	if calls != 0 {
+		t.Fatalf("replacement origin received %d requests, want 0", calls)
+	}
+	if !errors.Is(err, secret.ErrCredentialOrigin) {
+		t.Fatalf("ListModels error = %v, want ErrCredentialOrigin", err)
+	}
+	if strings.Contains(err.Error(), key) {
+		t.Fatalf("origin refusal leaked the credential: %v", err)
+	}
+}
+
+func TestNewOpenRouterClientBindsCredentialToCanonicalOrigin(t *testing.T) {
+	const key = "sk-or-v1-canonical-origin-canary"
+	recorder := &recordingTransport{}
+	client := newCanonicalOpenRouterClient(t, key)
+	client.auth.Base = recorder
+
+	if _, err := client.ListModels(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if recorder.last == nil {
+		t.Fatal("canonical OpenRouter request did not reach the base transport")
+	}
+	if got := recorder.last.URL.String(); got != DefaultBaseURL+"/models" {
+		t.Fatalf("request URL = %q, want canonical OpenRouter models endpoint", got)
+	}
+	if got := recorder.last.Header.Get("Authorization"); got != "Bearer "+key {
+		t.Fatalf("canonical request Authorization = %q", got)
+	}
+}
+
+func TestNewOpenRouterClientRejectsANonOpenRouterEndpoint(t *testing.T) {
+	client, err := NewOpenRouterClient("https://untrusted.invalid/api/v1", "sk-or-v1-constructor-canary")
+	if client != nil {
+		t.Fatal("foreign endpoint received an OpenRouter client")
+	}
+	if !errors.Is(err, ErrCredentialBinding) {
+		t.Fatalf("constructor error = %v, want ErrCredentialBinding", err)
+	}
+}
+
+func TestNewCompatibleClientStreamsWithoutCredentialOrAttribution(t *testing.T) {
+	var authorization string
+	var referer string
+	var title string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorization = r.Header.Get("Authorization")
+		referer = r.Header.Get("HTTP-Referer")
+		title = r.Header.Get("X-Title")
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"compatible\"},\"finish_reason\":\"stop\"}]}\n\n")
+		_, _ = io.WriteString(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+
+	client := NewCompatibleClient(srv.URL)
+	message, _, err := client.StreamChat(context.Background(), "model", []Message{{Role: "user", Content: "hello"}}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if message.Content != "compatible" {
+		t.Fatalf("content = %q", message.Content)
+	}
+	if client.HasKey() {
+		t.Fatal("compatible client unexpectedly has a credential")
+	}
+	if authorization != "" || referer != "" || title != "" {
+		t.Fatalf("compatible headers Authorization/Referer/Title = %q/%q/%q", authorization, referer, title)
+	}
+}
+
+func TestSetKeyDoesNotTrustAnExistingCustomBaseURL(t *testing.T) {
+	const key = "sk-or-v1-set-key-canary"
+	var calls int
+	var authorization string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		authorization = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"data":[]}`)
+	}))
+	defer srv.Close()
+
+	client := &Client{BaseURL: srv.URL, HTTPClient: srv.Client()}
+	err := client.SetKey(secret.New(key))
+	if !errors.Is(err, ErrCredentialBinding) {
+		t.Fatalf("SetKey error = %v, want ErrCredentialBinding", err)
+	}
+	_, _ = client.ListModels(context.Background())
+	if calls != 1 {
+		t.Fatalf("custom origin received %d requests, want one keyless request", calls)
+	}
+	if authorization != "" {
+		t.Fatalf("custom origin received Authorization %q", authorization)
+	}
+	if client.HasKey() {
+		t.Fatal("SetKey installed a credential on an unbound client")
+	}
+	if err != nil && strings.Contains(err.Error(), key) {
+		t.Fatalf("origin refusal leaked the credential: %v", err)
+	}
+}
+
+func TestConcurrentSetKeyOnUnboundClientIsRefusedRaceFree(t *testing.T) {
+	client := &Client{
+		BaseURL:    "https://untrusted.invalid/api/v1",
+		HTTPClient: &http.Client{Transport: &recordingTransport{}},
+	}
+	originalHTTPClient := client.HTTPClient
+	token := secret.New("sk-or-v1-unbound-concurrent-canary")
+	var unexpected atomic.Bool
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(2)
+	for range 2 {
+		go func() {
+			defer wg.Done()
+			<-start
+			for range 10_000 {
+				if err := client.SetKey(token); !errors.Is(err, ErrCredentialBinding) {
+					unexpected.Store(true)
+				}
+				if !client.Key().IsZero() {
+					unexpected.Store(true)
+				}
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	if unexpected.Load() {
+		t.Fatal("concurrent SetKey mutated an unbound client")
+	}
+	if client.HTTPClient != originalHTTPClient {
+		t.Fatal("SetKey replaced the HTTP client on an unbound client")
+	}
+}
+
+func TestConcurrentSetKeyCannotAttachToMutatedBaseURL(t *testing.T) {
+	const key = "sk-or-v1-concurrent-set-key-canary"
+	var leaked atomic.Bool
+	base := verifierTransport(func(req *http.Request) (*http.Response, error) {
+		if req.Header.Get("Authorization") != "" {
+			leaked.Store(true)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"data":[]}`)),
+			Request:    req,
+		}, nil
+	})
+	client := newCanonicalOpenRouterClient(t, "")
+	client.BaseURL = "https://untrusted.invalid/api/v1"
+	client.auth.Base = base
+	token := secret.New(key)
+
+	start := make(chan struct{})
+	var unexpected atomic.Bool
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		<-start
+		for range 10_000 {
+			client.SetKey(token)
+			client.SetKey(secret.Secret{})
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		<-start
+		for range 10_000 {
+			_, err := client.ListModels(context.Background())
+			if err != nil && !errors.Is(err, secret.ErrCredentialOrigin) {
+				unexpected.Store(true)
+			}
+		}
+	}()
+	close(start)
+	wg.Wait()
+
+	if unexpected.Load() {
+		t.Fatal("concurrent ListModels returned an unexpected error")
+	}
+	if leaked.Load() {
+		t.Fatal("concurrent SetKey attached a credential to the mutated BaseURL")
 	}
 }
 
@@ -163,8 +402,7 @@ func TestStreamChat_HTTPErrorPreservesRateLimitClassification(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient("test-key")
-	c.BaseURL = srv.URL
+	c := newTestAuthenticatedClient(t, srv.URL, "test-key")
 	_, _, err := c.StreamChat(context.Background(), "stealth/ox-alpha", []Message{{Role: "user", Content: "continue"}}, nil, nil)
 	if err == nil {
 		t.Fatal("expected an HTTP error")
@@ -200,8 +438,7 @@ func TestKeyNeverAppearsInAnythingPrintable(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(key)
-	c.BaseURL = srv.URL
+	c := newTestAuthenticatedClient(t, srv.URL, key)
 
 	if _, err := c.ListModels(context.Background()); err != nil {
 		t.Fatal(err)
@@ -214,7 +451,7 @@ func TestKeyNeverAppearsInAnythingPrintable(t *testing.T) {
 	// the request this package actually built. If any code here sets the
 	// header itself, it shows up on the request the caller holds — and that is
 	// the request that lands in a log line or an error with %+v.
-	bare := NewClient(key)
+	bare := newCanonicalOpenRouterClient(t, key)
 	bare.BaseURL = srv.URL
 	rec := &recordingTransport{}
 	bare.HTTPClient = &http.Client{Transport: rec}
@@ -242,7 +479,7 @@ func TestKeyNeverAppearsInAnythingPrintable(t *testing.T) {
 		}
 	}
 	if !c.HasKey() {
-		t.Error("HasKey() = false after NewClient with a key")
+		t.Error("HasKey() = false after constructing a keyed OpenRouter client")
 	}
 }
 
@@ -255,8 +492,7 @@ func TestListModelsRankedRequestsIntelligenceAndToolFiltering(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := newTestAuthenticatedClient(t, srv.URL, "test-key")
 	models, err := client.ListModelsRanked(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -283,8 +519,7 @@ func TestProviderErrorsAreScrubbed(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(key)
-	c.BaseURL = srv.URL
+	c := newTestAuthenticatedClient(t, srv.URL, key)
 
 	_, err := c.ListModels(context.Background())
 	if err == nil {

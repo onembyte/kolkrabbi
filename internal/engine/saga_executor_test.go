@@ -17,6 +17,42 @@ type workerSpy struct {
 	err     error
 }
 
+type cancellingWorker struct {
+	cancel context.CancelFunc
+}
+
+type persistedWorker struct {
+	persisted *bool
+	worked    bool
+}
+
+func (w *cancellingWorker) Work(_ context.Context, _ Chapter, _ string) (WorkResult, error) {
+	w.cancel()
+	return WorkResult{}, context.Canceled
+}
+
+func (w *persistedWorker) Work(_ context.Context, _ Chapter, _ string) (WorkResult, error) {
+	if !*w.persisted {
+		return WorkResult{}, errors.New("worker started before executing state was persisted")
+	}
+	w.worked = true
+	return WorkResult{}, nil
+}
+
+type cancellingStatusRunner struct {
+	cancel context.CancelFunc
+	asked  []string
+}
+
+func (r *cancellingStatusRunner) Run(_ context.Context, command, _ string) (CommandResult, error) {
+	r.asked = append(r.asked, command)
+	if command == "git status --porcelain" {
+		r.cancel()
+		return CommandResult{Output: " M main.go\n"}, nil
+	}
+	return CommandResult{}, nil
+}
+
 func (w *workerSpy) Work(_ context.Context, chapter Chapter, _ string) (WorkResult, error) {
 	w.worked = append(w.worked, chapter.Title)
 	if w.err != nil {
@@ -115,6 +151,287 @@ func TestTheArtifactIsWrittenAfterEveryChapter(t *testing.T) {
 	}
 }
 
+func TestAChapterPersistsExecutingBeforeWorkerStarts(t *testing.T) {
+	persisted := false
+	worker := &persistedWorker{persisted: &persisted}
+	executor := executorFor(worker, dirtyRunner())
+	executor.Write = func(_ string, data []byte, _ os.FileMode) error {
+		var state SagaState
+		parsed, err := ParseSagaMarkdown(string(data))
+		if err != nil {
+			t.Fatalf("ParseSagaMarkdown: %v", err)
+		}
+		state = *parsed
+		if state.Chapters[0].Status == StatusExecuting {
+			persisted = true
+		}
+		return nil
+	}
+
+	if _, err := executor.RunWake(context.Background(), "/repo", oneChapter(StatusPending)); err != nil {
+		t.Fatalf("RunWake: %v", err)
+	}
+	if !worker.worked {
+		t.Fatal("worker did not run after the executing marker was persisted")
+	}
+}
+
+func TestAPlannedChapterPersistsExecutingBeforeWorkerStarts(t *testing.T) {
+	persisted := false
+	worker := &persistedWorker{persisted: &persisted}
+	executor := plannedRunner(&plannerSpy{titles: []string{"first"}}, worker)
+	writes := 0
+	executor.Write = func(_ string, data []byte, _ os.FileMode) error {
+		writes++
+		state, err := ParseSagaMarkdown(string(data))
+		if err != nil {
+			t.Fatalf("ParseSagaMarkdown: %v", err)
+		}
+		if writes == 1 && (len(state.Chapters) != 1 || state.Chapters[0].Status != StatusExecuting) {
+			t.Fatalf("first planned artifact = %q, want one executing chapter", data)
+		}
+		if writes == 1 {
+			persisted = true
+		}
+		return nil
+	}
+
+	if _, err := executor.RunWake(context.Background(), "/repo", &SagaState{Goal: "make it work"}); err != nil {
+		t.Fatalf("RunWake: %v", err)
+	}
+	if !worker.worked || writes < 2 {
+		t.Fatal("planned worker did not run after the executing marker was persisted")
+	}
+}
+
+func TestAWakeFailsWhenTheArtifactCannotBeWritten(t *testing.T) {
+	worker := &workerSpy{summary: "completed change"}
+	state := &SagaState{
+		Goal:     "make it work",
+		Chapters: []Chapter{{Number: 1, Title: "first", Status: StatusPending}},
+	}
+	executor := executorFor(worker, dirtyRunner())
+	executor.Budget = SagaBudget{MaxChapters: 10, CostLimit: 100}
+	executor.Write = func(string, []byte, os.FileMode) error { return os.ErrPermission }
+
+	if _, err := executor.RunWake(context.Background(), "/repo", state); err == nil {
+		t.Fatal("RunWake reported success after artifact persistence failed")
+	} else if !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("RunWake error = %v, want the writer error", err)
+	}
+	if state.Chapters[0].Status != StatusExecuting {
+		t.Fatalf("chapter status = %q, want durable executing state before work", state.Chapters[0].Status)
+	}
+	if len(worker.worked) != 0 {
+		t.Fatalf("worker ran despite artifact persistence failure: %v", worker.worked)
+	}
+}
+
+func TestAWakePersistsGoalCompletionAsATerminalState(t *testing.T) {
+	state := &SagaState{
+		Goal:     "make it work",
+		Criteria: []AcceptanceCriterion{{Description: "it works", Done: true}},
+	}
+	writes := 0
+	executor := executorFor(&workerSpy{}, dirtyRunner())
+	executor.Write = func(_ string, data []byte, _ os.FileMode) error {
+		writes++
+		if !strings.Contains(string(data), "- **Status**: completed") {
+			t.Fatalf("persisted terminal artifact = %q, want completed status", data)
+		}
+		return nil
+	}
+
+	reason, err := executor.RunWake(context.Background(), "/repo", state)
+	if err != nil {
+		t.Fatalf("RunWake: %v", err)
+	}
+	if reason != StopGoalComplete || state.Status != SagaStatusCompleted || writes != 1 {
+		t.Fatalf("reason=%q status=%q writes=%d; want completed state persisted once", reason, state.Status, writes)
+	}
+}
+
+func TestAWakeReportsTerminalStatePersistenceFailure(t *testing.T) {
+	state := &SagaState{
+		Goal:     "make it work",
+		Criteria: []AcceptanceCriterion{{Description: "it works", Done: true}},
+	}
+	executor := executorFor(&workerSpy{}, dirtyRunner())
+	executor.Write = func(string, []byte, os.FileMode) error { return os.ErrPermission }
+
+	reason, err := executor.RunWake(context.Background(), "/repo", state)
+	if reason != StopNone {
+		t.Fatalf("reason = %q, want no successful stop when terminal state is not durable", reason)
+	}
+	if err == nil || !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("RunWake error = %v, want the terminal artifact writer error", err)
+	}
+	if state.Status != SagaStatusCompleted {
+		t.Fatalf("in-memory status = %q, want completed for truthful retry diagnostics", state.Status)
+	}
+}
+
+func TestAWakeDoesNotReopenACompletedSaga(t *testing.T) {
+	state := &SagaState{
+		Goal:     "already done",
+		Status:   SagaStatusCompleted,
+		Chapters: []Chapter{{Number: 1, Title: "do not rerun", Status: StatusPending}},
+	}
+	worker := &workerSpy{}
+
+	reason, err := executorFor(worker, dirtyRunner()).RunWake(context.Background(), "/repo", state)
+	if err != nil {
+		t.Fatalf("RunWake: %v", err)
+	}
+	if reason != StopGoalComplete || len(worker.worked) != 0 {
+		t.Fatalf("reason=%q worked=%v; want terminal completion without reopening work", reason, worker.worked)
+	}
+}
+
+func TestAWakeDoesNotReopenABlockedSaga(t *testing.T) {
+	state := &SagaState{
+		Goal:     "blocked",
+		Status:   SagaStatusBlocked,
+		Chapters: []Chapter{{Number: 1, Title: "do not rerun", Status: StatusPending}},
+	}
+	worker := &workerSpy{}
+
+	reason, err := executorFor(worker, dirtyRunner()).RunWake(context.Background(), "/repo", state)
+	if err != nil {
+		t.Fatalf("RunWake: %v", err)
+	}
+	if reason != StopDoomLoop || len(worker.worked) != 0 {
+		t.Fatalf("reason=%q worked=%v; want blocked terminal state without reopening work", reason, worker.worked)
+	}
+}
+
+func TestAWakePersistsExecutingWithoutAStrikeWhenWorkerIsCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	worker := &cancellingWorker{cancel: cancel}
+	state := &SagaState{
+		Goal:     "make it work",
+		Chapters: []Chapter{{Number: 1, Title: "first", Status: StatusPending}},
+	}
+	executor := executorFor(worker, dirtyRunner())
+	executor.Budget = SagaBudget{MaxChapters: 10, CostLimit: 100}
+	writes := 0
+	executor.Write = func(_ string, data []byte, _ os.FileMode) error {
+		writes++
+		if !strings.Contains(string(data), "- **Status**: in-progress (Chapter 1") {
+			t.Fatalf("persisted artifact = %q, want resumable executing state", data)
+		}
+		return nil
+	}
+
+	reason, err := executor.RunWake(ctx, "/repo", state)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("RunWake error = %v, want context.Canceled", err)
+	}
+	if reason != StopNone || state.Chapters[0].Status != StatusExecuting || state.Strikes != 0 || writes == 0 {
+		t.Fatalf("reason=%q chapter=%q strikes=%d writes=%d; want cancelled executing state without strike", reason, state.Chapters[0].Status, state.Strikes, writes)
+	}
+}
+
+func TestAWakePreservesCancellationArtifactFailure(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	worker := &cancellingWorker{cancel: cancel}
+	state := &SagaState{
+		Goal:     "make it work",
+		Chapters: []Chapter{{Number: 1, Title: "first", Status: StatusPending}},
+	}
+	executor := executorFor(worker, dirtyRunner())
+	writes := 0
+	executor.Write = func(string, []byte, os.FileMode) error {
+		writes++
+		if writes == 1 {
+			return nil
+		}
+		return os.ErrPermission
+	}
+
+	reason, err := executor.RunWake(ctx, "/repo", state)
+	if reason != StopNone {
+		t.Fatalf("reason = %q, want no successful stop after cancellation persistence failure", reason)
+	}
+	if !errors.Is(err, context.Canceled) || !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("RunWake error = %v, want both cancellation and artifact errors", err)
+	}
+	if state.Chapters[0].Status != StatusExecuting || state.Strikes != 0 || writes != 2 {
+		t.Fatalf("chapter=%q strikes=%d writes=%d; want resumable executing state and two persistence attempts", state.Chapters[0].Status, state.Strikes, writes)
+	}
+}
+
+func TestSagaCancellationResultPreservesJoinedCauses(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	original := errors.Join(context.Canceled, os.ErrPermission)
+
+	got := sagaCancellationResult(ctx, original)
+	if !errors.Is(got, context.Canceled) || !errors.Is(got, os.ErrPermission) {
+		t.Fatalf("cancellation result = %v, want both joined causes", got)
+	}
+}
+
+func TestRunPreservesCancellationArtifactFailure(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	worker := &cancellingWorker{cancel: cancel}
+	state := &SagaState{
+		Goal:     "make it work",
+		Chapters: []Chapter{{Number: 1, Title: "first", Status: StatusPending}},
+	}
+	executor := executorFor(worker, dirtyRunner())
+	writes := 0
+	executor.Write = func(string, []byte, os.FileMode) error {
+		writes++
+		if writes == 1 {
+			return nil
+		}
+		return os.ErrPermission
+	}
+
+	reason, err := executor.Run(ctx, "/repo", state)
+	if reason != StopNone {
+		t.Fatalf("reason = %q, want no successful stop after cancellation persistence failure", reason)
+	}
+	if !errors.Is(err, context.Canceled) || !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("Run error = %v, want both cancellation and artifact errors", err)
+	}
+	if state.Chapters[0].Status != StatusExecuting || state.Strikes != 0 || writes != 2 {
+		t.Fatalf("chapter=%q strikes=%d writes=%d; want resumable executing state and two persistence attempts", state.Chapters[0].Status, state.Strikes, writes)
+	}
+}
+
+func TestAWakePersistsExecutingWithoutAStrikeWhenVerificationIsCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	runner := &cancellingStatusRunner{cancel: cancel}
+	state := &SagaState{
+		Goal:     "make it work",
+		Chapters: []Chapter{{Number: 1, Title: "first", Status: StatusPending}},
+	}
+	executor := executorFor(&workerSpy{}, runner)
+	executor.Detector = fixedDetector{{Name: "test", Command: "go test ./..."}}
+	executor.Budget = SagaBudget{MaxChapters: 10, CostLimit: 100}
+	writes := 0
+	executor.Write = func(_ string, data []byte, _ os.FileMode) error {
+		writes++
+		if !strings.Contains(string(data), "- **Status**: in-progress (Chapter 1") {
+			t.Fatalf("persisted artifact = %q, want resumable executing state", data)
+		}
+		return nil
+	}
+
+	reason, err := executor.RunWake(ctx, "/repo", state)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("RunWake error = %v, want context.Canceled", err)
+	}
+	if reason != StopNone || state.Chapters[0].Status != StatusExecuting || state.Strikes != 0 || writes == 0 {
+		t.Fatalf("reason=%q chapter=%q strikes=%d writes=%d; want cancelled executing state without strike", reason, state.Chapters[0].Status, state.Strikes, writes)
+	}
+	if len(runner.asked) != 1 || runner.asked[0] != "git status --porcelain" {
+		t.Fatalf("verification commands = %v, want only the status check before cancellation", runner.asked)
+	}
+}
+
 func TestTheRunStopsAtTheChapterCeiling(t *testing.T) {
 	worker := &workerSpy{}
 	state := &SagaState{Goal: "g", MaxChapters: 2}
@@ -154,6 +471,128 @@ func TestTheRunStopsWhenTheMoneyRunsOut(t *testing.T) {
 	// ceiling the user set.
 	if len(worker.worked) != 2 {
 		t.Fatalf("worked %d chapters, want 2", len(worker.worked))
+	}
+}
+
+func TestAWakeWorksExactlyOneChapter(t *testing.T) {
+	worker := &workerSpy{summary: "first change"}
+	state := &SagaState{
+		Goal:        "make it work",
+		MaxChapters: 10,
+		CostLimit:   100,
+		Chapters: []Chapter{
+			{Number: 1, Title: "first", Status: StatusPending},
+			{Number: 2, Title: "second", Status: StatusPending},
+		},
+	}
+	executor := executorFor(worker, dirtyRunner())
+	executor.Budget = SagaBudget{MaxChapters: 10, CostLimit: 100}
+
+	reason, err := executor.RunWake(context.Background(), "/repo", state)
+	if err != nil {
+		t.Fatalf("RunWake: %v", err)
+	}
+	if reason != StopWake {
+		t.Fatalf("reason = %q, want wake-complete", reason)
+	}
+	if len(worker.worked) != 1 || worker.worked[0] != "first" {
+		t.Fatalf("worked = %v, want exactly the first chapter", worker.worked)
+	}
+	if state.Chapters[0].Status != StatusDone || state.Chapters[1].Status != StatusPending {
+		t.Fatalf("chapters = %+v, want first done and second pending", state.Chapters)
+	}
+}
+
+func TestAWakeRecordsTheSelectedActiveChapter(t *testing.T) {
+	worker := &workerSpy{summary: "later change"}
+	state := &SagaState{
+		Goal:          "make it work",
+		ActiveChapter: 1,
+		MaxChapters:   10,
+		CostLimit:     100,
+		Chapters: []Chapter{
+			{Number: 4, Title: "later", Status: StatusPending},
+		},
+	}
+	executor := executorFor(worker, dirtyRunner())
+	executor.Budget = SagaBudget{MaxChapters: 10, CostLimit: 100}
+
+	if _, err := executor.RunWake(context.Background(), "/repo", state); err != nil {
+		t.Fatalf("RunWake: %v", err)
+	}
+	if state.ActiveChapter != 4 {
+		t.Fatalf("active chapter = %d, want selected chapter 4", state.ActiveChapter)
+	}
+}
+
+func TestAWakePlansAndWorksOnlyOneChapter(t *testing.T) {
+	planner := &plannerSpy{titles: []string{"first", "second"}}
+	worker := &workerSpy{}
+	executor := plannedRunner(planner, worker)
+	state := &SagaState{Goal: "g"}
+
+	reason, err := executor.RunWake(context.Background(), "/repo", state)
+	if err != nil {
+		t.Fatalf("RunWake: %v", err)
+	}
+	if reason != StopWake || planner.calls != 1 || len(worker.worked) != 1 || len(state.Chapters) != 1 {
+		t.Fatalf("reason=%q planner-calls=%d worked=%v chapters=%d; want one bounded wake", reason, planner.calls, worker.worked, len(state.Chapters))
+	}
+}
+
+func TestAWakePersistsAndStopsAfterOneFailedChapter(t *testing.T) {
+	worker := &workerSpy{err: errors.New("worker failed")}
+	state := &SagaState{
+		Goal:        "g",
+		MaxChapters: 10,
+		CostLimit:   100,
+		Chapters: []Chapter{
+			{Number: 1, Title: "first", Status: StatusPending},
+			{Number: 2, Title: "second", Status: StatusPending},
+		},
+	}
+	executor := executorFor(worker, dirtyRunner())
+	executor.Budget = SagaBudget{MaxChapters: 10, CostLimit: 100}
+	writes := 0
+	executor.Write = func(_ string, data []byte, _ os.FileMode) error {
+		writes++
+		body := string(data)
+		switch writes {
+		case 1:
+			if !strings.Contains(body, "- **Status**: executing") {
+				t.Fatalf("first persisted artifact = %q, want executing marker", data)
+			}
+		case 2:
+			if !strings.Contains(body, "- **Status**: failed") {
+				t.Fatalf("final persisted artifact = %q, want the failed chapter", data)
+			}
+		}
+		return nil
+	}
+
+	if _, err := executor.RunWake(context.Background(), "/repo", state); err == nil {
+		t.Fatal("failed wake reported success")
+	}
+	if len(worker.worked) != 1 || writes != 2 || state.Chapters[0].Status != StatusFailed || state.Chapters[1].Status != StatusPending {
+		t.Fatalf("worked=%v writes=%d chapters=%+v; want one persisted failure and no second chapter", worker.worked, writes, state.Chapters)
+	}
+}
+
+func TestAWakeStopsAtAReachedCostLimitAfterOneChapter(t *testing.T) {
+	worker := &workerSpy{cost: 2}
+	state := &SagaState{
+		Goal:     "g",
+		Chapters: []Chapter{{Number: 1, Title: "first", Status: StatusPending}, {Number: 2, Title: "second", Status: StatusPending}},
+	}
+	executor := executorFor(worker, dirtyRunner())
+	executor.Budget = SagaBudget{MaxChapters: 10, CostLimit: 1}
+
+	reason, err := executor.RunWake(context.Background(), "/repo", state)
+	if err != nil {
+		t.Fatalf("RunWake: %v", err)
+	}
+	if reason != StopCostLimit || len(worker.worked) != 1 || state.Chapters[1].Status != StatusPending {
+		t.Fatalf("reason=%q worked=%v chapters=%+v; want cost stop after one chapter", reason, worker.worked, state.Chapters)
 	}
 }
 

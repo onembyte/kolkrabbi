@@ -1,6 +1,6 @@
 # 13. Tools, permissions & sandboxing
 
-Status: hardened on 2026-08-26 · supersedes: — · PLAN.md item 13
+Status: hardened on 2026-08-26 · v1 scope amended 2026-09-01 · supersedes: — · PLAN.md item 13
 
 ## Decision (the short version)
 
@@ -22,9 +22,10 @@ Together they are the reason phase F cannot come first: the moment several agent
 
 The design is therefore ordered by what has to exist before autonomy, not by what is most
 interesting: a path jail, a hardline blocklist that survives `--yolo`, scrubbed tool output, and
-auto-deny inside subagents. OS-level sandboxes come after, because they are per-platform and cannot
-be verified in this repository's CI, and shipping an unverifiable safety claim is worse than
-shipping none.
+auto-deny inside subagents. Those in-process controls ship first. The owner accepted OS-level
+sandboxing as v1 scope on 2026-09-01, but it remains a later implementation leaf because each
+supported platform needs native negative proof; an accepted safety requirement is not an available
+control until that evidence exists.
 
 ## Spec
 
@@ -100,16 +101,21 @@ exists; background `bash` interacts with U0.4f's detached-process handling and n
 
 ### 7. Sandboxing matrix
 
-| Platform | v1 | Later |
-|---|---|---|
-| all | path jail + blocklist + auto-deny in subagents, in process | — |
-| Linux | — | `bubblewrap`, or `landlock` when available |
-| macOS | — | `sandbox-exec` profile |
-| any | — | container execution for `saga` |
+| Platform | Shipped now | Accepted v1 work | Post-v1 |
+|---|---|---|---|
+| all | path jail + blocklist + auto-deny in subagents, in process | one shared sandbox policy, explicit fallback/refusal, and bounded diagnostics | — |
+| Linux | no OS sandbox | select and prove a narrow OS isolation mechanism under V34.1e; `bubblewrap` and Landlock remain candidates | — |
+| macOS | no OS sandbox | select and prove a native profile under V34.1e; Seatbelt/sandbox profiles remain candidates | — |
+| any | — | — | container execution for `saga` |
 
 `--yolo` **inside** a sandbox is the intended default for `saga`, and only there: the sandbox is what
 makes "stop asking me" safe, and until one exists, `saga` inherits the same blocklist as everything
 else.
+
+Scope acceptance does not choose a mechanism by prose. V34.1e must name the supported OS/version
+matrix, fail closed when an accepted platform cannot establish isolation, explain the exact refused
+capability, and exercise escape attempts on native Linux and macOS runners. Container execution and
+Windows sandboxing remain outside this accepted matrix.
 
 ## Rationale
 
@@ -120,7 +126,8 @@ else.
 - **Reads are jailed too**, because the interesting attack is not a write: it is reading a key and
   letting the next automatic request carry it to a provider.
 - **In-process guards ship first** because they work identically on every platform and can be tested
-  here. A seatbelt profile that CI cannot exercise is a claim, not a control.
+  here. Native-runner evidence is required before an OS profile is called available; acceptance into
+  v1 changes the completion boundary, not the evidentiary standard.
 
 ## Alternatives rejected
 

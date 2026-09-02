@@ -27,8 +27,10 @@ type KeyStatus struct {
 	FreeTier     bool
 }
 
-// OpenRouterVerifier checks one already-classified OpenRouter credential. The
-// BaseURL seam exists for offline tests; production leaves it empty.
+// OpenRouterVerifier checks one already-classified OpenRouter credential.
+// BaseURL is retained for compatibility and security-negative tests, but the
+// credential remains bound to canonical OpenRouter; any replacement origin is
+// refused before the configured Client transport is called.
 type OpenRouterVerifier struct {
 	BaseURL string
 	Client  *http.Client
@@ -66,7 +68,7 @@ func (v OpenRouterVerifier) Verify(ctx context.Context, key secret.Secret) (KeyS
 	if baseTransport == nil {
 		baseTransport = http.DefaultTransport
 	}
-	client.Transport = &secret.AuthTransport{Token: key, Base: baseTransport}
+	client.Transport = newOpenRouterAuthTransport(key, baseTransport)
 	client.Jar = nil
 	client.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse

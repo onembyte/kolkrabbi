@@ -10,12 +10,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/enginetest"
 	"github.com/onembyte/kolkrabbi/internal/keystore"
 	"github.com/onembyte/kolkrabbi/internal/paths"
+	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/secret"
 )
 
@@ -31,6 +33,25 @@ func storeFirstRunKey(t *testing.T) paths.Dirs {
 	return d
 }
 
+func seedFirstRunCatalog(t *testing.T, d paths.Dirs) {
+	t.Helper()
+	cache := provider.CatalogCache{
+		Version:  1,
+		CachedAt: time.Now(),
+		Models:   provider.FallbackCatalogSeed(),
+	}
+	body, err := json.Marshal(cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(d.CatalogFile()), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(d.CatalogFile(), body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func writeCorruptCredentialManifest(t *testing.T, path string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
@@ -42,7 +63,9 @@ func writeCorruptCredentialManifest(t *testing.T, path string) {
 }
 
 func TestStoredCredentialBuildsComputedDefaultAgent(t *testing.T) {
-	storeFirstRunKey(t)
+	d := storeFirstRunKey(t)
+	t.Setenv("OPENROUTER_BASE_URL", provider.DefaultBaseURL)
+	seedFirstRunCatalog(t, d)
 	a, out, errOut := newTestApp(t, "")
 
 	ag, err := a.newAgent(context.Background(), &options{})
@@ -103,6 +126,8 @@ func TestModeAgentFlagRunsTheOrchestratedPipeline(t *testing.T) {
 
 func TestEnvironmentCredentialWinsWithoutReadingCorruptManifest(t *testing.T) {
 	d := isolateHome(t)
+	t.Setenv("OPENROUTER_BASE_URL", provider.DefaultBaseURL)
+	seedFirstRunCatalog(t, d)
 	writeCorruptCredentialManifest(t, d.CredentialsFile())
 	const envKey = "sk-or-v1-fedcba9876543210fedcba9876543210"
 	t.Setenv("OPENROUTER_API_KEY", envKey)
@@ -119,6 +144,7 @@ func TestEnvironmentCredentialWinsWithoutReadingCorruptManifest(t *testing.T) {
 
 func TestCorruptManifestIsNotReportedAsMissingCredential(t *testing.T) {
 	d := isolateHome(t)
+	t.Setenv("OPENROUTER_BASE_URL", provider.DefaultBaseURL)
 	writeCorruptCredentialManifest(t, d.CredentialsFile())
 	a, _, errOut := newTestApp(t, "")
 
@@ -136,6 +162,7 @@ func TestCorruptManifestIsNotReportedAsMissingCredential(t *testing.T) {
 
 func TestCanceledCredentialReadStopsTheRun(t *testing.T) {
 	isolateHome(t)
+	t.Setenv("OPENROUTER_BASE_URL", provider.DefaultBaseURL)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	a, _, errOut := newTestApp(t, "")
@@ -194,8 +221,8 @@ func TestStoredCredentialCompletesOfflineDefaultTurn(t *testing.T) {
 	}
 
 	request := <-observed
-	if request.Authorization != "Bearer "+firstRunStoredKey {
-		t.Errorf("authorization = %q", request.Authorization)
+	if request.Authorization != "" {
+		t.Errorf("custom endpoint received Authorization %q", request.Authorization)
 	}
 	if request.Model != defaultModel {
 		t.Errorf("request model = %q, want %q", request.Model, defaultModel)
@@ -237,5 +264,42 @@ func TestStoredCredentialCompletesOfflineDefaultTurn(t *testing.T) {
 		return nil
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCustomEndpointSkipsCorruptOpenRouterCredentialManifest(t *testing.T) {
+	d := isolateHome(t)
+	writeCorruptCredentialManifest(t, d.CredentialsFile())
+
+	var authorization string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/models":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"data":[]}`)
+		case "/chat/completions":
+			authorization = r.Header.Get("Authorization")
+			w.Header().Set("Content-Type", "text/event-stream")
+			fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"custom endpoint answered\"},\"finish_reason\":\"stop\"}]}\n\n")
+			fmt.Fprint(w, "data: [DONE]\n\n")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	if err := config.Save(d.ConfigFile(), &config.Config{BaseURL: srv.URL}); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("OPENROUTER_BASE_URL", srv.URL)
+	a, out, errOut := newTestApp(t, "")
+	if code := a.main(context.Background(), []string{"-p", "hello"}); code != ExitOK {
+		t.Fatalf("exit = %d, stderr:\n%s", code, errOut)
+	}
+	if authorization != "" {
+		t.Fatalf("custom endpoint received Authorization %q", authorization)
+	}
+	if !strings.Contains(out.String(), "custom endpoint answered") {
+		t.Fatalf("custom response missing from stdout:\n%s", out)
 	}
 }

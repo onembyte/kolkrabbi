@@ -27,6 +27,9 @@ func VerifyChapter(ctx context.Context, verifier *ChapterVerifier, repoDir strin
 	if chapter.Status != StatusExecuting && chapter.Status != StatusVerifying {
 		return fmt.Errorf("saga: chapter %d is %q, want executing or verifying", chapter.Number, chapter.Status)
 	}
+	if cancelErr := sagaCancellation(ctx, nil); cancelErr != nil {
+		return cancelErr
+	}
 	if chapter.Status == StatusExecuting {
 		if err := transitionChapter(chapter, StatusVerifying); err != nil {
 			return err
@@ -35,6 +38,14 @@ func VerifyChapter(ctx context.Context, verifier *ChapterVerifier, repoDir strin
 
 	commit, err := verifyThroughPorts(ctx, verifier, repoDir, *chapter)
 	if err != nil {
+		if cancelErr := sagaCancellation(ctx, err); cancelErr != nil {
+			// Verifying is an in-flight marker, not a resumable boundary. The
+			// next wake must be able to retry the chapter without a strike.
+			if chapter.Status == StatusVerifying {
+				chapter.Status = StatusExecuting
+			}
+			return cancelErr
+		}
 		if strikeErr := RecordGateFailure(state); strikeErr != nil {
 			return strikeErr
 		}

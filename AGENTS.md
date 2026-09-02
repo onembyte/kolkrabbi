@@ -16,13 +16,19 @@ builder; ox-alpha (Kolkrabbi agent) assists as an independent builder/verifier. 
 4. Record evidence (commands + results) under the checkpoint's acceptance section when
    closing it.
 
-## Ownership right now (2026-08-31)
+## Ownership right now (2026-09-02)
 
-- **No production V34 leaf is active.** Codex completed the documentation-only planning record in
-  `PLAN.md`, `CHECKPOINTS.md`, and `docs/plan/34-vision-completion.md`; the next builder must claim
-  exactly one queued V34 leaf before changing production code.
-- **Worktree baseline:** `main` is at `4406cf19` (`release: v1.2.31`) and was clean before the
-  documentation update. Re-check `git status` and recent mtimes before claiming a build leaf.
+- **V34.1a credential-to-endpoint binding is active and owned by Codex. V34.1a.0 threat modeling,
+  V34.1a.1 origin-bound transport, and V34.1a.2 endpoint-first construction are complete;
+  V34.1a.3 adversarial compatibility matrix is next. V34.0 is
+  closed and V34.1f delegated execution capability is already complete; V34.1b–e remain queued.
+  C5 progress-log observability remains queued under partial V34.3f. OS-level sandboxing is accepted
+  v1 scope but remains unimplemented under V34.1e.**
+  Do not label accepted-but-unimplemented sandboxing as shipped, and do not jump to C5 before the
+  earlier V34.1/V34.2 boundaries are dispositioned.
+- Re-check `git status` and recent mtimes before each further subcheckpoint. The 2026-09-01 baseline,
+  Leaf A evidence, and the Leaf B acceptance contract are recorded in `docs/build-log.md` and
+  `CHECKPOINTS.md`.
 - The 2026-08-26 ownership note is historical. Its P11.6/S10/L13 work has since landed; do not use
   its list of open leaves as the current execution queue. The current forward queue is V34 in
   `PLAN.md` and `CHECKPOINTS.md`.

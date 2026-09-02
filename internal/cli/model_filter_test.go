@@ -23,8 +23,7 @@ func TestSlashModelTextFiltersCatalog(t *testing.T) {
 			`{"id":"google/gemini-2.5-flash","name":"Gemini Flash","context_length":1000000,"pricing":{"prompt":"0","completion":"0"}}]}`)
 	}))
 	defer srv.Close()
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := provider.NewCompatibleClient(srv.URL)
 	a, out, errOut := newTestApp(t, "")
 	ag := engine.New(engine.Options{Client: client, Model: "current/model", Sess: session.New(t.TempDir(), "current/model"), Out: io.Discard})
 

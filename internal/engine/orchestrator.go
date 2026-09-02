@@ -271,6 +271,7 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	// inside runSubagent: the event is about the task's lifetime, and the task
 	// is what this function owns.
 	a.publishSubagentStarted(tasks, index, childTurn, model, effort)
+	capabilities := a.subagentCapabilities()
 	// A snapshot per writing subagent, so a task that makes a mess is
 	// rewindable on its own rather than by undoing the whole turn (A33.8).
 	// Only writing kinds: research and explain change no files, so a snapshot
@@ -289,7 +290,7 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	// the task's lifetime — its child turn, its snapshot, its result. Released
 	// on every path out, including the failure below: a provider owns a child
 	// process and nothing else will release it.
-	a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseProvider, "opening "+model)
+	a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseProvider, a.subagentOpeningStep(model, capabilities))
 	own, release, openErr := a.openSubagentBackend(ctx, model, effort)
 	defer release()
 
@@ -307,7 +308,7 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 			release()
 			model = ceiling
 			a.updateSubagentStatusRoute(index, model, effort)
-			a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseProvider, "opening "+model)
+			a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseProvider, a.subagentOpeningStep(model, capabilities))
 			own, release, openErr = a.openSubagentBackend(ctx, model, effort)
 			defer release()
 		}
@@ -520,12 +521,20 @@ func (a *Agent) plan(ctx context.Context, model, userInput string, maxTasks int)
 // runSubagent executes one task in an isolated context: its conversation
 // never enters the main session, only its final summary does.
 func (a *Agent) runSubagent(ctx context.Context, pinned pinnedBackend, out io.Writer, model, effort string, tokensVisible bool, original string, tasks []Task, results []string, idx int) (string, error) {
-	cwd := workingDir()
+	capabilities := a.subagentCapabilities()
+	cwd := capabilities.Workspace
+	if cwd == "" {
+		cwd = workingDir()
+	}
+	network := "disabled"
+	if capabilities.NetworkAccess {
+		network = "enabled"
+	}
 	var briefing strings.Builder
-	fmt.Fprintf(&briefing, `You are subagent %d of %d in an orchestrated run on %s (working directory %s). You have tools to read/write/edit files, list directories, and run shell commands. Complete ONLY your assigned task, then reply with a short result summary (what you did, key outputs, paths touched). Be efficient: few tool calls, no exploration beyond the task.
+	fmt.Fprintf(&briefing, `You are subagent %d of %d in an orchestrated run on %s (working directory %s; network access %s). You have tools to read/write/edit files, list directories, and run shell commands. Complete ONLY your assigned task, then reply with a short result summary (what you did, key outputs, paths touched). Be efficient: few tool calls, no exploration beyond the task.
 
 Overall request: %s
-`, idx+1, len(tasks), runtime.GOOS, cwd, original)
+`, idx+1, len(tasks), runtime.GOOS, cwd, network, original)
 	briefing.WriteString(dependencyBriefing(tasks, results, idx))
 
 	msgs := []provider.Message{

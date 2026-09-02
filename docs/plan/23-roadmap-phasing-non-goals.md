@@ -1,15 +1,16 @@
 # 23. Roadmap, phasing & explicit non-goals
 
-Status: hardened on 2026-08-27 · supersedes: — · PLAN.md item 23
+Status: hardened on 2026-08-27 · v1 scope amended 2026-09-01 · supersedes: — · PLAN.md item 23
 
 ## Decision (the short version)
 
 The phases this item proposes — "**v0.1** polish prototype → **v0.2** TUI + sessions + saga →
 **v0.3** dashboard, MCP, parallel agents → **v0.4** subscriptions, sandboxing → **v1.0** daemon
 frozen, desktop → **later** iPad" — were written before any of it existed. The shipped version is
-**v1.2.1**. Every one of those milestones except the desktop app and the frozen daemon API has been
-passed, and two of them (MCP, sandboxing) were passed by *deciding not to do them*, which a version
-number cannot express.
+**v1.2.1**. At this document's original decision boundary, every one of those milestones except the
+desktop app and the frozen daemon API had been passed, and MCP plus sandboxing were passed by
+deferral. V34.0c later changed one part of that historical decision: OS-level sandboxing is accepted
+v1 scope as of 2026-09-01, while MCP remains deferred.
 
 So this item does three things instead of restating a plan that reality overtook:
 
@@ -40,10 +41,10 @@ loop for an item whose doc is not hardened, and never run two phases at once.
 | B — managed local models | 25 | `[~]`: `localia` reports and plans; installing is blocked on L13.5b4 pinning a release |
 | C — sessions, context, memory | 12 | complete |
 | D — the local dashboard | 17 | complete |
-| E — tools, permissions, sandboxing | 13 | complete; the OS sandbox matrix is deferred, not forgotten |
+| E — tools, permissions, sandboxing | 13 | in-process floor complete; OS sandbox accepted v1 and pending V34.1e |
 | F — orchestration & per-task routing | 14 | complete |
 | G — the surface | 11, 15, 16 | docs complete; the G16 leaves are queued |
-| H — ship it for real | T0.5, 19–23 | 20, 21, 22, 23 hardened here; 19 remains |
+| H — ship it for real | T0.5, 19–23 | owner confirms T0.5 clean-machine/provider proof complete; V34.5b owns its transcript record |
 | I — reach | 26–29 | docs complete; I26.7 and the I27–I29 leaves queued |
 | J — borrowed hardening | 30, 31, 32 | queued; item 32 fixes a real hole rather than adding surface |
 

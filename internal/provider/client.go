@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,6 +21,14 @@ import (
 )
 
 const DefaultBaseURL = "https://openrouter.ai/api/v1"
+
+// CompatibleOrigin identifies a user-selected OpenAI-compatible endpoint that
+// does not receive OpenRouter credentials or attribution headers.
+const CompatibleOrigin = "compatible"
+
+// ErrCredentialBinding reports an attempt to install an OpenRouter credential
+// on a client that was not constructed with the canonical OpenRouter binding.
+var ErrCredentialBinding = errors.New("provider: client has no OpenRouter credential binding")
 
 // Message is a single chat message. Fields are OpenAI-compatible; unused
 // fields are omitted from the wire format via `omitempty`.
@@ -174,33 +183,62 @@ func NewHostClient(addr string) *Client {
 // and false for a local origin, which has nothing to authenticate.
 func (c *Client) requiresKey() bool { return c.Origin == "" }
 
-func NewClient(apiKey string) *Client {
+// IsOpenRouterEndpoint reports whether baseURL has the canonical OpenRouter
+// origin. Paths may vary; credential trust is an origin boundary.
+func IsOpenRouterEndpoint(baseURL string) bool {
+	return secret.SameOrigin(baseURL, DefaultBaseURL)
+}
+
+// NewOpenRouterClient constructs an authenticated client only when baseURL is
+// on the canonical OpenRouter origin.
+func NewOpenRouterClient(baseURL, apiKey string) (*Client, error) {
+	baseURL = strings.TrimRight(baseURL, "/")
+	if !IsOpenRouterEndpoint(baseURL) {
+		return nil, ErrCredentialBinding
+	}
+
 	// No overall client Timeout: it would cap the total streaming duration.
 	// Instead, bound the dial/TLS/first-byte phases and let the caller's
 	// context govern the stream itself.
-	tr := http.DefaultTransport.(*http.Transport).Clone()
-	tr.ResponseHeaderTimeout = 60 * time.Second
-	tr.TLSHandshakeTimeout = 15 * time.Second
+	tr := newProviderTransport()
 
 	// The Authorization header is attached inside secret.AuthTransport, on a
 	// clone of the request, so no request this package builds ever contains the
 	// key. That matters because %+v on an *http.Request prints Header, and
 	// http.Header is a plain map that cannot redact anything — a failing call
 	// logged with %+v was, until now, a published key.
-	auth := &secret.AuthTransport{
-		Token: secret.New(apiKey),
-		Base:  tr,
-	}
+	auth := newOpenRouterAuthTransport(secret.New(apiKey), tr)
 	return &Client{
-		BaseURL: DefaultBaseURL,
+		BaseURL: baseURL,
 		// Refuse redirects so the auth transport cannot attach the bearer to a
 		// different host selected by a response.
-		HTTPClient: &http.Client{
-			Transport:     auth,
-			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		},
-		AppName: "Kolkrabbi",
-		auth:    auth,
+		HTTPClient: noRedirectClient(auth),
+		AppName:    "Kolkrabbi",
+		auth:       auth,
+	}, nil
+}
+
+// NewCompatibleClient constructs a credentialless client for a user-selected
+// OpenAI-compatible endpoint.
+func NewCompatibleClient(baseURL string) *Client {
+	return &Client{
+		BaseURL:    strings.TrimRight(baseURL, "/"),
+		HTTPClient: noRedirectClient(newProviderTransport()),
+		Origin:     CompatibleOrigin,
+	}
+}
+
+func newProviderTransport() *http.Transport {
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.ResponseHeaderTimeout = 60 * time.Second
+	tr.TLSHandshakeTimeout = 15 * time.Second
+	return tr
+}
+
+func noRedirectClient(transport http.RoundTripper) *http.Client {
+	return &http.Client{
+		Transport:     transport,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
 }
 
@@ -210,17 +248,28 @@ func (c *Client) Key() secret.Secret {
 	if c.auth == nil {
 		return secret.Secret{}
 	}
-	return c.auth.Token
+	return c.auth.Token()
 }
 
-// SetKey replaces the credential. It updates the transport rather than any
-// stored request, so the change applies to every subsequent call.
-func (c *Client) SetKey(key secret.Secret) {
+// SetKey replaces the credential on an already-bound OpenRouter client. It
+// never converts a keyless compatible or host client into an authenticated
+// client, because that would derive credential trust from mutable BaseURL.
+func (c *Client) SetKey(key secret.Secret) error {
 	if c.auth == nil {
-		c.auth = &secret.AuthTransport{Base: http.DefaultTransport}
-		c.HTTPClient = &http.Client{Transport: c.auth}
+		return ErrCredentialBinding
 	}
-	c.auth.Token = key
+	c.auth.SetToken(key)
+	return nil
+}
+
+func newOpenRouterAuthTransport(key secret.Secret, base http.RoundTripper) *secret.AuthTransport {
+	auth, err := secret.NewAuthTransport(key, DefaultBaseURL, base)
+	if err != nil {
+		// DefaultBaseURL is a compile-time constant owned by this package. A
+		// malformed value is a programmer error, not runtime configuration.
+		panic(fmt.Sprintf("provider: invalid OpenRouter origin: %v", err))
+	}
+	return auth
 }
 
 // HasKey reports whether a credential is configured.
@@ -260,7 +309,7 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []Messag
 		return Message{}, meta, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	// No Authorization here, deliberately: see NewClient. The transport adds it.
+	// No Authorization here, deliberately: the bound transport adds it.
 	if c.AppURL != "" {
 		req.Header.Set("HTTP-Referer", c.AppURL)
 	}

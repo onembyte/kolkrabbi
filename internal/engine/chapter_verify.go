@@ -41,10 +41,19 @@ type VerifyResult struct {
 // It returns the verification result. The caller is responsible for
 // tracking cumulative strikes.
 func (cv *ChapterVerifier) Verify(ctx context.Context, repoDir string, chapter Chapter) (*VerifyResult, error) {
+	if cancelErr := sagaCancellation(ctx, nil); cancelErr != nil {
+		return nil, cancelErr
+	}
 	// If no changes were made, skip verification and commit.
 	hasChanges, err := cv.Checkpointer.HasChanges(repoDir)
 	if err != nil {
+		if cancelErr := sagaCancellation(ctx, err); cancelErr != nil {
+			return nil, cancelErr
+		}
 		return nil, fmt.Errorf("checking for changes: %w", err)
+	}
+	if cancelErr := sagaCancellation(ctx, nil); cancelErr != nil {
+		return nil, cancelErr
 	}
 	if !hasChanges {
 		return &VerifyResult{
@@ -58,8 +67,14 @@ func (cv *ChapterVerifier) Verify(ctx context.Context, repoDir string, chapter C
 
 	// If no gates detected, commit unconditionally.
 	if len(gates) == 0 {
+		if cancelErr := sagaCancellation(ctx, nil); cancelErr != nil {
+			return nil, cancelErr
+		}
 		commit, err := cv.Checkpointer.CommitChapter(repoDir, chapter.Number, chapter.Title)
 		if err != nil {
+			if cancelErr := sagaCancellation(ctx, err); cancelErr != nil {
+				return nil, cancelErr
+			}
 			return nil, fmt.Errorf("committing chapter %d: %w", chapter.Number, err)
 		}
 		return &VerifyResult{
@@ -72,17 +87,31 @@ func (cv *ChapterVerifier) Verify(ctx context.Context, repoDir string, chapter C
 	// rolling back a nearly-right chapter is expensive, because the next
 	// attempt starts from nothing.
 	results := cv.Runner.RunGates(repoDir, gates)
+	if cancelErr := sagaCancellation(ctx, nil); cancelErr != nil {
+		return nil, cancelErr
+	}
 	if !allGatesPassed(results) && cv.Repairer != nil {
 		// A repair that itself fails is not a verifier error — it is simply a
 		// chapter that stayed broken, and the rollback below is the answer.
 		if err := cv.Repairer.Repair(ctx, chapter, gateFailureOutput(results)); err == nil {
+			if cancelErr := sagaCancellation(ctx, nil); cancelErr != nil {
+				return nil, cancelErr
+			}
 			results = cv.Runner.RunGates(repoDir, gates)
+		} else if cancelErr := sagaCancellation(ctx, err); cancelErr != nil {
+			return nil, cancelErr
 		}
 	}
 
 	if allGatesPassed(results) {
+		if cancelErr := sagaCancellation(ctx, nil); cancelErr != nil {
+			return nil, cancelErr
+		}
 		commit, err := cv.Checkpointer.CommitChapter(repoDir, chapter.Number, chapter.Title)
 		if err != nil {
+			if cancelErr := sagaCancellation(ctx, err); cancelErr != nil {
+				return nil, cancelErr
+			}
 			return nil, fmt.Errorf("committing chapter %d: %w", chapter.Number, err)
 		}
 		return &VerifyResult{
@@ -93,7 +122,13 @@ func (cv *ChapterVerifier) Verify(ctx context.Context, repoDir string, chapter C
 	}
 
 	// Gates failed — rollback.
+	if cancelErr := sagaCancellation(ctx, nil); cancelErr != nil {
+		return nil, cancelErr
+	}
 	if err := cv.Checkpointer.RollbackChapter(repoDir); err != nil {
+		if cancelErr := sagaCancellation(ctx, err); cancelErr != nil {
+			return nil, cancelErr
+		}
 		return nil, fmt.Errorf("rolling back chapter %d: %w", chapter.Number, err)
 	}
 

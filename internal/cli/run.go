@@ -173,6 +173,10 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	if err != nil {
 		return nil, err
 	}
+	root, err := verifiedProjectRoot()
+	if err != nil {
+		return nil, err
+	}
 	cfg, err := config.Load(d.ConfigFile())
 	if err != nil {
 		return nil, err
@@ -189,14 +193,10 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		}
 	}
 
-	apiKey, err := resolveOpenRouterCredential(ctx, d.CredentialsFile())
+	endpoint := config.ResolveBaseURL(o.baseURL, cfg)
+	client, err := providerClientForEndpoint(ctx, endpoint, d.CredentialsFile())
 	if err != nil {
 		return nil, err
-	}
-	if apiKey.IsZero() {
-		return nil, guidedAction("kolk needs an API key before it can use models.\n" +
-			"Add one:  kolk key <API_KEY>\n" +
-			"Then run: kolk")
 	}
 
 	d, err = a.resolve()
@@ -208,9 +208,6 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	client := provider.NewClient(apiKey.Reveal())
-	client.BaseURL = config.ResolveBaseURL(o.baseURL, cfg)
-
 	// One catalog load for the whole startup, and it never waits on the network
 	// while any cache exists: a fresh cache is used, a stale one is used and
 	// refreshed behind the prompt, and only a first run with no cache at all
@@ -305,7 +302,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	if ckpt != nil {
 		// The same root the file tools are confined to, so the snapshot and the
 		// path jail cannot disagree about what the project is.
-		ckpt.UseShadow(ctx, projectRoot())
+		ckpt.UseShadow(ctx, root)
 		if notice := ckpt.Notice(); notice != "" {
 			fmt.Fprintf(a.stderr, "%s\n", notice)
 		}
@@ -371,20 +368,25 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		Model:      model,
 		Mode:       o.mode,
 		Effort:     effort,
+		Posture:    o.posture,
 		Permission: permission,
-		Root:       projectRoot(),
-		Sess:       sess,
-		Ckpt:       ckpt,
-		In:         a.in,
-		Out:        a.stdout,
-		Recorder:   stats.NewStore(d.Data),
-		Tiers:      cfg.Tiers,
-		Slots:      cfg.Slots,
+		Root:       root,
+		SubagentCapabilities: engine.SubagentCapabilities{
+			Workspace:     root,
+			NetworkAccess: true,
+		},
+		Sess:     sess,
+		Ckpt:     ckpt,
+		In:       a.in,
+		Out:      a.stdout,
+		Recorder: stats.NewStore(d.Data),
+		Tiers:    cfg.Tiers,
+		Slots:    cfg.Slots,
 		// Each orchestrated task gets its own vendor process rather than
 		// sharing the session's: one backend means one conversation and one
 		// mutex, so subagents would serialise and write their briefings into a
 		// single transcript.
-		SubagentBackend: a.subagentBackend(),
+		SubagentBackendWithCapabilities: a.subagentBackendWithCapabilities(),
 		// What the run may climb down to: a cheaper rung of a vendor the user
 		// has actually signed into through kolk.
 		RungAvailable: a.rungAvailable(),
@@ -623,6 +625,28 @@ func projectRoot() string {
 		}
 		dir = parent
 	}
+}
+
+// verifiedProjectRoot resolves the host directory once before a provider
+// child can be opened. A child receives this canonical absolute path through
+// its capability envelope; it never inherits an incidental parent cwd.
+func verifiedProjectRoot() (string, error) {
+	root := projectRoot()
+	if root == "" || !filepath.IsAbs(root) {
+		return "", fmt.Errorf("project workspace is not an absolute directory")
+	}
+	resolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", fmt.Errorf("resolving project workspace %q: %w", root, err)
+	}
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return "", fmt.Errorf("checking project workspace %q: %w", root, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("project workspace is not a directory: %q", root)
+	}
+	return resolved, nil
 }
 
 // contextWindowFor reports the advertised context size of one model, or zero

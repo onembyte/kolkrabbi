@@ -80,11 +80,24 @@ func readProviderLines(stdout io.Reader, onLine func([]byte) error) error {
 // RunLines runs an executable with direct stdin and delivers stdout one line
 // at a time. It is intended for provider-owned NDJSON protocols.
 func RunLines(ctx context.Context, executable string, args []string, stdin io.Reader, onLine func([]byte) error) error {
+	return RunLinesWithOptions(ctx, executable, args, stdin, onLine, ProcessOptions{})
+}
+
+// RunLinesWithOptions is RunLines with an explicit process working directory.
+// The provider receives the same credential-scrubbed environment as a
+// persistent provider process.
+func RunLinesWithOptions(ctx context.Context, executable string, args []string, stdin io.Reader, onLine func([]byte) error, options ProcessOptions) error {
+	options, err := normalizeProcessOptions(options)
+	if err != nil {
+		return err
+	}
 	path, err := LookPath(executable)
 	if err != nil {
 		return err
 	}
 	cmd := exec.CommandContext(ctx, path, args...)
+	cmd.Dir = options.Dir
+	cmd.Env = inheritedEnv(nil)
 	cmd.Stdin = stdin
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

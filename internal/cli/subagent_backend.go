@@ -27,7 +27,14 @@ import (
 // catalogue answers "which plans exist", which is a different question from
 // "can this machine spawn this model", and only the second one matters here.
 func (a *app) subagentBackend() engine.SubagentBackend {
-	return func(_ context.Context, model, mode, effort string) (engine.ChatBackend, error) {
+	open := a.subagentBackendWithCapabilities()
+	return func(ctx context.Context, model, mode, effort string) (engine.ChatBackend, error) {
+		return open(ctx, model, mode, effort, engine.SubagentCapabilities{})
+	}
+}
+
+func (a *app) subagentBackendWithCapabilities() engine.SubagentBackendWithCapabilities {
+	return func(ctx context.Context, model, mode, effort string, capabilities engine.SubagentCapabilities) (engine.ChatBackend, error) {
 		vendor := ""
 		switch {
 		case agentcli.ClaudeKnowsModel(model):
@@ -43,12 +50,18 @@ func (a *app) subagentBackend() engine.SubagentBackend {
 		if !a.connectorSignedIn(vendor) {
 			return nil, fmt.Errorf("cannot run %s: the %s connector is not signed in (kolk plans login <provider> <plan>)", model, vendor)
 		}
+		execution := agentcli.ExecutionOptions{
+			Workspace:      capabilities.Workspace,
+			AdditionalDirs: capabilities.AdditionalDirs,
+			NetworkAccess:  capabilities.NetworkAccess,
+			Provider:       vendor,
+		}
 		if vendor == "codex" {
 			// One thread per subagent. Sharing one was the whole reason codex
 			// refused agent mode: every turn resumes the backend's own thread,
 			// so several subagents on one backend would interleave into a
 			// single vendor transcript.
-			return agentcli.NewCodexBackendFromHandle(model, mode, effort, "", false)
+			return agentcli.NewCodexBackendFromHandleWithOptions(model, mode, effort, "", false, execution)
 		}
 		// Empty handle, resume false: a conversation of its own, minted fresh
 		// and never persisted. A subagent's handle must not become the
@@ -58,7 +71,7 @@ func (a *app) subagentBackend() engine.SubagentBackend {
 		// Unwrapped by verifyingBackend on purpose: that wrapper exists to
 		// confirm the connector on its first answered turn and to record it,
 		// and a subagent is not where a session-level fact should be decided.
-		return agentcli.NewClaudeBackendFromHandle(model, mode, effort, "", false)
+		return agentcli.NewClaudeBackendFromHandleWithOptions(model, mode, effort, "", false, execution)
 	}
 }
 

@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -121,6 +122,30 @@ func TestTUIStatusUsesSessionTitleEffortModelAndWorkingFolder(t *testing.T) {
 		got.Model != "frontier/ultra-model" || got.Effort != engine.EffortMax ||
 		got.Mode != engine.ModeCode || got.Lifecycle != "working" {
 		t.Fatalf("TUI status did not reflect the live agent: %#v", got)
+	}
+}
+
+func TestTUITurnLifecycleDoesNotRelabelTerminalTurnsAsWorking(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	tests := []struct {
+		name string
+		ctx  context.Context
+		err  error
+		want string
+	}{
+		{name: "cancelled context", ctx: ctx, want: "interrupted"},
+		{name: "cancelled error", ctx: context.Background(), err: context.Canceled, want: "interrupted"},
+		{name: "ordinary error", ctx: context.Background(), err: errors.New("failed"), want: "failed"},
+		{name: "success", ctx: context.Background(), want: "ready"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := tuiTurnLifecycle(test.ctx, test.err); got != test.want {
+				t.Fatalf("tuiTurnLifecycle() = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
 

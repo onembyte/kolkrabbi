@@ -52,6 +52,87 @@ func TestRuntimeStreamsWhileRetainingTypeAheadAndCancelsOneTurn(t *testing.T) {
 	}
 }
 
+func TestRuntimeEscapeCancelsSagaWakeWithoutStartingQueuedWork(t *testing.T) {
+	firstStarted := make(chan struct{})
+	queuedSeen := make(chan struct{})
+	canceled := make(chan struct{})
+
+	input := &stagedInput{
+		chunks: [][]byte{
+			[]byte("/saga build it\r"),
+			[]byte("do not start this\r"),
+			{0x1b},
+			{0x04},
+		},
+		// The queued request and Escape are released only after the first wake
+		// has started and the queue is visible, so this test cannot pass by
+		// processing all input before the active turn exists.
+		gates: []<-chan struct{}{nil, firstStarted, queuedSeen, canceled},
+	}
+
+	var runtime *Runtime
+	var prompts []string
+	var mu sync.Mutex
+	runtime = NewRuntime(RuntimeOptions{
+		Input: input, Output: io.Discard,
+		Status: Status{Mode: "code", Lifecycle: "ready"},
+		Turn: func(ctx context.Context, prompt string) error {
+			mu.Lock()
+			prompts = append(prompts, prompt)
+			count := len(prompts)
+			mu.Unlock()
+			if count != 1 || prompt != "/saga build it" {
+				t.Errorf("turns = %#v, want only the inline SAGA wake", prompts)
+				return nil
+			}
+			close(firstStarted)
+			<-ctx.Done()
+			close(canceled)
+			return ctx.Err()
+		},
+	})
+
+	done := make(chan error, 1)
+	go func() { done <- runtime.Run(context.Background()) }()
+	waitFor(t, 2*time.Second, "the queued SAGA follow-up", func() bool {
+		runtime.mu.Lock()
+		defer runtime.mu.Unlock()
+		return runtime.controller.Queued() == "do not start this"
+	})
+	close(queuedSeen)
+
+	select {
+	case <-canceled:
+		// The staged EOF is released only after the active wake has observed
+		// Escape, so shutdown cannot race the cancellation assertion.
+	case <-time.After(2 * time.Second):
+		t.Fatal("Escape did not reach the active SAGA wake")
+	}
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("runtime returned after Escape: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Escape did not cancel the SAGA wake and close the runtime")
+	}
+
+	got := runtime.Snapshot()
+	mu.Lock()
+	gotPrompts := append([]string(nil), prompts...)
+	mu.Unlock()
+	if got.Status.Lifecycle != "interrupted" {
+		t.Fatalf("lifecycle = %q, want interrupted", got.Status.Lifecycle)
+	}
+	if got.Status.Queued != 0 || got.Draft != "" {
+		t.Fatalf("post-Escape queue/draft = %d/%q, want both empty", got.Status.Queued, got.Draft)
+	}
+	if len(gotPrompts) != 1 {
+		t.Fatalf("prompts = %#v, want no post-cancellation queued turn", gotPrompts)
+	}
+}
+
 func TestRuntimeSuccessfulTurnFinishesReadyBeforeEOF(t *testing.T) {
 	finished := make(chan struct{})
 	input := newGatedInput([]byte("successful request\r"), nil)

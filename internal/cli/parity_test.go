@@ -192,6 +192,7 @@ var sessionOnly = map[string]string{
 	"exit":         "leaves the REPL; a one-shot process has already left",
 	"quit":         "alias for /exit",
 	"plogin":       "picks a plan to log into, interactively",
+	"saga":         "marks a normal prompt for careful progression; it has no standalone CLI twin",
 }
 
 // TestEverySlashCommandIsAccountedFor closes the other half of the parity rule.

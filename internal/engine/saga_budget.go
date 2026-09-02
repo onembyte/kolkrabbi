@@ -7,6 +7,7 @@ type StopReason string
 
 const (
 	StopNone         StopReason = ""              // saga may continue
+	StopWake         StopReason = "wake-complete" // one bounded wake finished
 	StopGoalComplete StopReason = "goal-complete" // all acceptance criteria verified
 	StopMaxChapters  StopReason = "max-chapters"  // chapter limit reached
 	StopCostLimit    StopReason = "cost-limit"    // dollar budget exhausted

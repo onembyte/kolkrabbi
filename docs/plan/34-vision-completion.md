@@ -63,12 +63,25 @@ all open items, so historical tables cannot drift ahead of the actual product.
 
 **Goal:** create a reproducible source-of-truth snapshot before changing behaviour.
 
-- [ ] **V34.0a baseline evidence** — record commit, worktree state, Go/tool versions, supported
-  platforms, enabled providers, and the exact passing/blocked gates.
-- [ ] **V34.0b ledger reconciliation** — map every `[~]`, queued, superseded, and deferred entry in
-  `PLAN.md`/`CHECKPOINTS.md` to this hierarchy or an owner decision; do not delete history.
-- [ ] **V34.0c scope freeze** — owner accepts the v1 capability and platform matrix, including the
-  explicit disposition of extra providers, desktop/mobile, Windows runtime, and OS sandboxing.
+- [x] **V34.0a baseline evidence** — recorded 2026-09-01 in `docs/build-log.md`: commit `5074e620`
+  (`v1.2.32`), clean pre-record worktree, Go/tool versions, supported platforms/providers, and
+  exact passing/blocked gates.
+- [x] **V34.0b ledger reconciliation** — completed 2026-09-01 through C4.2a–c: every V34 status and
+  still-open historical entry is mapped to a V34 leaf, an owner decision, an explicit deferral, or a
+  superseded historical decision. Stale V34.3f/A12.5 claims were corrected; no history was deleted.
+- [x] **V34.0c scope freeze** — completed 2026-09-02: owner accepted the v1 capability and platform
+  matrix, explicitly including OS-level sandboxing and confirming the clean-machine/provider proof;
+  current-facing docs were reconciled and an independent reviewer returned clean. Accepted scope is
+  not the same as shipped implementation, so every named downstream proof remains open.
+
+Accepted scope matrix:
+
+| Disposition | Capability/platform boundary | Remaining proof owner |
+|---|---|---|
+| shipped candidate | macOS/Linux amd64+arm64 CLI/TUI; chat/code/agent; OpenRouter-compatible endpoints; host Ollama; Claude Pro/Max and ChatGPT Plus/Pro CLI handoff; sessions, dashboard/service, current permissions, and inline SAGA | owning V34.1–V34.5 leaves must close known safety, integrity, provider, local, SAGA, and release gaps |
+| accepted v1, not shipped | OS-level sandboxing on supported Linux and macOS targets | V34.1e chooses the mechanisms and proves fail-closed native isolation; README/site must say unavailable until then |
+| owner-proven release input | clean-machine install and provider response | owner confirmed completion on 2026-09-01; V34.5b owns the exact reproducible transcript link |
+| post-v1 deferred | Windows runtime support; desktop/iPad/Android clients; additional subscription providers; generated clients; containerized SAGA execution | revisit when an owner requests the surface and supplies a checkpoint/evidence environment |
 
 **Exit review:** an independent reader can answer “what ships, what is deferred, and what proves it”
 without interpreting stale phase prose.
@@ -78,7 +91,7 @@ without interpreting stale phase prose.
 **Goal:** no untrusted endpoint, child process, file path, or output sink can casually expose a
 credential or write outside its intended boundary.
 
-- [ ] **V34.1a credential-to-endpoint binding** — prevent a general `--base-url` or persisted
+- [x] **V34.1a credential-to-endpoint binding** — completed 2026-09-02: prevent a general `--base-url` or persisted
   endpoint from receiving an OpenRouter credential; choose and document the trusted-endpoint or
   endpoint-specific-credential model.
 - [ ] **V34.1b child environment minimization** — ensure provider login/handover/PTY paths receive
@@ -87,9 +100,17 @@ credential or write outside its intended boundary.
   without policy, reject link/race escapes on restore, and preserve restrictive source modes.
 - [ ] **V34.1d bounded and scrubbed outputs** — bound child capture before allocation; redact durable
   session and terminal sinks; reject URL userinfo; replace key/token argv UX with protected input.
-- [ ] **V34.1e full-auto safety floor** — decide whether full-auto is a trusted-user mode or has an
-  enforceable containment boundary. If containment is promised, implement it; if not, remove any
-  contrary safety claim and require explicit owner acceptance.
+- [ ] **V34.1e full-auto safety floor and OS sandbox** — implement the owner-accepted containment
+  boundary on supported Linux/macOS targets, preserve the existing in-process floor, fail closed or
+  fall back only under an explicit documented policy, and prove native escape/refusal cases. Until
+  this closes, OS sandboxing is accepted v1 scope but not an available feature.
+- [x] **V34.1f delegated execution capability envelope** — completed 2026-09-01: every provider child
+  receives an explicit canonical repository root/working directory and declared network capability;
+  Codex workspace-write network access and Claude web tools are enabled only through that envelope,
+  while ambient credentials, unrelated writable directories, and danger-full-access remain excluded.
+  Invalid capability handoffs fail visibly rather than falling back to a blind child. Focused,
+  adversarial, race, cross-platform, and full repository gates are recorded in `CHECKPOINTS.md` and
+  `docs/build-log.md`.
 
 **Exit review:** each prior exploit has a regression test and the reviewer attempts an equivalent
 bypass instead of only reading the fix.
@@ -120,7 +141,7 @@ reviewer checks that all public terminal states have exactly one terminal outcom
 from a failed chapter.
 
 - [ ] **V34.3a exclusive ownership and active stop** — lock acquisition errors are fatal and
-  `kolk saga stop` reaches the active executor through a cancellable protocol.
+  Esc cancels the active SAGA wake through the same cancellable turn protocol used by ordinary work.
 - [ ] **V34.3b durable chapter state** — persist planned/executing state before work and coordinate
   artifact persistence with commits so restart has one unambiguous resume anchor.
 - [ ] **V34.3c clean rollback** — preserve pre-existing user changes while discarding failed
@@ -129,6 +150,10 @@ from a failed chapter.
   enforceable saga budget.
 - [ ] **V34.3e crash and dirty-tree proof** — fault-inject stop, failed verification, persistence
   failure, and restart; prove neither retry nor later commit includes abandoned work.
+- [~] **V34.3f SAGA inline workflow and hidden progression directive** — the inline marker, internal
+  posture, one bounded wake, durable chapter/terminal state, and cancellation lifecycle are built
+  through C4.1. The visible running TUI progress log remains C5 and is deliberately not claimed here
+  until its own acceptance contract closes; no separate run/resume/status/stop product surface exists.
 
 **Exit review:** start/stop/resume/rollback is demonstrated in an isolated repository with an
 independent reviewer repeating the failure matrix.
@@ -194,3 +219,5 @@ inside an accepted checkpoint remain engineering work.
 - `docs/plan/10-saga-loop.md`, `docs/plan/21-quality-testing-security.md`, and
   `docs/plan/33-agentic-mode.md`.
 - Architecture, security, provider-routing, and release-gate review findings recorded 2026-08-31.
+- OpenAI Codex CLI 0.149.1 help and workspace-write configuration reference, checked 2026-09-01:
+  `https://github.com/openai/codex/blob/main/codex-rs/prompts/templates/permissions/sandbox_mode/workspace_write.md`.

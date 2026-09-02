@@ -4,10 +4,13 @@ import (
 	"context"
 	"io"
 	"os"
+	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/shell"
 	"testing"
 )
 
@@ -264,6 +267,83 @@ func TestBuildCodexInvocationShapesTheArgv(t *testing.T) {
 	}
 	if strings.Join(agentMode.Args, " ") != strings.Join(codeMode.Args, " ") {
 		t.Errorf("agent argv = %v, want the same as code %v", agentMode.Args, codeMode.Args)
+	}
+}
+
+func TestBuildCodexInvocationWithExecutionOptionsCarriesWorkspaceAndNetwork(t *testing.T) {
+	workspace := t.TempDir()
+	additional := t.TempDir()
+	invocation, err := BuildCodexInvocationWithOptions("gpt-5.6-sol", "agent", "high", "", false, "inspect the repository", ExecutionOptions{
+		Workspace:      workspace,
+		AdditionalDirs: []string{additional},
+		NetworkAccess:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantWorkspace, err := filepath.EvalSymlinks(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"--cd", wantWorkspace, "-c", "sandbox_workspace_write.network_access=true"}
+	for i := 0; i < len(want); i += 2 {
+		if index := slices.Index(invocation.Args, want[i]); index < 0 || index+1 >= len(invocation.Args) || invocation.Args[index+1] != want[i+1] {
+			t.Fatalf("argv = %v, want %s %s", invocation.Args, want[i], want[i+1])
+		}
+	}
+	if invocation.ProcessOptions.Dir != wantWorkspace {
+		t.Fatalf("process directory = %q, want canonical workspace %q", invocation.ProcessOptions.Dir, wantWorkspace)
+	}
+	wantAdditional, err := filepath.EvalSymlinks(additional)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if index := slices.Index(invocation.Args, "--add-dir"); index < 0 || index+1 >= len(invocation.Args) || invocation.Args[index+1] != wantAdditional {
+		t.Fatalf("argv = %v, want --add-dir %q", invocation.Args, wantAdditional)
+	}
+}
+
+func TestBuildCodexInvocationWithExecutionOptionsRejectsUnverifiedWorkspace(t *testing.T) {
+	for _, workspace := range []string{"relative/workspace", "/path/that/does/not/exist"} {
+		if _, err := BuildCodexInvocationWithOptions("gpt-5.6-sol", "agent", "high", "", false, "inspect", ExecutionOptions{Workspace: workspace}); err == nil {
+			t.Fatalf("workspace %q was accepted", workspace)
+		}
+	}
+}
+
+func TestBuildCodexInvocationWithExecutionOptionsOmitsNetworkByDefault(t *testing.T) {
+	invocation, err := BuildCodexInvocationWithOptions("gpt-5.6-sol", "agent", "high", "", false, "inspect", ExecutionOptions{Workspace: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(invocation.Args, "sandbox_workspace_write.network_access=true") {
+		t.Fatalf("network override was enabled without a declaration: %v", invocation.Args)
+	}
+}
+
+func TestRunCodexWithOptionsPassesTheDeclaredProcessDirectory(t *testing.T) {
+	workspace := t.TempDir()
+	wantWorkspace, err := filepath.EvalSymlinks(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invocation, err := BuildCodexInvocationWithOptions("gpt-5.6-sol", "agent", "high", "", false, "inspect", ExecutionOptions{
+		Workspace:     workspace,
+		NetworkAccess: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got shell.ProcessOptions
+	err = runCodexWithOptions(context.Background(), invocation, func(_ context.Context, _ string, _ []string, _ io.Reader, _ func([]byte) error, options shell.ProcessOptions) error {
+		got = options
+		return nil
+	}, invocation.ProcessOptions, func(Event) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Dir != wantWorkspace {
+		t.Fatalf("codex process directory = %q, want canonical workspace %q", got.Dir, wantWorkspace)
 	}
 }
 

@@ -53,6 +53,26 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 			continue
 		}
 
+		// `/saga` is an inline marker, including when it begins the line. A
+		// non-empty marked request must beat slash dispatch or `/saga build`
+		// would be treated as an unknown command instead of a normal goal.
+		if goal, marked := inlineSagaPrompt(line); marked && goal != "" {
+			tctx, stop := signal.NotifyContext(ctx, os.Interrupt)
+			err = a.runInteractivePrompt(tctx, ag, line)
+			stop()
+			switch {
+			case errors.Is(err, context.Canceled):
+				fmt.Fprintln(a.stdout, "\033[2m(interrupted)\033[0m")
+			case err != nil:
+				fmt.Fprintf(a.stderr, "\033[31merror:\033[0m %v\n", err)
+				writeAdvice(a.stderr, err)
+			}
+			if eof {
+				return nil
+			}
+			continue
+		}
+
 		if strings.HasPrefix(line, "/") {
 			tctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 			shouldExit := a.slash(tctx, ag, line)

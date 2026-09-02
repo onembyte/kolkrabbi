@@ -64,6 +64,31 @@ func TestHardCodexSubagentTranslatesCanonicalMaxToXHigh(t *testing.T) {
 	}
 }
 
+func TestCapabilityAwareSubagentFactoryRequiresAWorkspaceAndBuildsWithinIt(t *testing.T) {
+	dirs := isolateHome(t)
+	a, _, _ := newTestApp(t, "")
+	a.dirs = dirs
+	signInAs(t, dirs, "openai", "ChatGPT Pro", "codex")
+	open := a.subagentBackendWithCapabilities()
+
+	if _, err := open(context.Background(), "gpt-5.6-luna", "code", "medium", engine.SubagentCapabilities{NetworkAccess: true, Workspace: "relative"}); err == nil {
+		t.Fatal("capability-aware factory accepted an unverified relative workspace")
+	}
+	backend, err := open(context.Background(), "gpt-5.6-luna", "code", "medium", engine.SubagentCapabilities{
+		NetworkAccess: true,
+		Workspace:     t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := backend.(*agentcli.CodexBackend); !ok {
+		t.Fatalf("backend = %T, want *agentcli.CodexBackend", backend)
+	}
+	if closer, ok := backend.(io.Closer); ok {
+		_ = closer.Close()
+	}
+}
+
 // A vendor that is not signed in through kolk offers nothing, which is the same
 // rule the roster enforces — stated twice on purpose, because the roster
 // decides the menu and this decides the spawn.

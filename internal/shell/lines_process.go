@@ -106,11 +106,24 @@ func (p *LinesProcess) HardExit() bool {
 // to provider adapters. The caller owns Close and must drain responses with
 // Next.
 func StartLinesProcess(ctx context.Context, executable string, args []string) (*LinesProcess, error) {
+	return StartLinesProcessWithOptions(ctx, executable, args, ProcessOptions{})
+}
+
+// StartLinesProcessWithOptions is StartLinesProcess with an explicit process
+// working directory. The directory is validated and canonicalized before the
+// child is started, so a provider never silently falls back to the parent's
+// directory after a bad capability handoff.
+func StartLinesProcessWithOptions(ctx context.Context, executable string, args []string, options ProcessOptions) (*LinesProcess, error) {
+	options, err := normalizeProcessOptions(options)
+	if err != nil {
+		return nil, err
+	}
 	path, err := LookPath(executable)
 	if err != nil {
 		return nil, err
 	}
 	cmd := exec.CommandContext(ctx, path, args...)
+	cmd.Dir = options.Dir
 	// Provider-owned CLIs are still untrusted from Kolkrabbi's perspective:
 	// they can run vendor tools and report output back into the session. Keep
 	// the normal environment, but do not give them Kolkrabbi's ambient keys.

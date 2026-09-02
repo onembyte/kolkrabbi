@@ -14,6 +14,10 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/provider"
 )
 
+func compatibleTestClient(srv *httptest.Server) *provider.Client {
+	return provider.NewCompatibleClient(srv.URL)
+}
+
 func TestCatalogCacheHitAvoidsNetwork(t *testing.T) {
 	var networkHits int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -27,8 +31,7 @@ func TestCatalogCacheHitAvoidsNetwork(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := compatibleTestClient(srv)
 
 	cacheDir := t.TempDir()
 	cacheFile := filepath.Join(cacheDir, "models.json")
@@ -75,8 +78,7 @@ func TestCatalogCacheMissFetchesAndSaves(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := compatibleTestClient(srv)
 
 	cacheDir := t.TempDir()
 	cacheFile := filepath.Join(cacheDir, "models.json")
@@ -118,8 +120,7 @@ func TestCatalogStaleFallbackOnNetworkError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := compatibleTestClient(srv)
 
 	cacheDir := t.TempDir()
 	cacheFile := filepath.Join(cacheDir, "models.json")
@@ -163,8 +164,7 @@ func TestCatalogForceRefreshBypassesCache(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := compatibleTestClient(srv)
 
 	cacheDir := t.TempDir()
 	cacheFile := filepath.Join(cacheDir, "models.json")
@@ -208,8 +208,7 @@ func TestCatalogSnapshotServesAStaleCacheWithoutTheNetwork(t *testing.T) {
 	var hits int32
 	srv := snapshotServer(t, &hits)
 	defer srv.Close()
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := compatibleTestClient(srv)
 
 	cacheFile := filepath.Join(t.TempDir(), "models.json")
 	seed := provider.CatalogCache{
@@ -255,8 +254,7 @@ func TestCatalogSnapshotFetchesOnlyWhenNothingIsCached(t *testing.T) {
 	var hits int32
 	srv := snapshotServer(t, &hits)
 	defer srv.Close()
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := compatibleTestClient(srv)
 	cacheFile := filepath.Join(t.TempDir(), "models.json")
 
 	models, stale, err := client.CatalogSnapshot(context.Background(), cacheFile, time.Hour)
@@ -279,8 +277,7 @@ func TestCatalogSnapshotReportsAnOutageWhenNothingIsCached(t *testing.T) {
 		http.Error(w, "unavailable", http.StatusServiceUnavailable)
 	}))
 	defer srv.Close()
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := compatibleTestClient(srv)
 
 	if _, _, err := client.CatalogSnapshot(context.Background(), filepath.Join(t.TempDir(), "models.json"), time.Hour); err == nil {
 		t.Fatal("no cache and a 503 must surface an error so the caller falls back to the seed")

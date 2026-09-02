@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -181,10 +183,12 @@ func TestAuthTransportKeepsTheTokenOutOfTheCallersRequest(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := &http.Client{Transport: &AuthTransport{
-		Token: New(realKey),
-		Extra: map[string]string{"X-Title": "kolk"},
-	}}
+	auth, err := NewAuthTransport(New(realKey), srv.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	auth.Extra = map[string]string{"X-Title": "kolk"}
+	client := &http.Client{Transport: auth}
 
 	req, err := http.NewRequest(http.MethodGet, srv.URL, nil)
 	if err != nil {
@@ -238,3 +242,179 @@ func TestAuthTransportWithNoTokenSendsNoHeader(t *testing.T) {
 		t.Error("an empty token still sent an Authorization header")
 	}
 }
+
+func TestAuthTransportRefusesAnUnboundCredentialBeforeNetwork(t *testing.T) {
+	var calls int
+	base := roundTripFunc(func(*http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       http.NoBody,
+		}, nil
+	})
+	auth := &AuthTransport{Base: base}
+	auth.SetToken(New(realKey))
+	client := &http.Client{Transport: auth}
+
+	resp, err := client.Get("https://untrusted.invalid/steal")
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
+		t.Fatal("unbound credential transport sent a request")
+	}
+	if calls != 0 {
+		t.Fatalf("base transport was called %d times, want 0", calls)
+	}
+	if !errors.Is(err, ErrCredentialOrigin) {
+		t.Fatalf("client error = %v, want ErrCredentialOrigin", err)
+	}
+	if strings.Contains(err.Error(), realKey) {
+		t.Fatalf("origin refusal leaked the credential: %v", err)
+	}
+}
+
+func TestAuthTransportRefusesADifferentBoundOriginBeforeNetwork(t *testing.T) {
+	var calls int
+	base := roundTripFunc(func(*http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       http.NoBody,
+		}, nil
+	})
+	auth, err := NewAuthTransport(New(realKey), "https://openrouter.ai/api/v1", base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := http.NewRequest(http.MethodGet, "https://openrouter.ai.evil/steal", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := auth.RoundTrip(req)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if !errors.Is(err, ErrCredentialOrigin) {
+		t.Fatalf("RoundTrip error = %v, want ErrCredentialOrigin", err)
+	}
+	if calls != 0 {
+		t.Fatalf("base transport was called %d times, want 0", calls)
+	}
+	if req.Header.Get("Authorization") != "" {
+		t.Fatal("refused request was contaminated with the credential header")
+	}
+}
+
+func TestAuthTransportRefusesACrossOriginRedirectBeforeTargetNetwork(t *testing.T) {
+	var targetCalls int
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		targetCalls++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+
+	var sourceCalls int
+	var sourceAuth string
+	source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sourceCalls++
+		sourceAuth = r.Header.Get("Authorization")
+		http.Redirect(w, r, target.URL+"/steal", http.StatusFound)
+	}))
+	defer source.Close()
+
+	auth, err := NewAuthTransport(New(realKey), source.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &http.Client{Transport: auth}
+	resp, err := client.Get(source.URL + "/start")
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if !errors.Is(err, ErrCredentialOrigin) {
+		t.Fatalf("redirect error = %v, want ErrCredentialOrigin", err)
+	}
+	if sourceCalls != 1 || sourceAuth != "Bearer "+realKey {
+		t.Fatalf("source calls/auth = %d/%q, want one authenticated request", sourceCalls, Redact(sourceAuth))
+	}
+	if targetCalls != 0 {
+		t.Fatalf("redirect target received %d requests, want 0", targetCalls)
+	}
+}
+
+func TestAuthTransportConcurrentTokenChangeNeverSkipsOriginGuard(t *testing.T) {
+	var leaked atomic.Bool
+	base := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.Header.Get("Authorization") != "" {
+			leaked.Store(true)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       http.NoBody,
+		}, nil
+	})
+	auth, err := NewAuthTransport(Secret{}, "https://openrouter.ai/api/v1", base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := http.NewRequest(http.MethodGet, "https://untrusted.invalid/steal", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := New(realKey)
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		<-start
+		for range 10_000 {
+			auth.SetToken(token)
+			auth.SetToken(Secret{})
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		<-start
+		for range 10_000 {
+			resp, roundTripErr := auth.RoundTrip(req)
+			if resp != nil {
+				_ = resp.Body.Close()
+			}
+			if roundTripErr != nil && !errors.Is(roundTripErr, ErrCredentialOrigin) {
+				leaked.Store(true)
+			}
+		}
+	}()
+	close(start)
+	wg.Wait()
+
+	if leaked.Load() {
+		t.Fatal("a concurrent token change attached a credential to the untrusted origin")
+	}
+}
+
+func TestSameOriginUsesCredentialTransportCanonicalization(t *testing.T) {
+	if !SameOrigin("https://OPENROUTER.AI:443/api/v1", "https://openrouter.ai/another/path") {
+		t.Fatal("equivalent HTTPS origins were not recognized")
+	}
+	for _, candidate := range []string{
+		"http://openrouter.ai/api/v1",
+		"https://openrouter.ai.evil/api/v1",
+		"https://openrouter.ai:444/api/v1",
+	} {
+		if SameOrigin(candidate, "https://openrouter.ai/api/v1") {
+			t.Fatalf("untrusted origin %q matched canonical OpenRouter", candidate)
+		}
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }

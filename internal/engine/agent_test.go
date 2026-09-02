@@ -21,8 +21,7 @@ import (
 
 func newTestAgent(t *testing.T, srv *enginetest.Server, mode string) (*engine.Agent, *bytes.Buffer, string, string) {
 	t.Helper()
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := provider.NewCompatibleClient(srv.URL)
 	sdir, statsDir := t.TempDir(), t.TempDir()
 	sess := session.New(sdir, "mock/model")
 	ckpt, err := checkpoint.Open(sess.CkptDir())
@@ -277,8 +276,7 @@ func TestE2E_DanglingToolCallsRepairedOnStartup(t *testing.T) {
 
 	srv := enginetest.New(enginetest.Step{Text: "ok, continuing."})
 	defer srv.Close()
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := provider.NewCompatibleClient(srv.URL)
 
 	loaded, err := session.Load(sdir, sess.ID)
 	if err != nil {
@@ -313,8 +311,7 @@ func TestE2E_RunTurnEmitsProtocolEventsToBus(t *testing.T) {
 	srv := enginetest.New(enginetest.Step{Text: "Hello from bus!"})
 	defer srv.Close()
 
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := provider.NewCompatibleClient(srv.URL)
 
 	sdir := t.TempDir()
 	sessID := xid.New(xid.Session)

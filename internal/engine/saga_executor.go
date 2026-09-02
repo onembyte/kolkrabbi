@@ -2,10 +2,21 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
 )
+
+type artifactPersistError struct {
+	err error
+}
+
+func (e *artifactPersistError) Error() string {
+	return fmt.Sprintf("saga: could not write SAGA.md: %v", e.err)
+}
+
+func (e *artifactPersistError) Unwrap() error { return e.err }
 
 // StopNoWork halts a run that has no chapter left to attempt.
 //
@@ -81,8 +92,11 @@ func (r *SagaRunner) Run(ctx context.Context, repoDir string, state *SagaState) 
 			// Cancellation is the user stopping, not the budget refusing.
 			return StopNone, err
 		}
+		if reason := terminalSagaStop(state); reason != StopNone {
+			return r.finishStop(repoDir, state, reason)
+		}
 		if reason := r.Budget.Check(state, failures, r.now().Sub(started)); reason != StopNone {
-			return reason, nil
+			return r.finishStop(repoDir, state, reason)
 		}
 
 		index, ok := nextChapter(state)
@@ -92,22 +106,89 @@ func (r *SagaRunner) Run(ctx context.Context, repoDir string, state *SagaState) 
 				return StopNone, err
 			}
 			if !planned {
-				return r.noMoreWork(), nil
+				return r.finishStop(repoDir, state, r.noMoreWork())
 			}
 			index = len(state.Chapters) - 1
 		}
 
 		err := r.RunChapter(ctx, repoDir, state, index)
-		if ctx.Err() != nil {
-			return StopNone, ctx.Err()
-		}
 		if err != nil {
+			if cancelErr := sagaCancellationResult(ctx, err); cancelErr != nil {
+				return StopNone, cancelErr
+			}
+			var persistErr *artifactPersistError
+			if errors.As(err, &persistErr) {
+				return StopNone, err
+			}
 			failures++
 			r.say("chapter %d failed: %v", state.Chapters[index].Number, err)
 			continue
 		}
+		if cancelErr := sagaCancellationResult(ctx, nil); cancelErr != nil {
+			return StopNone, cancelErr
+		}
 		failures = 0
 	}
+}
+
+// RunWake advances at most one chapter and then returns. Planning one chapter
+// and working it count as one wake; a planner is never called a second time in
+// the same invocation. The older Run method remains the multi-chapter API for
+// callers that explicitly want a continuous loop.
+func (r *SagaRunner) RunWake(ctx context.Context, repoDir string, state *SagaState) (StopReason, error) {
+	if state == nil {
+		return StopNone, fmt.Errorf("saga: state is required")
+	}
+	started := r.now()
+	if err := ctx.Err(); err != nil {
+		return StopNone, err
+	}
+	if reason := terminalSagaStop(state); reason != StopNone {
+		return r.finishStop(repoDir, state, reason)
+	}
+	if reason := r.Budget.Check(state, state.Strikes, 0); reason != StopNone {
+		return r.finishStop(repoDir, state, reason)
+	}
+
+	index, ok := nextChapter(state)
+	if !ok {
+		planned, err := r.planNext(ctx, state)
+		if err != nil {
+			return StopNone, err
+		}
+		if !planned {
+			return r.finishStop(repoDir, state, r.noMoreWork())
+		}
+		index = len(state.Chapters) - 1
+	}
+
+	err := r.RunChapter(ctx, repoDir, state, index)
+	if err != nil {
+		if cancelErr := sagaCancellationResult(ctx, err); cancelErr != nil {
+			// Preserve cleanup failures alongside cancellation. Returning only
+			// ctx.Err() would make a failed durable resume boundary invisible.
+			return StopNone, cancelErr
+		}
+		var persistErr *artifactPersistError
+		if errors.As(err, &persistErr) {
+			// The chapter has not been worked when its pre-work marker could
+			// not be persisted. Do not describe that as a chapter failure or
+			// spend a strike on storage being unavailable.
+			return StopNone, err
+		}
+		r.say("chapter %d failed: %v", state.Chapters[index].Number, err)
+		if state.Status == "blocked" {
+			return StopDoomLoop, nil
+		}
+		return StopNone, err
+	}
+	if cancelErr := sagaCancellationResult(ctx, nil); cancelErr != nil {
+		return StopNone, cancelErr
+	}
+	if reason := r.Budget.Check(state, state.Strikes, r.now().Sub(started)); reason != StopNone {
+		return r.finishStop(repoDir, state, reason)
+	}
+	return StopWake, nil
 }
 
 // RunChapter takes one chapter from pending to verified.
@@ -116,8 +197,19 @@ func (r *SagaRunner) RunChapter(ctx context.Context, repoDir string, state *Saga
 		return fmt.Errorf("saga: chapter index %d out of range", index)
 	}
 	chapter := &state.Chapters[index]
+	// Keep the durable progress marker aligned with the chapter being worked.
+	// A wake may resume at chapter N after earlier chapters were persisted; a
+	// stale marker would make both SAGA.md and the CLI report the wrong chapter.
+	state.ActiveChapter = chapter.Number
 
 	if err := r.advanceToExecuting(chapter); err != nil {
+		return err
+	}
+	// Persist the in-flight marker before the worker can mutate the repository.
+	// A crash or an unavailable artifact writer must leave a truthful resume
+	// boundary; starting work first would make the durable state claim that the
+	// chapter is still pending and invite a duplicate attempt.
+	if err := r.persist(repoDir, state); err != nil {
 		return err
 	}
 	r.say("chapter %d: %s", chapter.Number, chapter.Title)
@@ -131,6 +223,12 @@ func (r *SagaRunner) RunChapter(ctx context.Context, repoDir string, state *Saga
 	chapter.CostUSD += result.CostUSD
 	state.CumulativeCost += result.CostUSD
 	chapter.DurationSec += int(r.now().Sub(begun).Seconds())
+	if cancelErr := sagaCancellation(ctx, workErr); cancelErr != nil {
+		if persistErr := r.persist(repoDir, state); persistErr != nil {
+			return errors.Join(cancelErr, persistErr)
+		}
+		return cancelErr
+	}
 
 	if workErr != nil {
 		// No verification: gates on work that was never done would commit
@@ -142,8 +240,11 @@ func (r *SagaRunner) RunChapter(ctx context.Context, repoDir string, state *Saga
 		if strikeErr := RecordGateFailure(state); strikeErr != nil {
 			return strikeErr
 		}
-		r.persist(repoDir, state)
-		return fmt.Errorf("saga: chapter %d could not be worked: %w", chapter.Number, workErr)
+		workFailure := fmt.Errorf("saga: chapter %d could not be worked: %w", chapter.Number, workErr)
+		if persistErr := r.persist(repoDir, state); persistErr != nil {
+			return errors.Join(workFailure, persistErr)
+		}
+		return workFailure
 	}
 
 	if result.Summary != "" {
@@ -151,7 +252,12 @@ func (r *SagaRunner) RunChapter(ctx context.Context, repoDir string, state *Saga
 	}
 
 	verifyErr := VerifyChapter(ctx, r.verifier(ctx), repoDir, state, index)
-	r.persist(repoDir, state)
+	if persistErr := r.persist(repoDir, state); persistErr != nil {
+		if verifyErr != nil {
+			return errors.Join(verifyErr, persistErr)
+		}
+		return persistErr
+	}
 	return verifyErr
 }
 
@@ -231,6 +337,43 @@ func (r *SagaRunner) noMoreWork() StopReason {
 	return StopNoWork
 }
 
+// terminalSagaStop treats durable terminal state as authoritative. SAGA.md is
+// the restart boundary; reopening a completed or blocked artifact because a
+// pending chapter happens to remain would silently violate that boundary.
+func terminalSagaStop(state *SagaState) StopReason {
+	switch state.Status {
+	case SagaStatusCompleted:
+		return StopGoalComplete
+	case SagaStatusBlocked:
+		return StopDoomLoop
+	default:
+		return StopNone
+	}
+}
+
+// finishStop records only terminal whole-saga outcomes. Chapter and budget
+// state is already persisted at its mutation boundary; a budget stop remains
+// resumable and must not be mislabeled as terminal.
+func (r *SagaRunner) finishStop(repoDir string, state *SagaState, reason StopReason) (StopReason, error) {
+	var status string
+	switch reason {
+	case StopGoalComplete:
+		status = SagaStatusCompleted
+	case StopDoomLoop:
+		status = SagaStatusBlocked
+	default:
+		return reason, nil
+	}
+	if state.Status == status {
+		return reason, nil
+	}
+	state.Status = status
+	if err := r.persist(repoDir, state); err != nil {
+		return StopNone, err
+	}
+	return reason, nil
+}
+
 // nextChapter finds the first chapter still worth attempting.
 func nextChapter(state *SagaState) (int, bool) {
 	for i := range state.Chapters {
@@ -247,13 +390,15 @@ func nextChapter(state *SagaState) (int, bool) {
 // The artifact is a convenience for resuming; a chapter that ran and verified
 // has still happened, and turning a write failure into a chapter failure would
 // discard real work over a full disk.
-func (r *SagaRunner) persist(repoDir string, state *SagaState) {
+func (r *SagaRunner) persist(repoDir string, state *SagaState) error {
 	if r.Write == nil {
-		return
+		return nil
 	}
 	if err := SaveSagaArtifact(repoDir, state, r.Write); err != nil {
 		r.say("warning: could not write SAGA.md: %v", err)
+		return &artifactPersistError{err: err}
 	}
+	return nil
 }
 
 func (r *SagaRunner) say(format string, args ...any) {
@@ -268,4 +413,32 @@ func (r *SagaRunner) now() time.Time {
 		return r.Now()
 	}
 	return time.Now()
+}
+
+func sagaCancellation(ctx context.Context, err error) error {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	return nil
+}
+
+// sagaCancellationResult keeps cancellation as the terminal outcome while
+// preserving any error returned while recording the resumable state. A plain
+// ctx.Err() would hide a failed cleanup write and leave the operator without a
+// truthful explanation of what can be resumed.
+func sagaCancellationResult(ctx context.Context, err error) error {
+	cancelErr := sagaCancellation(ctx, err)
+	if cancelErr == nil {
+		return nil
+	}
+	if err == nil {
+		return cancelErr
+	}
+	if ctxErr := ctx.Err(); ctxErr == nil || errors.Is(err, ctxErr) {
+		return err
+	}
+	return errors.Join(cancelErr, err)
 }

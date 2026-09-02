@@ -131,7 +131,6 @@ kolk stats                    # the dashboard
 kolk dash                     # the same numbers as a loopback-only page
 kolk sessions                 # list / search / fork / export saved conversations
 kolk models claude            # browse models with $/1M pricing
-kolk saga "goal"              # the careful-progression loop, gated on your tests
 kolk localia                  # what this machine could run locally
 kolk serve --addr 127.0.0.1:7777   # stream this session's events to a client
 ```
@@ -143,6 +142,8 @@ them. `/permissions` without an argument lists the three tiers and marks the
 active one; `/ask`, `/auto-approve` and `/full-auto` switch straight to one.
 `@` completes a file path against the project, and the status line carries
 mode, model, effort, context use, and what the session has cost.
+Append `/saga` to any request that needs careful, checkpointed progression; its
+chapter activity and durable log appear in the running session.
 In the interactive TUI, ↑ reloads the last message; one Ctrl+C clears only the
 composer, while a second consecutive Ctrl+C exits. Single-shot Ctrl+C still
 aborts that run.
@@ -274,8 +275,10 @@ The reasoning for each, and the condition that would change it, is in
 - Local models use the Ollama you already have; kolk never installs one. A
   pulled model shows in `/model` even while Ollama is idle, and picking it
   starts the server for the session.
-- No MCP or skills yet, and no general execution sandbox. Markdown slash
-  commands and post-edit, post-write, and session-end hooks are available.
+- No MCP or skills yet. There is no general execution sandbox in the current
+  binary; OS-level sandboxing is accepted v1 work and remains visibly unshipped
+  until the Linux/macOS controls and refusal tests close under V34.1e. Markdown
+  slash commands and post-edit, post-write, and session-end hooks are available.
 - A remote device can watch a session and answer its permission prompts; it
   cannot yet send a turn.
 - Unix-only in practice (bash tool, ANSI colors); Windows is cross-built and

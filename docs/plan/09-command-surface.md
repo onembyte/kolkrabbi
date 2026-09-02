@@ -58,12 +58,14 @@ kolk-code> /effort 3
 | `update`| 6 | `[--check]` | `/update` | — | Check or install latest binary | v1.1 |
 | `stats` | 5 | `[--json]` | `/stats` | — | View local token and cost metrics | v0.1 |
 | `dash` | 4 | `[--port <p>]` | `/dash` | — | Launch local efficiency dashboard | v0.3 |
-| `saga` | 4 | `[goal \| status \| stop]` | `/saga` | — | Chapter-by-chapter progression | v0.2 |
 | `doctor`| 6 | `[--verbose]` | `/doctor` | — | Diagnose keys, network, and tools | v0.2 |
 | `help` | 4 | `[command]` | `/help` | `-h, --help` | Show command reference | v0.1 |
 | `exit` | 4 | `[code]` | `/exit` | — | Terminate session (REPL alias: `/quit`)| v0.1 |
 
 *Note: Session-only navigation commands (`/new`, `/clear`, `/rewind`, `/diff`, `/changes`) exist in the REPL where state history is active.*
+
+`/saga` is an inline workflow marker in a normal request, not a standalone CLI verb and not a
+status/stop/resume command family. Its progress and cost are shown in the running TUI log.
 
 ---
 

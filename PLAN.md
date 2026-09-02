@@ -428,12 +428,12 @@ backend only.
 **Decide:**
 - Name: `saga` (Old Norse: a long tale advanced chapter by chapter — each iteration is a "chapter" with a report; 4 letters) vs `vard` (vörðr, "warden") vs `careful`/`steady`/`bulletproof`. Recommendation: **`saga`**, progress file `SAGA.md`, iterations = chapters.
 - Semantics: plan → do one bounded step → verify (tests/build/lint/self-check) → checkpoint → report a human-readable chapter → decide continue/stop. Self-paced by default, optional interval; explicit stop conditions (done-criteria met, max chapters, max $ budget, max time, N consecutive no-progress chapters).
-- Progress artifact: `SAGA.md` (goal, acceptance criteria, chapter log, open risks) that survives restarts and is the resume point; `kolk saga --resume`.
+- Progress artifact: `SAGA.md` (goal, acceptance criteria, chapter log, open risks) that survives restarts and is the durable continuation anchor for the next `/saga` request.
 - Safety: per-chapter checkpoint + `/rewind` of a chapter; tool allow-list for unattended runs; optional git worktree/branch isolation; never `yolo` beyond the declared scope; notification on stop (terminal bell / macOS notification / webhook later).
 - Effort interplay: escalate effort when stuck, drop for mechanical chapters; per-chapter model routing via item 14.
 - How it differs from agent mode (saga = longitudinal, one goal over many chapters; agent = one request fanned out to subagents) and whether saga can use agent mode inside a chapter.
 - *Research blueprint:* Hermes `/goal` = judge loop + completion contract + shell **quality gates** + turn budget + a `wait` verdict that parks on background processes; its `/loop` = fixed or self-paced (1→15 min backoff) with `--times/--until/max_ticks`; Ralph hygiene = one task per iteration + progress file + commit-on-green. Decide which of these saga absorbs vs. exposes as separate primitives (`saga` vs plain `loop` vs cron). Pitfall: inject loop wakeups as user turns, not system-prompt edits (prompt-cache).
-- UX: `kolk saga "goal"` / `/saga "goal"`; `kolk saga status|stop|resume`; live view of chapter progress; cost so far.
+- UX: include `/saga` in a normal request; no standalone saga product or lifecycle verbs; live view of chapter progress and cost in the running TUI log.
 **Hardened when:** state machine + `SAGA.md` format + stop conditions + CLI spec + 2 worked examples.
 **Inputs:** `docs/research/ecosystem.md` (loop/autonomy patterns)
 
@@ -464,7 +464,7 @@ backend only.
 **Inputs:** `docs/research/dashboard.md`, `docs/research/ecosystem.md`
 
 ### [x] 13. Tools, permissions & sandboxing
-**Hardened 2026-08-26** ([`docs/plan/13-tools-permissions-sandboxing.md`](docs/plan/13-tools-permissions-sandboxing.md)): today there is no path jail, `--yolo` has no floor, and tool output is unscrubbed; v1 is a path jail, a blocklist that survives `--yolo`, scrubbed results and auto-deny in subagents, with OS sandboxes deferred because this CI cannot verify them.
+**Hardened 2026-08-26; scope amended 2026-09-01** ([`docs/plan/13-tools-permissions-sandboxing.md`](docs/plan/13-tools-permissions-sandboxing.md)): the in-process path jail, hardline floor, scrubbed results, and subagent auto-deny ship first. The owner has now accepted OS-level sandboxing on supported Linux/macOS targets as v1 scope; it remains unshipped until V34.1e supplies native fail-closed evidence.
 **Scope:** what the model can do to your machine and how that is controlled.
 **Today:** 5 tools; confirm on bash/write/edit; `-y` yolo; checkpoints on write/edit only; 120 s bash timeout; 12 k char output cap.
 **Decide:**
@@ -592,7 +592,7 @@ backend only.
 **Inputs:** `docs/research/orcli.md`, `docs/research/ecosystem.md`
 
 ### [x] 23. Roadmap, phasing & explicit non-goals
-**Hardened 2026-08-27** ([`docs/plan/23-roadmap-phasing-non-goals.md`](docs/plan/23-roadmap-phasing-non-goals.md)): the v0.1→v1.0 phases this item proposed were written before any of it existed; the shipped version is v1.2.1 and every milestone but the desktop app and a frozen daemon API has been passed — two of them (MCP, sandboxing) by deciding not to do them, which a version number cannot express. So version-numbered phases are replaced by the phase letters actually in use, done-per-phase is defined against numbers that already fail the build rather than new ones, and the non-goals are collected from refusals that were already argued item by item, each with its source and the condition that would change it. Two lines are marked honestly as exceptions: a hosted service and cloud sync are decided here because nothing had forced the question, and Windows is deferred rather than refused — collecting a list is not licence to promote a deferral into a principle. GitHub milestones are refused for the reason item 22 refused a docs tree: a second copy of the phase list, in a system not versioned with the code, drifts the first week someone reorders a phase. Cost per task is measured but never a gate, since a model price change we do not control should not fail a build. Built: a ratchet on the plan's own bookkeeping — a ticked item must have a document that says it is hardened, a part-done item's document must not, every document must have an item, and every link must resolve — plus the README's roadmap and non-goals section.
+**Hardened 2026-08-27; scope amended 2026-09-01** ([`docs/plan/23-roadmap-phasing-non-goals.md`](docs/plan/23-roadmap-phasing-non-goals.md)): version-numbered phases were replaced by the phase letters actually in use, done-per-phase is measured by executable gates, and non-goals retain their reasons and revisit triggers. The historical decision deferred MCP and OS sandboxing; V34.0c now accepts OS-level sandboxing into v1 while MCP, Windows runtime, desktop/mobile clients, and extra subscription providers remain deferred. The plan ratchet and versioned roadmap remain the source of truth.
 **Scope:** order of work and what we refuse to do (for now).
 **Decide:**
 - Phases (proposal): **v0.1** polish prototype → module path/CI, `model`/`effort` verbs, free-model defaults, effort per mode, stats kept; **v0.2** TUI + multiline, sessions/compaction, `saga`; **v0.3** dashboard (SQLite + `kolk dash`), MCP, parallel agent mode + routing; **v0.4** subscription backends if permitted, sandboxing; **v1.0** daemon API frozen, desktop; **later** iPad.

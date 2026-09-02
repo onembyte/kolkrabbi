@@ -2,11 +2,13 @@ package agentcli
 
 import (
 	"context"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/shell"
 )
 
 func TestBuildClaudeSessionArgsCarriesTheVendorModelAndEffort(t *testing.T) {
@@ -27,6 +29,79 @@ func TestBuildClaudeSessionArgsCarriesTheVendorModelAndEffort(t *testing.T) {
 	}
 	if index := slices.Index(args, "--session-id"); index+1 >= len(args) || args[index+1] != "0b5e0e2a-1111-4222-8333-444455556666" {
 		t.Fatalf("--session-id is not followed by the minted handle: %q", args)
+	}
+}
+
+func TestBuildClaudeSessionArgsWithExecutionOptionsCarriesAdditionalDirectories(t *testing.T) {
+	workspace := t.TempDir()
+	additional := t.TempDir()
+	args, err := BuildClaudeSessionArgsWithOptions("claude-opus", "agent", "high", "handle", false, ExecutionOptions{
+		Workspace:      workspace,
+		AdditionalDirs: []string{additional},
+		NetworkAccess:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantAdditional, err := filepath.EvalSymlinks(additional)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if index := slices.Index(args, "--add-dir"); index < 0 || index+1 >= len(args) || args[index+1] != wantAdditional {
+		t.Fatalf("args = %v, want --add-dir %q", args, wantAdditional)
+	}
+}
+
+func TestBuildClaudeSessionArgsWithExecutionOptionsRejectsUnverifiedAdditionalDirectory(t *testing.T) {
+	if _, err := BuildClaudeSessionArgsWithOptions("claude-opus", "agent", "high", "", false, ExecutionOptions{AdditionalDirs: []string{"relative/additional"}}); err == nil {
+		t.Fatal("relative additional directory was accepted")
+	}
+}
+
+func TestBuildClaudeSessionArgsWithExecutionOptionsFailsClosedWhenNetworkIsDisabled(t *testing.T) {
+	if _, err := BuildClaudeSessionArgsWithOptions("claude-opus", "agent", "high", "", false, ExecutionOptions{Workspace: t.TempDir()}); err == nil || !strings.Contains(err.Error(), "cannot prove network-disabled") {
+		t.Fatalf("network-disabled Claude envelope error = %v, want a fail-closed capability diagnosis", err)
+	}
+}
+
+func TestClaudeBackendStartsInTheDeclaredWorkspace(t *testing.T) {
+	workspace := t.TempDir()
+	additional := t.TempDir()
+	backend, err := NewClaudeBackendFromHandleWithOptions("claude-opus", "agent", "high", "", false, ExecutionOptions{
+		Workspace:      workspace,
+		AdditionalDirs: []string{additional},
+		NetworkAccess:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var gotOptions shell.ProcessOptions
+	var gotArgs []string
+	backend.startWithOptions = func(_ context.Context, _ string, args []string, options shell.ProcessOptions) (lineProcess, error) {
+		gotArgs = append([]string(nil), args...)
+		gotOptions = options
+		return &fakeLineProcess{}, nil
+	}
+	if _, err := backend.getSession(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := backend.Close(); err != nil {
+		t.Fatal(err)
+	}
+	wantWorkspace, err := filepath.EvalSymlinks(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantAdditional, err := filepath.EvalSymlinks(additional)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotOptions.Dir != wantWorkspace {
+		t.Fatalf("claude process directory = %q, want %q", gotOptions.Dir, wantWorkspace)
+	}
+	index := slices.Index(gotArgs, "--add-dir")
+	if index < 0 || index+1 >= len(gotArgs) || gotArgs[index+1] != wantAdditional {
+		t.Fatalf("claude args = %v, want --add-dir %q", gotArgs, wantAdditional)
 	}
 }
 

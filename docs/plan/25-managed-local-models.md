@@ -1,6 +1,7 @@
 # 25. Local models through a host Ollama
 
-Status: E11 contract active · 2026-08-31 · supersedes the managed-sidecar contract of 2026-08-26
+Status: accepted v1 host-Ollama scope · V34.4d proof pending · 2026-09-01 · supersedes the
+managed-sidecar contract of 2026-08-26
 
 Kolkrabbi uses the Ollama the user already has. It finds a running server on
 the loopback default, or starts one of its own on a port it chooses when the
@@ -8,6 +9,11 @@ binary is on PATH and nothing is listening. Its models appear in the picker
 with no configuration; Ollama Cloud models the user has pulled appear too, and
 run once the user has signed in. E11 adds bounded, best-effort rows for Cloud
 models not yet pulled, with the exact pull command visible; no pull is implicit.
+
+V34.0c freezes this host-owned shape into v1. Kolkrabbi still does not install a runtime, local
+models remain an explicit selection rather than the zero-config default, and V34.4d must reconcile
+the hardware-fit, lifecycle, and `/localia` claims with executable platform evidence before the
+local-support leaf can close.
 
 ## Contract
 

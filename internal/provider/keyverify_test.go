@@ -19,7 +19,7 @@ func TestOpenRouterKeyVerifierParsesTheCurrentResponse(t *testing.T) {
 	var calls int
 	rt := verifierTransport(func(req *http.Request) (*http.Response, error) {
 		calls++
-		if req.Method != http.MethodGet || req.URL.String() != "https://verify.invalid/api/v1/key" {
+		if req.Method != http.MethodGet || req.URL.String() != DefaultBaseURL+"/key" {
 			t.Errorf("request = %s %s", req.Method, req.URL)
 		}
 		if got := req.Header.Get("Authorization"); got != "Bearer "+verifierCanary {
@@ -35,8 +35,7 @@ func TestOpenRouterKeyVerifierParsesTheCurrentResponse(t *testing.T) {
 	})
 
 	verifier := OpenRouterVerifier{
-		BaseURL: "https://verify.invalid/api/v1/",
-		Client:  &http.Client{Transport: rt},
+		Client: &http.Client{Transport: rt},
 	}
 	got, err := verifier.Verify(context.Background(), secret.New(verifierCanary))
 	if err != nil {
@@ -67,7 +66,6 @@ func TestOpenRouterKeyVerifierClassifiesAndScrubsFailures(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			verifier := OpenRouterVerifier{
-				BaseURL: "https://verify.invalid/api/v1",
 				Client: &http.Client{Transport: verifierTransport(func(*http.Request) (*http.Response, error) {
 					if tt.transport != nil {
 						return nil, tt.transport
@@ -89,7 +87,6 @@ func TestOpenRouterKeyVerifierClassifiesAndScrubsFailures(t *testing.T) {
 func TestOpenRouterKeyVerifierNeverFollowsARedirect(t *testing.T) {
 	var calls int
 	verifier := OpenRouterVerifier{
-		BaseURL: "https://verify.invalid/api/v1",
 		Client: &http.Client{Transport: verifierTransport(func(req *http.Request) (*http.Response, error) {
 			calls++
 			if calls > 1 {
@@ -110,10 +107,34 @@ func TestOpenRouterKeyVerifierNeverFollowsARedirect(t *testing.T) {
 	}
 }
 
+func TestOpenRouterKeyVerifierRefusesAReplacementOriginBeforeNetwork(t *testing.T) {
+	var calls int
+	verifier := OpenRouterVerifier{
+		BaseURL: "https://untrusted.invalid/api/v1",
+		Client: &http.Client{Transport: verifierTransport(func(*http.Request) (*http.Response, error) {
+			calls++
+			return verifierResponse(http.StatusOK, `{"data":{}}`), nil
+		})},
+	}
+
+	_, err := verifier.Verify(context.Background(), secret.New(verifierCanary))
+	if err == nil {
+		t.Fatal("OpenRouter verifier sent a credential to a replacement origin")
+	}
+	if calls != 0 {
+		t.Fatalf("replacement transport was called %d times, want 0", calls)
+	}
+	if !errors.Is(err, ErrKeyVerification) || !errors.Is(err, secret.ErrCredentialOrigin) {
+		t.Fatalf("Verify error = %v, want verification and credential-origin errors", err)
+	}
+	if strings.Contains(err.Error(), verifierCanary) {
+		t.Fatalf("origin refusal leaked the credential: %v", err)
+	}
+}
+
 func TestOpenRouterKeyVerifierHonorsCancellationAndRejectsEmptyValues(t *testing.T) {
 	var calls int
 	verifier := OpenRouterVerifier{
-		BaseURL: "https://verify.invalid/api/v1",
 		Client: &http.Client{Transport: verifierTransport(func(*http.Request) (*http.Response, error) {
 			calls++
 			return verifierResponse(http.StatusOK, `{"data":{}}`), nil

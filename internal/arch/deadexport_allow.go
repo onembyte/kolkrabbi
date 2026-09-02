@@ -26,7 +26,7 @@ var DeadExportAllowlist = map[string]string{
 
 	// ChapterVerifier and FileGateDetector left this list on 2026-08-27: the
 	// owner chose wire-and-drop, so they are now the live path and the ad-hoc
-	// one is deleted. SagaBudget left it the same day, when `kolk saga run`
+	// one is deleted. SagaBudget left it the same day, when the old saga CLI
 	// finally gave the budget guards something to guard — the rot test caught
 	// that, rather than the entry sitting here claiming otherwise.
 

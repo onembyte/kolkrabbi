@@ -50,7 +50,8 @@ exit 3`
 
 func TestLinesProcessDoesNotInheritCredentialEnvironment(t *testing.T) {
 	t.Setenv("OPENROUTER_API_KEY", "lines-process-canary")
-	process, err := StartLinesProcess(context.Background(), "sh", []string{"-c", "printf '%s\\n' \"$OPENROUTER_API_KEY\""})
+	t.Setenv("THIRD_PARTY_API_TOKEN", "unrelated-secret-canary")
+	process, err := StartLinesProcess(context.Background(), "sh", []string{"-c", "printf '%s|%s\\n' \"$OPENROUTER_API_KEY\" \"$THIRD_PARTY_API_TOKEN\""})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,8 +61,87 @@ func TestLinesProcessDoesNotInheritCredentialEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.TrimSpace(string(line)) != "" {
+	if strings.TrimSpace(string(line)) != "|" {
 		t.Fatalf("provider child inherited a credential environment variable: %q", line)
+	}
+}
+
+func TestLinesProcessWithOptionsUsesExplicitWorkspace(t *testing.T) {
+	workspace := t.TempDir()
+	t.Setenv("OPENROUTER_API_KEY", "persistent-process-canary")
+	t.Setenv("THIRD_PARTY_API_TOKEN", "persistent-unrelated-secret-canary")
+	process, err := StartLinesProcessWithOptions(context.Background(), "sh", []string{"-c", "pwd; printf '%s|%s\\n' \"$OPENROUTER_API_KEY\" \"$THIRD_PARTY_API_TOKEN\""}, ProcessOptions{Dir: workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var lines []string
+	for {
+		line, nextErr := process.Next(context.Background())
+		if errors.Is(nextErr, io.EOF) {
+			break
+		}
+		if nextErr != nil {
+			_ = process.Close()
+			t.Fatal(nextErr)
+		}
+		lines = append(lines, string(line))
+	}
+	if err := process.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	wantWorkspace, err := filepath.EvalSymlinks(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lines) != 2 || lines[0] != wantWorkspace {
+		t.Fatalf("persistent process lines = %q, want workspace %q and a second environment line", lines, wantWorkspace)
+	}
+	if lines[1] != "|" {
+		t.Fatalf("persistent process inherited a credential: %q", lines[1])
+	}
+}
+
+func TestLinesProcessWithOptionsRejectsInvalidWorkspace(t *testing.T) {
+	for _, workspace := range []string{"relative/workspace", "/path/that/does/not/exist"} {
+		if _, err := StartLinesProcessWithOptions(context.Background(), "sh", []string{"-c", "exit 0"}, ProcessOptions{Dir: workspace}); err == nil {
+			t.Fatalf("workspace %q was accepted", workspace)
+		}
+	}
+}
+
+func TestRunLinesWithOptionsUsesExplicitWorkspace(t *testing.T) {
+	workspace := t.TempDir()
+	t.Setenv("OPENROUTER_API_KEY", "one-shot-process-canary")
+	t.Setenv("THIRD_PARTY_API_TOKEN", "one-shot-unrelated-secret-canary")
+	var lines []string
+	err := RunLinesWithOptions(context.Background(), "sh", []string{"-c", "pwd; printf '%s|%s\\n' \"$OPENROUTER_API_KEY\" \"$THIRD_PARTY_API_TOKEN\""}, nil, func(line []byte) error {
+		lines = append(lines, string(line))
+		return nil
+	}, ProcessOptions{Dir: workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantWorkspace, err := filepath.EvalSymlinks(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lines) != 2 || lines[0] != wantWorkspace {
+		t.Fatalf("one-shot process lines = %q, want workspace %q and a second environment line", lines, wantWorkspace)
+	}
+	if lines[1] != "|" {
+		t.Fatalf("one-shot process inherited a credential: %q", lines[1])
+	}
+}
+
+func TestRunLinesWithOptionsRejectsInvalidWorkspace(t *testing.T) {
+	for _, workspace := range []string{"relative/workspace", "/path/that/does/not/exist"} {
+		err := RunLinesWithOptions(context.Background(), "sh", []string{"-c", "exit 0"}, nil, func([]byte) error { return nil }, ProcessOptions{Dir: workspace})
+		if err == nil {
+			t.Fatalf("workspace %q was accepted", workspace)
+		}
 	}
 }
 

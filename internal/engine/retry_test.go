@@ -49,8 +49,7 @@ func (r *fakeRecorder) RecordRating(session, turn string, rating int) error {
 
 func newTestAgentInternal(t *testing.T, srv *enginetest.Server, mode string) (*Agent, *bytes.Buffer, *enginetest.FakeSession, *fakeRecorder) {
 	t.Helper()
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := provider.NewCompatibleClient(srv.URL)
 	sess := enginetest.NewFakeSession("s_test", "mock/model")
 	rec := &fakeRecorder{}
 	var out bytes.Buffer

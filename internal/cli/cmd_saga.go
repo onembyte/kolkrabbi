@@ -1,55 +1,19 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/atomicfile"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 )
 
-// runSaga is the top-level `kolk saga` command dispatcher.
-func (a *app) runSaga(ctx context.Context, args []string) error {
-	if len(args) == 0 {
-		return usagef("usage: kolk saga <goal | run | resume | status | stop | rewind>")
-	}
-
-	switch args[0] {
-	case "status":
-		return a.printSagaStatus()
-	case "resume":
-		return a.resumeSaga(ctx)
-	case "stop":
-		return a.stopSaga()
-	case "rewind":
-		return a.rewindSaga()
-	case "run":
-		return a.runSagaLoop(ctx)
-	default:
-		// Records the goal and stops, deliberately. The napkin test in
-		// docs/plan/10-saga-loop.md shows this verb starting the run, and it
-		// was tried: setting a goal then needs a model, a key and a network,
-		// and with no key it hangs in catalog discovery rather than refusing.
-		// Recording an intention is a cheap local act and should stay one.
-		// `kolk saga resume` starts the work.
-		goal := strings.Join(args, " ")
-		if err := a.saveSagaGoal(goal); err != nil {
-			return err
-		}
-		fmt.Fprintf(a.stdout, "saga goal set: %s\n", goal)
-		fmt.Fprintln(a.stdout, "start it with `kolk saga resume`")
-		return nil
-	}
-}
-
 // sagaArtifactPath resolves SAGA.md for the project the user is working on,
-// not for whichever directory they happen to be standing in. Running
-// `kolk saga` from a package directory used to leave a stray SAGA.md there and
-// hide the real one from `kolk saga status`.
+// not for whichever directory they happen to be standing in. An inline SAGA
+// prompt from a package directory must not leave a stray artifact there or
+// hide the real one from the project log.
 func sagaArtifactPath() (string, error) {
 	start, err := os.Getwd()
 	if err != nil {
@@ -127,78 +91,18 @@ func (a *app) loadSaga() (*engine.SagaState, string, bool, error) {
 	return state, path, true, nil
 }
 
-// resumeSaga continues a saga from its artifact.
-//
-// docs/plan/10-saga-loop.md calls SAGA.md "the authoritative resume anchor
-// (`kolk saga resume`)", so this is the spec's verb for continuing and `run` is
-// the alias. Both work whatever chapters are outstanding — the loop is
-// idempotent, so starting and resuming are the same act.
-//
-// Until S10.6 this printed "the saga loop is not wired to this command yet".
-// S10.6 wired it and nothing walked back to the sentence saying otherwise,
-// which is precisely the failure gate 8 exists to catch — written the day
-// before, and broken by the next checkpoint.
-func (a *app) resumeSaga(ctx context.Context) error {
-	state, _, found, err := a.loadSaga()
-	if err != nil {
-		return err
-	}
-	if found && state.Goal != "" {
-		fmt.Fprintf(a.stdout, "saga %q is %s at chapter %d of %d\n",
-			state.Goal, state.Status, state.ActiveChapter, state.MaxChapters)
-	}
-	return a.runSagaLoop(ctx)
-}
-
-func (a *app) rewindSaga() error {
-	state, _, found, err := a.loadSaga()
-	if err != nil {
-		return err
-	}
-	if !found || len(state.Chapters) == 0 {
-		fmt.Fprintln(a.stdout, "no saga chapters to rewind")
-		if found {
-			fmt.Fprintf(a.stdout, "saga %q has not recorded a chapter yet\n", state.Goal)
-		}
-		return nil
-	}
-	last := state.Chapters[len(state.Chapters)-1]
-	fmt.Fprintf(a.stdout, "saga %q would rewind chapter %d (%s, %s)\n",
-		state.Goal, last.Number, last.Title, last.Status)
-	fmt.Fprintln(a.stdout, "rewinding is not wired to this command yet")
-	return nil
-}
-
-func (a *app) stopSaga() error {
-	state, path, found, err := a.loadSaga()
-	if err != nil {
-		return err
-	}
-	if !found {
-		fmt.Fprintln(a.stdout, "no running saga to stop")
-		return nil
-	}
-	if state.Status == "stopped" {
-		fmt.Fprintf(a.stdout, "saga %q is already stopped\n", state.Goal)
-		return nil
-	}
-	state.Status = "stopped"
-	if err := atomicfile.Write(path, []byte(engine.FormatSagaMarkdown(state)), 0o600); err != nil {
-		return fmt.Errorf("saga: record the stop: %w", err)
-	}
-	fmt.Fprintf(a.stdout, "saga %q stopped at chapter %d\n", state.Goal, state.ActiveChapter)
-	return nil
-}
-
 func (a *app) saveSagaGoal(goal string) error {
 	path, err := sagaArtifactPath()
 	if err != nil {
 		return err
 	}
+	if err := requireGitRepo(filepath.Dir(path)); err != nil {
+		return err
+	}
 	state := &engine.SagaState{
 		Goal:          goal,
 		Started:       time.Now(),
-		Status:        "in-progress",
+		Status:        engine.SagaStatusInProgress,
 		ActiveChapter: 1,
 		MaxChapters:   engine.DefaultMaxChapters,
 		CostLimit:     engine.DefaultCostLimit,
@@ -215,21 +119,4 @@ func (a *app) saveSagaGoal(goal string) error {
 		return fmt.Errorf("saga: read SAGA.md: %w", readErr)
 	}
 	return atomicfile.Write(path, []byte(engine.FormatSagaMarkdown(state)), 0o600)
-}
-
-func (a *app) printSagaStatus() error {
-	path, err := sagaArtifactPath()
-	if err != nil {
-		return err
-	}
-	body, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		fmt.Fprintln(a.stdout, "no active saga")
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("saga status: read SAGA.md: %w", err)
-	}
-	_, err = a.stdout.Write(body)
-	return err
 }

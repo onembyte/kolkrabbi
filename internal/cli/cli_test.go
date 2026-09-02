@@ -304,6 +304,7 @@ func TestUnknownWordIsAPromptNotACommand(t *testing.T) {
 
 func TestFirstRunWithoutAKeyIsExactAndReadOnly(t *testing.T) {
 	d := isolateHome(t)
+	t.Setenv("OPENROUTER_BASE_URL", provider.DefaultBaseURL)
 	a, out, errOut := newTestApp(t, "")
 
 	code := a.main(context.Background(), nil)

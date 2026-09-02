@@ -38,8 +38,7 @@ func TestFastLaneChatExecutesIsolatedWithoutTools(t *testing.T) {
 	)
 	defer srv.Close()
 
-	client := provider.NewClient("test-key")
-	client.BaseURL = srv.URL
+	client := provider.NewCompatibleClient(srv.URL)
 
 	ag := engine.New(engine.Options{
 		Client: client,

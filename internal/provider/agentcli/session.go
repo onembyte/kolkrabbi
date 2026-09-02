@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/shell"
 )
 
 type lineProcess interface {
@@ -23,6 +24,7 @@ type lineProcess interface {
 }
 
 type startLineProcess func(context.Context, string, []string) (lineProcess, error)
+type startLineProcessWithOptions func(context.Context, string, []string, shell.ProcessOptions) (lineProcess, error)
 
 // ClaudeSession owns one persistent provider CLI process for one Kolkrabbi
 // session. Turns are serialized because the provider stream is ordered.
@@ -113,6 +115,20 @@ func newClaudeSession(ctx context.Context, model, mode, effort string, start sta
 // one (--resume).
 func BuildClaudeSessionArgs(model, mode, effort, handle string, resume bool) ([]string, error) {
 	return claudeArgs(mode, model, effort, handle, resume, true)
+}
+
+// BuildClaudeSessionArgsWithOptions adds explicit additional roots to the
+// persistent provider command. The primary workspace is applied to the child
+// process by the backend, not guessed from the parent process's directory.
+func BuildClaudeSessionArgsWithOptions(model, mode, effort, handle string, resume bool, options ExecutionOptions) ([]string, error) {
+	options, err := normalizeExecutionOptions(options)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateClaudeExecutionOptions(options); err != nil {
+		return nil, err
+	}
+	return claudeArgsWithOptions(mode, model, effort, handle, resume, true, options)
 }
 
 // resyncGrace bounds how long Kolkrabbi waits for the tail of an interrupted

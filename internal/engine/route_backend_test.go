@@ -104,7 +104,7 @@ func TestARoutedTurnReachesItsBackendWithTheWireID(t *testing.T) {
 func TestMovingToMeteredLeavesRoutesAlone(t *testing.T) {
 	ollama := &routeBackend{name: "ollama"}
 	a := routedAgent(&routeBackend{name: "plan"}, map[string]ChatBackend{"ollama": ollama})
-	a.Client = provider.NewClient("k")
+	a.Client = provider.NewCompatibleClient("http://compatible.invalid/v1")
 	a.moveToMetered("openai/gpt-5.6-luna")
 
 	backend, _, err := a.backendFor("ollama/qwen2.5-coder:7b")

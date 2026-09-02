@@ -1548,7 +1548,7 @@ The rule: **item 6 owns exactly one axis — reach.** Everything else it merely 
 | **rounds** | how long may one turn loop? | **item 7** | `roundsFor(effort)` → 8/16/30/60 | carry `Mode.Rounds` (`0` = derive); `chat` pins 4 as a runaway guard, `task` pins 12 |
 | **model** | which model? | **item 8** | slots + tiers + the pin | carry `Mode.Slot`. An explicit `/model`/`-m` **pin** beats every slot, tier and computed default; nothing computed or learned ever overrides it. |
 | **orchestration** | how is fan-out executed? | **item 14** | `internal/orchestrator` | provide the `task` mode, `engine.Runner`, the per-turn width counter, and `Interactive:false` so subagents auto-deny instead of deadlocking on one stdin |
-| **longitudinal progress** | one goal over many chapters | **item 10** | `internal/saga` | provide a **hidden** `chapter` mode whose tool set and `Mode.Perm` floor *are* the unattended allow-list, and exempt hidden modes from the reserved-verb check so `saga` can stay a top-level verb |
+| **longitudinal progress** | one goal over many chapters | **item 10** | `internal/saga` | provide a **hidden** SAGA posture selected by an inline `/saga` marker; its tool set and permission floor govern the bounded workflow without exposing a separate top-level verb |
 | **rendering** | what does it look like? | **item 11** | `render`, `tui`, themes | provide `Style{Glyph, Hue}` and the field list in §6; own no pixel |
 | **extensibility** | user-defined modes, MCP tools | **item 16** | `modes/*.md`, `mcp/<server>/*` | provide the record and one trailing-`*` glob; ship the loader off |
 

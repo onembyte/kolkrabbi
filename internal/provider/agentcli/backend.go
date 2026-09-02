@@ -31,9 +31,14 @@ type ClaudeBackend struct {
 	started bool
 	run     lineRunner
 	start   startLineProcess
-	mu      sync.Mutex
-	session *ClaudeSession
-	release context.CancelFunc
+	// startWithOptions is an injectable seam for capability-aware process
+	// startup. The legacy start seam remains supported by tests and callers
+	// that deliberately use the default process context.
+	startWithOptions startLineProcessWithOptions
+	execution        ExecutionOptions
+	mu               sync.Mutex
+	session          *ClaudeSession
+	release          context.CancelFunc
 }
 
 // NewClaudeBackendFromHandle creates a backend that resumes one vendor
@@ -41,8 +46,21 @@ type ClaudeBackend struct {
 // minted a name for. The mode is part of the spawn contract: chat runs the
 // vendor with no tool in context, code runs the vendor's own tool loop.
 func NewClaudeBackendFromHandle(model, mode, effort, handle string, resume bool) (*ClaudeBackend, error) {
+	return NewClaudeBackendFromHandleWithOptions(model, mode, effort, handle, resume, ExecutionOptions{})
+}
+
+// NewClaudeBackendFromHandleWithOptions creates a backend with an explicit
+// delegated-process capability envelope.
+func NewClaudeBackendFromHandleWithOptions(model, mode, effort, handle string, resume bool, options ExecutionOptions) (*ClaudeBackend, error) {
 	// Refusing here, before any process exists, is what "says why" means.
 	if _, err := claudeModeFlags(mode); err != nil {
+		return nil, err
+	}
+	options, err := normalizeExecutionOptions(options)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateClaudeExecutionOptions(options); err != nil {
 		return nil, err
 	}
 	return &ClaudeBackend{
@@ -54,6 +72,7 @@ func NewClaudeBackendFromHandle(model, mode, effort, handle string, resume bool)
 		start: func(ctx context.Context, executable string, args []string) (lineProcess, error) {
 			return shell.StartLinesProcess(ctx, executable, args)
 		},
+		execution: options,
 	}, nil
 }
 
@@ -84,7 +103,12 @@ func (b *ClaudeBackend) StreamChatObserved(ctx context.Context, model string, me
 	if err != nil {
 		return provider.Message{}, provider.Meta{Model: model}, err
 	}
-	invocation, err := BuildClaudeInvocation(model, b.Mode, b.Effort, prompt)
+	var invocation ClaudeInvocation
+	if executionOptionsEmpty(b.execution) {
+		invocation, err = BuildClaudeInvocation(model, b.Mode, b.Effort, prompt)
+	} else {
+		invocation, err = BuildClaudeInvocationWithOptions(model, b.Mode, b.Effort, prompt, b.execution)
+	}
 	if err != nil {
 		return provider.Message{}, provider.Meta{Model: model}, err
 	}
@@ -204,12 +228,19 @@ func (b *ClaudeBackend) getSession(ctx context.Context) (*ClaudeSession, error) 
 		b.handle = NewVendorHandle()
 	}
 	resume := b.started || b.resume
-	args, err := BuildClaudeSessionArgs(b.Model, b.Mode, b.Effort, b.handle, resume)
+	args, err := BuildClaudeSessionArgsWithOptions(b.Model, b.Mode, b.Effort, b.handle, resume, b.execution)
 	if err != nil {
 		release()
 		return nil, err
 	}
-	process, err := b.start(sessionContext, "claude", args)
+	var process lineProcess
+	if b.startWithOptions != nil {
+		process, err = b.startWithOptions(sessionContext, "claude", args, shell.ProcessOptions{Dir: b.execution.Workspace})
+	} else if b.execution.Workspace != "" {
+		process, err = shell.StartLinesProcessWithOptions(sessionContext, "claude", args, shell.ProcessOptions{Dir: b.execution.Workspace})
+	} else {
+		process, err = b.start(sessionContext, "claude", args)
+	}
 	if err != nil {
 		release()
 		return nil, err

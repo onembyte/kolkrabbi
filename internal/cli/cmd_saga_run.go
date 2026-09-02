@@ -11,19 +11,23 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/shell"
 )
 
-// runSagaLoop works the chapters in SAGA.md until a budget, the plan, or the
-// user stops it.
+// runSagaLoop works one bounded chapter in SAGA.md with the current session
+// agent and then stops at the wake boundary. The next ordinary prompt carrying
+// /saga is the next wake.
 //
 // This is the half of the saga that was specified and never built: the state
 // machine, quality gates, budget guards and artifact writer all existed and
 // nothing walked the chapters, so none of it could run.
-func (a *app) runSagaLoop(ctx context.Context) error {
+func (a *app) runSagaLoop(ctx context.Context, agent *engine.Agent) error {
+	if agent == nil {
+		return fmt.Errorf("saga: current agent is required")
+	}
 	state, path, found, err := a.loadSaga()
 	if err != nil {
 		return err
 	}
 	if !found {
-		fmt.Fprintln(a.stdout, "no saga to resume. `kolk saga <goal>` starts one.")
+		fmt.Fprintln(a.stdout, "no active SAGA plan; include /saga in a request to start one.")
 		return nil
 	}
 	// No early return for an empty chapter list any more: with a planner, no
@@ -42,15 +46,6 @@ func (a *app) runSagaLoop(ctx context.Context) error {
 		return err
 	}
 
-	agent, err := a.newAgent(ctx, &options{})
-	if err != nil {
-		return err
-	}
-	defer func() { _ = agent.Close() }()
-	// A saga can run for an hour; the catalog refresh newAgent may have started
-	// is joined here like everywhere else an agent is built.
-	defer a.joinBackground()
-
 	runner := &engine.SagaRunner{
 		Planner:  engine.AgentPlanner{Agent: agent},
 		Worker:   engine.AgentWorker{Agent: agent},
@@ -65,12 +60,20 @@ func (a *app) runSagaLoop(ctx context.Context) error {
 		Out:   a.stdout,
 	}
 
-	reason, runErr := runner.Run(ctx, repoDir, state)
+	reason, runErr := runner.RunWake(ctx, repoDir, state)
 	if runErr != nil {
+		// The failed chapter is already persisted by RunChapter. Keep the
+		// non-zero error for automation, but make the recovery command visible
+		// instead of leaving a user with a bare provider or gate failure.
+		fmt.Fprintln(a.stdout, sagaWakeRetryMessage(state.Goal))
 		return runErr
 	}
 	fmt.Fprintln(a.stdout, sagaStopMessage(reason, state))
 	return nil
+}
+
+func sagaWakeRetryMessage(goal string) string {
+	return fmt.Sprintf("saga %q: wake stopped before completion; include /saga in your next request to retry.", goal)
 }
 
 // hasPendingChapter reports whether anything is left to attempt.
@@ -108,6 +111,8 @@ func sagaStopMessage(reason engine.StopReason, state *engine.SagaState) string {
 		return fmt.Sprintf("saga %q: every acceptance criterion is met.", state.Goal)
 	case engine.StopNoWork:
 		return fmt.Sprintf("saga %q: no chapter left to work. Add chapters to SAGA.md to continue.", state.Goal)
+	case engine.StopWake:
+		return fmt.Sprintf("saga %q: wake complete at chapter %d. Include /saga in your next request for the next chapter.", state.Goal, state.ActiveChapter)
 	case engine.StopMaxChapters:
 		return fmt.Sprintf("saga %q: stopped at the chapter limit (%d).", state.Goal, state.MaxChapters)
 	case engine.StopCostLimit:

@@ -47,7 +47,7 @@ var slashCommandTable = []slashCommand{
 	{"changes", "", "list files modified by this session"},
 	{"diff", "[path]", "show what this session changed, as a diff"},
 	{"plan", "[off]", "read-only: explore and propose, without writing or running anything"},
-	{"saga", "[goal | run | resume | status | stop | rewind]", "careful-progression autonomous loop"},
+	{"saga", "inline marker", "mark this normal request for careful, checkpointed progression"},
 	{"devices", "[revoke <id>]", "list paired devices, or revoke one without stopping the session"},
 	{"undo", "[task <n>]", "take back the last turn, or one subagent's file changes alone"},
 	{"rewind", "", "restore the last turn's files only, leaving the conversation"},
@@ -510,9 +510,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			return true
 		}
 	case "/saga":
-		if err := a.runSaga(ctx, strings.Fields(arg)); err != nil {
-			fmt.Fprintf(a.stderr, "saga error: %v\n", err)
-		}
+		fmt.Fprintln(a.stdout, "use /saga inside your request, for example: build an ecommerce web app /saga")
 	default:
 		// A markdown command is not a built-in and cannot shadow one: this is
 		// reached only after every built-in has been tried. It expands to a

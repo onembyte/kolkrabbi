@@ -41,6 +41,67 @@ func TestVisibleResponseLabelUsesTheActiveKolkMode(t *testing.T) {
 	}
 }
 
+func TestSagaPostureIsAnInternalSystemDirective(t *testing.T) {
+	defaultAgent := New(Options{Mode: ModeCode, Sess: enginetest.NewFakeSession("s_1", "mock/model")})
+	sagaAgent := New(Options{Mode: ModeCode, Posture: PostureSaga, Sess: enginetest.NewFakeSession("s_2", "mock/model")})
+
+	defaultPrompt := defaultAgent.systemPrompt(ModeCode)
+	sagaPrompt := sagaAgent.systemPrompt(ModeCode)
+	if strings.Contains(defaultPrompt, sagaPostureInstruction) {
+		t.Fatal("default system prompt contains the SAGA directive")
+	}
+	if !strings.Contains(sagaPrompt, sagaPostureInstruction) {
+		t.Fatal("SAGA system prompt is missing the internal posture directive")
+	}
+	if defaultPrompt == sagaPrompt {
+		t.Fatal("SAGA posture did not change system construction")
+	}
+
+	chapter := chapterPrompt(Chapter{Number: 1, Title: "inspect the repository"}, "improve the project")
+	if strings.Contains(chapter, sagaPostureInstruction) {
+		t.Fatal("SAGA directive was copied into the durable user/chapter prompt")
+	}
+}
+
+func TestDefaultPosturePreservesTheOrdinarySystemPrompt(t *testing.T) {
+	withoutPosture := New(Options{Mode: ModeCode, Sess: enginetest.NewFakeSession("s_1", "mock/model")})
+	withDefaultPosture := New(Options{Mode: ModeCode, Posture: Posture(""), Sess: enginetest.NewFakeSession("s_2", "mock/model")})
+	if got, want := withDefaultPosture.systemPrompt(ModeCode), withoutPosture.systemPrompt(ModeCode); got != want {
+		t.Fatalf("default posture changed ordinary system prompt\n got: %q\nwant: %q", got, want)
+	}
+}
+
+func TestPostureCanEnterAndLeaveSAGAOnTheCurrentSession(t *testing.T) {
+	sess := enginetest.NewFakeSession("s_posture", "mock/model")
+	ag := New(Options{Mode: ModeCode, Sess: sess})
+	ordinary := sess.GetMessages()[0].Content
+
+	if err := ag.SetPosture(PostureSaga); err != nil {
+		t.Fatalf("SetPosture(SAGA): %v", err)
+	}
+	saga := sess.GetMessages()[0].Content
+	if !strings.Contains(saga, sagaPostureInstruction) {
+		t.Fatal("entering SAGA posture did not update the current session system message")
+	}
+	if got := strings.Count(saga, sagaPostureInstruction); got != 1 {
+		t.Fatalf("SAGA directive count = %d, want one", got)
+	}
+
+	if err := ag.SetPosture(Posture("")); err != nil {
+		t.Fatalf("SetPosture(default): %v", err)
+	}
+	if got := sess.GetMessages()[0].Content; got != ordinary {
+		t.Fatalf("leaving SAGA posture did not restore the ordinary system message\n got: %q\nwant: %q", got, ordinary)
+	}
+
+	if err := ag.SetPosture(Posture("unknown")); err == nil {
+		t.Fatal("unknown posture was accepted")
+	}
+	if got := ag.Posture; got != Posture("") {
+		t.Fatalf("rejecting unknown posture changed current posture to %q", got)
+	}
+}
+
 func TestToolCallDescriptionsAreReadableAndNeverExposeRawPayloads(t *testing.T) {
 	tests := []struct {
 		name string

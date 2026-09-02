@@ -2,8 +2,21 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"path/filepath"
+	"strings"
 )
+
+// SubagentCapabilities is the explicit execution envelope handed to one
+// delegated provider. The engine does not discover directories or credentials
+// itself; the host resolves and verifies them before a child is opened.
+type SubagentCapabilities struct {
+	Workspace      string
+	AdditionalDirs []string
+	NetworkAccess  bool
+	Provider       string
+}
 
 // SubagentBackend opens a provider for one task.
 //
@@ -22,6 +35,40 @@ import (
 // represent.
 type SubagentBackend func(ctx context.Context, model, mode, effort string) (ChatBackend, error)
 
+// SubagentBackendWithCapabilities is the capability-aware form of
+// SubagentBackend. It is separate so existing embedders and test doubles keep
+// compiling while hosts migrate to an explicit child-process envelope.
+type SubagentBackendWithCapabilities func(ctx context.Context, model, mode, effort string, capabilities SubagentCapabilities) (ChatBackend, error)
+
+func (a *Agent) subagentCapabilities() SubagentCapabilities {
+	capabilities := a.SubagentCapabilities
+	if capabilities.Workspace == "" {
+		capabilities.Workspace = a.Root
+	}
+	capabilities.AdditionalDirs = append([]string(nil), capabilities.AdditionalDirs...)
+	return capabilities
+}
+
+func subagentCapabilitySummary(capabilities SubagentCapabilities) string {
+	workspace := strings.TrimSpace(capabilities.Workspace)
+	if workspace == "" {
+		workspace = "unspecified"
+	}
+	network := "disabled"
+	if capabilities.NetworkAccess {
+		network = "enabled"
+	}
+	return fmt.Sprintf("workspace=%s network=%s", workspace, network)
+}
+
+func (a *Agent) subagentOpeningStep(model string, capabilities SubagentCapabilities) string {
+	step := "opening " + model
+	if a.SubagentBackendWithCapabilities != nil {
+		step += "; " + subagentCapabilitySummary(capabilities)
+	}
+	return step
+}
+
 // openSubagentBackend gives one task its own provider, and a function to
 // release it.
 //
@@ -29,6 +76,18 @@ type SubagentBackend func(ctx context.Context, model, mode, effort string) (Chat
 // Closer, and a failed open all return one that does nothing. That matters
 // because the caller defers it before it can know which case it got.
 func (a *Agent) openSubagentBackend(ctx context.Context, model, effort string) (ChatBackend, func(), error) {
+	if a.SubagentBackendWithCapabilities != nil {
+		capabilities := a.subagentCapabilities()
+		if strings.TrimSpace(capabilities.Workspace) == "" || !filepath.IsAbs(capabilities.Workspace) {
+			return nil, func() {}, fmt.Errorf("subagent workspace is not a verified absolute directory")
+		}
+		backend, err := a.SubagentBackendWithCapabilities(ctx, model, ModeCode, effort, capabilities)
+		if err != nil {
+			return nil, func() {}, err
+		}
+		owned, release := releaseSubagentBackend(backend)
+		return owned, release, nil
+	}
 	if a.SubagentBackend == nil {
 		return nil, func() {}, nil
 	}
@@ -43,6 +102,14 @@ func (a *Agent) openSubagentBackend(ctx context.Context, model, effort string) (
 		return backend, func() {}, nil
 	}
 	return backend, func() { _ = closer.Close() }, nil
+}
+
+func releaseSubagentBackend(backend ChatBackend) (ChatBackend, func()) {
+	closer, ok := backend.(io.Closer)
+	if !ok {
+		return backend, func() {}
+	}
+	return backend, func() { _ = closer.Close() }
 }
 
 // pinnedBackend is a provider opened for one model.

@@ -28,13 +28,14 @@ import (
 // Prompt is fed on stdin: an argv prompt would publish every request to the
 // process table for the length of the turn.
 type CodexInvocation struct {
-	Args   []string
-	Prompt string
+	Args           []string
+	Prompt         string
+	ProcessOptions shell.ProcessOptions
 }
 
 // RunCodex translates one provider-owned codex process into safe events.
 func RunCodex(ctx context.Context, invocation CodexInvocation, onEvent func(Event)) error {
-	return runCodex(ctx, invocation, shell.RunLines, onEvent)
+	return runCodexWithOptions(ctx, invocation, shell.RunLinesWithOptions, invocation.ProcessOptions, onEvent)
 }
 
 func runCodex(ctx context.Context, invocation CodexInvocation, run lineRunner, onEvent func(Event)) error {
@@ -51,6 +52,22 @@ func runCodex(ctx context.Context, invocation CodexInvocation, run lineRunner, o
 		}
 		return nil
 	})
+}
+
+func runCodexWithOptions(ctx context.Context, invocation CodexInvocation, run lineRunnerWithOptions, options shell.ProcessOptions, onEvent func(Event)) error {
+	if onEvent == nil {
+		return fmt.Errorf("codex event handler is required")
+	}
+	return run(ctx, "codex", invocation.Args, strings.NewReader(invocation.Prompt+"\n"), func(line []byte) error {
+		events, err := TranslateCodex(line)
+		if err != nil {
+			return err
+		}
+		for _, event := range events {
+			onEvent(event)
+		}
+		return nil
+	}, options)
 }
 
 // codexEfforts is the closed set the vendor accepts through
@@ -119,6 +136,17 @@ func codexModelAlias(model string) string {
 // subcommand; an empty one opens a thread the vendor names itself. The prompt
 // rides on stdin, so a long request never sits in the process table.
 func BuildCodexInvocation(model, mode, effort, handle string, resume bool, prompt string) (CodexInvocation, error) {
+	return BuildCodexInvocationWithOptions(model, mode, effort, handle, resume, prompt, ExecutionOptions{})
+}
+
+// BuildCodexInvocationWithOptions adds the explicit workspace and the
+// provider-native network capability to a Codex invocation. Network is never
+// inferred from the environment or enabled by the legacy builder.
+func BuildCodexInvocationWithOptions(model, mode, effort, handle string, resume bool, prompt string, options ExecutionOptions) (CodexInvocation, error) {
+	options, err := normalizeExecutionOptions(options)
+	if err != nil {
+		return CodexInvocation{}, err
+	}
 	sandbox, err := codexModeSandbox(mode)
 	if err != nil {
 		return CodexInvocation{}, err
@@ -134,7 +162,17 @@ func BuildCodexInvocation(model, mode, effort, handle string, resume bool, promp
 	// sandbox] [-m model] [-c model_reasoning_effort=…] [resume <id>]` with the
 	// prompt on stdin. --skip-git-repo-check is what lets kolk work outside a
 	// git repository without the vendor refusing to start.
-	args := []string{"exec", "--json", "--skip-git-repo-check", "-s", sandbox}
+	args := []string{"exec", "--json", "--skip-git-repo-check"}
+	if options.Workspace != "" {
+		args = append(args, "--cd", options.Workspace)
+	}
+	for _, directory := range options.AdditionalDirs {
+		args = append(args, "--add-dir", directory)
+	}
+	args = append(args, "-s", sandbox)
+	if options.NetworkAccess {
+		args = append(args, "-c", "sandbox_workspace_write.network_access=true")
+	}
 	if model = codexModelAlias(model); model != "" {
 		args = append(args, "-m", model)
 	}
@@ -144,7 +182,7 @@ func BuildCodexInvocation(model, mode, effort, handle string, resume bool, promp
 	if handle != "" && resume {
 		args = append(args, "resume", handle)
 	}
-	return CodexInvocation{Args: args, Prompt: prompt}, nil
+	return CodexInvocation{Args: args, Prompt: prompt, ProcessOptions: shell.ProcessOptions{Dir: options.Workspace}}, nil
 }
 
 // TranslateCodex converts one codex JSONL frame into allow-listed events. Non
@@ -334,9 +372,10 @@ type CodexBackend struct {
 	// has minted one. An empty one opens a thread; every later turn resumes
 	// the one reported by thread.started. kolk mints nothing here, because
 	// codex names its own threads and accepts no claim on them.
-	thread string
-	run    lineRunner
-	mu     sync.Mutex
+	thread    string
+	execution ExecutionOptions
+	run       lineRunner
+	mu        sync.Mutex
 }
 
 // CodexKnowsModel reports whether this adapter can spawn a model.
@@ -363,7 +402,17 @@ var codexRungs = []string{"gpt-5.6-pro", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.
 // NewCodexBackendFromHandle creates a backend that resumes one vendor thread
 // (resume true, handle non-empty) or opens a brand-new one the vendor names.
 func NewCodexBackendFromHandle(model, mode, effort, handle string, resume bool) (*CodexBackend, error) {
+	return NewCodexBackendFromHandleWithOptions(model, mode, effort, handle, resume, ExecutionOptions{})
+}
+
+// NewCodexBackendFromHandleWithOptions creates a backend with an explicit
+// delegated-process capability envelope.
+func NewCodexBackendFromHandleWithOptions(model, mode, effort, handle string, resume bool, options ExecutionOptions) (*CodexBackend, error) {
 	if _, err := codexModeSandbox(mode); err != nil {
+		return nil, err
+	}
+	options, err := normalizeExecutionOptions(options)
+	if err != nil {
 		return nil, err
 	}
 	effort = codexProviderEffort(effort)
@@ -371,10 +420,11 @@ func NewCodexBackendFromHandle(model, mode, effort, handle string, resume bool) 
 		return nil, fmt.Errorf("codex has no %q effort level; use low, medium, high or xhigh", effort)
 	}
 	return &CodexBackend{
-		Model:  model,
-		Mode:   strings.ToLower(strings.TrimSpace(mode)),
-		Effort: effort,
-		thread: strings.TrimSpace(handle),
+		Model:     model,
+		Mode:      strings.ToLower(strings.TrimSpace(mode)),
+		Effort:    effort,
+		thread:    strings.TrimSpace(handle),
+		execution: options,
 	}, nil
 }
 
@@ -402,7 +452,12 @@ func (b *CodexBackend) StreamChatObserved(ctx context.Context, model string, mes
 		return provider.Message{}, provider.Meta{Model: model}, err
 	}
 	b.mu.Lock()
-	invocation, err := BuildCodexInvocation(model, b.Mode, b.Effort, b.thread, b.thread != "", prompt)
+	var invocation CodexInvocation
+	if executionOptionsEmpty(b.execution) {
+		invocation, err = BuildCodexInvocation(model, b.Mode, b.Effort, b.thread, b.thread != "", prompt)
+	} else {
+		invocation, err = BuildCodexInvocationWithOptions(model, b.Mode, b.Effort, b.thread, b.thread != "", prompt, b.execution)
+	}
 	b.mu.Unlock()
 	if err != nil {
 		return provider.Message{}, provider.Meta{Model: model}, err

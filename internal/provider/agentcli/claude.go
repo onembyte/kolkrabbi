@@ -15,15 +15,17 @@ import (
 // ClaudeInvocation is the safe argv envelope for one Claude subscription turn.
 // Prompt is supplied separately by the caller through stdin.
 type ClaudeInvocation struct {
-	Args   []string
-	Prompt string
+	Args           []string
+	Prompt         string
+	ProcessOptions shell.ProcessOptions
 }
 
 type lineRunner func(context.Context, string, []string, io.Reader, func([]byte) error) error
+type lineRunnerWithOptions func(context.Context, string, []string, io.Reader, func([]byte) error, shell.ProcessOptions) error
 
 // RunClaude translates one provider-owned Claude process into safe events.
 func RunClaude(ctx context.Context, invocation ClaudeInvocation, onEvent func(Event)) error {
-	return runClaude(ctx, invocation, shell.RunLines, onEvent)
+	return runClaudeWithOptions(ctx, invocation, shell.RunLinesWithOptions, invocation.ProcessOptions, onEvent)
 }
 
 func runClaude(ctx context.Context, invocation ClaudeInvocation, run lineRunner, onEvent func(Event)) error {
@@ -42,17 +44,47 @@ func runClaude(ctx context.Context, invocation ClaudeInvocation, run lineRunner,
 	})
 }
 
+func runClaudeWithOptions(ctx context.Context, invocation ClaudeInvocation, run lineRunnerWithOptions, options shell.ProcessOptions, onEvent func(Event)) error {
+	if onEvent == nil {
+		return fmt.Errorf("claude event handler is required")
+	}
+	return run(ctx, "claude", invocation.Args, strings.NewReader(invocation.Prompt+"\n"), func(line []byte) error {
+		events, err := Translate(line)
+		if err != nil {
+			return err
+		}
+		for _, event := range events {
+			onEvent(event)
+		}
+		return nil
+	}, options)
+}
+
 // BuildClaudeInvocation creates the documented non-interactive Claude CLI
 // invocation. The provider CLI remains responsible for authentication.
 func BuildClaudeInvocation(model, mode, effort, prompt string) (ClaudeInvocation, error) {
+	return BuildClaudeInvocationWithOptions(model, mode, effort, prompt, ExecutionOptions{})
+}
+
+// BuildClaudeInvocationWithOptions adds the bounded execution envelope to a
+// one-shot provider invocation. The provider remains responsible for its own
+// authentication and web tools.
+func BuildClaudeInvocationWithOptions(model, mode, effort, prompt string, options ExecutionOptions) (ClaudeInvocation, error) {
 	if strings.TrimSpace(prompt) == "" {
 		return ClaudeInvocation{}, fmt.Errorf("claude prompt cannot be empty")
 	}
-	args, err := claudeArgs(mode, model, effort, "", false, false)
+	options, err := normalizeExecutionOptions(options)
 	if err != nil {
 		return ClaudeInvocation{}, err
 	}
-	return ClaudeInvocation{Args: args, Prompt: prompt}, nil
+	if err := validateClaudeExecutionOptions(options); err != nil {
+		return ClaudeInvocation{}, err
+	}
+	args, err := claudeArgsWithOptions(mode, model, effort, "", false, false, options)
+	if err != nil {
+		return ClaudeInvocation{}, err
+	}
+	return ClaudeInvocation{Args: args, Prompt: prompt, ProcessOptions: shell.ProcessOptions{Dir: options.Workspace}}, nil
 }
 
 // claudeCodeTools is the vendor tool set every session runs with, in code mode
@@ -162,6 +194,10 @@ func NewVendorHandle() string {
 // (--resume); the vendor replays no flag vector on resume, so the model and
 // effort flags are re-passed alongside it every time.
 func claudeArgs(mode, model, effort, handle string, resume, streamOnly bool) ([]string, error) {
+	return claudeArgsWithOptions(mode, model, effort, handle, resume, streamOnly, ExecutionOptions{})
+}
+
+func claudeArgsWithOptions(mode, model, effort, handle string, resume, streamOnly bool, options ExecutionOptions) ([]string, error) {
 	effort = strings.ToLower(strings.TrimSpace(effort))
 	if !ClaudeEffortValid(effort) {
 		return nil, fmt.Errorf("claude has no %q effort level; use low, medium, high, xhigh or max", effort)
@@ -175,6 +211,9 @@ func claudeArgs(mode, model, effort, handle string, resume, streamOnly bool) ([]
 		args = append(args, "--input-format", "stream-json")
 	}
 	args = append(args, "--safe-mode", "--setting-sources", "")
+	for _, directory := range options.AdditionalDirs {
+		args = append(args, "--add-dir", directory)
+	}
 	// One comma-separated string per variadic flag: the vendor's variadic
 	// flags consume every following bare token, so a second bare token would
 	// register as a tool name, not a flag value.

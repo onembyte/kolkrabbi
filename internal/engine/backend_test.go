@@ -22,7 +22,7 @@ func TestNewUsesConfiguredChatBackend(t *testing.T) {
 }
 
 func TestNewKeepsClientAsDefaultChatBackend(t *testing.T) {
-	client := provider.NewClient("")
+	client := provider.NewCompatibleClient("http://compatible.invalid/v1")
 	agent := New(Options{Client: client})
 	if agent.Backend != client {
 		t.Fatalf("Backend = %T, want *provider.Client default", agent.Backend)

@@ -75,6 +75,58 @@ func TestEachSubagentTalksToItsOwnProvider(t *testing.T) {
 	}
 }
 
+func TestCapabilityAwareSubagentBackendReceivesTheDeclaredEnvelope(t *testing.T) {
+	workspace := t.TempDir()
+	additional := t.TempDir()
+	var got SubagentCapabilities
+	agent := &Agent{Options: Options{
+		Root: workspace,
+		SubagentCapabilities: SubagentCapabilities{
+			AdditionalDirs: []string{additional},
+			NetworkAccess:  true,
+		},
+		SubagentBackendWithCapabilities: func(_ context.Context, _ string, _ string, _ string, capabilities SubagentCapabilities) (ChatBackend, error) {
+			got = capabilities
+			return notACloser{}, nil
+		},
+	}}
+
+	backend, release, err := agent.openSubagentBackend(context.Background(), "model", EffortMedium)
+	if err != nil {
+		t.Fatal(err)
+	}
+	release()
+	if backend == nil {
+		t.Fatal("capability-aware factory returned no backend")
+	}
+	if got.Workspace != workspace {
+		t.Fatalf("workspace = %q, want %q", got.Workspace, workspace)
+	}
+	if len(got.AdditionalDirs) != 1 || got.AdditionalDirs[0] != additional {
+		t.Fatalf("additional directories = %q, want %q", got.AdditionalDirs, additional)
+	}
+	if !got.NetworkAccess {
+		t.Fatal("declared network capability was not passed to the child factory")
+	}
+}
+
+func TestCapabilityAwareSubagentBackendRejectsAnUnverifiedWorkspace(t *testing.T) {
+	called := false
+	agent := &Agent{Options: Options{
+		SubagentBackendWithCapabilities: func(context.Context, string, string, string, SubagentCapabilities) (ChatBackend, error) {
+			called = true
+			return notACloser{}, nil
+		},
+	}}
+	if _, release, err := agent.openSubagentBackend(context.Background(), "model", EffortMedium); err == nil {
+		release()
+		t.Fatal("capability-aware factory ran without a verified workspace")
+	}
+	if called {
+		t.Fatal("capability-aware factory was called before workspace validation")
+	}
+}
+
 // A provider owns a child process, and nothing else will release it.
 func TestASubagentBackendIsClosedOnEveryPathOutOfATask(t *testing.T) {
 	for _, tc := range []struct {

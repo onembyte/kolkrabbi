@@ -6,7 +6,7 @@ Status: hardened on 2026-08-26 · supersedes: — · PLAN.md item 10
 
 **`saga` is Kolkrabbi's autonomous, careful-progression engine designed to advance complex, multi-step engineering goals chapter by chapter without losing control, context, or money.** Where agent mode provides *width* (parallel subagents on a single turn), `saga` provides *longitudinal depth*: executing an overarching objective through a sequence of bounded, verified, atomic iterations called **chapters**.
 
-Each chapter follows a strict five-step contract: (1) inspect progress, (2) execute exactly one bounded change, (3) verify with real shell quality gates (test, build, lint), (4) checkpoint and commit on green, and (5) log the human-readable result to `SAGA.md`. `SAGA.md` lives in the project root as a durable, human-editable artifact that survives machine restarts and serves as the authoritative resume anchor (`kolk saga resume`). Execution is self-paced by default, bounded by strict monetary and chapter budgets, protected by a 3-strike doom-loop detector, and reversible at any chapter boundary via `/rewind`.
+Each chapter follows a strict five-step contract: (1) inspect progress, (2) execute exactly one bounded change, (3) verify with real shell quality gates (test, build, lint), (4) checkpoint and commit on green, and (5) log the human-readable result to `SAGA.md`. `SAGA.md` lives in the project root as a durable, human-editable artifact that survives machine restarts and anchors the next normal request carrying `/saga`. Execution is self-paced by default, bounded by strict monetary and chapter budgets, protected by a 3-strike doom-loop detector, and cancellable with Esc like any other active turn.
 
 ---
 
@@ -16,8 +16,8 @@ Each chapter follows a strict five-step contract: (1) inspect progress, (2) exec
 
 #### 0.1 The napkin test
 ```console
-# 1. Start an autonomous saga
-$ kolk saga "migrate sqlite store to pure-go modernc.org/sqlite and verify tests"
+# 1. Start careful progression inside the normal session
+$ kolk "migrate sqlite store to pure-go modernc.org/sqlite and verify tests /saga"
 ◆ saga started: s_20260826-004012-7b1a
 ◆ goal: migrate sqlite store to pure-go modernc.org/sqlite and verify tests
 ◆ progress artifact: SAGA.md created
@@ -44,12 +44,12 @@ chapter 3: remove cgo build tags and run full test suite
 
 | North star rule | How Item 10 complies | Enforced by |
 |---|---|---|
-| **1. Zero-config is the product** | `kolk saga "goal"` requires zero settings. Default budgets ($5.00, 15 chapters), automatic quality-gate discovery (`go test`, `npm test`, `cargo test`), and progress logging are pre-wired. | `TestSagaZeroConfigLaunch` |
+| **1. Zero-config is the product** | A normal request containing `/saga` requires zero settings. Default budgets ($5.00, 15 chapters), automatic quality-gate discovery (`go test`, `npm test`, `cargo test`), and progress logging are pre-wired. | `TestSagaZeroConfigLaunch` |
 | **2. Every default computed, not asked** | Test and build commands are auto-detected from project files (`go.mod`, `package.json`, `Cargo.toml`, `Makefile`). Verification runs without prompts. | `TestDetectProjectQualityGates` |
 | **3. One install command, static binary** | Progress logging uses standard Markdown in `SAGA.md`. Git commits use local git binary via existing `internal/shell`. Zero dependencies added. | `scripts/check-purity.sh` |
 | **4. One key command** | Provider keys are shared with the base agent. Model selection defaults to the active `medium` or `high` effort tier. | `TestSagaProviderAgnostic` |
-| **5. Complexity ships off, discoverable later** | Custom judge models, webhook notifications, and worktree branching ship off by default. A user running `kolk saga "fix tests"` gets safe in-place progression. | `TestSagaDefaultsOff` |
-| **6. Simple to type beats simple to explain** | 4-letter verb: `saga`. Commands: `kolk saga <goal>`, `kolk saga resume`, `kolk saga status`, `kolk saga stop`. | `TestSagaCommandGrammar` |
+| **5. Complexity ships off, discoverable later** | Custom judge models, webhook notifications, and worktree branching ship off by default. A user appending `/saga` to a normal request gets safe in-place progression. | `TestSagaDefaultsOff` |
+| **6. Simple to type beats simple to explain** | Append the four-letter `/saga` marker to any normal request. There is no separate SAGA command family. | `TestSagaCommandGrammar` |
 
 ---
 
@@ -153,42 +153,28 @@ A saga halts execution immediately upon hitting any of the following guardrails:
 #### 3.1 The Doom-Loop Detector
 If three consecutive chapters produce zero file changes, repeat identical error messages, or fail verification after internal repair attempts:
 1. The saga terminates execution to prevent runaway token expenditure.
-2. The engine logs: `◆ saga paused: doom-loop detected (3 consecutive chapters without forward progress). Run 'kolk saga status' to inspect blockers.`
-3. Stored state is preserved so the user can inspect or edit `SAGA.md` before resuming.
+2. The engine logs: `◆ saga paused: doom-loop detected (3 consecutive chapters without forward progress). Inspect the live session log and SAGA.md for blockers.`
+3. Stored state is preserved so the user can inspect or edit `SAGA.md` before the next `/saga` request.
 
 ---
 
-### 4. CLI Surface & Control Verbs
+### 4. Inline Workflow Surface
 
 ```console
-# Launch new saga
-$ kolk saga "migrate authentication store"
-$ kolk saga --budget 10.00 --chapters 20 "refactor parser"
-
-# Check active saga status and cost
-$ kolk saga status
-
-# Pause a running saga cleanly
-$ kolk saga stop
-
-# Resume from SAGA.md checkpoint
-$ kolk saga resume
-
-# Rollback last chapter
-$ kolk saga rewind
+# Start careful progression from the normal prompt surface
+$ kolk "migrate authentication store /saga"
 ```
 
 Inside the REPL:
-- `/saga "goal"`
-- `/saga status`
-- `/saga stop`
-- `/saga resume`
+- `build the requested feature /saga`
+- Esc cancels the active wake, like any other turn.
+- The live TUI log shows chapter progress, status, and cost; `SAGA.md` remains the durable artifact.
 
 ---
 
 ### 5. Saga vs. Agent Mode vs. Plain Loop
 
-| Dimension | Agent Mode (`code` mode delegation) | Plain Loop (`/loop`) | Saga (`kolk saga`) |
+| Dimension | Agent Mode (`code` mode delegation) | Plain Loop (`/loop`) | Saga (inline `/saga`) |
 |---|---|---|---|
 | **Scope** | Single turn / immediate request | Recurring timer / periodic polling | Longitudinal multi-chapter objective |
 | **Persistence** | In-memory turn subagents | Transient interval ticks | Durable `SAGA.md` & git commits |
@@ -217,7 +203,7 @@ Inside the REPL:
 ## Risks & open questions
 
 - **Risk: Dirty working tree before launch**:
-  *Mitigation*: `kolk saga` checks `git status -s`. If uncommitted changes exist, it warns the user and requires `--force` or prompts to stash/commit prior work.
+  *Mitigation*: the inline SAGA wake checks `git status -s`. If uncommitted changes exist, it warns the user and applies the normal permission flow before proceeding.
 - **Risk: Quality gate false negatives**: Flaky integration tests might fail a valid chapter.
   *Mitigation*: The developer can edit `SAGA.md` or pass `--test-cmd "go test ./pkg/target"` to narrow the gate.
 
@@ -240,4 +226,4 @@ Implementation of Item 10 is divided into 4 atomic checkpoints:
 - **S10.1 Saga State Machine & Artifact Engine**: Implement `SAGA.md` parser, generator, and chapter lifecycle state machine.
 - **S10.2 Quality Gate & Git Checkpointer**: Implement automated test discovery, verification execution, and commit-on-green rollback wrapper.
 - **S10.3 Budget & Doom-Loop Guardrails**: Wire chapter limit, dollar budget, timeout, and consecutive failure detection.
-- **S10.4 CLI & Slash Command Surface**: Add `kolk saga [goal|resume|status|stop|rewind]` and REPL twin `/saga`.
+- **S10.4 inline workflow surface**: Recognize `/saga` inside a normal prompt and show its progress in the REPL/TUI log; do not add a standalone SAGA command family.

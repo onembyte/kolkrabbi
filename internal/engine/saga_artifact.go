@@ -21,6 +21,16 @@ const (
 	StatusAborted   ChapterStatus = "aborted"
 )
 
+// Saga status values describe the lifecycle of the whole progression. Budget
+// limits are pauses, so they intentionally keep the resumable in-progress
+// value; completed and blocked are terminal and must not be reopened by a
+// later wake.
+const (
+	SagaStatusInProgress = "in-progress"
+	SagaStatusCompleted  = "completed"
+	SagaStatusBlocked    = "blocked"
+)
+
 // ValidateTransition enforces valid chapter lifecycle progression per
 // docs/plan/10-saga-loop.md §1.
 func ValidateTransition(from, to ChapterStatus) error {
@@ -97,7 +107,7 @@ func RecordGateFailure(s *SagaState) error {
 	}
 	s.Strikes++
 	if s.Strikes >= max {
-		s.Status = "blocked"
+		s.Status = SagaStatusBlocked
 	}
 	return nil
 }
@@ -123,7 +133,7 @@ func FormatSagaMarkdown(s *SagaState) string {
 	}
 	status := s.Status
 	if status == "" {
-		status = "in-progress"
+		status = SagaStatusInProgress
 	}
 	maxChap := s.MaxChapters
 	if maxChap == 0 {

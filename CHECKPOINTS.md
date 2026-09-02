@@ -65,14 +65,16 @@ Then run: kolk
 - [x] the exact install URL returns a reviewed script over HTTPS.
 - [x] the script selects the correct signed/checksummed release for macOS or Linux and installs
   `kolk` on `PATH` without requiring Go or another runtime.
-- [ ] `kolk` from a clean shell launches the installed binary.
+- [x] `kolk` from a clean shell launches the installed binary — owner-confirmed clean-machine proof
+  on 2026-09-01.
 - [x] the domain root serves the reviewed purple retro-octopus landing page.
 - [x] first launch without a key shows the short guidance above, never a stack trace or config-file
   instruction.
 - [x] `kolk key <API_KEY>` infers the supported provider, stores the key with safe permissions, and
   never echoes the full value.
 - [x] the next `kolk` starts a working model session with computed defaults.
-- [ ] a clean-machine smoke test proves the entire flow end to end.
+- [x] a clean-machine smoke test proves the entire flow end to end — owner-confirmed install,
+  provider setup, and first response on 2026-09-01.
 
 When all eight boxes are green, stop and tell the owner that the app is ready to try, with the exact
 commands and any currently supported platform limits.
@@ -92,9 +94,9 @@ Delivery order for this gate, each as its own TDD checkpoint after L0.8:
   sequential agent orchestrator as the third mode while keeping code as the default.
 - [x] **T0.4 release and installer** — the public release, signed assets, no-store website installer,
   and independent live verifier are green.
-- [ ] **T0.5 clean-machine rehearsal** — the public cutover is complete; this still must prove install,
-  first run, key addition, and first model response
-  from a machine with no Go toolchain or prior Kolkrabbi files.
+- [x] **T0.5 clean-machine rehearsal** — owner confirmed the clean-machine install, first run,
+  provider setup, and first model response on 2026-09-01. V34.5b owns the durable transcript link;
+  repository-local release gates are recorded separately.
 - [x] **R1.1 v1.1.0 installer-upgrade release** — publish the owner-requested three-part SemVer
   release, verify all signed assets and latest-version discovery, then exercise the public installer
   over an existing v0.1.0 installation.
@@ -5983,6 +5985,10 @@ This item proposed phases running v0.1 through v1.0 and "later, iPad". The shipp
 passed — two of them, MCP and sandboxing, by *deciding not to do them*, which is a thing a version
 number cannot express. Rewriting the roadmap to say what is true was most of the work.
 
+**Scope amendment, 2026-09-01:** the paragraph above is the historical item-23 decision. V34.0c
+supersedes its sandbox disposition: OS-level sandboxing is now accepted v1 scope under V34.1e;
+MCP remains deferred.
+
 **Version-numbered phases were replaced by the phase letters actually in use.** A–J, one `/loop`
 each, already in PLAN.md and already how the work runs. Version numbers were a proxy for ordering,
 and the phases are the ordering. The rule they encode is worth restating: finish what is half-built
@@ -9656,11 +9662,11 @@ phase must close without leaving this file.
 | B managed local models | 25 | L13.4 ✓, L13.5a–c ✓, L13.5b3 ✓ | L13.5b4 needs the owner |
 | C sessions, context, memory | 12 | doc ✓, C12.1–C12.7 ✓ (9 leaves) | complete |
 | D the local dashboard | 17 | doc ✓, D17.1–D17.3 ✓; A12.2–A12.4 superseded | complete |
-| E tools, permissions, sandboxing | 13 | doc ✓, E13.1–E13.7 ✓ | complete; OS sandbox matrix deferred |
+| E tools, permissions, sandboxing | 13 | doc ✓, E13.1–E13.7 ✓ | in-process floor complete; OS sandbox accepted v1 and pending V34.1e |
 | F orchestration & per-task routing | 14 | doc ✓, F14.1–F14.6 ✓ | complete |
 | G the surface | 11, 15, 16 | docs ✓, G11.1–G11.6 ✓, G15.1–G15.3 ✓, G16.5 ✓ | G16.1–G16.4 queued (commands, hooks, mcp rules) |
 | I reach | 26–29 | docs ✓, I26.1–I26.7 ✓, I27.1–I27.6 ✓, I28.1–I28.3 ✓, I29.1 ✓ | complete |
-| H ship it for real | T0.5, 19–23 | all five docs ✓, L19.1–L19.2 ✓, L20.1–L20.2 ✓, L21.0–L21.4 ✓, L22.1–L22.2 ✓, L23.1–L23.2 ✓ | T0.5 remains, and it needs a real clean machine |
+| H ship it for real | T0.5, 19–23 | all five docs ✓, L19.1–L19.2 ✓, L20.1–L20.2 ✓, L21.0–L21.4 ✓, L22.1–L22.2 ✓, L23.1–L23.2 ✓ | owner confirms T0.5 complete; V34.5b owns transcript linkage |
 | J borrowed hardening | 30, 31, 32 | all three docs ✓, L30.1–L30.4 ✓, L31.1 ✓, L32.1–L32.5 ✓ | complete |
 
 **Every item in PLAN.md is hardened as of 2026-08-27.** Items 1, 24 and 25 stay `[~]` by design — each tracks something the world keeps changing — and everything from 2 to 32 has a document, a tick, and a ratchet that fails the build if those two ever disagree. What is left is build work, not decisions.
@@ -9686,9 +9692,9 @@ until V34.0 has reconciled the exact baseline and the owner has accepted the bou
 | Phase | Sub-checkpoints | Phase exit |
 |---|---|---|
 | V34.0 baseline | V34.0a evidence; V34.0b ledger; V34.0c scope freeze | reproducible definition of shipped vs deferred scope |
-| V34.1 security | V34.1a endpoint credential; b child env; c checkpoint safety; d output/argv/userinfo; e full-auto floor | exploit regression and independent bypass review |
+| V34.1 security | V34.1a endpoint credential; b child env; c checkpoint safety; d output/argv/userinfo; e full-auto floor; f delegated capability envelope | exploit regression and independent bypass review |
 | V34.2 integrity | V34.2a process close; b session snapshots; c task rewind; d event replay; e cancellation join; f cost reservation | race/cancellation/replay proof and terminal-outcome audit |
-| V34.3 saga | V34.3a lock/stop; b durable state; c clean rollback; d full accounting; e fault injection | isolated stop/resume/rollback failure matrix |
+| V34.3 saga | V34.3a lock/stop; b durable state; c clean rollback; d full accounting; e fault injection; f entrypoint/directive/scheduler hook | isolated stop/resume/rollback failure matrix |
 | V34.4 product truth | V34.4a subscription tier; b Codex catalog; c provider matrix; d local claims | every selector row has supported capability evidence |
 | V34.5 release proof | V34.5a platforms; b clean machine; c reproducible release; d surface docs; e independent audit | stable release candidate and fresh-install transcript |
 | V34.6 closure | V34.6a owner trial; b closure audit; c release decision | honest v1/beta statement with no hidden P0/P1 |
@@ -9702,8 +9708,1006 @@ leaves require a concrete bypass attempt; persistence/saga leaves require fault 
 evidence; release leaves require a clean-environment transcript. The builder and independent reviewer
 must be different people or agents.
 
-All V34 leaves are queued. The existing historical “Active group” convention remains in force: claim
-one leaf, name its owner, and do not begin another implementation leaf until its evidence is recorded.
+V34.1f Leaf A is complete; V34.3f Leaf B remains queued. The existing historical “Active group”
+convention remains in force: claim one leaf, name its owner, and do not begin another implementation
+leaf until its evidence is recorded.
+
+### V34.0a release baseline — complete 2026-09-01
+
+**Scope:** capture a reproducible, pre-change release baseline; no production behaviour changes.
+
+**Invariant:** a future reviewer can distinguish what the current release supports from what only
+cross-compiles, is catalog metadata, is environment-blocked, or remains unverified.
+
+**Evidence:** `5074e6206780` (`release: v1.2.32`) was clean before this documentation record.
+The host is Go 1.27.0/Linux amd64 (module minimum Go 1.25.0); runtime support is macOS/Linux on
+amd64 and arm64, while Windows amd64 is advisory cross-build only. OpenRouter-compatible endpoints
+and host Ollama are available; runnable subscription adapters are Claude Pro/Max and ChatGPT
+Plus/Pro, including Codex `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna`. Gemini rows remain
+explicitly unsupported subscriptions.
+
+**Verification:** `make fmt-check vet plan-check`, `make platforms`, and `git diff --check` passed;
+the plan ratchet reported 101 checks. `make test` reached 1,874 tests but exited 2 when `httptest`
+was denied IPv6 loopback (`listen tcp6 [::1]:0: socket: operation not permitted`), not from a test
+assertion. `TMPDIR=/var/tmp make check` cannot start because `/var/tmp` is read-only here.
+`goreleaser` and `cosign` are unavailable, so a release rehearsal remains pending.
+
+**Independent review:** the `v340a_baseline` agent collected the source/toolchain/gate evidence;
+Codex independently checked the supported-platform/provider declarations and recorded the exact
+environment limits. No production files changed.
+
+### V34.1f + V34.3f — SAGA and delegated execution hardening checkpoint — Leaf A complete; Leaf B queued 2026-09-01
+
+**Reason for opening:** a real agent run from `/home/onembyte` reported that it was outside the
+repository, and provider children currently inherit only the process directory and vendor defaults.
+The result is either a SAGA command that cannot locate the project or a child that cannot inspect the
+intended checkout or research through the network. These are two boundaries with different failure
+and authorization rules; they must not be fixed as one prompt tweak.
+
+**Owners and order:** V34.1f is first because it defines what a child may see and reach. V34.3f is
+second because SAGA must invoke that capability envelope and persist one next unit of work. Only one
+leaf may be active at a time; the second leaf cannot begin until the first leaf's focused and
+independent review evidence is recorded.
+
+#### Leaf A — V34.1f delegated execution capability envelope
+
+Scope:
+
+- Resolve one verified project root before a child starts. Pass it explicitly to provider CLIs using
+  their supported working-directory/additional-directory controls; never rely on the parent's current
+  directory or on a guessed home-directory scan.
+- Declare capabilities in one internal value: primary workspace, additional read/write roots (normally
+  none), network enabled for user-requested research and repository operations, and provider name.
+- Codex uses `--cd <root>` plus the narrow `-c sandbox_workspace_write.network_access=true` override
+  when network is allowed; Claude uses its working directory and `--add-dir` only when an additional
+  root is explicitly present. Neither path uses `danger-full-access` as a convenience fallback.
+- Keep credential minimization separate from network availability: provider-owned authentication may
+  work, but Kolkrabbi's OpenRouter/API credentials and unrelated environment secrets must not be
+  inherited by provider children.
+- Make capability state observable in task status and failure result: `workspace=<root>`,
+  `network=enabled|disabled`, and `reason=<bounded text>`; a failed probe is a failed child, never a
+  successful-looking task that ran blind.
+
+Non-goals:
+
+- No unrestricted host sandbox, no broad `--add-dir /home`, no automatic credential discovery, and
+  no silent network access for chat mode or unrequested background work.
+- No implicit `git pull`, push, checkout, or remote mutation. Repository reads and research may use
+  the network; mutating source-control operations remain governed by the existing permission floor.
+- No provider-specific prompt prose used as a substitute for process capabilities.
+
+Invariant:
+
+> A delegated child can read and modify only the verified project workspace, can reach the network
+> only when the parent run declares it, and cannot receive Kolkrabbi's ambient secrets; if any part
+> cannot be proven, the child stops with an explicit bounded diagnosis.
+
+Required red/green/adversarial evidence:
+
+- Red: a fake provider starter proves the current child argv/cwd has no explicit project root, and a
+  sentinel environment test proves why inheriting the parent's environment is unsafe.
+- Green: focused argv/cwd/env tests prove Codex and Claude receive the exact capability envelope,
+  including network-on and network-off cases; unsupported provider versions fail closed with a useful
+  reason.
+- Adversarial: nested checkout, sibling checkout, symlinked root, missing root, hostile environment
+  variable, network-disabled request, and provider-start failure. Run the focused suite under `-race`
+  and prove cancellation joins the provider child.
+- Independent review: a different agent repeats the sentinel and path-boundary attempts and reruns
+  the focused gate before this leaf is marked complete.
+
+#### Leaf A acceptance — V34.1f complete 2026-09-01
+
+Implementation:
+
+- `internal/cli` resolves and verifies one canonical project root before constructing the agent;
+  the engine copies the capability envelope for each child, and the CLI adapter maps it to the
+  selected Claude or Codex backend.
+- `internal/shell` now accepts only an absolute, existing directory for provider cwd and always
+  launches provider children with the credential-scrubbed inherited environment.
+- Codex receives `--cd <canonical-root>`, explicit `--add-dir` values, and the provider-native
+  `sandbox_workspace_write.network_access=true` override only when network is declared. Claude
+  receives the canonical cwd and explicit `--add-dir` values; its delegated envelope fails closed
+  when network is disabled because this CLI path has web and shell tools but no equivalent narrow
+  network-off switch.
+- Capability state is visible in provider startup status as `workspace=<root> network=enabled|disabled`;
+  missing workspace and provider-start failures remain task failures and may only use the existing
+  explicit ceiling fallback.
+
+Red/green and adversarial evidence:
+
+- Red was reproduced with missing option-aware shell/provider APIs and credential sentinel cases;
+  the focused tests failed before the implementation and passed after the handoff was wired.
+- Green: `TMPDIR=/tmp go test ./internal/shell ./internal/provider/agentcli ./internal/engine ./internal/cli -count=1`
+  passed; `TMPDIR=/tmp go test -race ./internal/shell ./internal/provider/agentcli ./internal/engine ./internal/cli -count=1`
+  passed.
+- Adversarial coverage passed for relative/missing/file workspaces, nested and sibling checkouts,
+  symlink canonicalization, duplicate additional roots, hostile API/token environment variables,
+  network-disabled Codex omission, Claude fail-closed behavior, provider start failure, and bounded
+  process cancellation. No provider path uses `danger-full-access`.
+- A compatibility defect found by the repository gate was fixed: legacy exported invocation builders
+  were made reachable through the empty-envelope runtime path, and `internal/arch` then passed.
+
+Independent review and final gate:
+
+- An independent read-only Codex 0.149.1 review was run with a three-command scope over the changed
+  execution-boundary files. It reported `CLEAN` after checking workspace/symlink escape, network flags,
+  environment leakage, capability propagation, and compatibility. The reviewer did not edit files.
+- `TMPDIR=/tmp make check` passed: 3,051 tests; architecture, purity, build tags, Darwin/Linux/
+  Windows platform matrices, lint, budgets, site, v0.1 surface, installer, protocol/spec, release,
+  release workflow, verifier, smoke workflow, plan, and workflow-pin gates all passed.
+- Documentation walk-back is complete in this file, `docs/plan/34-vision-completion.md`,
+  `docs/build-log.md`, and `AGENTS.md`. No commit, push, tag, or release was created in this leaf.
+
+#### Leaf B — V34.3f SAGA entrypoint and hidden progression directive
+
+**Active subcheckpoint:** B2.2 — inline-only SAGA surface — C1, C2.1, C2.2a plain REPL routing,
+and C2.2b TUI routing are complete. C3.1 — durable executing-before-work state — and C3.2a —
+durable terminal-state normalization — C3.2b1 — cancellation-error preservation — and C3.2b2 —
+TUI interrupted/ready lifecycle — are complete. C3.2 is closed; C4.1 — consolidated repository
+gate baseline — is complete and C4.2 — independent ledger/release-line review — is next. C5 — TUI
+progress-log observability — remains queued. B1 — typed internal SAGA posture marker — and B2.1 —
+one bounded wake — are complete.
+
+#### B1 scope and acceptance
+
+- Add a typed internal posture distinct from `chat`, `code`, and `agent`; it must not become a model
+  selector value or alter provider routing.
+- Attach one short SAGA directive to the engine system construction only when that posture is active.
+  The directive must not be appended to user messages, chapter prompts, or durable conversation turns.
+- Set the posture only for SAGA's agent construction path. Ordinary `kolk`, `/plan`, agent mode, and
+  provider-backed sessions must retain their existing system prompt byte-for-byte.
+- Test the positive marker, absence in the default posture, and absence from the user/chapter prompt;
+  run the focused engine/CLI tests and `-race` before moving to B2.
+
+#### B1 acceptance — complete 2026-09-01
+
+`engine.Posture` now distinguishes internal workflow purpose from the public `chat`/`code`/`agent`
+mode. `PostureSaga` is attached only by `runSagaLoop` when it constructs the saga agent; ordinary
+agent construction carries the default posture. The engine adds one fixed SAGA directive to system
+prompt construction only. It does not rewrite the user request, chapter prompt, or durable user
+conversation, and the ordinary default system prompt remains unchanged byte-for-byte.
+
+Evidence:
+
+- `TMPDIR=/tmp go test ./internal/engine ./internal/cli -run 'TestSagaPosture|TestDefaultPosture|Saga' -count=1`
+  passed.
+- `TMPDIR=/tmp go test -race ./internal/engine ./internal/cli -run 'TestSagaPosture|TestDefaultPosture|Saga' -count=1`
+  passed.
+- A mutation replacing the `PostureSaga` branch with `if false` failed exactly at
+  `TestSagaPostureIsAnInternalSystemDirective`; the implementation was restored and the focused race
+  suite passed again.
+- Independent read-only review of the B1 files reported `CLEAN`; it checked separation from Mode,
+  SAGA-only construction, prompt isolation, and compatibility without editing or testing.
+- `git diff --check` passed. No external scheduler, provider call, commit, push, tag, or release was
+  performed. B2 is the next step: make the short goal front door start exactly one bounded wake.
+
+#### B2.1 scope and acceptance
+
+- Add an explicit engine wake API that plans at most one chapter and executes at most one chapter per
+  invocation; it must not fall through to the older continuous loop.
+- Persist the selected active chapter and every terminal chapter outcome. A successful wake must stop
+  with a resumable next-wake message; a failed wake must preserve a non-zero error and show the resume
+  command rather than leaving a bare provider failure.
+- Treat artifact-write failure as a wake failure without rewriting completed work as a chapter failure.
+  Treat worker and verification cancellation as resumable `executing` state without incrementing
+  strikes, rollback, or repair work after cancellation.
+- Cover success, planning, failure, budget, persistence, active-chapter, and cancellation paths with
+  bounded focused tests, a race run, a targeted mutation per guard, and an independent read-only
+  review.
+
+#### B2.1 acceptance — complete 2026-09-01
+
+`SagaRunner.RunWake` now performs no more than one planning call and one chapter per invocation, then
+returns `StopWake` with an inline `/saga` continuation instruction. It records the selected chapter
+number in `ActiveChapter`, persists successful and failed outcomes, and reports the `/saga` marker on
+a failed wake while retaining the underlying error. Artifact-write errors are propagated as fatal
+wake errors without changing the actual chapter outcome. Worker and verification cancellation
+preserve a resumable `executing` chapter, do not add strikes, and do not begin rollback or repair
+after the cancellation boundary.
+
+Evidence:
+
+- `TMPDIR=/tmp go test ./internal/engine ./internal/cli -count=1` passed.
+- `TMPDIR=/tmp go test -race ./internal/engine ./internal/cli -count=1` passed.
+- `TMPDIR=/tmp make check` passed with **3,063 tests**; architecture, purity, build-tag, platform,
+  budget, site, v0.1 surface, installer, protocol/spec, release, release-workflow, release-verifier,
+  smoke-workflow, plan, and workflow-pin gates all passed. The gate also caught and closed the unused
+  exported zero-value `PostureDefault`; the default remains the type's zero value and `PostureSaga`
+  remains the only named production posture.
+- Focused wake, CLI message, persistence, active-chapter, worker-cancellation, and
+  verification-cancellation tests pass; the full engine/CLI suites were rerun in both normal and
+  race modes. `git diff --check` passed.
+- Mutations replacing the wake return with the continuous runner, disabling active-chapter
+  recording, discarding persistence errors, disabling worker cancellation handling, and disabling
+  verification cancellation handling were each caught by their targeted regression and restored.
+- The independent read-only review found and the implementation corrected three real defects:
+  swallowed artifact-write errors, false strikes on worker cancellation, and false strikes/rollback
+  behavior on verification cancellation. Its only remaining note is B2.2's intentionally queued
+  direct-goal front door, outside this subcheckpoint.
+- No commit, push, tag, release, scheduler installation, or provider turn was performed. B2.2-C1 is
+  next: make the inline-only `/saga` surface activate the bounded wake inside the current session.
+
+#### B2.2-C1 scope and acceptance
+
+- Make `/saga` a marker that may appear at the beginning, middle, or end of an ordinary prompt;
+  remove the standalone `kolk saga` command and the `run`, `resume`, `status`, and `stop` lifecycle
+  commands from the public surface.
+- Recognize only a whitespace-delimited marker so URL/path text such as `/saga-mode` or
+  `example.test/saga` cannot switch workflow posture accidentally. Preserve the user's remaining
+  goal text without adding a repeated SAGA paragraph to the conversation.
+- Update help, README, site copy, command-surface plans, and tests so no dead standalone command or
+  old lifecycle instruction remains. A bare `/saga` explains the inline form and does not exit.
+
+#### B2.2-C1 acceptance — complete 2026-09-01
+
+The public SAGA surface is now inline-only. `/saga` is documented as a marker for a normal request;
+the standalone `kolk saga` command and its `run`, `resume`, `status`, and `stop` subcommands were
+removed. The internal artifact and bounded-wake helpers remain available for the next wiring step,
+but no separate SAGA product entrypoint remains in command dispatch or help.
+
+Evidence:
+
+- `inlineSagaPrompt` tests cover beginning, middle, end, repeated and empty markers, URL-like text,
+  word-like text, and absent markers. A mutation replacing the marker search was caught by the
+  focused parser test and restored.
+- Surface tests prove `lookupCommand("saga")` is absent, `/saga` is catalogued as an inline marker,
+  bare `/saga` gives inline usage guidance, and wake messages no longer mention `run`, `resume`, or
+  `kolk saga`.
+- The stale standalone-command tests were removed or rewritten; artifact-root confinement tests
+  remain. README, site, command-surface, roadmap, SAGA plan, and architecture prose were walked back
+  to the inline-only contract.
+- `TMPDIR=/tmp go test ./internal/cli -count=1` and `git diff --check` passed. No provider turn,
+  commit, push, tag, release, or external scheduler action was performed.
+- C2 is next: route an inline-marked prompt through the SAGA posture and one bounded wake in both
+  the plain REPL and TUI.
+
+#### B2.2-C2.1 — session-preserving posture seam — complete 2026-09-01
+
+Scope:
+
+- Allow the current `engine.Agent` to enter the internal `PostureSaga` value for one inline wake and
+  return to the ordinary empty posture afterward; do not create a second session or expose posture
+  as a model/mode choice.
+- Rebuild the current session's system message on each transition, keep exactly one fixed SAGA
+  directive, persist the change through the session seam, and reject unknown posture values without
+  changing the current state.
+
+Evidence:
+
+- Added `Agent.SetPosture`, restricted to the empty posture and `PostureSaga`, with a shared system
+  message refresh and session save.
+- `TestPostureCanEnterAndLeaveSAGAOnTheCurrentSession` proves the same session receives one SAGA
+  directive and returns byte-for-byte to its ordinary system prompt; it also proves unknown values
+  are rejected without mutation.
+- A temporary mutation removing the refresh call failed that test; the implementation was restored
+  and the focused suite passed again.
+- `TMPDIR=/tmp go test -race ./internal/engine -run '^(TestPostureCanEnterAndLeaveSAGAOnTheCurrentSession|TestSagaPostureIsAnInternalSystemDirective|TestDefaultPosturePreservesTheOrdinarySystemPrompt)$' -count=1`
+  passed, followed by `git diff --check`.
+- No provider turn, commit, push, tag, release, or scheduler action was performed. C2.2a is next:
+  route the inline marker through the existing agent and bounded wake in the plain REPL and TUI.
+
+#### B2.2-C2.2a — plain REPL inline routing — complete 2026-09-01
+
+Scope:
+
+- Route a non-empty, whitespace-delimited inline `/saga` marker through the ordinary REPL turn
+  boundary before slash-command dispatch. Persist the cleaned goal, use the current agent/session for
+  one bounded wake, and return to the ordinary posture afterward.
+- Refuse before writing when the current directory is not inside a Git repository. Preserve wake
+  errors and restore ordinary posture even when the wake fails.
+
+Evidence:
+
+- `runInteractivePrompt` is the shared boundary for interactive surfaces; the plain REPL recognizes
+  marked prompts before its existing slash-command branch. `runSagaLoop` now accepts the current
+  agent instead of constructing a second session agent.
+- `saveSagaGoal` checks `requireGitRepo` before reading or writing `SAGA.md`, so an inline request
+  outside a repository has no artifact side effect.
+- Tests cover current-agent identity, SAGA posture during the wake, cleaned goal persistence,
+  ordinary-posture restoration, wake-error propagation, and non-repository refusal. A mutation
+  disabling the REPL branch caused the integration test to fail; the implementation was restored.
+- `TMPDIR=/tmp go test ./internal/cli -count=1`, the focused `-race` suite for inline routing, and
+  `git diff --check` passed.
+- No provider turn, commit, push, tag, release, or scheduler action was performed. C2.2b is next:
+  connect the same shared boundary to the TUI turn callback without bypassing its status and Esc
+  cancellation handling.
+
+#### B2.2-C2.2b — TUI inline routing — complete 2026-09-01
+
+Scope:
+
+- Recognize inline `/saga` before TUI slash-command, model-picker, and config-picker dispatch;
+  delegate to the shared current-agent boundary, and preserve Runtime ownership of the per-turn
+  cancellable context and terminal lifecycle.
+- Keep ordinary prompts and existing slash commands unchanged. Escape must cancel an active SAGA wake,
+  drop queued work according to Runtime's existing contract, and allow the TUI to shut down cleanly.
+
+Evidence:
+
+- The TUI turn callback now routes non-empty inline markers through `runInteractivePrompt`; a marker
+  at the beginning of a request is covered so it cannot be mistaken for `/saga` command dispatch.
+- Tests prove the callback uses the exact current agent/session, observes `PostureSaga` during the
+  wake, restores ordinary posture, and receives cancellation from an actual Escape byte. The
+  cancellation test is bounded and closes input through Runtime's EOF/join path after Escape.
+- A mutation disabling the TUI inline branch caused the current-session integration test to fail;
+  the implementation was restored.
+- `TMPDIR=/tmp go test ./internal/cli -count=1`, focused inline-routing `-race` tests, and
+  `git diff --check` passed. No provider turn, commit, push, tag, release, or scheduler action was
+  performed. C3.1 is next: harden wake lifecycle, durable progress visibility, and Esc
+  terminal-state behavior as one checkpoint.
+
+#### C3.1 — durable executing-before-work state — complete 2026-09-01
+
+Scope:
+
+- Persist the selected chapter after it enters `executing` and before any worker can mutate the
+  repository. This applies equally to a hand-authored pending chapter and a chapter just appended by
+  the planner.
+- If the pre-work artifact write fails, stop the wake before provider or repository work, preserve
+  the executing in-memory marker for a truthful retry boundary, and do not add a failure strike or
+  describe storage failure as a chapter failure.
+
+Evidence:
+
+- `RunChapter` now writes the in-flight state before invoking `Worker.Work`; `RunWake` recognizes the
+  typed artifact persistence failure and returns it without failure-loop handling.
+- Tests prove the worker observes durable `executing` state for existing and planner-created chapters,
+  and prove a write failure leaves the worker untouched in `executing` state.
+- The existing failed-worker test now asserts the honest two-write sequence: `executing`, then
+  `failed`; no second chapter is attempted.
+- `TMPDIR=/tmp go test ./internal/engine -count=1`, focused `-race` coverage for saga/chapter/wake/
+  posture, and `git diff --check` passed. A mutation removing the pre-work persistence guard failed
+  the new regression test and was restored.
+- No provider turn, commit, push, tag, release, or scheduler action was performed. C3.2 is next:
+  harden wake cancellation and terminal-state handling across the TUI and durable artifact.
+
+#### C3.2a — durable terminal-state normalization — complete 2026-09-01
+
+Scope:
+
+- Treat `completed` and `blocked` whole-saga statuses as authoritative terminal states on every
+  wake; a pending chapter in a hand-edited artifact must not silently reopen either terminal saga.
+- Persist `completed` when acceptance criteria finish or a planner truthfully reports no more work.
+  Preserve `in-progress` for `wake-complete`, chapter, cost, chapter-count, and timeout stops because
+  those are resumable pauses rather than terminal outcomes.
+- If the terminal status write fails, return the artifact error and do not report a successful stop;
+  retain the in-memory terminal marker so retry diagnostics cannot lie about the outcome.
+
+Evidence:
+
+- `SagaRunner.Run` and `RunWake` now honor durable terminal state before planning or working, and
+  normalize goal completion/doom-loop stops through one persistence boundary. Status constants are
+  shared by the artifact formatter, strike accounting, and inline goal creation.
+- Tests prove completion is written once, terminal persistence failure is surfaced, and completed or
+  blocked artifacts do not run pending chapters. Budget pause behavior remains covered by the
+  existing stop-reason tests.
+- `TMPDIR=/tmp go test ./internal/engine -count=1` and focused saga/chapter/wake/posture `-race`
+  tests passed. A mutation replacing the terminal status assignment with an empty value was caught by
+  the completion persistence and persistence-failure tests and restored. `git diff --check` passed.
+- No provider turn, commit, push, tag, release, or scheduler action was performed. C3.2b is next:
+  harden cancellation boundaries while preserving the resumable executing marker and truthful TUI
+  terminal lifecycle.
+
+#### C3.2b1 — cancellation-error preservation — complete 2026-09-01
+
+Scope:
+
+- Preserve the context cancellation as the terminal outcome while retaining any error raised while
+  persisting the resumable `executing` state. This applies to both the bounded `RunWake` API and the
+  older continuous `Run` API so callers cannot receive different truth about the same failure.
+- Keep cancellation non-striking and resumable; do not convert the interrupted chapter into failed
+  work or report a successful wake when its durable cleanup write failed.
+
+Evidence:
+
+- Both executor APIs now pass chapter results through one cancellation-result helper. It returns a
+  full joined error when cancellation and cleanup fail together, and joins an unrelated worker error
+  with the active context cancellation when necessary.
+- Tests cover worker cancellation with a failing second artifact write for `RunWake` and `Run`, plus
+  a direct joined-cause invariant. The chapter remains `executing`, strikes remain zero, and exactly
+  two persistence attempts are observed.
+- `TMPDIR=/tmp go test ./internal/engine ./internal/cli -count=1`, focused saga/chapter/wake/posture
+  `-race` tests, and `git diff --check` passed. A mutation removing joined-cause preservation was
+  caught by `TestSagaCancellationResultPreservesJoinedCauses` and restored.
+- No provider turn, commit, push, tag, release, or scheduler action was performed. C3.2b2 is next:
+  prove Escape leaves the TUI in one truthful interrupted/ready terminal state without stale queued
+  work or a post-cancellation turn.
+
+#### C3.2b2 — TUI interrupted/ready lifecycle — complete 2026-09-01
+
+Scope:
+
+- Keep the inline SAGA wake on Runtime's cancellable turn protocol. Escape must cancel the active wake,
+  preserve the visible interrupted lifecycle, clear queued work, and prevent a queued request from
+  starting after cancellation.
+- Refresh the CLI bridge with the actual terminal lifecycle (`ready`, `interrupted`, or `failed`) after
+  a turn instead of relabeling a completed SAGA wake as `working` during the handoff.
+
+Evidence:
+
+- The TUI bridge now classifies the returned turn context/error before refreshing model/session
+  metadata; Runtime still owns the final locked terminal transition and transcript interruption marker.
+- A bounded staged-input test sends an inline SAGA request, queues a follow-up, presses Escape, and
+  asserts one turn only, an `interrupted` lifecycle, an empty queue/draft, and clean runtime shutdown.
+  The existing CLI integration test continues to prove Escape reaches the current SAGA agent and
+  restores ordinary posture.
+- `TMPDIR=/tmp go test ./internal/cli ./internal/tui -count=1`, focused CLI/TUI `-race` tests, and
+  `git diff --check` passed. A mutation changing the cancellation classification to `working` was
+  caught by `TestTUITurnLifecycleDoesNotRelabelTerminalTurnsAsWorking` and restored.
+- No provider turn, commit, push, tag, release, or scheduler action was performed. C3.2 is closed;
+  C4.1 is complete; C4.2 is next: independently review the remaining ledger, release line, and
+  documentation truth before any release claim.
+
+#### C4.1 — consolidated repository gate baseline — complete 2026-09-01
+
+Scope and invariant:
+
+- Run the complete repository gate against the accumulated C3 worktree, with no production-behavior
+  change introduced by this leaf.
+- The gate must either pass every repository check or identify one reproducible failure that is
+  repaired and rerun through the same gate. A formatter disagreement must not be called green merely
+  because the standalone `gofmt` command accepts the file.
+
+Red and repair:
+
+- The first `TMPDIR=/tmp make check` run executed all tests and cross-platform compilation, then
+  stopped in the installed `golangci-lint v2.13.1` formatter at
+  `internal/tui/runtime_test.go:64`; its canonical diff elided the repeated `[]byte` element type
+  in the staged Escape/EOF input literals.
+- The defect was limited to the new regression test. The two literals were changed to the linter's
+  exact canonical form (`{0x1b}` and `{0x04}`); no runtime or test assertion was changed.
+
+Green and adversarial checks:
+
+- `TMPDIR=/tmp go test ./internal/tui -count=1` passed.
+- `gofmt -l internal/tui/runtime_test.go`, `golangci-lint run ./internal/tui`, and `git diff --check`
+  all passed after the repair. The formatter was checked both through the repository `make fmt-check`
+  target and the installed linter's own formatter diagnostics.
+- The focused TUI test still passes after the exact formatter normalization; no test-only workaround
+  or ignored lint finding was added.
+
+Repository gate and independent check:
+
+- The final `TMPDIR=/tmp make check` passed: 3,079 tests; architecture, purity, build tags,
+  Darwin/Linux/Windows platform matrices, lint, budgets, site, v0.1 surface, installer, protocol/
+  spec, release, release workflow, release verifier, smoke workflow, plan, and workflow-pin checks
+  all passed. The binary budget was 9.46 MB, cold-start p50 was 3.7 ms, and the plan ratchet passed
+  101 checks.
+- The installed linter independently rejected and then accepted the exact file representation,
+  providing the required second formatter implementation check for this leaf. No separate provider
+  turn or external reviewer was needed for this mechanical formatting-only repair; the independent
+  ledger/release-line review is explicitly C4.2.
+
+Walk-back:
+
+- The first failed gate, repair, focused rerun, and final full-gate result are preserved here and in
+  `docs/build-log.md`. No provider turn, commit, push, tag, release, or scheduler action was
+  performed. C4.2 is next.
+
+#### C4.2 — independent ledger and release-line review — active 2026-09-01
+
+This review is subdivided into one read-only inventory leaf, one release-line consistency leaf, and
+one closeout rerun. Only the active subcheckpoint may edit the ledger; no production code belongs in
+this review unless a concrete correctness defect is found.
+
+**Active subcheckpoint:** C4.2a — ledger inventory and stale-claim correction — is complete. C4.2b —
+release-line consistency — and C4.2c — independent closeout rerun and disposition — are complete;
+C4.2 is closed. The next boundary is V34.0c — owner scope freeze.
+
+#### C4.2a — ledger inventory and stale-claim correction — complete 2026-09-01
+
+Scope and invariant:
+
+- Read `PLAN.md`, this ledger, the V34 plan, and the build log without changing production behavior.
+- Every V34 subcheckpoint and every still-open historical ledger family has one visible disposition:
+  complete, partial, queued, superseded, deferred/owner-dependent, or blocked by an environment.
+  A partial implementation must not be promoted to complete merely because a related test is green.
+
+V34 inventory at this review boundary:
+
+| Phase | Complete | Partial/active | Queued or owner-dependent | Next owner/evidence |
+|---|---|---|---|---|
+| V34.0 baseline | `V34.0a` | `V34.0b` | `V34.0c` | C4.2 inventory, then owner scope freeze |
+| V34.1 security | `V34.1f` | — | `V34.1a–e` | endpoint, environment, checkpoint, output, and full-auto boundaries |
+| V34.2 integrity | — | — | `V34.2a–f` | process close, snapshots, rewind, replay, joined cancellation, cost reservation |
+| V34.3 saga | — | `V34.3f` through C4.1 | `V34.3a–e` | transactional stop/rollback/accounting/crash proof; C5 supplies visible progress |
+| V34.4 product truth | — | — | `V34.4a–d` | subscription/catalog/provider/local-support evidence |
+| V34.5 release proof | — | — | `V34.5a–e` | platform, clean machine, reproducible artifact, surface audit, final review |
+| V34.6 closure | — | — | `V34.6a–c` | owner trial, closure audit, release decision |
+
+The table is intentionally explicit about `V34.3f`: B1, B2, C2, C3, and C4.1 are recorded as
+complete in this ledger, but the V34 item also promises visible running TUI progress, which is C5
+and remains unbuilt. The V34 plan is therefore `[~]`, not falsely `[x]`. The same review moved A12.5
+to verified because the exact budget and architecture evidence now exists.
+
+Historical open, superseded, and deferred entries are mapped as follows:
+
+| Ledger entry | Disposition at C4.2a | V34 mapping / owner |
+|---|---|---|
+| Owner-trial `kolk` clean-shell box and clean-machine smoke; `T0.5` | queued, environment/owner-dependent | `V34.5b` and `V34.6a`; requires a machine without Go or prior Kolkrabbi state |
+| `S10.1d2` read-end close and post-result drain | genuinely open | `V34.2a`; provider shutdown must join readers without truncating successful output |
+| `S10.1d5` typed history-loss warning and prior-conversation label | genuinely open | `V34.2d`; warning/event vocabulary and replay contract remain unbuilt |
+| `S10.1e` priority-1 vendor captures | owner-dependent evidence | `V34.0c`/`V34.5e`; requires the owner's vendor login and must not be called an offline pass |
+| `A12.2` SQLite store and `A12.3` SQLite ingestion | explicitly superseded | retain history; item 17's JSONL decision is the accepted path |
+| `A12.4` query/handler shape | partly superseded, remaining API question open | owner decision under item 26 and `V34.0c`; dashboard page does not prove `/v1/stats/*` |
+| `A12.5` budget/architecture verification | verified in this leaf | current full gate is recorded above; parent A12 remains partial because its other decisions remain |
+| `A13` Windows runtime and required CI | deferred, not shipped | `V34.5a`; Windows cross-build is advisory until owner accepts runtime support |
+| `A14` additive product leaves | partial migration record | delivered TUI/agent adapters/SAGA map to `V34.1f`/`V34.3f`; group recheck remains owner work |
+| `A15` generated client proof and `A16` desktop/mobile clients | deferred candidates | `V34.0c`; neither is accepted v1 scope yet |
+| `A6.2`/`A6.3` event vocabulary, entities, commands, and deferred subentities | partial/deferred protocol work | `V34.2d` for terminal/replay behavior; remaining schema scope requires `V34.0c` |
+| PLAN items `1`, `24`, `25`, and `34` marked `[~]` | intentionally partial | release/owner scope → `V34.0c`/`V34.5`; subscription truth → `V34.4`; local truth → `V34.4d`; overall finish → all V34 phases |
+
+No entry was deleted or silently promoted. Superseded SQLite and sidecar decisions remain historical;
+the unresolved entries are now named owners or V34 leaves rather than being mistaken for release
+evidence.
+
+Verification:
+
+- The inventory was cross-checked against every V34 checklist line and every still-open/partial
+  checkpoint entry returned by `rg -n '^\s*[-*] \[[~ ]\]' CHECKPOINTS.md`.
+- `A12.5` was closed only after the already completed `TMPDIR=/tmp make check` evidence: 3,079 tests,
+  9.46 MB, 3.7 ms p50, and all repository gates green. `make plan-check` passed 101 checks after the
+  walk-back, and `gofmt -l .` plus `git diff --check` produced no output.
+- C4.2b is deliberately not included here: release-line metadata, exact tag identity, stamped build
+  output, and release-contract reruns are its next isolated review.
+
+No provider turn, commit, push, tag, release, or scheduler action was performed. C4.2b is next.
+
+#### C4.2b — release-line consistency — complete 2026-09-01
+
+Scope and invariant:
+
+- Verify that the current release line is one coherent identity across the checked-out refs, remote
+  refs, GoReleaser configuration, stamped build metadata, site/docs claims, help surface, and release
+  contracts.
+- Distinguish an intentionally unstamped development build and a release-shaped build made from this
+  dirty worktree; neither may be mistaken for a published artifact.
+
+Evidence:
+
+- `main` and `origin/main` both resolve to `5074e6206780c5590417a21da9512c25fea04207`. The local
+  annotated `v1.2.32` tag dereferences to that same commit, and `git ls-remote` confirmed the remote
+  `v1.2.32` tag and `main` point to the same object.
+- `.goreleaser.yaml` stamps release builds with `.Version`, and its snapshot template is explicitly
+  `1.2.32-dev.{{ .ShortCommit }}`. The site badge and release contract both identify `v1.2.32` as
+  current. The `v1.2.3` string in README is an instructional signature example, not a current-release
+  claim.
+- `go run ./cmd/kolk version` correctly reported the unstamped development identity `kolk dev
+  go1.27.0 linux/amd64`. A release-shaped local build stamped with `1.2.32`, commit `5074e6206780`,
+  and a fixed date reported `kolk 1.2.32 (...) go1.27.0 linux/amd64`; its `+dirty` commit suffix is
+  expected because the accumulated worktree is intentionally not clean. The help output included
+  the current `model`, `serve`, `version`, and `help` surfaces without a separate SAGA command family.
+
+Independent and contract checks:
+
+- `./scripts/check-release-tag.sh v1.2.32` passed.
+- `make release-check release-workflow-check release-verifier-check` passed: 24, 41, and 30 checks.
+- `./scripts/test-site.sh` passed 162 checks. These were rerun independently of the earlier full
+  `make check` and agree with its release-related results.
+- No release-line mismatch, stale current-version claim, or tag divergence was reproducible; no code
+  change was warranted. C4.2c owns the independent closeout rerun and final disposition rather than
+  being implied by these consistency checks.
+
+No provider turn, commit, push, tag, release, or scheduler action was performed. C4.2c is next.
+
+#### C4.2c — independent closeout rerun and disposition — complete 2026-09-01
+
+Scope and invariant:
+
+- Recheck the complete C4.2 ledger and release-line review after its documentation walk-back, using a
+  separate read-only reviewer plus local race and repository-gate reruns.
+- Close C4 only if the documented next leaf is honest, no V34 completion claim hides an open scope,
+  and no release action is implied by a green development worktree.
+
+Independent review:
+
+- A separate read-only reviewer inspected the V34 plan, `PLAN.md`, `CHECKPOINTS.md`, build log,
+  release configuration/scripts/workflows, and refs. It reported `CLEAN`: V34 statuses and mappings
+  are coherent, the current release line is consistent, and the next disposition is C4.2c followed
+  by V34.0c scope freeze. The reviewer changed no files and performed no remote mutation.
+- `TMPDIR=/tmp go test -race ./internal/cli ./internal/engine ./internal/tui ./internal/provider/agentcli ./internal/shell -count=1` passed all five packages.
+- The final post-walk-back `TMPDIR=/tmp make check` passed: 3,079 tests; architecture, purity, build
+  tags, Darwin/Linux/Windows platform matrices, lint, budgets, site, v0.1 surface, installer,
+  protocol/spec, release, release workflow, release verifier, smoke workflow, plan, and workflow-pin
+  checks all passed. The plan ratchet passed 101 checks.
+
+Disposition:
+
+- C4.2 is closed. V34.0b is now complete; V34.3f remains partial because C5's visible TUI
+  progress-log work is still queued. The V34 program remains open with V34.0c owner scope freeze as
+  the next leaf; V34.1–V34.6 cannot be claimed complete from this gate alone.
+- No provider turn, commit, push, tag, release, or scheduler action was performed. The dirty
+  worktree remains the user's accumulated change set.
+
+Required evidence before implementation or release work proceeds:
+
+- a read-only review of `PLAN.md`, the V34 plan, this checkpoint ledger, and `docs/build-log.md`;
+- an exact table of remaining queued/superseded/deferred items and their owners, with stale claims
+  either corrected or explicitly preserved as historical records;
+- a release-line check proving the version in build metadata, help/docs, tags, and release gates agree;
+- independent reruns of the relevant focused gates and a documented decision about which V34 leaf is
+  next. No code change belongs in C4.2 unless the review finds a concrete correctness defect.
+
+#### V34.0c — owner scope freeze — complete 2026-09-02
+
+This owner-decision checkpoint is subdivided so that evidence, acceptance, documentation walk-back,
+and independent review cannot be confused with one another. Production implementation begins only
+after the accepted matrix is reflected and independently checked.
+
+- [x] **V34.0c.1 scope evidence inventory** — compare the current binary/help surface, README, site,
+  provider-plan catalog, local-model contract, platform matrix, release configuration, and V34
+  definition of done. Record what is executable now, what is advisory or unsupported, and what is
+  still only designed or planned. This leaf makes no scope decision.
+- [x] **V34.0c.2 owner scope acceptance** — owner accepted the bounded v1 capability/platform matrix
+  on 2026-09-01; OS-level sandboxing is included as accepted v1 work and the owner confirms the
+  clean-machine/provider proof was performed. The acceptance is a scope decision, not a claim that
+  every accepted implementation is already shipped.
+- [x] **V34.0c.3 scope walk-back** — completed 2026-09-02: updated the V34 plan, README, capabilities
+  site, help/command claims, provider/local contracts, and release notes so every accepted promise
+  has an owner/evidence path and every deferred item has a reason and revisit trigger. Re-run the
+  plan, site, surface, and release documentation gates.
+- [x] **V34.0c.4 scope exit review** — completed 2026-09-02: an independent reader verified that
+  the accepted matrix is reflected consistently, that unimplemented accepted work is not labeled
+  available, and that clean-machine/provider evidence is distinguished from repository-local gates.
+
+##### V34.0c.1 evidence inventory — complete 2026-09-01
+
+Observed executable boundary:
+
+| Area | Evidence from the current tree | Scope meaning at this leaf |
+|---|---|---|
+| Runtime platforms | `scripts/check-platforms.sh` compiles Darwin amd64/arm64, Linux amd64/arm64, and Windows amd64; README says Windows is advisory and unsupported | macOS/Linux amd64+arm64 are runtime targets; Windows is cross-build-only unless accepted later |
+| Gateway/local model access | Help exposes `--base-url` for OpenAI-compatible endpoints; README and `docs/plan/25-managed-local-models.md` define OpenRouter-compatible endpoints and host Ollama | OpenRouter-compatible endpoints and host Ollama are current paths, subject to the local contract's explicit-choice rules |
+| Subscription access | `kolk pmodels` exposes Claude Pro/Max and ChatGPT Plus/Pro rows; Claude/Codex use provider-owned CLIs; Gemini rows explicitly say `unsupported subscription` | Claude and Codex are current subscription paths; Gemini and the remaining provider matrix are not runnable subscription scope |
+| Modes and orchestration | Help exposes chat/code/agent; README and the capabilities page describe concurrent dependency-aware agent work | Chat, code, agent, effort, routing, and current orchestration are executable claims, with visible TUI progress logging still separate under C5 |
+| SAGA | Inline `/saga` is documented and the standalone run/resume/status/stop product surface is absent; V34.3f remains partial because C5 is queued | Inline bounded SAGA is current behavior; durable progress-log observability is not yet a closed v1 proof |
+| Interfaces | Help exposes CLI/TUI, sessions, stats, dash, serve, devices, and localia-related surfaces; the site marks clients/themes as planned where applicable | Current CLI/TUI and local service/dashboard surfaces are candidates for v1; future client work is not silently included |
+| Safety boundaries | README states no general execution sandbox; V34.1f's delegated capability envelope is complete; item 13 defines OS sandboxing as later work | Existing permission/capability boundaries are shipped; OS-level sandboxing is accepted v1 scope but remains unimplemented until V34.1e |
+| Release truth | `v1.2.32`, HEAD, `origin/main`, and the annotated tag agree; release, workflow, verifier, site, and platform checks pass; the owner reports clean-machine/provider proof complete | The release line is internally consistent; the owner-provided clean-machine/provider proof is accepted for scope disposition and must remain distinguishable from local repository gates |
+
+Accepted owner decision (2026-09-01): keep the current macOS/Linux CLI/TUI product, OpenRouter and
+compatible endpoints, host Ollama, Claude/Codex subscription handoff, current agent/SAGA surfaces,
+sessions/dashboard/service, existing permission boundaries, and OS-level sandboxing inside bounded
+v1. Defer Windows runtime support, desktop/iPad/Android clients, additional subscription providers,
+generated clients, and any still-open provider/local/release implementation work until their named
+V34 leaves have evidence. The owner also confirms the clean-machine/provider proof was performed;
+that evidence is owner-supplied and is not conflated with the repository-local release gates. C5's
+visible TUI progress log remains a prerequisite for claiming the full SAGA workflow, not an assumed
+completion of this scope leaf.
+
+Acceptance record for V34.0c.2:
+
+- The owner explicitly added OS-level sandboxing to v1. Its implementation remains an open V34.1e
+  boundary and must not be represented as an available feature until its platform-specific controls,
+  refusal explanations, and negative tests exist.
+- The owner explicitly confirmed the clean-machine/provider proof was completed. The proof is accepted
+  as the owner's scope evidence here; V34.5b remains the place for its exact reproducible transcript
+  and V34.5c–e remain independent release-candidate evidence.
+- Extra subscription providers, desktop/mobile clients, and Windows runtime remain deferred rather
+  than silently promoted by the sandbox decision.
+
+Verification:
+
+- `go run ./cmd/kolk help` and `go run ./cmd/kolk pmodels` matched the documented command and plan
+  surfaces; the output showed no standalone SAGA command family and marked Gemini subscription rows
+  unsupported.
+- `./scripts/check-platforms.sh` passed the five compile targets; `./scripts/check-release-tag.sh
+  v1.2.32` passed.
+- `make release-check release-workflow-check release-verifier-check` passed 24, 41, and 30 checks;
+  `./scripts/test-site.sh` passed 162 checks.
+- No production files, release refs, credentials, or remote state were changed. The worktree remains
+  intentionally dirty from the accumulated change set.
+
+Disposition: V34.0c.1–c.4 are complete. V34.0 is closed; V34.1a credential-to-endpoint binding is
+the next implementation boundary.
+
+##### V34.0c.3 scope walk-back — complete 2026-09-02
+
+Current-facing scope was reconciled without changing production behavior:
+
+- `README.md` and the capabilities page now say the current binary has no OS sandbox while marking
+  Linux/macOS OS-level isolation as accepted v1, designed-but-unshipped work. Windows runtime and
+  desktop/mobile clients remain explicitly deferred.
+- `PLAN.md` and plans 13, 23, and 34 carry the owner amendment. The sandbox matrix separates shipped
+  in-process controls, accepted native isolation, and post-v1 container execution; V34.1e owns the
+  mechanism, fail-closed policy, diagnostics, and native negative proof.
+- Plan 24 now reflects the actually shipped Claude/Codex handovers and freezes every other
+  subscription provider post-v1. Plan 25 records host Ollama as accepted v1 while retaining V34.4d's
+  executable lifecycle/hardware proof.
+- The top-level clean-shell, clean-machine, and T0.5 boxes now record the owner's 2026-09-01 proof.
+  They do not pretend that a repository-local script reran the external machine; V34.5b owns the
+  durable transcript link.
+- `CHANGELOG.md` was intentionally unchanged: this checkpoint changes accepted scope and
+  documentation, not released runtime behavior. Release-facing README/site wording and the release
+  contract gates are the applicable surfaces.
+
+Verification:
+
+- `git diff --check` passed.
+- `make plan-check` passed 101 checks.
+- `./scripts/test-site.sh` passed 162 checks and `./scripts/test-v01-surface.sh` passed 15 checks.
+- `make release-check release-workflow-check release-verifier-check` passed 24, 41, and 30 checks.
+
+No production code, provider turn, commit, push, tag, release, credential, or remote state changed.
+At the V34.0c.3 boundary, V34.0c.4 was the next and only active scope leaf.
+
+##### V34.0c.4 independent scope-exit review — complete 2026-09-02
+
+McClintock, a separate read-only reviewer, inspected the accepted scope matrix and every current-
+facing surface changed by V34.0c.3. The reviewer returned `CLEAN` and changed no files. It confirmed:
+
+- OS-level sandboxing is accepted v1 but never labeled available; V34.1e still owns implementation
+  and native negative proof.
+- Windows runtime, desktop/iPad/Android, additional subscription providers, generated clients, and
+  containerized SAGA remain post-v1.
+- Claude/Codex and host Ollama are current paths while V34.4 retains tier, catalog, and local-runtime
+  proof.
+- Owner-confirmed clean-machine/provider evidence remains distinct from local gates, with V34.5b
+  owning its durable transcript link.
+- V34.1e, V34.3f/C5, V34.4, V34.5c–e, and V34.6 remain open; the review did not promote downstream
+  implementation or release work.
+
+Independent commands all passed: `git diff --check`; `make plan-check` (101); site (162); v0.1
+surface (15); and release, release-workflow, and release-verifier gates (24/41/30). The reviewer also
+searched for stale current-facing sandbox deferrals, open T0.5 claims, and unbuilt Claude/Codex
+handover claims; only clearly dated or explicitly superseded historical records remained.
+
+V34.0 is now closed. No production code, provider turn, commit, push, tag, release, credential, or
+remote state changed. The mandatory forward order makes V34.1a the next leaf; C5 remains queued under
+the still-partial V34.3f boundary.
+
+#### V34.1a — credential-to-endpoint binding — active 2026-09-02
+
+**Owner:** Codex. **Risk:** P1 credential exfiltration. **Affected boundaries:** CLI flag/environment/
+saved-config endpoint resolution, credential resolution, provider client construction, catalog and
+turn HTTP transports, debug/help wording, and test fixtures that currently treat a replacement host
+as OpenRouter.
+
+Invariant:
+
+> An OpenRouter credential may leave the process only on a request bound to the canonical
+> `https://openrouter.ai` origin. A general `--base-url`, `OPENROUTER_BASE_URL`, saved `base_url`,
+> later `Client.BaseURL` mutation, redirect, lookalike host, scheme downgrade, or port change cannot
+> cause that credential to be attached. A non-OpenRouter compatible endpoint is credentialless
+> unless a future endpoint-specific credential is explicitly bound to that canonical origin.
+
+Chosen model: **trusted endpoint**, not implicit endpoint-specific reuse. The current credential
+manifest contains an `openrouter` credential, not a credential for an arbitrary compatible server.
+V34.1a therefore binds it only to canonical OpenRouter and makes custom compatible endpoints keyless.
+An authenticated LiteLLM/vLLM/custom gateway needs a future explicit endpoint credential reference;
+reusing the OpenRouter secret because it is the only secret available is forbidden.
+
+Non-goals:
+
+- No new `--api-key` flag, generic key environment variable, credential profile/schema, proxy trust
+  exception, certificate pinning, DNS policy, provider adapter, or automatic migration.
+- No URL-userinfo/log-output repair; V34.1d owns rejecting userinfo and bounding/scrubbing outputs.
+- No change to host Ollama routing, provider-owned Claude/Codex login, model selection, billing,
+  retries, redirects, or catalog ranking except where the credential boundary requires a test fixture
+  to become explicitly keyless.
+
+Subcheckpoints, one at a time:
+
+- [x] **V34.1a.0 threat model and executable red evidence** — trace all endpoint and key sources,
+  identify every authenticated request path, select the trusted-endpoint model, and preserve a
+  concrete existing test that demonstrates the leak.
+- [x] **V34.1a.1 origin-bound transport** — write the negative tests first, then make a credential-
+  carrying transport require an immutable canonical allowed origin and refuse mismatches before
+  network I/O. Cover direct BaseURL mutation as well as redirects.
+- [x] **V34.1a.2 startup/client construction** — completed 2026-09-02: resolve the endpoint before the key requirement;
+  construct an authenticated OpenRouter client only for the canonical endpoint and a keyless
+  compatible client otherwise. Prove flag, environment, saved-config, and default precedence.
+- [ ] **V34.1a.3 adversarial and compatibility matrix** — cover catalog and turn requests,
+  `openrouter.ai.evil`, userinfo-shaped authority, HTTP downgrade, explicit ports, trailing slash,
+  case/canonicalization, query/fragment, cancellation, and existing host/subscription routes. Replace
+  tests that currently require a bearer on arbitrary `httptest` origins with truthful fixtures.
+- [ ] **V34.1a.4 walk-back and independent closeout** — update help/README/config/security wording,
+  run focused/race/full gates, perform one targeted mutation per guard, and have a separate reviewer
+  attempt an equivalent exfiltration before closing V34.1a.
+
+##### V34.1a.0 threat model and red evidence — complete 2026-09-02
+
+Data flow proven from the current tree:
+
+1. `resolveOpenRouterCredential` loads `OPENROUTER_API_KEY` or the stored `openrouter/default`
+   credential before endpoint resolution.
+2. `newAgent` calls `provider.NewClient(apiKey.Reveal())`, which installs `secret.AuthTransport`, and
+   only afterward overwrites `client.BaseURL` with flag → environment → saved config → default.
+3. `AuthTransport.RoundTrip` attaches the bearer to every request it receives. Redirect following is
+   refused, but the first request to the replaced host already contains the credential.
+4. The same client performs catalog (`/models`) and turn (`/chat/completions`) calls, so both startup
+   and inference can exfiltrate the key. `NewHostClient` is already keyless and is not the defect.
+
+Executable evidence passed because it asserts the vulnerable behavior:
+
+- `TestStoredCredentialCompletesOfflineDefaultTurn` points saved/environment `base_url` at an
+  arbitrary `httptest` origin and requires `Authorization: Bearer <stored OpenRouter key>`.
+- `TestModeAgentFlagRunsTheOrchestratedPipeline` uses the same replacement-host construction through
+  the orchestrated path.
+- Provider tests prove redirects are refused and host Ollama is keyless, but
+  `TestKeyNeverAppearsInAnythingPrintable` likewise changes an authenticated client's public
+  `BaseURL` to an arbitrary server and expects the credential to arrive.
+
+Commands: focused CLI and provider reproductions passed, as expected under the vulnerable contract;
+`git diff --check` passed. No production code, credential, provider turn, commit, push, tag, release,
+or remote state changed. V34.1a.1 is next.
+
+##### V34.1a.1 origin-bound transport — complete 2026-09-02
+
+The red boundary reproduced all three transport-level leak forms before implementation:
+`AuthTransport` with a nonzero token and no binding called its base transport; mutating an
+authenticated `Client.BaseURL` contacted the replacement server; and `OpenRouterVerifier.BaseURL`
+sent the credential to its replacement origin. Each new test failed at its intended assertion.
+
+`secret.NewAuthTransport` now normalizes and privately stores one allowed HTTP origin as scheme,
+host, and effective port. A nonzero credential with no binding or a mismatched request returns
+`ErrCredentialOrigin` before `Base.RoundTrip`; paths do not change origin. `provider.NewClient` and
+OpenRouter key verification bind only to the compiled `https://openrouter.ai` origin. A direct
+`BaseURL` mutation can therefore change the attempted request URL but cannot move credential trust.
+The transport independently refuses a cross-origin redirect even if an `http.Client` is configured
+to follow it, while the provider client also retains its no-redirect policy.
+
+Credential rotation is race-safe. The token is private, `Token`/`SetToken` synchronize access, and
+`RoundTrip` uses one snapshot for both validation and header attachment. `Client.SetKey` rotates only
+an already-bound OpenRouter transport; an unbound compatible/host client returns
+`ErrCredentialBinding` and never gains or swaps auth/HTTP transports. Catalog fixtures that do not
+test authentication are now explicitly keyless, while tests that do test authentication use a
+test-only origin binding rather than pretending an arbitrary server is OpenRouter.
+
+Hardening evidence:
+
+- Focused `internal/secret` and `internal/provider` tests passed, passed ten repetitions, passed
+  under `-race`, and passed `go vet`; `internal/arch` passed and `go test ./... -run '^$' -count=1`
+  compiled every package. `git diff --check` passed.
+- Removing the origin comparison made the untrusted-origin, redirect, `BaseURL`, verifier, and
+  `SetKey` tests fail. The file was restored byte-identically. Removing the token write lock made
+  both concurrent tests fail under the race detector; restoration returned `transport.go` to SHA-256
+  `0d435b8d0ca4aeb6d0096c54fdc87bbe219ec58a6610e5709ea13d2da7f1edcc`.
+- Independent reviewer Laplace first found the zero-to-nonzero token TOCTOU bypass, then the nil-auth
+  initialization race. Both were fixed with targeted concurrent tests. Its final read-only review
+  returned `CLEAN` and independently passed focused repetition/race, package tests, vet, whole-module
+  compilation, and diff checking without changing files.
+
+The two A0 CLI exploit fixtures now fail safely at `ErrCredentialOrigin` before their replacement
+servers are reached. They intentionally remain expected-success test failures until V34.1a.2 resolves
+the endpoint before credentials and constructs custom compatible endpoints keylessly; this leaf does
+not claim the full behavioral suite is green. No credential, provider turn, commit, push, tag,
+release, scheduler action, or remote state changed. V34.1a.2 is next.
+
+##### V34.1a.2 startup/client construction — complete 2026-09-02
+
+The endpoint is now selected before any OpenRouter credential is required. `newAgent` and `/models`
+both call the single `providerClientForEndpoint` builder after resolving `--base-url` →
+`OPENROUTER_BASE_URL` → saved `base_url` → canonical default. A non-canonical endpoint returns a
+credentialless `provider.NewCompatibleClient` without reading the OpenRouter manifest or adding
+OpenRouter attribution; only the canonical origin loads the stored/environment credential and uses
+`provider.NewOpenRouterClient`. The ambiguous `provider.NewClient` constructor was removed, and
+arbitrary `httptest` fixtures were migrated to the compatible constructor so tests state the trust
+boundary they actually exercise.
+
+Red/green evidence:
+
+- `TestCustomEndpointSkipsCorruptOpenRouterCredentialManifest` and
+  `TestModelsUsesCustomEndpointWithoutReadingOpenRouterCredential` failed before the endpoint-first
+  branch and passed after it; the compatible stream test observed no Authorization, Referer, or
+  X-Title header.
+- `TestProviderClientConstructionFollowsEndpointPrecedence` proves flag, environment, saved-config,
+  and default selection, including the keyed/credentialless client distinction.
+- A mutation changing the custom-endpoint guard to `false && ...` made the corrupt-manifest and
+  precedence tests fail; restoring it returned `internal/cli/provider_client.go` byte-identically
+  (SHA-256 `09803b67f5cdc19fc8ff5d92ebfc6198692c0396d02fe141707f78b38a15abeb`).
+- `go test ./... -count=1`, `go test -race ./internal/secret ./internal/provider ./internal/cli ./internal/engine`,
+  `go vet` over those packages, `git diff --check`, and full `make check` passed. The full gate
+  reported 3,099 tests, all platform matrices, and all budget/site/surface/installer/spec/release/
+  workflow/plan checks green.
+
+The requested independent reviewer was started but could not return because the provider usage limit
+was reached; no CLEAN claim is made for that unavailable review. A manual second-pass inspection
+found only the already-scoped V34.1a.3 adversarial URL matrix (userinfo, lookalikes, ports, query/
+fragment, and canonicalization) remaining. V34.1a.4 retains the mandatory independent closeout.
+No credential, provider turn, commit, push, tag, release, scheduler action, or remote state changed.
+V34.1a.3 is next.
+
+#### C5 — TUI progress-log observability — queued
+
+This is a separate surface checkpoint. It must make long-running work legible without turning the
+transcript into an unbounded debug dump or hiding durable progress in an ephemeral spinner.
+
+Scope and invariant:
+
+- Use one ordered, bounded activity/event representation for tool calls, file edits, commands,
+  verification results, checkpoint transitions, and subagent lifecycle updates. Concurrent producers
+  may emit from different goroutines, but the TUI must render a deterministic order and never show a
+  finished item ahead of its own start.
+- Keep ephemeral activity separate from persistent transcript entries: the spinner/current status
+  may change in place while work is active; completed work must leave one concise record that remains
+  visible in the session log and can be reconstructed after a redraw or session reload.
+- Render Codex/Claude-style summaries such as `Edited N files (+X -Y)`, a one-line command/result,
+  and `agent [i/n] — model — effort — summary`; expand nested detail only when the user asks or the
+  terminal has room. Previews are single-line, length-bounded, ANSI-safe, and redact secrets.
+- Establish a stable visual order and semantic color roles for running, success, warning, failure,
+  cancellation, and metadata. Non-color output and narrow terminals must preserve the same meaning.
+- Subagent rows must expose index/total, model, effort, bounded task summary, and current state;
+  completion replaces the live state without duplicating the task. Queued work and failures remain
+  distinguishable from completed work.
+
+Non-goals:
+
+- no provider-specific transcript protocol, raw model payloads, secret-bearing tool output, or
+  unbounded diff/command capture;
+- no change to execution scheduling or SAGA semantics; this checkpoint consumes lifecycle events and
+  improves their presentation only.
+
+Acceptance contract:
+
+- red tests demonstrate the current loss, duplication, ordering, or overlong-preview behavior;
+- focused tests cover event ordering under concurrent producers, start/finish replacement,
+  file-edit aggregation, command/verification summaries, subagent progress, cancellation/failure,
+  narrow/no-color rendering, ANSI/control-byte sanitization, bounded preview length, and reload/
+  persistence reconstruction;
+- a mutation removing the ordering key, persistent completion record, subagent state, and secret/
+  length guard is caught by a targeted test;
+- `-race` covers the event store and renderer boundary, an independent reviewer checks visual and
+  lifecycle invariants, and `make check` plus documentation/build-log evidence pass before closure.
+
+This checkpoint remains queued until C2/C3 establish the inline SAGA event lifecycle it will display.
+
+Scope:
+
+- `/saga` is an inline marker in a normal user request, for example `build an ecommerce web app /saga`.
+  It creates or updates the project-root `SAGA.md` and starts one bounded wake inside the current
+  Kolkrabbi session. There is no standalone `kolk saga` product or `run`, `resume`, `status`, or
+  `stop` subcommand family.
+- Running from outside a repository must not create a misleading home-directory artifact. The command
+  either resolves an explicit `--repo <path>` or returns one actionable error naming the required
+  repository context; it never searches arbitrary sibling directories or claims the run started.
+- The user goal remains the user's text. The SAGA posture is an internal binary directive carried in
+  the agent options/system construction and applied consistently to planner, worker, repairer, and
+  synthesis; a long repeated “how to proceed” paragraph is not appended to every user message.
+- A wake performs exactly one bounded chapter: inspect current state, choose one atomic
+  checkpoint/sub-checkpoint, execute, verify, checkpoint/commit on green, persist the next action,
+  then stop with a resumable status. The next normal request carrying `/saga` continues it.
+- Provide an explicit scheduler integration point (for example a printed, fully quoted command or a
+  user-owned timer unit). Do not silently install or overwrite a system cron entry; scheduling is a
+  persistent external side effect that needs its own explicit command and status/removal path.
+- Default effort is computed from task size: low for inspection/status/mechanical work, medium for a
+  bounded implementation, high/xhigh/max only when the checkpoint requires deeper reasoning. The
+  SAGA interface does not expose a provider-plan/model picker as part of starting a goal.
+
+Non-goals:
+
+- No automatic push, release, remote mutation, destructive reset, or scheduler installation from a
+  normal goal command.
+- No hidden user-prompt rewriting that can be lost during compaction, and no free-form model claim
+  that a chapter is complete without the recorded quality gate and commit evidence.
+- No parallel writes inside one SAGA wake; dependency-aware parallel research remains an agent-mode
+  concern and must use Leaf A's capability envelope.
+
+Invariant:
+
+> One short goal activates a durable, internal SAGA posture; each wake advances at most one verified
+> chapter, leaves an honest resume anchor, and cannot create an unreviewed external scheduler or
+> provider capability.
+
+Required red/green/adversarial evidence:
+
+- Red: binary-level tests reproduce the current two-step surprise (`goal` only records), the
+  outside-repository failure, and the absence of an internal SAGA marker in planner/worker calls.
+- Green: CLI/slash parity tests prove the short front door, explicit repo handling, one-wake boundary,
+  resume idempotence, and a bounded internal directive absent from user content/history.
+- Adversarial: malformed goal/repo, existing dirty tree, corrupt or stale `SAGA.md`, duplicate wake,
+  cancellation during provider/tool/commit, scheduler command quoting, and failed commit/persistence.
+  Prove no second chapter starts after a completed wake and no abandoned chapter is reported done.
+- Independent review: a different agent runs the isolated-repository restart/stop matrix, checks the
+  prompt transcript for leakage/duplication, and reruns the focused and `-race` gates.
+
+#### Shared phase exit
+
+Both leaves must have their red/green/adversarial/independent-review evidence, a stable-worktree
+repository gate, and a build-log entry. Documentation must say exactly what network access, provider
+authentication, repository context, and scheduling behavior are available. The phase remains open if
+either leaf can only be demonstrated on the developer's current directory or by relying on a vendor
+default that is not asserted in the child invocation.
 
 ## Migration queue — one checkpoint group at a time
 
@@ -9738,7 +10742,7 @@ proceed without changing repository visibility, tags, releases, or deployments.
   - [x] **A11.5 listeners & architecture registration** — implement `listen.go`, and register `internal/serve` & `cmd/kolkd` in `internal/arch/layers.go`.
   - [x] **A11.6 stream conformance test** — implement `internal/serve/conform_test.go` verifying byte-identical JSON bodies between NDJSON and SSE against `spec/testdata/streams/*.ndjson`.
   - [x] **A11.7 cli serve & daemon binary** — implement `kolk serve` in `internal/cli/cmd_serve.go` and daemon entrypoint `cmd/kolkd/main.go`.
-- [~] **A12 local dashboard store** — the SQLite half is superseded by `docs/plan/17-local-dashboard.md`; `stats.jsonl` stays the store. What remains here is the embedded-asset work, and A12.3/A12.4 below describe a store this project decided not to build.
+- [~] **A12 local dashboard store** — the SQLite half is superseded by `docs/plan/17-local-dashboard.md`; `stats.jsonl` stays the store. A12.5's budget/architecture verification is now closed by the 2026-09-01 repository gate; A12.3/A12.4 below still describe a store this project decided not to build.
   - [x] **A12.1 embedded assets & sentinel** — `internal/dash/dist/index.html` and `internal/dash/embed.go` both exist; ticked 2026-08-27 during a plan audit that found the work done and the box unchecked.
   - [~] **A12.2 sqlite store & migrations** — **superseded 2026-08-26 by `docs/plan/17-local-dashboard.md`.**
   A heavy user's year aggregates from `stats.jsonl` in 578 ms, so SQLite would spend the third
@@ -9746,8 +10750,9 @@ proceed without changing repository visibility, tags, releases, or deployments.
   real `kolk stats` run exceeds 2 s.
   - [~] **A12.3 jsonl ingestion & event ingest** — **superseded 2026-08-27, same reason as A12.2**: there is no SQLite to import into. `stats.jsonl` is read directly. Live bus ingest is not superseded and remains unbuilt.
   - [~] **A12.4 queries & handler endpoints** — **partly superseded 2026-08-27**: `internal/dash/page.go` serves the dashboard from `stats.jsonl`, so `query.go` and `handler.go` describe a shape that was not built. Whether `/v1/stats/*` should exist on `kolk serve` is still open and belongs to item 26.
-  - [ ] **A12.5 budget & arch verification** — measure binary size and cold start and verify `make check`.
-  The dependency ceiling is **no longer raised**: item 17 keeps the store dependency-free.
+  - [x] **A12.5 budget & arch verification** — verified 2026-09-01 by the complete repository gate:
+  3,079 tests, 9.46 MB binary budget, 3.7 ms cold-start p50, and all architecture/purity/build-tag
+  checks green. The dependency ceiling is **no longer raised**: item 17 keeps the store dependency-free.
 - [ ] **A13 Windows** — replace every honest stub and make Windows CI required.
 - [~] **A14 additive product leaves** — TUI, external agent adapters, and saga, separately.
   All three shipped: `internal/tui` (U0.4, G11), `internal/provider/agentcli` (B12), and the saga
@@ -11120,7 +12125,8 @@ checkpoint is expanded. Status here mirrors [`PLAN.md`](PLAN.md); PLAN remains a
 - [x] 12 sessions, context, and memory — hardened; doc complete (docs/plan/12-sessions-context-memory.md),
   JSON storage kept, 75% compaction with tool output sacrificed first, overflow compacts and retries once
 - [x] 13 tools, permissions, and sandboxing — hardened; doc complete (docs/plan/13-tools-permissions-sandboxing.md),
-  path jail, hardline blocklist under yolo, scrubbed tool output, subagent auto-deny; OS sandboxes deferred
+  path jail, hardline blocklist under yolo, scrubbed tool output, and subagent auto-deny ship;
+  OS-level sandboxing is accepted v1 and pending V34.1e
 - [x] 14 orchestration and per-task routing — hardened; doc complete (docs/plan/14-orchestration-routing.md). Mirror corrected 2026-08-28.
 - [x] 15 code-mode specifics — hardened; doc complete (docs/plan/15-code-mode.md). Mirror corrected 2026-08-28.
 - [x] 16 extensibility — hardened; doc complete (docs/plan/16-extensibility.md). Mirror corrected 2026-08-28.
