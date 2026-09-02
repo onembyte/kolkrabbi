@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 // AgentWorker does a chapter's work by running one agent turn.
@@ -13,6 +14,9 @@ import (
 // different model without touching the loop.
 type AgentWorker struct {
 	Agent *Agent
+	// Note is what the user said at this wake when it was not the goal; the
+	// chapter is worked with it in view.
+	Note string
 }
 
 // Work runs the chapter as a single turn and reports what it cost.
@@ -26,7 +30,7 @@ func (w AgentWorker) Work(ctx context.Context, chapter Chapter, goal string) (Wo
 	// running total would make every chapter look dearer than the last and
 	// stop the saga early for money it had already counted.
 	before := w.Agent.SessionCostUSD()
-	err := w.Agent.RunTurn(ctx, chapterPrompt(chapter, goal))
+	err := w.Agent.RunTurn(ctx, chapterPrompt(chapter, goal, w.Note))
 	spent := w.Agent.SessionCostUSD() - before
 	if spent < 0 {
 		spent = 0
@@ -42,14 +46,17 @@ func (w AgentWorker) Work(ctx context.Context, chapter Chapter, goal string) (Wo
 // Both, and only both: a chapter without its goal is an instruction out of
 // context, and a goal without the chapter restates the whole project every
 // turn and invites the model to do all of it at once.
-func chapterPrompt(chapter Chapter, goal string) string {
-	return fmt.Sprintf(`You are working one chapter of a longer effort.
-
-Overall goal: %s
-
+func chapterPrompt(chapter Chapter, goal, note string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "You are working one chapter of a longer effort.\n\nOverall goal: %s\n", goal)
+	if note = strings.TrimSpace(note); note != "" {
+		fmt.Fprintf(&b, "Note from the user for this wake: %s\n", note)
+	}
+	fmt.Fprintf(&b, `
 This chapter (%d): %s
 
 Do only this chapter. Make the change, run whatever check proves it, and stop.
 The chapter's quality gates run after you finish and will reject work that does
-not build or pass its tests.`, goal, chapter.Number, chapter.Title)
+not build or pass its tests.`, chapter.Number, chapter.Title)
+	return b.String()
 }

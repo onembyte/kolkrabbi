@@ -141,7 +141,7 @@ has tried to move the credential to a replacement host and failed.
 
 ---
 
-## F1 — The inline SAGA advances, remembers its goal, and can be reset  ·  `[ ]`
+## F1 — The inline SAGA advances, remembers its goal, and can be reset  ·  **done 2026-09-02**
 
 **Observable:** in an isolated repository, `build X /saga` plans and finishes chapter 1;
 `continue /saga` plans and finishes chapter 2 with the goal still `build X`; after a saga completes,
@@ -155,33 +155,36 @@ This is the "hardest and longest-running tasks" path — the one the top rung is
 `internal/cli/saga_prompt.go`, `internal/engine/saga_executor.go`, `internal/engine/chapter_verify.go`,
 `internal/engine/saga_budget.go`, `internal/engine/saga_lifecycle.go`.
 
-- [ ] **F1.1 (R2)** Red: a two-wake test where wake 2 must reach the planner. Green: delete the
-  pre-`RunWake` "nothing left to work" guard, or narrow it to `state.Status` terminal only; let
-  `nextChapter`/`planNext` decide. The guard's job moves into the executor (see F5.3).
-- [ ] **F1.2 (R3)** Red: wake 2 with prompt `retry /saga` must plan against the original goal. Green:
-  `saveSagaGoal` sets `Goal` only when no `SAGA.md` exists (or when the user names a new goal — see
-  F1.3); a wake prompt is a *directive*, carried to `chapterPrompt` separately from the goal.
-- [ ] **F1.3 (R4)** Decide and code the reset rule: a terminal `SAGA.md` (completed/blocked) plus a
-  non-empty new prompt starts a **new** saga after archiving the old file
-  (`SAGA.<xid>.md`, or a `## History` section — pick one and write it in `docs/plan/10`). The
-  "every acceptance criterion is met" message must name the reset path. Red: the doom-looped-forever
-  transcript from the review.
-- [ ] **F1.4 (R8)** Wake `SagaBudget` carries `DoomThreshold: state.MaxStrikes` (falling back to
-  `DefaultDoomThreshold` only when `SAGA.md` has none). Red: `Strikes: 3 / 5` must not block.
-- [ ] **F1.5 (R9)** `Verify`/`VerifyChapter` use `sagaCancellationResult` so a real commit/rollback
-  error survives cancellation; the persisted chapter state records that error. Red: cancel during a
-  failing `git commit` (pre-commit hook exits 1) and assert the message reaches the operator.
-- [ ] **F1.6** Adversarial (per V34 contract for saga leaves): crash between plan-persist and
-  work-start, dirty tree at wake, `SAGA.md` edited by hand mid-run, Esc during planning. `-race`.
-- [ ] **F1.7** Walk-back: `docs/plan/10-saga-loop.md` and `README.md` describe wake → wake
-  progression, directive vs goal, and reset. Transcripts in `CHECKPOINTS.md`.
+- [x] **F1.1 (R2)** The pre-`RunWake` "nothing left to work" guard and `hasPendingChapter` are
+  deleted; terminal status is the executor's to judge from the artifact's own `Status` line.
+  `TestASecondWakeAsksThePlannerWhenEveryChapterIsDone` drives a REPL over a scripted provider:
+  chapter 1 done, `continue /saga`, exactly one model request (the planner), verdict reported.
+- [x] **F1.2 (R3)** `saveSagaGoal` became `openSaga(text) (sagaOpening, error)`: an in-flight saga
+  keeps its goal and the text becomes a **note** (`AgentPlanner.Note`, `AgentWorker.Note`) shown in
+  both prompts; restating the goal is not a note. `TestAWakeNoteDoesNotReplaceTheGoal`.
+- [x] **F1.3 (R4)** Reset rule chosen and written into `docs/plan/10` §4: a finished artifact is
+  archived as `SAGA.<started YYYYMMDD-HHMMSS>.md` (counter suffix on collision) and the text starts a
+  new saga; the completion and doom-loop messages say so. No subcommand.
+  `TestANewGoalAfterAFinishedSagaArchivesAndStartsFresh` (completed and blocked),
+  `TestArchivingTwiceInTheSameSecondKeepsBoth`.
+- [x] **F1.4 (R8)** `sagaWakeBudget(state)` carries `MaxChapters`, `CostLimit`, and
+  `DoomThreshold: state.MaxStrikes`. `TestWakeBudgetCarriesMaxStrikesFromSagaFile`: 3/5 continues,
+  5/5 dooms.
+- [x] **F1.5 (R9)** `ChapterVerifier.Verify` and `VerifyChapter` use `sagaCancellationResult` on
+  every real error path; `TestACancelledCommitKeepsTheGitError` proves the hook failure survives
+  `context.Canceled` and the chapter is left `executing` with no strike.
+- [x] **F1.6** One mutation per fix (guard reinserted, goal overwritten, terminal reused, threshold
+  dropped, plain cancellation) — each focused test fails, each file restored byte-identically.
+  Existing adversarial coverage retained: executing persisted before work
+  (`TestAPlannedChapterPersistsExecutingBeforeWorkerStarts`), cancellation during work and
+  verification without a strike, terminal artifacts not reopened, persistence failure surfaced.
+  `-race` clean on `cli` and `engine`. Hand-edited/garbage `SAGA.md` still fails at parse before any
+  turn. Not added here: a crash-injection harness (V34.3e owns it).
+- [x] **F1.7** `docs/plan/10` §3.1 and §4 carry the wake table and the reset rule; the stop
+  messages name the next step; dossier in `CHECKPOINTS.md` §F1. Also folded in from F5.3:
+  `RunWake` compares `SagaStatusBlocked`, not a literal.
 
-**Tests** — `internal/cli/cmd_saga_test.go`, `internal/engine/saga_executor_test.go`
-- `TestSecondWakeAsksThePlannerForTheNextChapter`
-- `TestAWakeDirectiveDoesNotReplaceTheGoal`
-- `TestANewGoalAfterACompletedSagaStartsFresh`
-- `TestWakeBudgetHonoursMaxStrikesFromSagaFile`
-- `TestCancelledCommitKeepsTheGitError`
+**Exit met 2026-09-02.** Carried to V34.3e: crash injection between persist and work.
 
 ---
 

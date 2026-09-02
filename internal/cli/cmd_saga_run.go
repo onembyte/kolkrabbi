@@ -13,12 +13,21 @@ import (
 
 // runSagaLoop works one bounded chapter in SAGA.md with the current session
 // agent and then stops at the wake boundary. The next ordinary prompt carrying
-// /saga is the next wake.
+// /saga is the next wake; note is what that prompt said, when it was not the
+// goal, and reaches the planner and the worker for this wake only.
 //
 // This is the half of the saga that was specified and never built: the state
 // machine, quality gates, budget guards and artifact writer all existed and
 // nothing walked the chapters, so none of it could run.
-func (a *app) runSagaLoop(ctx context.Context, agent *engine.Agent) error {
+//
+// There is deliberately no "nothing left to work" check here. Every planned
+// chapter being done is not the end of a saga; it is the moment the planner is
+// asked for the next chapter, or says the goal is met. A guard that returned
+// early on that state — written for the old multi-chapter loop, where planning
+// happened inside the same call — stopped every inline saga after its first
+// chapter and reported the rest as finished. Terminal status is the executor's
+// to judge, from the artifact's own Status line.
+func (a *app) runSagaLoop(ctx context.Context, agent *engine.Agent, note string) error {
 	if agent == nil {
 		return fmt.Errorf("saga: current agent is required")
 	}
@@ -28,13 +37,6 @@ func (a *app) runSagaLoop(ctx context.Context, agent *engine.Agent) error {
 	}
 	if !found {
 		fmt.Fprintln(a.stdout, "no active SAGA plan; include /saga in a request to start one.")
-		return nil
-	}
-	// No early return for an empty chapter list any more: with a planner, no
-	// chapters is where a saga starts, which is what the doc's napkin test
-	// shows. Only a saga whose chapters are all finished has nothing to do.
-	if len(state.Chapters) > 0 && !hasPendingChapter(state) {
-		fmt.Fprintf(a.stdout, "saga %q has nothing left to work; every chapter is finished or blocked.\n", state.Goal)
 		return nil
 	}
 
@@ -47,17 +49,14 @@ func (a *app) runSagaLoop(ctx context.Context, agent *engine.Agent) error {
 	}
 
 	runner := &engine.SagaRunner{
-		Planner:  engine.AgentPlanner{Agent: agent},
-		Worker:   engine.AgentWorker{Agent: agent},
+		Planner:  engine.AgentPlanner{Agent: agent, Note: note},
+		Worker:   engine.AgentWorker{Agent: agent, Note: note},
 		Repairer: engine.AgentRepairer{Agent: agent},
 		Runner:   sagaCommandRunner{shell: shell.New()},
 		Detector: engine.FileGateDetector{},
-		Budget: engine.SagaBudget{
-			MaxChapters: state.MaxChapters,
-			CostLimit:   state.CostLimit,
-		},
-		Write: atomicfile.Write,
-		Out:   a.stdout,
+		Budget:   sagaWakeBudget(state),
+		Write:    atomicfile.Write,
+		Out:      a.stdout,
 	}
 
 	reason, runErr := runner.RunWake(ctx, repoDir, state)
@@ -76,15 +75,16 @@ func sagaWakeRetryMessage(goal string) string {
 	return fmt.Sprintf("saga %q: wake stopped before completion; include /saga in your next request to retry.", goal)
 }
 
-// hasPendingChapter reports whether anything is left to attempt.
-func hasPendingChapter(state *engine.SagaState) bool {
-	for _, chapter := range state.Chapters {
-		switch chapter.Status {
-		case engine.StatusPending, engine.StatusPlanning, engine.StatusExecuting, engine.StatusFailed:
-			return true
-		}
+// sagaWakeBudget carries every limit SAGA.md records into the wake. All of
+// them: a budget built from three of the four lines left the doom threshold
+// at its default, so a saga allowed five strikes in its own artifact was
+// blocked at three.
+func sagaWakeBudget(state *engine.SagaState) engine.SagaBudget {
+	return engine.SagaBudget{
+		MaxChapters:   state.MaxChapters,
+		CostLimit:     state.CostLimit,
+		DoomThreshold: state.MaxStrikes,
 	}
-	return false
 }
 
 // requireGitRepo refuses to start a saga where its chapters cannot be committed.
@@ -108,7 +108,7 @@ func requireGitRepo(dir string) error {
 func sagaStopMessage(reason engine.StopReason, state *engine.SagaState) string {
 	switch reason {
 	case engine.StopGoalComplete:
-		return fmt.Sprintf("saga %q: every acceptance criterion is met.", state.Goal)
+		return fmt.Sprintf("saga %q: every acceptance criterion is met. SAGA.md is finished; the next /saga request archives it and starts a new saga.", state.Goal)
 	case engine.StopNoWork:
 		return fmt.Sprintf("saga %q: no chapter left to work. Add chapters to SAGA.md to continue.", state.Goal)
 	case engine.StopWake:
@@ -120,7 +120,7 @@ func sagaStopMessage(reason engine.StopReason, state *engine.SagaState) string {
 	case engine.StopTimeout:
 		return fmt.Sprintf("saga %q: stopped at the time limit.", state.Goal)
 	case engine.StopDoomLoop:
-		return fmt.Sprintf("saga %q: %s failures without progress. The last chapter's verification says why.",
+		return fmt.Sprintf("saga %q: %s failures without progress. The last chapter's verification says why. SAGA.md is blocked; the next /saga request archives it and starts a new saga.",
 			state.Goal, doomLoopPhrase)
 	default:
 		return fmt.Sprintf("saga %q: stopped.", state.Goal)

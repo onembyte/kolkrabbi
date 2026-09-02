@@ -57,7 +57,7 @@ func TestSagaPostureIsAnInternalSystemDirective(t *testing.T) {
 		t.Fatal("SAGA posture did not change system construction")
 	}
 
-	chapter := chapterPrompt(Chapter{Number: 1, Title: "inspect the repository"}, "improve the project")
+	chapter := chapterPrompt(Chapter{Number: 1, Title: "inspect the repository"}, "improve the project", "")
 	if strings.Contains(chapter, sagaPostureInstruction) {
 		t.Fatal("SAGA directive was copied into the durable user/chapter prompt")
 	}

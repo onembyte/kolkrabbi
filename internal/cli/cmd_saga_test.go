@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/onembyte/kolkrabbi/internal/engine"
 )
 
 // A shared scratch directory is not a project root. Without this boundary a
@@ -74,8 +77,8 @@ func TestSagaGoalWritesTheArtifactAtTheProjectRoot(t *testing.T) {
 	root, nested := projectTree(t)
 	a := &app{stdout: &strings.Builder{}, stderr: &strings.Builder{}}
 
-	if err := a.saveSagaGoal("fix all tests"); err != nil {
-		t.Fatalf("saveSagaGoal: %v", err)
+	if _, err := a.openSaga("fix all tests"); err != nil {
+		t.Fatalf("openSaga: %v", err)
 	}
 
 	body, err := os.ReadFile(filepath.Join(root, "SAGA.md"))
@@ -87,5 +90,142 @@ func TestSagaGoalWritesTheArtifactAtTheProjectRoot(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(nested, "SAGA.md")); err == nil {
 		t.Fatal("saving a saga from a subdirectory littered that subdirectory with SAGA.md")
+	}
+}
+
+// A saga in flight keeps its goal. The wake messages tell the user to type
+// `next chapter /saga` or `retry /saga`; before this, that text became the
+// goal and the planner planned "retry" for the rest of the run.
+func TestAWakeNoteDoesNotReplaceTheGoal(t *testing.T) {
+	root, _ := projectTree(t)
+	a := &app{stdout: &strings.Builder{}, stderr: &strings.Builder{}}
+
+	first, err := a.openSaga("build the app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.goal != "build the app" || first.note != "" || first.notice != "" {
+		t.Fatalf("first opening = %+v, want a fresh goal with no note", first)
+	}
+
+	second, err := a.openSaga("retry")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.goal != "build the app" {
+		t.Fatalf("second wake goal = %q, want the persisted goal", second.goal)
+	}
+	if second.note != "retry" || !strings.Contains(second.notice, "continuing") {
+		t.Fatalf("second opening = %+v, want the text carried as a note", second)
+	}
+	body, err := os.ReadFile(filepath.Join(root, "SAGA.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "- **Goal**: build the app") || strings.Contains(string(body), "retry") {
+		t.Fatalf("SAGA.md after a note wake = %q, want the goal untouched", body)
+	}
+
+	// Restating the goal is not a note.
+	third, err := a.openSaga("Build the app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if third.note != "" || third.notice != "" {
+		t.Fatalf("restated goal produced a note: %+v", third)
+	}
+}
+
+// A finished artifact is a restart boundary, and a request that lands on one
+// is asking for something new. Before this, a completed SAGA.md answered every
+// later /saga with "every acceptance criterion is met", and the only way out
+// was deleting the file by hand.
+func TestANewGoalAfterAFinishedSagaArchivesAndStartsFresh(t *testing.T) {
+	for _, status := range []string{engine.SagaStatusCompleted, engine.SagaStatusBlocked} {
+		t.Run(status, func(t *testing.T) {
+			root, _ := projectTree(t)
+			old := &engine.SagaState{
+				Goal:          "old goal",
+				Started:       time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC),
+				Status:        status,
+				ActiveChapter: 1,
+				Chapters:      []engine.Chapter{{Number: 1, Title: "done thing", Status: engine.StatusDone}},
+			}
+			if err := os.WriteFile(filepath.Join(root, "SAGA.md"), []byte(engine.FormatSagaMarkdown(old)), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			a := &app{stdout: &strings.Builder{}, stderr: &strings.Builder{}}
+
+			opening, err := a.openSaga("add dark mode")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if opening.goal != "add dark mode" || opening.note != "" {
+				t.Fatalf("opening = %+v, want a fresh goal", opening)
+			}
+			if !strings.Contains(opening.notice, "archived") || !strings.Contains(opening.notice, status) {
+				t.Fatalf("notice = %q, want the archive and the old status named", opening.notice)
+			}
+
+			body, err := os.ReadFile(filepath.Join(root, "SAGA.md"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range []string{"- **Goal**: add dark mode", "- **Status**: in-progress"} {
+				if !strings.Contains(string(body), want) {
+					t.Fatalf("new SAGA.md = %q, want %q", body, want)
+				}
+			}
+			if strings.Contains(string(body), "done thing") {
+				t.Fatalf("new SAGA.md still carries the old chapters: %q", body)
+			}
+
+			archives, _ := filepath.Glob(filepath.Join(root, "SAGA.*.md"))
+			if len(archives) != 1 {
+				t.Fatalf("archives = %v, want exactly one", archives)
+			}
+			if filepath.Base(archives[0]) != "SAGA.20260901-100000.md" {
+				t.Fatalf("archive name = %q, want it stamped with when the old saga started", archives[0])
+			}
+			archived, _ := os.ReadFile(archives[0])
+			if !strings.Contains(string(archived), "- **Goal**: old goal") || !strings.Contains(string(archived), "done thing") {
+				t.Fatalf("archive = %q, want the old saga intact", archived)
+			}
+		})
+	}
+}
+
+// An archive name that already exists gets a counter, not an overwrite.
+func TestArchivingTwiceInTheSameSecondKeepsBoth(t *testing.T) {
+	root, _ := projectTree(t)
+	at := time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)
+	for _, goal := range []string{"first", "second"} {
+		path := filepath.Join(root, "SAGA.md")
+		if err := os.WriteFile(path, []byte(goal), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := archiveSaga(path, &engine.SagaState{Started: at}, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	archives, _ := filepath.Glob(filepath.Join(root, "SAGA.*.md"))
+	if len(archives) != 2 {
+		t.Fatalf("archives = %v, want both kept", archives)
+	}
+}
+
+// The wake budget carries every limit SAGA.md records. A budget built without
+// the doom threshold blocked a five-strike saga at the default three.
+func TestWakeBudgetCarriesMaxStrikesFromSagaFile(t *testing.T) {
+	state := &engine.SagaState{MaxChapters: 7, CostLimit: 2.5, MaxStrikes: 5, Strikes: 3}
+	budget := sagaWakeBudget(state)
+	if budget.MaxChapters != 7 || budget.CostLimit != 2.5 || budget.DoomThreshold != 5 {
+		t.Fatalf("budget = %+v, want every SAGA.md limit carried", budget)
+	}
+	if reason := budget.Check(state, state.Strikes, 0); reason != engine.StopNone {
+		t.Fatalf("three strikes under a five-strike allowance stopped the wake: %q", reason)
+	}
+	if reason := budget.Check(state, 5, 0); reason != engine.StopDoomLoop {
+		t.Fatalf("five strikes under a five-strike allowance = %q, want doom-loop", reason)
 	}
 }

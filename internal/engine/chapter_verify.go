@@ -47,7 +47,7 @@ func (cv *ChapterVerifier) Verify(ctx context.Context, repoDir string, chapter C
 	// If no changes were made, skip verification and commit.
 	hasChanges, err := cv.Checkpointer.HasChanges(repoDir)
 	if err != nil {
-		if cancelErr := sagaCancellation(ctx, err); cancelErr != nil {
+		if cancelErr := sagaCancellationResult(ctx, err); cancelErr != nil {
 			return nil, cancelErr
 		}
 		return nil, fmt.Errorf("checking for changes: %w", err)
@@ -72,7 +72,7 @@ func (cv *ChapterVerifier) Verify(ctx context.Context, repoDir string, chapter C
 		}
 		commit, err := cv.Checkpointer.CommitChapter(repoDir, chapter.Number, chapter.Title)
 		if err != nil {
-			if cancelErr := sagaCancellation(ctx, err); cancelErr != nil {
+			if cancelErr := sagaCancellationResult(ctx, err); cancelErr != nil {
 				return nil, cancelErr
 			}
 			return nil, fmt.Errorf("committing chapter %d: %w", chapter.Number, err)
@@ -98,7 +98,7 @@ func (cv *ChapterVerifier) Verify(ctx context.Context, repoDir string, chapter C
 				return nil, cancelErr
 			}
 			results = cv.Runner.RunGates(repoDir, gates)
-		} else if cancelErr := sagaCancellation(ctx, err); cancelErr != nil {
+		} else if cancelErr := sagaCancellationResult(ctx, err); cancelErr != nil {
 			return nil, cancelErr
 		}
 	}
@@ -109,7 +109,7 @@ func (cv *ChapterVerifier) Verify(ctx context.Context, repoDir string, chapter C
 		}
 		commit, err := cv.Checkpointer.CommitChapter(repoDir, chapter.Number, chapter.Title)
 		if err != nil {
-			if cancelErr := sagaCancellation(ctx, err); cancelErr != nil {
+			if cancelErr := sagaCancellationResult(ctx, err); cancelErr != nil {
 				return nil, cancelErr
 			}
 			return nil, fmt.Errorf("committing chapter %d: %w", chapter.Number, err)
@@ -126,7 +126,7 @@ func (cv *ChapterVerifier) Verify(ctx context.Context, repoDir string, chapter C
 		return nil, cancelErr
 	}
 	if err := cv.Checkpointer.RollbackChapter(repoDir); err != nil {
-		if cancelErr := sagaCancellation(ctx, err); cancelErr != nil {
+		if cancelErr := sagaCancellationResult(ctx, err); cancelErr != nil {
 			return nil, cancelErr
 		}
 		return nil, fmt.Errorf("rolling back chapter %d: %w", chapter.Number, err)

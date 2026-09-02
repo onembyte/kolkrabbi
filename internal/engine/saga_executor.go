@@ -177,7 +177,7 @@ func (r *SagaRunner) RunWake(ctx context.Context, repoDir string, state *SagaSta
 			return StopNone, err
 		}
 		r.say("chapter %d failed: %v", state.Chapters[index].Number, err)
-		if state.Status == "blocked" {
+		if state.Status == SagaStatusBlocked {
 			return StopDoomLoop, nil
 		}
 		return StopNone, err

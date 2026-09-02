@@ -38,7 +38,10 @@ func VerifyChapter(ctx context.Context, verifier *ChapterVerifier, repoDir strin
 
 	commit, err := verifyThroughPorts(ctx, verifier, repoDir, *chapter)
 	if err != nil {
-		if cancelErr := sagaCancellation(ctx, err); cancelErr != nil {
+		// sagaCancellationResult, not sagaCancellation: a commit or rollback
+		// that failed while the user was cancelling is the one error the next
+		// wake most needs to see, and the plain form threw it away.
+		if cancelErr := sagaCancellationResult(ctx, err); cancelErr != nil {
 			// Verifying is an in-flight marker, not a resumable boundary. The
 			// next wake must be able to retry the chapter without a strike.
 			if chapter.Status == StatusVerifying {

@@ -14,6 +14,8 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/enginetest"
+	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/session"
 )
 
 func TestReplInlineSagaUsesTheCurrentAgentAndRestoresOrdinaryPosture(t *testing.T) {
@@ -235,5 +237,70 @@ func TestTUIInlineSagaEscapeCancelsTheWakeAndRestoresPosture(t *testing.T) {
 	}
 	if ag.Posture != engine.Posture("") {
 		t.Fatalf("TUI posture after cancellation = %q, want ordinary posture", ag.Posture)
+	}
+}
+
+// Every planned chapter being done is where the planner is asked for the next
+// one, not where the saga ends. A guard written for the old multi-chapter loop
+// returned "nothing left to work" on that state, so an inline saga could never
+// get past its first chapter; the second wake never reached the planner.
+func TestASecondWakeAsksThePlannerWhenEveryChapterIsDone(t *testing.T) {
+	isolateHome(t)
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(root)
+	afterChapterOne := &engine.SagaState{
+		Goal:          "build the app",
+		Status:        engine.SagaStatusInProgress,
+		ActiveChapter: 1,
+		MaxChapters:   engine.DefaultMaxChapters,
+		CostLimit:     engine.DefaultCostLimit,
+		MaxStrikes:    engine.DefaultMaxStrikes,
+		Chapters:      []engine.Chapter{{Number: 1, Title: "scaffold the project", Status: engine.StatusDone, Commit: "abc1234"}},
+	}
+	if err := os.WriteFile(filepath.Join(root, "SAGA.md"), []byte(engine.FormatSagaMarkdown(afterChapterOne)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// The planner is the only model call this wake should make, and it says
+	// the goal is met.
+	srv := enginetest.New(enginetest.Step{Text: "DONE"})
+	t.Cleanup(srv.Close)
+	var out bytes.Buffer
+	a := &app{stdout: &out, stderr: &out, in: bufio.NewReader(strings.NewReader("continue /saga\n/exit\n"))}
+	ag := engine.New(engine.Options{
+		Client:     provider.NewCompatibleClient(srv.URL),
+		Model:      "mock/model",
+		Sess:       session.New(t.TempDir(), "mock/model"),
+		Permission: engine.PermissionFullAuto,
+		Out:        io.Discard,
+	})
+
+	if err := a.repl(context.Background(), ag); err != nil {
+		t.Fatalf("repl returned %v\n%s", err, out.String())
+	}
+	if got := len(srv.Requests); got != 1 {
+		t.Fatalf("model requests = %d, want exactly one (the planner); the wake returned before asking\n%s", got, out.String())
+	}
+	var plannerPrompt string
+	for _, message := range srv.Requests[0] {
+		if message.Role == "user" {
+			plannerPrompt = message.Content
+		}
+	}
+	if !strings.Contains(plannerPrompt, "Goal: build the app") || !strings.Contains(plannerPrompt, "continue") {
+		t.Fatalf("planner prompt = %q, want the persisted goal and the wake note", plannerPrompt)
+	}
+	if strings.Contains(out.String(), "nothing left to work") {
+		t.Fatalf("second wake was refused before planning:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "every acceptance criterion is met") {
+		t.Fatalf("output = %q, want the planner's verdict reported", out.String())
+	}
+	body, _ := os.ReadFile(filepath.Join(root, "SAGA.md"))
+	if !strings.Contains(string(body), "- **Status**: completed") || !strings.Contains(string(body), "- **Goal**: build the app") {
+		t.Fatalf("SAGA.md after the planner said DONE = %q", body)
 	}
 }

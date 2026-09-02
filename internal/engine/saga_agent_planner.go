@@ -21,6 +21,10 @@ const donePhrase = "DONE"
 // from the work it is actually doing.
 type AgentPlanner struct {
 	Agent *Agent
+	// Note is what the user said at this wake when it was not the goal —
+	// "focus on the tests", "skip the migration" — shown to the planner
+	// alongside the goal it must not replace.
+	Note string
 }
 
 // Next returns the title of the next chapter, or "" when the goal is met.
@@ -29,7 +33,7 @@ func (p AgentPlanner) Next(ctx context.Context, goal string, done []Chapter) (st
 		return "", fmt.Errorf("saga: no agent to plan with")
 	}
 
-	reply, err := p.Agent.FastLaneChat(ctx, sagaPlannerSystemPrompt, plannerPrompt(goal, done))
+	reply, err := p.Agent.FastLaneChat(ctx, sagaPlannerSystemPrompt, plannerPrompt(goal, done, p.Note))
 	if err != nil {
 		return "", err
 	}
@@ -55,9 +59,12 @@ If the goal is already met by the work listed, answer exactly: ` + donePhrase
 // point: repeating a chapter that just failed the same way is how a saga enters
 // the loop the doom detector exists to stop, and the planner is the only thing
 // that can avoid it.
-func plannerPrompt(goal string, done []Chapter) string {
+func plannerPrompt(goal string, done []Chapter, note string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Goal: %s\n", goal)
+	if note = strings.TrimSpace(note); note != "" {
+		fmt.Fprintf(&b, "Note from the user for this step: %s\n", note)
+	}
 	if len(done) == 0 {
 		b.WriteString("\nNothing has been done yet. Name the first chapter.")
 		return b.String()

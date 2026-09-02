@@ -24,12 +24,16 @@ func (a *app) runInteractivePrompt(ctx context.Context, ag *engine.Agent, prompt
 	return a.runInlineSaga(ctx, ag, goal)
 }
 
-func (a *app) runInlineSaga(ctx context.Context, ag *engine.Agent, goal string) (err error) {
+func (a *app) runInlineSaga(ctx context.Context, ag *engine.Agent, text string) (err error) {
 	if ag == nil {
 		return fmt.Errorf("saga: current agent is required")
 	}
-	if err := a.saveSagaGoal(goal); err != nil {
+	opening, err := a.openSaga(text)
+	if err != nil {
 		return err
+	}
+	if opening.notice != "" {
+		fmt.Fprintln(a.stdout, opening.notice)
 	}
 	if err := ag.SetPosture(engine.PostureSaga); err != nil {
 		return err
@@ -46,5 +50,5 @@ func (a *app) runInlineSaga(ctx context.Context, ag *engine.Agent, goal string) 
 	if a.sagaWake != nil {
 		return a.sagaWake(ctx, ag)
 	}
-	return a.runSagaLoop(ctx, ag)
+	return a.runSagaLoop(ctx, ag, opening.note)
 }

@@ -5993,6 +5993,31 @@ position — found nothing the guard accepts that dials elsewhere. `make check` 
 Worth keeping from this one: a case-fold is a Unicode operation and a host name is not, and a review
 that only reads the diff would not have found the difference. V34.1a is closed. V34.1b is next.
 
+## F1 — the inline SAGA advances, keeps its goal, and resets (complete 2026-09-02)
+
+The inline saga could not get past its first chapter, and the reason was a guard doing the right
+thing for a loop that no longer existed. In the old multi-chapter `Run`, planning happened inside
+the same call, so "every chapter is done" meant the run was over. `RunWake` plans one chapter per
+wake, so "every chapter is done" is exactly the state in which the planner must be asked — and the
+guard in front of it returned "nothing left to work" instead. Deleted; the executor's own terminal
+judgement, from the artifact's `Status` line, is the only one.
+
+Two more defects sat on the same path. The wake messages tell the user to type `next chapter /saga`
+and `retry /saga`, and `saveSagaGoal` made those words the goal; the planner then planned "retry"
+for the rest of the run. Now a saga in flight keeps its goal and the text is a note, shown to the
+planner and the worker beside the goal it must not replace. And a finished `SAGA.md` was reused
+verbatim, so a new `/saga` in that repository was told the old goal was met; now it is archived as
+`SAGA.<started>.md` and the request starts a new saga, with no subcommand and nothing deleted.
+
+Smaller, from the same review: the wake budget was built from three of the artifact's four limit
+lines and blocked a five-strike saga at three; the verifier threw away a failed `git commit` when
+the user cancelled at the same moment. Both fixed with the test that shows the old behaviour.
+
+Each fix was reintroduced by mutation and its test failed; each file came back byte-identical. The
+REPL-level test is the one to keep: chapter 1 done, `continue /saga`, and the assertion that the
+scripted provider received exactly one request — the planner — is the difference between a saga
+and a chapter.
+
 ## TUI progress-log observability — C5 queued 2026-09-01
 
 The requested Codex/Claude-style work log is recorded as a dedicated future checkpoint. It will

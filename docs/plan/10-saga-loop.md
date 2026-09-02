@@ -154,7 +154,9 @@ A saga halts execution immediately upon hitting any of the following guardrails:
 If three consecutive chapters produce zero file changes, repeat identical error messages, or fail verification after internal repair attempts:
 1. The saga terminates execution to prevent runaway token expenditure.
 2. The engine logs: `◆ saga paused: doom-loop detected (3 consecutive chapters without forward progress). Inspect the live session log and SAGA.md for blockers.`
-3. Stored state is preserved so the user can inspect or edit `SAGA.md` before the next `/saga` request.
+3. Stored state is preserved as `blocked`, so the user can inspect `SAGA.md`. The next `/saga`
+   request archives the blocked artifact and starts a new saga with that request as its goal (§4);
+   the doom threshold the wake enforces is the artifact's own `Strikes: n / max` line.
 
 ---
 
@@ -168,6 +170,20 @@ $ kolk "migrate authentication store /saga"
 Inside the REPL:
 - `build the requested feature /saga`
 - Esc cancels the active wake, like any other turn.
+
+What a `/saga` request means depends on what `SAGA.md` says (decided 2026-09-02, F1 of
+`FABLE_OPTIMIZATION.md`):
+
+| `SAGA.md` | The request text becomes | The wake |
+|---|---|---|
+| absent | the **goal** of a new saga | plans and works chapter 1 |
+| in flight (`in-progress`) | a **note** for this wake — the goal is kept; the note is shown to the planner and the worker (`next chapter /saga`, `focus on the tests /saga`) | asks the planner for the next chapter, or works the pending one |
+| finished (`completed` or `blocked`) | the **goal** of a new saga; the old artifact is archived beside it as `SAGA.<started>.md` | plans and works chapter 1 of the new saga |
+
+Restating the goal on an in-flight saga is not a note. A wake never rewrites the goal line: the
+goal a saga was started with is the goal its planner is judged against until the artifact reaches
+a terminal status. There is no reset subcommand; a finished artifact is reset by the next request,
+and the archive keeps the chapter log the new saga's author will want to read.
 - The live TUI log shows chapter progress, status, and cost; `SAGA.md` remains the durable artifact.
 
 ---

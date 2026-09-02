@@ -143,7 +143,10 @@ active one; `/ask`, `/auto-approve` and `/full-auto` switch straight to one.
 `@` completes a file path against the project, and the status line carries
 mode, model, effort, context use, and what the session has cost.
 Append `/saga` to any request that needs careful, checkpointed progression; its
-chapter activity and durable log appear in the running session.
+chapter activity and durable log appear in the running session. Each later
+`/saga` request works the next chapter of the saga in `SAGA.md` — the goal stays,
+your text rides along as a note — and once that saga is finished, the next
+`/saga` archives it and starts a new one.
 In the interactive TUI, ↑ reloads the last message; one Ctrl+C clears only the
 composer, while a second consecutive Ctrl+C exits. Single-shot Ctrl+C still
 aborts that run.

@@ -652,3 +652,49 @@ func TestCancellingTheRunStopsIt(t *testing.T) {
 		t.Fatalf("reason = %q; cancellation is not a budget stop", reason)
 	}
 }
+
+// cancellingCommitter is a checkpointer whose commit fails for a real reason
+// at the same moment the user cancels — a hook exiting non-zero while Ctrl+C
+// lands.
+type cancellingCommitter struct{ cancel context.CancelFunc }
+
+func (c *cancellingCommitter) HasChanges(string) (bool, error) { return true, nil }
+func (c *cancellingCommitter) RollbackChapter(string) error    { return nil }
+func (c *cancellingCommitter) CommitChapter(string, int, string) (string, error) {
+	c.cancel()
+	return "", errors.New("pre-commit hook exited 1")
+}
+
+// A commit that failed while the user was cancelling is the one error the
+// next wake most needs to see. The verifier used the plain cancellation form
+// and returned bare context.Canceled, so the operator saw "(interrupted)" and
+// nothing about the hook.
+func TestACancelledCommitKeepsTheGitError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	verifier := &ChapterVerifier{Detector: noGates{}, Checkpointer: &cancellingCommitter{cancel: cancel}}
+
+	_, err := verifier.Verify(ctx, "repo", Chapter{Number: 1, Title: "first"})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Verify error = %v, want cancellation kept as the terminal outcome", err)
+	}
+	if !strings.Contains(err.Error(), "pre-commit hook exited 1") {
+		t.Fatalf("Verify error = %v, want the commit failure preserved", err)
+	}
+
+	// And through the lifecycle, where the chapter must be left resumable.
+	ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+	state := oneChapter(StatusExecuting)
+	verifier = &ChapterVerifier{Detector: noGates{}, Checkpointer: &cancellingCommitter{cancel: cancel}}
+	err = VerifyChapter(ctx, verifier, "repo", state, 0)
+	if !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), "pre-commit hook exited 1") {
+		t.Fatalf("VerifyChapter error = %v, want cancellation joined with the commit failure", err)
+	}
+	if state.Chapters[0].Status != StatusExecuting {
+		t.Fatalf("chapter status after cancelled commit = %q, want executing (resumable, no strike)", state.Chapters[0].Status)
+	}
+	if state.Strikes != 0 {
+		t.Fatalf("strikes = %d, want none for a cancellation", state.Strikes)
+	}
+}

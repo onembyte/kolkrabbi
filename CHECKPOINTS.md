@@ -10736,6 +10736,53 @@ workflow pins 43. `go test -race -count=1` over `secret`, `provider`, `cli`, `en
 `gofmt -l`, `go vet`, and `git diff --check` clean. No credential, provider turn, commit, push, tag,
 release, scheduler action, or remote state changed. V34.1a is closed; V34.1b is next.
 
+#### F1 — the inline SAGA advances, keeps its goal, and resets — complete 2026-09-02
+
+Program leaf from `FABLE_OPTIMIZATION.md`; feeds V34.3a/b/f. **Risk:** P1 — the inline saga did one
+chapter and then reported the rest finished. **Invariant:** every planned chapter being done is the
+moment the planner is asked, not the end; a wake never rewrites the goal; a terminal artifact is
+reset only by archiving it; the wake enforces the artifact's own limits; cancellation never hides a
+commit or rollback error.
+
+Red, from the 2026-09-02 review transcript: wake 1 `build it /saga` planned and finished chapter 1;
+wake 2 `continue /saga` printed "has nothing left to work; every chapter is finished or blocked"
+and returned without a model call (`cmd_saga_run.go` guard). `saveSagaGoal` set `Goal = "continue"`
+on the way (`cmd_saga.go:116`). A completed `SAGA.md` answered every later `/saga` with
+"every acceptance criterion is met" and there was no reset path. A wake `SagaBudget` without
+`DoomThreshold` blocked at 3 strikes over a `Strikes: 3 / 5` artifact. `Verify` returned bare
+`context.Canceled` over a failed `git commit`.
+
+Green, smallest change per defect:
+
+- `runSagaLoop` no longer guards on chapter state; `hasPendingChapter` deleted. The executor's
+  `terminalSagaStop` remains the only terminal judgement.
+- `openSaga(text)` replaces `saveSagaGoal`: absent artifact → new saga; in flight → goal kept, text
+  is a note (unless it restates the goal); finished → `archiveSaga` renames it to
+  `SAGA.<started>.md` (`-2`, `-3` … on collision) and a new saga starts. `runInlineSaga` prints the
+  one-line notice. `AgentPlanner.Note` / `AgentWorker.Note` put the note in both prompts.
+- `sagaWakeBudget(state)` carries `MaxChapters`, `CostLimit`, `DoomThreshold: MaxStrikes`.
+- `ChapterVerifier.Verify` and `VerifyChapter` use `sagaCancellationResult` on every real error
+  path; `RunWake` compares `SagaStatusBlocked`.
+- Stop messages for goal-complete and doom-loop say the next `/saga` archives and starts anew.
+
+Tests: `TestASecondWakeAsksThePlannerWhenEveryChapterIsDone` (REPL over a scripted provider: one
+request, the planner; note and goal both in the prompt; `Status: completed` persisted),
+`TestAWakeNoteDoesNotReplaceTheGoal`, `TestANewGoalAfterAFinishedSagaArchivesAndStartsFresh`
+(completed and blocked), `TestArchivingTwiceInTheSameSecondKeepsBoth`,
+`TestWakeBudgetCarriesMaxStrikesFromSagaFile`, `TestACancelledCommitKeepsTheGitError` (verifier and
+lifecycle; chapter left `executing`, no strike).
+
+Adversarial: one mutation per fix — guard reinserted, goal overwritten, terminal artifact reused,
+threshold dropped, plain cancellation restored — each made its focused test fail and each file was
+restored to its pre-mutation SHA-256. Existing coverage retained for executing-before-work
+persistence, cancellation during work and verification, terminal artifacts not reopened, and
+persistence failure. `go test -race` on `cli` and `engine` clean. Crash injection between persist
+and work is not claimed here; V34.3e owns it.
+
+Walk-back: `docs/plan/10` §3.1 and §4 (wake table, reset rule, doom threshold from the artifact),
+`FABLE_OPTIMIZATION.md` F1 ticked. Gates: `go test ./... -count=1` green; `make check` recorded in
+the build log. No provider turn, credential, push, tag, release, or remote state changed.
+
 #### C5 — TUI progress-log observability — queued
 
 This is a separate surface checkpoint. It must make long-running work legible without turning the
