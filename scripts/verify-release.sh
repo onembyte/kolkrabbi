@@ -180,7 +180,9 @@ main() {
   [ -f "$extract_dir/kolk" ] && [ ! -L "$extract_dir/kolk" ] || \
     die "extracted host kolk is not a regular file"
   chmod 0755 "$extract_dir/kolk"
-  version_line="$("$extract_dir/kolk" version)" || die "host kolk version command failed"
+  # `kolk version` is a session command since v1.2.33; the identity line is in `kolk help`.
+  version_line="$("$extract_dir/kolk" help 2>/dev/null | awk '$1 == "kolk" && $2 ~ /^v?[0-9]/ { print; exit }')"
+  [ -n "$version_line" ] || die "host kolk help did not print a build identity line"
 
   case "$version_line" in
     "kolk $version "*) ;;

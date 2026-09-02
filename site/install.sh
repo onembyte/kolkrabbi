@@ -77,7 +77,13 @@ compare_stable_versions() {
 installed_version() {
   local binary="$1" output program version rest
   [ -f "$binary" ] && [ -x "$binary" ] || return 1
-  output="$("$binary" version 2>/dev/null)" || return 1
+  # Since v1.2.33 the only commands outside a session are sessions, serve,
+  # uninstall and help; the build identity is a line of `kolk help`. Builds
+  # before that answer `kolk version` with the same line.
+  output="$("$binary" help 2>/dev/null | awk '$1 == "kolk" && $2 ~ /^v?[0-9]/ { print; exit }')"
+  if [ -z "$output" ]; then
+    output="$("$binary" version 2>/dev/null)" || return 1
+  fi
   read -r program version rest <<<"$output"
   [ "$program" = kolk ] || return 1
   version="${version#v}"

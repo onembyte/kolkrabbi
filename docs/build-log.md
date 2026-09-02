@@ -6220,6 +6220,32 @@ compiles and the tests pass. Every place that *types* the old name has to be fou
 script that types it twenty times an hour is worse than a user who types it once, because nobody
 reads its output.
 
+## v1.3.0 — the release that the closed surface had quietly broken (2026-09-02)
+
+The v1.2.33 tag never became a release. Its verify job built all four archives, extracted the host
+one, and ran `kolk version` on it — the verb the outside-session surface had just retired — and got
+the retirement notice and exit 1. The public installer does the same thing to decide whether an
+existing install is older than the latest, so every `curl | bash` after 1.2.33 would have found the
+new binary "invalid" too. The local gates could not see either: the release verifier's fixture is a
+fake `kolk` that answered `version`, and the installer test's fake answered anything.
+
+The build identity line — `kolk v1.3.0 (commit, date) go1.27 linux/amd64`, the same formatter the
+old verb used — is now a line of `kolk help`, which is in the closed set and cannot quietly stop
+existing. The installer, the release rehearsal, and the release verifier read it there, and the
+installer still tries `kolk version` afterwards for a binary older than 1.2.33. The fake `kolk` in
+the verifier's fixture answers `help` now, so the gate matches the product.
+
+The same commit's CI failed twice on `TempDir RemoveAll cleanup: directory not empty`, six minutes
+after the identical code had passed: F4's start-time discovery keeps writing into the app's dirs in
+the background, and a test that returns first races the cleanup. The test fixture joins that work
+before the directory goes.
+
+The capabilities page taught seven verbs that no longer exist outside a session and said nothing
+about what F4–F7 built. It now says `/key`, `/update`, `/doctor` and the rest, states the closed
+surface as a capability, and carries three new cards — every vendor mapped before it is offered, the
+selected model as a ceiling with a printed lane, delegated children declaring their network — each
+pinned by the site gate so the page cannot drift from the binary again.
+
 ## F7.3–F7.4 — a reviewer who had built none of it, and the leaves it earned (2026-09-02)
 
 The reviewer was a fresh agent in its own worktree with one brief: restate each of F1–F3's

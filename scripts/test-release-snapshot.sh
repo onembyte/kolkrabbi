@@ -82,7 +82,8 @@ if { [ "$host_os" = darwin ] || [ "$host_os" = linux ]; } && [ "$host_arch" != u
   stage="$(mktemp -d "${TMPDIR:-/tmp}/kolk-snapshot.XXXXXX")"
   trap 'rm -rf "$stage"' EXIT
   tar -xzf "$host_archive" -C "$stage" kolk
-  version="$($stage/kolk version)"
+  # `kolk version` is a session command since v1.2.33; the identity line is in `kolk help`.
+  version="$($stage/kolk help | awk '$1 == "kolk" && $2 ~ /^(v?[0-9]|dev)/ { print; exit }')"
   if printf '%s\n' "$version" | grep -Fq " $host_os/$host_arch"; then pass; else fail "host build identity: $version"; fi
   if printf '%s\n' "$version" | grep -Fq 'kolk dev '; then fail "snapshot version was not stamped"; else pass; fi
 fi

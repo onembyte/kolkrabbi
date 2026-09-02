@@ -389,7 +389,8 @@ func (a *app) printUsage() {
   CLI, or a model on this machine. Every call is logged locally so you can see
   what each model costs and how well it did; nothing is sent anywhere else.
 
-  version %s (%s)   ·   Apache-2.0   ·   https://github.com/onembyte/kolkrabbi
+  %s
+  Apache-2.0   ·   https://github.com/onembyte/kolkrabbi
 
 Open a session — this is the normal way in:
   kolk                          a session, in code mode
@@ -398,7 +399,7 @@ Open a session — this is the normal way in:
   kolk --mode chat              start in another mode
 
 Inside the session, everything is a /command:
-`, build.Version, build.Go)
+`, build.String())
 
 	w := tabwriter.NewWriter(a.stdout, 0, 0, 2, ' ', 0)
 	for _, c := range slashCommandTable {

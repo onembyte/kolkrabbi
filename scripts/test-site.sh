@@ -58,10 +58,10 @@ contains index.html '<html lang="en">' "index.html must declare its language"
 contains index.html 'name="viewport"' "index.html must configure a mobile viewport"
 contains index.html '<main' "index.html must have a semantic main region"
 contains index.html 'https://kolkrabbi.francomichetti.com/install.sh' "install URL drifted"
-contains index.html 'kolk key &lt;API_KEY&gt;' "API-key command drifted"
-contains index.html '<code class="key-command"><span class="prompt" aria-hidden="true">$</span> kolk key &lt;API_KEY&gt;</code>' "API-key command is not in the run step"
+contains index.html '/key &lt;API_KEY&gt;' "API-key command drifted"
+contains index.html '<code class="key-command"><span class="prompt" aria-hidden="true">❯</span> /key &lt;API_KEY&gt;</code>' "API-key command is not in the run step"
 contains index.html '<code class="use-command"><span class="prompt" aria-hidden="true">$</span> kolk</code>' "use step must contain only the final kolk command"
-contains index.html 'Installer ships with v1.2.33' "current installer release status is missing"
+contains index.html 'Installer ships with v1.3.0' "current installer release status is missing"
 contains index.html 'https://github.com/onembyte/kolkrabbi' "GitHub link is wrong"
 contains index.html 'Apache-2.0 License' "license link or label does not match LICENSE"
 contains index.html 'Chat, code, and agent' "landing page does not name all three modes"
@@ -181,7 +181,16 @@ contains capabilities.html 'Orchestrated agent runs' "catalog does not cover the
 # Self-update shipped as U0.2a-d and was the one capability the catalog forgot,
 # found by an audit comparing `kolk help` against the page rather than trusting
 # the release checkpoint that said the two were in line.
-contains capabilities.html 'kolk update' "catalog does not cover self-update"
+contains capabilities.html '/update' "catalog does not cover self-update"
+# v1.3.0: the outside-session surface closed to four commands, every vendor's models are mapped
+# before they are offered, the selected model is a ceiling with a printed lane, and delegated
+# children declare their network. Each is a promise the page makes and the binary keeps.
+contains capabilities.html '>DISCOVERY<' "catalog does not cover vendor model discovery"
+contains capabilities.html '>LANE<' "catalog does not cover the ceiling lane"
+contains capabilities.html '>NETWORK<' "catalog does not cover delegated network policy"
+contains capabilities.html 'Four commands outside, everything inside' "catalog does not state the closed outside-session surface"
+excludes capabilities.html '<code>kolk key' "catalog still teaches the retired outside-session key verb"
+excludes capabilities.html '<code>kolk update' "catalog still teaches the retired outside-session update verb"
 contains capabilities.html 'Careful long-running progression' "catalog does not cover the saga loop"
 contains capabilities.html 'Permission rules and path jail' "catalog does not cover permission rules"
 contains capabilities.html 'Local model dashboard' "catalog does not cover the local dashboard"

@@ -48,6 +48,10 @@ func newTestApp(t *testing.T, stdin string) (*app, *bytes.Buffer, *bytes.Buffer)
 	a.signIn = func(context.Context, string) local.SignInState { return local.SignInState{} }
 	a.probeHardware = func(context.Context, string) local.Hardware { return local.Hardware{} }
 	a.pulledNames = func() map[string]bool { return map[string]bool{} }
+	// Start-time discovery runs in the background and writes into the app's
+	// dirs; a test that returns while it is still writing leaves TempDir with
+	// "directory not empty" — seen on CI for the v1.2.33 commit.
+	t.Cleanup(a.joinBackground)
 	return a, &out, &errOut
 }
 

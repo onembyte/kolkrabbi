@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"github.com/onembyte/kolkrabbi/internal/buildinfo"
 	"strings"
 	"testing"
 )
@@ -77,7 +78,7 @@ func TestHelpIsTheFrontDoor(t *testing.T) {
 	for _, want := range []string{
 		"chat, code, and ordered agents", // what it is
 		"Apache-2.0",                     // licence
-		"version ",                       // build
+		buildinfo.Get().String(),         // build identity, the line installers and release checks read
 		"Open a session",                 // the normal way in
 		"kolk -r",                        // resume
 		"Inside the session, everything is a /command", // where the commands are

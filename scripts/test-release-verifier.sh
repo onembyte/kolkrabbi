@@ -68,7 +68,8 @@ for target in darwin_amd64 darwin_arm64 linux_amd64 linux_arm64; do
   mkdir -p "$payload"
   cat >"$payload/kolk" <<FIXTURE
 #!/usr/bin/env bash
-if [ "\${1:-}" = version ]; then
+if [ "\${1:-}" = help ]; then
+  printf 'kolk — fixture\\n\\n'
   printf 'kolk $VERSION (abc123, 2026-08-23T00:00:00Z) go1.26.4 ${target/_//}\\n'
 else
   exit 2

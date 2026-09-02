@@ -81,9 +81,20 @@
             model.</p>
         </article>
         <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>DISCOVERY</span></div>
+          <h3>Every vendor mapped before it is offered</h3>
+          <p>On every start and every login Kolkrabbi asks each connector what it lists today —
+            <code>codex debug models</code> for Codex, a gateway preview of the Claude families for a
+            CLI that lists nothing — and only then shows them. <code>/pmodels</code> says how each row
+            is known: <code>listed</code>, <code>verified</code> once a turn has answered on it,
+            <code>gone</code> when the vendor stopped listing it, in which case it is refused by name.
+            Kolkrabbi's own list only ranks; the vendor decides what exists, so a renamed model
+            tomorrow is a row that changes, not a build that breaks.</p>
+        </article>
+        <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>KEY</span></div>
           <h3>Safe key onboarding</h3>
-          <p><code>kolk key &lt;key&gt;</code> classifies and masks the value, refuses known subscription
+          <p><code>/key &lt;key&gt;</code> classifies and masks the value, refuses known subscription
             tokens, verifies OpenRouter when reachable, and stores credentials outside config.</p>
         </article>
         <article class="spec-card" data-status="available">
@@ -131,13 +142,13 @@
           <div class="spec-meta"><span class="status-badge">Available now</span><span>LOCAL</span></div>
           <h3>Private usage history</h3>
           <p>Token, cost, latency, mode, effort, and optional 1–5 ratings stay in local JSONL.
-            <code>kolk stats</code> prints the table and <code>kolk dash</code> serves the same
+            <code>/stats</code> prints the table and <code>/dash</code> serves the same
             numbers to a loopback-only page. Neither sends telemetry.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>UPDATES</span></div>
           <h3>Updates you can verify</h3>
-          <p><code>kolk update</code> finds the newest release, checks its signed checksum before
+          <p><code>/update</code> finds the newest release, checks its signed checksum before
             trusting a byte of it, and replaces the running binary atomically, so an interrupted
             update leaves the old one working.</p>
         </article>
@@ -178,7 +189,7 @@
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>DOCTOR</span></div>
           <h3>Ask what it can see</h3>
-          <p><code>kolk doctor</code> reports keys, directories, terminal and reachability — what it
+          <p><code>/doctor</code> reports keys, directories, terminal and reachability — what it
             found, never what it found with. <code>--debug</code> writes a scrubbed log for one
             session and tells you where it is, so a bug report can carry it.</p>
         </article>
@@ -211,8 +222,8 @@
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>ANY KEY</span></div>
           <h3>Any supported API key</h3>
-          <p><code>kolk key &lt;key&gt;</code> infers the provider from the key's own shape, and
-            <code>kolk key &lt;provider&gt; &lt;key&gt;</code> states it outright for CI or an uncommon
+          <p><code>/key &lt;key&gt;</code> infers the provider from the key's own shape, and
+            <code>/key &lt;provider&gt; &lt;key&gt;</code> states it outright for CI or an uncommon
             format. Reading the key from stdin keeps it out of shell history.</p>
         </article>
         <article class="spec-card" data-status="available">
@@ -220,8 +231,10 @@
           <h3>Claude Agent subscription</h3>
           <p>Kolkrabbi hands sign-in to the user's own unmodified <code>claude</code> CLI and runs it
             as a backend: one persistent process per session, scrubbed frames, per-turn cost, and an
-            effort level that steps down to what the plan actually offers. No subscription token is
-            stored. Starting a session still expects a gateway key; removing that is an open decision.</p>
+            effort level that steps down to what the plan actually offers. <code>-P full-auto</code>
+            reaches the child as the vendor's own permission bypass, said once per session with what it
+            costs, so a delegated run can execute commands and not only edit files. No subscription
+            token is stored. Starting a session still expects a gateway key; removing that is an open decision.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>CODEX</span></div>
@@ -240,7 +253,7 @@
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>LOGIN</span></div>
           <h3>Login without lock-in</h3>
-          <p><code>kolk plans</code> lists what each provider plan exposes and <code>/plogin</code>
+          <p><code>/plans</code> lists what each provider plan exposes and <code>/plogin</code>
             filters them as you type. Login is handed to the provider's own CLI, never spawned while
             Kolkrabbi owns the keyboard, and a clean exit is recorded as unverified until a real turn
             proves it. Optional browser login is still planned.</p>
@@ -328,6 +341,15 @@
             too, so planning and synthesis need not use the model that does the work.</p>
         </article>
         <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>LANE</span></div>
+          <h3>The model you pick is a ceiling</h3>
+          <p><code>/mode agent</code> prints the lane an orchestrated run may spend on —
+            <code>claude-fable → claude-opus → claude-sonnet → claude-haiku</code> from the top rung —
+            and trivial work is routed below the ceiling, never above it. A rung that will not open
+            falls back to the model you selected, announced; nothing signed in below means everything
+            runs on the ceiling, and the lane says what a sign-in would unlock.</p>
+        </article>
+        <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>AGENTS</span></div>
           <h3>Orchestrated agent runs</h3>
           <p>Independent readers run three at a time across the dependency graph while anything that
@@ -347,7 +369,10 @@
           <h3>Careful long-running progression</h3>
           <p>Include <code>/saga</code> in a normal request to advance one bounded chapter at a time — plan, act, verify,
             checkpoint, report — with the project's own tests as the gate, a commit only on green,
-            and a chapter limit, dollar budget, timeout, and doom-loop detector around it.</p>
+            and a chapter limit, dollar budget, timeout, and doom-loop detector around it. One request
+            is one wake: the saga keeps the goal it started with, text that differs becomes a note for
+            that wake, a saga with nothing left to plan says so, and the next goal archives the finished
+            artifact beside the new one — no run, resume, status, or stop subcommand exists.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>CODE</span></div>
@@ -359,7 +384,7 @@
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>LOCALIA</span></div>
           <h3>Local models, planned before pulled</h3>
-          <p><code>kolk localia</code> reports what this machine can actually run — accelerators, RAM,
+          <p><code>/localia</code> reports what this machine can actually run — accelerators, RAM,
             free disk — and shows every number behind a fit decision, refusing what does not fit
             instead of degrading into swap. A pull asks first, then goes through the Ollama you already
             have; kolk never installs one.</p>
@@ -425,6 +450,17 @@
             Orchestrated work never prompts: what its tier would ask about is refused, with the way
             to allow it.</p>
         </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>NETWORK</span></div>
+          <h3>Delegated children say what they can reach</h3>
+          <p>Each subagent's network access is decided once — from <code>subagent_network</code>
+            (<code>auto</code> gives it to research tasks only, <code>on</code>, <code>off</code>),
+            the task's kind, and whether the vendor's child has a switch at all — and the briefing,
+            the status line, and the process envelope are all rendered from that one decision. A Codex
+            child is told both ways; a Claude child has no switch, so it is declared rather than
+            claimed. Both child paths drop credential-shaped variables, the vendor's own API key
+            included on purpose, while ordinary build variables survive.</p>
+        </article>
         <article class="spec-card" data-status="designed">
           <div class="spec-meta"><span class="status-badge">Designed, not shipped</span><span>SANDBOX</span></div>
           <h3>OS-level execution sandboxes</h3>
@@ -462,10 +498,14 @@
       <div class="spec-grid">
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>CLI</span></div>
-          <h3>Interactive and scripted terminal</h3>
-          <p>Run a REPL, pass a one-shot prompt, resume a session, select mode/model/effort, or point
-            at a compatible endpoint from one command. Scripts get strict exit codes, a streaming
-            JSON output mode, and generated completions for bash, zsh, and fish.</p>
+          <h3>Four commands outside, everything inside</h3>
+          <p>Outside a session there are four commands and no more: <code>kolk sessions</code>,
+            <code>kolk serve</code>, <code>kolk uninstall</code>, <code>kolk help</code> — plus
+            <code>kolk</code> to open a session and <code>kolk -r</code> to resume one. Everything
+            else is a <code>/command</code> inside the session, a retired verb says where it went
+            instead of reaching a model, and <code>kolk help</code> is the front door: what it is,
+            the build identity line, the licence, both surfaces in full. Scripts still get a one-shot
+            prompt, strict exit codes, and a streaming JSON output mode.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>TUI</span></div>
@@ -483,7 +523,7 @@
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>DASH</span></div>
           <h3>Local model dashboard</h3>
-          <p><code>kolk dash</code> serves a loopback-only page rendered entirely on the server — no
+          <p><code>/dash</code> serves a loopback-only page rendered entirely on the server — no
             script, no assets, no network — showing spend, tokens, latency, ratings, and recent
             sessions with what each one cost. The store stays a plain local file.</p>
         </article>

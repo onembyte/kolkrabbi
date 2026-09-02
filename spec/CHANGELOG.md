@@ -65,3 +65,8 @@ are allowed during version 0, but every change is recorded here.
   omitted when unstated, so an event from a build that predates them still validates — and `model`
   on the finished event is the rung that actually ran, which is not always the one it started on,
   because a cheaper rung that will not spawn falls back to the model the user selected.
+- Add `testdata/foreign/claude-permission-denied.ndjson`, a real Claude Code 2.1.258 capture in
+  which `system/permission_denied` carries `message` as a plain string where every other frame
+  carries an object; the adapter decodes the message lazily so that frame is tolerated and the
+  denial still arrives through the `tool_result` that follows. Fixture only — no envelope, event
+  name, or payload changed.
