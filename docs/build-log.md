@@ -6167,6 +6167,28 @@ aimed at — and the script reported that rather than passing. It was re-anchore
 A mutation that silently fails to mutate is worse than no mutation, because it reports a guard as
 proved.
 
+## F4.7 — running it (2026-09-02)
+
+A fresh clone passed the gate, which proves the tree; then the binary was run against the real
+installed CLIs in an isolated config, which proved the feature. `kolk models --refresh` asked
+codex 0.149.1 and previewed claude from the gateway, and the two things the owner asked for both
+happened in the output: `gpt-5.6-pro`, a rung kolk has carried in its own source since 08-30, was
+refused by name — *"codex 0.149.1 does not list gpt-5.6-pro"* — and `gpt-5.5`, which kolk's source
+has never heard of, appeared on both Codex tiers with the vendor's efforts and context. The live
+catalog also lists two models the bundled fixture written that morning hides. One afternoon, and
+the vendor had already moved.
+
+The run found what the unit tests had not: `--refresh` rendered the vendor sections before running
+discovery, so it showed the old list and then said it had fetched a new one. That is the whole
+phase's failure mode in miniature — a display that is confidently out of date — and it survived
+six mutations and a full gate because nothing had driven the real command end to end.
+
+Its test then had to be written twice. The first version called the two functions in the right
+order itself and passed; mutating the fix left it passing, because it was testing the functions and
+not the command. The second drives `runModels` over an httptest gateway, and the mutation fails as
+it must. Both facts are in the dossier: a test that cannot fail is worse than no test, because the
+report says "proved".
+
 ## TUI progress-log observability — C5 queued 2026-09-01
 
 The requested Codex/Claude-style work log is recorded as a dedicated future checkpoint. It will

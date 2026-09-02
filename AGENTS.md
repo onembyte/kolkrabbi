@@ -26,8 +26,9 @@ builder; ox-alpha (Kolkrabbi agent) assists as an independent builder/verifier. 
   scrub a sentinel set and decided the per-task network policy; the `kolk plans login` PTY path
   remains and is unclaimed. V34.0 is closed and V34.1f delegated execution
   capability is already complete; V34.1c–e remain queued. See also `FABLE_OPTIMIZATION.md` for the
-  F1–F7 queue that follows F0/V34.1a; F1–F3 are done and **F4 (owner decision 2026-09-02: discover
-  every vendor's models on start and on every login; never burn names) is next**.
+  F1–F7 queue that follows F0/V34.1a; **F0–F4 are done** (F4 = the owner's discover-don't-burn
+  decision: every vendor's models are mapped on start and on every login, never burned into source),
+  and **F5 (per-turn efficiency) is next and unclaimed**.
   C5 progress-log observability remains queued under partial V34.3f. OS-level sandboxing is accepted
   v1 scope but remains unimplemented under V34.1e.**
   Do not label accepted-but-unimplemented sandboxing as shipped, and do not jump to C5 before the

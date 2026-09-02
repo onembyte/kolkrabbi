@@ -10872,7 +10872,7 @@ silently and is V34.4c's, with an owner decision. Walk-back: `docs/plan/24` Anth
 one-turn provider calls were made on the owner's own login for the fire-and-check above; no
 credential, push, tag, release, or remote state changed.
 
-#### F4 — discover, don't burn — in progress; F4.1 port, F4.2 Codex lister, F4.3 Claude preview and first-turn verification, F4.4 hooks, F4.5 derivation, F4.6 surfaces complete 2026-09-02
+#### F4 — discover, don't burn — complete 2026-09-02
 
 Owner decision (verbatim in `FABLE_OPTIMIZATION.md` §F4): map every vendor's models on every start
 and every login, never burn names, show only mapped rows with their info. **Risk:** P1 product truth
@@ -10989,7 +10989,37 @@ and restored byte-identically; one sed pattern would not apply against an escape
 was re-anchored on a plain line rather than left as a mutation that "passed" by not running.
 `make check` green at 3,240 tests.
 
-Remaining: F4.7 (proof). No provider turn was spent; one `codex debug models` and one `codex
+Green, F4.7 (proof): a fresh clone of `d928b418` passed `make check` (3,240 tests, every gate).
+Live end-to-end on this machine with an isolated config and the real installed CLIs: `kolk models
+--refresh` ran `codex debug models` (0.149.1) and the gateway preview and wrote `vendor-models.json`
+— codex's eight rows (six visible; `gpt-reserve`, `codex-auto-review` kept and hidden), claude's four
+family rows with exact ids and 1M/200K contexts; `kolk --model gpt-5.6-pro` was refused with *"the
+vendor no longer lists this model: codex 0.149.1 does not list gpt-5.6-pro; `kolk models` shows what
+it does"*; `kolk pmodels gpt-5.5` listed a model kolk's source never knew, on both tiers, `listed`,
+`272K`, `enabled`. The live catalog lists `gpt-5.4`/`gpt-5.4-mini` where the checked-in bundled
+fixture hides them — vendor drift observed within one afternoon of writing the fixture.
+
+The live run found a defect the unit tests had not: `kolk models --refresh` rendered the vendor
+sections before running discovery, so a refresh showed the previous catalog and then announced a new
+one. Fixed by discovering first. Its test was written twice: the first version called
+`discoverVendorModels` and `printVendorModels` directly and its mutation stayed green — a test of
+two functions, not of the ordering — so it was rewritten to drive `runModels` over an httptest
+gateway, and the mutation then failed as it must. Six mutations across F4.6/F4.7, all red;
+`-race` clean on `cli`, `provider`, `agentcli`; `make check` green at 3,241 tests.
+
+**F4 closing statement.** No vendor model name in kolk is true because it is in the source. Every
+connector supplies a lister or is `NotListable` with a reason; a vendor with a catalog is asked
+(`codex debug models`), a vendor without one is previewed from the gateway's exact ids and verified
+by the first prompt's `init.model`; discovery runs on every start, every login, and every
+`kolk models --refresh`; the seed ladder keeps only the ranking, while availability, efforts,
+context and status come from the vendor; every surface renders that with its provenance. The
+owner's case — "tomorrow claude or codex will update his model names and kolk will stop working
+correctly" — is now a row that changes status rather than a break.
+
+V34 dispositions recorded (not ticked beyond what is proved): V34.4a part-done — Claude tier
+eligibility tested, selection follows the vendor catalog; tier gating for a *discovered* model
+remains, since a vendor catalog carries no tier. V34.4b part-done — the Codex catalog is the
+vendor's own and live-verified; kolk's four-level dial still cannot reach a vendor `ultra`. No provider turn was spent; one `codex debug models` and one `codex
 --version` ran on this machine. No credential, push, tag, release, or remote state changed.
 
 #### C5 — TUI progress-log observability — queued

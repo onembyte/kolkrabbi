@@ -171,11 +171,17 @@ independent reviewer repeating the failure matrix.
 **Goal:** users can select only a model their configured provider and subscription can actually run,
 and the catalog reflects current, supported vendor capabilities.
 
-- [ ] **V34.4a subscription eligibility and tier matching** — unsupported connectors cannot become
-  defaults; selection includes the signed-in plan tier rather than only the connector name.
-- [ ] **V34.4b Codex catalog policy** — verify vendor-supported Codex subscription models and model
-  identifiers; add Luna/Terra only if their access, tier, effort mapping, and fallback semantics are
-  documented and tested. Otherwise explain their absence in the selector rather than inventing rows.
+- [~] **V34.4a subscription eligibility and tier matching** — part-done 2026-09-02 (F3/F4 of
+  `FABLE_OPTIMIZATION.md`): Claude tier eligibility is tested (a Max login reaches every rung, a Pro
+  login is told which plan fable needs) and model selection now reads the vendor catalog rather than
+  kolk's seed. Remaining: tier gating for a *discovered* model — a vendor catalog carries no tier, so
+  a newly discovered model is listed on every tier its connector already uses.
+- [~] **V34.4b Codex catalog policy** — part-done 2026-09-02 (F4 of `FABLE_OPTIMIZATION.md`): the
+  Codex catalog is no longer written by kolk. `codex debug models` is the source, verified live
+  against 0.149.1; identifiers, efforts, context and order come from the vendor; `gpt-5.6-pro` — a
+  kolk seed the vendor does not list — is reported `gone` and refused by name. Remaining: kolk's dial
+  has four levels, so a vendor `ultra` appears in the catalog and is accepted by name but cannot be
+  reached through `/effort`.
 - [ ] **V34.4c provider-matrix disposition** — choose the next supported provider(s), with current
   terms/capabilities/billing/redaction fixtures, or explicitly defer each remaining matrix row.
 - [ ] **V34.4d managed-local truth** — reconcile host Ollama hardware-fit, runtime, and `/localia`

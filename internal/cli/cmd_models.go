@@ -43,14 +43,21 @@ func (a *app) runModels(ctx context.Context, args []string) error {
 	if err := a.printModelCatalog(ctx, client, d.CatalogFile(), forceRefresh, filter); err != nil {
 		return err
 	}
-	a.printVendorModels(filter)
-	a.printHostModels(ctx, d.HostCatalogFile(), filter)
+	// --refresh asks every signed-in vendor before the sections print, not
+	// after: a refresh that renders the previous catalog and then says it
+	// fetched a new one shows the user the wrong list and tells them it is
+	// current. Found by running it (F4.7).
+	var discovered []vendorDiscovery
 	if forceRefresh {
-		// --refresh asks every signed-in vendor too, in front of the user.
-		for _, result := range a.discoverVendorModels(ctx, provider.CachedCatalog(d.CatalogFile()), "") {
+		discovered = a.discoverVendorModels(ctx, provider.CachedCatalog(d.CatalogFile()), "")
+	}
+	a.printVendorModels(filter)
+	for _, result := range discovered {
+		if result.Err != nil {
 			fmt.Fprintln(a.stdout, describeVendorDiscovery(result))
 		}
 	}
+	a.printHostModels(ctx, d.HostCatalogFile(), filter)
 	return nil
 }
 

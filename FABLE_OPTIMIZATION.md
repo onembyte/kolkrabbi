@@ -290,7 +290,7 @@ max` each completed a one-turn `-p` call (`stop_reason: end_turn`). `claude --he
 `claude-opus`, not `claude-fable`. Changing what a shorthand means moves users' models silently;
 that is V34.4c's catalog disposition, with an owner decision.
 
-## F4 — Discover, don't burn: every vendor's models are mapped before they are shown  ·  `[~]` F4.1–F4.6 done 2026-09-02
+## F4 — Discover, don't burn: every vendor's models are mapped before they are shown  ·  **done 2026-09-02**
 
 **Owner decision, 2026-09-02** (verbatim): *"when kolk see models availables, ID them, do not burn
 model names before knowing what's available. because if not, tomorrow claude or codex will update
@@ -424,10 +424,29 @@ wrong three days later. Feeds V34.4a/b/c/d.
   `TestBareModelChoicesSayWhatIsUnverifiedAndWhatIsGone`,
   `TestAConfiguredModelTheVendorDroppedIsNamedNotSwapped`. Five mutations: unverified unmarked, no
   provenance, hidden/gone rows shown, pmodels dropping status, choices dropping the note.
-- [ ] **F4.7 Proof.** Tests for: stale cache served then refreshed; missing CLI; malformed output;
-  version change; a seed row never shown without `unverified`; `gpt-5.6-pro` reported `gone` against
-  the 2026-09-02 fixture; ceiling/roster behaviour on a name discovery added that the seed ladder
-  never heard of. One mutation per rule. `-race` on the refresh path. Dossier in `CHECKPOINTS.md`.
+- [x] **F4.7 Proof.** Fresh clone of `d928b418` → `make check` green (3,240 tests, all gates).
+  Live end-to-end on this machine, isolated config, real installed CLIs: `kolk models --refresh` ran
+  `codex debug models` (0.149.1) and the gateway preview, and wrote `vendor-models.json` with
+  codex's eight rows (six visible; `gpt-reserve` and `codex-auto-review` kept and hidden) and
+  claude's four family rows with their exact ids. `kolk --model gpt-5.6-pro` — kolk's own seed rung
+  since 08-30 — was refused: *"the vendor no longer lists this model: codex 0.149.1 does not list
+  gpt-5.6-pro; `kolk models` shows what it does"*. `kolk pmodels gpt-5.5` — a model kolk's source
+  never knew — lists on both Codex tiers, `listed`, `272K`, `enabled`. The live catalog also lists
+  `gpt-5.4`/`gpt-5.4-mini` that the bundled one hides, so the fixture and the live answer already
+  differ: the drift the owner predicted, inside one afternoon.
+  **The run found a defect**: `--refresh` rendered the vendor sections *before* discovery, so a
+  refresh showed the previous list and then announced a new one. Fixed (discover, then render), with
+  a test that drives the real `runModels` — the first version of that test called the pieces
+  directly and its mutation stayed green, which is a test that proves nothing; it was rewritten
+  until the mutation went red. Six mutations for F4.6+F4.7, all red. Dossier in `CHECKPOINTS.md`.
+
+**V34 dispositions this program earned** (recorded, not ticked beyond what is proved):
+`V34.4a` part-done — Claude tier eligibility is tested (F3) and selection now follows the vendor
+catalog (F4.5); what remains is tier gating for a *discovered* model, since a vendor catalog carries
+no tier and F4.5 lists a new model on every tier its connector already uses. `V34.4b` part-done —
+the Codex catalog is no longer kolk's invention (F4.2, live-verified) and effort mapping comes from
+the vendor, but kolk's dial has four levels, so a vendor `ultra` shows and is accepted by name and
+is not reachable through `/effort`.
 
 **Exit:** on this machine, `kolk models` after `kolk plans login openai "ChatGPT Plus"` lists exactly
 what `codex debug models` lists, with `gpt-5.6-pro` absent or `gone`, and a Claude session shows its

@@ -2,10 +2,15 @@ package cli
 
 import (
 	"bytes"
+	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/onembyte/kolkrabbi/internal/local"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 )
 
@@ -217,5 +222,39 @@ func TestAConfiguredModelTheVendorDroppedIsNamedNotSwapped(t *testing.T) {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("startup refusal = %q, want %q", err, want)
 		}
+	}
+}
+
+// --refresh maps the vendors before the sections render. A refresh that shows
+// the previous catalog and then announces a new one shows the wrong list and
+// calls it current. Found by running the real binary (F4.7), so the test
+// drives the real command.
+func TestModelsRefreshDiscoversBeforeItRenders(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	signInAs(t, dirs, "openai", "ChatGPT Plus", "codex")
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"data":[{"id":"vendorless/model","context_length":1000}]}`)
+	}))
+	defer gateway.Close()
+	t.Setenv("OPENROUTER_BASE_URL", gateway.URL)
+
+	a, out, _ := newTestApp(t, "")
+	a.dirs = dirs
+	a.discoverHost = func(context.Context) local.Host { return local.Host{State: local.HostAbsent} }
+	a.modelLister = fakeRegistry(map[string]*int{}, map[string]provider.VendorCatalog{
+		"codex": {Vendor: "codex", Source: "codex debug models", VendorVersion: "0.149.1", FetchedAt: time.Now(), Models: []provider.DiscoveredModel{
+			{ID: "gpt-5.9-new", Rank: 1, Status: provider.StatusListed},
+		}},
+	}, nil)
+
+	// Nothing has been discovered yet, so the section can only carry the new
+	// model if --refresh mapped the vendor before it rendered.
+	if err := a.runModels(t.Context(), []string{"--refresh"}); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "subscription · codex 0.149.1") || !strings.Contains(got, "gpt-5.9-new") {
+		t.Fatalf("--refresh rendered before it discovered:\n%s", got)
 	}
 }
