@@ -401,17 +401,50 @@ func TestAuthTransportConcurrentTokenChangeNeverSkipsOriginGuard(t *testing.T) {
 }
 
 func TestSameOriginUsesCredentialTransportCanonicalization(t *testing.T) {
-	if !SameOrigin("https://OPENROUTER.AI:443/api/v1", "https://openrouter.ai/another/path") {
-		t.Fatal("equivalent HTTPS origins were not recognized")
+	const canonical = "https://openrouter.ai/api/v1"
+	for _, equivalent := range []string{
+		"https://OPENROUTER.AI:443/api/v1",
+		"HTTPS://openrouter.ai/api/v1",
+		"https://openrouter.ai/another/path",
+		"https://openrouter.ai",
+		"https://openrouter.ai/api/v1/",
+		"https://openrouter.ai/api/v1?trace=1",
+		"https://openrouter.ai/api/v1#fragment",
+	} {
+		if !SameOrigin(equivalent, canonical) {
+			t.Errorf("equivalent origin %q was not recognized", equivalent)
+		}
 	}
 	for _, candidate := range []string{
 		"http://openrouter.ai/api/v1",
-		"https://openrouter.ai.evil/api/v1",
+		"http://openrouter.ai:443/api/v1",
 		"https://openrouter.ai:444/api/v1",
+		"https://openrouter.ai:80/api/v1",
+		"https://openrouter.ai:0443/api/v1",
+		"https://openrouter.ai.evil/api/v1",
+		"https://openrouter.ai./api/v1",
+		"https://openrouter.aİ/api/v1", // U+0130: ToLower folds it to ASCII i
+		"https://OPENROUTER.Aİ/api/v1",
+		"https://ｏpenrouter.ai/api/v1",
+		"https://evil-openrouter.ai/api/v1",
+		"https://evil.invalid/openrouter.ai/api/v1",
+		"https://evil.invalid/?next=https://openrouter.ai",
+		"https://openrouter.ai@evil.invalid/api/v1",
+		"https://user:pass@openrouter.ai/api/v1",
+		"//openrouter.ai/api/v1",
+		"openrouter.ai/api/v1",
+		"ftp://openrouter.ai/api/v1",
+		"",
+		"://bad",
 	} {
-		if SameOrigin(candidate, "https://openrouter.ai/api/v1") {
-			t.Fatalf("untrusted origin %q matched canonical OpenRouter", candidate)
+		if SameOrigin(candidate, canonical) {
+			t.Errorf("untrusted origin %q matched canonical OpenRouter", candidate)
 		}
+	}
+	// Userinfo never matches, not even against itself: a URL that carries a
+	// credential in its authority is not an origin this transport will bind.
+	if SameOrigin("https://user@openrouter.ai/api/v1", "https://user@openrouter.ai/api/v1") {
+		t.Error("userinfo-bearing URL matched itself")
 	}
 }
 

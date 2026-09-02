@@ -296,7 +296,10 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []Messag
 		Stream:        true,
 		StreamOptions: &streamOptions{IncludeUsage: true},
 	}
-	if strings.Contains(c.BaseURL, "openrouter.ai") {
+	// OpenRouter-specific request shape follows the client's origin, not a
+	// substring of the URL: a proxy path or lookalike host that happens to
+	// contain "openrouter.ai" is a compatible endpoint, not OpenRouter.
+	if c.requiresKey() {
 		reqBody.Usage = &usageInclude{Include: true}
 	}
 	body, err := json.Marshal(reqBody)

@@ -5945,6 +5945,54 @@ checking. A separately spawned reviewer was unavailable because the provider usa
 the broader adversarial URL matrix and independent final closeout remain V34.1a.3/.4. No provider turn,
 credential, commit, push, tag, release, scheduler action, or remote state changed.
 
+## V34.1a.3 — adversarial and compatibility matrix (complete 2026-09-02)
+
+The credential-origin rule is now judged against one shared table rather than a handful of
+hand-picked URLs. `replacementOrigins` holds eighteen shapes an attacker, a typo, or a well-meaning
+proxy config can produce — lookalike hosts on either side of the name, the canonical host hidden in a
+path or query, a trailing-dot FQDN, HTTP downgrades with and without `:443`, wrong and zero-padded
+ports, three userinfo shapes, scheme-relative, schemeless, loopback, and empty — and
+`canonicalSpellings` holds seven ways of writing the one trusted origin. The client's catalog and
+turn requests, the key verifier, and the startup builder are all run over both tables, so a row
+added for one is added for all. Every replacement is refused before the transport is called and no
+refusal mentions the key; every canonical spelling lands on `https://openrouter.ai` with the bearer
+and nowhere else.
+
+The matrix found one thing worth changing: `StreamChat` decided whether to send OpenRouter's
+`usage.include` extension by whether the URL *contained* `openrouter.ai`, so a compatible endpoint
+at `…/openrouter.ai/api/v1` got OpenRouter's request shape. It now follows the client's origin.
+Not a leak — the same substring habit the binding exists to replace. Two of the new assertions were
+wrong as first written (they expected the wire host lower-cased); the guard was right and the test
+was corrected, and the dossier says so.
+
+Two observations are handed forward rather than fixed here: a userinfo-bearing endpoint gets a
+keyless client but Go's `http.Client` still sends the URL's own userinfo as Basic auth to the host
+the user named (V34.1d owns rejecting userinfo), and a query or fragment on the canonical URL binds
+correctly but produces a malformed request path (config validation, not credential work).
+
+## V34.1a.4 — walk-back and independent closeout (complete 2026-09-02)
+
+The words caught up with the code: the flag help, the setting description, `kolk config
+set-base-url`, README, `SECURITY.md`, the capabilities page, and the plan doc all say a non-OpenRouter
+endpoint is used without a key. Eight guards, one mutation each, eight focused failures, eight
+byte-identical restores.
+
+Then the part that earned its place. An independent reviewer was told to break the binding, not to
+read it, and did: `strings.ToLower` folds U+0130 — the Turkish dotted capital I — to a plain ASCII
+`i`, so `https://openrouter.aİ/api/v1` compared equal to the canonical host at every layer while
+net/http, applying IDNA, dialed `openrouter.xn--ai-sub`. The CLI loaded the stored key for it. Low
+practical severity (no such TLD, and TLS verifies the name before the header is written), but the
+invariant says a lookalike *cannot* attach the credential, and this one could. It is the only rune
+above ASCII with that property against this host name; the reviewer proved that by scanning them all.
+
+The fix refuses any non-ASCII host before lowering, which makes the accepted set exactly the case
+variants of `openrouter.ai` and nothing cleverer. Re-review returned CLEAN after a 7,054-candidate
+scan in the other direction — every ASCII insertion, substitution, and percent escape at every
+position — found nothing the guard accepts that dials elsewhere. `make check` green at 3,190 tests.
+
+Worth keeping from this one: a case-fold is a Unicode operation and a host name is not, and a review
+that only reads the diff would not have found the difference. V34.1a is closed. V34.1b is next.
+
 ## TUI progress-log observability — C5 queued 2026-09-01
 
 The requested Codex/Claude-style work log is recorded as a dedicated future checkpoint. It will

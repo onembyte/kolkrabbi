@@ -351,6 +351,12 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 			return err
 		}
 		fmt.Fprintf(a.stdout, "base URL set to %s\n", cfg.BaseURL)
+		if !provider.IsOpenRouterEndpoint(cfg.BaseURL) {
+			// Said at the moment of choosing, because it is the one moment the
+			// user is thinking about this endpoint: the OpenRouter key is bound
+			// to openrouter.ai and will not be sent here.
+			fmt.Fprintln(a.stdout, "this endpoint is used without a key; the OpenRouter key only ever goes to openrouter.ai")
+		}
 
 	case "set-tier":
 		if len(args) < 3 {

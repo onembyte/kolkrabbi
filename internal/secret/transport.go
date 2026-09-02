@@ -157,7 +157,17 @@ func normalizeCredentialOrigin(u *url.URL) (credentialOrigin, error) {
 	}
 
 	scheme := strings.ToLower(u.Scheme)
-	host := strings.ToLower(u.Hostname())
+	// Host names are compared ASCII-only. strings.ToLower folds U+0130 (İ) to
+	// the ASCII letter i, so "openrouter.aİ" would compare equal to the
+	// canonical host here while net/http applies IDNA and dials
+	// openrouter.xn--ai-sub. Found by the V34.1a independent reviewer. A
+	// non-ASCII host is never an origin this transport binds; the user's
+	// endpoint still works, without the credential.
+	host := u.Hostname()
+	if !isASCII(host) {
+		return credentialOrigin{}, ErrCredentialOrigin
+	}
+	host = strings.ToLower(host)
 	if host == "" {
 		return credentialOrigin{}, ErrCredentialOrigin
 	}
@@ -173,6 +183,15 @@ func normalizeCredentialOrigin(u *url.URL) (credentialOrigin, error) {
 		}
 	}
 	return credentialOrigin{scheme: scheme, host: host, port: port}, nil
+}
+
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			return false
+		}
+	}
+	return true
 }
 
 // SameOrigin reports whether two absolute HTTP URLs share the normalized

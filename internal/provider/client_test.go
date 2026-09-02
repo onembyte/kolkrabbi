@@ -393,6 +393,242 @@ func TestConcurrentSetKeyCannotAttachToMutatedBaseURL(t *testing.T) {
 	}
 }
 
+// replacementOrigins are the endpoint shapes an attacker, a typo, or a
+// well-meaning proxy config can produce that must never see the OpenRouter
+// credential. Each is a distinct origin from https://openrouter.ai:443 under
+// the scheme/host/effective-port rule, however much it resembles it.
+var replacementOrigins = []struct {
+	name, baseURL string
+}{
+	{"lookalike suffix host", "https://openrouter.ai.evil/api/v1"},
+	{"lookalike subdomain", "https://openrouter.ai.evil.example/api/v1"},
+	{"lookalike prefix host", "https://evil-openrouter.ai/api/v1"},
+	{"canonical host inside the path", "https://evil.invalid/openrouter.ai/api/v1"},
+	{"canonical host inside the query", "https://evil.invalid/api/v1?next=https://openrouter.ai"},
+	{"trailing-dot FQDN", "https://openrouter.ai./api/v1"},
+	// U+0130 lower-cases to ASCII i under strings.ToLower while net/http
+	// applies IDNA and dials openrouter.xn--ai-sub. Reviewer-found.
+	{"dotted capital I folds to ascii", "https://openrouter.aİ/api/v1"},
+	{"upper-case dotted capital I", "https://OPENROUTER.Aİ/api/v1"},
+	{"fullwidth letter", "https://ｏpenrouter.ai/api/v1"},
+	{"punycode lookalike", "https://xn--openrouter-abc.ai/api/v1"},
+	{"HTTP downgrade", "http://openrouter.ai/api/v1"},
+	{"HTTP downgrade with explicit 443", "http://openrouter.ai:443/api/v1"},
+	{"explicit non-default port", "https://openrouter.ai:8443/api/v1"},
+	{"explicit port 80 over https", "https://openrouter.ai:80/api/v1"},
+	{"zero-padded default port", "https://openrouter.ai:0443/api/v1"},
+	{"userinfo-shaped authority", "https://openrouter.ai@evil.invalid/api/v1"},
+	{"userinfo on the canonical host", "https://user:pass@openrouter.ai/api/v1"},
+	{"credential-shaped userinfo", "https://sk-or-v1-userinfo-canary@openrouter.ai/api/v1"},
+	{"scheme-relative", "//openrouter.ai/api/v1"},
+	{"no scheme at all", "openrouter.ai/api/v1"},
+	{"loopback host", "http://127.0.0.1:11434/v1"},
+	{"empty", ""},
+}
+
+// canonicalSpellings are ways of writing the one trusted origin that must all
+// bind, and must all put the credential on https://openrouter.ai:443 and
+// nowhere else.
+var canonicalSpellings = []struct {
+	name, baseURL string
+}{
+	{"as documented", DefaultBaseURL},
+	{"trailing slash", DefaultBaseURL + "/"},
+	{"upper-case host", "https://OPENROUTER.AI/api/v1"},
+	{"upper-case scheme", "HTTPS://openrouter.ai/api/v1"},
+	{"explicit default port", "https://openrouter.ai:443/api/v1"},
+	{"query on the path", "https://openrouter.ai/api/v1?trace=1"},
+	{"fragment on the path", "https://openrouter.ai/api/v1#ignored"},
+}
+
+// matrixTransport answers the two request shapes the client makes and counts
+// every call, so a test can assert both "reached the network" and "did not".
+type matrixTransport struct {
+	calls atomic.Int32
+	last  atomic.Pointer[http.Request]
+}
+
+func (m *matrixTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	m.calls.Add(1)
+	m.last.Store(req)
+	if strings.HasSuffix(req.URL.Path, "/chat/completions") {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body: io.NopCloser(strings.NewReader(
+				"data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\n" +
+					"data: [DONE]\n\n")),
+			Request: req,
+		}, nil
+	}
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(`{"data":[]}`)),
+		Request:    req,
+	}, nil
+}
+
+func TestCredentialOriginMatrixRefusesEveryReplacementBeforeNetwork(t *testing.T) {
+	const key = "sk-or-v1-origin-matrix-canary"
+	for _, tc := range replacementOrigins {
+		t.Run(tc.name, func(t *testing.T) {
+			base := &matrixTransport{}
+			client := newCanonicalOpenRouterClient(t, key)
+			client.auth.Base = base
+			client.BaseURL = tc.baseURL
+
+			_, catalogErr := client.ListModels(context.Background())
+			_, _, turnErr := client.StreamChat(context.Background(), "any/model", []Message{{Role: "user", Content: "hi"}}, nil, nil)
+
+			for what, err := range map[string]error{"catalog": catalogErr, "turn": turnErr} {
+				if err == nil {
+					t.Fatalf("%s request to %q succeeded with the OpenRouter credential", what, tc.baseURL)
+				}
+				if !errors.Is(err, secret.ErrCredentialOrigin) {
+					t.Fatalf("%s error = %v, want ErrCredentialOrigin", what, err)
+				}
+				if strings.Contains(err.Error(), key) {
+					t.Fatalf("%s refusal leaked the credential: %v", what, err)
+				}
+			}
+			if n := base.calls.Load(); n != 0 {
+				t.Fatalf("replacement origin %q reached the transport %d times, want 0", tc.baseURL, n)
+			}
+		})
+	}
+}
+
+func TestCredentialOriginMatrixAcceptsEveryCanonicalSpelling(t *testing.T) {
+	const key = "sk-or-v1-canonical-matrix-canary"
+	for _, tc := range canonicalSpellings {
+		t.Run(tc.name, func(t *testing.T) {
+			client, err := NewOpenRouterClient(tc.baseURL, key)
+			if err != nil {
+				t.Fatalf("NewOpenRouterClient(%q) = %v, want a bound client", tc.baseURL, err)
+			}
+			base := &matrixTransport{}
+			client.auth.Base = base
+
+			if _, err := client.ListModels(context.Background()); err != nil {
+				t.Fatalf("catalog: %v", err)
+			}
+			if _, _, err := client.StreamChat(context.Background(), "any/model", []Message{{Role: "user", Content: "hi"}}, nil, nil); err != nil {
+				t.Fatalf("turn: %v", err)
+			}
+			if n := base.calls.Load(); n != 2 {
+				t.Fatalf("transport calls = %d, want 2", n)
+			}
+			last := base.last.Load()
+			// Host names are case-insensitive on the wire; the origin rule
+			// lowercases for comparison but the request keeps its spelling.
+			if !strings.EqualFold(last.URL.Scheme, "https") || !strings.EqualFold(last.URL.Hostname(), "openrouter.ai") || (last.URL.Port() != "" && last.URL.Port() != "443") {
+				t.Fatalf("credentialed request went to %s, want https://openrouter.ai", last.URL)
+			}
+			if last.URL.User != nil {
+				t.Fatalf("credentialed request carried userinfo: %s", last.URL)
+			}
+			if got := last.Header.Get("Authorization"); got != "Bearer "+key {
+				t.Fatalf("Authorization = %q", got)
+			}
+		})
+	}
+}
+
+func TestCredentialOriginGuardRunsBeforeCancellationIsObserved(t *testing.T) {
+	const key = "sk-or-v1-cancel-matrix-canary"
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// A replacement origin is refused for being a replacement, not for being
+	// cancelled: the guard's answer must not depend on request timing.
+	base := &matrixTransport{}
+	client := newCanonicalOpenRouterClient(t, key)
+	client.auth.Base = base
+	client.BaseURL = "https://openrouter.ai.evil/api/v1"
+	_, err := client.ListModels(ctx)
+	if !errors.Is(err, secret.ErrCredentialOrigin) {
+		t.Fatalf("cancelled replacement-origin error = %v, want ErrCredentialOrigin", err)
+	}
+	if n := base.calls.Load(); n != 0 {
+		t.Fatalf("cancelled replacement origin reached the transport %d times", n)
+	}
+
+	// The canonical origin under a cancelled context fails on the context and
+	// says nothing about the credential.
+	cancelled := verifierTransport(func(req *http.Request) (*http.Response, error) {
+		return nil, req.Context().Err()
+	})
+	canonical := newCanonicalOpenRouterClient(t, key)
+	canonical.auth.Base = cancelled
+	_, err = canonical.ListModels(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled canonical error = %v, want context.Canceled", err)
+	}
+	if strings.Contains(err.Error(), key) {
+		t.Fatalf("cancellation error leaked the credential: %v", err)
+	}
+}
+
+func TestHostAndCompatibleClientsCannotBeGivenTheOpenRouterCredential(t *testing.T) {
+	token := secret.New("sk-or-v1-host-route-canary")
+	for name, client := range map[string]*Client{
+		"host Ollama":             NewHostClient("127.0.0.1:11434"),
+		"compatible endpoint":     NewCompatibleClient("http://localhost:4000/v1"),
+		"compatible lookalike":    NewCompatibleClient("https://openrouter.ai.evil/api/v1"),
+		"compatible on canonical": NewCompatibleClient(DefaultBaseURL),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := client.SetKey(token); !errors.Is(err, ErrCredentialBinding) {
+				t.Fatalf("SetKey = %v, want ErrCredentialBinding", err)
+			}
+			if client.HasKey() {
+				t.Fatal("credentialless client gained a key")
+			}
+			if client.requiresKey() {
+				t.Fatal("credentialless client claims to require a key")
+			}
+		})
+	}
+}
+
+func TestOpenRouterRequestShapeFollowsOriginNotHostSubstring(t *testing.T) {
+	var body string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		body = string(raw)
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+
+	// A compatible client whose URL merely contains the canonical host name
+	// (a proxy path, a lookalike) is not OpenRouter and must not be sent
+	// OpenRouter's accounting extensions.
+	client := NewCompatibleClient(srv.URL + "/openrouter.ai/api/v1")
+	if _, _, err := client.StreamChat(context.Background(), "m", []Message{{Role: "user", Content: "x"}}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(body, `"usage":{"include"`) {
+		t.Fatalf("compatible client sent the OpenRouter usage extension: %s", body)
+	}
+
+	canonical := newCanonicalOpenRouterClient(t, "sk-or-v1-shape-canary")
+	base := &matrixTransport{}
+	canonical.auth.Base = base
+	if _, _, err := canonical.StreamChat(context.Background(), "m", []Message{{Role: "user", Content: "x"}}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	sent, err := base.last.Load().GetBody()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := io.ReadAll(sent)
+	if !strings.Contains(string(got), `"usage":{"include":true}`) {
+		t.Fatalf("OpenRouter client omitted the usage extension: %s", got)
+	}
+}
+
 func TestStreamChat_HTTPErrorPreservesRateLimitClassification(t *testing.T) {
 	const echoedKey = "sk-or-v1-0123456789abcdef0123456789abcdef"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

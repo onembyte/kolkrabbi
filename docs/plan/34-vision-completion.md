@@ -91,9 +91,14 @@ without interpreting stale phase prose.
 **Goal:** no untrusted endpoint, child process, file path, or output sink can casually expose a
 credential or write outside its intended boundary.
 
-- [x] **V34.1a credential-to-endpoint binding** — completed 2026-09-02: prevent a general `--base-url` or persisted
-  endpoint from receiving an OpenRouter credential; choose and document the trusted-endpoint or
-  endpoint-specific-credential model.
+- [x] **V34.1a credential-to-endpoint binding** — completed 2026-09-02: the trusted-endpoint model
+  was chosen; the OpenRouter credential is bound to the canonical `https://openrouter.ai` origin
+  inside the transport, endpoints are resolved before any credential is required, and every other
+  `--base-url`/`OPENROUTER_BASE_URL`/saved endpoint receives a keyless client. An adversarial matrix
+  (lookalike hosts, userinfo authority, HTTP downgrade, explicit ports, trailing dot/slash, case,
+  query/fragment, cancellation, host/compatible routes) covers catalog, turn, and key-verification
+  requests; one targeted mutation per guard is caught by a focused test; an independent reviewer
+  attempted an equivalent exfiltration. Evidence in `CHECKPOINTS.md` §V34.1a.3–.4.
 - [ ] **V34.1b child environment minimization** — ensure provider login/handover/PTY paths receive
   only the environment explicitly required for that provider; prove a sentinel secret is absent.
 - [ ] **V34.1c confidential, symlink-safe checkpoints** — prevent backups from copying secrets

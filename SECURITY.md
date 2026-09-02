@@ -15,7 +15,10 @@ Knowing this makes a report easier to judge:
 
 - **Credentials.** `kolk key` stores provider API keys in a `0600` file under your user data
   directory. Keys are never written to sessions, stats, logs or the event bus, and the
-  `Authorization` header is constructed only inside the transport. See
+  `Authorization` header is constructed only inside the transport. The OpenRouter key is bound to
+  the `https://openrouter.ai` origin at that transport: a `--base-url`, `OPENROUTER_BASE_URL`, saved
+  `base_url`, redirect, lookalike host, scheme downgrade, port change, or userinfo-shaped URL cannot
+  receive it. Any other OpenAI-compatible endpoint is used without a key. See
   [`docs/plan/05-auth-keys-secrets.md`](docs/plan/05-auth-keys-secrets.md).
 - **Subscription backends.** When you use a vendor CLI backend, kolk spawns *your own*
   already-logged-in binary and never reads, stores or proxies its credentials.

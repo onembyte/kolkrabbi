@@ -54,7 +54,7 @@ func (c *Config) settingRows(defaultModel, defaultBaseURL string) []Setting {
 		{"model", model, modelDefault, "the model a new session starts on"},
 		{"mode", mode, modeDefault, "chat = no tools · code = tool loop · agent = orchestrated"},
 		{"effort", effort, effortDefault, "model tier, tool-round limit and orchestration width"},
-		{"base_url", baseURL, baseURLDefault, "any OpenAI-compatible endpoint (Ollama, LiteLLM, vLLM)"},
+		{"base_url", baseURL, baseURLDefault, "any OpenAI-compatible endpoint (Ollama, LiteLLM, vLLM); used without a key unless it is openrouter.ai"},
 		{"auto_restart_after_update", onOff(c.AutoRestartAfterUpdate), c.AutoRestartAfterUpdate == nil,
 			"restart into the new version after `kolk update`, keeping the session"},
 		{"max_run_cost_usd", cost, costDefault, "stop an orchestrated run once it has cost this much"},

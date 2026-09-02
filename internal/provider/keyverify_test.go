@@ -108,27 +108,61 @@ func TestOpenRouterKeyVerifierNeverFollowsARedirect(t *testing.T) {
 }
 
 func TestOpenRouterKeyVerifierRefusesAReplacementOriginBeforeNetwork(t *testing.T) {
-	var calls int
-	verifier := OpenRouterVerifier{
-		BaseURL: "https://untrusted.invalid/api/v1",
-		Client: &http.Client{Transport: verifierTransport(func(*http.Request) (*http.Response, error) {
-			calls++
-			return verifierResponse(http.StatusOK, `{"data":{}}`), nil
-		})},
-	}
+	for _, tc := range replacementOrigins {
+		if tc.baseURL == "" {
+			continue // an empty BaseURL means the canonical default, by contract
+		}
+		t.Run(tc.name, func(t *testing.T) {
+			var calls int
+			verifier := OpenRouterVerifier{
+				BaseURL: tc.baseURL,
+				Client: &http.Client{Transport: verifierTransport(func(*http.Request) (*http.Response, error) {
+					calls++
+					return verifierResponse(http.StatusOK, `{"data":{}}`), nil
+				})},
+			}
 
-	_, err := verifier.Verify(context.Background(), secret.New(verifierCanary))
-	if err == nil {
-		t.Fatal("OpenRouter verifier sent a credential to a replacement origin")
+			_, err := verifier.Verify(context.Background(), secret.New(verifierCanary))
+			if err == nil {
+				t.Fatal("OpenRouter verifier sent a credential to a replacement origin")
+			}
+			if calls != 0 {
+				t.Fatalf("replacement transport was called %d times, want 0", calls)
+			}
+			if !errors.Is(err, ErrKeyVerification) {
+				t.Fatalf("Verify error = %v, want ErrKeyVerification", err)
+			}
+			if strings.Contains(err.Error(), verifierCanary) {
+				t.Fatalf("origin refusal leaked the credential: %v", err)
+			}
+		})
 	}
-	if calls != 0 {
-		t.Fatalf("replacement transport was called %d times, want 0", calls)
-	}
-	if !errors.Is(err, ErrKeyVerification) || !errors.Is(err, secret.ErrCredentialOrigin) {
-		t.Fatalf("Verify error = %v, want verification and credential-origin errors", err)
-	}
-	if strings.Contains(err.Error(), verifierCanary) {
-		t.Fatalf("origin refusal leaked the credential: %v", err)
+}
+
+func TestOpenRouterKeyVerifierAcceptsEveryCanonicalSpelling(t *testing.T) {
+	for _, tc := range canonicalSpellings {
+		t.Run(tc.name, func(t *testing.T) {
+			var got *http.Request
+			verifier := OpenRouterVerifier{
+				BaseURL: tc.baseURL,
+				Client: &http.Client{Transport: verifierTransport(func(r *http.Request) (*http.Response, error) {
+					got = r
+					return verifierResponse(http.StatusOK, `{"data":{"limit":1,"limit_remaining":1,"usage":0}}`), nil
+				})},
+			}
+			if _, err := verifier.Verify(context.Background(), secret.New(verifierCanary)); err != nil {
+				t.Fatalf("Verify(%q) = %v", tc.baseURL, err)
+			}
+			if got == nil {
+				t.Fatal("canonical spelling never reached the transport")
+			}
+			if !strings.EqualFold(got.URL.Scheme, "https") || !strings.EqualFold(got.URL.Hostname(), "openrouter.ai") || got.URL.User != nil {
+				t.Fatalf("credentialed verification went to %s", got.URL)
+			}
+			if got.Header.Get("Authorization") != "Bearer "+verifierCanary {
+				t.Fatalf("Authorization = %q", got.Header.Get("Authorization"))
+			}
+		})
 	}
 }
 

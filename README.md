@@ -126,7 +126,7 @@ kolk --mode chat              # start in chat
 kolk --mode agent "plan, implement, and verify this change"
 kolk --permission auto-approve "run the tests and fix failures"   # edits flow, commands still ask
 kolk -r                       # resume the most recent session
-kolk --base-url http://localhost:11434/v1 -m qwen2.5-coder:14b "..."  # Ollama
+kolk --base-url http://localhost:11434/v1 -m qwen2.5-coder:14b "..."  # Ollama — keyless; the OpenRouter key never leaves openrouter.ai
 kolk stats                    # the dashboard
 kolk dash                     # the same numbers as a loopback-only page
 kolk sessions                 # list / search / fork / export saved conversations

@@ -10497,13 +10497,16 @@ Subcheckpoints, one at a time:
 - [x] **V34.1a.2 startup/client construction** — completed 2026-09-02: resolve the endpoint before the key requirement;
   construct an authenticated OpenRouter client only for the canonical endpoint and a keyless
   compatible client otherwise. Prove flag, environment, saved-config, and default precedence.
-- [ ] **V34.1a.3 adversarial and compatibility matrix** — cover catalog and turn requests,
-  `openrouter.ai.evil`, userinfo-shaped authority, HTTP downgrade, explicit ports, trailing slash,
-  case/canonicalization, query/fragment, cancellation, and existing host/subscription routes. Replace
-  tests that currently require a bearer on arbitrary `httptest` origins with truthful fixtures.
-- [ ] **V34.1a.4 walk-back and independent closeout** — update help/README/config/security wording,
-  run focused/race/full gates, perform one targeted mutation per guard, and have a separate reviewer
-  attempt an equivalent exfiltration before closing V34.1a.
+- [x] **V34.1a.3 adversarial and compatibility matrix** — completed 2026-09-02: eighteen replacement
+  shapes × {catalog, turn, key verification} refused before network; seven canonical spellings
+  bind and reach only `https://openrouter.ai`; cancellation, host, and compatible routes covered;
+  startup matrix proves keyless endpoints never open the credential manifest. One request-shape
+  divergence (usage extension keyed on a host substring) found and fixed.
+- [x] **V34.1a.4 walk-back and independent closeout** — completed 2026-09-02: help/settings/config/
+  README/SECURITY/site/plan wording says a non-OpenRouter endpoint is keyless; eight guard mutations
+  each caught by a focused test with byte-identical restore; the independent reviewer broke the
+  binding once (U+0130 case-fold vs IDNA), the hole was closed, and re-review returned CLEAN with a
+  7,054-candidate reverse scan; `make check` green at 3,190 tests.
 
 ##### V34.1a.0 threat model and red evidence — complete 2026-09-02
 
@@ -10607,6 +10610,131 @@ found only the already-scoped V34.1a.3 adversarial URL matrix (userinfo, lookali
 fragment, and canonicalization) remaining. V34.1a.4 retains the mandatory independent closeout.
 No credential, provider turn, commit, push, tag, release, scheduler action, or remote state changed.
 V34.1a.3 is next.
+
+##### V34.1a.3 adversarial and compatibility matrix — complete 2026-09-02
+
+The matrix is data shared by the provider tests: `replacementOrigins` (eighteen shapes) and
+`canonicalSpellings` (seven), so the client, the key verifier, and the startup builder are all
+judged against the same list and a row added for one is added for all.
+
+Replacement shapes, every one refused with `secret.ErrCredentialOrigin` before the base transport is
+called, for both `ListModels` and `StreamChat` on a canonically bound client whose `BaseURL` was
+mutated, and for `OpenRouterVerifier.Verify`: lookalike suffix (`openrouter.ai.evil`), lookalike
+subdomain, lookalike prefix (`evil-openrouter.ai`), canonical host inside the path, canonical host
+inside the query, trailing-dot FQDN (`openrouter.ai.`), HTTP downgrade, HTTP downgrade with explicit
+`:443`, explicit `:8443`, `:80` over https, zero-padded `:0443`, userinfo-shaped authority
+(`openrouter.ai@evil.invalid`), userinfo on the canonical host, credential-shaped userinfo,
+scheme-relative, no scheme, loopback host, and empty. No refusal error contains the credential.
+
+Canonical spellings, every one accepted by `NewOpenRouterClient` and by the verifier, with the
+credentialed request observed at scheme `https`, host `openrouter.ai` (case-insensitively — the wire
+request keeps the user's spelling; DNS does not care), port empty or `443`, and no userinfo: as
+documented, trailing slash, upper-case host, upper-case scheme, explicit `:443`, query on the path,
+fragment on the path.
+
+Further rows: a cancelled context against a replacement origin is refused for being a replacement,
+not for being cancelled, and against the canonical origin fails on `context.Canceled` without
+mentioning the credential; `NewHostClient`, `NewCompatibleClient` (including on a lookalike and on
+the canonical URL itself) refuse `SetKey` with `ErrCredentialBinding` and never report `requiresKey`.
+At the CLI boundary, `TestProviderClientEndpointMatrixDecidesKeyedOrKeyless` builds seven keyed and
+thirteen keyless clients; every keyless row is constructed over a deliberately corrupt credential
+manifest, so any read of the manifest would have failed the construction, and a late `SetKey` on the
+result is refused. A canonical endpoint with no stored key returns the guided `kolk key` action
+rather than a keyless client. `SameOrigin` itself is tabled over seven equivalent and seventeen
+distinct forms, including that a userinfo-bearing URL does not match even itself.
+
+Fixture truthfulness: every authenticated test client is built by `newTestAuthenticatedClient`,
+which binds the `httptest` origin explicitly through `secret.NewAuthTransport`; no test asks for a
+bearer on an origin it did not bind. The remaining `srv.URL` fixtures use `NewCompatibleClient`.
+
+One production change came out of the lookalike row. `StreamChat` decided whether to send
+OpenRouter's `usage.include` extension by `strings.Contains(c.BaseURL, "openrouter.ai")`, so a
+compatible client at `…/openrouter.ai/api/v1` or `openrouter.ai.evil` was sent OpenRouter's request
+shape. It now follows the client's origin (`requiresKey()`). Not a credential leak; a request-shape
+divergence keyed on a substring instead of the binding, which is the same class of mistake.
+
+Two assertions were wrong as first written: they expected the request host lower-cased for the
+upper-case spelling. The guard was right and the test was corrected; recorded because a matrix that
+was edited until green should say where.
+
+Handed to V34.1d, not fixed here: a userinfo-bearing endpoint receives a keyless compatible client,
+but Go's `http.Client` sends the URL's own userinfo as Basic auth to the host the user named — the
+user's pasted value to the user's chosen host, and exactly the case V34.1d's "reject URL userinfo"
+exists for. A query or fragment on the canonical endpoint binds (same origin) but yields the
+malformed request path `/api/v1?trace=1/chat/completions`; the credential stays on `openrouter.ai`,
+and rejecting such a `base_url` at the point of typing is config validation, not credential work.
+
+Commands: `go test -count=1 ./internal/secret ./internal/provider ./internal/cli` passed;
+`go test -race -count=1 ./internal/secret ./internal/provider ./internal/cli ./internal/engine`
+passed; `go vet` over the same packages, `gofmt -l internal/`, and `git diff --check` were clean.
+No credential, provider turn, commit, push, tag, release, scheduler action, or remote state changed.
+V34.1a.4 is next.
+
+##### V34.1a.4 walk-back and independent closeout — complete 2026-09-02
+
+Wording now matches the code at every place a user meets the endpoint: the `--base-url` flag help
+and the `base_url` setting description say the endpoint is used without a key unless it is
+`openrouter.ai`; `kolk config set-base-url` says so at the moment of choosing a non-OpenRouter URL;
+README's Ollama example, `SECURITY.md`'s credential bullet (naming flag, environment, saved config,
+redirect, lookalike, downgrade, port, and userinfo as things that cannot receive the key),
+`site/capabilities.html`, and `docs/plan/34` were updated. No help or surface snapshot pinned the
+old text.
+
+One targeted mutation per guard, each applied with `sed`, run against its focused test, reversed,
+and the file compared by SHA-256 to its pre-mutation hash:
+
+| Guard | Mutation | Focused test that failed |
+|---|---|---|
+| userinfo refusal (`transport.go`) | drop `\|\| u.User != nil` | `TestSameOriginUsesCredentialTransportCanonicalization` |
+| origin comparison (`transport.go`) | `RoundTrip` checks only parse error | `TestCredentialOriginMatrixRefusesEveryReplacementBeforeNetwork` |
+| constructor guard (`client.go`) | `false && !IsOpenRouterEndpoint` | `TestNewOpenRouterClientRejectsANonOpenRouterEndpoint` |
+| endpoint-first (`provider_client.go`) | `false && !IsOpenRouterEndpoint` | `TestProviderClientEndpointMatrixDecidesKeyedOrKeyless` |
+| `SetKey` binding (`client.go`) | install a transport instead of refusing | `TestHostAndCompatibleClientsCannotBeGivenTheOpenRouterCredential` |
+| request shape (`client.go`) | back to the host substring | `TestOpenRouterRequestShapeFollowsOriginNotHostSubstring` |
+| verifier binding (`keyverify.go`) | unbound `AuthTransport` | `TestOpenRouterKeyVerifierRefusesAReplacementOriginBeforeNetwork` |
+| ASCII host (`transport.go`) | `false && !isASCII(host)` | `TestSameOriginUsesCredentialTransportCanonicalization` |
+
+All eight failed under mutation and all files were restored byte-identically. Final hashes:
+`transport.go` `c68cbbcebde7c2f796cc51b0c0fce314439434f9da1f7d3bbc1304870acd98b7`, `client.go`
+`fd7164106dfba67418e000ceb310b94bf09316f9470b6ff034eb9e415d4a24a8`, `keyverify.go`
+`d6b11d5d40db3711b37711d17c68ef9099fb8488cdfbe64ab33fed542480089c`, `provider_client.go`
+`09803b67f5cdc19fc8ff5d92ebfc6198692c0396d02fe141707f78b38a15abeb` (unchanged since V34.1a.2).
+
+Independent review. A separate reviewer who had not written the binding was asked to break the
+invariant with real tests, not to read the fix. It tried thirty-nine URL shapes through the
+transport with the dialer intercepted to record the exact `host:port` net/http would connect to,
+every constructor and the CLI builder from all three endpoint sources, six redirect hops under a
+client configured to follow them, a forward proxy, a 10,000-iteration token-rotation race, the
+zero-value transport, and a grep of every `Reveal()`, `Authorization`, and `http.NewRequest` site in
+non-test code. First verdict: **NOT CLEAN**. `strings.ToLower` folds U+0130 (`İ`) to the ASCII
+letter `i`, so `https://openrouter.aİ/api/v1` compared equal to the canonical origin at the guard,
+in `IsOpenRouterEndpoint`, in the verifier, and in `providerClientForEndpoint` — which then loaded
+the stored key and built a bound client — while net/http applied IDNA and dialed
+`openrouter.xn--ai-sub:443`. Practical severity low (the TLD does not exist and the bearer is only
+written after a TLS handshake against that name), but a genuine breach of the lookalike clause. The
+reviewer also confirmed by exhaustive scan that U+0130 is the only rune above 0x7F whose `ToLower`
+is an ASCII letter present in the canonical host.
+
+Correction: `normalizeCredentialOrigin` refuses any non-ASCII host before lowering (`isASCII`), so
+the accepted set is exactly the ASCII case variants of `openrouter.ai`; the reviewer's spellings, a
+percent-encoded `%C4%B0`, a fullwidth letter, and a punycode lookalike were added to every matrix.
+Re-review verdict: **CLEAN**. Every original reproducer now refuses before network at every layer;
+a reverse-direction scan of 7,054 candidates (every ASCII insertion and substitution at every
+position, every `%XX` escape at every position, `xn--` variants, port spellings) found 33 that
+survive `url.Parse` and pass the guard, all of which dial `openrouter.ai:443`. Attempts present,
+`-race` clean on `secret`, `provider`, `cli`. The reviewer's temporary files were deleted and
+`git status` showed none remaining.
+
+Recorded from the review as out of scope here: a forward proxy sees only `CONNECT
+openrouter.ai:443` and its own `Proxy-Authorization`; a compatible endpoint's own URL userinfo is
+sent as Basic auth by net/http and echoed in unscrubbed transport errors at `client.go` `StreamChat`
+and `listModels` return paths — the user's value to the user's host, owned by V34.1d.
+
+Gates: `make check` passed — 3,190 tests, `0 issues` from lint, budgets (9.47 MB, cold start
+3.3 ms), site 162, surface 15, installer 72, spec 29, release 24/41/30, smoke 18, plan 101,
+workflow pins 43. `go test -race -count=1` over `secret`, `provider`, `cli`, `engine` passed;
+`gofmt -l`, `go vet`, and `git diff --check` clean. No credential, provider turn, commit, push, tag,
+release, scheduler action, or remote state changed. V34.1a is closed; V34.1b is next.
 
 #### C5 — TUI progress-log observability — queued
 

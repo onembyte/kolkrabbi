@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/secret"
 )
 
 func TestProviderClientConstructionFollowsEndpointPrecedence(t *testing.T) {
@@ -74,6 +76,88 @@ func TestProviderClientConstructionFollowsEndpointPrecedence(t *testing.T) {
 				t.Fatalf("compatible client origin = %q", client.Origin)
 			}
 		})
+	}
+}
+
+// TestProviderClientEndpointMatrixDecidesKeyedOrKeyless is the startup half
+// of the V34.1a matrix: for every endpoint shape a flag, environment variable,
+// or saved config can supply, the client is either bound to canonical
+// OpenRouter with the stored key, or credentialless — and a credentialless
+// decision never opens the credential manifest at all. The keyless rows use a
+// corrupt manifest so that any read would fail the construction.
+func TestProviderClientEndpointMatrixDecidesKeyedOrKeyless(t *testing.T) {
+	keyed := []string{
+		provider.DefaultBaseURL,
+		provider.DefaultBaseURL + "/",
+		"https://OPENROUTER.AI/api/v1",
+		"HTTPS://openrouter.ai/api/v1",
+		"https://openrouter.ai:443/api/v1",
+		"https://openrouter.ai/api/v1?trace=1",
+		"https://openrouter.ai/api/v1#ignored",
+	}
+	keyless := []string{
+		"https://openrouter.ai.evil/api/v1",
+		"https://evil-openrouter.ai/api/v1",
+		"https://evil.invalid/openrouter.ai/api/v1",
+		"https://evil.invalid/api/v1?next=https://openrouter.ai",
+		"https://openrouter.ai./api/v1",
+		"https://openrouter.aİ/api/v1", // U+0130 folds to ASCII i under ToLower
+		"https://OPENROUTER.Aİ/api/v1",
+		"http://openrouter.ai/api/v1",
+		"http://openrouter.ai:443/api/v1",
+		"https://openrouter.ai:8443/api/v1",
+		"https://openrouter.ai@evil.invalid/api/v1",
+		"https://user:pass@openrouter.ai/api/v1",
+		"https://sk-or-v1-userinfo-canary@openrouter.ai/api/v1",
+		"http://127.0.0.1:11434/v1",
+		"http://localhost:4000/v1",
+	}
+
+	for _, endpoint := range keyed {
+		t.Run("keyed "+endpoint, func(t *testing.T) {
+			d := storeFirstRunKey(t)
+			client, err := providerClientForEndpoint(context.Background(), endpoint, d.CredentialsFile())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !client.HasKey() || client.Key().Reveal() != firstRunStoredKey {
+				t.Fatalf("canonical endpoint %q did not receive the stored credential", endpoint)
+			}
+			if client.Origin != "" {
+				t.Fatalf("canonical endpoint %q origin = %q, want OpenRouter", endpoint, client.Origin)
+			}
+		})
+	}
+
+	for _, endpoint := range keyless {
+		t.Run("keyless "+endpoint, func(t *testing.T) {
+			d := isolateHome(t)
+			writeCorruptCredentialManifest(t, d.CredentialsFile())
+			client, err := providerClientForEndpoint(context.Background(), endpoint, d.CredentialsFile())
+			if err != nil {
+				t.Fatalf("keyless endpoint %q read the credential manifest: %v", endpoint, err)
+			}
+			if client.HasKey() {
+				t.Fatalf("replacement endpoint %q received a credential", endpoint)
+			}
+			if client.Origin != provider.CompatibleOrigin {
+				t.Fatalf("replacement endpoint %q origin = %q, want compatible", endpoint, client.Origin)
+			}
+			if err := client.SetKey(secret.New("sk-or-v1-late-key")); !errors.Is(err, provider.ErrCredentialBinding) {
+				t.Fatalf("late SetKey on %q = %v, want ErrCredentialBinding", endpoint, err)
+			}
+		})
+	}
+}
+
+func TestProviderClientCanonicalEndpointWithoutAKeyIsGuidedNotKeyless(t *testing.T) {
+	d := isolateHome(t)
+	client, err := providerClientForEndpoint(context.Background(), provider.DefaultBaseURL, d.CredentialsFile())
+	if client != nil {
+		t.Fatal("canonical OpenRouter without a credential produced a client")
+	}
+	if err == nil || !strings.Contains(err.Error(), "kolk key") {
+		t.Fatalf("error = %v, want the guided `kolk key` action", err)
 	}
 }
 

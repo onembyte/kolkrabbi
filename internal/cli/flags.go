@@ -54,7 +54,7 @@ var flagTable = []flagDef{
 	{long: "permission", short: "P", arg: "<ask|auto-approve|full-auto>",
 		summary: "how much may happen without asking (default ask)",
 		set:     func(o *options, v string) { o.permission = v }},
-	{long: "base-url", arg: "<url>", summary: "any OpenAI-compatible endpoint (Ollama, LiteLLM, vLLM, mock)",
+	{long: "base-url", arg: "<url>", summary: "any OpenAI-compatible endpoint (Ollama, LiteLLM, vLLM, mock); used without a key — the OpenRouter key only ever goes to openrouter.ai",
 		set: func(o *options, v string) { o.baseURL = v }},
 	{long: "debug", summary: "write a scrubbed diagnostic log for this session, and say where",
 		set: func(o *options, _ string) { o.debug = true }},
