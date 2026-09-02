@@ -31,9 +31,15 @@ elif [ "$size" -gt "$BIN_SOFT" ]; then
 fi
 
 echo "── cold start ──"
-# `kolk version` does no I/O beyond writing one line, so this measures process
+# `kolk help` reads nothing and opens no session, so this measures process
 # startup rather than anything the command chose to do.
-"$out/kolk" version >/dev/null
+#
+# It used to be `kolk version`, which stopped being a command on 2026-09-02.
+# Dispatch turns an unknown word into a prompt, so this loop quietly started
+# sending twenty turns to a real provider per run — the budget's own timing is
+# what caught it. Measure a command that exists, and one from the closed
+# outside-session set so it cannot quietly stop existing again.
+"$out/kolk" help >/dev/null
 start="$(date +%s000000000 2>/dev/null || true)"
 if command -v python3 >/dev/null; then
   ms="$(python3 - "$out/kolk" <<'PY'
@@ -42,7 +48,7 @@ b = sys.argv[1]
 runs = []
 for _ in range(20):
     t = time.perf_counter()
-    subprocess.run([b, "version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run([b, "help"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     runs.append((time.perf_counter() - t) * 1000)
 runs.sort()
 print(f"{runs[len(runs)//2]:.1f}")

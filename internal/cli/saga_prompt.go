@@ -50,5 +50,5 @@ func (a *app) runInlineSaga(ctx context.Context, ag *engine.Agent, text string) 
 	if a.sagaWake != nil {
 		return a.sagaWake(ctx, ag)
 	}
-	return a.runSagaLoop(ctx, ag, opening.note)
+	return a.runSagaLoop(ctx, ag, opening)
 }

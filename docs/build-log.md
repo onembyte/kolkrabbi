@@ -6189,6 +6189,61 @@ not the command. The second drives `runModels` over an httptest gateway, and the
 it must. Both facts are in the dossier: a test that cannot fail is worse than no test, because the
 report says "proved".
 
+## `kolk version` became a prompt, and sent 74 turns (2026-09-02)
+
+Closing the outside-session surface removed fifteen verbs. Dispatch treats an unrecognised first
+word as a prompt — deliberately, so `kolk fix the failing test` works — and nothing was taught that
+the removed names were different. So `kolk version` stopped printing a version and started sending
+the word "version" to a model.
+
+That would have been a slow annoyance if a person typed it. What made it expensive is that a gate
+does: `scripts/check-budgets.sh` measures cold start by running `kolk version` twenty times, and
+`make check` runs that gate. Against this machine's real configuration — the budget script does not
+isolate HOME, on purpose, because it is measuring the real binary — each run opened a session on the
+signed-in Codex subscription and took a turn. `~/.local/share/kolk/stats.jsonl` records 74 calls to
+gpt-5.6-sol in code mode between 16:43 and 16:48. They carry no dollar cost because the connector is
+a subscription; what they consumed was plan quota.
+
+Nothing caught it for three `make check` runs, because a failing turn is fast and the budget only
+fails when the measurement is slow. The run that finally failed did so at 31,679 ms against a 30 ms
+budget — the gate reporting a number thirty-thousand times too large, which is a strange way to be
+told you are spending someone's subscription.
+
+Two fixes, and the first is the one that matters. A retired verb is now refused by name, for free,
+with the spelling that works and a note that quoting still makes it a prompt: `kolk "version"` is one
+argument and never equals a verb, so the design that makes `kolk fix the failing test` work is
+untouched. The budget script now measures `kolk help`, which exists and is in the closed set, so it
+cannot quietly stop existing again.
+
+What this says about the removal: deleting a published command is not finished when the code
+compiles and the tests pass. Every place that *types* the old name has to be found too — and a
+script that types it twenty times an hour is worse than a user who types it once, because nobody
+reads its output.
+
+## F5 — the work a turn was doing twice (2026-09-02)
+
+Measure first was the rule, and it paid: the guess would have been "argv building is cheap, leave
+it", and the measurement said 48 of the 54 allocations in building one Codex turn's argv were
+re-validating an envelope the constructor had already validated — every turn, for every subagent.
+The fix is a single unexported bool. It is trustworthy *because* it is unexported: an envelope built
+outside the package cannot claim to be validated, so the check still runs for everyone who has not
+earned the right to skip it. Six allocations remain, against fifty-four.
+
+The Claude finding was plainer. `StreamChatObserved` built a full one-shot invocation at the top of
+the function and then, on the persistent path — which is every ordinary session — returned without
+ever using it. Fifty-three allocations and a full envelope validation per turn, for an argv nobody
+ran. It is built below that return now.
+
+Both tests prove the absence behaviourally rather than by counting: delete the workspace after
+construction, and a turn that re-validates fails while a turn that trusts the constructor does not.
+That is a better assertion than a benchmark threshold, which would be a number nobody could defend
+on a different machine.
+
+One thing was got wrong on the way. Teaching `executionOptionsEmpty` about the new field, I also
+added `Efforts` to it — and an efforts-only envelope then looked *delegated*, which made the
+session's own Codex invocation start overriding the user's `~/.codex/config.toml` network setting.
+F2's test caught it in the same run, which is the argument for having written that test at all.
+
 ## TUI progress-log observability — C5 queued 2026-09-01
 
 The requested Codex/Claude-style work log is recorded as a dedicated future checkpoint. It will

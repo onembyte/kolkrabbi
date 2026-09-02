@@ -109,3 +109,41 @@ func TestHelpIsTheFrontDoor(t *testing.T) {
 		}
 	}
 }
+
+// A retired verb must never become a prompt.
+//
+// Dispatch turns an unknown first word into a prompt, which is right for
+// `kolk fix the failing test` and ruinous for `kolk version`: the word becomes
+// a turn and the turn reaches a model. That is not hypothetical — after the
+// verbs were removed, `make budgets` (which times cold start by running
+// `kolk version` twenty times) sent seventy-four turns to a real subscription.
+// Every retired name is refused for free, with the spelling that works.
+func TestARetiredVerbIsRefusedNotSentToAModel(t *testing.T) {
+	for name, slash := range retiredVerbs {
+		t.Run(name, func(t *testing.T) {
+			a, out, errOut := newTestApp(t, "")
+			// A model call would need this; if one is attempted the test fails
+			// on the assertions below rather than reaching the network.
+			code := a.main(context.Background(), []string{name})
+			if code == ExitOK {
+				t.Fatalf("`kolk %s` succeeded; it must be refused, not run", name)
+			}
+			said := out.String() + errOut.String()
+			if !strings.Contains(said, "is a session command now") || !strings.Contains(said, slash) {
+				t.Fatalf("`kolk %s` did not say where it went:\n%s", name, said)
+			}
+			if !strings.Contains(said, "quote it") {
+				t.Fatalf("`kolk %s` did not say how to send it as a prompt anyway:\n%s", name, said)
+			}
+		})
+	}
+
+	// The design this protects is intact: a genuinely unknown word, and a
+	// quoted sentence that happens to start with a retired name, are prompts.
+	if _, retired := retiredVerbs["fix"]; retired {
+		t.Fatal("an ordinary word is being treated as a retired verb")
+	}
+	if _, retired := retiredVerbs["config the model"]; retired {
+		t.Fatal("a quoted sentence matched a retired verb; it must be one whole argument")
+	}
+}

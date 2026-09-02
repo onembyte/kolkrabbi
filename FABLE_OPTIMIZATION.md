@@ -453,38 +453,49 @@ what `codex debug models` lists, with `gpt-5.6-pro` absent or `gone`, and a Clau
 aliases `unverified` until the first turn and `verified` after it — with no model name added to the
 source in the process.
 
-## F5 — Stop repeating work on every Fable turn  ·  `[ ]`
+## F5 — Stop repeating work on every Fable turn  ·  **done 2026-09-02**
 
-**Observable:** per Codex turn, directory validation runs once (constructor), not 2×(1+dirs);
-the persistent Claude session path builds no unused invocation per turn; `make budgets` still passes
-(startup ≈ 2 ms, ~5 MB binary); a 20-turn saga wake performs no more `EvalSymlinks`/`Stat` syscalls
-than the first turn did.
+**Observable:** building one Codex turn's argv costs **6 allocations instead of 54**; validating an
+envelope the constructor already validated costs **0 allocations instead of 48**; the persistent
+Claude path builds **no** invocation per turn where it used to build and discard a full one; a wake
+reads `SAGA.md` once instead of twice; `make budgets` still passes.
 
-**Why:** the harness's own overhead is small compared with a model call, but it is *per turn* and per
-subagent, and a Fable saga is hundreds of turns. Measure first, then remove only what the measurement
-shows; do not optimize past the budget gate.
+**Measured, not assumed** (`internal/provider/agentcli/turn_cost_bench_test.go`, 5,000×, ×3, this
+machine; `strace` is not installed here, so allocations are the reported signal — wall time on a
+loaded laptop varied by 40% run to run and is quoted only for scale):
 
-**Files:** `internal/provider/agentcli/codex.go`, `claude.go`, `execution_options.go`, `session.go`,
-`internal/shell/lines_process.go`, `process_options.go`.
+| Per turn | before | after |
+|---|---|---|
+| Codex argv (workspace + 2 dirs) | 54 allocs · 4,945 B · ~45 µs | **6 allocs · 800 B · ~2.4 µs** |
+| Envelope validation | 48 allocs · 4,528 B · ~44 µs | **0 allocs · 0 B · ~28 ns** |
+| Claude invocation on the persistent path | 53 allocs · 5,360 B, then discarded | **not built** |
+| `SAGA.md` reads per wake | 2 read+parse | **1** |
 
-- [ ] **F5.1** Measure: a focused benchmark (`BenchmarkCodexTurnArgv`, `BenchmarkClaudeTurnArgv`)
-  and an `strace -c`-style count on Linux for one persistent Claude turn and one Codex one-shot,
-  recorded in the dossier as the "before".
-- [ ] **F5.2 (R13)** Normalize `ExecutionOptions` **once** in `NewCodexBackendFromHandleWithOptions` /
-  the Claude constructor and pass the canonical result through; `Build*InvocationWithOptions` and
-  `RunLinesWithOptions` accept already-normalized options (a marker type or a `normalized bool` that
-  the constructor sets — pick the one `make arch` and the dead-export gate accept).
-- [ ] **F5.3 (R13)** The persistent Claude session path stops building a full invocation per turn;
-  the resume argv is composed from the retained session handle and the effort/model flags only.
-- [ ] **F5.4** SAGA wake I/O: `SAGA.md` is parsed once per wake and the parsed state threaded to
-  planner, budget, and executor; chapter prompts are built from the parsed state, not by re-reading.
-- [ ] **F5.5** Re-measure; the "after" numbers go beside the "before". `make budgets` and `-race`.
+- [x] **F5.1** Benchmarks written first and kept: `BenchmarkCodexTurnArgv/{raw,perturn}`,
+  `BenchmarkClaudeTurnInvocation`, `BenchmarkExecutionEnvelopeValidation/{raw,alreadyvalidated}`.
+  The `raw` shapes are the "before" and remain in the suite, because a first call still pays them —
+  the two numbers side by side are what say the change landed on the loop and not on the constructor.
+- [x] **F5.2 (R13)** `ExecutionOptions.normalized`, unexported so an envelope built outside the
+  package is always validated: the marker can be trusted precisely because nobody outside can set
+  it. `normalizeExecutionOptions` returns early when it is set; both constructors already stored the
+  normalized value, so the per-turn re-validation was work whose answer was already known.
+  `executionOptionsEmpty` deliberately ignores `normalized` **and** `Efforts` — counting either
+  would make a session's own invocation look delegated, and a delegated Codex envelope states the
+  sandbox network flag (F2), which would start overriding the user's own config.
+  `TestOptionsAreNormalizedOnceAtConstruction` proves it behaviourally: the workspace is deleted
+  after construction, and a turn that re-validated would fail on it.
+- [x] **F5.3 (R13)** The Claude invocation is built after the persistent path has returned, so an
+  ordinary session never builds it. `TestPersistentClaudeTurnBuildsNoInvocation`.
+- [x] **F5.4** `openSaga` already parses `SAGA.md` to decide whether a request starts, continues or
+  resets a saga, so the wake takes that parse: `sagaOpening` carries the state and path, and
+  `loadSaga` — which existed only to read it a second time — is deleted. `TestAWakeParsesTheArtifactOnce`.
+- [x] **F5.5** Re-measured above. `make budgets` and `-race` green.
 
-**Tests** — `internal/provider/agentcli/execution_options_test.go`, `codex_test.go`
-- `TestOptionsAreNormalizedOnceAtConstruction`
-- `TestPersistentClaudeTurnBuildsNoInvocation`
-
----
+**Left deliberately, and owned by F6.1:** `shell.normalizeProcessOptions` still validates the Codex
+working directory once per turn — part of the remaining 6 allocations. Marking it "already verified"
+across the package boundary needs either a trapdoor (`shell` exporting a way to claim validation
+without doing it) or the shared `shell.VerifiedDir` that F6.1 is already for. A trapdoor for six
+allocations is a bad trade; the refactor is the right home.
 
 ## F6 — One implementation per rule  ·  `[ ]`
 

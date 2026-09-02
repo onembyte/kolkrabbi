@@ -11022,6 +11022,67 @@ remains, since a vendor catalog carries no tier. V34.4b part-done — the Codex 
 vendor's own and live-verified; kolk's four-level dial still cannot reach a vendor `ultra`. No provider turn was spent; one `codex debug models` and one `codex
 --version` ran on this machine. No credential, push, tag, release, or remote state changed.
 
+#### F5 — stop repeating work on every turn — complete 2026-09-02
+
+Program leaf from `FABLE_OPTIMIZATION.md`. **Risk:** P3 — no defect, only work paid per turn and per
+subagent, which a saga pays hundreds of times. **Rule for the leaf:** measure first, remove only what
+the measurement shows, and do not optimize past the budget gate.
+
+Measured before anything changed (`turn_cost_bench_test.go`, 5,000 iterations × 3, this machine).
+`strace` is not installed here, so allocations are the reported signal rather than syscall counts;
+wall time varied by about 40% run to run on a loaded laptop and is quoted only for scale.
+
+| Per turn | before | after |
+|---|---|---|
+| Codex argv (workspace + 2 additional dirs) | 54 allocs · 4,945 B · ~45 µs | 6 allocs · 800 B · ~2.4 µs |
+| Envelope validation alone | 48 allocs · 4,528 B · ~44 µs | 0 allocs · 0 B · ~28 ns |
+| Claude invocation, persistent path | 53 allocs · 5,360 B, built then discarded | not built |
+| `SAGA.md` read+parse per wake | 2 | 1 |
+
+Green: `ExecutionOptions.normalized` (unexported, so an envelope from outside the package is always
+validated — the marker is trustworthy because nobody outside can set it) short-circuits
+`normalizeExecutionOptions`; both provider constructors already stored the normalized value, so the
+per-turn re-validation had been recomputing an answer it already had. The Claude one-shot invocation
+moved below the persistent path's return, so an ordinary session never builds it. `sagaOpening`
+carries the state and path `openSaga` already parsed, and `loadSaga` — whose only purpose was the
+second read — is deleted.
+
+One subtlety recorded because it was got wrong first: `executionOptionsEmpty` must ignore both
+`normalized` and `Efforts`. Adding `Efforts` to it made an efforts-only envelope look delegated, and
+a delegated Codex envelope states the sandbox network flag (F2), so the session's own invocation
+began overriding the user's `~/.codex/config.toml`. F2's own test caught it in the same run.
+
+Tests: `TestOptionsAreNormalizedOnceAtConstruction` (behavioural — the workspace is deleted after
+construction, so a turn that re-validated would fail, and one that trusts the constructor does not;
+plus an envelope literal from outside the package is still validated),
+`TestPersistentClaudeTurnBuildsNoInvocation` (same trick at the session boundary),
+`TestAWakeParsesTheArtifactOnce`. The `raw` benchmark shapes stay in the suite beside the `perturn`
+ones: a first call still pays the old cost, and the two numbers together are what say the change
+landed on the loop rather than on the constructor.
+
+Left deliberately, owned by F6.1: `shell.normalizeProcessOptions` still validates the Codex working
+directory once per turn — part of the remaining six allocations. Marking it verified across the
+package boundary needs either a trapdoor (`shell` exporting a way to claim validation without doing
+it) or the shared `shell.VerifiedDir` that F6.1 exists for. A trapdoor for six allocations is a bad
+trade.
+
+Gates: `make budgets`, `-race` on `agentcli`, `cli`, `engine`, and `make check`.
+
+**The budget gate caught something else, and it was not F5's.** Cold start measured 31,679 ms
+against a 30 ms budget. The cause was the surface closure two commits earlier: `check-budgets.sh`
+times startup by running `kolk version` twenty times, `version` had stopped being a verb, and
+dispatch turns an unknown word into a prompt — so each run opened a session on this machine's real
+Codex subscription and took a turn. `stats.jsonl` records 74 such calls between 16:43 and 16:48
+(no dollar cost; a subscription connector, so what was consumed is plan quota). Three earlier
+`make check` runs had passed because a *failing* turn is fast, and the budget only notices when the
+measurement is slow.
+
+Fixed at the root: `retiredVerbs` maps each removed name to its slash spelling, and dispatch refuses
+it for free rather than prompting — `TestARetiredVerbIsRefusedNotSentToAModel` covers all fifteen.
+Quoting is unaffected (`kolk "version"` is one argument and never equals a verb), so
+`kolk fix the failing test` still works. The budget script now measures `kolk help`, which is in the
+closed set and cannot quietly stop existing. Cold start back to 3.6 ms.
+
 #### C5 — TUI progress-log observability — queued
 
 This is a separate surface checkpoint. It must make long-running work legible without turning the

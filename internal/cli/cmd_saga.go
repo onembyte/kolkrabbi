@@ -71,27 +71,6 @@ func ancestorContaining(start, entry string) (string, bool) {
 	}
 }
 
-// loadSaga reads the project's saga, reporting whether one exists at all so
-// each subcommand can answer honestly instead of assuming there is none.
-func (a *app) loadSaga() (*engine.SagaState, string, bool, error) {
-	path, err := sagaArtifactPath()
-	if err != nil {
-		return nil, "", false, err
-	}
-	body, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return nil, path, false, nil
-	}
-	if err != nil {
-		return nil, path, false, fmt.Errorf("saga: read SAGA.md: %w", err)
-	}
-	state, parseErr := engine.ParseSagaMarkdown(string(body))
-	if parseErr != nil {
-		return nil, path, true, fmt.Errorf("saga: parse SAGA.md: %w", parseErr)
-	}
-	return state, path, true, nil
-}
-
 // sagaOpening is what an inline /saga request found in the project and what
 // was decided about it.
 type sagaOpening struct {
@@ -106,6 +85,12 @@ type sagaOpening struct {
 	// notice is one line telling the user what was decided, or empty when
 	// there was nothing to decide.
 	notice string
+	// state and path are the parsed artifact and where it lives. openSaga has
+	// just read and parsed SAGA.md to decide all of the above, so the wake
+	// takes that parse rather than reading the same file again: two reads and
+	// two parses per wake, for a file that cannot have changed in between.
+	state *engine.SagaState
+	path  string
 }
 
 // openSaga decides what an inline /saga request means for the project's
@@ -137,7 +122,7 @@ func (a *app) openSaga(text string) (sagaOpening, error) {
 			return sagaOpening{}, fmt.Errorf("saga: parse SAGA.md: %w", parseErr)
 		}
 		if !sagaFinished(existing) {
-			opening := sagaOpening{goal: existing.Goal}
+			opening := sagaOpening{goal: existing.Goal, state: existing, path: path}
 			if !strings.EqualFold(strings.TrimSpace(text), strings.TrimSpace(existing.Goal)) {
 				opening.note = text
 				opening.notice = fmt.Sprintf("saga %q: continuing; your note for this wake: %q", existing.Goal, text)
@@ -166,7 +151,7 @@ func (a *app) openSaga(text string) (sagaOpening, error) {
 	if err := atomicfile.Write(path, []byte(engine.FormatSagaMarkdown(state)), 0o600); err != nil {
 		return sagaOpening{}, err
 	}
-	return sagaOpening{goal: text, notice: notice}, nil
+	return sagaOpening{goal: text, notice: notice, state: state, path: path}, nil
 }
 
 // sagaFinished reports whether the artifact is at a terminal status. The

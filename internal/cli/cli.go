@@ -287,6 +287,27 @@ func lookupCommand(name string) *command {
 	return nil
 }
 
+// retiredVerbs are the commands that moved into the session on 2026-09-02, and
+// what to type instead.
+//
+// They exist because of what dispatch does with an unrecognised word. Treating
+// one as a prompt is right for `kolk fix the failing test` and catastrophic for
+// `kolk version`: the word becomes a turn, the turn reaches a model, and a
+// command that used to print one line spends the user's plan. That is not a
+// hypothetical — `make budgets` measures cold start by running `kolk version`
+// twenty times, and after these verbs were removed it sent seventy-four turns
+// to a real subscription before the budget gate's own timing caught it.
+//
+// So a retired name is refused with the spelling that works, for free. Only an
+// exact single-word match: `kolk "config the model"` is still a prompt, because
+// the whole sentence is one argument and never equals a verb.
+var retiredVerbs = map[string]string{
+	"key": "/key", "model": "/model", "effort": "/effort", "mode": "/mode",
+	"config": "/config", "models": "/model", "plans": "/plans", "pmodels": "/pmodels",
+	"localia": "/localia", "update": "/update", "stats": "/stats", "dash": "/dash",
+	"devices": "/devices", "version": "/version", "doctor": "/doctor",
+}
+
 // dispatch routes a command line. An unrecognised first word is deliberately
 // NOT an error: `kolk fix the failing test` must be a prompt, not a typo.
 func (a *app) dispatch(ctx context.Context, args []string) error {
@@ -297,6 +318,18 @@ func (a *app) dispatch(ctx context.Context, args []string) error {
 		}
 		if c := lookupCommand(args[0]); c != nil {
 			return c.run(a, ctx, args[1:])
+		}
+		if slash, retired := retiredVerbs[args[0]]; retired {
+			return &GuidedError{
+				Msg: fmt.Sprintf("`kolk %s` is a session command now: %s", args[0], slash),
+				Hint: []string{
+					"kolk            open a session",
+					slash + "   then run it there",
+					"",
+					"`kolk help` lists every command, in and out of a session.",
+					fmt.Sprintf("To send %q to a model as a prompt, quote it: kolk %q", args[0], args[0]),
+				},
+			}
 		}
 	}
 	return a.runDefault(ctx, args)

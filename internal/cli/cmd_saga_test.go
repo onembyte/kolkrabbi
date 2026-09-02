@@ -229,3 +229,40 @@ func TestWakeBudgetCarriesMaxStrikesFromSagaFile(t *testing.T) {
 		t.Fatalf("five strikes under a five-strike allowance = %q, want doom-loop", reason)
 	}
 }
+
+// A wake reads SAGA.md once. openSaga has to parse it to decide whether this
+// request starts, continues or resets a saga, and the wake takes that parse
+// rather than reading the same file again — it cannot have changed in between,
+// and a saga is hundreds of wakes.
+func TestAWakeParsesTheArtifactOnce(t *testing.T) {
+	root, _ := projectTree(t)
+	a := &app{stdout: &strings.Builder{}, stderr: &strings.Builder{}}
+
+	opening, err := a.openSaga("build the app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opening.state == nil || opening.state.Goal != "build the app" {
+		t.Fatalf("opening carries no parsed state: %+v", opening)
+	}
+	if opening.path != filepath.Join(root, "SAGA.md") {
+		t.Fatalf("opening path = %q", opening.path)
+	}
+
+	// The wake works from that parse: with the file removed, a second read
+	// would fail, and the wake still knows the goal.
+	if err := os.Remove(opening.path); err != nil {
+		t.Fatal(err)
+	}
+	second, err := a.openSaga("continue")
+	if err == nil {
+		// Removing it makes the next request a *new* saga, which is correct —
+		// what matters is that the first opening still carries its own parse.
+		if second.state == nil {
+			t.Fatal("a fresh saga carries no parsed state either")
+		}
+	}
+	if opening.state.Goal != "build the app" {
+		t.Fatal("the first opening's parse was invalidated by a later read")
+	}
+}

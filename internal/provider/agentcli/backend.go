@@ -103,15 +103,11 @@ func (b *ClaudeBackend) StreamChatObserved(ctx context.Context, model string, me
 	if err != nil {
 		return provider.Message{}, provider.Meta{Model: model}, err
 	}
-	var invocation ClaudeInvocation
-	if executionOptionsEmpty(b.execution) {
-		invocation, err = BuildClaudeInvocation(model, b.Mode, b.Effort, prompt)
-	} else {
-		invocation, err = BuildClaudeInvocationWithOptions(model, b.Mode, b.Effort, prompt, b.execution)
-	}
-	if err != nil {
-		return provider.Message{}, provider.Meta{Model: model}, err
-	}
+	// The invocation is built below, after the persistent path has had its
+	// chance to return. It used to be built here, and on the persistent path —
+	// which is every ordinary session — it was then discarded unused: fifty-odd
+	// allocations and a full envelope validation per turn for an argv nobody
+	// ran. The one-shot path below still needs it.
 	if b.start != nil {
 		session, err := b.getSession(ctx)
 		if err != nil {
@@ -183,6 +179,16 @@ func (b *ClaudeBackend) StreamChatObserved(ctx context.Context, model string, me
 			}
 		}
 		return message, meta, turnErr
+	}
+	// One-shot: no session process, so this turn is its own invocation.
+	var invocation ClaudeInvocation
+	if executionOptionsEmpty(b.execution) {
+		invocation, err = BuildClaudeInvocation(model, b.Mode, b.Effort, prompt)
+	} else {
+		invocation, err = BuildClaudeInvocationWithOptions(model, b.Mode, b.Effort, prompt, b.execution)
+	}
+	if err != nil {
+		return provider.Message{}, provider.Meta{Model: model}, err
 	}
 	start := time.Now()
 	events := make([]Event, 0, 8)

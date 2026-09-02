@@ -27,20 +27,20 @@ import (
 // happened inside the same call — stopped every inline saga after its first
 // chapter and reported the rest as finished. Terminal status is the executor's
 // to judge, from the artifact's own Status line.
-func (a *app) runSagaLoop(ctx context.Context, agent *engine.Agent, note string) error {
+func (a *app) runSagaLoop(ctx context.Context, agent *engine.Agent, opening sagaOpening) error {
 	if agent == nil {
 		return fmt.Errorf("saga: current agent is required")
 	}
-	state, path, found, err := a.loadSaga()
-	if err != nil {
-		return err
-	}
-	if !found {
+	// The artifact openSaga just read, not a second read of the same file: it
+	// parsed SAGA.md to decide whether this wake starts, continues or resets a
+	// saga, and nothing can have changed it since.
+	state, note := opening.state, opening.note
+	if state == nil {
 		fmt.Fprintln(a.stdout, "no active SAGA plan; include /saga in a request to start one.")
 		return nil
 	}
 
-	repoDir := filepath.Dir(path)
+	repoDir := filepath.Dir(opening.path)
 	// Checked before a model turn, not after: every chapter ends in a commit,
 	// and finding out there is no repository once a chapter's tokens are spent
 	// is the wrong moment.

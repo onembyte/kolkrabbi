@@ -16,6 +16,17 @@ type ExecutionOptions struct {
 	AdditionalDirs []string
 	NetworkAccess  bool
 	Provider       string
+	// normalized records that this envelope has already been through
+	// normalizeExecutionOptions: its directories are absolute, symlink-free,
+	// verified to exist, and deduplicated.
+	//
+	// Unexported on purpose. A caller outside this package builds
+	// ExecutionOptions as a literal, so the field is false and the envelope is
+	// validated — the marker can be trusted precisely because nobody outside
+	// can set it. Measured before it existed: validating a workspace and two
+	// additional directories was 48 of the 54 allocations in building one
+	// Codex turn's argv, and a provider CLI turn pays that every turn.
+	normalized bool
 	// Efforts is the effort set the vendor's catalog listed for this model,
 	// when discovery has one. Non-empty, it replaces the adapter's seed set
 	// for validation: a level the vendor lists today is accepted today, and
@@ -42,12 +53,27 @@ func effortAllowed(effort string, discovered []string, seed map[string]bool) boo
 	return false
 }
 
+// executionOptionsEmpty reports whether there is no envelope at all — the
+// session's own process rather than a delegated child.
+//
+// Two fields are deliberately not part of the answer. `normalized` records
+// that validation has run, not that anything was declared. `Efforts` is the
+// vendor's own catalog talking back, not a capability kolk granted — counting
+// either would make an envelope look delegated, and a delegated Codex envelope
+// states the sandbox network flag (F2), so the session's own invocation would
+// start overriding the user's config.
 func executionOptionsEmpty(options ExecutionOptions) bool {
 	return options.Workspace == "" && len(options.AdditionalDirs) == 0 &&
 		!options.NetworkAccess && options.Provider == ""
 }
 
 func normalizeExecutionOptions(options ExecutionOptions) (ExecutionOptions, error) {
+	// Already canonical: the constructor did this, and the directories cannot
+	// have become more valid since. Re-checking per turn was work the answer
+	// to which was already known.
+	if options.normalized {
+		return options, nil
+	}
 	workspace, err := normalizeExecutionDirectory("workspace", options.Workspace, false)
 	if err != nil {
 		return ExecutionOptions{}, err
@@ -67,6 +93,7 @@ func normalizeExecutionOptions(options ExecutionOptions) (ExecutionOptions, erro
 	}
 	options.Workspace = workspace
 	options.AdditionalDirs = additional
+	options.normalized = true
 	return options, nil
 }
 
