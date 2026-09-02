@@ -6115,6 +6115,21 @@ re-discovery — a vendor listing a model again does not un-prove a turn — and
 resolving. And one planned mutation did not go red: the explicit skip of `:batch`/`-fast` variants
 was redundant with the family pattern, so it was deleted; a guard nothing can prove is not a guard.
 
+## F4.4 — every start, every login (2026-09-02)
+
+The mapping now runs where the owner said it should. Startup asks every signed-in vendor behind
+the prompt, on the same background lane the gateway catalog refreshes on, so a slow vendor never
+holds the first prompt; a login asks that vendor in front of the user and says, in one line, what
+it found and how — `codex 0.149.1: 5 models listed by codex debug models: …` — or why it could not.
+`kolk models --refresh` asks everyone.
+
+Three rules came out of writing the tests. A vendor whose version changed is forgotten before its
+fresh rows land: a model proved under one CLI is not proved under the next, and carrying the proof
+forward would be the burned-in claim wearing a timestamp. A vendor that will not answer keeps its
+last catalog and is reported, never blanked — yesterday's list with a warning beats no list. And a
+recorded-but-disabled connector is not asked; the mutation for that guard only went red once the
+fixture contained one, which is the difference between a test that passes and a test that proves.
+
 ## TUI progress-log observability — C5 queued 2026-09-01
 
 The requested Codex/Claude-style work log is recorded as a dedicated future checkpoint. It will

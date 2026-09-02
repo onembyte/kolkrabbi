@@ -215,6 +215,9 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	// made two catalog requests here, one of them uncached and unbounded, and
 	// the blank screen it produced was timed at ten seconds.
 	catalog := a.loadCatalog(ctx, client, d.CatalogFile())
+	// Every start maps what every signed-in vendor offers, behind the prompt:
+	// the model commands show what the vendor said, not what kolk wrote down.
+	a.refreshVendorCatalogsInBackground(ctx, catalog)
 
 	// Model precedence: -m flag > the resumed session's model > config > the
 	// live zero-cost coding choice. Explicit user choices never cause a catalog

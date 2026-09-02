@@ -43,6 +43,12 @@ func (a *app) runModels(ctx context.Context, args []string) error {
 		return err
 	}
 	a.printHostModels(ctx, d.HostCatalogFile(), filter)
+	if forceRefresh {
+		// --refresh asks every signed-in vendor too, in front of the user.
+		for _, result := range a.discoverVendorModels(ctx, provider.CachedCatalog(d.CatalogFile()), "") {
+			fmt.Fprintln(a.stdout, describeVendorDiscovery(result))
+		}
+	}
 	return nil
 }
 

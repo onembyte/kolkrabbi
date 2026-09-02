@@ -10872,7 +10872,7 @@ silently and is V34.4c's, with an owner decision. Walk-back: `docs/plan/24` Anth
 one-turn provider calls were made on the owner's own login for the fire-and-check above; no
 credential, push, tag, release, or remote state changed.
 
-#### F4 — discover, don't burn — in progress; F4.1 port, F4.2 Codex lister, F4.3 Claude preview and first-turn verification complete 2026-09-02
+#### F4 — discover, don't burn — in progress; F4.1 port, F4.2 Codex lister, F4.3 Claude preview and first-turn verification, F4.4 hooks complete 2026-09-02
 
 Owner decision (verbatim in `FABLE_OPTIMIZATION.md` §F4): map every vendor's models on every start
 and every login, never burn names, show only mapped rows with their info. **Risk:** P1 product truth
@@ -10937,8 +10937,24 @@ teaching nothing — each failed its test and restored byte-identically; a fifth
 variant skip) did not go red because the pattern already excluded variants, so the redundant skip
 was deleted rather than kept as a guard that proves nothing. `make check` green at 3,225 tests.
 
-Remaining: F4.4 (start/login hooks and staleness), F4.5 (derivation of rungs, efforts, ladders from
-the catalog), F4.6 (surfaces), F4.7 (proof). No provider turn was spent; one `codex debug models` and one `codex
+Green, F4.4: `discoverVendorModels` (enabled connectors only, 15 s per vendor, version change →
+`Forget` first, a vendor that will not answer keeps its last catalog and is reported, one save);
+hooks on every start (`newAgent`, behind the prompt, with the gateway catalog startup loaded), every
+login (`runConnectorLoginWith`, after the connector is recorded, one actionable line), and `kolk
+models --refresh`; `provider.CachedCatalog` reads the gateway cache without a client for the login
+preview; `app.modelLister` is the test seam so no test runs an installed CLI. Tests:
+`TestStartupDiscoversEveryEnabledConnectorInTheBackground` (a recorded-but-disabled gemini is not
+asked; codex and claude once each), `TestLoginDiscoversThatConnectorAndSaysWhatItFound` (hidden rows
+unnamed; a failing vendor reported with its reason and its last catalog kept),
+`TestAVendorVersionChangeForgetsWhatATurnHadVerified` (0.149.1 → 0.150.0 demotes `verified`; the
+same version carries it forward), `TestPlanLoginRunsTheVendorMappingBeforeReturning` (through the
+real login path with a no-op vendor login). Four mutations — disabled vendors asked, version change
+ignored, a failure blanking the catalog, the login hook removed — each failed its test and restored
+byte-identically; the first only went red once the fixture recorded a disabled connector, which is
+the case the guard exists for. `make check` green at 3,229 tests.
+
+Remaining: F4.5 (derivation of rungs, efforts, ladders from the catalog), F4.6 (surfaces), F4.7
+(proof). No provider turn was spent; one `codex debug models` and one `codex
 --version` ran on this machine. No credential, push, tag, release, or remote state changed.
 
 #### C5 — TUI progress-log observability — queued

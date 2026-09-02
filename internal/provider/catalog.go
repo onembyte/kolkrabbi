@@ -77,6 +77,20 @@ func (c *Client) ListModelsCached(ctx context.Context, path string, ttl time.Dur
 	return nil, err
 }
 
+// CachedCatalog is whatever the cache file holds, fresh or stale, and nothing
+// when there is no file. For a caller that wants the gateway's names without
+// a client or a network — a vendor preview at login time — and can say so.
+func CachedCatalog(path string) []ModelInfo {
+	if path == "" {
+		return nil
+	}
+	cached, err := loadCatalog(path)
+	if err != nil {
+		return nil
+	}
+	return cached.Models
+}
+
 func loadCatalog(path string) (*CatalogCache, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {

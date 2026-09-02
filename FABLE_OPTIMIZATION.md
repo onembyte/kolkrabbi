@@ -290,7 +290,7 @@ max` each completed a one-turn `-p` call (`stop_reason: end_turn`). `claude --he
 `claude-opus`, not `claude-fable`. Changing what a shorthand means moves users' models silently;
 that is V34.4c's catalog disposition, with an owner decision.
 
-## F4 — Discover, don't burn: every vendor's models are mapped before they are shown  ·  `[~]` F4.1–F4.3 done 2026-09-02
+## F4 — Discover, don't burn: every vendor's models are mapped before they are shown  ·  `[~]` F4.1–F4.4 done 2026-09-02
 
 **Owner decision, 2026-09-02** (verbatim): *"when kolk see models availables, ID them, do not burn
 model names before knowing what's available. because if not, tomorrow claude or codex will update
@@ -365,12 +365,23 @@ wrong three days later. Feeds V34.4a/b/c/d.
   `TestATurnPromotesAndARefusalRetires`, `TestReplaceCarriesVerificationForwardAndRetiresTheDropped`,
   `TestTheFirstPromptVerifiesTheModelInTheVendorCatalog`. Mutations: family pattern loosened to
   accept variants, refusal match loosened, `Replace` forgetting `verified`, the turn teaching nothing.
-- [ ] **F4.4 Cache and hooks.** `paths.VendorCatalogFile()` (`vendor-models.json`), atomic write,
-  one entry per vendor with `FetchedAt` and `VendorVersion`. Refreshed: on every `kolk plans login
-  <connector>` after `SaveConnector` (before the "recorded" line prints); at startup for every
-  enabled connector, bounded to the same budget as the gateway catalog and refreshed behind the
-  prompt when stale; on `kolk models --refresh` and `/model`. A vendor version change invalidates its
-  entry.
+- [x] **F4.4 Cache and hooks.** `paths.VendorCatalogFile()` (`vendor-models.json`, F4.3's store).
+  `cli.discoverVendorModels(ctx, gateway, only)` asks every enabled connector (or one), 15 s bound per
+  vendor, forgets a vendor whose version changed before its fresh rows land, keeps the last catalog
+  when a vendor will not answer (reported, never blanked), saves once. Hooks: **every start** —
+  `newAgent` runs it behind the prompt with the gateway catalog startup already loaded
+  (`refreshVendorCatalogsInBackground`); **every login** — `runConnectorLoginWith` runs it for that
+  connector after the connector is recorded and prints one line a person can act on (`codex 0.149.1:
+  5 models listed by codex debug models: gpt-5.6-sol, … — \`kolk models\` shows them`, or the reason
+  it could not); **`kolk models --refresh`** asks every vendor in front of the user. The gateway
+  preview at login reads the cached catalog (`provider.CachedCatalog`) without a client. A test seam
+  (`app.modelLister`) replaces the registry so tests never run an installed CLI. Tests:
+  `TestStartupDiscoversEveryEnabledConnectorInTheBackground` (a disabled connector is not asked, each
+  enabled one once), `TestLoginDiscoversThatConnectorAndSaysWhatItFound` (hidden rows not named; a
+  failure keeps the last catalog), `TestAVendorVersionChangeForgetsWhatATurnHadVerified` (and the
+  same version carries it forward), `TestPlanLoginRunsTheVendorMappingBeforeReturning` (through the
+  real login path). Mutations: disabled vendors asked, version change ignored, failure blanking the
+  catalog, login hook removed.
 - [ ] **F4.5 Derivation.** `planModelCatalog`, `codexRungs`, `ClaudeKnowsModel`/`CodexKnowsModel`,
   `CodexEffortValid`, and the Codex ladder in `vendorLadders` are derived from the vendor catalog
   when one exists and fall back to the seed only when none does — and a seed row is always shown

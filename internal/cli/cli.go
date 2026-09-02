@@ -69,6 +69,10 @@ type app struct {
 	// uses runSagaLoop with the current agent; tests can prove routing and
 	// posture restoration without opening a provider or changing a chapter.
 	sagaWake func(context.Context, *engine.Agent) error
+	// modelLister is a test seam over the connector→lister registry, so a test
+	// can discover from a fake vendor instead of running the installed CLI.
+	// Nil means the registry.
+	modelLister func(connector string, gateway []provider.ModelInfo) provider.ModelLister
 	// sessionRules are permission rules the user added for this process only.
 	// They are deliberately not written anywhere: a rule that outlives the
 	// session someone scoped it to is a rule nobody consented to.

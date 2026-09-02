@@ -101,6 +101,14 @@ func (s *VendorCatalogs) Replace(fresh VendorCatalog) {
 	s.Vendors[fresh.Vendor] = fresh
 }
 
+// Forget drops everything known about a vendor. Used when the vendor's own
+// version changed: a model verified under one CLI is not proved under the
+// next, and carrying the proof forward would be exactly the burned-in claim
+// this store exists to replace.
+func (s *VendorCatalogs) Forget(vendor string) {
+	delete(s.Vendors, vendor)
+}
+
 // Verify records that a turn on `vendor` asked for `id` and the vendor
 // answered on `exact` (the resolved model the vendor reported, when it did).
 // A row not yet in the catalog is created, so the first turn of a session

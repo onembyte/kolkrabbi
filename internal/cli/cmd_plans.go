@@ -193,11 +193,18 @@ func (a *app) runConnectorLoginWith(ctx context.Context, connectorsFile string, 
 		return err
 	}
 	if selected.Connector == local.SidecarName {
-		return a.verifyOllamaConnector(ctx, connectorsFile, selected, host.Addr)
+		if err := a.verifyOllamaConnector(ctx, connectorsFile, selected, host.Addr); err != nil {
+			return err
+		}
+		a.reportVendorDiscovery(ctx, selected.Connector)
+		return nil
 	}
 	fmt.Fprintf(a.stdout, "%s recorded. %s exited cleanly, which is not proof of a login;\n",
 		selected.Name, selected.Connector)
 	fmt.Fprintf(a.stdout, "Kolkrabbi confirms it the first time %s answers a turn.\n", selected.Connector)
+	// Every login maps what the vendor offers, in front of the user, before
+	// the prompt ever names a model.
+	a.reportVendorDiscovery(ctx, selected.Connector)
 	return nil
 }
 
