@@ -159,7 +159,7 @@ func TestBuildClaudeSessionArgsResumesWithTheSameModelAndEffort(t *testing.T) {
 // Mode is structural on this backend: the vendor's own tool loop carries the
 // mode, because kolk runs no tool executor of its own here.
 func TestClaudeModeFlagsShapeTheVendorToolSet(t *testing.T) {
-	code, err := claudeModeFlags("code")
+	code, err := claudeModeFlags("code", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestClaudeModeFlagsShapeTheVendorToolSet(t *testing.T) {
 		!strings.Contains(got, "Read") || !strings.Contains(got, "Bash") || strings.Contains(got, "Task") {
 		t.Fatalf("code flags = %q, want the vendor tool set without Task", got)
 	}
-	chat, err := claudeModeFlags("chat")
+	chat, err := claudeModeFlags("chat", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestClaudeModeFlagsShapeTheVendorToolSet(t *testing.T) {
 	// Agent mode takes the same flags as code mode. It was refused here until
 	// 2026-08-30, on a reason that was true of the vendor's Task tool rather
 	// than of kolk's orchestrator — and Task has never been in this tool set.
-	agentFlags, err := claudeModeFlags("agent")
+	agentFlags, err := claudeModeFlags("agent", false)
 	if err != nil {
 		t.Fatalf("agent mode was refused: %v", err)
 	}
@@ -198,7 +198,7 @@ func TestClaudeModeFlagsShapeTheVendorToolSet(t *testing.T) {
 // without reading why the list exists, this test is what says so.
 func TestTheVendorNeverGetsItsOwnSubagentScheduler(t *testing.T) {
 	for _, mode := range []string{"", "code", "agent", "chat"} {
-		flags, err := claudeModeFlags(mode)
+		flags, err := claudeModeFlags(mode, false)
 		if err != nil {
 			t.Fatalf("mode %q: %v", mode, err)
 		}
@@ -304,7 +304,7 @@ func TestClaudeEffortValidAcceptsTheVendorSet(t *testing.T) {
 // a stream-json process cannot take a new argv later.
 func TestClaudeBackendSessionSpawnsWithItsConstructedModel(t *testing.T) {
 	var spawned []string
-	backend, err0 := NewClaudeBackendFromHandle("claude-opus", "code", "high", "", false)
+	backend, err0 := NewClaudeBackendFromHandleWithOptions("claude-opus", "code", "high", "", false, ExecutionOptions{})
 	if err0 != nil {
 		t.Fatal(err0)
 	}
@@ -328,7 +328,7 @@ func TestClaudeBackendSessionSpawnsWithItsConstructedModel(t *testing.T) {
 // StreamChat with a fake process that answers one turn normally.
 func TestClaudeBackendHappyPathEndsCleanlyWithConstructedModel(t *testing.T) {
 	process := &fakeLineProcess{lines: claudeTurnFrames("hello")}
-	backend, err0 := NewClaudeBackendFromHandle("claude-opus", "code", "high", "", false)
+	backend, err0 := NewClaudeBackendFromHandleWithOptions("claude-opus", "code", "high", "", false, ExecutionOptions{})
 	if err0 != nil {
 		t.Fatal(err0)
 	}
@@ -360,7 +360,7 @@ func TestNewVendorHandleIsAWellFormedUUID(t *testing.T) {
 // `claude` child would walk into its own empty history.
 func TestClaudeBackendMintsTheHandleOnceAndResumesEverAfter(t *testing.T) {
 	spawned := [][]string{}
-	backend, err0 := NewClaudeBackendFromHandle("claude-opus", "code", "high", "", false)
+	backend, err0 := NewClaudeBackendFromHandleWithOptions("claude-opus", "code", "high", "", false, ExecutionOptions{})
 	if err0 != nil {
 		t.Fatal(err0)
 	}
@@ -408,7 +408,7 @@ func TestClaudeBackendReportsTheVendorConfirmedHandle(t *testing.T) {
 		[]byte(`{"type":"assistant","message":{"model":"opus","content":[{"type":"text","text":"hi"}]}}`),
 		[]byte(`{"type":"result","result":"hi","subtype":"success","session_id":"vendor-confirmed"}`),
 	}}
-	backend, err0 := NewClaudeBackendFromHandle("claude-opus", "code", "high", "", false)
+	backend, err0 := NewClaudeBackendFromHandleWithOptions("claude-opus", "code", "high", "", false, ExecutionOptions{})
 	if err0 != nil {
 		t.Fatal(err0)
 	}
@@ -428,7 +428,7 @@ func TestClaudeBackendReportsTheVendorConfirmedHandle(t *testing.T) {
 // conversation, not wedge every later turn behind the same dead resume.
 func TestClaudeBackendForgetsAStoredHandleThatResumesDead(t *testing.T) {
 	spawned := [][]string{}
-	backend, err0 := NewClaudeBackendFromHandle("claude-opus", "code", "high", "handle-the-vendor-forgot", true)
+	backend, err0 := NewClaudeBackendFromHandleWithOptions("claude-opus", "code", "high", "handle-the-vendor-forgot", true, ExecutionOptions{})
 	if err0 != nil {
 		t.Fatal(err0)
 	}
@@ -480,5 +480,45 @@ func TestMaxEffortReachesClaudeAsMaxOnFable(t *testing.T) {
 	}
 	if !ClaudeEffortValid("xhigh") || !ClaudeEffortValid("max") {
 		t.Fatal("the vendor's closed effort set must accept both xhigh and max")
+	}
+}
+
+// kolk's full-auto tier reaches a Claude child as the vendor's own bypass —
+// designed in docs/plan/04 §4.2 and, until a Fable saga ran its first command,
+// never built. Under acceptEdits the child denies every Bash command that
+// needs an approval nobody is there to give, so a "full-auto" session had a
+// child that could edit files and run nothing. The spelling matters too: the
+// mode flag, never --dangerously-skip-permissions, so a debug log names it.
+func TestFullAutoReachesAClaudeChildAsBypassPermissions(t *testing.T) {
+	for _, tc := range []struct {
+		mode   string
+		bypass bool
+		want   string
+	}{
+		{"code", false, "acceptEdits"},
+		{"code", true, "bypassPermissions"},
+		{"agent", true, "bypassPermissions"},
+		{"chat", true, "dontAsk"}, // nothing to bypass without tools
+		{"chat", false, "dontAsk"},
+	} {
+		flags, err := claudeModeFlags(tc.mode, tc.bypass)
+		if err != nil {
+			t.Fatalf("%s/%v: %v", tc.mode, tc.bypass, err)
+		}
+		joined := strings.Join(flags, " ")
+		if !strings.Contains(joined, "--permission-mode "+tc.want) {
+			t.Errorf("%s bypass=%v: flags %q, want --permission-mode %s", tc.mode, tc.bypass, joined, tc.want)
+		}
+		if strings.Contains(joined, "dangerously") {
+			t.Errorf("%s bypass=%v: %q spells bypass the way the debug log cannot name", tc.mode, tc.bypass, joined)
+		}
+	}
+	// And it rides the envelope into the argv the child is spawned with.
+	argv, err := claudeArgsWithOptions("code", "fable", "medium", "", false, true, ExecutionOptions{BypassPermissions: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if joined := strings.Join(argv, " "); !strings.Contains(joined, "--permission-mode bypassPermissions") {
+		t.Fatalf("argv %q lost the bypass", joined)
 	}
 }

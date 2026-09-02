@@ -1,6 +1,7 @@
 package agentcli
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -57,27 +58,21 @@ type wireFrame struct {
 	// piece of vendor state worth keeping — and it names a conversation, not
 	// a credential.
 	SessionID string `json:"session_id"`
-	Message   *struct {
-		Model   string `json:"model"`
-		Content []struct {
-			Type  string          `json:"type"`
-			Text  string          `json:"text"`
-			ID    string          `json:"id"`
-			Name  string          `json:"name"`
-			Input json.RawMessage `json:"input"`
-			// Tool-result blocks (user frames) reference the tool_use that
-			// produced them and carry either a string or an array of blocks.
-			ToolUseID  string          `json:"tool_use_id"`
-			ToolResult json.RawMessage `json:"content"`
-			IsError    bool            `json:"is_error"`
-		} `json:"content"`
-		Usage *wireUsage `json:"usage"`
-	} `json:"message"`
-	Result       string     `json:"result"`
-	IsError      bool       `json:"is_error"`
-	Errors       []string   `json:"errors"`
-	TotalCostUSD float64    `json:"total_cost_usd"`
-	Usage        *wireUsage `json:"usage"`
+	// Message is decoded lazily. It is an object on assistant and user frames
+	// — the only ones this package reads it from — and a plain string on
+	// system/permission_denied, which Claude Code 2.1.258 emits whenever a
+	// child's Bash command needs an approval nobody is there to give. Typed as
+	// a struct it made that one frame fail the whole turn, with a Go struct
+	// dump for an error, on the first command a Fable saga ran. The denial
+	// itself is not lost by ignoring it here: the vendor repeats the same
+	// reason in the user(tool_result, is_error) frame that follows, which is
+	// the record the consumer already matches by tool id.
+	Message      json.RawMessage `json:"message"`
+	Result       string          `json:"result"`
+	IsError      bool            `json:"is_error"`
+	Errors       []string        `json:"errors"`
+	TotalCostUSD float64         `json:"total_cost_usd"`
+	Usage        *wireUsage      `json:"usage"`
 	// A rejected request does not end the stream — the terminal frame follows
 	// it. The vendor sends this payload nested under rate_limit_info in
 	// camelCase; that is the shape the captured fixture carries and the only
@@ -92,6 +87,38 @@ type wireFrame struct {
 	RateLimitType string  `json:"rate_limit_type"`
 	Utilization   float64 `json:"utilization"`
 	ResetsAt      int64   `json:"resets_at"`
+}
+
+// wireMessage is the object form of a frame's message. decodeMessage returns
+// nil for anything that is not an object, so a frame carrying a string there
+// reads as "no message" rather than as a parse failure.
+type wireMessage struct {
+	Model   string `json:"model"`
+	Content []struct {
+		Type  string          `json:"type"`
+		Text  string          `json:"text"`
+		ID    string          `json:"id"`
+		Name  string          `json:"name"`
+		Input json.RawMessage `json:"input"`
+		// Tool-result blocks (user frames) reference the tool_use that
+		// produced them and carry either a string or an array of blocks.
+		ToolUseID  string          `json:"tool_use_id"`
+		ToolResult json.RawMessage `json:"content"`
+		IsError    bool            `json:"is_error"`
+	} `json:"content"`
+	Usage *wireUsage `json:"usage"`
+}
+
+func (f *wireFrame) decodeMessage() (*wireMessage, error) {
+	raw := bytes.TrimSpace(f.Message)
+	if len(raw) == 0 || raw[0] != '{' {
+		return nil, nil
+	}
+	var message wireMessage
+	if err := json.Unmarshal(raw, &message); err != nil {
+		return nil, fmt.Errorf("invalid Claude stream frame message: %w", err)
+	}
+	return &message, nil
 }
 
 type wireRateLimit struct {
@@ -122,13 +149,14 @@ func Translate(line []byte) ([]Event, error) {
 		}
 		return []Event{{Kind: EventInit, Model: frame.Model, SessionID: frame.SessionID}}, nil
 	case "assistant":
-		if frame.Message == nil {
-			return nil, nil
+		message, err := frame.decodeMessage()
+		if err != nil || message == nil {
+			return nil, err
 		}
 		var events []Event
-		for _, block := range frame.Message.Content {
+		for _, block := range message.Content {
 			if block.Type == "text" && block.Text != "" {
-				events = append(events, Event{Kind: EventMessageDelta, Model: frame.Message.Model, Text: secret.Scrub(block.Text)})
+				events = append(events, Event{Kind: EventMessageDelta, Model: message.Model, Text: secret.Scrub(block.Text)})
 			}
 			if block.Type == "tool_use" && block.Name != "" {
 				events = append(events, Event{
@@ -137,8 +165,8 @@ func Translate(line []byte) ([]Event, error) {
 				})
 			}
 		}
-		if frame.Message.Usage != nil {
-			events = append(events, usageEvent(frame.Message.Model, frame.Message.Usage, 0))
+		if message.Usage != nil {
+			events = append(events, usageEvent(message.Model, message.Usage, 0))
 		}
 		return events, nil
 	case "user":
@@ -146,11 +174,12 @@ func Translate(line []byte) ([]Event, error) {
 		// it ran: the tool already executed, so the event is a record, never a
 		// request. The frame does not repeat the tool's name — the id is all
 		// there is, and the consumer matches it against the tool_use it saw.
-		if frame.Message == nil {
-			return nil, nil
+		message, err := frame.decodeMessage()
+		if err != nil || message == nil {
+			return nil, err
 		}
 		var events []Event
-		for _, block := range frame.Message.Content {
+		for _, block := range message.Content {
 			if block.Type != "tool_result" {
 				continue
 			}

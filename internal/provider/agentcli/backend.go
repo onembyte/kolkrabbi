@@ -41,19 +41,16 @@ type ClaudeBackend struct {
 	release          context.CancelFunc
 }
 
-// NewClaudeBackendFromHandle creates a backend that resumes one vendor
-// conversation (resume true) or opens a brand-new one kolk has already
-// minted a name for. The mode is part of the spawn contract: chat runs the
-// vendor with no tool in context, code runs the vendor's own tool loop.
-func NewClaudeBackendFromHandle(model, mode, effort, handle string, resume bool) (*ClaudeBackend, error) {
-	return NewClaudeBackendFromHandleWithOptions(model, mode, effort, handle, resume, ExecutionOptions{})
-}
-
-// NewClaudeBackendFromHandleWithOptions creates a backend with an explicit
-// delegated-process capability envelope.
+// NewClaudeBackendFromHandleWithOptions creates a backend that resumes one
+// vendor conversation (resume true) or opens a brand-new one kolk has already
+// minted a name for, inside an explicit capability envelope. The mode is part
+// of the spawn contract: chat runs the vendor with no tool in context, code
+// runs the vendor's own tool loop. There used to be an envelope-less form;
+// once the session child needed the envelope too (full-auto rides in it),
+// nothing in production called it, and one constructor is one rule.
 func NewClaudeBackendFromHandleWithOptions(model, mode, effort, handle string, resume bool, options ExecutionOptions) (*ClaudeBackend, error) {
 	// Refusing here, before any process exists, is what "says why" means.
-	if _, err := claudeModeFlags(mode); err != nil {
+	if _, err := claudeModeFlags(mode, options.BypassPermissions); err != nil {
 		return nil, err
 	}
 	options, err := normalizeExecutionOptions(options)

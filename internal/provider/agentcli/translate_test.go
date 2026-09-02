@@ -267,3 +267,32 @@ func TestTranslateProjectsProviderToolUseWithoutExecutingIt(t *testing.T) {
 		t.Fatalf("tool event = %+v", events)
 	}
 }
+
+// A permission_denied frame carries its reason as a plain string where every
+// other frame carries an object. Claude Code 2.1.258 sends one whenever a
+// child's Bash command needs an approval nobody is there to give — which on a
+// Fable saga was the very first command — and until this fixture existed the
+// adapter answered it with a parse failure that ended the turn. The denial
+// must not be lost either: the vendor repeats the reason in the tool_result
+// that follows, and that is the record the consumer sees.
+func TestAPermissionDeniedFrameIsToleratedAndItsReasonStillArrives(t *testing.T) {
+	lines := claudeFixtureLines(t, "claude-permission-denied.ndjson")
+	events := translateAll(t, lines) // a parse failure here is the bug
+	var denied []Event
+	for _, event := range events {
+		if event.Kind == EventTool && event.ToolIsError && strings.Contains(event.ToolOutput, "requires approval") {
+			denied = append(denied, event)
+		}
+	}
+	if len(denied) != 2 {
+		t.Fatalf("denial records = %d, want the two the fixture carries: %+v", len(denied), denied)
+	}
+	if denied[0].ToolCallID == "" || denied[0].ToolCallID == denied[1].ToolCallID {
+		t.Fatalf("denials must name their tool_use ids: %+v", denied)
+	}
+	// And a message that is a string on any frame type reads as no message,
+	// never as an error.
+	if events, err := Translate([]byte(`{"type":"assistant","message":"not an object"}`)); err != nil || len(events) != 0 {
+		t.Fatalf("string message on an assistant frame: events=%v err=%v", events, err)
+	}
+}

@@ -16,6 +16,11 @@ type SubagentCapabilities struct {
 	AdditionalDirs []string
 	NetworkAccess  bool
 	Provider       string
+	// Permission is the agent's tier at the moment the child is opened, so
+	// the host can map full-auto onto the vendor's own bypass. It is read
+	// from the agent rather than declared by the host: the tier changes
+	// in-session, and a copy would be the second source F6 removed.
+	Permission Permission
 }
 
 // SubagentBackend opens a provider for one task, inside a declared envelope.
@@ -123,6 +128,7 @@ func (a *Agent) subagentCapabilities(kind Kind, model string) SubagentCapabiliti
 	}
 	capabilities.AdditionalDirs = append([]string(nil), capabilities.AdditionalDirs...)
 	capabilities.NetworkAccess = a.subagentNetwork(kind, model)
+	capabilities.Permission = a.Permission
 	return capabilities
 }
 

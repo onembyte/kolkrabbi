@@ -40,8 +40,10 @@ const defaultModel = "openrouter/free"
 // os.Stdout directly, so the whole surface can be exercised in-process by a
 // test instead of a subprocess.
 type app struct {
-	stdout io.Writer
-	stderr io.Writer
+	// claudeBypassNoted: the full-auto loss on a Claude child is said once.
+	claudeBypassNoted bool
+	stdout            io.Writer
+	stderr            io.Writer
 	// dirs is resolved lazily and once. `kolk help` and `kolk version` must
 	// work on a machine where the home directory cannot be found at all, so
 	// nothing touches the filesystem until a command actually needs it.

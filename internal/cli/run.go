@@ -354,7 +354,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		// one, and the engine's next save writes it to disk; a failed save only
 		// costs the resume, never the turn.
 		sess.SetProviderStateName(state)
-	})
+	}, permission)
 	if err != nil {
 		return nil, err
 	}
@@ -497,14 +497,14 @@ func (a *app) loadCatalog(ctx context.Context, client *provider.Client, path str
 // model keeps the default provider client, and a plan model the user cannot use
 // yet stops the session with the reason rather than quietly answering from a
 // different provider than the one they asked for.
-func (a *app) planBackend(model, mode, effort, state string, note func(string)) (engine.ChatBackend, error) {
-	backend, _, err := a.planBackendFor(model, mode, effort, state, note)
+func (a *app) planBackend(model, mode, effort, state string, note func(string), permission engine.Permission) (engine.ChatBackend, error) {
+	backend, _, err := a.planBackendFor(model, mode, effort, state, note, permission)
 	return backend, err
 }
 
 // planBackendFor reports the provider that must answer for one model. A nil
 // backend with a nil error means "an ordinary model, use the default client".
-func (a *app) planBackendFor(model, mode, effort, state string, note func(string)) (engine.ChatBackend, provider.PlanModel, error) {
+func (a *app) planBackendFor(model, mode, effort, state string, note func(string), permission engine.Permission) (engine.ChatBackend, provider.PlanModel, error) {
 	d, err := a.resolve()
 	if err != nil {
 		return nil, provider.PlanModel{}, err
@@ -527,9 +527,14 @@ func (a *app) planBackendFor(model, mode, effort, state string, note func(string
 		// conversation the session left off in; the vendor replays no argv on
 		// resume, so model and effort ride along every time.
 		resolved := a.planEffort(effort, planModel)
-		inner, err := agentcli.NewClaudeBackendFromHandle(planModel.Model, mode, resolved, state, state != "")
+		bypass := permission == engine.PermissionFullAuto
+		inner, err := agentcli.NewClaudeBackendFromHandleWithOptions(planModel.Model, mode, resolved, state, state != "",
+			agentcli.ExecutionOptions{BypassPermissions: bypass})
 		if err != nil {
 			return nil, provider.PlanModel{}, err
+		}
+		if bypass && mode != engine.ModeChat {
+			a.noteClaudeBypassOnce()
 		}
 		return a.verifyingBackend(inner, planModel, mode, resolved, note), planModel, nil
 	case "codex":
@@ -681,7 +686,7 @@ func (a *app) switchModel(ctx context.Context, ag *engine.Agent, ref string) (st
 		state = ag.Sess.ProviderStateName()
 		note = func(state string) { ag.Sess.SetProviderStateName(state) }
 	}
-	backend, planModel, err := a.planBackendFor(ref, ag.Mode, ag.Effort, state, note)
+	backend, planModel, err := a.planBackendFor(ref, ag.Mode, ag.Effort, state, note, ag.Permission)
 	if err != nil {
 		return "", err
 	}

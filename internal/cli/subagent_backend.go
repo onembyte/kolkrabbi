@@ -52,6 +52,9 @@ func (a *app) subagentBackend() engine.SubagentBackend {
 			NetworkAccess:  capabilities.NetworkAccess,
 			Provider:       vendor,
 			Efforts:        a.discoveredEfforts(store, vendor, model),
+			// The agent's tier at open time: a full-auto session's children
+			// may run commands, not only edit files.
+			BypassPermissions: capabilities.Permission == engine.PermissionFullAuto,
 		}
 		if vendor == "codex" {
 			// One thread per subagent. Sharing one was the whole reason codex

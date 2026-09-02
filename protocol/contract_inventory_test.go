@@ -19,6 +19,7 @@ func TestSpecContractInventoryIsClosed(t *testing.T) {
 		"schemas/envelope.json",
 		"stdio.md",
 		"testdata/foreign/README.md",
+		"testdata/foreign/claude-permission-denied.ndjson",
 		"testdata/foreign/claude-plain.ndjson",
 		"testdata/foreign/claude-tool-use.ndjson",
 		// Codex speaks JSONL where Claude speaks NDJSON. Both are recorded, so

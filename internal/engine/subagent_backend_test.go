@@ -349,3 +349,18 @@ func TestBackgroundTaskKindsRunWithoutNetwork(t *testing.T) {
 		t.Fatalf("research summary = %q, want network=enabled", summary)
 	}
 }
+
+// The envelope carries the agent's tier at open time, read from the agent —
+// not declared by the host — so a child opened after /full-auto sees it and
+// there is no second copy to drift. The host maps it onto the vendor's own
+// bypass; what it must never do is invent the tier.
+func TestSubagentEnvelopeCarriesTheAgentsPermissionTier(t *testing.T) {
+	agent := &Agent{Options: Options{Root: t.TempDir(), Permission: PermissionFullAuto}}
+	if got := agent.subagentCapabilities(KindEdit, "claude-sonnet").Permission; got != PermissionFullAuto {
+		t.Fatalf("envelope tier = %q, want the agent's %q", got, PermissionFullAuto)
+	}
+	agent.Permission = PermissionAsk
+	if got := agent.subagentCapabilities(KindEdit, "claude-sonnet").Permission; got != PermissionAsk {
+		t.Fatalf("envelope tier = %q after the tier changed, want %q", got, PermissionAsk)
+	}
+}

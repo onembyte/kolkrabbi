@@ -36,7 +36,7 @@ type verifyingBackend struct {
 	// Kolkrabbi runs land on the same conversation.
 	note    func(string)
 	confirm func(context.Context)
-	explain func()
+	explain func(error)
 	// observe teaches the vendor catalog what this turn proved: the model
 	// asked for answered on the vendor's resolved id, or was refused by name.
 	// Every turn, not once — a session may switch models.
@@ -72,9 +72,12 @@ func (a *app) verifyingBackend(inner engine.ChatBackend, plan provider.PlanModel
 				LoginOwner: "provider-cli", Enabled: true, Verified: true,
 			})
 		},
-		explain: func() {
-			fmt.Fprintf(a.stderr, "%s has not answered successfully yet. If it is not signed in, run this in another terminal:\n", plan.Connector)
-			fmt.Fprintf(a.stderr, "  /plans login %s %q\n", plan.Provider, plan.Plan)
+		// The first failure names its actual error before offering the
+		// sign-in hint. Shown without it, a parse failure inside the adapter
+		// read as "you are not signed in" — to a user who was.
+		explain: func(err error) {
+			fmt.Fprintf(a.stderr, "%s has not answered successfully yet: %v\n", plan.Connector, err)
+			fmt.Fprintf(a.stderr, "If it is not signed in, run this in another terminal:\n  /plans login %s %q\n", plan.Provider, plan.Plan)
 		},
 		observe: func(asked string, meta provider.Meta, err error) {
 			a.recordVendorModelOutcome(plan.Connector, asked, meta, err)
@@ -88,7 +91,7 @@ func (b *verifyingBackend) StreamChat(ctx context.Context, model string, message
 		b.observe(model, meta, err)
 	}
 	if err != nil {
-		b.explained.Do(b.explain)
+		b.explained.Do(func() { b.explain(err) })
 		return message, meta, err
 	}
 	b.confirmed.Do(func() { b.confirm(ctx) })
@@ -118,4 +121,17 @@ func (b *verifyingBackend) Close() error {
 		return closer.Close()
 	}
 	return nil
+}
+
+// noteClaudeBypassOnce names, once per session, what full-auto costs on a
+// Claude child. The plan (docs/plan/04 §4.2) asks for this to be said rather
+// than assumed: kolk's hardline blocklist, which survives full-auto on every
+// other backend, does not exist inside the vendor's own process. The child's
+// mode is fixed when it is spawned, so a later /ask does not reach it.
+func (a *app) noteClaudeBypassOnce() {
+	if a.claudeBypassNoted {
+		return
+	}
+	a.claudeBypassNoted = true
+	fmt.Fprintln(a.stderr, "full-auto on claude: the vendor child runs with bypassPermissions — kolk's hardline blocklist does not apply inside it, and the child keeps this mode until the session ends.")
 }

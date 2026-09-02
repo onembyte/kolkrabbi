@@ -16,6 +16,16 @@ type ExecutionOptions struct {
 	AdditionalDirs []string
 	NetworkAccess  bool
 	Provider       string
+	// BypassPermissions is kolk's full-auto tier, pushed down to a Claude
+	// child as --permission-mode bypassPermissions (docs/plan/04 §4.2). It
+	// was designed there and never built, and the gap was invisible until a
+	// Fable saga ran its first command: under acceptEdits the child denies
+	// every Bash command that needs an approval, and nobody is there to
+	// give one, so a "full-auto" session had a child that could edit files
+	// and run nothing. Chat mode ignores it — a child with no tools has
+	// nothing to bypass. Not part of the envelope for emptiness: it grants
+	// nothing to a directory, so it never makes an invocation delegated.
+	BypassPermissions bool
 	// normalized records that this envelope has already been through
 	// normalizeExecutionOptions: its directories are absolute, symlink-free,
 	// verified to exist, and deduplicated.

@@ -115,13 +115,18 @@ const claudeCodeTools = "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,TodoW
 // with no tool in context at all, and code mode works because the vendor's
 // own tool loop is on. A mode change therefore changes the process, not the
 // request: a stream-json process replays no argv.
-func claudeModeFlags(mode string) ([]string, error) {
+func claudeModeFlags(mode string, bypass bool) ([]string, error) {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
 	// Agent mode takes the same flags as code mode. In an orchestrated run this
 	// process serves the planner and the synthesis calls, and the single-task
 	// fallback that degrades to the ordinary loop — all of which need the
 	// vendor's tool loop exactly as code mode does. Task is absent either way.
 	case "", "code", "agent":
+		if bypass {
+			// Never --dangerously-skip-permissions: the debug log names what
+			// it does. What is lost is named once per session by the host.
+			return []string{"--tools", claudeCodeTools, "--permission-mode", "bypassPermissions"}, nil
+		}
 		return []string{"--tools", claudeCodeTools, "--permission-mode", "acceptEdits"}, nil
 	case "chat":
 		return []string{"--tools", "", "--permission-mode", "dontAsk"}, nil
@@ -216,7 +221,7 @@ func claudeArgsWithOptions(mode, model, effort, handle string, resume, streamOnl
 	if !ClaudeEffortValid(effort) {
 		return nil, fmt.Errorf("claude has no %q effort level; use low, medium, high, xhigh or max", effort)
 	}
-	modeFlags, err := claudeModeFlags(mode)
+	modeFlags, err := claudeModeFlags(mode, options.BypassPermissions)
 	if err != nil {
 		return nil, err
 	}
