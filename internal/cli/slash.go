@@ -116,9 +116,17 @@ func (a *app) reportAgentLane(ag *engine.Agent) {
 	roster := ag.Roster(a.rungAvailable())
 	blocked := engine.ModelsAboveCeiling(ag.SessionModel())
 	if len(roster.Rungs) < 2 && len(blocked) == 0 {
-		// On no ranked ladder, or already at the top with nothing cheaper
-		// reachable. Neither is worth a line: the first would be a claim kolk
-		// cannot make, the second says nothing the user did not just choose.
+		// On no ranked ladder, or at the top of one with nothing cheaper
+		// signed in. The first is not worth a line: it would be a claim kolk
+		// cannot make. The second used to be silent too — "says nothing the
+		// user did not just choose" — but a Fable session that could run its
+		// commits on Haiku, and does not because no connector is signed in,
+		// is a saving the user did not know was on the table. Say what a
+		// sign-in would change, and only that.
+		if below := engine.ModelsBelowCeiling(ag.SessionModel()); len(below) > 0 {
+			fmt.Fprintf(a.stdout, "agent lane: %s only — nothing cheaper is signed in; `kolk plans login` lets trivial work run on %s\n",
+				ag.SessionModel(), below[len(below)-1])
+		}
 		return
 	}
 

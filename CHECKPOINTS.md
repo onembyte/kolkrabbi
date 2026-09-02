@@ -10831,6 +10831,47 @@ Walk-back: `docs/plan/13` §7.1, `docs/plan/34` V34.1b part-done (PTY/login path
 `AGENTS.md`, `FABLE_OPTIMIZATION.md` F2. Gates: `go test ./... -count=1` green; `make check` green at
 3,202 tests. No provider turn, credential, push, tag, release, or remote state changed.
 
+#### F3 — Fable is a model the harness can select and route below — complete 2026-09-02
+
+Program leaf from `FABLE_OPTIMIZATION.md`; feeds V34.4a/b. **Risk:** P2 — the top Claude rung had no
+plan catalog row, so a Max user could not select it through the plan selector; the bottom rung had
+none either. **Invariant:** every catalog row is backed by a live vendor check; selection includes the
+signed-in tier; a Fable session's roster descends to Haiku for trivial work and never climbs.
+
+Evidence, live on this machine (claude 2.1.258, 2026-09-02): `claude -p hi --model
+definitely-not-a-model-xyz --output-format json` → `[claude-code:unrecognized_model]`,
+`api_error_status: 404`, `total_cost_usd: 0` (the zero-cost fire-and-check path). `--model haiku
+--effort low` and `--model fable --effort max`, each `-p "Reply with exactly: ok" --max-turns 1` →
+`stop_reason: end_turn` (plan-equivalent cost $0.017 and $0.156). `claude --help` lists `--effort
+(low, medium, high, xhigh, max)` and the `fable` alias verbatim.
+
+Green: `claude-haiku` (Claude Pro, `low,medium,high`) and `claude-fable` (Claude Max,
+`low,medium,high,max`) rows in `planModelCatalog`, evidence in the source comment;
+`engine.ModelsBelowCeiling`; `reportAgentLane` at the top rung with nothing signed in names what a
+sign-in would unlock. Tests: `TestPlanCatalogListsFableAndHaikuWithVerifiedEfforts`,
+`TestFableNeedsMaxAndHaikuIsOnEveryClaudePlan` (Max reaches all four; Pro reaches haiku/sonnet and is
+told the Max sign-in for fable), `TestMaxEffortReachesClaudeAsMaxOnFable`,
+`TestAFableSessionRoutesTrivialWorkToHaikuOnThePlan`, `TestTopRungLaneSaysWhatASignInWouldUnlock`.
+
+Correction recorded: the leaf as planned expected to build plan-native downward routing on the
+strength of build-log FR4.3 ("not built"). STIGI C6–C8 had built it two days later (`roster.go`,
+`level_routing.go`, `rungAvailable`); on that path `bindLevel` always binds and the gateway slot
+path is unreachable for a plan session. F3.3 is verification. The stale-premise guard
+`TestOpeningACheaperRungDoesNotGoThroughThePlanCatalogue` — which asserted the catalogue did *not*
+know haiku — was rewritten to prove every ladder rung opens through the connector manifest, never
+nil-and-nil, which is the property that mattered.
+
+Adversarial: three mutations — fable row commented out, `ModelsBelowCeiling` returning nothing, the
+lane hint disabled — each failed its focused test and restored byte-identically. `go test -race`
+clean on `engine`, `provider`, `cli`.
+
+Not done, by decision: `StandardModelAliases` still maps bare `haiku`/`opus`/`sonnet` to Claude 3-era
+gateway ids and `claude-max` to `claude-opus`; changing a shorthand's meaning moves users' models
+silently and is V34.4c's, with an owner decision. Walk-back: `docs/plan/24` Anthropic row,
+`FABLE_OPTIMIZATION.md` F3. Gates: `go test ./... -count=1` green; `make check` in the build log. Two
+one-turn provider calls were made on the owner's own login for the fire-and-check above; no
+credential, push, tag, release, or remote state changed.
+
 #### C5 — TUI progress-log observability — queued
 
 This is a separate surface checkpoint. It must make long-running work legible without turning the

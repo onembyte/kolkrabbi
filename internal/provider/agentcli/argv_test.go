@@ -462,3 +462,23 @@ func TestClaudeBackendForgetsAStoredHandleThatResumesDead(t *testing.T) {
 		t.Fatalf("retry spawn %q must open a fresh session-id", spawned[1])
 	}
 }
+
+// The top of the dial reaches the top rung as the vendor spells it: kolk's
+// `max` is the vendor's `max`, and the vendor's `xhigh` is accepted as an
+// input alias but never sent as something else.
+func TestMaxEffortReachesClaudeAsMaxOnFable(t *testing.T) {
+	args, err := BuildClaudeSessionArgs("claude-fable", "code", "max", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "--model fable") {
+		t.Fatalf("args = %q, want the vendor alias for claude-fable", joined)
+	}
+	if !strings.Contains(joined, "--effort max") {
+		t.Fatalf("args = %q, want --effort max", joined)
+	}
+	if !ClaudeEffortValid("xhigh") || !ClaudeEffortValid("max") {
+		t.Fatal("the vendor's closed effort set must accept both xhigh and max")
+	}
+}

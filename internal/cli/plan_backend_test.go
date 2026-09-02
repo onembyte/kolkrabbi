@@ -641,3 +641,31 @@ func TestSwitchingModelsUpdatesTheContextWindow(t *testing.T) {
 		t.Fatalf("window = %d, want unknown for a model the catalog does not describe", ag.ContextWindow)
 	}
 }
+
+// At the top rung with nothing signed in, the lane used to be silent — the
+// user "chose" Fable, so there was nothing to say. But a Fable session that
+// could run its commits on Haiku, and does not because no connector is signed
+// in, is a saving the user does not know is on the table. Name it, and only it.
+func TestTopRungLaneSaysWhatASignInWouldUnlock(t *testing.T) {
+	isolateConnectorState(t)
+	a, ag, out := replFixture(t, "")
+	ag.SetSessionModel("claude-fable")
+	ag.Mode = engine.ModeAgent
+
+	a.reportAgentLane(ag)
+	got := out.String()
+	if !strings.Contains(got, "claude-fable only") || !strings.Contains(got, "kolk plans login") || !strings.Contains(got, "claude-haiku") {
+		t.Fatalf("top-rung lane = %q, want the sign-in hint naming the cheapest rung", got)
+	}
+	if strings.Contains(got, "out of reach") {
+		t.Fatalf("top-rung lane claimed something is capped: %q", got)
+	}
+
+	// An unranked model still says nothing: that would be a claim kolk cannot make.
+	out.Reset()
+	ag.SetSessionModel("mock/model")
+	a.reportAgentLane(ag)
+	if out.Len() != 0 {
+		t.Fatalf("unranked model produced a lane line: %q", out.String())
+	}
+}

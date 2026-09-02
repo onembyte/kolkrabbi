@@ -17,7 +17,7 @@ integrated through the access path that the provider permits:
 
 | Provider | Consumer plans to investigate | Supported kolk shape | Status |
 |---|---|---|---|
-| Anthropic | Claude Pro and Max in current v1; other plans require separate proof | User-installed `claude` CLI; native API key separately | [~] handover shipped; V34.4a must prove current tier eligibility |
+| Anthropic | Claude Pro and Max in current v1; other plans require separate proof. Plan catalog rows (verified live 2026-09-02, claude 2.1.258): `claude-haiku` and `claude-sonnet` on Pro (`low,medium,high`), `claude-opus` and `claude-fable` on Max (`low,medium,high,max`); a Max login reaches every rung, a Pro login is told fable needs Max | User-installed `claude` CLI; native API key separately | [~] handover shipped; tier eligibility for the four Claude rungs is tested (F3 of `FABLE_OPTIMIZATION.md`); V34.4a still owns the general tier-matching proof |
 | OpenAI | ChatGPT Plus and Pro in current v1; other plans require separate proof | User-installed Codex CLI; OpenAI API separately | [~] handover shipped; V34.4a/b must prove tier and catalog truth |
 | Google | Gemini Free, Google AI Pro, Google AI Ultra, Workspace plans | Gemini API key/OAuth where documented; do not reuse Gemini CLI OAuth | post-v1; current subscription rows are unsupported metadata |
 | xAI | Grok consumer and business plans | xAI API credentials; investigate any first-party CLI | post-v1 deferred |

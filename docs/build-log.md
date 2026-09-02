@@ -6039,6 +6039,28 @@ provider child. What the scrub did need was the shapes it missed: `AWS_SECRET_AC
 considered and rejected: a coding child runs the repository's build tools, which read whatever the
 user's shell exported, and a list that had to know them all would break the tools first.
 
+## F3 — Fable is a model the harness can select and route below (complete 2026-09-02)
+
+The model the program is named after could not be selected through the plan selector: the catalog
+had sonnet on Pro and opus on Max and nothing else, so `claude-fable` resolved as "not a plan model"
+and `claude-haiku` — the rung every trivial task should run on — likewise. Both rows exist now, and
+both are backed by a live check rather than a memory of the vendor's docs: an invented model came
+back `unrecognized_model` at zero cost, and `haiku` and `fable` each answered a one-turn call on this
+machine's login. The CLI's own help lists the five effort levels and names `fable` as an alias.
+
+One correction to the plan, recorded rather than smoothed over. F3.3 set out to build plan-native
+downward routing because the build log said, on 08-30, that it was not built. STIGI built it on
+08-30 and 08-31. On the roster path `bindLevel` always binds, so the gateway slots the old note
+worried about are unreachable for a plan session; F3.3 became a Fable-specific test of what exists.
+A guard test that asserted the catalogue did *not* know haiku — the premise for bypassing it — was
+rewritten to assert the property that actually matters: every ladder rung opens through the
+connector manifest, never nil-and-nil.
+
+The one behaviour change beyond the catalog: at the top rung with nothing signed in, the agent lane
+used to say nothing, on the grounds that the user had just chosen Fable and there was nothing to add.
+There was: a sign-in would let trivial work run on Haiku, and a saving nobody mentions is one nobody
+takes. It says that now, and only that.
+
 ## TUI progress-log observability — C5 queued 2026-09-01
 
 The requested Codex/Claude-style work log is recorded as a dedicated future checkpoint. It will

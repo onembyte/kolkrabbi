@@ -15,13 +15,15 @@ import (
 // It deliberately does NOT go through planBackendFor, and that is the whole
 // point of this function existing separately.
 //
-// planBackendFor resolves through provider.ResolvePlanModel, and
-// planModelCatalog carries no `claude-haiku` row — the cheapest rung, and the
-// only one this feature adds on the modal Claude Pro session. ResolvePlanModel
-// answers ErrNotAPlanModel for it, which planBackendFor turns into a nil
-// backend and a **nil error**, meaning "ordinary model, use the gateway". A
-// subagent routed that way would quietly ask OpenRouter for a model id it has
-// never heard of, and the feature would look built while changing nothing.
+// planBackendFor resolves through provider.ResolvePlanModel, which answers
+// ErrNotAPlanModel for anything the catalogue does not list, and planBackendFor
+// turns that into a nil backend and a **nil error**, meaning "ordinary model,
+// use the gateway". When the catalogue had no `claude-haiku` row (until
+// 2026-09-02) a subagent routed that way would quietly have asked OpenRouter
+// for a model id it has never heard of, and the feature would have looked
+// built while changing nothing. The catalogue lists every Claude rung now; the
+// reason stands regardless, because the next rung someone adds to a ladder
+// will not be in the catalogue on the day it is added.
 //
 // So the adapter is constructed straight from the connector manifest. The
 // catalogue answers "which plans exist", which is a different question from

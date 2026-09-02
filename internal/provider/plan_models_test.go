@@ -334,3 +334,57 @@ func TestEffortForPlanPassesThroughWhenNothingIsAdvertised(t *testing.T) {
 		t.Fatalf("an unset effort must stay unset: %q %v", got, changed)
 	}
 }
+
+// The two rungs the catalog did not have. Verified live on 2026-09-02 (claude
+// 2.1.258): `--model haiku` and `--model fable` each completed a one-turn call;
+// an invented model returned unrecognized_model at zero cost.
+func TestPlanCatalogListsFableAndHaikuWithVerifiedEfforts(t *testing.T) {
+	want := map[string]struct {
+		plan    string
+		efforts string
+	}{
+		"claude-haiku":  {"Claude Pro", "low,medium,high"},
+		"claude-sonnet": {"Claude Pro", "low,medium,high"},
+		"claude-opus":   {"Claude Max", "low,medium,high,max"},
+		"claude-fable":  {"Claude Max", "low,medium,high,max"},
+	}
+	seen := map[string]bool{}
+	for _, model := range PlanModels("anthropic") {
+		expected, ok := want[model.Model]
+		if !ok {
+			t.Errorf("unexpected anthropic row %+v", model)
+			continue
+		}
+		seen[model.Model] = true
+		if model.Plan != expected.plan || strings.Join(model.Efforts, ",") != expected.efforts || model.Access != "provider CLI" || model.Connector != "claude" {
+			t.Errorf("%s = %+v, want plan %s efforts %s", model.Model, model, expected.plan, expected.efforts)
+		}
+	}
+	for model := range want {
+		if !seen[model] {
+			t.Errorf("catalog is missing %s", model)
+		}
+	}
+}
+
+// Tier eligibility: a Max login reaches every Claude rung; a Pro login reaches
+// haiku and sonnet and is told which plan fable needs.
+func TestFableNeedsMaxAndHaikuIsOnEveryClaudePlan(t *testing.T) {
+	pro := ConnectorManifest{Version: connectorManifestVersion, Connectors: []Connector{
+		{Provider: "anthropic", Plan: "Claude Pro", Name: "claude", LoginOwner: "provider-cli", Enabled: true},
+	}}
+	for _, model := range []string{"claude-haiku", "claude-sonnet", "claude-opus", "claude-fable"} {
+		if _, err := ResolvePlanModel(model, enabledClaude()); err != nil {
+			t.Errorf("Max login cannot select %s: %v", model, err)
+		}
+	}
+	for _, model := range []string{"claude-haiku", "claude-sonnet"} {
+		if _, err := ResolvePlanModel(model, pro); err != nil {
+			t.Errorf("Pro login cannot select %s: %v", model, err)
+		}
+	}
+	_, err := ResolvePlanModel("claude-fable", pro)
+	if err == nil || !strings.Contains(err.Error(), `kolk plans login anthropic "Claude Max"`) {
+		t.Fatalf("Pro login selecting fable = %v, want the Max sign-in named", err)
+	}
+}

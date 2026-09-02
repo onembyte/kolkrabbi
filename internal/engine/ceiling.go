@@ -127,6 +127,27 @@ func LadderRungIDs(vendor string) []string {
 	return nil
 }
 
+// ModelsBelowCeiling is every rung on the ceiling's ladder that a run could
+// climb down to, cheapest last. What it names is the ladder, not the roster:
+// a rung is reachable only once its vendor is signed in, which is the surface's
+// question, and this is what the surface uses to say that a sign-in would
+// change something.
+func ModelsBelowCeiling(ceiling string) []string {
+	ladderName, rung, known := modelRank(ceiling)
+	if !known {
+		return nil
+	}
+	for _, candidate := range vendorLadders {
+		if candidate.name != ladderName {
+			continue
+		}
+		below := make([]string, 0, len(candidate.rungs)-rung-1)
+		below = append(below, candidate.rungs[rung+1:]...)
+		return below
+	}
+	return nil
+}
+
 // ModelsAboveCeiling is every model on the ceiling's ladder that this session
 // may NOT use. It is what a session can honestly state: the ceiling refuses
 // these, which is a guarantee, where naming the cheaper rungs would predict a

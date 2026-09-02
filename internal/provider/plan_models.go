@@ -18,8 +18,19 @@ type PlanModel struct {
 }
 
 var planModelCatalog = []PlanModel{
+	// The four Claude rungs. Verified 2026-09-02 against claude 2.1.258 by
+	// fire-and-check (docs/plan/04 §model): `--model haiku` and `--model
+	// fable` each completed a one-turn `-p` call on a signed-in login, while
+	// an invented model returned `[claude-code:unrecognized_model]` with
+	// api_error_status 404 and total_cost_usd 0. The CLI's own help lists
+	// `--effort (low, medium, high, xhigh, max)`; xhigh is the vendor's
+	// spelling of max and is folded, not advertised. Haiku is advertised on
+	// Pro — a Max login reaches it through planSupportsModel — and fable on
+	// Max, where the vendor sells it.
+	{Provider: "anthropic", Plan: "Claude Pro", Connector: "claude", Model: "claude-haiku", Efforts: []string{"low", "medium", "high"}, Access: "provider CLI"},
 	{Provider: "anthropic", Plan: "Claude Pro", Connector: "claude", Model: "claude-sonnet", Efforts: []string{"low", "medium", "high"}, Access: "provider CLI"},
 	{Provider: "anthropic", Plan: "Claude Max", Connector: "claude", Model: "claude-opus", Efforts: []string{"low", "medium", "high", "max"}, Access: "provider CLI"},
+	{Provider: "anthropic", Plan: "Claude Max", Connector: "claude", Model: "claude-fable", Efforts: []string{"low", "medium", "high", "max"}, Access: "provider CLI"},
 	// The Codex rows carry the model ids the vendor exposes to ChatGPT plan
 	// logins (verified against codex-cli 0.149.1). OpenAI documents the current
 	// family as Sol (flagship), Terra (balanced), and Luna (cost-efficient); Plus

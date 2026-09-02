@@ -238,47 +238,56 @@ V34.1b (child environment) and V34.1f (envelope).
 **Exit met 2026-09-02.** Carried to V34.1b's remainder: the `kolk plans login` PTY/handover path is
 not covered by these two child paths and still needs its own sentinel proof.
 
-## F3 — Fable is a model the harness can actually select and route below  ·  `[ ]`
+## F3 — Fable is a model the harness can actually select and route below  ·  **done 2026-09-02**
 
-**Observable:** `kolk pmodels` lists `claude-fable` (Claude Max, efforts `low medium high xhigh max`)
-and `claude-haiku`; `kolk --model claude-fable /mode agent` prints a truthful ceiling line and routes
-`trivial`/`routine` subtasks to `claude-haiku`/`claude-sonnet` **on the same plan** rather than to a
-gateway id; `/effort 4` reaches the vendor as `--effort max` and `xhigh` is accepted as an alias.
+**Observable:** `kolk pmodels anthropic` lists all four Claude rungs — `claude-haiku` (Claude Pro,
+`low,medium,high`), `claude-sonnet`, `claude-opus`, `claude-fable` (Claude Max, `low,medium,high,max`);
+a Max login selects any of them, a Pro login selects haiku and sonnet and is told fable needs
+`kolk plans login anthropic "Claude Max"`; `--model claude-fable -e max` reaches the vendor as
+`--model fable --effort max` and `xhigh` is accepted as an alias; a Fable session with the claude
+connector signed in has the lane `claude-fable → claude-opus → claude-sonnet → claude-haiku` and
+routes a `trivial` task to `claude-haiku` while `routine`/`hard` stay on Fable; with nothing signed
+in, `/mode agent` on Fable says what a sign-in would unlock instead of saying nothing.
 
-**Why:** the model this program is named after has no catalog row (`plan_models.go`), so a Max user
-cannot select it through the plan selector, and on a plan session subagents still resolve gateway
-models (FR4.3). That is the single largest cost/latency lever for a Fable user: the expensive rung
-plans, the cheap rungs on the *same subscription* execute. Feeds V34.4a/b.
+**Why:** the model this program is named after had no catalog row, so a Max user could not select it
+through the plan selector. Feeds V34.4a/b.
 
-**Files:** `internal/provider/plan_models.go`, `internal/provider/agentcli/claude.go`,
-`internal/engine/ceiling.go`, `internal/engine/route.go`, `internal/engine/task_effort.go`,
-`internal/cli/cmd_models.go`, `internal/cli/repl.go` (ceiling line).
+**Correction to the plan as written.** F3.3 promised to *build* plan-native downward routing on the
+strength of `docs/build-log.md` FR4.3 ("not built"). That note was stale by two days: STIGI C6–C8
+built the roster (`roster.go`), level binding (`level_routing.go`), and `rungAvailable`, and on that
+path `bindLevel` always binds — `modelForKind`'s gateway slots are unreachable for a plan session.
+F3.3 therefore became verification with a Fable-specific test, not construction. The ground-truth
+table above that says otherwise is dated and left as written.
 
-- [ ] **F3.1** Add `claude-fable` (Claude Max) and `claude-haiku` (Pro and Max) rows to
-  `planModelCatalog`. Efforts per row come from a **fire-and-check** against the live CLI
-  (`[claude-code:unrecognized_model]` / `KindModelNotFound` at zero quota cost) recorded in the
-  dossier — no row is invented from memory. `kolk pmodels` and `kolk pmodels anthropic` print them.
-- [ ] **F3.2** Effort projection: kolk `max` → claude `--effort max`; `xhigh` stays an accepted input
-  alias (`agent.go:80`). Verify live that Fable accepts each of the five values and record which
-  ones the vendor warns on. Red: `/effort xhigh` on a Claude plan session must not error.
-- [ ] **F3.3** Plan-native downward routing: on a plan session the slot resolver ranks the **plan's
-  own ladder** below the ceiling (`claude-fable → opus → sonnet → haiku`) before any gateway id, and
-  never crosses to a metered gateway without the visible decision from rule 2. Red: a Fable session
-  with `slot.fast` unset must route a `trivial` task to `claude-haiku`, not `google/gemini-2.5-flash`.
-- [ ] **F3.4** Ceiling messaging for the top rung: entering agent mode on Fable prints what is
-  reachable (`agent runs may route down to claude-haiku`) — a guarantee, not a prediction, in the
-  FR4.3 sense. On Opus it keeps `claude-fable stays out of reach`.
-- [ ] **F3.5** `docs/plan/24-subscription-provider-matrix.md` and `08-model-routing.md` gain the
-  Fable row, the plan-native ladder, and the "why not clamp unranked" refusal restated.
+**Evidence (live, 2026-09-02, claude 2.1.258, this machine's login):** an invented model returned
+`[claude-code:unrecognized_model]` with `api_error_status: 404` and `total_cost_usd: 0` — the zero-cost
+fire-and-check path `docs/plan/04` documents; `--model haiku --effort low` and `--model fable --effort
+max` each completed a one-turn `-p` call (`stop_reason: end_turn`). `claude --help` lists `--effort
+(low, medium, high, xhigh, max)` and names `fable` as an alias verbatim.
 
-**Tests** — `internal/provider/catalog_test.go`, `internal/engine/model_race_test.go`, `route_test.go`,
-`internal/cli/repl_test.go`
-- `TestPlanCatalogListsFableAndHaikuWithVerifiedEfforts`
-- `TestMaxEffortReachesClaudeAsMax`
-- `TestFableSessionRoutesTrivialWorkToHaikuOnThePlan`
-- `TestTopRungCeilingLineNamesWhatIsReachable`
+- [x] **F3.1** `claude-haiku` (Claude Pro) and `claude-fable` (Claude Max) rows added to
+  `planModelCatalog`, with the evidence in the source comment; Max reaches haiku through
+  `planSupportsModel`. `TestPlanCatalogListsFableAndHaikuWithVerifiedEfforts`,
+  `TestFableNeedsMaxAndHaikuIsOnEveryClaudePlan`. The stale-premise guard
+  `TestOpeningACheaperRungDoesNotGoThroughThePlanCatalogue` was rewritten: it now proves every ladder
+  rung opens through the connector manifest, never nil-and-nil, regardless of the catalogue.
+- [x] **F3.2** `max` → `--effort max`, `xhigh` accepted; `TestMaxEffortReachesClaudeAsMaxOnFable`.
+  `EffortForPlan` already folds `xhigh` to `max` without reporting a downgrade.
+- [x] **F3.3** Verified, not built: `TestAFableSessionRoutesTrivialWorkToHaikuOnThePlan` — the roster
+  from Fable, trivial → haiku, routine/hard → fable, everything on fable with nothing signed in, nothing
+  above the top rung, `ModelsBelowCeiling` lists the three below.
+- [x] **F3.4** `reportAgentLane` at the top rung with nothing signed in prints
+  `agent lane: claude-fable only — nothing cheaper is signed in; \`kolk plans login\` lets trivial work
+  run on claude-haiku`; an unranked model still prints nothing. `engine.ModelsBelowCeiling` added
+  beside `ModelsAboveCeiling`. `TestTopRungLaneSaysWhatASignInWouldUnlock`.
+- [x] **F3.5** `docs/plan/24` Anthropic row names the four rungs and the tier each needs; dossier in
+  `CHECKPOINTS.md` §F3. Three mutations (fable row removed, `ModelsBelowCeiling` empty, lane hint
+  disabled) each fail their focused test and restore byte-identically.
 
----
+**Exit met 2026-09-02.** Not done here, by decision: `StandardModelAliases` still maps bare `haiku`,
+`opus`, `sonnet` to Claude 3-era gateway ids (`anthropic/claude-3-5-haiku` …) and `claude-max` to
+`claude-opus`, not `claude-fable`. Changing what a shorthand means moves users' models silently;
+that is V34.4c's catalog disposition, with an owner decision.
 
 ## F4 — Stop repeating work on every Fable turn  ·  `[ ]`
 

@@ -11,37 +11,35 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/provider/agentcli"
 )
 
-// The defect every judge found independently: planModelCatalog has no
-// claude-haiku row, so ResolvePlanModel returns ErrNotAPlanModel and
-// planBackendFor answers with a nil backend AND a nil error — "ordinary model,
-// use the gateway". Routed through that, the one rung this whole feature adds
+// The defect every judge found independently, on 2026-08-30: planModelCatalog
+// had no claude-haiku row, so ResolvePlanModel returned ErrNotAPlanModel and
+// planBackendFor answered with a nil backend AND a nil error — "ordinary
+// model, use the gateway". Routed through that, the one rung the feature added
 // would silently fall through to OpenRouter with an id it does not know.
 //
-// So the port never goes near it, and this test is what says so.
+// The catalogue learned haiku and fable on 2026-09-02 (F3), so that exact
+// fall-through can no longer happen for those two — but the port still never
+// goes near the catalogue, and this test is what says so: the catalogue
+// answers "which plans exist", the factory answers "can this machine spawn
+// this model", and for every rung on the ladder the second answer is a
+// backend or an error, never nil-and-nil.
 func TestOpeningACheaperRungDoesNotGoThroughThePlanCatalogue(t *testing.T) {
 	dirs := isolateHome(t)
 	a, _, _ := newTestApp(t, "")
 	a.dirs = dirs
 	signIn(t, dirs)
 
-	// The catalogue genuinely does not know it — that is the premise.
-	manifest, err := provider.LoadConnectors(dirs.ConnectorsFile())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := provider.ResolvePlanModel("claude-haiku", manifest); err == nil {
-		t.Fatal("the plan catalogue now knows claude-haiku; this test's premise is stale")
-	}
-
-	backend, err := a.subagentBackend()(context.Background(), "claude-haiku", "code", "medium")
-	if err != nil {
-		t.Fatalf("opening the cheapest rung failed: %v", err)
-	}
-	if backend == nil {
-		t.Fatal("opening claude-haiku produced no backend and no error — the catalogue fall-through")
-	}
-	if closer, ok := backend.(io.Closer); ok {
-		_ = closer.Close()
+	for _, rung := range engine.LadderRungIDs("claude") {
+		backend, err := a.subagentBackend()(context.Background(), rung, "code", "medium")
+		if err != nil {
+			t.Fatalf("opening %s failed: %v", rung, err)
+		}
+		if backend == nil {
+			t.Fatalf("opening %s produced no backend and no error — the catalogue fall-through", rung)
+		}
+		if closer, ok := backend.(io.Closer); ok {
+			_ = closer.Close()
+		}
 	}
 }
 

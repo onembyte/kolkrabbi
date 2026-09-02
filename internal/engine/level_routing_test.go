@@ -1,6 +1,9 @@
 package engine
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func rosterAgent(model string) *Agent {
 	return &Agent{Options: Options{
@@ -127,5 +130,49 @@ func TestTheRosterIsResolvedOncePerRun(t *testing.T) {
 	// One cheaper rung below sonnet, asked about once for the whole plan.
 	if asked != 1 {
 		t.Errorf("availability was asked %d times for a four-task plan, want once", asked)
+	}
+}
+
+// The Fable case, end to end through the roster: a Max session on the top
+// rung climbs down to Haiku for mechanical work when the vendor is signed in,
+// and stays put for everything else. With nothing signed in, every task runs
+// on Fable — and the ceiling never lets anything route above it, because from
+// the top there is nowhere to go.
+func TestAFableSessionRoutesTrivialWorkToHaikuOnThePlan(t *testing.T) {
+	agent := rosterAgent("claude-fable")
+	roster := agent.roster(agent.RungAvailable)
+	var lane []string
+	for _, rung := range roster.Rungs {
+		lane = append(lane, rung.Model)
+	}
+	if got := strings.Join(lane, " → "); got != "claude-fable → claude-opus → claude-sonnet → claude-haiku" {
+		t.Fatalf("Fable roster = %q", got)
+	}
+
+	tasks := []Task{
+		{Title: "commit", Kind: KindBoilerplate, Level: LevelTrivial},
+		{Title: "implement", Kind: KindEdit, Level: LevelRoutine},
+		{Title: "design", Kind: KindDesign, Level: LevelHard},
+	}
+	agent.assignModels(tasks)
+	if tasks[0].Model != "claude-haiku" || tasks[1].Model != "claude-fable" || tasks[2].Model != "claude-fable" {
+		t.Fatalf("models = %q / %q / %q, want haiku / fable / fable", tasks[0].Model, tasks[1].Model, tasks[2].Model)
+	}
+
+	alone := &Agent{Options: Options{Model: "claude-fable"}}
+	alone.assignModels(tasks)
+	for _, task := range tasks {
+		if task.Model != "claude-fable" {
+			t.Fatalf("%q ran on %q with nothing signed in, want claude-fable", task.Title, task.Model)
+		}
+	}
+	if above := ModelsAboveCeiling("claude-fable"); len(above) != 0 {
+		t.Fatalf("something sits above the top rung: %v", above)
+	}
+	if below := ModelsBelowCeiling("claude-fable"); strings.Join(below, ",") != "claude-opus,claude-sonnet,claude-haiku" {
+		t.Fatalf("below fable = %v", below)
+	}
+	if below := ModelsBelowCeiling("claude-haiku"); len(below) != 0 {
+		t.Fatalf("something sits below the bottom rung: %v", below)
 	}
 }
