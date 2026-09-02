@@ -55,3 +55,17 @@ table is an inventory, not a claim that every listed plan grants API access.
    default or imply authentication.
 3. Revisit Google, xAI, Perplexity, Mistral, DeepSeek, Qwen, GitHub, and Cohere post-v1 only when an
    owner requests the provider and a documented access path can satisfy the acceptance checklist.
+
+## Model discovery (owner decision, 2026-09-02)
+
+No vendor model name is truth because it is in kolk's source. Every connector must supply a way to
+list or verify its models; on every start and every `kolk plans login <connector>` kolk runs it,
+caches one vendor catalog, and only then shows models in `kolk models`, `/model`, and `pmodels` —
+each with its efforts, default, context, tier, vendor version, fetch time, and a status (`listed`,
+`verified`, `unverified`, `gone`). The rows in this document and in `planModelCatalog` are seeds:
+shown as `unverified` until the vendor confirms them, `gone` when the vendor stops listing them.
+Owner's words: "do not burn model names before knowing what's available … this should be like
+these for EVERY vendor." Probed the same day: `codex debug models` lists eight models and
+`gpt-5.6-pro` — a kolk seed — is not among them, while `gpt-5.5`/`gpt-5.2` and an `ultra` effort
+are; Claude Code has no listing command and a valid name can only be confirmed by a turn.
+Leaf: F4 of `FABLE_OPTIMIZATION.md`.

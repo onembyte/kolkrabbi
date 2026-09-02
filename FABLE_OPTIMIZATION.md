@@ -88,12 +88,13 @@ the failing-gate observation. Every row is owned by exactly one phase below.
 | R7 | P1 | `internal/provider/agentcli/codex.go:174` | Network-disabled is expressed by *omitting* the flag, so Codex falls open to `~/.codex/config.toml` while status says `network=disabled` | F2 |
 | R8 | P2 | `internal/cli/cmd_saga_run.go:55` | Wake budget omits `DoomThreshold` → `Budget.Check` blocks at the default 3 strikes regardless of `MaxStrikes` in `SAGA.md` | F1 |
 | R9 | P2 | `internal/engine/chapter_verify.go:50` | `sagaCancellation` inside Verify discards the real commit/rollback error on Ctrl+C; `sagaCancellationResult` exists one level up for exactly this | F1 |
-| R10 | P3 | `internal/shell/process_options.go:21` | abs→EvalSymlinks→Stat→IsDir hand-copied ×3 (`shell`, `agentcli`, `cli.verifiedProjectRoot`) | F5 |
-| R11 | P3 | `internal/cli/repl.go:59` | Both REPLs re-detect the inline marker and duplicate the interrupt/error block; `runInteractivePrompt` already routes | F5 |
-| R12 | P3 | `internal/engine/saga_executor.go:138` | `RunWake` is a copy of `Run`'s loop body and already diverges (strike counting, `finishStop`); compares `"blocked"` literal | F5 |
-| R13 | P3 | `internal/provider/agentcli/codex.go:146` | Directory validation repeated per turn (constructor, `Build*Invocation`, `RunLinesWithOptions`) — 2×(1+dirs) syscalls per Codex turn; Claude builds an unused invocation per turn | F4 |
-| R14 | P3 | `internal/cli/flags.go:17` | `posture` option and `Options.Posture` pass-through are dead; `ExecutionOptions.Provider` exists only to make the struct non-empty | F5 |
-| R15 | P3 | `internal/engine/subagent_backend.go:36` | Two factory signatures; legacy `SubagentBackend` silently skips confinement/network declaration; Claude-only network rule bolted onto the shared normalizer | F5 |
+| R10 | P3 | `internal/shell/process_options.go:21` | abs→EvalSymlinks→Stat→IsDir hand-copied ×3 (`shell`, `agentcli`, `cli.verifiedProjectRoot`) | F6 |
+| R11 | P3 | `internal/cli/repl.go:59` | Both REPLs re-detect the inline marker and duplicate the interrupt/error block; `runInteractivePrompt` already routes | F6 |
+| R12 | P3 | `internal/engine/saga_executor.go:138` | `RunWake` is a copy of `Run`'s loop body and already diverges (strike counting, `finishStop`); compares `"blocked"` literal | F6 |
+| R13 | P3 | `internal/provider/agentcli/codex.go:146` | Directory validation repeated per turn (constructor, `Build*Invocation`, `RunLinesWithOptions`) — 2×(1+dirs) syscalls per Codex turn; Claude builds an unused invocation per turn | F5 |
+| R14 | P3 | `internal/cli/flags.go:17` | `posture` option and `Options.Posture` pass-through are dead; `ExecutionOptions.Provider` exists only to make the struct non-empty | F6 |
+| O1 | owner | vendor model tables (`codexRungs`, `planModelCatalog`, `claudeModelAliases`, `vendorLadders`) | Model names are burned into source; the vendor renames and kolk breaks. Owner directive 2026-09-02: discover and map on every start and every login, for every vendor, then show | F4 |
+| R15 | P3 | `internal/engine/subagent_backend.go:36` | Two factory signatures; legacy `SubagentBackend` silently skips confinement/network declaration; Claude-only network rule bolted onto the shared normalizer | F6 |
 
 ---
 
@@ -181,7 +182,7 @@ This is the "hardest and longest-running tasks" path — the one the top rung is
   `-race` clean on `cli` and `engine`. Hand-edited/garbage `SAGA.md` still fails at parse before any
   turn. Not added here: a crash-injection harness (V34.3e owns it).
 - [x] **F1.7** `docs/plan/10` §3.1 and §4 carry the wake table and the reset rule; the stop
-  messages name the next step; dossier in `CHECKPOINTS.md` §F1. Also folded in from F5.3:
+  messages name the next step; dossier in `CHECKPOINTS.md` §F1. Also folded in from F6.3:
   `RunWake` compares `SagaStatusBlocked`, not a literal.
 
 **Exit met 2026-09-02.** Carried to V34.3e: crash injection between persist and work.
@@ -289,7 +290,84 @@ max` each completed a one-turn `-p` call (`stop_reason: end_turn`). `claude --he
 `claude-opus`, not `claude-fable`. Changing what a shorthand means moves users' models silently;
 that is V34.4c's catalog disposition, with an owner decision.
 
-## F4 — Stop repeating work on every Fable turn  ·  `[ ]`
+## F4 — Discover, don't burn: every vendor's models are mapped before they are shown  ·  `[ ]`
+
+**Owner decision, 2026-09-02** (verbatim): *"when kolk see models availables, ID them, do not burn
+model names before knowing what's available. because if not, tomorrow claude or codex will update
+his model names and kolk will stop working correctly. so EVERY time, on start, on claude login, on
+codex login, on ANY login, do a MAPPING on the models, and only then show them in the model command
+with the info"* — and: *"this should be like these for EVERY vendor, not only codex or claude."*
+
+**Observable:** every connector kolk can sign into has a discovery method, and a connector without
+one cannot be registered; `kolk plans login <any>` and every startup run that method (bounded, cached,
+stale-while-revalidate like the gateway catalog) and write one vendor catalog file; `kolk models`,
+`/model`, and `pmodels` show only mapped rows, each with its info (efforts, default effort, context,
+tier, vendor version, when it was fetched) and a STATUS — `listed` (the vendor said so), `verified`
+(answered a turn), `unverified` (a seed nothing has confirmed), `gone` (the vendor no longer lists
+it); a model name that exists only in kolk's source is never presented as available.
+
+**Why:** F3 proved the failure mode the owner describes. Before this leaf, `codexRungs` and
+`planModelCatalog` name `gpt-5.6-pro`; `codex debug models` on 2026-09-02 lists eight models and
+`gpt-5.6-pro` is not one of them, while `gpt-5.5` and `gpt-5.2` (listed) are unknown to kolk and
+Sol/Terra accept an `ultra` effort `codexEfforts` refuses. That table was right on 2026-08-30 and
+wrong three days later. Feeds V34.4a/b/c/d.
+
+**Ground truth, probed 2026-09-02:**
+
+| Vendor | Listing surface | Cost | Shape |
+|---|---|---|---|
+| Codex 0.149.1 | `codex debug models` (`--bundled` skips refresh); also cached at `~/.codex/models_cache.json` | zero | `{models:[{slug, display_name, visibility: list\|hide, priority, context_window, default_reasoning_level, supported_reasoning_levels:[{effort, description}]}]}`; `priority` ascends with distance from the flagship |
+| Claude Code 2.1.258 | **none** — no subcommand lists models; `--help` names alias examples (`fable`, `opus`, `sonnet`); stream-json `init.model` carries the resolved id of whatever alias was used | a valid name can only be confirmed by a turn (`--max-turns 0` still spends one, $0.0088); an invalid name fails locally at zero cost with `[claude-code:unrecognized_model]`; an unreachable-API probe retries with backoff for minutes and is unusable | seed aliases → `unverified` until `init.model` confirms; `unrecognized_model` → `gone` |
+| OpenRouter gateway | `GET /models` (already cached at `models.json`) | zero | already mapped; gains STATUS |
+| Ollama host / cloud | `GET /api/tags` (already `host-models.json`) | zero | already mapped; gains STATUS |
+| Gemini, future | must supply a lister to be registered | — | — |
+
+**Files:** `internal/provider/discovery.go` (new), `internal/provider/connectors.go`,
+`internal/provider/plan_models.go`, `internal/provider/agentcli/{claude,codex}.go`,
+`internal/engine/ceiling.go`, `internal/cli/{cmd_plans,cmd_models,cmd_plan_models,run,slash}.go`,
+`internal/paths/paths.go`.
+
+- [ ] **F4.1 The port.** `provider.ModelLister` — `Discover(ctx) (VendorCatalog, error)` returning
+  `{Vendor, Source, VendorVersion, FetchedAt, Models []DiscoveredModel{ID, Display, Efforts,
+  DefaultEffort, Context, Rank, Hidden, Status}}`. The connector registry takes a lister with every
+  connector; `TestEveryConnectorCanListItsModels` iterates the registry and fails on any without
+  one. A fake vendor in tests proves the contract end to end.
+- [ ] **F4.2 Codex lister.** Runs `codex debug models` through the scrubbed child path, parses the
+  JSON, maps `slug → ID`, `visibility hide → Hidden`, `priority → Rank`,
+  `supported_reasoning_levels → Efforts` (so `ultra` arrives without a code change). Fixture: the
+  eight-model output captured 2026-09-02. Malformed JSON, a missing binary, and a non-zero exit each
+  yield "no catalog" with the reason, never an empty success.
+- [ ] **F4.3 Claude lister.** Records `claude --version`; seeds the four family aliases as
+  `unverified`; parses `--help` for alias examples and adds any it names; the session's first
+  stream-json `init.model` promotes the alias to `verified` and records the full id beside it;
+  `unrecognized_model` on a turn marks it `gone`. No turn is ever spent to discover.
+- [ ] **F4.4 Cache and hooks.** `paths.VendorCatalogFile()` (`vendor-models.json`), atomic write,
+  one entry per vendor with `FetchedAt` and `VendorVersion`. Refreshed: on every `kolk plans login
+  <connector>` after `SaveConnector` (before the "recorded" line prints); at startup for every
+  enabled connector, bounded to the same budget as the gateway catalog and refreshed behind the
+  prompt when stale; on `kolk models --refresh` and `/model`. A vendor version change invalidates its
+  entry.
+- [ ] **F4.5 Derivation.** `planModelCatalog`, `codexRungs`, `ClaudeKnowsModel`/`CodexKnowsModel`,
+  `CodexEffortValid`, and the Codex ladder in `vendorLadders` are derived from the vendor catalog
+  when one exists and fall back to the seed only when none does — and a seed row is always shown
+  as `unverified`. Rank: Codex from `priority`; Claude from the family order (fable > opus > sonnet
+  > haiku) applied to whatever names are `verified`; anything else `unranked`, which the ceiling
+  already treats as "never clamped" and the roster as "never descended to".
+- [ ] **F4.6 Surfaces.** `kolk models`, `/model`, `pmodels`, and the bare-model chooser render
+  from the vendor catalog: `MODEL  STATUS  EFFORTS  DEFAULT  CONTEXT  TIER  SOURCE  FETCHED`. A
+  `gone` model the user has configured is named at startup with what replaced it, not silently
+  swapped. The plan matrix in `docs/plan/24` says which vendors list and which only verify.
+- [ ] **F4.7 Proof.** Tests for: stale cache served then refreshed; missing CLI; malformed output;
+  version change; a seed row never shown without `unverified`; `gpt-5.6-pro` reported `gone` against
+  the 2026-09-02 fixture; ceiling/roster behaviour on a name discovery added that the seed ladder
+  never heard of. One mutation per rule. `-race` on the refresh path. Dossier in `CHECKPOINTS.md`.
+
+**Exit:** on this machine, `kolk models` after `kolk plans login openai "ChatGPT Plus"` lists exactly
+what `codex debug models` lists, with `gpt-5.6-pro` absent or `gone`, and a Claude session shows its
+aliases `unverified` until the first turn and `verified` after it — with no model name added to the
+source in the process.
+
+## F5 — Stop repeating work on every Fable turn  ·  `[ ]`
 
 **Observable:** per Codex turn, directory validation runs once (constructor), not 2×(1+dirs);
 the persistent Claude session path builds no unused invocation per turn; `make budgets` still passes
@@ -303,18 +381,18 @@ shows; do not optimize past the budget gate.
 **Files:** `internal/provider/agentcli/codex.go`, `claude.go`, `execution_options.go`, `session.go`,
 `internal/shell/lines_process.go`, `process_options.go`.
 
-- [ ] **F4.1** Measure: a focused benchmark (`BenchmarkCodexTurnArgv`, `BenchmarkClaudeTurnArgv`)
+- [ ] **F5.1** Measure: a focused benchmark (`BenchmarkCodexTurnArgv`, `BenchmarkClaudeTurnArgv`)
   and an `strace -c`-style count on Linux for one persistent Claude turn and one Codex one-shot,
   recorded in the dossier as the "before".
-- [ ] **F4.2 (R13)** Normalize `ExecutionOptions` **once** in `NewCodexBackendFromHandleWithOptions` /
+- [ ] **F5.2 (R13)** Normalize `ExecutionOptions` **once** in `NewCodexBackendFromHandleWithOptions` /
   the Claude constructor and pass the canonical result through; `Build*InvocationWithOptions` and
   `RunLinesWithOptions` accept already-normalized options (a marker type or a `normalized bool` that
   the constructor sets — pick the one `make arch` and the dead-export gate accept).
-- [ ] **F4.3 (R13)** The persistent Claude session path stops building a full invocation per turn;
+- [ ] **F5.3 (R13)** The persistent Claude session path stops building a full invocation per turn;
   the resume argv is composed from the retained session handle and the effort/model flags only.
-- [ ] **F4.4** SAGA wake I/O: `SAGA.md` is parsed once per wake and the parsed state threaded to
+- [ ] **F5.4** SAGA wake I/O: `SAGA.md` is parsed once per wake and the parsed state threaded to
   planner, budget, and executor; chapter prompts are built from the parsed state, not by re-reading.
-- [ ] **F4.5** Re-measure; the "after" numbers go beside the "before". `make budgets` and `-race`.
+- [ ] **F5.5** Re-measure; the "after" numbers go beside the "before". `make budgets` and `-race`.
 
 **Tests** — `internal/provider/agentcli/execution_options_test.go`, `codex_test.go`
 - `TestOptionsAreNormalizedOnceAtConstruction`
@@ -322,7 +400,7 @@ shows; do not optimize past the budget gate.
 
 ---
 
-## F5 — One implementation per rule  ·  `[ ]`
+## F6 — One implementation per rule  ·  `[ ]`
 
 **Observable:** no behaviour change; `go test ./... -count=1` and `-race` green; the dead-export and
 arch gates pass; each rule below has exactly one implementation and one test.
@@ -335,53 +413,53 @@ CLI feature which does not exist. Duplicates are where the next Fable-path defec
 `internal/cli/run.go`, `repl.go`, `tui_repl.go`, `flags.go`, `internal/engine/saga_executor.go`,
 `subagent_backend.go`.
 
-- [ ] **F5.1 (R10)** Export one `shell.VerifiedDir(path) (string, error)`; `agentcli.normalizeExecutionDirectory`
+- [ ] **F6.1 (R10)** Export one `shell.VerifiedDir(path) (string, error)`; `agentcli.normalizeExecutionDirectory`
   and `cli.verifiedProjectRoot` call it. One error wording. Grep for `EvalSymlinks` should show one
   implementation outside tests.
-- [ ] **F5.2 (R11)** `runInteractivePrompt` is the single boundary for every non-`/` line in both
+- [ ] **F6.2 (R11)** `runInteractivePrompt` is the single boundary for every non-`/` line in both
   REPLs; marker detection lives only inside it; `repl.go:88`'s direct `ag.RunTurn` and the three
   copies of the interrupt/error block collapse to one.
-- [ ] **F5.3 (R12)** Extract `step(ctx, repoDir, state) (StopReason, error)` from `Run`/`RunWake`;
+- [ ] **F6.3 (R12)** Extract `step(ctx, repoDir, state) (StopReason, error)` from `Run`/`RunWake`;
   `RunWake` calls it once, `Run` loops it. Terminal-status guard moves into `nextChapter` so no third
   caller can reopen a completed/blocked saga. Replace the `"blocked"` literal with `SagaStatusBlocked`.
   This is where F1.1's deleted guard lands.
-- [ ] **F5.4 (R14)** Delete the `posture` option and `Options.Posture` pass-through (posture is set by
+- [ ] **F6.4 (R14)** Delete the `posture` option and `Options.Posture` pass-through (posture is set by
   `ag.SetPosture` at wake time only), or wire a real `--posture`; drop `ExecutionOptions.Provider` or
   use it. The dead-export gate decides which.
-- [ ] **F5.5 (R15)** One factory: `SubagentBackend` takes capabilities (shim at the boundary for the
+- [ ] **F6.5 (R15)** One factory: `SubagentBackend` takes capabilities (shim at the boundary for the
   3-arg callers, removed once none remain); provider network capability becomes **data** on each
   backend's constructor/`ExecutionOptions`, so the Claude-only `validateClaudeExecutionOptions` free
   function disappears and Codex gets the same invariant by construction.
-- [ ] **F5.6** `make check` and a diff review that confirms "no behaviour change" line by line.
+- [ ] **F6.6** `make check` and a diff review that confirms "no behaviour change" line by line.
 
 ---
 
-## F6 — Proof and walk-back  ·  `[ ]`
+## F7 — Proof and walk-back  ·  `[ ]`
 
 **Observable:** a fresh clone at the closing commit passes `make check`; every claim in README,
 `site/capabilities.html`, `docs/plan/10`, `13`, `24`, `08` matches the binary; `CHECKPOINTS.md` holds
 one dossier per phase with commands and results; an independent reviewer who did not implement F1–F3
 reruns the failure matrices.
 
-- [ ] **F6.1** Fresh-clone `make check` on Linux and macOS (the V34.5a matrix), `-race` on
+- [ ] **F7.1** Fresh-clone `make check` on Linux and macOS (the V34.5a matrix), `-race` on
   `internal/cli internal/engine internal/provider internal/shell internal/secret`.
-- [ ] **F6.2** Manual Fable transcript in an isolated repo: install → `claude` login → `kolk --model
+- [ ] **F7.2** Manual Fable transcript in an isolated repo: install → `claude` login → `kolk --model
   claude-fable` → `/mode agent` (ceiling line) → a three-chapter saga across three wakes → reset with a
   new goal. Recorded verbatim in `docs/build-log.md`.
-- [ ] **F6.3** Independent review of F1, F2, F3 diffs against their invariants; reviewer and commands
+- [ ] **F7.3** Independent review of F1, F2, F3 diffs against their invariants; reviewer and commands
   named in `CHECKPOINTS.md`.
-- [ ] **F6.4** Tick the corresponding V34 leaves (`V34.1a`, `V34.1b`, `V34.3a/b/f`, `V34.4a/b`) or
+- [ ] **F7.4** Tick the corresponding V34 leaves (`V34.1a`, `V34.1b`, `V34.3a/b/f`, `V34.4a/b`) or
   record exactly why each stays open. Never tick a leaf from this file alone.
 
 ---
 
 ## Order and stop rules
 
-`F0 → F1 → F2 → F3 → F4 → F5 → F6`. F0 is blocked on the V34.1a owner and must close before any
+`F0 → F1 → F2 → F3 → F4 → F5 → F6 → F7`. F0 is blocked on the V34.1a owner and must close before any
 other phase's checkpoint is ticked (a red tree proves nothing). F1 and F2 may be **implemented** while
 F0 is in flight — they touch different files — but coordinate on `run.go`, which both F0 and F2 edit,
-and check mtimes per `AGENTS.md` before every edit. F4 and F5 are behaviour-preserving and may be
-reordered if a measurement in F4.1 shows nothing worth removing. Any new P0/P1 found on the way is
+and check mtimes per `AGENTS.md` before every edit. F5 and F6 are behaviour-preserving and may be
+reordered if a measurement in F5.1 shows nothing worth removing. Any new P0/P1 found on the way is
 triaged into the earliest phase that owns its boundary and blocks that phase's exit.
 
 ## Non-goals
@@ -390,7 +468,7 @@ triaged into the earliest phase that owns its boundary and blocks that phase's e
 - No prompt-level "prefer cheaper models" instruction — routing stays a code filter.
 - No re-introduction of a `kolk saga run/resume/status/stop` surface; reset is a rule of the inline
   workflow (F1.3), not a subcommand, unless the owner decides otherwise in `docs/plan/10`.
-- No performance work beyond what F4.1 measures.
+- No performance work beyond what F5.1 measures.
 
 ## Sources
 

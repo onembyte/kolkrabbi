@@ -6061,6 +6061,23 @@ used to say nothing, on the grounds that the user had just chosen Fable and ther
 There was: a sign-in would let trivial work run on Haiku, and a saving nobody mentions is one nobody
 takes. It says that now, and only that.
 
+## Discover, don't burn — owner decision recorded (2026-09-02)
+
+F3 added two Claude rows to the plan catalog by hand after a live check, and the owner's response
+was the right one: that is a table, and tables rot. "Do not burn model names before knowing what's
+available … tomorrow claude or codex will update his model names and kolk will stop working
+correctly" — and, when the first draft named two vendors, "this should be like these for EVERY
+vendor." The proof arrived within the hour: `codex debug models` is an official, zero-cost catalog,
+and it does not contain `gpt-5.6-pro`, which kolk has burned into both `codexRungs` and the plan
+catalog since 08-30, while it does contain `gpt-5.5`, `gpt-5.2`, and an `ultra` effort kolk refuses.
+Claude Code, by contrast, has no listing at all: a valid name can only be confirmed by spending a
+turn (`--max-turns 0` still spends one), an invalid one fails locally for free, and an
+unreachable-API probe retries with backoff for minutes. So "mapping" means two different things —
+a listing where the vendor offers one, seed-and-verify where it does not — and the port has to
+carry both under one status vocabulary. Recorded as F4 of `FABLE_OPTIMIZATION.md`, ahead of the
+efficiency and cleanup phases, because a model command that lies is worse than a slow one. The
+2026-09-02 Codex catalog is checked in as a fixture.
+
 ## TUI progress-log observability — C5 queued 2026-09-01
 
 The requested Codex/Claude-style work log is recorded as a dedicated future checkpoint. It will
