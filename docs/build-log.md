@@ -6148,6 +6148,25 @@ same run. They were deleted, not allowlisted: a seed row presented as resolvable
 claim this whole phase exists to end, and an entry point that only tests can reach is how it would
 have crept back.
 
+## F4.6 — the surfaces say how they know (2026-09-02)
+
+The catalog was right by F4.5; F4.6 is about what a person sees of it. Two decisions shaped the
+rendering. Vendor models get their own section rather than joining the gateway list, because one is
+a subscription already paid for and the other bills per token, and a list that blurs that costs
+someone money. And a status is printed only when it changes what someone would do: `unverified`
+says the gateway published this name and no turn has proved this login can use it, `gone` says the
+vendor dropped it — while `listed` and `verified` stay quiet, because a column that says "fine" on
+every row is decoration people learn to skip.
+
+Every list of vendor rows now carries its provenance: which command or preview produced it, which
+vendor version answered, and how long ago. That line is the difference between a catalog and a
+claim, and it is the one thing a stale list cannot fake.
+
+One mutation in this leaf would not apply — the sed pattern fought the escaped format string it was
+aimed at — and the script reported that rather than passing. It was re-anchored on a plain line.
+A mutation that silently fails to mutate is worse than no mutation, because it reports a guard as
+proved.
+
 ## TUI progress-log observability — C5 queued 2026-09-01
 
 The requested Codex/Claude-style work log is recorded as a dedicated future checkpoint. It will

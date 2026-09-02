@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/local"
@@ -42,6 +43,7 @@ func (a *app) runModels(ctx context.Context, args []string) error {
 	if err := a.printModelCatalog(ctx, client, d.CatalogFile(), forceRefresh, filter); err != nil {
 		return err
 	}
+	a.printVendorModels(filter)
 	a.printHostModels(ctx, d.HostCatalogFile(), filter)
 	if forceRefresh {
 		// --refresh asks every signed-in vendor too, in front of the user.
@@ -56,6 +58,54 @@ func (a *app) runModels(ctx context.Context, args []string) error {
 // rows and never mixed into them: a host id in the gateway list is a 404
 // waiting to happen, and a reader should see at a glance which rows cost
 // nothing because they never leave the machine.
+// printVendorModels is what each signed-in vendor said it offers, in its own
+// section: these are not gateway rows and must not be mixed into them — one
+// is billed per token and the other is a subscription, and a list that blurs
+// that is a list that costs someone money.
+func (a *app) printVendorModels(filter string) {
+	store := a.vendorCatalogs()
+	if len(store.Vendors) == 0 {
+		return
+	}
+	names := make([]string, 0, len(store.Vendors))
+	for name := range store.Vendors {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	filter = strings.ToLower(strings.TrimSpace(filter))
+	for _, name := range names {
+		catalog := store.Vendors[name]
+		version := ""
+		if catalog.VendorVersion != "" {
+			version = " " + catalog.VendorVersion
+		}
+		rows := make([]provider.DiscoveredModel, 0, len(catalog.Models))
+		for _, model := range catalog.Visible() {
+			if filter != "" && !strings.Contains(strings.ToLower(model.ID), filter) &&
+				!strings.Contains(strings.ToLower(name), filter) {
+				continue
+			}
+			rows = append(rows, model)
+		}
+		if len(rows) == 0 {
+			continue
+		}
+		fmt.Fprintf(a.stdout, "\nsubscription · %s%s — %s, %s\n", name, version, catalog.Source, ageLabel(catalog.FetchedAt, time.Now()))
+		for _, model := range rows {
+			note := statusNote(model.Status)
+			if note != "" {
+				note = "  (" + note + ")"
+			}
+			exact := ""
+			if len(model.ExactIDs) > 0 {
+				exact = "  → " + model.ExactIDs[0]
+			}
+			fmt.Fprintf(a.stdout, "%-28s ctx %-7s efforts %-28s%s%s\n",
+				model.ID, contextWindowLabel(model.Context), effortsLabel(model.Efforts), exact, note)
+		}
+	}
+}
+
 func (a *app) printHostModels(ctx context.Context, cacheFile, filter string) {
 	host := a.discoverHost(ctx)
 	switch host.State {

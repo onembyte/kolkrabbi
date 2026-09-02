@@ -10872,7 +10872,7 @@ silently and is V34.4c's, with an owner decision. Walk-back: `docs/plan/24` Anth
 one-turn provider calls were made on the owner's own login for the fire-and-check above; no
 credential, push, tag, release, or remote state changed.
 
-#### F4 — discover, don't burn — in progress; F4.1 port, F4.2 Codex lister, F4.3 Claude preview and first-turn verification, F4.4 hooks, F4.5 derivation complete 2026-09-02
+#### F4 — discover, don't burn — in progress; F4.1 port, F4.2 Codex lister, F4.3 Claude preview and first-turn verification, F4.4 hooks, F4.5 derivation, F4.6 surfaces complete 2026-09-02
 
 Owner decision (verbatim in `FABLE_OPTIMIZATION.md` §F4): map every vendor's models on every start
 and every login, never burn names, show only mapped rows with their info. **Risk:** P1 product truth
@@ -10969,7 +10969,27 @@ answers from its seed; a gone name at the prompt is `ErrModelGone`). Four mutati
 gone, gone still resolves, availability ignoring the catalog, efforts ignoring discovery — each
 failed its test and restored byte-identically. `make check` green.
 
-Remaining: F4.6 (surfaces), F4.7 (proof). No provider turn was spent; one `codex debug models` and one `codex
+Green, F4.6: `model_rows.go` (`statusNote` — only `unverified` and `gone` are named, because a
+status on every line is decoration; `contextWindowLabel`, `ageLabel`, `vendorCatalogFooter`,
+`planModelStatusSuffix`, `effortsLabel`); `kolk models` prints one `subscription · <vendor>
+<version> — <source>, fetched Nh ago` section per vendor with `id · ctx · efforts · → exact id ·
+(note)` rows, kept apart from the gateway rows; `pmodels` gains `STATUS` (the vendor's word) and
+`CTX` beside `AUTH` (this machine's word about the connector), plus the footer; the compact
+`/model` list appends the note only for the two statuses a person acts on; the TUI picker marks a
+previewed row `(unverified)`. A configured model the vendor dropped refuses startup by name through
+F4.5's `ErrModelGone`. Tests: `TestStatusNoteNamesOnlyWhatAPersonActsOn`,
+`TestContextAndAgeReadTheWayAPersonWouldSayThem`, `TestVendorFooterNamesTheSourceAndTheAge`,
+`TestModelsShowsEachVendorsOwnSection` (hidden and gone rows absent, a verified row undecorated,
+filtering, and nothing at all before any discovery), `TestPlanModelsCarriesStatusContextAndProvenance`,
+`TestBareModelChoicesSayWhatIsUnverifiedAndWhatIsGone`,
+`TestAConfiguredModelTheVendorDroppedIsNamedNotSwapped` (through `newAgent`: the refusal names the
+model, the vendor and version, and `kolk models`). Five mutations — unverified unmarked, provenance
+dropped, hidden/gone shown, pmodels status blanked, the compact note removed — each failed its test
+and restored byte-identically; one sed pattern would not apply against an escaped format string and
+was re-anchored on a plain line rather than left as a mutation that "passed" by not running.
+`make check` green at 3,240 tests.
+
+Remaining: F4.7 (proof). No provider turn was spent; one `codex debug models` and one `codex
 --version` ran on this machine. No credential, push, tag, release, or remote state changed.
 
 #### C5 — TUI progress-log observability — queued

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
 )
@@ -26,7 +27,7 @@ func (a *app) runPlanModels(_ context.Context, args []string) error {
 		fmt.Fprintf(a.stdout, "no plan models match %q\n", strings.Join(args, " "))
 		return nil
 	}
-	fmt.Fprintln(a.stdout, "PROVIDER     PLAN                 CONNECTOR       MODEL                 EFFORTS              AUTH")
+	fmt.Fprintln(a.stdout, "PROVIDER     PLAN                 CONNECTOR       MODEL                 STATUS       EFFORTS              CTX     AUTH")
 	for _, model := range models {
 		status := model.Access
 		if status != "unsupported subscription" {
@@ -38,9 +39,17 @@ func (a *app) runPlanModels(_ context.Context, args []string) error {
 				}
 			}
 		}
-		fmt.Fprintf(a.stdout, "%-12s %-20s %-15s %-21s %-20s %s\n",
-			model.Provider, model.Plan, model.Connector, model.Model, strings.Join(model.Efforts, ","), status)
+		// Two different questions, two columns: what the vendor says about
+		// the model, and what this machine can do with the connector.
+		known := string(model.Status)
+		if known == "" {
+			known = "-"
+		}
+		fmt.Fprintf(a.stdout, "%-12s %-20s %-15s %-21s %-12s %-20s %-7s %s\n",
+			model.Provider, model.Plan, model.Connector, model.Model,
+			known, effortsLabel(model.Efforts), contextWindowLabel(model.Context), status)
 	}
+	vendorCatalogFooter(a.stdout, a.vendorCatalogs(), time.Now())
 	return nil
 }
 
@@ -78,7 +87,7 @@ func (a *app) printPlanModelChoices() error {
 				}
 			}
 		}
-		fmt.Fprintf(a.stdout, "  /model %-43s · %-16s · %s\n", ref, model.Plan, status)
+		fmt.Fprintf(a.stdout, "  /model %-43s · %-16s · %s%s\n", ref, model.Plan, status, planModelStatusSuffix(model))
 	}
 	return nil
 }

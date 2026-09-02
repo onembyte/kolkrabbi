@@ -290,7 +290,7 @@ max` each completed a one-turn `-p` call (`stop_reason: end_turn`). `claude --he
 `claude-opus`, not `claude-fable`. Changing what a shorthand means moves users' models silently;
 that is V34.4c's catalog disposition, with an owner decision.
 
-## F4 — Discover, don't burn: every vendor's models are mapped before they are shown  ·  `[~]` F4.1–F4.5 done 2026-09-02
+## F4 — Discover, don't burn: every vendor's models are mapped before they are shown  ·  `[~]` F4.1–F4.6 done 2026-09-02
 
 **Owner decision, 2026-09-02** (verbatim): *"when kolk see models availables, ID them, do not burn
 model names before knowing what's available. because if not, tomorrow claude or codex will update
@@ -405,10 +405,25 @@ wrong three days later. Feeds V34.4a/b/c/d.
   seed never gone, gone still resolves, availability ignoring the catalog, efforts ignoring discovery.
   Known limit, recorded: kolk's dial has four levels, so a vendor's `ultra` shows in the catalog and
   is accepted by name but is not reachable through `/effort` (V34.4b).
-- [ ] **F4.6 Surfaces.** `kolk models`, `/model`, `pmodels`, and the bare-model chooser render
-  from the vendor catalog: `MODEL  STATUS  EFFORTS  DEFAULT  CONTEXT  TIER  SOURCE  FETCHED`. A
-  `gone` model the user has configured is named at startup with what replaced it, not silently
-  swapped. The plan matrix in `docs/plan/24` says which vendors list and which only verify.
+- [x] **F4.6 Surfaces.** Every model surface renders the vendor's answer, with provenance.
+  `kolk models` gains a `subscription · <vendor> <version> — <source>, fetched Nh ago` section per
+  vendor, separate from the gateway rows on purpose (one is a subscription, the other is billed per
+  token, and a list that blurs that costs someone money): each row is `id · ctx · efforts · → exact
+  id · (note)`, hidden and gone rows out. `pmodels` gains `STATUS` and `CTX` columns — the vendor's
+  word about the model, beside the existing `AUTH` column, which is this machine's word about the
+  connector — and the same provenance footer. The compact `/model` list appends `· unverified until a
+  turn confirms it` or `· gone: the vendor no longer lists it`, and says nothing for a listed or
+  verified row: a status on every line is decoration, a status on the two that matter is
+  information. The TUI picker marks a previewed row `(unverified)` — offering a model and promising
+  one are different things. A configured model the vendor dropped refuses startup by name
+  (`ErrModelGone` from F4.5), never a silent swap. Shared helpers in `model_rows.go`
+  (`statusNote`, `contextWindowLabel`, `ageLabel`, `vendorCatalogFooter`, `planModelStatusSuffix`,
+  `effortsLabel`). Tests: `TestStatusNoteNamesOnlyWhatAPersonActsOn`,
+  `TestContextAndAgeReadTheWayAPersonWouldSayThem`, `TestVendorFooterNamesTheSourceAndTheAge`,
+  `TestModelsShowsEachVendorsOwnSection`, `TestPlanModelsCarriesStatusContextAndProvenance`,
+  `TestBareModelChoicesSayWhatIsUnverifiedAndWhatIsGone`,
+  `TestAConfiguredModelTheVendorDroppedIsNamedNotSwapped`. Five mutations: unverified unmarked, no
+  provenance, hidden/gone rows shown, pmodels dropping status, choices dropping the note.
 - [ ] **F4.7 Proof.** Tests for: stale cache served then refreshed; missing CLI; malformed output;
   version change; a seed row never shown without `unverified`; `gpt-5.6-pro` reported `gone` against
   the 2026-09-02 fixture; ceiling/roster behaviour on a name discovery added that the seed ladder

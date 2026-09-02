@@ -265,8 +265,15 @@ func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 	for _, group := range tuiSubscriptionModelGroups(a) {
 		plan, signedIn := preferredTUISubscriptionPlan(a, group, manifest)
 		if signedIn {
+			name := "via your " + plan.Connector + " login"
+			// A previewed row is a name the gateway published, not one this
+			// login has been shown to accept. Saying so in the picker is the
+			// difference between offering a model and promising one.
+			if note := statusNote(plan.Status); note != "" {
+				name += " (" + note + ")"
+			}
 			out = append(out, tui.ModelSpec{
-				ID: plan.Model, Name: "via your " + plan.Connector + " login",
+				ID: plan.Model, Name: name,
 				Efforts: append([]string(nil), plan.Efforts...),
 				Cost:    tui.CostSubscription, Rank: tui.ModelRank(tui.CostSubscription),
 			})
