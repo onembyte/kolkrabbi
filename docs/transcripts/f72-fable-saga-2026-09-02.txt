@@ -1,0 +1,978 @@
+# F7.2 — live Fable transcript, 2026-09-02
+
+Verbatim pty capture (ANSI colour stripped) of the plain kolk REPL, one file per wake, concatenated.
+Binary: kolk built from the tree at commit 8bb243f0 (F7.2 fixes). Driver: TERM=dumb pty, one input line per prompt.
+Command for every stage: kolk --model claude-fable -P full-auto  (stages B-H add -r to resume the session).
+Repository: an empty scratch git repo containing only README.md.
+
+
+######## stage A ########
+
+=== 21:01:26 driver start; cwd=/tmp/claude-1000/-home-onembyte-Projects-kolkrabbi/707bdcb2-0b95-4749-867d-8ed27b0bc1b6/scratchpad/f72-repo; argv=/tmp/claude-1000/-home-onembyte-Projects-kolkrabbi/707bdcb2-0b95-4749-867d-8ed27b0bc1b6/scratchpad/bin/kolk --model claude-fable -P full-auto ===
+
+=== 21:01:26 input, verbatim (sent one line per prompt) ===
+  > /plans
+  > /pmodels
+  > /model
+  > /mode agent
+  > Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga
+
+=== 21:01:26 output, verbatim ===
+full-auto on claude: the vendor child runs with bypassPermissions — kolk's hardline blocklist does not apply inside it, and the child keeps this mode until the session ends.
+kolk — mode: code · effort: medium · model: claude-fable  (full-auto)
+session: s_01M1HYTEP4PA4TPD084TN1P8YK
+Type your request, or /help for commands. Ctrl+C interrupts a turn, /exit quits.
+
+❯ 
+=== 21:01:26 send: /plans ===
+/plans
+PROVIDER     PLAN                 CONNECTOR       AUTH          BILLING       SANDBOX  STATUS
+anthropic    Claude Free          claude          provider CLI  subscription  yes      unverified
+anthropic    Claude Pro           claude          provider CLI  subscription  yes      unverified
+anthropic    Claude Max           claude          provider CLI  subscription  yes      unverified
+openai       ChatGPT Plus         codex           provider CLI  subscription  yes      enabled
+openai       ChatGPT Pro          codex           provider CLI  subscription  yes      enabled
+google       Gemini Free          gemini          provider CLI  subscription  yes      installed
+google       Google AI Pro        gemini          provider CLI  subscription  yes      installed
+google       Google AI Ultra      gemini          provider CLI  subscription  yes      installed
+xai          Grok                 xai-api         API key       metered       no       listed
+perplexity   Perplexity Pro       perplexity-api  API key       metered       no       listed
+mistral      Le Chat Pro          mistral-api     API key       metered       no       listed
+deepseek     DeepSeek             deepseek-api    API key       metered       no       listed
+qwen         Qwen                 qwen-api        API key       metered       no       listed
+github       Copilot Pro          copilot         provider CLI  subscription  yes      installed
+cohere       Cohere Developer     cohere-api      API key       metered       no       listed
+ollama       Ollama Pro           ollama          provider CLI  subscription  no       installed
+
+installed: sign in with  /plans login <provider> <plan>
+
+unverified: the provider CLI exited cleanly, which is not proof of a login.
+Kolkrabbi confirms it the first time the connector answers a turn.
+
+❯ 
+=== 21:01:26 send: /pmodels ===
+/pmodels
+PROVIDER     PLAN                 CONNECTOR       MODEL                 STATUS       EFFORTS              CTX     AUTH
+anthropic    Claude Pro           claude          claude-haiku          unverified   low,medium,high,xhigh,max 200K    enabled
+anthropic    Claude Pro           claude          claude-sonnet         unverified   low,medium,high,xhigh,max 1M      enabled
+anthropic    Claude Max           claude          claude-opus           unverified   low,medium,high,xhigh,max 1M      enabled
+anthropic    Claude Max           claude          claude-fable          unverified   low,medium,high,xhigh,max 1M      enabled
+openai       ChatGPT Plus         codex           gpt-5.6-sol           verified     low,medium,high,xhigh,max,ultra 272K    enabled
+openai       ChatGPT Plus         codex           gpt-5.6-terra         listed       low,medium,high,xhigh,max,ultra 272K    enabled
+openai       ChatGPT Plus         codex           gpt-5.6-luna          listed       low,medium,high,xhigh,max 272K    enabled
+openai       ChatGPT Pro          codex           gpt-5.6-pro           gone         low,medium,high,xhigh         enabled
+openai       ChatGPT Pro          codex           gpt-5.6-sol           verified     low,medium,high,xhigh,max,ultra 272K    enabled
+openai       ChatGPT Pro          codex           gpt-5.6-terra         listed       low,medium,high,xhigh,max,ultra 272K    enabled
+openai       ChatGPT Pro          codex           gpt-5.6-luna          listed       low,medium,high,xhigh,max 272K    enabled
+google       Google AI Pro        gemini          gemini-2.5-pro        unverified   low,medium,high              unsupported subscription
+google       Google AI Pro        gemini          gemini-2.5-flash      unverified   low,medium,high              unsupported subscription
+google       Google AI Ultra      gemini          gemini-2.5-pro        unverified   low,medium,high,max          unsupported subscription
+openai       ChatGPT Plus         codex           gpt-5.5               listed       low,medium,high,xhigh 272K    enabled
+openai       ChatGPT Pro          codex           gpt-5.5               listed       low,medium,high,xhigh 272K    enabled
+openai       ChatGPT Plus         codex           gpt-5.4               listed       low,medium,high,xhigh 272K    enabled
+openai       ChatGPT Pro          codex           gpt-5.4               listed       low,medium,high,xhigh 272K    enabled
+openai       ChatGPT Plus         codex           gpt-5.4-mini          listed       low,medium,high,xhigh 272K    enabled
+openai       ChatGPT Pro          codex           gpt-5.4-mini          listed       low,medium,high,xhigh 272K    enabled
+claude: gateway preview of anthropic/claude-*, grouped by the CLI's family aliases, fetched 3m ago
+codex 0.149.1: codex debug models, fetched 3m ago
+
+❯ 
+=== 21:01:26 send: /model ===
+/model
+current model: claude-fable
+
+subscription models (use the shortcut or exact model id):
+  /model claude-haiku                                · Claude Pro       · enabled · unverified until a turn confirms it
+  /model claude-pro → claude-sonnet                  · Claude Pro       · enabled · unverified until a turn confirms it
+  /model claude-max → claude-opus                    · Claude Max       · enabled · unverified until a turn confirms it
+  /model claude-fable                                · Claude Max       · enabled · unverified until a turn confirms it
+  /model gpt-plus → gpt-5.6-sol                      · ChatGPT Plus     · enabled
+  /model gpt-plus-terra → gpt-5.6-terra              · ChatGPT Plus     · enabled
+  /model gpt-plus-luna → gpt-5.6-luna                · ChatGPT Plus     · enabled
+  /model gpt-pro → gpt-5.6-pro                       · ChatGPT Pro      · enabled · gone: the vendor no longer lists it
+  /model gpt-pro-sol → gpt-5.6-sol                   · ChatGPT Pro      · enabled
+  /model gpt-pro-terra → gpt-5.6-terra               · ChatGPT Pro      · enabled
+  /model gpt-pro-luna → gpt-5.6-luna                 · ChatGPT Pro      · enabled
+  /model gemini-2.5-pro                              · Google AI Pro    · unsupported subscription · unverified until a turn confirms it
+  /model gemini-2.5-flash                            · Google AI Pro    · unsupported subscription · unverified until a turn confirms it
+  /model gemini-2.5-pro                              · Google AI Ultra  · unsupported subscription · unverified until a turn confirms it
+  /model gpt-5.5                                     · ChatGPT Plus     · enabled
+  /model gpt-5.5                                     · ChatGPT Pro      · enabled
+  /model gpt-5.4                                     · ChatGPT Plus     · enabled
+  /model gpt-5.4                                     · ChatGPT Pro      · enabled
+  /model gpt-5.4-mini                                · ChatGPT Plus     · enabled
+  /model gpt-5.4-mini                                · ChatGPT Pro      · enabled
+cohere/north-mini-code:free                      ctx 256000    free
+dots-studio/dots-3-note-preview:free             ctx 512000    free
+google/gemma-4-26b-a4b-it:free                   ctx 262144    free
+google/gemma-4-31b-it:free                       ctx 262144    free
+google/lyria-3-clip-preview                      ctx 1048576   free
+google/lyria-3-pro-preview                       ctx 1048576   free
+inclusionai/ling-3.0-flash-fin:free              ctx 262144    free
+liquid/lfm-2.5-2.6b:free                         ctx 65536     free
+minimax/minimax-m2.7:free                        ctx 196608    free
+minimax/minimax-m3:free                          ctx 1048576   free
+nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free ctx 256000    free
+nvidia/nemotron-3-super-120b-a12b:free           ctx 262144    free
+nvidia/nemotron-3-ultra-550b-a55b:free           ctx 1000000   free
+nvidia/nemotron-3.5-content-safety:free          ctx 128000    free
+nvidia/nemotron-3.5-lightning:free               ctx 1000000   free
+openrouter/auto                                  ctx 2000000   $-1000000.00 in / $-1000000.00 out per 1M tokens
+openrouter/free                                  ctx 200000    free
+poolside/laguna-s-2.1:free                       ctx 262144    free
+poolside/laguna-xs-2.1:free                      ctx 262144    free
+thinkingmachines/inkling-small:free              ctx 1048576   free
+thinkingmachines/inkling:free                    ctx 1048576   free
+z-ai/glm-5.2:free                                ctx 256000    free
+aion-labs/aion-2.0                               ctx 131072    $0.80 in / $1.60 out per 1M tokens
+aion-labs/aion-3.0                               ctx 131072    $3.00 in / $6.00 out per 1M tokens
+aion-labs/aion-3.0-mini                          ctx 131072    $0.70 in / $1.40 out per 1M tokens
+aion-labs/aion-rp-llama-3.1-8b                   ctx 32768     $0.80 in / $1.60 out per 1M tokens
+amazon/nova-2-lite-v1                            ctx 1000000   $0.30 in / $2.50 out per 1M tokens
+amazon/nova-lite-v1                              ctx 300000    $0.06 in / $0.24 out per 1M tokens
+amazon/nova-micro-v1                             ctx 128000    $0.04 in / $0.14 out per 1M tokens
+amazon/nova-premier-v1                           ctx 1000000   $2.50 in / $12.50 out per 1M tokens
+amazon/nova-pro-v1                               ctx 300000    $0.80 in / $3.20 out per 1M tokens
+anthracite-org/magnum-v4-72b                     ctx 32768     $2.50 in / $5.00 out per 1M tokens
+anthropic/claude-3-haiku                         ctx 200000    $0.25 in / $1.25 out per 1M tokens
+anthropic/claude-fable-5                         ctx 1000000   $10.00 in / $50.00 out per 1M tokens
+anthropic/claude-fable-5.1                       ctx 1000000   $10.00 in / $50.00 out per 1M tokens
+anthropic/claude-fable-5.1:batch                 ctx 1000000   $5.00 in / $25.00 out per 1M tokens
+anthropic/claude-fable-5:batch                   ctx 1000000   $5.00 in / $25.00 out per 1M tokens
+anthropic/claude-haiku-4.5                       ctx 200000    $1.00 in / $5.00 out per 1M tokens
+anthropic/claude-haiku-4.5:batch                 ctx 200000    $0.50 in / $2.50 out per 1M tokens
+anthropic/claude-opus-4                          ctx 200000    $15.00 in / $75.00 out per 1M tokens
+anthropic/claude-opus-4.1                        ctx 200000    $15.00 in / $75.00 out per 1M tokens
+anthropic/claude-opus-4.1:batch                  ctx 200000    $7.50 in / $37.50 out per 1M tokens
+anthropic/claude-opus-4.5                        ctx 200000    $5.00 in / $25.00 out per 1M tokens
+anthropic/claude-opus-4.5:batch                  ctx 200000    $2.50 in / $12.50 out per 1M tokens
+anthropic/claude-opus-4.6                        ctx 1000000   $5.00 in / $25.00 out per 1M tokens
+anthropic/claude-opus-4.6:batch                  ctx 1000000   $2.50 in / $12.50 out per 1M tokens
+anthropic/claude-opus-4.7                        ctx 1000000   $5.00 in / $25.00 out per 1M tokens
+anthropic/claude-opus-4.7:batch                  ctx 1000000   $2.50 in / $12.50 out per 1M tokens
+anthropic/claude-opus-4.8                        ctx 1000000   $5.00 in / $25.00 out per 1M tokens
+anthropic/claude-opus-4.8:batch                  ctx 1000000   $2.50 in / $12.50 out per 1M tokens
+anthropic/claude-opus-5                          ctx 1000000   $5.00 in / $25.00 out per 1M tokens
+anthropic/claude-opus-5:batch                    ctx 1000000   $2.50 in / $12.50 out per 1M tokens
+anthropic/claude-sonnet-4                        ctx 1000000   $3.00 in / $15.00 out per 1M tokens
+anthropic/claude-sonnet-4.5                      ctx 1000000   $3.00 in / $15.00 out per 1M tokens
+anthropic/claude-sonnet-4.5:batch                ctx 1000000   $1.50 in / $7.50 out per 1M tokens
+anthropic/claude-sonnet-4.6                      ctx 1000000   $3.00 in / $15.00 out per 1M tokens
+anthropic/claude-sonnet-4.6:batch                ctx 1000000   $1.50 in / $7.50 out per 1M tokens
+anthropic/claude-sonnet-5                        ctx 1000000   $2.00 in / $10.00 out per 1M tokens
+anthropic/claude-sonnet-5:batch                  ctx 1000000   $1.00 in / $5.00 out per 1M tokens
+arcee-ai/trinity-large-thinking                  ctx 262144    $0.25 in / $0.80 out per 1M tokens
+baidu/ernie-4.5-vl-424b-a47b                     ctx 123000    $0.42 in / $1.25 out per 1M tokens
+bytedance-seed/seed-1.6                          ctx 262144    $0.25 in / $2.00 out per 1M tokens
+bytedance-seed/seed-1.6-flash                    ctx 262144    $0.07 in / $0.30 out per 1M tokens
+bytedance-seed/seed-2-1-turbo                    ctx 262144    $0.50 in / $2.50 out per 1M tokens
+bytedance-seed/seed-2.0-code                     ctx 262144    $0.50 in / $3.00 out per 1M tokens
+bytedance-seed/seed-2.0-lite                     ctx 262144    $0.25 in / $2.00 out per 1M tokens
+bytedance-seed/seed-2.0-mini                     ctx 262144    $0.10 in / $0.40 out per 1M tokens
+bytedance/ui-tars-1.5-7b                         ctx 128000    $0.10 in / $0.20 out per 1M tokens
+cognitivecomputations/dolphin-mistral-24b-venice-edition ctx 128000    $0.20 in / $0.90 out per 1M tokens
+cohere/command-a                                 ctx 256000    $2.50 in / $10.00 out per 1M tokens
+cohere/command-r-08-2024                         ctx 128000    $0.15 in / $0.60 out per 1M tokens
+cohere/command-r-plus-08-2024                    ctx 128000    $2.50 in / $10.00 out per 1M tokens
+cohere/command-r7b-12-2024                       ctx 128000    $0.04 in / $0.15 out per 1M tokens
+deepseek/deepseek-chat                           ctx 163840    $0.26 in / $1.03 out per 1M tokens
+deepseek/deepseek-chat-v3-0324                   ctx 163840    $0.25 in / $1.00 out per 1M tokens
+deepseek/deepseek-chat-v3.1                      ctx 163840    $0.25 in / $0.95 out per 1M tokens
+deepseek/deepseek-r1                             ctx 64000     $0.70 in / $2.50 out per 1M tokens
+deepseek/deepseek-r1-0528                        ctx 163840    $0.50 in / $2.15 out per 1M tokens
+deepseek/deepseek-r1-distill-llama-70b           ctx 8192      $0.80 in / $0.80 out per 1M tokens
+deepseek/deepseek-v3.1-terminus                  ctx 163840    $0.27 in / $1.00 out per 1M tokens
+deepseek/deepseek-v3.2                           ctx 163840    $0.27 in / $0.40 out per 1M tokens
+deepseek/deepseek-v3.2-exp                       ctx 163840    $0.27 in / $0.41 out per 1M tokens
+deepseek/deepseek-v4-flash                       ctx 1048576   $0.08 in / $0.16 out per 1M tokens
+deepseek/deepseek-v4-flash-0731                  ctx 1310720   $0.07 in / $0.18 out per 1M tokens
+deepseek/deepseek-v4-flash-0731:batch            ctx 1048576   $0.14 in / $0.28 out per 1M tokens
+deepseek/deepseek-v4-flash-vision-exp            ctx 1048576   $0.22 in / $0.66 out per 1M tokens
+deepseek/deepseek-v4-pro                         ctx 1048576   $1.03 in / $2.05 out per 1M tokens
+deepseek/deepseek-v4-pro-0813                    ctx 1048576   $0.66 in / $1.98 out per 1M tokens
+deepseek/deepseek-v4-pro-0813:batch              ctx 1048576   $1.32 in / $3.96 out per 1M tokens
+google/gemini-2.5-flash                          ctx 1048576   $0.30 in / $2.50 out per 1M tokens
+google/gemini-2.5-flash-image                    ctx 32768     $0.30 in / $2.50 out per 1M tokens
+google/gemini-2.5-flash-lite                     ctx 1048576   $0.10 in / $0.40 out per 1M tokens
+google/gemini-2.5-flash-lite:batch               ctx 1048576   $0.05 in / $0.20 out per 1M tokens
+google/gemini-2.5-flash:batch                    ctx 1048576   $0.15 in / $1.25 out per 1M tokens
+google/gemini-2.5-pro                            ctx 1048576   $1.25 in / $10.00 out per 1M tokens
+google/gemini-2.5-pro-preview                    ctx 1048576   $1.25 in / $10.00 out per 1M tokens
+google/gemini-2.5-pro-preview-05-06              ctx 1048576   $1.25 in / $10.00 out per 1M tokens
+google/gemini-2.5-pro:batch                      ctx 1048576   $0.62 in / $5.00 out per 1M tokens
+google/gemini-3-flash-preview                    ctx 1048576   $0.50 in / $3.00 out per 1M tokens
+google/gemini-3-flash-preview:batch              ctx 1048576   $0.25 in / $1.50 out per 1M tokens
+google/gemini-3-pro-image                        ctx 131072    $2.00 in / $12.00 out per 1M tokens
+google/gemini-3-pro-image-preview                ctx 65536     $2.00 in / $12.00 out per 1M tokens
+google/gemini-3.1-flash-image                    ctx 131072    $0.50 in / $3.00 out per 1M tokens
+google/gemini-3.1-flash-image-preview            ctx 65536     $0.50 in / $3.00 out per 1M tokens
+google/gemini-3.1-flash-lite                     ctx 1048576   $0.25 in / $1.50 out per 1M tokens
+google/gemini-3.1-flash-lite-image               ctx 65536     $0.25 in / $1.50 out per 1M tokens
+google/gemini-3.1-flash-lite-preview             ctx 1048576   $0.25 in / $1.50 out per 1M tokens
+google/gemini-3.1-flash-lite:batch               ctx 1048576   $0.12 in / $0.75 out per 1M tokens
+google/gemini-3.1-pro-preview                    ctx 1048576   $2.00 in / $12.00 out per 1M tokens
+google/gemini-3.1-pro-preview-customtools        ctx 1048576   $2.00 in / $12.00 out per 1M tokens
+google/gemini-3.1-pro-preview:batch              ctx 1048576   $1.00 in / $6.00 out per 1M tokens
+google/gemini-3.5-flash                          ctx 1048576   $1.50 in / $9.00 out per 1M tokens
+google/gemini-3.5-flash-lite                     ctx 1048576   $0.30 in / $2.50 out per 1M tokens
+google/gemini-3.5-flash-lite:batch               ctx 1048576   $0.15 in / $1.25 out per 1M tokens
+google/gemini-3.5-flash:batch                    ctx 1048576   $0.75 in / $4.50 out per 1M tokens
+google/gemini-3.6-flash                          ctx 1048576   $0.75 in / $3.75 out per 1M tokens
+google/gemini-3.6-flash:batch                    ctx 1048576   $0.38 in / $1.88 out per 1M tokens
+google/gemini-3.7-flash                          ctx 1048576   $0.75 in / $3.75 out per 1M tokens
+google/gemini-3.7-flash:batch                    ctx 1048576   $0.38 in / $1.88 out per 1M tokens
+google/gemini-3.8-flash                          ctx 1048576   $0.75 in / $3.75 out per 1M tokens
+google/gemini-3.8-flash:batch                    ctx 1048576   $0.38 in / $1.88 out per 1M tokens
+google/gemma-2-27b-it                            ctx 8192      $0.65 in / $0.65 out per 1M tokens
+google/gemma-3-12b-it                            ctx 131072    $0.05 in / $0.15 out per 1M tokens
+google/gemma-3-27b-it                            ctx 131072    $0.08 in / $0.45 out per 1M tokens
+google/gemma-3-4b-it                             ctx 131072    $0.05 in / $0.10 out per 1M tokens
+google/gemma-4-26b-a4b-it                        ctx 262144    $0.07 in / $0.34 out per 1M tokens
+google/gemma-4-31b-it                            ctx 262144    $0.09 in / $0.34 out per 1M tokens
+google/gemma-4-31b-it:batch                      ctx 262144    $0.39 in / $0.97 out per 1M tokens
+gryphe/mythomax-l2-13b                           ctx 8192      $0.06 in / $0.06 out per 1M tokens
+ibm-granite/granite-4.0-h-micro                  ctx 131000    $0.02 in / $0.11 out per 1M tokens
+ibm-granite/granite-4.1-8b                       ctx 131072    $0.05 in / $0.10 out per 1M tokens
+ibm-granite/granite-4.2-8b                       ctx 131072    $0.10 in / $0.15 out per 1M tokens
+inception/mercury-2                              ctx 128000    $0.25 in / $0.75 out per 1M tokens
+inception/mercury-2.5-preview                    ctx 260000    $0.04 in / $0.15 out per 1M tokens
+inclusionai/ling-3.0-flash                       ctx 262144    $0.02 in / $0.06 out per 1M tokens
+kwaipilot/kat-coder-pro-v2                       ctx 262144    $0.30 in / $1.20 out per 1M tokens
+kwaipilot/kat-coder-pro-v2.5                     ctx 262144    $0.74 in / $2.96 out per 1M tokens
+mancer/weaver                                    ctx 8000      $0.40 in / $0.75 out per 1M tokens
+meituan/longcat-2.0                              ctx 1048756   $0.30 in / $1.20 out per 1M tokens
+meta-llama/llama-3.1-70b-instruct                ctx 131072    $0.40 in / $0.40 out per 1M tokens
+meta-llama/llama-3.1-8b-instruct                 ctx 131072    $0.05 in / $0.08 out per 1M tokens
+meta-llama/llama-3.2-1b-instruct                 ctx 60000     $0.03 in / $0.20 out per 1M tokens
+meta-llama/llama-3.2-3b-instruct                 ctx 131072    $0.05 in / $0.33 out per 1M tokens
+meta-llama/llama-3.3-70b-instruct                ctx 131072    $0.71 in / $0.71 out per 1M tokens
+meta-llama/llama-4-maverick                      ctx 1048576   $0.20 in / $0.70 out per 1M tokens
+meta-llama/llama-4-scout                         ctx 1310720   $0.10 in / $0.30 out per 1M tokens
+meta-llama/llama-guard-4-12b                     ctx 163840    $0.18 in / $0.18 out per 1M tokens
+meta/muse-glimmer-30b                            ctx 131072    $0.30 in / $1.20 out per 1M tokens
+meta/muse-glimmer-30b:batch                      ctx 131072    $0.35 in / $1.50 out per 1M tokens
+meta/muse-spark-1.1                              ctx 1048576   $1.25 in / $4.25 out per 1M tokens
+meta/muse-spark-1.2                              ctx 1048576   $1.25 in / $4.25 out per 1M tokens
+meta/muse-spark-1.2-contributor                  ctx 1048576   $0.10 in / $0.20 out per 1M tokens
+meta/muse-spark-1.3                              ctx 1048576   $1.25 in / $4.25 out per 1M tokens
+meta/muse-spark-1.3-contributor                  ctx 1048576   $0.10 in / $0.20 out per 1M tokens
+microsoft/phi-4                                  ctx 16384     $0.07 in / $0.14 out per 1M tokens
+microsoft/wizardlm-2-8x22b                       ctx 65535     $0.62 in / $0.62 out per 1M tokens
+minimax/minimax-01                               ctx 1000192   $0.20 in / $1.10 out per 1M tokens
+minimax/minimax-m1                               ctx 1000000   $0.55 in / $2.20 out per 1M tokens
+minimax/minimax-m2                               ctx 204800    $0.26 in / $1.02 out per 1M tokens
+minimax/minimax-m2-her                           ctx 65536     $0.30 in / $1.20 out per 1M tokens
+minimax/minimax-m2.1                             ctx 204800    $0.30 in / $1.20 out per 1M tokens
+minimax/minimax-m2.5                             ctx 204800    $0.27 in / $1.08 out per 1M tokens
+minimax/minimax-m2.7                             ctx 204800    $0.30 in / $1.20 out per 1M tokens
+minimax/minimax-m3                               ctx 1048576   $0.30 in / $1.20 out per 1M tokens
+minimax/minimax-m3:batch                         ctx 524288    $0.30 in / $1.20 out per 1M tokens
+mistralai/codestral-2508                         ctx 256000    $0.30 in / $0.90 out per 1M tokens
+mistralai/devstral-2512                          ctx 262144    $0.40 in / $2.00 out per 1M tokens
+mistralai/ministral-14b-2512                     ctx 262144    $0.20 in / $0.20 out per 1M tokens
+mistralai/ministral-3b-2512                      ctx 131072    $0.10 in / $0.10 out per 1M tokens
+mistralai/ministral-8b-2512                      ctx 262144    $0.15 in / $0.15 out per 1M tokens
+mistralai/mistral-large                          ctx 128000    $2.00 in / $6.00 out per 1M tokens
+mistralai/mistral-large-2407                     ctx 131072    $2.00 in / $6.00 out per 1M tokens
+mistralai/mistral-large-2512                     ctx 262144    $0.50 in / $1.50 out per 1M tokens
+mistralai/mistral-medium-3                       ctx 131072    $0.40 in / $2.00 out per 1M tokens
+mistralai/mistral-medium-3-5                     ctx 262144    $1.50 in / $7.50 out per 1M tokens
+mistralai/mistral-medium-3-5:batch               ctx 262144    $0.75 in / $3.75 out per 1M tokens
+mistralai/mistral-medium-3.1                     ctx 131072    $0.40 in / $2.00 out per 1M tokens
+mistralai/mistral-nemo                           ctx 131072    $0.02 in / $0.03 out per 1M tokens
+mistralai/mistral-saba                           ctx 32768     $0.20 in / $0.60 out per 1M tokens
+mistralai/mistral-small-24b-instruct-2501        ctx 32768     $0.05 in / $0.08 out per 1M tokens
+mistralai/mistral-small-2603                     ctx 262144    $0.15 in / $0.60 out per 1M tokens
+mistralai/mistral-small-3.1-24b-instruct         ctx 128000    $0.35 in / $0.55 out per 1M tokens
+mistralai/mistral-small-3.2-24b-instruct         ctx 131072    $0.07 in / $0.20 out per 1M tokens
+mistralai/mixtral-8x22b-instruct                 ctx 65536     $2.00 in / $6.00 out per 1M tokens
+mistralai/voxtral-small-24b-2507                 ctx 32768     $0.10 in / $0.30 out per 1M tokens
+moonshotai/kimi-k2                               ctx 131072    $0.57 in / $2.30 out per 1M tokens
+moonshotai/kimi-k2-0905                          ctx 262144    $0.60 in / $2.50 out per 1M tokens
+moonshotai/kimi-k2-thinking                      ctx 262144    $0.60 in / $2.50 out per 1M tokens
+moonshotai/kimi-k2.5                             ctx 262144    $0.45 in / $2.25 out per 1M tokens
+moonshotai/kimi-k2.6                             ctx 262144    $0.95 in / $4.00 out per 1M tokens
+moonshotai/kimi-k2.7-code                        ctx 262144    $0.66 in / $3.40 out per 1M tokens
+moonshotai/kimi-k3                               ctx 1048576   $3.00 in / $15.00 out per 1M tokens
+moonshotai/kimi-k3:batch                         ctx 1048576   $3.00 in / $15.00 out per 1M tokens
+morph/morph-v3-fast                              ctx 81920     $0.80 in / $1.20 out per 1M tokens
+morph/morph-v3-large                             ctx 262144    $0.90 in / $1.90 out per 1M tokens
+nex-agi/nex-n2-mini                              ctx 262144    $0.02 in / $0.10 out per 1M tokens
+nex-agi/nex-n2-pro                               ctx 262144    $0.25 in / $1.00 out per 1M tokens
+nousresearch/hermes-3-llama-3.1-405b             ctx 131072    $1.00 in / $1.00 out per 1M tokens
+nousresearch/hermes-3-llama-3.1-70b              ctx 131072    $0.70 in / $0.70 out per 1M tokens
+nousresearch/hermes-4-405b                       ctx 131072    $1.00 in / $3.00 out per 1M tokens
+nousresearch/hermes-4-70b                        ctx 131072    $0.13 in / $0.40 out per 1M tokens
+nvidia/nemotron-3-nano-30b-a3b                   ctx 262144    $0.05 in / $0.20 out per 1M tokens
+nvidia/nemotron-3-super-120b-a12b                ctx 1000000   $0.08 in / $0.40 out per 1M tokens
+nvidia/nemotron-3-ultra-550b-a55b                ctx 262144    $0.60 in / $2.40 out per 1M tokens
+nvidia/nemotron-3-ultra-550b-a55b:batch          ctx 512288    $0.60 in / $3.60 out per 1M tokens
+nvidia/nemotron-3.5-lightning                    ctx 262144    $0.08 in / $0.20 out per 1M tokens
+openai/gpt-3.5-turbo                             ctx 16385     $0.50 in / $1.50 out per 1M tokens
+openai/gpt-3.5-turbo-0613                        ctx 4095      $1.00 in / $2.00 out per 1M tokens
+openai/gpt-3.5-turbo-16k                         ctx 16385     $3.00 in / $4.00 out per 1M tokens
+openai/gpt-3.5-turbo-instruct                    ctx 4095      $1.50 in / $2.00 out per 1M tokens
+openai/gpt-3.5-turbo:batch                       ctx 16385     $0.25 in / $0.75 out per 1M tokens
+openai/gpt-4                                     ctx 8191      $30.00 in / $60.00 out per 1M tokens
+openai/gpt-4-turbo                               ctx 128000    $10.00 in / $30.00 out per 1M tokens
+openai/gpt-4-turbo-preview                       ctx 128000    $10.00 in / $30.00 out per 1M tokens
+openai/gpt-4-turbo:batch                         ctx 128000    $5.00 in / $15.00 out per 1M tokens
+openai/gpt-4.1                                   ctx 1047576   $2.00 in / $8.00 out per 1M tokens
+openai/gpt-4.1-mini                              ctx 1047576   $0.40 in / $1.60 out per 1M tokens
+openai/gpt-4.1-mini:batch                        ctx 1047576   $0.20 in / $0.80 out per 1M tokens
+openai/gpt-4.1-nano                              ctx 1047576   $0.10 in / $0.40 out per 1M tokens
+openai/gpt-4.1-nano:batch                        ctx 1047576   $0.05 in / $0.20 out per 1M tokens
+openai/gpt-4.1:batch                             ctx 1047576   $1.00 in / $4.00 out per 1M tokens
+openai/gpt-4o                                    ctx 128000    $2.50 in / $10.00 out per 1M tokens
+openai/gpt-4o-2024-05-13                         ctx 128000    $5.00 in / $15.00 out per 1M tokens
+openai/gpt-4o-2024-08-06                         ctx 128000    $2.50 in / $10.00 out per 1M tokens
+openai/gpt-4o-2024-11-20                         ctx 128000    $2.50 in / $10.00 out per 1M tokens
+openai/gpt-4o-mini                               ctx 128000    $0.15 in / $0.60 out per 1M tokens
+openai/gpt-4o-mini-2024-07-18                    ctx 128000    $0.15 in / $0.60 out per 1M tokens
+openai/gpt-4o-mini:batch                         ctx 128000    $0.07 in / $0.30 out per 1M tokens
+openai/gpt-4o:batch                              ctx 128000    $1.25 in / $5.00 out per 1M tokens
+openai/gpt-5                                     ctx 400000    $1.25 in / $10.00 out per 1M tokens
+openai/gpt-5-image                               ctx 400000    $10.00 in / $10.00 out per 1M tokens
+openai/gpt-5-image-mini                          ctx 400000    $2.50 in / $2.00 out per 1M tokens
+openai/gpt-5-mini                                ctx 400000    $0.25 in / $2.00 out per 1M tokens
+openai/gpt-5-mini:batch                          ctx 400000    $0.12 in / $1.00 out per 1M tokens
+openai/gpt-5-nano                                ctx 400000    $0.05 in / $0.40 out per 1M tokens
+openai/gpt-5-nano:batch                          ctx 400000    $0.02 in / $0.20 out per 1M tokens
+openai/gpt-5-pro                                 ctx 400000    $15.00 in / $120.00 out per 1M tokens
+openai/gpt-5-pro:batch                           ctx 400000    $7.50 in / $60.00 out per 1M tokens
+openai/gpt-5.1                                   ctx 400000    $1.25 in / $10.00 out per 1M tokens
+openai/gpt-5.1-codex                             ctx 400000    $1.25 in / $10.00 out per 1M tokens
+openai/gpt-5.1-codex-max                         ctx 400000    $1.25 in / $10.00 out per 1M tokens
+openai/gpt-5.1-codex-mini                        ctx 400000    $0.25 in / $2.00 out per 1M tokens
+openai/gpt-5.1:batch                             ctx 400000    $0.62 in / $5.00 out per 1M tokens
+openai/gpt-5.2                                   ctx 400000    $1.75 in / $14.00 out per 1M tokens
+openai/gpt-5.2-chat                              ctx 128000    $1.75 in / $14.00 out per 1M tokens
+openai/gpt-5.2-codex                             ctx 400000    $1.75 in / $14.00 out per 1M tokens
+openai/gpt-5.2-pro                               ctx 400000    $21.00 in / $168.00 out per 1M tokens
+openai/gpt-5.2-pro:batch                         ctx 400000    $10.50 in / $84.00 out per 1M tokens
+openai/gpt-5.2:batch                             ctx 400000    $0.88 in / $7.00 out per 1M tokens
+openai/gpt-5.3-codex                             ctx 400000    $1.75 in / $14.00 out per 1M tokens
+openai/gpt-5.4                                   ctx 1050000   $2.50 in / $15.00 out per 1M tokens
+openai/gpt-5.4-image-2                           ctx 272000    $8.00 in / $15.00 out per 1M tokens
+openai/gpt-5.4-mini                              ctx 400000    $0.75 in / $4.50 out per 1M tokens
+openai/gpt-5.4-mini:batch                        ctx 400000    $0.38 in / $2.25 out per 1M tokens
+openai/gpt-5.4-nano                              ctx 400000    $0.20 in / $1.25 out per 1M tokens
+openai/gpt-5.4-nano:batch                        ctx 400000    $0.10 in / $0.62 out per 1M tokens
+openai/gpt-5.4-pro                               ctx 1050000   $30.00 in / $180.00 out per 1M tokens
+openai/gpt-5.4-pro:batch                         ctx 1050000   $15.00 in / $90.00 out per 1M tokens
+openai/gpt-5.4:batch                             ctx 1050000   $1.25 in / $7.50 out per 1M tokens
+openai/gpt-5.5                                   ctx 1050000   $5.00 in / $30.00 out per 1M tokens
+openai/gpt-5.5-pro                               ctx 1050000   $30.00 in / $180.00 out per 1M tokens
+openai/gpt-5.5-pro:batch                         ctx 1050000   $15.00 in / $90.00 out per 1M tokens
+openai/gpt-5.5:batch                             ctx 1050000   $2.50 in / $15.00 out per 1M tokens
+openai/gpt-5.6-luna                              ctx 1050000   $0.20 in / $1.20 out per 1M tokens
+openai/gpt-5.6-luna-pro                          ctx 1050000   $0.20 in / $1.20 out per 1M tokens
+openai/gpt-5.6-luna-pro:batch                    ctx 1050000   $0.10 in / $0.60 out per 1M tokens
+openai/gpt-5.6-luna:batch                        ctx 1050000   $0.10 in / $0.60 out per 1M tokens
+openai/gpt-5.6-sol                               ctx 1050000   $2.00 in / $10.00 out per 1M tokens
+openai/gpt-5.6-sol-pro                           ctx 1050000   $2.00 in / $10.00 out per 1M tokens
+openai/gpt-5.6-sol-pro:batch                     ctx 1050000   $1.00 in / $5.00 out per 1M tokens
+openai/gpt-5.6-sol:batch                         ctx 1050000   $1.00 in / $5.00 out per 1M tokens
+openai/gpt-5.6-terra                             ctx 1050000   $2.00 in / $12.00 out per 1M tokens
+openai/gpt-5.6-terra-pro                         ctx 1050000   $2.00 in / $12.00 out per 1M tokens
+openai/gpt-5.6-terra-pro:batch                   ctx 1050000   $1.00 in / $6.00 out per 1M tokens
+openai/gpt-5.6-terra:batch                       ctx 1050000   $1.00 in / $6.00 out per 1M tokens
+openai/gpt-5:batch                               ctx 400000    $0.62 in / $5.00 out per 1M tokens
+openai/gpt-audio                                 ctx 128000    $2.50 in / $10.00 out per 1M tokens
+openai/gpt-audio-mini                            ctx 128000    $0.60 in / $2.40 out per 1M tokens
+openai/gpt-chat-latest                           ctx 400000    $5.00 in / $30.00 out per 1M tokens
+openai/gpt-oss-120b                              ctx 131072    $0.04 in / $0.17 out per 1M tokens
+openai/gpt-oss-120b:batch                        ctx 131072    $0.15 in / $0.60 out per 1M tokens
+openai/gpt-oss-20b                               ctx 131072    $0.03 in / $0.13 out per 1M tokens
+openai/gpt-oss-20b:batch                         ctx 131072    $0.05 in / $0.20 out per 1M tokens
+openai/gpt-oss-safeguard-20b                     ctx 131072    $0.07 in / $0.30 out per 1M tokens
+openai/o1                                        ctx 200000    $15.00 in / $60.00 out per 1M tokens
+openai/o1-pro                                    ctx 200000    $150.00 in / $600.00 out per 1M tokens
+openai/o3                                        ctx 200000    $2.00 in / $8.00 out per 1M tokens
+openai/o3-mini                                   ctx 200000    $1.10 in / $4.40 out per 1M tokens
+openai/o3-mini-high                              ctx 200000    $1.10 in / $4.40 out per 1M tokens
+openai/o3-mini:batch                             ctx 200000    $0.55 in / $2.20 out per 1M tokens
+openai/o3-pro                                    ctx 200000    $20.00 in / $80.00 out per 1M tokens
+openai/o3:batch                                  ctx 200000    $1.00 in / $4.00 out per 1M tokens
+openai/o4-mini                                   ctx 200000    $1.10 in / $4.40 out per 1M tokens
+openai/o4-mini-high                              ctx 200000    $1.10 in / $4.40 out per 1M tokens
+openai/o4-mini:batch                             ctx 200000    $0.55 in / $2.20 out per 1M tokens
+openrouter/auto-beta                             ctx 2000000   $-1000000.00 in / $-1000000.00 out per 1M tokens
+openrouter/bodybuilder                           ctx 128000    $-1000000.00 in / $-1000000.00 out per 1M tokens
+openrouter/fusion                                ctx 1000000   $-1000000.00 in / $-1000000.00 out per 1M tokens
+openrouter/pareto-code                           ctx 2000000   $-1000000.00 in / $-1000000.00 out per 1M tokens
+perceptron/perceptron-mk1                        ctx 32768     $0.15 in / $1.50 out per 1M tokens
+perplexity/sonar                                 ctx 127072    $1.00 in / $1.00 out per 1M tokens
+perplexity/sonar-deep-research                   ctx 128000    $2.00 in / $8.00 out per 1M tokens
+perplexity/sonar-pro                             ctx 200000    $3.00 in / $15.00 out per 1M tokens
+perplexity/sonar-pro-search                      ctx 200000    $3.00 in / $15.00 out per 1M tokens
+perplexity/sonar-reasoning-pro                   ctx 128000    $2.00 in / $8.00 out per 1M tokens
+poolside/laguna-s-2.1                            ctx 1048576   $0.09 in / $0.18 out per 1M tokens
+poolside/laguna-xs-2.1                           ctx 262144    $0.06 in / $0.12 out per 1M tokens
+qwen/qwen-2.5-72b-instruct                       ctx 32768     $0.36 in / $0.40 out per 1M tokens
+qwen/qwen-2.5-7b-instruct                        ctx 32768     $0.10 in / $0.20 out per 1M tokens
+qwen/qwen-2.5-coder-32b-instruct                 ctx 32768     $0.66 in / $1.00 out per 1M tokens
+qwen/qwen-plus                                   ctx 1000000   $0.26 in / $0.78 out per 1M tokens
+qwen/qwen-plus-2025-07-28                        ctx 1000000   $0.26 in / $0.78 out per 1M tokens
+qwen/qwen2.5-vl-72b-instruct                     ctx 128000    $0.25 in / $0.75 out per 1M tokens
+qwen/qwen3-14b                                   ctx 131072    $0.12 in / $0.24 out per 1M tokens
+qwen/qwen3-235b-a22b                             ctx 131072    $0.45 in / $1.82 out per 1M tokens
+qwen/qwen3-235b-a22b-2507                        ctx 262144    $0.09 in / $0.35 out per 1M tokens
+qwen/qwen3-235b-a22b-thinking-2507               ctx 131072    $0.23 in / $2.30 out per 1M tokens
+qwen/qwen3-30b-a3b                               ctx 131072    $0.12 in / $0.50 out per 1M tokens
+qwen/qwen3-30b-a3b-instruct-2507                 ctx 262144    $0.05 in / $0.19 out per 1M tokens
+qwen/qwen3-30b-a3b-thinking-2507                 ctx 81920     $0.20 in / $2.40 out per 1M tokens
+qwen/qwen3-32b                                   ctx 131072    $0.08 in / $0.28 out per 1M tokens
+qwen/qwen3-8b                                    ctx 131072    $0.12 in / $0.45 out per 1M tokens
+qwen/qwen3-coder                                 ctx 262144    $0.30 in / $1.00 out per 1M tokens
+qwen/qwen3-coder-30b-a3b-instruct                ctx 262144    $0.07 in / $0.28 out per 1M tokens
+qwen/qwen3-coder-flash                           ctx 1000000   $0.20 in / $0.97 out per 1M tokens
+qwen/qwen3-coder-next                            ctx 262144    $0.12 in / $0.80 out per 1M tokens
+qwen/qwen3-coder-plus                            ctx 1000000   $0.65 in / $3.25 out per 1M tokens
+qwen/qwen3-max                                   ctx 262144    $0.78 in / $3.90 out per 1M tokens
+qwen/qwen3-max-thinking                          ctx 262144    $0.78 in / $3.90 out per 1M tokens
+qwen/qwen3-next-80b-a3b-instruct                 ctx 262144    $0.10 in / $1.10 out per 1M tokens
+qwen/qwen3-next-80b-a3b-thinking                 ctx 262144    $0.15 in / $1.20 out per 1M tokens
+qwen/qwen3-vl-235b-a22b-instruct                 ctx 262144    $0.21 in / $1.90 out per 1M tokens
+qwen/qwen3-vl-235b-a22b-thinking                 ctx 131072    $0.40 in / $4.00 out per 1M tokens
+qwen/qwen3-vl-30b-a3b-instruct                   ctx 262144    $0.15 in / $0.60 out per 1M tokens
+qwen/qwen3-vl-30b-a3b-thinking                   ctx 262144    $0.20 in / $2.40 out per 1M tokens
+qwen/qwen3-vl-32b-instruct                       ctx 131072    $0.10 in / $0.42 out per 1M tokens
+qwen/qwen3-vl-8b-instruct                        ctx 262144    $0.12 in / $0.45 out per 1M tokens
+qwen/qwen3-vl-8b-thinking                        ctx 131072    $0.18 in / $2.10 out per 1M tokens
+qwen/qwen3.5-122b-a10b                           ctx 262144    $0.29 in / $2.40 out per 1M tokens
+qwen/qwen3.5-27b                                 ctx 262144    $0.20 in / $1.56 out per 1M tokens
+qwen/qwen3.5-35b-a3b                             ctx 262144    $0.25 in / $1.25 out per 1M tokens
+qwen/qwen3.5-397b-a17b                           ctx 262144    $0.39 in / $2.34 out per 1M tokens
+qwen/qwen3.5-9b                                  ctx 262144    $0.10 in / $0.15 out per 1M tokens
+qwen/qwen3.5-9b:batch                            ctx 262144    $0.17 in / $0.25 out per 1M tokens
+qwen/qwen3.5-flash-02-23                         ctx 1000000   $0.07 in / $0.26 out per 1M tokens
+qwen/qwen3.5-plus-02-15                          ctx 1000000   $0.26 in / $1.56 out per 1M tokens
+qwen/qwen3.5-plus-20260420                       ctx 1000000   $0.30 in / $1.80 out per 1M tokens
+qwen/qwen3.6-27b                                 ctx 262144    $0.60 in / $3.60 out per 1M tokens
+qwen/qwen3.6-35b-a3b                             ctx 262144    $0.10 in / $0.90 out per 1M tokens
+qwen/qwen3.6-flash                               ctx 1000000   $0.19 in / $1.12 out per 1M tokens
+qwen/qwen3.6-max-preview                         ctx 262144    $1.03 in / $6.16 out per 1M tokens
+qwen/qwen3.6-plus                                ctx 1000000   $0.33 in / $1.95 out per 1M tokens
+qwen/qwen3.7-flash                               ctx 1000000   $0.03 in / $0.13 out per 1M tokens
+qwen/qwen3.7-max                                 ctx 1000000   $1.48 in / $4.42 out per 1M tokens
+qwen/qwen3.7-plus                                ctx 1000000   $0.32 in / $1.28 out per 1M tokens
+qwen/qwen3.8-2.4t-a95b                           ctx 1048576   $2.00 in / $6.00 out per 1M tokens
+qwen/qwen3.8-2.4t-a95b:batch                     ctx 1010000   $2.00 in / $6.00 out per 1M tokens
+qwen/qwen3.8-27b                                 ctx 1000000   $0.42 in / $2.55 out per 1M tokens
+qwen/qwen3.8-flash                               ctx 1000000   $0.15 in / $0.47 out per 1M tokens
+qwen/qwen3.8-max                                 ctx 1000000   $2.00 in / $6.00 out per 1M tokens
+rekaai/reka-edge                                 ctx 16384     $0.10 in / $0.10 out per 1M tokens
+rekaai/reka-flash-3                              ctx 65536     $0.10 in / $0.20 out per 1M tokens
+relace/relace-apply-3                            ctx 256000    $0.85 in / $1.25 out per 1M tokens
+relace/relace-search                             ctx 256000    $1.00 in / $3.00 out per 1M tokens
+sakana/fugu-ultra                                ctx 1000000   $5.00 in / $30.00 out per 1M tokens
+sakana/sakana-namazu                             ctx 262144    $0.95 in / $4.00 out per 1M tokens
+sao10k/l3-lunaris-8b                             ctx 8192      $0.04 in / $0.05 out per 1M tokens
+sao10k/l3.1-euryale-70b                          ctx 131072    $0.85 in / $0.85 out per 1M tokens
+sao10k/l3.3-euryale-70b                          ctx 131072    $0.65 in / $0.75 out per 1M tokens
+stepfun/step-3.5-flash                           ctx 262144    $0.10 in / $0.30 out per 1M tokens
+stepfun/step-3.7-flash                           ctx 262144    $0.20 in / $1.15 out per 1M tokens
+tencent/hunyuan-a13b-instruct                    ctx 131072    $0.14 in / $0.57 out per 1M tokens
+tencent/hy-mt2-1.8b                              ctx 8192      $0.04 in / $0.18 out per 1M tokens
+tencent/hy-mt2-30b-a3b                           ctx 8192      $0.07 in / $0.29 out per 1M tokens
+tencent/hy-mt2-7b                                ctx 8192      $0.07 in / $0.29 out per 1M tokens
+tencent/hy3                                      ctx 262144    $0.08 in / $0.33 out per 1M tokens
+tencent/hy3-preview                              ctx 262144    $0.18 in / $0.60 out per 1M tokens
+tencent/hy4-preview                              ctx 1048576   $0.83 in / $2.50 out per 1M tokens
+thedrummer/cydonia-24b-v4.1                      ctx 131072    $0.30 in / $0.50 out per 1M tokens
+thedrummer/skyfall-36b-v2                        ctx 32768     $0.55 in / $0.80 out per 1M tokens
+thedrummer/unslopnemo-12b                        ctx 1024000   $0.40 in / $0.40 out per 1M tokens
+thinkingmachines/inkling                         ctx 1048576   $1.00 in / $4.05 out per 1M tokens
+thinkingmachines/inkling-small                   ctx 1048576   $0.45 in / $1.20 out per 1M tokens
+thinkingmachines/inkling-small:batch             ctx 524288    $0.50 in / $1.20 out per 1M tokens
+thinkingmachines/inkling:batch                   ctx 524288    $1.00 in / $4.05 out per 1M tokens
+undi95/remm-slerp-l2-13b                         ctx 6144      $0.45 in / $0.65 out per 1M tokens
+upstage/solar-pro-3                              ctx 131072    $0.15 in / $0.60 out per 1M tokens
+upstage/solar-pro4                               ctx 524288    $0.03 in / $0.12 out per 1M tokens
+writer/palmyra-x5                                ctx 1040000   $0.60 in / $6.00 out per 1M tokens
+x-ai/grok-4.20                                   ctx 2000000   $1.25 in / $2.50 out per 1M tokens
+x-ai/grok-4.20-multi-agent                       ctx 2000000   $1.25 in / $2.50 out per 1M tokens
+x-ai/grok-4.3                                    ctx 1000000   $1.25 in / $2.50 out per 1M tokens
+x-ai/grok-4.5                                    ctx 500000    $2.00 in / $6.00 out per 1M tokens
+x-ai/grok-4.6                                    ctx 500000    $2.00 in / $6.00 out per 1M tokens
+x-ai/grok-build-0.1                              ctx 256000    $1.00 in / $2.00 out per 1M tokens
+xiaomi/mimo-v2.5                                 ctx 1050000   $0.14 in / $0.28 out per 1M tokens
+xiaomi/mimo-v2.5-pro                             ctx 1050000   $0.43 in / $0.87 out per 1M tokens
+z-ai/glm-4.5                                     ctx 131072    $0.60 in / $2.20 out per 1M tokens
+z-ai/glm-4.5-air                                 ctx 131072    $0.13 in / $0.85 out per 1M tokens
+z-ai/glm-4.5v                                    ctx 65536     $0.60 in / $1.80 out per 1M tokens
+z-ai/glm-4.6                                     ctx 204800    $0.43 in / $1.75 out per 1M tokens
+z-ai/glm-4.6v                                    ctx 131072    $0.30 in / $0.90 out per 1M tokens
+z-ai/glm-4.7                                     ctx 204800    $0.40 in / $1.75 out per 1M tokens
+z-ai/glm-4.7-flash                               ctx 202752    $0.06 in / $0.40 out per 1M tokens
+z-ai/glm-5                                       ctx 204800    $0.60 in / $1.92 out per 1M tokens
+z-ai/glm-5-turbo                                 ctx 202752    $1.20 in / $4.00 out per 1M tokens
+z-ai/glm-5.1                                     ctx 204800    $0.97 in / $3.04 out per 1M tokens
+z-ai/glm-5.2                                     ctx 1048576   $0.97 in / $3.04 out per 1M tokens
+z-ai/glm-5.3                                     ctx 1310720   $1.40 in / $4.40 out per 1M tokens
+z-ai/glm-5.3-flash                               ctx 1310720   $0.07 in / $0.25 out per 1M tokens
+z-ai/glm-5.3-flash:batch                         ctx 1048575   $0.15 in / $0.50 out per 1M tokens
+z-ai/glm-5v-turbo                                ctx 202752    $1.20 in / $4.00 out per 1M tokens
+~anthropic/claude-fable-latest                   ctx 1000000   $10.00 in / $50.00 out per 1M tokens
+~anthropic/claude-haiku-latest                   ctx 200000    $1.00 in / $5.00 out per 1M tokens
+~anthropic/claude-opus-latest                    ctx 1000000   $5.00 in / $25.00 out per 1M tokens
+~anthropic/claude-sonnet-latest                  ctx 1000000   $2.00 in / $10.00 out per 1M tokens
+~deepseek/deepseek-v4-flash-latest               ctx 1310720   $0.05 in / $0.16 out per 1M tokens
+~google/gemini-flash-latest                      ctx 1048576   $0.75 in / $3.75 out per 1M tokens
+~google/gemini-pro-latest                        ctx 1048576   $2.00 in / $12.00 out per 1M tokens
+~moonshotai/kimi-latest                          ctx 1048576   $2.55 in / $12.75 out per 1M tokens
+~openai/gpt-latest                               ctx 1050000   $2.00 in / $10.00 out per 1M tokens
+~openai/gpt-mini-latest                          ctx 400000    $0.75 in / $4.50 out per 1M tokens
+~x-ai/grok-latest                                ctx 500000    $2.00 in / $6.00 out per 1M tokens
+~z-ai/glm-flash-latest                           ctx 1310720   $0.07 in / $0.25 out per 1M tokens
+~z-ai/glm-latest                                 ctx 1310720   $1.15 in / $3.50 out per 1M tokens
+
+switch: /model <id|alias>  (shortcuts: /model claude-pro, /model claude-max, /model gpt-plus, /model gpt-plus-terra, /model gpt-plus-luna, /model gpt-pro, /model gpt-pro-sol, /model gpt-pro-terra, /model gpt-pro-luna)
+
+❯ 
+=== 21:01:26 send: /mode agent ===
+/mode agent
+mode: agent
+claude restarted in agent mode (claude-fable (Claude Max, via the claude CLI))
+agent lane: claude-fable → claude-opus → claude-sonnet → claude-haiku
+
+❯ 
+=== 21:01:26 send: Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga ===
+Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga
+chapter 1: Initialize the Go module and add a main.go with a subcommand dispatcher that prints usage for add, list and done.
+◆ planning (claude-fable)…
+◆ single-step task, running directly
+kolk-agent I'll check the repo state, then init the module and write main.go.
+· Bash: {"command":"ls -la && cat SAGA.md && go version","description":"Inspect repo and Go version"}
+  → ok total 8
+
+· Bash: {"command":"go mod init tinytodo 2>&1 && cat > main.go <<'EOF'\n// Command tinytodo is a tiny task m…
+  → ok go: creating new go.mod: module tinytodo
+Chapter 1 is done and verified.
+
+**What changed**
+- `go.mod` created with module name tinytodo, Go 1.27.
+- `main.go` added with a `run(args) int` dispatcher. It handles add, list and done by printing their usage lines, prints full usage on help, and prints usage plus exits 1 on no command or an unknown command.
+
+**Verification**
+- `gofmt -l .` reported nothing, `go vet ./...` passed, `go build` succeeded.
+- Smoke test: no args and an unknown command both exit 1 with usage. Each of add, list and done prints its usage line and exits 0.
+
+The dispatcher is a plain function returning an exit code, so later chapters can unit test it without spawning a process. Next chapter should add the task model and tasks.json load and save.
+  [agent · claude-fable-5-1 · 1150 tok · $0.1400 · 18013ms]
+saga "Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README.": wake complete at chapter 1. Include /saga in your next request for the next chapter.
+
+❯ 
+=== 21:01:52 no more input; sending /exit ===
+/exit
+
+=== 21:01:53 kolk exited: status=0 (exited=True) ===
+
+=== 21:01:53 driver end ===
+
+
+######## stage B ########
+
+=== 21:03:10 driver start; cwd=/tmp/claude-1000/-home-onembyte-Projects-kolkrabbi/707bdcb2-0b95-4749-867d-8ed27b0bc1b6/scratchpad/f72-repo; argv=/tmp/claude-1000/-home-onembyte-Projects-kolkrabbi/707bdcb2-0b95-4749-867d-8ed27b0bc1b6/scratchpad/bin/kolk --model claude-fable -P full-auto -r ===
+
+=== 21:03:10 input, verbatim (sent one line per prompt) ===
+  > /mode
+  > /mode agent
+  > Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga
+
+=== 21:03:10 output, verbatim ===
+full-auto on claude: the vendor child runs with bypassPermissions — kolk's hardline blocklist does not apply inside it, and the child keeps this mode until the session ends.
+kolk — mode: code · effort: medium · model: claude-fable  (full-auto)
+session: s_01M1HYTEP4PA4TPD084TN1P8YK  (resumed, 2 messages)
+Type your request, or /help for commands. Ctrl+C interrupts a turn, /exit quits.
+
+❯ 
+=== 21:03:10 send: /mode ===
+/mode
+mode: code (chat|code|agent)
+
+❯ 
+=== 21:03:10 send: /mode agent ===
+/mode agent
+mode: agent
+claude restarted in agent mode (claude-fable (Claude Max, via the claude CLI))
+agent lane: claude-fable → claude-opus → claude-sonnet → claude-haiku
+
+❯ 
+=== 21:03:10 send: Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga ===
+Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga
+chapter 2: Add a Task struct and a store with load and save functions for tasks.json, with unit tests covering round-trip and missing file.
+◆ planning (claude-fable)…
+◆ single-step task, running directly
+kolk-agent I'll add store.go with the Task struct plus load/save, and store_test.go, then run the tests.
+· Bash: {"command":"cat > store.go <<'EOF'\npackage main\n\nimport (\n\t\"encoding/json\"\n\t\"errors\"\n\t\…
+  → ok === RUN   TestLoadTasksMissingFile
+Chapter 2 is done and verified.
+
+**What changed**
+- `store.go` adds the Task struct with id, text and done JSON fields. The `loadTasks` function returns an empty non-nil slice when tasks.json is missing and errors on invalid JSON. The `saveTasks` function writes indented JSON with a trailing newline and treats a nil slice as empty.
+- `store_test.go` covers the missing file case, a save-then-load round trip, saving an empty list, and invalid JSON.
+
+**Verification**
+- gofmt reported nothing, `go vet` passed, and all four tests pass under `go test ./...`.
+
+Next chapter should wire the add subcommand to load, append with the next ID, and save.
+  [agent · claude-fable-5-1 · 1635 tok · $0.2562 · 20391ms]
+saga "Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README.": wake complete at chapter 2. Include /saga in your next request for the next chapter.
+
+❯ 
+=== 21:03:42 no more input; sending /exit ===
+/exit
+
+=== 21:03:42 kolk exited: status=0 (exited=True) ===
+
+=== 21:03:42 driver end ===
+
+
+######## stage C ########
+
+=== 21:04:22 driver start; cwd=/tmp/claude-1000/-home-onembyte-Projects-kolkrabbi/707bdcb2-0b95-4749-867d-8ed27b0bc1b6/scratchpad/f72-repo; argv=/tmp/claude-1000/-home-onembyte-Projects-kolkrabbi/707bdcb2-0b95-4749-867d-8ed27b0bc1b6/scratchpad/bin/kolk --model claude-fable -P full-auto -r ===
+
+=== 21:04:22 input, verbatim (sent one line per prompt) ===
+  > /mode
+  > /mode agent
+  > Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga
+
+=== 21:04:22 output, verbatim ===
+full-auto on claude: the vendor child runs with bypassPermissions — kolk's hardline blocklist does not apply inside it, and the child keeps this mode until the session ends.
+kolk — mode: code · effort: medium · model: claude-fable  (full-auto)
+session: s_01M1HYTEP4PA4TPD084TN1P8YK  (resumed, 4 messages)
+Type your request, or /help for commands. Ctrl+C interrupts a turn, /exit quits.
+
+❯ 
+=== 21:04:22 send: /mode ===
+/mode
+mode: code (chat|code|agent)
+
+❯ 
+=== 21:04:22 send: /mode agent ===
+/mode agent
+mode: agent
+claude restarted in agent mode (claude-fable (Claude Max, via the claude CLI))
+agent lane: claude-fable → claude-opus → claude-sonnet → claude-haiku
+
+❯ 
+=== 21:04:22 send: Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga ===
+Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga
+chapter 3: Implement the add subcommand to load tasks, append one with the next ID, save, and print it, with a unit test.
+◆ planning (claude-fable)…
+◆ single-step task, running directly
+kolk-agent I'll add commands.go with addTask, wire it into main.go, and add tests.
+· Bash: {"command":"cat main.go","description":"Review current main.go"}
+  → ok // Command tinytodo is a tiny task manager backed by tasks.json.
+
+· Bash: {"command":"cat > commands.go <<'EOF'\npackage main\n\nimport (\n\t\"errors\"\n\t\"fmt\"\n\t\"io\"\n…
+  → ok ok  	tinytodo	0.006s
+Tests pass. The smoke run failed only because I built from the wrong directory. Rerunning it properly.
+· Bash: {"command":"go build -o /tmp/tinytodo . && D=$(mktemp -d) && (cd \"$D\" && /tmp/tinytodo add hello w…
+  → ok Added #1: hello world
+Chapter 3 is done and verified.
+
+**What changed**
+- `commands.go` adds `addTask`, which trims the text, rejects blank input, loads the store, assigns max ID plus one, saves, and prints the created task. It also defines the default store path tasks.json.
+- `main.go` wires the add case to join the remaining args with spaces and call addTask. Missing text prints usage and exits 1, and store errors exit 1.
+- `commands_test.go` covers sequential IDs with trimmed text, max-plus-one after a gap, blank text not persisting, and run add with no text returning 1.
+
+**Verification**
+- gofmt reported nothing, `go vet` passed, and all tests pass under `go test ./...`.
+- Smoke test in a temp dir: two adds produced IDs 1 and 2 in tasks.json, and a bare add exited 1 with usage.
+
+Next chapter should implement the list subcommand to print tasks with their done state.
+  [agent · claude-fable-5-1 · 3214 tok · $0.4955 · 34558ms]
+saga "Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README.": wake complete at chapter 3. Include /saga in your next request for the next chapter.
+
+❯ 
+=== 21:05:07 no more input; sending /exit ===
+/exit
+
+=== 21:05:07 kolk exited: status=0 (exited=True) ===
+
+=== 21:05:07 driver end ===
+
+
+######## stage D ########
+
+=== 21:06:14 driver start; cwd=/tmp/claude-1000/-home-onembyte-Projects-kolkrabbi/707bdcb2-0b95-4749-867d-8ed27b0bc1b6/scratchpad/f72-repo; argv=/tmp/claude-1000/-home-onembyte-Projects-kolkrabbi/707bdcb2-0b95-4749-867d-8ed27b0bc1b6/scratchpad/bin/kolk --model claude-fable -P full-auto -r ===
+
+=== 21:06:14 input, verbatim (sent one line per prompt) ===
+  > /mode
+  > /mode agent
+  > Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga
+
+=== 21:06:14 output, verbatim ===
+full-auto on claude: the vendor child runs with bypassPermissions — kolk's hardline blocklist does not apply inside it, and the child keeps this mode until the session ends.
+kolk — mode: code · effort: medium · model: claude-fable  (full-auto)
+session: s_01M1HYTEP4PA4TPD084TN1P8YK  (resumed, 6 messages)
+Type your request, or /help for commands. Ctrl+C interrupts a turn, /exit quits.
+
+❯ 
+=== 21:06:14 send: /mode ===
+/mode
+mode: code (chat|code|agent)
+
+❯ 
+=== 21:06:14 send: /mode agent ===
+/mode agent
+mode: agent
+claude restarted in agent mode (claude-fable (Claude Max, via the claude CLI))
+agent lane: claude-fable → claude-opus → claude-sonnet → claude-haiku
+
+❯ 
+=== 21:06:14 send: Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga ===
+Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga
+chapter 4: Implement the list subcommand to print each task with its ID, done marker and text, with a unit test.
+◆ planning (claude-fable)…
+◆ single-step task, running directly
+kolk-agent I'll add listTasks to commands.go, wire the list case in main.go, and add tests.
+· Bash: {"command":"cat >> commands.go <<'EOF'\n\n// listTasks prints every task in the store at path, one p…
+  → ok ok  	tinytodo	0.005s
+Chapter 4 is done and verified.
+
+**What changed**
+- `commands.go` adds `listTasks`, which loads the store and prints one line per task with its ID, an x or blank marker in brackets, and the text. An empty or missing store prints "No tasks.".
+- `main.go` wires the list case to call listTasks on tasks.json and exit 1 on error.
+- `commands_test.go` adds tests for the exact output with a mix of done and undone tasks, and for the empty store message.
+
+**Verification**
+- gofmt reported nothing, `go vet` passed, and all tests pass under `go test ./...`.
+- Smoke test in a temp dir: list printed "No tasks." before any adds, then both added tasks with blank markers.
+
+Next chapter should implement the done subcommand to mark a task by ID and save.
+  [agent · claude-fable-5-1 · 1293 tok · $0.1644 · 18649ms]
+saga "Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README.": wake complete at chapter 4. Include /saga in your next request for the next chapter.
+
+❯ 
+=== 21:06:44 no more input; sending /exit ===
+/exit
+
+=== 21:06:44 kolk exited: status=0 (exited=True) ===
+
+=== 21:06:44 driver end ===
+
+
+######## stage E ########
+
+=== 21:07:44 driver start; cwd=/tmp/claude-1000/-home-onembyte-Projects-kolkrabbi/707bdcb2-0b95-4749-867d-8ed27b0bc1b6/scratchpad/f72-repo; argv=/tmp/claude-1000/-home-onembyte-Projects-kolkrabbi/707bdcb2-0b95-4749-867d-8ed27b0bc1b6/scratchpad/bin/kolk --model claude-fable -P full-auto -r ===
+
+=== 21:07:44 input, verbatim (sent one line per prompt) ===
+  > /mode
+  > /mode agent
+  > Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga
+
+=== 21:07:44 output, verbatim ===
+full-auto on claude: the vendor child runs with bypassPermissions — kolk's hardline blocklist does not apply inside it, and the child keeps this mode until the session ends.
+kolk — mode: code · effort: medium · model: claude-fable  (full-auto)
+session: s_01M1HYTEP4PA4TPD084TN1P8YK  (resumed, 8 messages)
+Type your request, or /help for commands. Ctrl+C interrupts a turn, /exit quits.
+
+❯ 
+=== 21:07:44 send: /mode ===
+/mode
+mode: code (chat|code|agent)
+
+❯ 
+=== 21:07:44 send: /mode agent ===
+/mode agent
+mode: agent
+claude restarted in agent mode (claude-fable (Claude Max, via the claude CLI))
+agent lane: claude-fable → claude-opus → claude-sonnet → claude-haiku
+
+❯ 
+=== 21:07:44 send: Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga ===
+Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga
+chapter 5: Implement the done subcommand to mark a task by ID as done, save, and print it, with unit tests for a valid ID and an unknown ID.
+◆ planning (claude-fable)…
+◆ single-step task, running directly
+kolk-agent I'll add doneTask to commands.go, wire the done case in main.go with ID parsing, and add tests.
+· Bash: {"command":"cat >> commands.go <<'EOF'\n\n// doneTask marks the task with the given ID as done in th…
+  → ok ok  	tinytodo	0.007s
+Chapter 5 is done and verified.
+
+**What changed**
+- `commands.go` adds `doneTask`, which loads the store, finds the task by ID, sets it done, saves, and prints the updated task. An unknown ID returns an error without touching the store.
+- `main.go` wires the done case to require exactly one argument, parse it as an integer, and call doneTask on tasks.json. Missing, extra or non-numeric arguments exit 1.
+- `commands_test.go` adds tests that a valid ID marks only that task, that an unknown ID errors with the store unchanged, and that run rejects bad done arguments.
+
+**Verification**
+- gofmt reported nothing, `go vet` passed, and all tests pass under `go test ./...`.
+- Smoke test in a temp dir: done 2 printed the task and list showed it marked, while an unknown ID and a non-numeric ID both exited 1 with an error.
+
+All three subcommands now work end to end. Next chapter should write the README with usage and examples.
+  [agent · claude-fable-5-1 · 1853 tok · $0.2253 · 24036ms]
+saga "Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README.": wake complete at chapter 5. Include /saga in your next request for the next chapter.
+
+❯ 
+=== 21:08:18 no more input; sending /exit ===
+/exit
+
+=== 21:08:19 kolk exited: status=0 (exited=True) ===
+
+=== 21:08:19 driver end ===
+
+
+######## stage F ########
+
+=== 21:09:12 driver start; cwd=/tmp/claude-1000/-home-onembyte-Projects-kolkrabbi/707bdcb2-0b95-4749-867d-8ed27b0bc1b6/scratchpad/f72-repo; argv=/tmp/claude-1000/-home-onembyte-Projects-kolkrabbi/707bdcb2-0b95-4749-867d-8ed27b0bc1b6/scratchpad/bin/kolk --model claude-fable -P full-auto -r ===
+
+=== 21:09:12 input, verbatim (sent one line per prompt) ===
+  > /mode
+  > /mode agent
+  > Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga
+
+=== 21:09:12 output, verbatim ===
+full-auto on claude: the vendor child runs with bypassPermissions — kolk's hardline blocklist does not apply inside it, and the child keeps this mode until the session ends.
+kolk — mode: code · effort: medium · model: claude-fable  (full-auto)
+session: s_01M1HYTEP4PA4TPD084TN1P8YK  (resumed, 10 messages)
+Type your request, or /help for commands. Ctrl+C interrupts a turn, /exit quits.
+
+❯ 
+=== 21:09:13 send: /mode ===
+/mode
+mode: code (chat|code|agent)
+
+❯ 
+=== 21:09:13 send: /mode agent ===
+/mode agent
+mode: agent
+claude restarted in agent mode (claude-fable (Claude Max, via the claude CLI))
+agent lane: claude-fable → claude-opus → claude-sonnet → claude-haiku
+
+❯ 
+=== 21:09:13 send: Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga ===
+Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga
+chapter 6: Write the README with a description, build and install instructions, and usage examples for add, list and done.
+◆ planning (claude-fable)…
+◆ single-step task, running directly
+kolk-agent I'll check the existing README, then write it against the real binary output.
+· Bash: {"command":"cat README.md; echo ---; go build -o /tmp/tinytodo . && D=$(mktemp -d) && (cd \"$D\" && …
+  → ok # tinytodo
+
+· Bash: {"command":"cat > README.md <<'EOF'\n# tinytodo\n\nA tiny command-line to-do list written in Go. It …
+  → ok ok  	tinytodo	(cached)
+Chapter 6 is done and verified.
+
+**What changed**
+- `README.md` replaced the placeholder with a description, build and install instructions, a usage section, per-subcommand examples for add, list and done, a storage section showing the tasks.json format, and a development section with the test command.
+
+**Verification**
+- Every example in the README was captured from the actual built binary in a temp dir before writing, so the documented outputs and exit behavior match the code.
+- gofmt reported nothing, `go vet` passed, and `go test ./...` passes.
+
+All parts of the overall goal are now in place: the three subcommands, JSON storage, unit tests, and the README.
+  [agent · claude-fable-5-1 · 1255 tok · $0.2038 · 20925ms]
+saga "Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README.": wake complete at chapter 6. Include /saga in your next request for the next chapter.
+
+❯ 
+=== 21:09:43 no more input; sending /exit ===
+/exit
+
+=== 21:09:44 kolk exited: status=0 (exited=True) ===
+
+=== 21:09:44 driver end ===
+
+
+######## stage G ########
+
+=== 21:10:48 driver start; cwd=/tmp/claude-1000/-home-onembyte-Projects-kolkrabbi/707bdcb2-0b95-4749-867d-8ed27b0bc1b6/scratchpad/f72-repo; argv=/tmp/claude-1000/-home-onembyte-Projects-kolkrabbi/707bdcb2-0b95-4749-867d-8ed27b0bc1b6/scratchpad/bin/kolk --model claude-fable -P full-auto -r ===
+
+=== 21:10:48 input, verbatim (sent one line per prompt) ===
+  > /mode
+  > /mode agent
+  > Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga
+
+=== 21:10:48 output, verbatim ===
+full-auto on claude: the vendor child runs with bypassPermissions — kolk's hardline blocklist does not apply inside it, and the child keeps this mode until the session ends.
+kolk — mode: code · effort: medium · model: claude-fable  (full-auto)
+session: s_01M1HYTEP4PA4TPD084TN1P8YK  (resumed, 12 messages)
+Type your request, or /help for commands. Ctrl+C interrupts a turn, /exit quits.
+
+❯ 
+=== 21:10:48 send: /mode ===
+/mode
+mode: code (chat|code|agent)
+
+❯ 
+=== 21:10:48 send: /mode agent ===
+/mode agent
+mode: agent
+claude restarted in agent mode (claude-fable (Claude Max, via the claude CLI))
+agent lane: claude-fable → claude-opus → claude-sonnet → claude-haiku
+
+❯ 
+=== 21:10:48 send: Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga ===
+Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga
+saga "Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README.": every acceptance criterion is met. SAGA.md is finished; the next /saga request archives it and starts a new saga.
+
+❯ 
+=== 21:10:52 no more input; sending /exit ===
+/exit
+
+=== 21:10:52 kolk exited: status=0 (exited=True) ===
+
+=== 21:10:52 driver end ===
+
+
+######## stage H ########
+
+=== 21:12:25 driver start; cwd=/tmp/claude-1000/-home-onembyte-Projects-kolkrabbi/707bdcb2-0b95-4749-867d-8ed27b0bc1b6/scratchpad/f72-repo; argv=/tmp/claude-1000/-home-onembyte-Projects-kolkrabbi/707bdcb2-0b95-4749-867d-8ed27b0bc1b6/scratchpad/bin/kolk --model claude-fable -P full-auto -r ===
+
+=== 21:12:25 input, verbatim (sent one line per prompt) ===
+  > /mode agent
+  > Add a --json flag to tinytodo list that prints the tasks as a JSON array, with a unit test. /saga
+
+=== 21:12:25 output, verbatim ===
+full-auto on claude: the vendor child runs with bypassPermissions — kolk's hardline blocklist does not apply inside it, and the child keeps this mode until the session ends.
+kolk — mode: code · effort: medium · model: claude-fable  (full-auto)
+session: s_01M1HYTEP4PA4TPD084TN1P8YK  (resumed, 12 messages)
+Type your request, or /help for commands. Ctrl+C interrupts a turn, /exit quits.
+
+❯ 
+=== 21:12:25 send: /mode agent ===
+/mode agent
+mode: agent
+claude restarted in agent mode (claude-fable (Claude Max, via the claude CLI))
+agent lane: claude-fable → claude-opus → claude-sonnet → claude-haiku
+
+❯ 
+=== 21:12:25 send: Add a --json flag to tinytodo list that prints the tasks as a JSON array, with a unit test. /saga ===
+Add a --json flag to tinytodo list that prints the tasks as a JSON array, with a unit test. /saga
+saga "Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README." was completed; archived to SAGA.20260902-180126.md. starting a new saga "Add a --json flag to tinytodo list that prints the tasks as a JSON array, with a unit test.".
+chapter 1: Add a --json flag to the list subcommand that prints the tasks as an indented JSON array, with a unit test.
+◆ planning (claude-fable)…
+◆ single-step task, running directly
+kolk-agent I'll extend listTasks with a JSON mode, wire a --json flag in main.go, add tests, and update the README.
+· Bash: {"command":"grep -n \"listTasks\\|list \" main.go commands.go commands_test.go README.md","descripti…
+  → ok main.go:15:  list         list all tasks
+
+· Bash: {"command":"python3 - <<'EOF'\nimport re\n# commands.go\np='commands.go'; s=open(p).read()\ns=s.repl…
+  → ok commands_test.go
+gofmt flagged commands_test.go (import ordering). Fixing that and rerunning.
+· Bash: {"command":"gofmt -w commands_test.go && gofmt -l . && go vet ./... && go test ./... 2>&1 | tail -2 …
+  → ok ok  	tinytodo	(cached)
+Chapter 1 is done and verified.
+
+**What changed**
+- `commands.go` gives `listTasks` an asJSON parameter. When set, it writes the tasks as an indented JSON array with a trailing newline, and an empty store prints an empty array.
+- `main.go` accepts an optional --json argument on list. Any other argument prints the list usage line and exits 1. The top-level usage text now shows the flag.
+- `commands_test.go` adds tests that JSON output is an indented array that round-trips back to the same tasks, that an empty store yields an empty array, and that run rejects unknown list arguments. Existing list tests pass false for the new parameter.
+- `README.md` documents the flag in the usage block and list section with example output.
+
+**Verification**
+- gofmt reports nothing after formatting the test file, `go vet` passes, and all tests pass under `go test ./...`.
+- Smoke test in a temp dir: list --json printed an empty array before any adds, then the full indented array after adding and completing tasks. Plain list still prints text lines, and an unknown flag exits 1 with usage.
+  [agent · claude-fable-5-1 · 2582 tok · $0.3357 · 36211ms]
+saga "Add a --json flag to tinytodo list that prints the tasks as a JSON array, with a unit test.": wake complete at chapter 1. Include /saga in your next request for the next chapter.
+
+❯ 
+=== 21:13:13 no more input; sending /exit ===
+/exit
+
+=== 21:13:13 kolk exited: status=0 (exited=True) ===
+
+=== 21:13:13 driver end ===

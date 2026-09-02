@@ -11140,8 +11140,47 @@ lands, so a partial F7 is still a truthful one.
   job — `gofmt`, `go vet`, `build (CGO_ENABLED=0)`, `test (every module)` all success. Recorded at
   that strength: the macOS job runs neither `-race` nor the static gates, which CI keeps on Ubuntu.
   This run is the first green `ci` on `main` since at least 2026-08-31.
-- **F7.2 — live Fable transcript.** Not started; spends the owner's Claude Max quota and waits for an
-  explicit go.
+- **F7.2 — live Fable transcript. Done**, owner's go given for the full run. Verbatim pty capture in
+  `docs/transcripts/f72-fable-saga-2026-09-02.txt`. Shape: `/plans` → `/pmodels` → `/model` →
+  `/mode agent` (lane line) → saga on `claude-fable` in an empty scratch git repo: six chapters over
+  six wakes (the planner's granularity, not three), a seventh wake declaring every acceptance
+  criterion met and the artifact finished, then a new goal that archived it and planned its own
+  chapter 1. Every chapter committed by the saga; `go vet` and `go test` pass in the scratch repo
+  afterwards. Vendor catalog moved `claude-fable` from `unverified` to `verified` with exact id
+  `claude-fable-5-1` on the first answered turn (F4's promise, seen live).
+  **The first attempt died on its first command**, which is what this point exists to find:
+  1. *Adapter.* Claude Code 2.1.258 emits `system/permission_denied` with `message` as a plain
+     string; `wireFrame.Message` was a struct, so one denied command ended the turn with a Go struct
+     dump. Fixed by lazy decoding; anchored by a real 19-frame capture
+     (`spec/testdata/foreign/claude-permission-denied.ndjson`, normalised ids); mutation of the guard
+     goes red. The reason is not lost: the vendor repeats it in the `tool_result` that follows.
+  2. *Permissions.* `docs/plan/04 §4.2` designs kolk's full-auto to reach a Claude child as
+     `--permission-mode bypassPermissions`; nothing had built it, so the child always ran
+     `acceptEdits` and, with nobody there to approve, every non-trivial Bash command was denied. Built
+     through `engine.SubagentCapabilities.Permission` (read from the agent at open time) →
+     `agentcli.ExecutionOptions.BypassPermissions` → the mode flag (never
+     `--dangerously-skip-permissions`), said once per session on stderr; chat mode ignores it. Tests
+     at all three layers; both guards mutate red. The envelope-less Claude constructor went with it.
+  3. *Hint.* The first-failure hint printed "if it is not signed in…" for any error; it now prints
+     the actual error first.
+  4. *Driver.* Piped stdin is single-shot in kolk (run.go reads it whole), so the earlier "stage A"
+     sent four slash commands to the model as one prompt. The transcript runs on a pty with
+     `TERM=dumb`, one input line per prompt.
+  **Found during the run, recorded:**
+  5. *Catalog.* `cohere/north-mini-code:free` appeared under the *claude* vendor as `verified` with
+     exact id `claude-fable-5-1`. Mechanism established: `ClampToCeiling` passes an unranked id
+     through, `backendFor` sends every non-owned prefix to the session backend, the persistent child
+     cannot change model after spawn and answers on the one it has, and `VendorCatalogs.Verify`
+     creates a row for any asked id. The recorder now refuses a model the vendor does not list and
+     says so once (`TestAVendorVerifiesOnlyModelsItLists`, mutation red). A zero-quota experiment
+     (slash-only session, no turn) does not recreate the row, so the asker is a turn-time call.
+     **Open:** which call asked the Claude child for a gateway id — config is empty, tiers and slots
+     unset, the saga path names no model, the planner schema carries none. The note the recorder
+     prints now will name it on the next occurrence.
+  6. *Resume.* `-r` restores model and effort (run.go precedence) but the session does not persist
+     mode, so `/mode agent` was repeated on every wake. Not built here; a session-schema change.
+  Quota: seven agent turns on `claude-fable-5-1` (12,982 tokens by kolk's count) plus the two
+  failed attempts and four one-turn diagnostic `claude -p` calls.
 - **F7.3 — independent review of F1–F3.** Not started.
 - **F7.4 — V34 leaves.** Not started; depends on the evidence from F7.1–F7.3.
 

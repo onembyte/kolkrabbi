@@ -558,9 +558,30 @@ reruns the failure matrices.
   Ubuntu only; the macOS half is recorded at that strength and not as a full `make check`. It is
   also the first green `ci` on `main` since at least 2026-08-31: the v1.2.31 and v1.2.32 pushes both
   failed the same macOS test that F6's closing commit fixed.
-- [ ] **F7.2** Manual Fable transcript in an isolated repo: install → `claude` login → `kolk --model
+- [x] **F7.2** Manual Fable transcript in an isolated repo: install → `claude` login → `kolk --model
   claude-fable` → `/mode agent` (ceiling line) → a three-chapter saga across three wakes → reset with a
   new goal. Recorded verbatim in `docs/build-log.md`.
+  **Done 2026-09-02**, verbatim capture in `docs/transcripts/f72-fable-saga-2026-09-02.txt` (978 lines;
+  the build log quotes the decisive exchanges and links it). What ran: `/plans` (Claude Max connector
+  present), `/pmodels` (F4's discovery table, claude via gateway preview, codex via `codex debug
+  models`), `/model`, `/mode agent` (lane line `claude-fable → claude-opus → claude-sonnet →
+  claude-haiku`), then a saga. **Deviations, recorded rather than smoothed:** the planner chose six
+  chapters, not three, so the saga took six wakes plus a seventh that declared every acceptance
+  criterion met — the reset rule in `docs/plan/10` needs a finished artifact, so that is what the
+  reset ran against, and it archived to `SAGA.20260902-180126.md` and planned chapter 1 of the new
+  goal exactly as written. Login was not re-run: a Claude Max connector already existed and `/plans`
+  is the evidence. `-P full-auto` was added to the command so an unattended run could proceed.
+  **The first attempt failed on its first command and found two defects** (fixed in `8bb243f0`,
+  before the transcript): the adapter died on `system/permission_denied`, whose `message` is a
+  string; and plan 04 §4.2's full-auto → `bypassPermissions` mapping had never been built, so the
+  child could edit files and run nothing. **Two more surfaced during the run**: a gateway model id
+  was recorded as a verified *claude* model with `claude-fable-5-1` as its exact id — the vendor
+  child answers whatever it is asked on the model it was spawned with, and the recorder verified the
+  wrong name (guarded now, said once; *which call asked the Claude child for a gateway model is still
+  open*, see F7 dossier); and a resumed session restores model and effort but not mode, so `/mode
+  agent` had to be repeated every wake (recorded, not built). Every chapter the saga committed
+  passes `go vet` and `go test` in the scratch repo. SAGA.md's own ledger: $4.05 of a $5.00 limit
+  across 6 chapters; the reset's chapter 1 a further $1.16.
 - [ ] **F7.3** Independent review of F1, F2, F3 diffs against their invariants; reviewer and commands
   named in `CHECKPOINTS.md`.
 - [ ] **F7.4** Tick the corresponding V34 leaves (`V34.1a`, `V34.1b`, `V34.3a/b/f`, `V34.4a/b`) or

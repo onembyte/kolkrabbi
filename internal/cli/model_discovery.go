@@ -105,6 +105,18 @@ func (a *app) recordVendorModelOutcome(vendor, asked string, meta provider.Meta,
 	}
 	switch {
 	case turnErr == nil:
+		// A vendor can only verify a model it lists. The persistent child
+		// answers whatever it is asked with the model it was spawned on, so an
+		// id from elsewhere — a gateway model routed to the session backend —
+		// would be recorded as a verified vendor model with another model's
+		// exact id. Seen live on 2026-09-02: cohere/north-mini-code:free
+		// "verified" under claude with exact id claude-fable-5-1. Not
+		// recorded, and said once, because a request that reached the wrong
+		// vendor is a routing fault worth a line, not a catalog row.
+		if !a.vendorKnowsModel(store, vendor, asked) {
+			a.noteUnknownAskedOnce(vendor, asked, meta.Model)
+			return
+		}
 		store.Verify(vendor, asked, meta.Model, time.Now())
 	case agentcli.IsModelRefusal(turnErr):
 		if !store.Gone(vendor, asked) {
@@ -330,4 +342,22 @@ func (a *app) planModels(filter string) []provider.PlanModel {
 
 func (a *app) resolvePlanModel(ref string, manifest provider.ConnectorManifest) (provider.PlanModel, error) {
 	return provider.ResolvePlanModelFrom(a.vendorCatalogs(), ref, manifest)
+}
+
+// noteUnknownAskedOnce says, once per (vendor, model), that a vendor answered
+// a request for a model it does not list. It names what actually answered.
+func (a *app) noteUnknownAskedOnce(vendor, asked, answered string) {
+	key := strings.ToLower(vendor) + "\x00" + strings.ToLower(strings.TrimSpace(asked))
+	if a.unknownAskedNoted == nil {
+		a.unknownAskedNoted = map[string]bool{}
+	}
+	if a.unknownAskedNoted[key] {
+		return
+	}
+	a.unknownAskedNoted[key] = true
+	if answered == "" {
+		answered = "its own model"
+	}
+	fmt.Fprintf(a.stderr, "note: %s was asked for %s, which it does not list, and answered on %s; not recorded as a %s model\n",
+		vendor, asked, answered, vendor)
 }

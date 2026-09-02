@@ -311,3 +311,36 @@ func TestRungAvailabilityFollowsTheVendorCatalog(t *testing.T) {
 		t.Fatal("pmodels does not carry the discovered model")
 	}
 }
+
+// A vendor verifies only models it lists. Live on 2026-09-02 a gateway model
+// was routed to the session's Claude child, which answered on the model it
+// was spawned with, and the outcome recorder wrote it into the Claude catalog
+// as verified with another model's exact id. The recorder now refuses the
+// row and says so once; a listed rung still verifies.
+func TestAVendorVerifiesOnlyModelsItLists(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	a, _, errOut := newTestApp(t, "")
+	a.dirs = dirs
+	store := provider.VendorCatalogs{Vendors: map[string]provider.VendorCatalog{"claude": {Vendor: "claude", Models: []provider.DiscoveredModel{
+		{ID: "claude-fable", Status: provider.StatusUnverified},
+	}}}}
+	if err := provider.SaveVendorCatalogs(dirs.VendorCatalogFile(), store); err != nil {
+		t.Fatal(err)
+	}
+	a.recordVendorModelOutcome("claude", "cohere/north-mini-code:free", provider.Meta{Model: "claude-fable-5-1"}, nil)
+	a.recordVendorModelOutcome("claude", "cohere/north-mini-code:free", provider.Meta{Model: "claude-fable-5-1"}, nil)
+	a.recordVendorModelOutcome("claude", "claude-fable", provider.Meta{Model: "claude-fable-5-1"}, nil)
+	after, err := provider.LoadVendorCatalogs(dirs.VendorCatalogFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found := after.Vendors["claude"].Find("cohere/north-mini-code:free"); found {
+		t.Fatalf("a model claude does not list was recorded as a claude model:\n%+v", after.Vendors["claude"].Models)
+	}
+	if row, found := after.Vendors["claude"].Find("claude-fable"); !found || row.Status != provider.StatusVerified {
+		t.Fatalf("the listed rung was not verified: found=%v row=%+v", found, row)
+	}
+	if n := strings.Count(errOut.String(), "which it does not list"); n != 1 {
+		t.Fatalf("the note was said %d times, want once:\n%s", n, errOut.String())
+	}
+}

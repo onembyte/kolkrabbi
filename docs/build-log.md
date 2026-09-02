@@ -6220,6 +6220,129 @@ compiles and the tests pass. Every place that *types* the old name has to be fou
 script that types it twenty times an hour is worse than a user who types it once, because nobody
 reads its output.
 
+## F7.2 — the first live Fable saga, and what it took to get there (2026-09-02)
+
+The plan's line for this point reads like a demo script: install, sign in, pick Fable, switch to
+agent mode, run a saga, reset it. The first attempt died on the saga's first command, and that is
+the point of running things for real.
+
+Two things were wrong. Claude Code 2.1.258 answers a Bash command it will not run with a
+`system/permission_denied` frame whose `message` is a plain string, and kolk's adapter had typed
+that field as an object — so one denial ended the turn with a Go struct dump for an error. And the
+denial itself should never have happened under `-P full-auto`: plan 04 §4.2 maps kolk's full-auto
+onto the vendor's `bypassPermissions`, and nothing had ever built the mapping, so the child ran
+`acceptEdits` with nobody there to approve, could edit files, and could run nothing. Both are fixed
+in `8bb243f0`, both anchored — one by a real capture of the vendor's frames, the other by tests at
+all three layers — and both guards go red under mutation.
+
+The whole thing is captured verbatim in
+[`docs/transcripts/f72-fable-saga-2026-09-02.txt`](transcripts/f72-fable-saga-2026-09-02.txt): a pty
+with `TERM=dumb`, one line sent per prompt, colour stripped, nothing else touched. The decisive
+exchanges, quoted from it.
+
+The session opens, names the loss, and shows where it stands:
+
+```text
+full-auto on claude: the vendor child runs with bypassPermissions — kolk's hardline blocklist does not apply inside it, and the child keeps this mode until the session ends.
+kolk — mode: code · effort: medium · model: claude-fable  (full-auto)
+session: s_01M1HYTEP4PA4TPD084TN1P8YK
+Type your request, or /help for commands. Ctrl+C interrupts a turn, /exit quits.
+
+❯
+```
+
+`/mode agent` restarts the child and prints the lane:
+
+```text
+=== 21:01:26 send: /mode agent ===
+/mode agent
+mode: agent
+claude restarted in agent mode (claude-fable (Claude Max, via the claude CLI))
+agent lane: claude-fable → claude-opus → claude-sonnet → claude-haiku
+
+❯
+```
+
+The saga's first wake, planning and running chapter 1 — with real commands this time:
+
+```text
+=== 21:01:26 send: Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga ===
+Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README. /saga
+chapter 1: Initialize the Go module and add a main.go with a subcommand dispatcher that prints usage for add, list and done.
+◆ planning (claude-fable)…
+◆ single-step task, running directly
+kolk-agent I'll check the repo state, then init the module and write main.go.
+· Bash: {"command":"ls -la && cat SAGA.md && go version","description":"Inspect repo and Go version"}
+  → ok total 8
+
+· Bash: {"command":"go mod init tinytodo 2>&1 && cat > main.go <<'EOF'\n// Command tinytodo is a tiny task m…
+  → ok go: creating new go.mod: module tinytodo
+Chapter 1 is done and verified.
+
+**What changed**
+- `go.mod` created with module name tinytodo, Go 1.27.
+- `main.go` added with a `run(args) int` dispatcher. It handles add, list and done by printing their usage lines, prints full usage on help, and prints usage plus exits 1 on no command or an unknown command.
+
+**Verification**
+- `gofmt -l .` reported nothing, `go vet ./...` passed, `go build` succeeded.
+- Smoke test: no args and an unknown command both exit 1 with usage. Each of add, list and done prints its usage line and exits 0.
+
+The dispatcher is a plain function returning an exit code, so later chapters can unit test it without spawning a process. Next chapter should add the task model and tasks.json load and save.
+  [agent · claude-fable-5-1 · 1150 tok · $0.1400 · 18013ms]
+saga "Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README.": wake complete at chapter 1. Include /saga in your next request for the next chapter.
+
+❯
+```
+
+The planner chose six chapters where the plan's author had imagined three; the artifact reached
+`completed` on the seventh wake, which is what the reset rule in plan 10 waits for:
+
+```text
+saga "Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README.": every acceptance criterion is met. SAGA.md is finished; the next /saga request archives it and starts a new saga.
+
+❯
+```
+
+And the reset — a new goal on a finished artifact archives it and starts over:
+
+```text
+saga "Build a tiny Go CLI called tinytodo with add, list and done subcommands that store tasks in tasks.json, with unit tests and a README." was completed; archived to SAGA.20260902-180126.md. starting a new saga "Add a --json flag to tinytodo list that prints the tasks as a JSON array, with a unit test.".
+chapter 1: Add a --json flag to the list subcommand that prints the tasks as an indented JSON array, with a unit test.
+◆ planning (claude-fable)…
+◆ single-step task, running directly
+kolk-agent I'll extend listTasks with a JSON mode, wire a --json flag in main.go, add tests, and update the README.
+· Bash: {"command":"grep -n \"listTasks\\|list \" main.go commands.go commands_test.go README.md","descripti…
+  → ok main.go:15:  list         list all tasks
+
+· Bash: {"command":"python3 - <<'EOF'\nimport re\n# commands.go\np='commands.go'; s=open(p).read()\ns=s.repl…
+  → ok commands_test.go
+gofmt flagged commands_test.go (import ordering). Fixing that and rerunning.
+· Bash: {"command":"gofmt -w commands_test.go && gofmt -l . && go vet ./... && go test ./... 2>&1 | tail -2 …
+  → ok ok  	tinytodo	(cached)
+Chapter 1 is done and verified.
+
+**What changed**
+- `commands.go` gives `listTasks` an asJSON parameter. When set, it writes the tasks as an indented JSON array with a trailing newline, and an empty store prints an empty array.
+- `main.go` accepts an optional --json argument on list. Any other argument prints the list usage line and exits 1. The top-level usage text now shows the flag.
+- `commands_test.go` adds tests that JSON output is an indented array that round-trips back to the same tasks, that an empty store yields an empty array, and that run rejects unknown list arguments. Existing list tests pass false for the new parameter.
+- `README.md` documents the flag in the usage block and list section with example output.
+
+**Verification**
+- gofmt reports nothing after formatting the test file, `go vet` passes, and all tests pass under `go test ./...`.
+- Smoke test in a temp dir: list --json printed an empty array before any adds, then the full indented array after adding and completing tasks. Plain list still prints text lines, and an unknown flag exits 1 with usage.
+  [agent · claude-fable-5-1 · 2582 tok · $0.3357 · 36211ms]
+saga "Add a --json flag to tinytodo list that prints the tasks as a JSON array, with a unit test.": wake complete at chapter 1. Include /saga in your next request for the next chapter.
+
+❯
+```
+
+Two more things surfaced on the way and are recorded in the F7 dossier rather than fixed here in
+full: a gateway model id turned up in the *claude* catalog as verified, with Fable's exact id beside
+it, because the persistent child answers whatever it is asked on the model it was spawned with —
+the recorder now refuses to verify a model the vendor does not list, and says so once, but which
+call asked for that model is still open. And a resumed session restores model and effort but not
+mode, so `/mode agent` had to be repeated every wake.
+
 ## F6 — four rules that had more than one implementation (2026-09-02)
 
 Nothing here was broken, which is the point: these are the places where the next break would have
