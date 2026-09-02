@@ -79,6 +79,14 @@ func (a *app) runDoctor(ctx context.Context, args []string) error {
 // is named and not run — the Linux installer needs sudo and pipes curl into
 // sh, both of which kolk's own hardline refuses.
 func (a *app) doctorLocalModels(ctx context.Context) {
+	// Guarded like every other reader of this field (run.go, tui_repl.go,
+	// cmd_localia.go): host discovery is injected, nil is a supported state,
+	// and this was the one call site that assumed otherwise — so /doctor took
+	// the whole session down with a nil dereference wherever it was not wired.
+	if a.discoverHost == nil {
+		fmt.Fprintln(a.stdout, "  · host discovery is not wired in this session")
+		return
+	}
 	host := a.discoverHost(ctx)
 	switch host.State {
 	case local.HostRunning:
