@@ -80,7 +80,9 @@ installed_version() {
   # Since v1.2.33 the only commands outside a session are sessions, serve,
   # uninstall and help; the build identity is a line of `kolk help`. Builds
   # before that answer `kolk version` with the same line.
-  output="$("$binary" help 2>/dev/null | awk '$1 == "kolk" && $2 ~ /^v?[0-9]/ { print; exit }')"
+  local help_text
+  help_text="$("$binary" help 2>/dev/null)" || help_text=""
+  output="$(printf '%s\n' "$help_text" | awk '$1 == "kolk" && $2 ~ /^v?[0-9]/ { sub(/^[ \t]+/, ""); print; exit }')"
   if [ -z "$output" ]; then
     output="$("$binary" version 2>/dev/null)" || return 1
   fi

@@ -181,7 +181,8 @@ main() {
     die "extracted host kolk is not a regular file"
   chmod 0755 "$extract_dir/kolk"
   # `kolk version` is a session command since v1.2.33; the identity line is in `kolk help`.
-  version_line="$("$extract_dir/kolk" help 2>/dev/null | awk '$1 == "kolk" && $2 ~ /^v?[0-9]/ { print; exit }')"
+  help_text="$("$extract_dir/kolk" help 2>/dev/null)" || die "host kolk help command failed"
+  version_line="$(printf '%s\n' "$help_text" | awk '$1 == "kolk" && $2 ~ /^v?[0-9]/ { sub(/^[ \t]+/, ""); print; exit }')"
   [ -n "$version_line" ] || die "host kolk help did not print a build identity line"
 
   case "$version_line" in
