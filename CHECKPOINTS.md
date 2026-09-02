@@ -11127,6 +11127,24 @@ Verification greps after the change: one `EvalSymlinks` for verified directories
 the only remaining `ag.RunTurn` calls are the boundary itself, markdown-command expansion, and the
 single-shot path. Gates: `make check`, `-race` on engine, cli, agentcli, shell.
 
+#### F7 — proof and walk-back — in progress 2026-09-02
+
+Closing phase of `FABLE_OPTIMIZATION.md`. Each point is run on its own and recorded here as it
+lands, so a partial F7 is still a truthful one.
+
+- **F7.1 — fresh-clone gate. Done.** Linux: `git clone` at `2992abf8` into a scratch directory, 0
+  untracked or dirty files, `make check` green end to end (spec 29, release 24, release workflow 41,
+  release verifier 30, smoke workflow 18, plan 101, workflow pins 43), then
+  `go test -race -count=1 ./internal/cli ./internal/engine ./internal/provider ./internal/shell
+  ./internal/secret` all `ok`. macOS: CI run `33679111446` on the same commit, `test (macos-latest)`
+  job — `gofmt`, `go vet`, `build (CGO_ENABLED=0)`, `test (every module)` all success. Recorded at
+  that strength: the macOS job runs neither `-race` nor the static gates, which CI keeps on Ubuntu.
+  This run is the first green `ci` on `main` since at least 2026-08-31.
+- **F7.2 — live Fable transcript.** Not started; spends the owner's Claude Max quota and waits for an
+  explicit go.
+- **F7.3 — independent review of F1–F3.** Not started.
+- **F7.4 — V34 leaves.** Not started; depends on the evidence from F7.1–F7.3.
+
 #### C5 — TUI progress-log observability — queued
 
 This is a separate surface checkpoint. It must make long-running work legible without turning the

@@ -548,8 +548,16 @@ are the product's own invariants arriving in the tests, not accommodations.
 one dossier per phase with commands and results; an independent reviewer who did not implement F1–F3
 reruns the failure matrices.
 
-- [ ] **F7.1** Fresh-clone `make check` on Linux and macOS (the V34.5a matrix), `-race` on
+- [x] **F7.1** Fresh-clone `make check` on Linux and macOS (the V34.5a matrix), `-race` on
   `internal/cli internal/engine internal/provider internal/shell internal/secret`.
+  **Linux, 2026-09-02:** `git clone` of the repository at `2992abf8` into a scratch directory
+  (0 untracked or dirty files), `make check` green end to end, `-race` green on all five packages.
+  **macOS:** proven by CI run `33679111446` on the same commit — the `test (macos-latest)` job
+  passed `gofmt`, `go vet`, `build (CGO_ENABLED=0)` and `test (every module)`. That job does not run
+  the race detector or the static gates (`arch`, `purity`, `lint`, `budgets`, …), which CI runs on
+  Ubuntu only; the macOS half is recorded at that strength and not as a full `make check`. It is
+  also the first green `ci` on `main` since at least 2026-08-31: the v1.2.31 and v1.2.32 pushes both
+  failed the same macOS test that F6's closing commit fixed.
 - [ ] **F7.2** Manual Fable transcript in an isolated repo: install → `claude` login → `kolk --model
   claude-fable` → `/mode agent` (ceiling line) → a three-chapter saga across three wakes → reset with a
   new goal. Recorded verbatim in `docs/build-log.md`.
