@@ -31,7 +31,7 @@ func TestEverySessionCommandIsReachable(t *testing.T) {
 	for _, command := range slashCommandTable {
 		t.Run(command.name, func(t *testing.T) {
 			a, ag, out := replFixture(t, "")
-			seedModelCatalog(t, isolateHome(t))
+			seedModelCatalog(t, a.dirs)
 			exited := a.slash(context.Background(), ag, "/"+command.name+" "+benign[command.name])
 			if got := out.String(); strings.Contains(got, "unknown command") {
 				t.Fatalf("/%s is in the registry but the dispatcher does not handle it: %q", command.name, got)

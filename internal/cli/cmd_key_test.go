@@ -28,8 +28,8 @@ func TestKeyCommandInfersVerifiesAndStoresOpenRouter(t *testing.T) {
 		return provider.KeyStatus{RemainingUSD: &remaining}, nil
 	}
 
-	if code := a.main(context.Background(), []string{"key", cliKeyCanary}); code != ExitOK {
-		t.Fatalf("kolk key exit = %d, stderr:\n%s", code, errOut)
+	if code := runRetiredVerb(t, a, "key", cliKeyCanary); code != ExitOK {
+		t.Fatalf("/key exit = %d, stderr:\n%s", code, errOut)
 	}
 	if verified != 1 {
 		t.Errorf("verification calls = %d, want 1", verified)
@@ -68,8 +68,8 @@ func TestKeyCommandStoresWhenVerificationIsOffline(t *testing.T) {
 		return provider.KeyStatus{}, fmt.Errorf("offline while checking %s", cliKeyCanary)
 	}
 
-	if code := a.main(context.Background(), []string{"key", cliKeyCanary}); code != ExitOK {
-		t.Fatalf("kolk key exit = %d, stderr:\n%s", code, errOut)
+	if code := runRetiredVerb(t, a, "key", cliKeyCanary); code != ExitOK {
+		t.Fatalf("/key exit = %d, stderr:\n%s", code, errOut)
 	}
 	if !strings.Contains(out.String(), "stored, not verified") || !strings.Contains(errOut.String(), "warning:") {
 		t.Errorf("offline output:\nstdout: %s\nstderr: %s", out, errOut)
@@ -95,7 +95,7 @@ func TestKeyCommandDenialsAndUnknownShapesHaveNoSideEffects(t *testing.T) {
 	}{
 		{"subscription", "sk-ant-oat01-0123456789abcdef", "subscription token"},
 		{"github", "ghp_0123456789abcdefghijklmnopqrstuvwxyz", "GitHub token"},
-		{"unknown", "0123456789abcdef0123456789abcdef", "kolk key <provider> -"},
+		{"unknown", "0123456789abcdef0123456789abcdef", "/key <provider> -"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -110,7 +110,7 @@ func TestKeyCommandDenialsAndUnknownShapesHaveNoSideEffects(t *testing.T) {
 				stored++
 				return nil
 			}
-			if code := a.main(context.Background(), []string{"key", tt.key}); code != ExitUsage {
+			if code := runRetiredVerb(t, a, "key", tt.key); code != ExitUsage {
 				t.Errorf("exit = %d, want %d", code, ExitUsage)
 			}
 			if verified != 0 || stored != 0 {
@@ -130,10 +130,10 @@ func TestKeyCommandRefusesArgvInCIAndAcceptsStdin(t *testing.T) {
 	d := isolateHome(t)
 	t.Setenv("CI", "1")
 	a, _, errOut := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"key", cliKeyCanary}); code != ExitUsage {
+	if code := runRetiredVerb(t, a, "key", cliKeyCanary); code != ExitUsage {
 		t.Fatalf("positional key in CI exit = %d, want %d", code, ExitUsage)
 	}
-	if !strings.Contains(errOut.String(), "kolk key -") {
+	if !strings.Contains(errOut.String(), "/key -") {
 		t.Errorf("CI refusal omits safe stdin form: %s", errOut)
 	}
 	if _, err := os.Stat(d.CredentialsFile()); !errors.Is(err, os.ErrNotExist) {
@@ -144,7 +144,7 @@ func TestKeyCommandRefusesArgvInCIAndAcceptsStdin(t *testing.T) {
 	a.verifyOpenRouter = func(context.Context, secret.Secret) (provider.KeyStatus, error) {
 		return provider.KeyStatus{}, nil
 	}
-	if code := a.main(context.Background(), []string{"key", "-"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "key", "-"); code != ExitOK {
 		t.Fatalf("stdin key in CI exit = %d, stderr: %s", code, errOut)
 	}
 	assertNoCLIKey(t, out.String(), errOut.String())
@@ -161,10 +161,10 @@ func TestKeyCommandCIGuidancePreservesAnExplicitProvider(t *testing.T) {
 	isolateHome(t)
 	t.Setenv("CI", "true")
 	a, _, errOut := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"key", "mistral", "0123456789abcdef0123456789abcdef"}); code != ExitUsage {
+	if code := runRetiredVerb(t, a, "key", "mistral", "0123456789abcdef0123456789abcdef"); code != ExitUsage {
 		t.Fatalf("explicit positional key in CI exit = %d, want %d", code, ExitUsage)
 	}
-	if !strings.Contains(errOut.String(), "kolk key mistral -") {
+	if !strings.Contains(errOut.String(), "/key mistral -") {
 		t.Errorf("CI guidance would lose the explicit provider: %s", errOut)
 	}
 }
@@ -178,7 +178,7 @@ func TestKeyCommandExplicitProviderIsTheUnknownShapeEscape(t *testing.T) {
 		verified++
 		return provider.KeyStatus{}, nil
 	}
-	if code := a.main(context.Background(), []string{"key", "mistral", "-"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "key", "mistral", "-"); code != ExitOK {
 		t.Fatalf("explicit provider exit = %d, stderr: %s", code, errOut)
 	}
 	if verified != 0 {
@@ -205,10 +205,10 @@ func TestKeyCommandStoreFailureNamesAWorkingRecoveryWithoutLeaking(t *testing.T)
 	a.setCredential = func(context.Context, string, keystore.Ref, secret.Secret, keystore.WriteMetadata) error {
 		return fmt.Errorf("disk failure involving %s", cliKeyCanary)
 	}
-	if code := a.main(context.Background(), []string{"key", cliKeyCanary}); code != ExitError {
+	if code := runRetiredVerb(t, a, "key", cliKeyCanary); code != ExitError {
 		t.Fatalf("store failure exit = %d, want %d", code, ExitError)
 	}
-	if !strings.Contains(errOut.String(), "couldn't save") || !strings.Contains(errOut.String(), "kolk key <API_KEY>") {
+	if !strings.Contains(errOut.String(), "couldn't save") || !strings.Contains(errOut.String(), "/key <API_KEY>") {
 		t.Errorf("store recovery is incomplete: %s", errOut)
 	}
 	assertNoCLIKey(t, out.String(), errOut.String())
@@ -221,7 +221,7 @@ func TestKeyCommandStoreFailureScrubsAnUnknownShape(t *testing.T) {
 	a.setCredential = func(context.Context, string, keystore.Ref, secret.Secret, keystore.WriteMetadata) error {
 		return fmt.Errorf("disk rejected %s", unknownKey)
 	}
-	if code := a.main(context.Background(), []string{"key", "mistral", "-"}); code != ExitError {
+	if code := runRetiredVerb(t, a, "key", "mistral", "-"); code != ExitError {
 		t.Fatalf("store failure exit = %d, want %d", code, ExitError)
 	}
 	if strings.Contains(out.String(), unknownKey) || strings.Contains(errOut.String(), unknownKey) {
@@ -233,8 +233,8 @@ func TestKeyCommandUsageDoesNotReadOrWrite(t *testing.T) {
 	isolateHome(t)
 	for _, args := range [][]string{{"key"}, {"key", "one", "two", "three"}} {
 		a, _, _ := newTestApp(t, "")
-		if code := a.main(context.Background(), args); code != ExitUsage {
-			t.Errorf("kolk %v exit = %d, want %d", args, code, ExitUsage)
+		if code := runRetiredVerb(t, a, args...); code != ExitUsage {
+			t.Errorf("/key %v exit = %d, want %d", args[1:], code, ExitUsage)
 		}
 	}
 }
@@ -242,10 +242,10 @@ func TestKeyCommandUsageDoesNotReadOrWrite(t *testing.T) {
 func TestLegacyConfigSetKeyIsAHardRedirectWithoutSideEffects(t *testing.T) {
 	d := isolateHome(t)
 	a, out, errOut := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config", "set-key", cliKeyCanary}); code != ExitUsage {
+	if code := runRetiredVerb(t, a, "config", "set-key", cliKeyCanary); code != ExitUsage {
 		t.Fatalf("legacy set-key exit = %d, want %d", code, ExitUsage)
 	}
-	if !strings.Contains(errOut.String(), "kolk key <API_KEY>") {
+	if !strings.Contains(errOut.String(), "/key <API_KEY>") {
 		t.Errorf("legacy redirect omits the supported command: %s", errOut)
 	}
 	assertNoCLIKey(t, out.String(), errOut.String())

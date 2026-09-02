@@ -29,19 +29,19 @@ func TestAdviseCoversTheStatusesUsersActuallyHit(t *testing.T) {
 			name:       "401 is a key problem, not a model problem",
 			err:        httpErr(http.StatusUnauthorized, `{"error":{"message":"No auth credentials found"}}`, nil),
 			wantIn:     "key",
-			wantAction: "kolk key",
+			wantAction: "/key",
 		},
 		{
 			name:       "402 means the account cannot pay for this model",
 			err:        httpErr(http.StatusPaymentRequired, `{"error":{"message":"Insufficient credits"}}`, nil),
 			wantIn:     "credit",
-			wantAction: "kolk models",
+			wantAction: "/models",
 		},
 		{
 			name:       "404 is a model id that does not exist",
 			err:        httpErr(http.StatusNotFound, `{"error":{"message":"No endpoints found"}}`, nil),
 			wantIn:     "model",
-			wantAction: "kolk models",
+			wantAction: "/models",
 		},
 		{
 			name:       "408 is a timeout worth retrying",
@@ -153,7 +153,7 @@ func TestAdviseRecognisesAModelThatCannotCallTools(t *testing.T) {
 	if !strings.Contains(strings.ToLower(advice.Summary), "tool") {
 		t.Errorf("summary %q does not say the model cannot use tools", advice.Summary)
 	}
-	if !strings.Contains(advice.NextAction, "kolk models") {
+	if !strings.Contains(advice.NextAction, "/models") {
 		t.Errorf("next action %q does not point at a model that can", advice.NextAction)
 	}
 }

@@ -44,3 +44,6 @@ tmp/
 # them, and those links are meant to resolve on a maintainer's machine and
 # nowhere else.
 docs/research/
+
+# Session state a test wrote through an unset app.dirs: never source.
+internal/cli/sessions/

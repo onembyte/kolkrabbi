@@ -28,14 +28,19 @@ func replFixture(t *testing.T, stdin string, steps ...enginetest.Step) (*app, *e
 	// failed a test that passes on CI, where no config exists. A suite that
 	// depends on whose machine it runs on is a suite that reports the wrong
 	// thing on exactly one machine — the maintainer's.
-	isolateHome(t)
+	dirs := isolateHome(t)
 	srv := enginetest.New(steps...)
 	t.Cleanup(srv.Close)
 
 	client := provider.NewCompatibleClient(srv.URL)
 
 	var out bytes.Buffer
-	a := &app{stdout: &out, stderr: &out, in: bufio.NewReader(strings.NewReader(stdin))}
+	// dirs, not the zero value. A command that writes through a.dirs — /new
+	// is one — turns an empty Data into the relative path "sessions" and
+	// creates real session state, shadow git repositories included, inside
+	// internal/cli in the source tree. That is how 228 files of test litter
+	// reached a commit on 2026-09-02.
+	a := &app{dirs: dirs, stdout: &out, stderr: &out, in: bufio.NewReader(strings.NewReader(stdin))}
 	ag := engine.New(engine.Options{
 		Client:     client,
 		Model:      "mock/model",
@@ -366,7 +371,7 @@ func TestSlashModelListsTheActiveProviderCatalog(t *testing.T) {
 			t.Fatalf("/model catalog omitted %q: %q", want, got)
 		}
 	}
-	for _, want := range []string{"subscription models", "/model gpt-plus", "/model gpt-plus-terra", "/model gpt-plus-luna", "/model gpt-pro-terra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "ChatGPT Plus", "sign in: kolk plans login"} {
+	for _, want := range []string{"subscription models", "/model gpt-plus", "/model gpt-plus-terra", "/model gpt-plus-luna", "/model gpt-pro-terra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "ChatGPT Plus", "sign in: /plans login"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("/model plan choices omitted %q: %q", want, got)
 		}

@@ -29,7 +29,7 @@ func chooseSessionModel(catalog []provider.PlanModel, fallback defaultModelChoic
 		return defaultModelChoice{
 			Model: plan.Model,
 			Free:  true, // to the user: already paid for, so this turn costs nothing new
-			Warning: fmt.Sprintf("using your %s subscription (%s); `kolk model` picks a gateway model instead",
+			Warning: fmt.Sprintf("using your %s subscription (%s); `/model` picks a gateway model instead",
 				plan.Plan, plan.Model),
 		}
 	}

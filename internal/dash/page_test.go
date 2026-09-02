@@ -28,7 +28,7 @@ func sampleRecords() []stats.Record {
 func TestPageShowsTheLeaderboardAndSpend(t *testing.T) {
 	page := Page(sampleRecords(), 0, nil, nil)
 
-	for _, want := range []string{"vendor/big", "vendor/small", "$1.76", "kolk dash"} {
+	for _, want := range []string{"vendor/big", "vendor/small", "$1.76", "/dash"} {
 		if !strings.Contains(page, want) {
 			t.Fatalf("page is missing %q", want)
 		}

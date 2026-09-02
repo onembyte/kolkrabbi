@@ -16,7 +16,7 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 	// would leave two supported key commands forever and would bypass the one
 	// provider-agnostic command's CI and shape guidance.
 	if len(args) > 0 && args[0] == "set-key" {
-		return usagef("`kolk config set-key` was replaced; use `kolk key <API_KEY>`")
+		return usagef("`/config set-key` was replaced; use `/key <API_KEY>`")
 	}
 
 	d, err := a.resolve()
@@ -50,7 +50,7 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 	switch args[0] {
 	case "get":
 		if len(args) < 2 {
-			return usagef("usage: kolk config get <key>")
+			return usagef("usage: /config get <key>")
 		}
 		key := args[1]
 		switch {
@@ -134,7 +134,7 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 
 	case "set":
 		if len(args) < 3 {
-			return usagef("usage: kolk config set <key> <value>")
+			return usagef("usage: /config set <key> <value>")
 		}
 		key := args[1]
 		val := strings.Join(args[2:], " ")
@@ -269,7 +269,7 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 
 	case "unset":
 		if len(args) < 2 {
-			return usagef("usage: kolk config unset <key>")
+			return usagef("usage: /config unset <key>")
 		}
 		key := args[1]
 		switch {
@@ -359,7 +359,7 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 
 	case "set-model":
 		if len(args) < 2 {
-			return usagef("usage: kolk config set-model <model>")
+			return usagef("usage: /config set-model <model>")
 		}
 		cfg.Model = strings.Join(args[1:], " ")
 		if err := config.Save(d.ConfigFile(), cfg); err != nil {
@@ -369,7 +369,7 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 
 	case "set-base-url":
 		if len(args) < 2 {
-			return usagef("usage: kolk config set-base-url <url>")
+			return usagef("usage: /config set-base-url <url>")
 		}
 		cfg.BaseURL = strings.TrimRight(args[1], "/")
 		if err := config.Save(d.ConfigFile(), cfg); err != nil {
@@ -385,7 +385,7 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 
 	case "set-tier":
 		if len(args) < 3 {
-			return usagef("usage: kolk config set-tier <low|medium|high|max> <model>")
+			return usagef("usage: /config set-tier <low|medium|high|max> <model>")
 		}
 		canonical, ok := engine.NormalizeEffort(args[1])
 		if !ok {
@@ -405,7 +405,7 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 			orDefault(cfg.Model, defaultModel+" (default)"),
 			orDefault(cfg.BaseURL, provider.DefaultBaseURL+" (default)"))
 		if len(cfg.Tiers) == 0 {
-			fmt.Fprintln(a.stdout, "tiers:    (none — all efforts use the session model; set with `kolk config set-tier`)")
+			fmt.Fprintln(a.stdout, "tiers:    (none — all efforts use the session model; set with `/config set-tier`)")
 			break
 		}
 		fmt.Fprintln(a.stdout, "tiers:")
@@ -508,6 +508,6 @@ func (a *app) printSettings(cfg *config.Config, filter string) bool {
 		}
 		fmt.Fprintf(a.stdout, "%-*s  %s\n", width, row.Key, value)
 	}
-	fmt.Fprintf(a.stdout, "\n%d settings · kolk config <text> to search · kolk config set <key> <value>\n", len(rows))
+	fmt.Fprintf(a.stdout, "\n%d settings · /config <text> to search · /config set <key> <value>\n", len(rows))
 	return true
 }

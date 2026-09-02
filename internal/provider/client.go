@@ -287,7 +287,7 @@ const syntheticSlot = 1 << 20
 func (c *Client) StreamChat(ctx context.Context, model string, messages []Message, tools []Tool, onToken func(string)) (Message, Meta, error) {
 	meta := Meta{Model: model}
 	if c.requiresKey() && !c.HasKey() {
-		return Message{}, meta, fmt.Errorf("no API key set (run: kolk key <API_KEY>, or export OPENROUTER_API_KEY)")
+		return Message{}, meta, fmt.Errorf("no API key set (run: /key <API_KEY>, or export OPENROUTER_API_KEY)")
 	}
 	reqBody := chatRequest{
 		Model:         model,

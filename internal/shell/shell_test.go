@@ -166,7 +166,7 @@ func TestLookPathExplainsItself(t *testing.T) {
 func TestNameReportsTheInterpreter(t *testing.T) {
 	name := New().Name()
 	if name == "" {
-		t.Fatal("Name() is empty; kolk doctor and every error message need it")
+		t.Fatal("Name() is empty; /doctor and every error message need it")
 	}
 	if runtime.GOOS != "windows" && name != "bash" {
 		t.Errorf("Name() = %q, want bash on this platform", name)

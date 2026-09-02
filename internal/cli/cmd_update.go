@@ -4,21 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
 
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/selfupdate"
 )
-
-func (a *app) runUpdate(ctx context.Context, args []string) error {
-	if len(args) != 0 {
-		return usagef("%s", usageLine("update"))
-	}
-	tctx, stop := signal.NotifyContext(ctx, os.Interrupt)
-	defer stop()
-	return a.applyUpdate(tctx, false)
-}
 
 func (a *app) applyUpdate(ctx context.Context, inSession bool) error {
 	if a.update == nil {

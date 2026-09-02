@@ -88,7 +88,7 @@ func applyFreeExhausted(choice defaultModelChoice, policy string) defaultModelCh
 		return defaultModelChoice{
 			Model: defaultModel, Free: true,
 			Warning: fmt.Sprintf("the provider listed no free tool-capable model; staying free on %s rather than billing for %s "+
-				"(`kolk config set routing.on_free_exhausted paid` allows the swap)", defaultModel, choice.Model),
+				"(`/config set routing.on_free_exhausted paid` allows the swap)", defaultModel, choice.Model),
 		}
 	}
 }

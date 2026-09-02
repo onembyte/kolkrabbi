@@ -137,7 +137,7 @@ func (a *app) reportAgentLane(ag *engine.Agent) {
 		// is a saving the user did not know was on the table. Say what a
 		// sign-in would change, and only that.
 		if below := engine.ModelsBelowCeiling(ag.SessionModel()); len(below) > 0 {
-			fmt.Fprintf(a.stdout, "agent lane: %s only — nothing cheaper is signed in; `kolk plans login` lets trivial work run on %s\n",
+			fmt.Fprintf(a.stdout, "agent lane: %s only — nothing cheaper is signed in; `/plans login` lets trivial work run on %s\n",
 				ag.SessionModel(), below[len(below)-1])
 		}
 		return
@@ -269,7 +269,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		if err := ag.RateLast(n); err != nil {
 			fmt.Fprintln(a.stdout, err)
 		} else {
-			fmt.Fprintf(a.stdout, "rated %d★ — see `kolk stats`\n", n)
+			fmt.Fprintf(a.stdout, "rated %d★ — see `/stats`\n", n)
 		}
 	case "/new", "/clear":
 		sess := session.New(a.dirs.Sessions(), ag.SessionModel())

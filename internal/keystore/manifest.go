@@ -234,7 +234,7 @@ func (s *FileStore) load() (*diskManifest, error) {
 	}
 	var m diskManifest
 	if len(b) == 0 || json.Unmarshal(b, &m) != nil {
-		return nil, fmt.Errorf("%s is not valid credential JSON; run `kolk key` to replace it: %w", s.Path, ErrCorrupt)
+		return nil, fmt.Errorf("%s is not valid credential JSON; run `/key` to replace it: %w", s.Path, ErrCorrupt)
 	}
 	if m.Version != manifestVersion {
 		return nil, fmt.Errorf("%s has version %d, want %d: %w", s.Path, m.Version, manifestVersion, ErrVersion)

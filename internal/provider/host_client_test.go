@@ -94,7 +94,7 @@ func TestHostClientErrorsNameTheirOriginAndItsRemedy(t *testing.T) {
 	if !ok {
 		t.Fatal("no advice for an Ollama 401")
 	}
-	if strings.Contains(advice.Summary+advice.NextAction, "OpenRouter") || strings.Contains(advice.NextAction, "kolk key") {
+	if strings.Contains(advice.Summary+advice.NextAction, "OpenRouter") || strings.Contains(advice.NextAction, "/key") {
 		t.Errorf("advice sends the user to fix OpenRouter for an Ollama sign-in: %+v", advice)
 	}
 	if !strings.Contains(advice.NextAction, "ollama signin") {

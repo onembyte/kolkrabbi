@@ -67,7 +67,10 @@ func (a *app) runKey(ctx context.Context, args []string) error {
 		// A session reads the terminal from its own goroutine, so reading it
 		// here would compete for the user's keystrokes and look like a hang.
 		if a.terminalOwned != nil && a.terminalOwned() {
-			return fmt.Errorf("reading a key from stdin needs a terminal this session already owns; run `kolk key -` outside the session, or paste the key directly")
+			// There is no outside-session `kolk key` to fall back to any more
+			// (docs/plan/09, 2026-09-02), so the advice has to be something
+			// that works from here: paste it, or pipe it into the session.
+			return fmt.Errorf("reading a key from stdin needs a terminal this session already owns; paste the key after /key instead, or pipe it in when starting kolk")
 		}
 		source = "stdin"
 		value, err := io.ReadAll(io.LimitReader(a.in, keystore.MaxValueBytes+2))
@@ -90,7 +93,7 @@ func (a *app) runKey(ctx context.Context, args []string) error {
 	}
 	if providerName == "" {
 		if classification.Provider == "" {
-			return usagef("API key provider is not unambiguous; use `kolk key <provider> -`")
+			return usagef("API key provider is not unambiguous; use `/key <provider> -`")
 		}
 		providerName = classification.Provider
 	}
@@ -103,9 +106,9 @@ func (a *app) runKey(ctx context.Context, args []string) error {
 		return usagef("API key shape belongs to %s, not %s", classification.Provider, ref.Provider)
 	}
 	if source == "paste" && strings.TrimSpace(os.Getenv("CI")) != "" {
-		safeCommand := "kolk key -"
+		safeCommand := "/key -"
 		if explicitProvider {
-			safeCommand = "kolk key " + ref.Provider + " -"
+			safeCommand = "/key " + ref.Provider + " -"
 		}
 		return usagef("refusing an API key in process arguments while CI is set; use `%s`", safeCommand)
 	}
@@ -147,7 +150,7 @@ func (a *app) runKey(ctx context.Context, args []string) error {
 		}
 		return guided(
 			fmt.Sprintf("couldn't save the API key: %s", scrubCredentialError(err, raw)),
-			"Try again with: kolk key <API_KEY>",
+			"Try again with: /key <API_KEY>",
 		)
 	}
 

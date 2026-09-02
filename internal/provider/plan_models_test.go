@@ -188,7 +188,7 @@ func TestResolvePlanModelRejectsAnUnknownReference(t *testing.T) {
 	if err == nil {
 		t.Fatal("an unknown plan model must be rejected")
 	}
-	if !strings.Contains(err.Error(), "kolk pmodels") {
+	if !strings.Contains(err.Error(), "/pmodels") {
 		t.Fatalf("error = %v, want it to point at the command that lists plan models", err)
 	}
 	if !errors.Is(err, ErrNotAPlanModel) {
@@ -250,7 +250,7 @@ func TestResolvePlanModelTellsTheUserHowToEnableAConnector(t *testing.T) {
 	if err == nil {
 		t.Fatal("a plan model whose connector is not enabled must be rejected")
 	}
-	if !strings.Contains(err.Error(), `kolk plans login anthropic "Claude Max"`) {
+	if !strings.Contains(err.Error(), `/plans login anthropic "Claude Max"`) {
 		t.Fatalf("error = %v, want the exact command that enables it", err)
 	}
 }
@@ -384,7 +384,7 @@ func TestFableNeedsMaxAndHaikuIsOnEveryClaudePlan(t *testing.T) {
 		}
 	}
 	_, err := ResolvePlanModelFrom(VendorCatalogs{}, "claude-fable", pro)
-	if err == nil || !strings.Contains(err.Error(), `kolk plans login anthropic "Claude Max"`) {
+	if err == nil || !strings.Contains(err.Error(), `/plans login anthropic "Claude Max"`) {
 		t.Fatalf("Pro login selecting fable = %v, want the Max sign-in named", err)
 	}
 }

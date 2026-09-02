@@ -56,7 +56,7 @@ func TestDoctorSaysWhenNoKeyIsConfigured(t *testing.T) {
 		t.Fatalf("runDoctor: %v", err)
 	}
 	out := stdout.String()
-	if !strings.Contains(out, "kolk key") {
+	if !strings.Contains(out, "/key") {
 		t.Errorf("a machine with no key is not told how to get one:\n%s", out)
 	}
 }

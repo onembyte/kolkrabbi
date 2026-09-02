@@ -156,8 +156,8 @@ func TestProviderClientCanonicalEndpointWithoutAKeyIsGuidedNotKeyless(t *testing
 	if client != nil {
 		t.Fatal("canonical OpenRouter without a credential produced a client")
 	}
-	if err == nil || !strings.Contains(err.Error(), "kolk key") {
-		t.Fatalf("error = %v, want the guided `kolk key` action", err)
+	if err == nil || !strings.Contains(err.Error(), "/key") {
+		t.Fatalf("error = %v, want the guided `/key` action", err)
 	}
 }
 

@@ -35,7 +35,7 @@ func TestLocaliaReportsHardwareAndStorage(t *testing.T) {
 	a, out, errOut := newTestApp(t, "")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 
-	if code := a.main(context.Background(), []string{"localia"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "localia"); code != ExitOK {
 		t.Fatalf("localia exit = %d, stderr = %q", code, errOut.String())
 	}
 
@@ -61,7 +61,7 @@ func TestLocaliaNamesTheStoreItPullsInto(t *testing.T) {
 	a, out, _ := newTestApp(t, "")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 
-	if code := a.main(context.Background(), []string{"localia"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "localia"); code != ExitOK {
 		t.Fatal("localia must succeed")
 	}
 	if !strings.Contains(out.String(), store) || !strings.Contains(out.String(), "your Ollama's") {
@@ -74,7 +74,7 @@ func TestLocaliaSaysNothingIsPulledYet(t *testing.T) {
 	a, out, _ := newTestApp(t, "")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 
-	if code := a.main(context.Background(), []string{"localia"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "localia"); code != ExitOK {
 		t.Fatal("localia must succeed with no models installed")
 	}
 	if !strings.Contains(out.String(), "nothing pulled yet") {
@@ -101,7 +101,7 @@ func TestLocaliaNeedsNoGpuOrOllama(t *testing.T) {
 	isolateConnectorState(t)
 	a, out, errOut := newTestApp(t, "")
 
-	if code := a.main(context.Background(), []string{"localia"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "localia"); code != ExitOK {
 		t.Fatalf("localia exit = %d, stderr = %q", code, errOut.String())
 	}
 	if !strings.Contains(out.String(), "system RAM") {
@@ -113,7 +113,7 @@ func TestLocaliaModelsListsTheCatalogWithSizes(t *testing.T) {
 	isolateConnectorState(t)
 	a, out, errOut := newTestApp(t, "")
 
-	if code := a.main(context.Background(), []string{"localia", "models"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "localia", "models"); code != ExitOK {
 		t.Fatalf("localia models exit = %d, stderr = %q", code, errOut.String())
 	}
 	got := out.String()
@@ -129,7 +129,7 @@ func TestLocaliaPlanShowsEveryNumberTheDecisionRestedOn(t *testing.T) {
 	a, out, errOut := newTestApp(t, "")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 
-	if code := a.main(context.Background(), []string{"localia", "plan", "qwen2.5-coder:7b"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "localia", "plan", "qwen2.5-coder:7b"); code != ExitOK {
 		t.Fatalf("localia plan exit = %d, stderr = %q", code, errOut.String())
 	}
 	got := out.String()
@@ -154,7 +154,7 @@ func TestLocaliaPlanRefusesWithItsReason(t *testing.T) {
 		return tiny
 	}
 
-	if code := a.main(context.Background(), []string{"localia", "plan", "phi4:14b"}); code == ExitOK {
+	if code := runRetiredVerb(t, a, "localia", "plan", "phi4:14b"); code == ExitOK {
 		t.Fatal("a model that cannot fit must not report a plan")
 	}
 	if !strings.Contains(errOut.String(), "GiB") {
@@ -181,7 +181,7 @@ func TestLocaliaPlanUsesTheConfiguredHeadroom(t *testing.T) {
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 
 	// 32 GiB with 28 reserved leaves 4, which cannot hold a 14B model.
-	if code := a.main(context.Background(), []string{"localia", "plan", "phi4:14b"}); code == ExitOK {
+	if code := runRetiredVerb(t, a, "localia", "plan", "phi4:14b"); code == ExitOK {
 		t.Fatalf("configured headroom was ignored; stderr = %q", errOut.String())
 	}
 }
@@ -191,7 +191,7 @@ func TestLocaliaPlanReservesHeadroomByDefault(t *testing.T) {
 	a, out, errOut := newTestApp(t, "")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 
-	if code := a.main(context.Background(), []string{"localia", "plan", "qwen2.5-coder:7b"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "localia", "plan", "qwen2.5-coder:7b"); code != ExitOK {
 		t.Fatalf("plan exit = %d, stderr = %q", code, errOut.String())
 	}
 	// A default of zero reserved would let a plan consume every byte on the
@@ -219,7 +219,7 @@ func TestLocaliaPlanHonoursADeliberateZeroReserve(t *testing.T) {
 	a, out, _ := newTestApp(t, "")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 
-	if code := a.main(context.Background(), []string{"localia", "plan", "qwen2.5-coder:7b"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "localia", "plan", "qwen2.5-coder:7b"); code != ExitOK {
 		t.Fatal("plan must succeed")
 	}
 	if !strings.Contains(out.String(), "after 0 B reserved") {
@@ -238,7 +238,7 @@ func pullFixture(t *testing.T, stdin string) (*app, *bytes.Buffer, *bytes.Buffer
 func TestLocaliaPullAsksBeforeDownloadingAnything(t *testing.T) {
 	a, out, _ := pullFixture(t, "n\n")
 
-	if code := a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:7b"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "localia", "pull", "qwen2.5-coder:7b"); code != ExitOK {
 		t.Fatal("declining a pull is a normal outcome, not a failure")
 	}
 	got := out.String()
@@ -258,7 +258,7 @@ func TestLocaliaPullTreatsSilenceAsNo(t *testing.T) {
 	// download.
 	a, out, _ := pullFixture(t, "")
 
-	if code := a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:7b"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "localia", "pull", "qwen2.5-coder:7b"); code != ExitOK {
 		t.Fatal("an unanswered question is a decline, not an error")
 	}
 	if !strings.Contains(out.String(), "nothing was downloaded") {
@@ -275,7 +275,7 @@ func TestLocaliaPullRefusesBeforeAskingWhenTheModelCannotFit(t *testing.T) {
 		return cramped
 	}
 
-	if code := a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:14b"}); code == ExitOK {
+	if code := runRetiredVerb(t, a, "localia", "pull", "qwen2.5-coder:14b"); code == ExitOK {
 		t.Fatal("a model that cannot fit must not be offered")
 	}
 	if strings.Contains(strings.ToLower(out.String()), "[y/n]") {
@@ -289,7 +289,7 @@ func TestLocaliaPullRefusesBeforeAskingWhenTheModelCannotFit(t *testing.T) {
 func TestLocaliaPullSaysWhatIsMissingWhenApproved(t *testing.T) {
 	a, _, errOut := pullFixture(t, "y\n")
 
-	code := a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:7b"})
+	code := runRetiredVerb(t, a, "localia", "pull", "qwen2.5-coder:7b")
 	if code == ExitOK {
 		t.Fatal("with no Ollama installed the pull cannot succeed")
 	}
@@ -312,7 +312,7 @@ func TestLocaliaPullStreamsThroughTheHost(t *testing.T) {
 	a.discoverHost = func(context.Context) local.Host {
 		return local.Host{State: local.HostRunning, Addr: strings.TrimPrefix(server.URL, "http://"), Version: "0.33.1"}
 	}
-	if code := a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:7b"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "localia", "pull", "qwen2.5-coder:7b"); code != ExitOK {
 		t.Fatalf("pull exit = %d, stderr = %q", code, errOut.String())
 	}
 	for _, want := range []string{"pulling manifest", "100%", "success", "ollama/qwen2.5-coder:7b"} {
@@ -336,7 +336,7 @@ func TestLocaliaPullStartsAnIdleOllamaAndStopsItAfter(t *testing.T) {
 		started++
 		return strings.TrimPrefix(server.URL, "http://"), func() { stopped++ }, nil
 	}
-	if code := a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:7b"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "localia", "pull", "qwen2.5-coder:7b"); code != ExitOK {
 		t.Fatalf("pull exit = %d, stderr = %q", code, errOut.String())
 	}
 	if started != 1 || stopped != 1 {
@@ -347,7 +347,7 @@ func TestLocaliaPullStartsAnIdleOllamaAndStopsItAfter(t *testing.T) {
 func TestLocaliaPullYesSkipsTheQuestion(t *testing.T) {
 	a, out, _ := pullFixture(t, "")
 
-	_ = a.main(context.Background(), []string{"localia", "pull", "--yes", "qwen2.5-coder:7b"})
+	_ = runRetiredVerb(t, a, "localia", "pull", "--yes", "qwen2.5-coder:7b")
 	if strings.Contains(strings.ToLower(out.String()), "[y/n]") {
 		t.Fatalf("output = %q, want --yes to answer it", out.String())
 	}
@@ -358,7 +358,7 @@ func TestLocaliaPullWritesNothingWhenDeclined(t *testing.T) {
 	a, _, _ := newTestApp(t, "n\n")
 	a.probeHardware = func(context.Context, string) local.Hardware { return fakeHardware() }
 
-	_ = a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:7b"})
+	_ = runRetiredVerb(t, a, "localia", "pull", "qwen2.5-coder:7b")
 	if _, err := os.Stat(dirs.LocalModelsDir()); err == nil {
 		t.Fatal("declining a pull created the managed model directory")
 	}
@@ -372,7 +372,7 @@ func TestLocaliaPullDoesNotPromptWhileKolkrabbiOwnsTheTerminal(t *testing.T) {
 
 	// Reading stdin here would fight the session's own reader for the user's
 	// keystrokes, exactly as a provider login would.
-	code := a.main(context.Background(), []string{"localia", "pull", "qwen2.5-coder:7b"})
+	code := runRetiredVerb(t, a, "localia", "pull", "qwen2.5-coder:7b")
 
 	if strings.Contains(strings.ToLower(out.String()), "[y/n]") {
 		t.Fatalf("output = %q, want no prompt while the session owns the keyboard", out.String())
@@ -380,7 +380,7 @@ func TestLocaliaPullDoesNotPromptWhileKolkrabbiOwnsTheTerminal(t *testing.T) {
 	if code == ExitOK {
 		t.Fatal("the pull must not proceed unconfirmed")
 	}
-	if !strings.Contains(errOut.String(), "kolk localia pull") {
+	if !strings.Contains(errOut.String(), "/localia pull") {
 		t.Fatalf("stderr = %q, want the command to run in a separate terminal", errOut.String())
 	}
 }
@@ -393,7 +393,7 @@ func TestLocaliaPullWithYesStillWorksInSession(t *testing.T) {
 
 	// An explicit --yes needs no keyboard, so it is allowed to proceed to the
 	// point where it reports what is actually missing.
-	_ = a.main(context.Background(), []string{"localia", "pull", "--yes", "qwen2.5-coder:7b"})
+	_ = runRetiredVerb(t, a, "localia", "pull", "--yes", "qwen2.5-coder:7b")
 	if strings.Contains(errOut.String(), "separate terminal") {
 		t.Fatalf("stderr = %q, want --yes to bypass the prompt entirely", errOut.String())
 	}
@@ -409,7 +409,7 @@ func TestHardwareProbeIsBounded(t *testing.T) {
 		return fakeHardware()
 	}
 
-	_ = a.main(context.Background(), []string{"localia"})
+	_ = runRetiredVerb(t, a, "localia")
 
 	// nvidia-smi against a wedged driver is a known hang. Unknown is a valid
 	// answer; a frozen session is not.

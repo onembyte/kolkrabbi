@@ -19,7 +19,7 @@ var staleClaims = []string{
 	"managed local runtime",
 	"Kolk-owned runtime",
 	"pins no verified local runtime",
-	"kolk localia runtime install",
+	"/localia runtime install",
 }
 
 var claimExempt = []string{"CHECKPOINTS.md", "docs/build-log.md", "docs/plan/25-managed-local-models.md", "CHANGELOG.md", "claims_test.go"}

@@ -57,7 +57,7 @@ func (c *Config) settingRows(defaultModel, defaultBaseURL string) []Setting {
 		{"effort", effort, effortDefault, "model tier, tool-round limit and orchestration width"},
 		{"base_url", baseURL, baseURLDefault, "any OpenAI-compatible endpoint (Ollama, LiteLLM, vLLM); used without a key unless it is openrouter.ai"},
 		{"auto_restart_after_update", onOff(c.AutoRestartAfterUpdate), c.AutoRestartAfterUpdate == nil,
-			"restart into the new version after `kolk update`, keeping the session"},
+			"restart into the new version after `/update`, keeping the session"},
 		{"max_run_cost_usd", cost, costDefault, "stop an orchestrated run once it has cost this much"},
 		{"max_concurrent_tasks", tasks, tasksDefault, "how many orchestrated tasks may run at once"},
 		{"subagent_network", network, networkDefault,

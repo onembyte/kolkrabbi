@@ -13,7 +13,7 @@ import (
 
 func TestPlansListsAndFiltersProviderPlans(t *testing.T) {
 	a, out, errOut := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"plans", "gemini"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "plans", "gemini"); code != ExitOK {
 		t.Fatalf("plans exit = %d, stderr = %q", code, errOut.String())
 	}
 
@@ -50,7 +50,7 @@ func TestPlansShowsEnabledConnectorStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	a, out, errOut := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"plans", "gemini"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "plans", "gemini"); code != ExitOK {
 		t.Fatalf("plans exit = %d, stderr = %q", code, errOut.String())
 	}
 	if !strings.Contains(out.String(), "enabled") {
@@ -82,7 +82,7 @@ func TestPlansLoginUsesHandoverAndPersistsMetadata(t *testing.T) {
 		}
 		return nil
 	}
-	if code := a.main(context.Background(), []string{"plans", "login", "anthropic", "Claude", "Max"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "plans", "login", "anthropic", "Claude", "Max"); code != ExitOK {
 		t.Fatalf("plans login exit = %d, stderr = %q", code, errOut.String())
 	}
 	if gotExecutable != "claude" || !strings.Contains(out.String(), "Claude Max recorded") {
@@ -122,7 +122,7 @@ func TestPlansLoginRunsInItsOwnWindowWhileKolkrabbiOwnsTheTerminal(t *testing.T)
 		return nil
 	}
 
-	if code := a.main(context.Background(), []string{"plans", "login", "anthropic", "Claude", "Max"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "plans", "login", "anthropic", "Claude", "Max"); code != ExitOK {
 		t.Fatalf("plans login exit = %d, stderr = %q", code, errOut.String())
 	}
 	if spawned != "claude" {
@@ -158,7 +158,7 @@ func TestPlansLoginDefersTheHandoverWhileKolkrabbiOwnsTheTerminal(t *testing.T) 
 		return nil
 	}
 
-	if code := a.main(context.Background(), []string{"plans", "login", "anthropic", "Claude", "Max"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "plans", "login", "anthropic", "Claude", "Max"); code != ExitOK {
 		t.Fatalf("plans login exit = %d, stderr = %q", code, errOut.String())
 	}
 	if a.pendingLogin == nil || a.pendingLogin.Name != "Claude Max" {
@@ -264,7 +264,7 @@ func TestPlansLoginRecordsAnUnverifiedConnector(t *testing.T) {
 	a, out, errOut := newTestApp(t, "")
 	a.handover = func(context.Context, string, []string, string) error { return nil }
 
-	if code := a.main(context.Background(), []string{"plans", "login", "anthropic", "Claude", "Max"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "plans", "login", "anthropic", "Claude", "Max"); code != ExitOK {
 		t.Fatalf("plans login exit = %d, stderr = %q", code, errOut.String())
 	}
 
@@ -294,7 +294,7 @@ func TestPlansMarksAnUnverifiedConnectorAsSuch(t *testing.T) {
 	}
 	a, out, errOut := newTestApp(t, "")
 
-	if code := a.main(context.Background(), []string{"plans", "claude"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "plans", "claude"); code != ExitOK {
 		t.Fatalf("plans exit = %d, stderr = %q", code, errOut.String())
 	}
 	got := out.String()

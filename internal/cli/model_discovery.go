@@ -266,10 +266,10 @@ func describeVendorDiscovery(result vendorDiscovery) string {
 		changed = "; the vendor's version changed, so earlier verifications were forgotten"
 	}
 	if previewed == len(result.Catalog.Models) && previewed > 0 {
-		return fmt.Sprintf("%s%s: %d models previewed from the gateway, unverified until the first prompt: %s%s — `kolk models` shows them",
+		return fmt.Sprintf("%s%s: %d models previewed from the gateway, unverified until the first prompt: %s%s — `/models` shows them",
 			result.Connector, version, len(visible), strings.Join(names, ", "), changed)
 	}
-	return fmt.Sprintf("%s%s: %d models listed by %s: %s%s — `kolk models` shows them",
+	return fmt.Sprintf("%s%s: %d models listed by %s: %s%s — `/models` shows them",
 		result.Connector, version, len(visible), result.Catalog.Source, strings.Join(names, ", "), changed)
 }
 

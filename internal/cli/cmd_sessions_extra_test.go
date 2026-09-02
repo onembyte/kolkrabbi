@@ -239,7 +239,7 @@ func TestStatsSaysWhenItsTotalsAreIncomplete(t *testing.T) {
 	}
 	a, out, _ := newTestApp(t, "")
 
-	if code := a.main(context.Background(), []string{"stats"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "stats"); code != ExitOK {
 		t.Fatal("a damaged line must not stop stats from reporting what it can")
 	}
 	got := out.String()
@@ -262,7 +262,7 @@ func TestStatsIsSilentWhenNothingWasSkipped(t *testing.T) {
 	}
 	a, out, _ := newTestApp(t, "")
 
-	if code := a.main(context.Background(), []string{"stats"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "stats"); code != ExitOK {
 		t.Fatal("stats must succeed")
 	}
 	if strings.Contains(out.String(), "incomplete") {

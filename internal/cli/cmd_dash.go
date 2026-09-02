@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -17,39 +15,6 @@ import (
 
 const defaultDashAddr = "127.0.0.1:0"
 
-// runDash serves the local usage dashboard.
-//
-// It binds loopback only, and refuses anything else rather than offering a
-// flag: this page is a record of everything the user has worked on, and no
-// convenience justifies publishing it to a network by accident.
-func (a *app) runDash(ctx context.Context, args []string) error {
-	addr, err := dashAddrFrom(args)
-	if err != nil {
-		return err
-	}
-	listener, server, err := a.dashListener(addr)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = listener.Close() }()
-
-	fmt.Fprintf(a.stdout, "kolk dash on http://%s — press Ctrl+C to stop\n", listener.Addr())
-	fmt.Fprintln(a.stdout, "nothing leaves this machine; the page is rendered from your local usage log")
-
-	done := make(chan error, 1)
-	go func() { done <- server.Serve(listener) }()
-	select {
-	case <-ctx.Done():
-		_ = server.Close()
-		return nil
-	case err := <-done:
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			return err
-		}
-		return nil
-	}
-}
-
 // startDashInSession serves the dashboard in the background and returns at
 // once.
 //
@@ -61,7 +26,7 @@ func (a *app) startDashInSession(addr string) error {
 	if a.dashURL != "" {
 		// A second /dash is a request to find the first one, not to start
 		// another server on another port.
-		fmt.Fprintf(a.stdout, "kolk dash is already running on %s\n", a.dashURL)
+		fmt.Fprintf(a.stdout, "/dash is already running on %s\n", a.dashURL)
 		return nil
 	}
 	listener, server, err := a.dashListener(addr)
@@ -70,7 +35,7 @@ func (a *app) startDashInSession(addr string) error {
 	}
 	a.dashURL = "http://" + listener.Addr().String()
 	go func() { _ = server.Serve(listener) }()
-	fmt.Fprintf(a.stdout, "kolk dash on %s — it stays up for this session\n", a.dashURL)
+	fmt.Fprintf(a.stdout, "/dash on %s — it stays up for this session\n", a.dashURL)
 	fmt.Fprintln(a.stdout, "nothing leaves this machine; the page is rendered from your local usage log")
 	return nil
 }
@@ -131,7 +96,7 @@ func dashAddrFrom(args []string) (string, error) {
 		switch args[i] {
 		case "--addr":
 			if i+1 >= len(args) {
-				return "", usagef("usage: kolk dash [--addr 127.0.0.1:0]")
+				return "", usagef("usage: /dash [--addr 127.0.0.1:0]")
 			}
 			addr = args[i+1]
 			i++

@@ -66,7 +66,7 @@ func TestPlansWithNoFilterReturnsEverything(t *testing.T) {
 func TestTheOllamaPlanIsInTheCatalogue(t *testing.T) {
 	got := Plans("ollama")
 	if len(got) == 0 {
-		t.Fatal("`kolk plans ollama` finds nothing")
+		t.Fatal("`/plans ollama` finds nothing")
 	}
 	plan := got[0]
 	if plan.Provider != "ollama" || plan.Connector != "ollama" {

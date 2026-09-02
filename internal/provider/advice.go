@@ -63,22 +63,22 @@ func Advise(err error) (Advice, bool) {
 	case http.StatusUnauthorized:
 		return Advice{
 			Summary:    "OpenRouter rejected the API key",
-			NextAction: "Set a working key with `kolk key <API_KEY>`, or check OPENROUTER_API_KEY if you export one.",
+			NextAction: "Set a working key with `/key <API_KEY>`, or check OPENROUTER_API_KEY if you export one.",
 		}, true
 	case http.StatusPaymentRequired:
 		return Advice{
 			Summary:    "this model costs money and the account is out of credit",
-			NextAction: "Add credit at openrouter.ai, or pick a free model — `kolk models` lists them, and ids ending in `:free` cost nothing.",
+			NextAction: "Add credit at openrouter.ai, or pick a free model — `/models` lists them, and ids ending in `:free` cost nothing.",
 		}, true
 	case http.StatusForbidden:
 		return Advice{
 			Summary:    "the provider refused this request outright",
-			NextAction: "This is usually a region or content restriction on the model, not a kolk setting. `kolk models` lists alternatives.",
+			NextAction: "This is usually a region or content restriction on the model, not a kolk setting. `/models` lists alternatives.",
 		}, true
 	case http.StatusNotFound:
 		return Advice{
 			Summary:    "no model is served under that id",
-			NextAction: "Run `kolk models` for current ids — they change, and an id that worked last month can stop being served.",
+			NextAction: "Run `/models` for current ids — they change, and an id that worked last month can stop being served.",
 		}, true
 	case http.StatusRequestTimeout, http.StatusGatewayTimeout:
 		return Advice{
@@ -92,13 +92,13 @@ func Advise(err error) (Advice, bool) {
 	if httpErr.StatusCode >= 500 {
 		return Advice{
 			Summary:    fmt.Sprintf("OpenRouter or the model behind it is having trouble (HTTP %d)", httpErr.StatusCode),
-			NextAction: "Nothing is wrong on this side. Try again in a moment, or `kolk models` to route around one bad provider.",
+			NextAction: "Nothing is wrong on this side. Try again in a moment, or `/models` to route around one bad provider.",
 		}, true
 	}
 	if httpErr.StatusCode >= 400 {
 		return Advice{
 			Summary:    fmt.Sprintf("the request was refused (HTTP %d)", httpErr.StatusCode),
-			NextAction: "The provider's own message is above. `kolk models` lists what is currently served.",
+			NextAction: "The provider's own message is above. `/models` lists what is currently served.",
 		}, true
 	}
 	return Advice{}, false
@@ -110,7 +110,7 @@ func adviseBadRequest(err error, httpErr *HTTPError) (Advice, bool) {
 	if IsContextOverflow(err) {
 		return Advice{
 			Summary:    "the conversation is longer than this model's context window",
-			NextAction: "kolk compacts and retries once on its own. If it persists, `/compact` or start a fresh session — or pick a model with a larger window from `kolk models`.",
+			NextAction: "kolk compacts and retries once on its own. If it persists, `/compact` or start a fresh session — or pick a model with a larger window from `/models`.",
 		}, true
 	}
 	haystack := strings.ToLower(httpErr.Message + " " + httpErr.ResponseBody)
@@ -118,7 +118,7 @@ func adviseBadRequest(err error, httpErr *HTTPError) (Advice, bool) {
 		if strings.Contains(haystack, phrase) {
 			return Advice{
 				Summary:    "this model cannot call tools, and code mode needs them",
-				NextAction: "Pick a tool-capable model: `kolk models` marks which ones qualify. Chat mode works with any model.",
+				NextAction: "Pick a tool-capable model: `/models` marks which ones qualify. Chat mode works with any model.",
 			}, true
 		}
 	}
@@ -155,7 +155,7 @@ func adviseTransport(err error) (Advice, bool) {
 	if errors.As(err, &netErr) {
 		return Advice{
 			Summary:    "could not reach the provider",
-			NextAction: "Run `kolk doctor` to see what it can reach. A proxy, a VPN, or a `--base-url` pointing at something that is not running are the usual causes.",
+			NextAction: "Run `/doctor` to see what it can reach. A proxy, a VPN, or a `--base-url` pointing at something that is not running are the usual causes.",
 		}, true
 	}
 	// A stream that stops early is not a refusal: nothing said no, the bytes
@@ -188,13 +188,13 @@ func adviseHost(httpErr *HTTPError) (Advice, bool) {
 		// billed instead.
 		return Advice{
 			Summary:    "Ollama Cloud's usage limit is reached",
-			NextAction: "It resets on a schedule — session limits every 5 hours, weekly ones every 7 days. A local model has no limit; `kolk models` lists what is pulled.",
+			NextAction: "It resets on a schedule — session limits every 5 hours, weekly ones every 7 days. A local model has no limit; `/models` lists what is pulled.",
 			RetryAfter: httpErr.RetryAfter,
 		}, true
 	case http.StatusNotFound:
 		return Advice{
 			Summary:    "the local Ollama server has no model by that name",
-			NextAction: "`ollama pull <name>` fetches it; `kolk models` lists what is pulled.",
+			NextAction: "`ollama pull <name>` fetches it; `/models` lists what is pulled.",
 		}, true
 	}
 	if httpErr.StatusCode >= 500 {

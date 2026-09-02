@@ -170,7 +170,7 @@ func TestLoginDiscoversThatConnectorAndSaysWhatItFound(t *testing.T) {
 
 	a.reportVendorDiscovery(context.Background(), "codex")
 	got := out.String()
-	for _, want := range []string{"codex 0.149.1", "1 models listed by codex debug models", "gpt-5.6-sol", "`kolk models`"} {
+	for _, want := range []string{"codex 0.149.1", "1 models listed by codex debug models", "gpt-5.6-sol", "`/models`"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("login report = %q, want %q", got, want)
 		}

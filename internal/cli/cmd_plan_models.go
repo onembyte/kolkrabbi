@@ -79,7 +79,7 @@ func (a *app) printPlanModelChoices() error {
 		}
 		status := model.Access
 		if model.Access == "provider CLI" {
-			status = fmt.Sprintf("sign in: kolk plans login %s %q", model.Provider, model.Plan)
+			status = fmt.Sprintf("sign in: /plans login %s %q", model.Provider, model.Plan)
 			for _, connector := range manifest.Connectors {
 				if connector.Provider == model.Provider && connector.Name == model.Connector && connector.Enabled {
 					status = "enabled"

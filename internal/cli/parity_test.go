@@ -18,13 +18,8 @@ import (
 // The list exists so the violation is visible and bounded — a new long verb
 // fails the test, and shortening one of these means deleting its line here.
 var longVerbs = map[string]string{
-	"completion": "generates a shell script; typed once per machine, never in a session",
-	"localia":    "the local-model planner; named for the feature, not the keystrokes",
-	"pmodels":    "plan models; `pmodel` reads as a typo of `model`",
-	"devices":    "plural because it lists, like `sessions`; `device` reads as a flag for one",
-	"sessions":   "plural because it lists; `sess` was judged worse to read",
-	"version":    "what every other CLI calls it, and muscle memory beats the rule",
-	"uninstall":  "the one verb people look for while frustrated; a short alias nobody guesses is worse than nine letters",
+	"sessions":  "plural because it lists; `sess` was judged worse to read",
+	"uninstall": "the one verb people look for while frustrated; a short alias nobody guesses is worse than nine letters",
 }
 
 // TestCommandNameLengthGuardrail enforces the naming rules in
@@ -73,166 +68,106 @@ func TestTheLongVerbListDoesNotRot(t *testing.T) {
 	}
 }
 
-// TestTopLevelAndSlashParity verifies that every top-level CLI verb has an
-// identical slash twin inside the REPL command registry.
-func TestTopLevelAndSlashParity(t *testing.T) {
-	slashMap := make(map[string]bool)
-	for _, sc := range slashCommandTable {
-		trimmed := strings.TrimPrefix(sc.name, "/")
-		slashMap[trimmed] = true
-	}
-
-	// Commands that are batch/daemon only and do not apply inside an active session:
-	batchOnly := map[string]bool{
-		"serve":      true, // daemon/stdio server
-		"completion": true, // shell script generator
-		// uninstall removes the running binary and the session's own state.
-		// Offering it mid-session would mean deleting the sessions file being
-		// written to and the executable currently reading the keyboard.
-		"uninstall": true,
-	}
-
+// TestOutsideSessionSurfaceIsClosed is the enforcement of the owner's decision
+// of 2026-09-02 (docs/plan/09, "the outside-session surface is closed").
+//
+// The session is the product. A verb out here has to be something a session
+// cannot do, and exactly four are: `sessions` lists what you consult before
+// opening one, `serve` hosts sessions rather than running inside one,
+// `uninstall` deletes the binary and the state a session is writing, and `help`
+// is the front door.
+//
+// **Adding a fifth fails this test on purpose.** The failure mode being guarded
+// is not a bad command — it is a surface that grows one reasonable verb at a
+// time until the session is no longer the product. If a new one is genuinely
+// needed, the plan says to put it to the owner twice before this list is
+// touched.
+func TestOutsideSessionSurfaceIsClosed(t *testing.T) {
+	want := []string{"sessions", "serve", "uninstall", "help"}
+	var got []string
 	for _, cmd := range commandTable() {
-		if batchOnly[cmd.name] {
-			continue
+		got = append(got, cmd.name)
+	}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("outside-session verbs = %v, want exactly %v.\nEverything else is a slash command; see the amendment in docs/plan/09-command-surface.md before changing this.", got, want)
+	}
+}
+
+// TestRetiredVerbsAreGoneFromTheCLIAndPresentInTheSession is the other half:
+// each command that stopped being a verb is still reachable where it now
+// lives, so the removal moved the door rather than the room.
+func TestRetiredVerbsAreGoneFromTheCLIAndPresentInTheSession(t *testing.T) {
+	retired := []string{"key", "model", "effort", "mode", "config", "models", "plans",
+		"pmodels", "localia", "update", "stats", "dash", "devices", "version", "doctor"}
+	slash := map[string]bool{}
+	for _, sc := range slashCommandTable {
+		slash[sc.name] = true
+	}
+	for _, name := range retired {
+		if lookupCommand(name) != nil {
+			t.Errorf("%q is still an outside-session verb; the plan says it is a slash command now", name)
 		}
-		canonical := cmd.name
+		canonical := name
 		if canonical == "models" {
-			canonical = "model"
+			canonical = "model" // one command, listing when bare
 		}
-		if canonical == "sessions" {
-			continue // session management
+		if !slash[canonical] {
+			t.Errorf("%q was removed from the CLI and has no /%s to move to — that is a capability deleted, not relocated", name, canonical)
 		}
-		if !slashMap[canonical] {
-			t.Errorf("CLI command %q has no slash twin /%s in REPL slashCommands table", cmd.name, canonical)
-		}
+	}
+	// `completion` is the one genuine deletion: it generated a shell script
+	// for a surface that no longer needs completing.
+	if lookupCommand("completion") != nil || slash["completion"] {
+		t.Error("completion came back; it was deleted, not moved")
 	}
 }
 
-// TestModelAndEffortTopLevelCommandsWork verifies that `kolk model` and
-// `kolk effort` operate as first-class CLI verbs.
-func TestModelAndEffortTopLevelCommandsWork(t *testing.T) {
-	d := isolateHome(t)
+// TestModelAndEffortWorkInSession replaces the top-level-verb test of the same
+// intent: `kolk model` and `kolk effort` are gone, and the behaviour they
+// covered now belongs to /model and /effort.
+func TestModelAndEffortWorkInSession(t *testing.T) {
+	a, ag, out := replFixture(t, "")
+	seedModelCatalog(t, a.dirs)
 
-	// `kolk model` lists the catalog, which means fetching it. Without a
-	// catalog to fetch this test reached the real provider — quietly, until
-	// isolateHome started pointing stray calls at a closed port. Seeding the
-	// cache keeps the test about the command rather than about the network.
-	seedModelCatalog(t, d)
-
-	// 1. kolk model bare lists catalog
-	a, out, errOut := newTestApp(t, "test-key")
-	if code := a.main(context.Background(), []string{"model"}); code != ExitOK {
-		t.Fatalf("kolk model exit = %d, stderr = %q", code, errOut.String())
-	}
-	if !strings.Contains(out.String(), "ctx") {
-		t.Errorf("kolk model output missing catalog: %q", out.String())
-	}
-	if !strings.Contains(out.String(), "/model gpt-plus") {
-		t.Errorf("kolk model output missing subscription shortcut: %q", out.String())
+	// 1. /model bare lists what can be chosen.
+	a.slash(context.Background(), ag, "/model")
+	if got := out.String(); !strings.Contains(got, "ctx") {
+		t.Errorf("/model did not list the catalog: %q", got)
 	}
 
-	// 2. kolk model <alias> sets model
-	a, out, errOut = newTestApp(t, "test-key")
-	if code := a.main(context.Background(), []string{"model", "sonnet"}); code != ExitOK {
-		t.Fatalf("kolk model sonnet exit = %d, stderr = %q", code, errOut.String())
-	}
-	if !strings.Contains(out.String(), "anthropic/claude-3-7-sonnet") {
-		t.Errorf("kolk model sonnet output = %q", out.String())
+	// 2. /model <alias> switches this session.
+	out.Reset()
+	a.slash(context.Background(), ag, "/model sonnet")
+	if got := out.String(); !strings.Contains(got, "anthropic/claude-3-7-sonnet") {
+		t.Errorf("/model sonnet = %q", got)
 	}
 
-	// 3. kolk effort bare shows effort
-	a, out, errOut = newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"effort"}); code != ExitOK {
-		t.Fatalf("kolk effort exit = %d, stderr = %q", code, errOut.String())
+	// 3. /effort bare shows it; 4. /effort <level> sets it.
+	out.Reset()
+	a.slash(context.Background(), ag, "/effort")
+	if got := out.String(); !strings.Contains(got, "effort") {
+		t.Errorf("/effort = %q", got)
 	}
-	if !strings.Contains(out.String(), "effort") {
-		t.Errorf("kolk effort output = %q", out.String())
+	out.Reset()
+	a.slash(context.Background(), ag, "/effort high")
+	if got := out.String(); !strings.Contains(got, "high") {
+		t.Errorf("/effort high = %q", got)
 	}
-
-	// 4. kolk effort <level> sets effort
-	a, out, errOut = newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"effort", "high"}); code != ExitOK {
-		t.Fatalf("kolk effort high exit = %d, stderr = %q", code, errOut.String())
-	}
-	if !strings.Contains(out.String(), "high") {
-		t.Errorf("kolk effort high output = %q", out.String())
+	if ag.Effort != "high" {
+		t.Errorf("session effort = %q, want high", ag.Effort)
 	}
 }
 
-// sessionOnly are slash commands with no `kolk <verb>` twin, and the reason.
+// The two tests that used to live here — TestEverySlashCommandIsAccountedFor
+// and TestTheSessionOnlyListDoesNotRot — asked every slash command to justify
+// having no `kolk <verb>` twin, against a hand-kept `sessionOnly` list of
+// reasons.
 //
-// docs/plan/09-command-surface.md §7 states parity as an equivalence, but only
-// one direction was ever tested: every CLI verb needed a slash twin, and a
-// slash-only command was never questioned. So /diff, /undo and /plan arrived
-// with no twin and nothing noticed.
-//
-// Most of these are session-only for a real reason — they act on a live
-// conversation that a one-shot process does not have. Writing the reason down
-// is the point: it turns "nobody built the twin" into "there is nothing for the
-// twin to act on", which are different, and only one of them is a gap.
-var sessionOnly = map[string]string{
-	"ask":          "sets the permission tier of the running session",
-	"auto-approve": "sets the permission tier of the running session",
-	"full-auto":    "sets the permission tier of the running session",
-	"permissions":  "shows and edits the running session's tier and rules",
-	"plan":         "puts the running session into read-only planning",
-	"commit":       "drafts through the running session's fast lane, which a one-shot process has no model wired for",
-	"pr":           "drafts through the running session's fast lane, like /commit",
-	"compact":      "shrinks the conversation this process is holding",
-	"remember":     "appends what the session just learned",
-	"rate":         "rates the turn that just happened",
-	"changes":      "lists what this session changed",
-	"diff":         "shows what this session changed; a fresh process has no session to diff",
-	"undo":         "takes back this session's last turn",
-	"rewind":       "restores this session's last turn's files",
-	"session":      "identifies the running session",
-	"new":          "starts a fresh session inside the running process",
-	"clear":        "alias for /new",
-	"exit":         "leaves the REPL; a one-shot process has already left",
-	"quit":         "alias for /exit",
-	"plogin":       "picks a plan to log into, interactively",
-	"saga":         "marks a normal prompt for careful progression; it has no standalone CLI twin",
-}
-
-// TestEverySlashCommandIsAccountedFor closes the other half of the parity rule.
-func TestEverySlashCommandIsAccountedFor(t *testing.T) {
-	cliVerbs := map[string]bool{}
-	for _, cmd := range commandTable() {
-		cliVerbs[cmd.name] = true
-	}
-
-	for _, sc := range slashCommandTable {
-		name := strings.TrimPrefix(sc.name, "/")
-		if cliVerbs[name] {
-			continue
-		}
-		if reason := sessionOnly[name]; reason == "" {
-			t.Errorf("/%s has no `kolk %s` twin and no reason recorded — add the twin, or add it to sessionOnly saying what it acts on that a one-shot process lacks", name, name)
-		}
-	}
-}
-
-// TestTheSessionOnlyListDoesNotRot keeps its entries real.
-func TestTheSessionOnlyListDoesNotRot(t *testing.T) {
-	slashNames := map[string]bool{}
-	for _, sc := range slashCommandTable {
-		slashNames[strings.TrimPrefix(sc.name, "/")] = true
-	}
-	cliVerbs := map[string]bool{}
-	for _, cmd := range commandTable() {
-		cliVerbs[cmd.name] = true
-	}
-
-	for name := range sessionOnly {
-		if !slashNames[name] {
-			t.Errorf("sessionOnly names /%s, which is not a slash command", name)
-		}
-		if cliVerbs[name] {
-			t.Errorf("/%s has a CLI twin now and no longer needs to be listed as session-only", name)
-		}
-	}
-}
+// The amendment of 2026-09-02 inverts that question. A slash command needs no
+// CLI twin and never did; it is an outside-session verb that now has to
+// justify itself, which TestOutsideSessionSurfaceIsClosed does by name. Keeping
+// the old list would mean maintaining a reason for all thirty-six of them, all
+// of which would read "because the session is the product".
 
 // seedModelCatalog writes a cached catalog so a command that lists models has
 // something to list without asking a provider.

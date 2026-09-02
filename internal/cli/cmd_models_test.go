@@ -84,6 +84,6 @@ func TestModelsListsAnUnpulledCloudCatalogueRowWithItsPullCommand(t *testing.T) 
 	a.printHostModels(context.Background(), "", "")
 	text := out.String()
 	if !strings.Contains(text, "ollama/gpt-oss:120b-cloud") || !strings.Contains(text, "not pulled: ollama pull gpt-oss:120b-cloud") {
-		t.Fatalf("kolk models omitted Cloud pull guidance:\n%s", text)
+		t.Fatalf("/models omitted Cloud pull guidance:\n%s", text)
 	}
 }

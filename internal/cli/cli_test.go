@@ -168,8 +168,8 @@ func TestTopLevelUpdateNeedsNoKeyOrState(t *testing.T) {
 		}, nil
 	}
 
-	if code := a.main(context.Background(), []string{"update"}); code != ExitOK {
-		t.Fatalf("kolk update exit = %d, stderr %q", code, errOut.String())
+	if code := runUpdateInSession(t, a); code != ExitOK {
+		t.Fatalf("/update exit = %d, stderr %q", code, errOut.String())
 	}
 	if calls != 1 {
 		t.Fatalf("updater calls = %d, want 1", calls)
@@ -184,25 +184,30 @@ func TestTopLevelUpdateNeedsNoKeyOrState(t *testing.T) {
 			t.Fatalf("update output omitted %q: %q", want, out.String())
 		}
 	}
-	for _, dir := range []string{d.Config, d.Data, d.Cache} {
-		if _, err := os.Stat(dir); !os.IsNotExist(err) {
-			t.Fatalf("keyless update created state at %s: %v", dir, err)
-		}
-	}
+	// The "creates no directories" half of this test was a property of the
+	// retired `kolk update` verb, which ran before anything resolved. /update
+	// runs inside a session that has already made its directories, so the
+	// assertion would now be about the session rather than the update. What
+	// still matters — and is asserted above — is that it needs no key.
+	_ = d
 }
 
-func TestTopLevelUpdateRejectsArgumentsBeforeCallingUpdater(t *testing.T) {
-	a, _, errOut := newTestApp(t, "")
+func TestUpdateRejectsArgumentsBeforeCallingUpdater(t *testing.T) {
 	calls := 0
+	a, ag, out := replFixture(t, "")
 	a.update = func(context.Context) (selfupdate.Result, error) {
 		calls++
 		return selfupdate.Result{}, nil
 	}
-	if code := a.main(context.Background(), []string{"update", "now"}); code != ExitUsage {
-		t.Fatalf("update with argument exit = %d, want %d", code, ExitUsage)
+	// /update takes no argument, and says so before the updater is reached:
+	// an argument is a misunderstanding, and answering it by downloading a
+	// release is the wrong way to find that out.
+	a.slash(context.Background(), ag, "/update now")
+	if !strings.Contains(out.String(), "usage: /update") {
+		t.Fatalf("/update now = %q, want the usage line", out.String())
 	}
-	if calls != 0 || !strings.Contains(errOut.String(), "usage: kolk update") {
-		t.Fatalf("calls = %d, stderr = %q", calls, errOut.String())
+	if calls != 0 {
+		t.Fatalf("the updater ran for a rejected argument: calls = %d", calls)
 	}
 }
 
@@ -213,7 +218,7 @@ func TestTopLevelUpdateReportsUnchangedFailureAndWarning(t *testing.T) {
 		a.update = func(context.Context) (selfupdate.Result, error) {
 			return selfupdate.Result{Current: "1.2.3", Latest: "1.2.3"}, nil
 		}
-		if code := a.main(context.Background(), []string{"update"}); code != ExitOK {
+		if code := runUpdateInSession(t, a); code != ExitOK {
 			t.Fatalf("exit = %d", code)
 		}
 		if got, want := out.String(), "Current version: 1.2.3\nChecking for updates to latest version...\nKolk is up to date (1.2.3)\n"; got != want {
@@ -227,7 +232,7 @@ func TestTopLevelUpdateReportsUnchangedFailureAndWarning(t *testing.T) {
 		a.update = func(context.Context) (selfupdate.Result, error) {
 			return selfupdate.Result{Current: "2.0.0", Latest: "1.2.3"}, nil
 		}
-		if code := a.main(context.Background(), []string{"update"}); code != ExitOK {
+		if code := runUpdateInSession(t, a); code != ExitOK {
 			t.Fatalf("exit = %d", code)
 		}
 		if got := out.String(); !strings.Contains(got, "Kolk is newer than the latest release (current 2.0.0; latest 1.2.3)") {
@@ -241,7 +246,7 @@ func TestTopLevelUpdateReportsUnchangedFailureAndWarning(t *testing.T) {
 		a.update = func(context.Context) (selfupdate.Result, error) {
 			return selfupdate.Result{}, errors.New("release unavailable")
 		}
-		if code := a.main(context.Background(), []string{"update"}); code != ExitError {
+		if code := runUpdateInSession(t, a); code != ExitError {
 			t.Fatalf("exit = %d, want %d", code, ExitError)
 		}
 		if !strings.Contains(errOut.String(), "release unavailable") {
@@ -261,7 +266,7 @@ func TestTopLevelUpdateReportsUnchangedFailureAndWarning(t *testing.T) {
 				Path: "/bin/kolk", Warning: "directory sync refused",
 			}, nil
 		}
-		if code := a.main(context.Background(), []string{"update"}); code != ExitOK {
+		if code := runUpdateInSession(t, a); code != ExitOK {
 			t.Fatalf("exit = %d", code)
 		}
 		if !strings.Contains(out.String(), "Kolk updated successfully") || !strings.Contains(errOut.String(), "warning: directory sync refused") {
@@ -312,7 +317,7 @@ func TestFirstRunWithoutAKeyIsExactAndReadOnly(t *testing.T) {
 		t.Errorf("exit = %d, want %d", code, ExitUsage)
 	}
 	const want = "kolk needs an API key before it can use models.\n" +
-		"Add one:  kolk key <API_KEY>\n" +
+		"Add one:  /key <API_KEY>\n" +
 		"Then run: kolk\n"
 	if got := errOut.String(); got != want {
 		t.Errorf("first-run guidance:\n%s\nwant exactly:\n%s", got, want)
@@ -362,11 +367,11 @@ func TestSessionsAndStatsRunOnAnEmptyMachine(t *testing.T) {
 	}
 
 	a, out, _ = newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"stats"}); code != ExitOK {
-		t.Fatalf("kolk stats exit = %d", code)
+	if code := runRetiredVerb(t, a, "stats"); code != ExitOK {
+		t.Fatalf("/stats exit = %d", code)
 	}
 	if !strings.Contains(out.String(), "nothing ever leaves this machine") {
-		t.Errorf("kolk stats must state the local-only promise, got %q", out.String())
+		t.Errorf("/stats must state the local-only promise, got %q", out.String())
 	}
 }
 
@@ -374,12 +379,12 @@ func TestConfigSettingsRoundTripWithoutACredentialField(t *testing.T) {
 	isolateHome(t)
 
 	a, _, _ := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config", "set-tier", "quick", "google/gemini-2.5-flash"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "config", "set-tier", "quick", "google/gemini-2.5-flash"); code != ExitOK {
 		t.Fatalf("config set-tier exit = %d", code)
 	}
 
 	a, out, _ := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config", "show"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "config", "show"); code != ExitOK {
 		t.Fatalf("config show exit = %d", code)
 	}
 	got := out.String()
@@ -402,7 +407,7 @@ func TestConfigWriteEvacuatesALegacyKeyBeforeSaving(t *testing.T) {
 	}
 
 	a, _, errOut := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config", "set-model", "new/model"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "config", "set-model", "new/model"); code != ExitOK {
 		t.Fatalf("config write exit = %d, stderr: %s", code, errOut)
 	}
 	if !strings.Contains(errOut.String(), "moved your saved API key") {
@@ -427,7 +432,7 @@ func TestConfigWriteEvacuatesALegacyKeyBeforeSaving(t *testing.T) {
 	}
 
 	a, _, errOut = newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config", "set-base-url", "https://second.test"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "config", "set-base-url", "https://second.test"); code != ExitOK {
 		t.Fatalf("second config write exit = %d, stderr: %s", code, errOut)
 	}
 	if strings.Contains(errOut.String(), "moved your saved API key") {
@@ -446,7 +451,7 @@ func TestInvalidConfigWriteDoesNotTriggerLegacyMigration(t *testing.T) {
 	}
 
 	a, _, _ := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config", "set-tier", "bogus", "some/model"}); code != ExitUsage {
+	if code := runRetiredVerb(t, a, "config", "set-tier", "bogus", "some/model"); code != ExitUsage {
 		t.Fatalf("invalid config write exit = %d, want %d", code, ExitUsage)
 	}
 	if _, err := os.Stat(d.CredentialsFile()); !os.IsNotExist(err) {
@@ -464,7 +469,7 @@ func TestInvalidConfigWriteDoesNotTriggerLegacyMigration(t *testing.T) {
 func TestConfigRejectsAnUnknownEffortTier(t *testing.T) {
 	isolateHome(t)
 	a, _, _ := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config", "set-tier", "bogus", "some/model"}); code != ExitUsage {
+	if code := runRetiredVerb(t, a, "config", "set-tier", "bogus", "some/model"); code != ExitUsage {
 		t.Errorf("set-tier bogus exit = %d, want %d", code, ExitUsage)
 	}
 }
@@ -484,15 +489,15 @@ func TestFormatPricing(t *testing.T) {
 
 func TestHelpForACommandShowsItsGrammar(t *testing.T) {
 	a, out, _ := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"help", "config"}); code != ExitOK {
-		t.Fatalf("kolk help config exit = %d", code)
+	if code := a.main(context.Background(), []string{"help", "sessions"}); code != ExitOK {
+		t.Fatalf("kolk help sessions exit = %d", code)
 	}
 	got := out.String()
-	if !strings.Contains(got, "usage: kolk config") {
-		t.Errorf("kolk help config did not print a usage line:\n%s", got)
+	if !strings.Contains(got, "usage: kolk sessions") {
+		t.Errorf("kolk help sessions did not print a usage line:\n%s", got)
 	}
-	if !strings.Contains(got, "set-tier") {
-		t.Errorf("kolk help config did not print the argument grammar:\n%s", got)
+	if !strings.Contains(got, "fork") {
+		t.Errorf("kolk help sessions did not print the argument grammar:\n%s", got)
 	}
 }
 
@@ -520,10 +525,10 @@ func TestUsageLineIsGeneratedForEveryCommand(t *testing.T) {
 func TestBadSubcommandPrintsTheGeneratedUsage(t *testing.T) {
 	isolateHome(t)
 	a, _, errOut := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config", "set-everything"}); code != ExitUsage {
+	if code := runRetiredVerb(t, a, "config", "set-everything"); code != ExitUsage {
 		t.Fatalf("exit = %d, want %d", code, ExitUsage)
 	}
-	if !strings.Contains(errOut.String(), "usage: kolk config") {
+	if !strings.Contains(errOut.String(), "usage: /config") {
 		t.Errorf("bad subcommand did not print generated usage: %q", errOut.String())
 	}
 }
@@ -534,7 +539,7 @@ func TestStateAndConfigAreSeparateOnDisk(t *testing.T) {
 	d := isolateHome(t)
 
 	a, _, _ := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config", "set-model", "openrouter/auto"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "config", "set-model", "openrouter/auto"); code != ExitOK {
 		t.Fatalf("config set-model exit = %d", code)
 	}
 	if _, err := os.Stat(d.ConfigFile()); err != nil {
@@ -543,8 +548,8 @@ func TestStateAndConfigAreSeparateOnDisk(t *testing.T) {
 
 	const mistralKey = "0123456789abcdef0123456789abcdef"
 	a, _, _ = newTestApp(t, mistralKey+"\n")
-	if code := a.main(context.Background(), []string{"key", "mistral", "-"}); code != ExitOK {
-		t.Fatalf("kolk key exit = %d", code)
+	if code := runRetiredVerb(t, a, "key", "mistral", "-"); code != ExitOK {
+		t.Fatalf("/key exit = %d", code)
 	}
 	if _, err := os.Stat(d.CredentialsFile()); err != nil {
 		t.Errorf("credential did not land in the data directory: %v", err)
@@ -556,7 +561,7 @@ func TestStateAndConfigAreSeparateOnDisk(t *testing.T) {
 
 // Commands that need nothing from disk must work on a machine where the home
 // directory cannot be resolved at all.
-func TestHelpAndVersionNeedNoDirectories(t *testing.T) {
+func TestHelpNeedsNoDirectories(t *testing.T) {
 	t.Setenv("HOME", "")
 	t.Setenv("USERPROFILE", "")
 	t.Setenv("XDG_CONFIG_HOME", "")
@@ -566,7 +571,10 @@ func TestHelpAndVersionNeedNoDirectories(t *testing.T) {
 	t.Setenv(paths.EnvDataDir, "")
 	t.Setenv(paths.EnvCacheDir, "")
 
-	for _, verb := range []string{"help", "version"} {
+	// version stopped being a verb on 2026-09-02; the build it printed is in
+	// `kolk help` now, which is the one command that must work before any
+	// directory does.
+	for _, verb := range []string{"help"} {
 		a, out, _ := newTestApp(t, "")
 		if code := a.main(context.Background(), []string{verb}); code != ExitOK {
 			t.Errorf("kolk %s exit = %d with no resolvable home directory", verb, code)
@@ -582,7 +590,7 @@ func TestConfigSetGetUnsetDottedEffortModel(t *testing.T) {
 
 	// 1. Initial get is unset
 	a, out, _ := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config", "get", "effort.high.model"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "config", "get", "effort.high.model"); code != ExitOK {
 		t.Fatalf("config get unset exit = %d, want ExitOK", code)
 	}
 	if !strings.Contains(out.String(), "unset") {
@@ -591,7 +599,7 @@ func TestConfigSetGetUnsetDottedEffortModel(t *testing.T) {
 
 	// 2. Set effort.high.model
 	a, out, _ = newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config", "set", "effort.high.model", "anthropic/claude-opus-4.5"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "config", "set", "effort.high.model", "anthropic/claude-opus-4.5"); code != ExitOK {
 		t.Fatalf("config set effort.high.model exit = %d, want ExitOK", code)
 	}
 	if !strings.Contains(out.String(), "effort.high.model → anthropic/claude-opus-4.5") {
@@ -600,7 +608,7 @@ func TestConfigSetGetUnsetDottedEffortModel(t *testing.T) {
 
 	// 3. Get effort.high.model returns set value
 	a, out, _ = newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config", "get", "effort.high.model"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "config", "get", "effort.high.model"); code != ExitOK {
 		t.Fatalf("config get exit = %d", code)
 	}
 	if !strings.Contains(out.String(), "anthropic/claude-opus-4.5") {
@@ -609,7 +617,7 @@ func TestConfigSetGetUnsetDottedEffortModel(t *testing.T) {
 
 	// 4. Also accessible via numeric alias: get effort.3.model
 	a, out, _ = newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config", "get", "effort.3.model"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "config", "get", "effort.3.model"); code != ExitOK {
 		t.Fatalf("config get effort.3.model exit = %d", code)
 	}
 	if !strings.Contains(out.String(), "anthropic/claude-opus-4.5") {
@@ -618,7 +626,7 @@ func TestConfigSetGetUnsetDottedEffortModel(t *testing.T) {
 
 	// 5. Unset effort.high.model
 	a, out, _ = newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config", "unset", "effort.high.model"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "config", "unset", "effort.high.model"); code != ExitOK {
 		t.Fatalf("config unset exit = %d", code)
 	}
 	if !strings.Contains(out.String(), "removed effort.high.model") {
@@ -627,7 +635,7 @@ func TestConfigSetGetUnsetDottedEffortModel(t *testing.T) {
 
 	// 6. Verify unset
 	a, out, _ = newTestApp(t, "")
-	_ = a.main(context.Background(), []string{"config", "get", "effort.high.model"})
+	_ = runRetiredVerb(t, a, "config", "get", "effort.high.model")
 	if !strings.Contains(out.String(), "unset") {
 		t.Errorf("config get after unset output = %q, want unset note", out.String())
 	}
@@ -673,7 +681,7 @@ func TestConfigSetsTheSubscriptionLimitPolicy(t *testing.T) {
 	isolateHome(t)
 
 	a, out, _ := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "config"); code != ExitOK {
 		t.Fatalf("config exit = %d, want ExitOK", code)
 	}
 	if !strings.Contains(out.String(), "routing.on_subscription_limit") || !strings.Contains(out.String(), "ask") {
@@ -681,7 +689,7 @@ func TestConfigSetsTheSubscriptionLimitPolicy(t *testing.T) {
 	}
 
 	a, out, _ = newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config", "set", "routing.on_subscription_limit", "switch"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "config", "set", "routing.on_subscription_limit", "switch"); code != ExitOK {
 		t.Fatalf("config set exit = %d, want ExitOK", code)
 	}
 	if !strings.Contains(out.String(), "routing.on_subscription_limit → switch") {
@@ -692,7 +700,7 @@ func TestConfigSetsTheSubscriptionLimitPolicy(t *testing.T) {
 	// answer and is not one, and guessing which way it meant is how a run
 	// starts spending money nobody agreed to.
 	a, _, errOut := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config", "set", "routing.on_subscription_limit", "continue"}); code == ExitOK {
+	if code := runRetiredVerb(t, a, "config", "set", "routing.on_subscription_limit", "continue"); code == ExitOK {
 		t.Fatal("config set continue exit = ExitOK, want a rejection")
 	}
 	if !strings.Contains(errOut.String(), "ask, switch or stop") {
@@ -700,11 +708,11 @@ func TestConfigSetsTheSubscriptionLimitPolicy(t *testing.T) {
 	}
 
 	a, _, _ = newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config", "unset", "routing.on_subscription_limit"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "config", "unset", "routing.on_subscription_limit"); code != ExitOK {
 		t.Fatalf("config unset exit = %d, want ExitOK", code)
 	}
 	a, out, _ = newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"config", "get", "routing.on_subscription_limit"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "config", "get", "routing.on_subscription_limit"); code != ExitOK {
 		t.Fatalf("config get exit = %d", code)
 	}
 	if !strings.Contains(out.String(), "ask") {

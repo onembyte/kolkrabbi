@@ -309,7 +309,7 @@ func TestSettingsSuggestionsToleratesAScatteredQuery(t *testing.T) {
 func TestModelPickerSeparatesSignedInFromNeedsLogin(t *testing.T) {
 	models := []ModelSpec{
 		{ID: "claude-opus", Cost: CostSubscriptionLogin, Rank: ModelRank(CostSubscriptionLogin),
-			Name: `Claude Max · sign in first:  kolk plans login anthropic "Claude Max"`},
+			Name: `Claude Max · sign in first:  /plans login anthropic "Claude Max"`},
 		{ID: "claude-sonnet", Cost: CostSubscription, Rank: ModelRank(CostSubscription),
 			Name: "Claude Pro · via your claude login"},
 		{ID: "anthropic/claude-opus-5", Name: "Claude Opus 5", Cost: CostMetered, Rank: ModelRank(CostMetered)},
@@ -331,7 +331,7 @@ func TestModelPickerSeparatesSignedInFromNeedsLogin(t *testing.T) {
 		t.Fatalf("row 2 = %q, want the metered API row last", got[2].Summary)
 	}
 	// The row that cannot be selected yet says exactly what to run.
-	if !strings.Contains(got[1].Summary, "kolk plans login anthropic") {
+	if !strings.Contains(got[1].Summary, "/plans login anthropic") {
 		t.Fatalf("a row that needs a login must carry the command: %q", got[1].Summary)
 	}
 }

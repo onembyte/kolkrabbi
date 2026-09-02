@@ -71,7 +71,7 @@ func TestAFailedTurnOnAnUnverifiedConnectorExplainsTheLikelyCause(t *testing.T) 
 	}
 
 	got := errOut.String()
-	if !strings.Contains(got, `kolk plans login anthropic "Claude Max"`) {
+	if !strings.Contains(got, `/plans login anthropic "Claude Max"`) {
 		t.Fatalf("stderr = %q, want the command that signs the connector in", got)
 	}
 	// Demoting on a guessed cause would disable a working connector, so the
@@ -108,7 +108,7 @@ func TestAFailedTurnExplainsOnlyOnce(t *testing.T) {
 	for range 3 {
 		_, _, _ = backend.StreamChat(context.Background(), "claude-opus", nil, nil, nil)
 	}
-	if strings.Count(errOut.String(), "kolk plans login") != 1 {
+	if strings.Count(errOut.String(), "/plans login") != 1 {
 		t.Fatalf("stderr = %q, want the hint exactly once", errOut.String())
 	}
 }

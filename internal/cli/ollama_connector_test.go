@@ -55,7 +55,7 @@ func TestOllamaLoginVerifiesThroughTheServerNotATurn(t *testing.T) {
 	}
 	a.signInBudget = time.Second
 
-	if code := a.main(context.Background(), []string{"plans", "login", "ollama", "Ollama", "Pro"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "plans", "login", "ollama", "Ollama", "Pro"); code != ExitOK {
 		t.Fatalf("plans login exit = %d, stderr = %q", code, errOut.String())
 	}
 	found, verified := ollamaConnectorState(t, dirs)
@@ -80,7 +80,7 @@ func TestOllamaLoginThatStaysSignedOutPrintsTheURLAndStaysUnverified(t *testing.
 	}
 	a.signInBudget = 50 * time.Millisecond
 
-	_ = a.main(context.Background(), []string{"plans", "login", "ollama", "Ollama", "Pro"})
+	_ = runRetiredVerb(t, a, "plans", "login", "ollama", "Ollama", "Pro")
 	if _, verified := ollamaConnectorState(t, dirs); verified {
 		t.Fatal("a sign-in that never completed was recorded as verified")
 	}
@@ -98,7 +98,7 @@ func TestOllamaLoginWithNoServerSaysWhatToStart(t *testing.T) {
 	a.handover = func(context.Context, string, []string, string) error { ran = true; return nil }
 	a.discoverHost = func(context.Context) local.Host { return local.Host{State: local.HostInstalled, Binary: "/opt/ollama"} }
 
-	_ = a.main(context.Background(), []string{"plans", "login", "ollama", "Ollama", "Pro"})
+	_ = runRetiredVerb(t, a, "plans", "login", "ollama", "Ollama", "Pro")
 	if ran {
 		t.Fatal("signin was run against no server")
 	}

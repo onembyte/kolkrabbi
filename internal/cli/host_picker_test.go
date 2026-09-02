@@ -106,7 +106,7 @@ func TestPickerLabelsCloudRowsByTheConnector(t *testing.T) {
 	}
 	a, agent = hostPickerApp(t, &unverified, 0)
 	row, _ = rowByID(tuiModels(context.Background(), a, agent), "ollama/gpt-oss:120b-cloud")
-	if row.Cost != tui.CostSubscriptionLogin || !strings.Contains(row.Name, "kolk plans login ollama") {
+	if row.Cost != tui.CostSubscriptionLogin || !strings.Contains(row.Name, "/plans login ollama") {
 		t.Errorf("unverified connector: cloud row = %+v, want sign-in-first with the command", row)
 	}
 	a, agent = hostPickerApp(t, nil, 0)
@@ -250,7 +250,7 @@ func TestPickerDrawsAnIdleOllamaFromItsManifestTree(t *testing.T) {
 		t.Fatalf("pulled model on an idle host = %+v, want a runnable row that says it starts ollama", pulledRow)
 	}
 	notPulled, ok := rowByID(rows, "ollama/llama3.1:8b")
-	if !ok || !strings.Contains(notPulled.Name, "kolk localia pull llama3.1:8b") {
+	if !ok || !strings.Contains(notPulled.Name, "/localia pull llama3.1:8b") {
 		t.Fatalf("unpulled catalogue model = %+v, want the pull command", notPulled)
 	}
 	for _, row := range rows {

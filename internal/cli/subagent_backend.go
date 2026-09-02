@@ -51,7 +51,7 @@ func (a *app) subagentBackendWithCapabilities() engine.SubagentBackendWithCapabi
 			return nil, nil
 		}
 		if !a.connectorSignedIn(vendor) {
-			return nil, fmt.Errorf("cannot run %s: the %s connector is not signed in (kolk plans login <provider> <plan>)", model, vendor)
+			return nil, fmt.Errorf("cannot run %s: the %s connector is not signed in (/plans login <provider> <plan>)", model, vendor)
 		}
 		execution := agentcli.ExecutionOptions{
 			Workspace:      capabilities.Workspace,

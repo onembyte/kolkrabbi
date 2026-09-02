@@ -22,10 +22,10 @@ func TestProviderFailuresPrintTheirNextAction(t *testing.T) {
 		err      error
 		wantLine string
 	}{
-		{"401", &provider.HTTPError{StatusCode: http.StatusUnauthorized}, "kolk key"},
-		{"402", &provider.HTTPError{StatusCode: http.StatusPaymentRequired}, "kolk models"},
+		{"401", &provider.HTTPError{StatusCode: http.StatusUnauthorized}, "/key"},
+		{"402", &provider.HTTPError{StatusCode: http.StatusPaymentRequired}, "/models"},
 		{"429", &provider.HTTPError{StatusCode: http.StatusTooManyRequests}, "free model"},
-		{"wrapped 404", fmt.Errorf("turn 1: %w", &provider.HTTPError{StatusCode: http.StatusNotFound}), "kolk models"},
+		{"wrapped 404", fmt.Errorf("turn 1: %w", &provider.HTTPError{StatusCode: http.StatusNotFound}), "/models"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -46,12 +46,12 @@ func TestProviderFailuresPrintTheirNextAction(t *testing.T) {
 // knows more than a status-code table does.
 func TestGuidedErrorsKeepTheirOwnHints(t *testing.T) {
 	a, _, stderr := newTestApp(t, "")
-	a.printFailure(&GuidedError{Msg: "the key is unreadable", Hint: []string{"run `kolk key -`"}}, ExitError)
+	a.printFailure(&GuidedError{Msg: "the key is unreadable", Hint: []string{"run `/key -`"}}, ExitError)
 	out := stderr.String()
-	if !strings.Contains(out, "run `kolk key -`") {
+	if !strings.Contains(out, "run `/key -`") {
 		t.Errorf("guided hint was lost:\n%s", out)
 	}
-	if strings.Contains(out, "kolk models") {
+	if strings.Contains(out, "/models") {
 		t.Errorf("status-code advice displaced the command's own guidance:\n%s", out)
 	}
 }
@@ -121,7 +121,7 @@ func TestBothDoomLoopStopsShareOnePhrase(t *testing.T) {
 func TestProviderAdviceSurvivesTheDoomLoopCase(t *testing.T) {
 	a, _, stderr := newTestApp(t, "")
 	a.printFailure(&provider.HTTPError{StatusCode: 401}, ExitError)
-	if !strings.Contains(stderr.String(), "kolk key") {
+	if !strings.Contains(stderr.String(), "/key") {
 		t.Errorf("provider advice stopped printing:\n%s", stderr.String())
 	}
 }

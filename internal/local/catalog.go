@@ -101,7 +101,7 @@ func LookupModel(name string) (CatalogEntry, error) {
 			return entry, nil
 		}
 	}
-	return CatalogEntry{}, fmt.Errorf("no local model named %q; `kolk localia models` lists them", name)
+	return CatalogEntry{}, fmt.Errorf("no local model named %q; `/localia models` lists them", name)
 }
 
 // Requirement estimates what one entry needs at runtime.

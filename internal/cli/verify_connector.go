@@ -74,7 +74,7 @@ func (a *app) verifyingBackend(inner engine.ChatBackend, plan provider.PlanModel
 		},
 		explain: func() {
 			fmt.Fprintf(a.stderr, "%s has not answered successfully yet. If it is not signed in, run this in another terminal:\n", plan.Connector)
-			fmt.Fprintf(a.stderr, "  kolk plans login %s %q\n", plan.Provider, plan.Plan)
+			fmt.Fprintf(a.stderr, "  /plans login %s %q\n", plan.Provider, plan.Plan)
 		},
 		observe: func(asked string, meta provider.Meta, err error) {
 			a.recordVendorModelOutcome(plan.Connector, asked, meta, err)

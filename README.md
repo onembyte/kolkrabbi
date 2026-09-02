@@ -44,10 +44,10 @@ the tool-round limit per turn, the shell timeout, and how many tasks an
 orchestrated run may open (low 1, medium 2, high 4, max 6). The older
 `quick/standard/deep/ultra` words and the numbers `1..4` are still accepted.
 
-```bash
-kolk config set-tier low    google/gemini-2.5-flash   # pennies
-kolk config set-tier medium anthropic/claude-sonnet-4.6
-kolk config set-tier high   anthropic/claude-opus-4.6  # frontier
+```
+/config set-tier low    google/gemini-2.5-flash   # pennies
+/config set-tier medium anthropic/claude-sonnet-4.6
+/config set-tier high   anthropic/claude-opus-4.6  # frontier
 ```
 
 Zero-config still works: unset tiers fall back to the session model, so
@@ -60,7 +60,7 @@ no database, no telemetry, nothing ever leaves your machine. Rate turns as
 you go with `/rate 1-5`, then:
 
 ```
-$ kolk stats
+kolk-code> /stats
 MODEL                            CALLS     TOKENS      COST     AVG  RATING  MODES
 anthropic/claude-sonnet-4.6         42     181203     $1.24   2100ms    4.6★  code:42
 google/gemini-2.5-flash             67      88410     $0.04    390ms    4.1★  chat:67
@@ -77,11 +77,21 @@ token-based elsewhere.
 
 ```bash
 curl -fsSL https://kolkrabbi.francomichetti.com/install.sh | sh   # macOS and Linux, amd64 and arm64
-kolk key sk-or-v1-...                                             # or export OPENROUTER_API_KEY=...
-kolk
+kolk                                                              # opens a session
+```
+
+Then, in the session:
+
+```
+/key sk-or-v1-...        # or export OPENROUTER_API_KEY=... before starting
 ```
 
 That's the whole setup. Everything else is optional.
+
+Commands live **inside** the session: `kolk` opens one and `/key`, `/model`, `/config`,
+`/stats` and the rest work there. Only four things run outside a session — `kolk
+sessions`, `kolk serve`, `kolk uninstall` and `kolk help` — because only those are
+things a session cannot do.
 
 The install script picks a writable directory on your `PATH` (override with
 `KOLK_INSTALL_DIR`), pins a version with `KOLK_VERSION`, and verifies the download's
@@ -94,7 +104,7 @@ go install github.com/onembyte/kolkrabbi/cmd/kolk@latest   # Go 1.25+, two depen
 git clone https://github.com/onembyte/kolkrabbi && cd kolkrabbi && go build -o kolk ./cmd/kolk
 ```
 
-`kolk update` replaces the running binary with the current release, verifying its
+`/update` replaces the running binary with the current release, verifying its
 checksum first. Nothing checks for updates on its own — no background poll, no startup
 nudge. kolk contacts the release server when you ask it to and not otherwise.
 
@@ -115,7 +125,7 @@ map still wins because those are explicit user choices.
 
 Earlier builds documented an all-tier `stealth/ox-alpha` preset as free. That model is
 no longer guaranteed to cost zero, so kolk recognizes that exact old preset and uses
-live free-model discovery instead. `kolk models` lists current models with context size
+live free-model discovery instead. `/model` lists current models with context size
 and $/1M pricing when you want to make a deliberate override.
 
 ## Usage
@@ -127,15 +137,20 @@ kolk --mode agent "plan, implement, and verify this change"
 kolk --permission auto-approve "run the tests and fix failures"   # edits flow, commands still ask
 kolk -r                       # resume the most recent session
 kolk --base-url http://localhost:11434/v1 -m qwen2.5-coder:14b "..."  # Ollama — keyless; the OpenRouter key never leaves openrouter.ai
-kolk stats                    # the dashboard
-kolk dash                     # the same numbers as a loopback-only page
-kolk sessions                 # list / search / fork / export saved conversations
-kolk models claude            # browse models with $/1M pricing
-kolk localia                  # what this machine could run locally
-kolk serve --addr 127.0.0.1:7777   # stream this session's events to a client
 ```
 
-In-session: `/mode`, `/effort`, `/model`, `/rate 1-5`, `/diff`, `/changes`,
+Outside a session, there are four commands and no more:
+
+```bash
+kolk sessions                      # this folder's saved conversations: search / fork / export / rm
+kolk serve --addr 127.0.0.1:7777   # host a session for a client
+kolk uninstall                     # remove kolk and everything it stored
+kolk help                          # what kolk is, and every command in and out of a session
+```
+
+Everything else is in-session: `/key`, `/model`, `/config`, `/stats`, `/dash`,
+`/localia`, `/plans`, `/pmodels`, `/update`, `/doctor`, `/devices`, `/version`,
+`/mode`, `/effort`, `/rate 1-5`, `/diff`, `/changes`,
 `/undo`, `/rewind`, `/plan`, `/compact`, `/remember`, `/new`,
 `/permissions [ask|auto-approve|full-auto]`, `/help` — `/help` lists all of
 them. `/permissions` without an argument lists the three tiers and marks the
@@ -255,7 +270,7 @@ Refusals are worth more than plans when you are deciding whether to use somethin
 of what kolk deliberately does **not** do:
 
 - **No telemetry, no analytics, no background version check.** kolk contacts a server when you ask it
-  to. `kolk update` checks for a release; nothing else phones anywhere.
+  to. `/update` checks for a release; nothing else phones anywhere.
 - **No hosted service and no cloud sync.** Sessions are files on your disk.
 - **No plugins compiled in Go**, and no dynamic loading into the agent's address space.
 - **No native mobile apps.** A phone can steer a session over the local network instead.

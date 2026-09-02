@@ -33,8 +33,15 @@ contains "$CLI/cli.go" 'kolk — chat / code / agent in one CLI' "top-level help
 contains "$CLI/cli.go" 'In agent mode, effort also scales orchestration width.' "top-level help does not explain agent effort"
 contains "$CLI/slash.go" '{"permissions", "[ask|auto-approve|full-auto]"' "in-session help does not list the permission tiers"
 contains "$CLI/slash.go" '"full-auto", "", "stop asking' "in-session help does not list the full-auto tier"
-contains "$CLI/cli.go" '{"update", "", "install the latest verified release"' "top-level update command is missing"
+# Update retired as an outside-session verb on 2026-09-02 (docs/plan/09): the
+# session is the surface, so the check is that /update exists and that the
+# closed outside-session set is exactly the four verbs that survived.
 contains "$CLI/slash.go" '{"update", "", "install the latest verified release"}' "in-session update command is missing"
+contains "$CLI/cli.go" '{"sessions", ' "outside-session sessions command is missing"
+contains "$CLI/cli.go" '{"serve", ' "outside-session serve command is missing"
+contains "$CLI/cli.go" '{"uninstall", ' "outside-session uninstall command is missing"
+contains "$CLI/cli.go" '{"help", ' "outside-session help command is missing"
+excludes "$CLI/cli.go" '\{"(key|model|effort|mode|config|models|plans|pmodels|localia|update|stats|dash|devices|version|doctor|completion)", ' "a retired verb is back in the outside-session table"
 contains "$ROOT/internal/engine/agent.go" 'var Modes = []string{ModeChat, ModeCode, ModeAgent}' "engine registry does not expose exactly three modes"
 
 if [ "$failures" -ne 0 ]; then

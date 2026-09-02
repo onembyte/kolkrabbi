@@ -250,30 +250,30 @@ type command struct {
 	run     func(a *app, ctx context.Context, args []string) error
 }
 
+// commandTable is the closed outside-session surface.
+//
+// Amended 2026-09-02 (docs/plan/09 §"the outside-session surface is closed"):
+// the session is the product, so a verb out here has to be something a session
+// cannot do. Four are. Everything else that used to live here — key, model,
+// effort, mode, config, models, plans, pmodels, localia, update, stats, dash,
+// devices, version, doctor, completion — is a slash command and only a slash
+// command.
+//
+// Opening a session is not a verb and is not in this table: bare `kolk`,
+// `kolk -r`, `kolk "<prompt>"` and the flags are the ways in, and dispatch
+// reaches them by falling through.
+//
+// **Nothing may be added here.** A fifth verb fails
+// TestOutsideSessionSurfaceIsClosed, and the owner is to be asked twice before
+// that test is ever edited.
 func commandTable() []command {
 	return []command{
-		{"key", "<api-key> | - | <provider> <api-key|->",
-			"add an API key for any supported provider", (*app).runKey},
-		{"model", "[id | alias]", "pick, switch, or list available models", (*app).runModel},
-		{"effort", "[low|medium|high|max]", "set default effort level", (*app).runEffort},
-		{"mode", "[chat|code|agent]", "set default operational mode", (*app).runMode},
-		{"config", "[get <k> | set <k> <v> | unset <k> | set-tier <effort> <id> | show]",
-			"read and write saved settings", (*app).runConfig},
-		{"models", "[filter]", "list models with context size and $/1M pricing", (*app).runModels},
-		{"plans", "[filter] | login <provider> <plan>", "list plans or start provider-owned login", (*app).runPlans},
-		{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors", (*app).runPlanModels},
-		{"localia", "[models [filter] | plan <model> | pull [--yes] <model>]", "local hardware, model catalog, fit plans, and pulls", (*app).runLocalia},
-		{"update", "", "install the latest verified release", (*app).runUpdate},
+		{"sessions", "[search <text> | rename <id> <title> | fork <id> | export <id> [--json] | rm <id> | clear]",
+			"list this folder's saved sessions, or search, fork, export or delete one", (*app).runSessions},
+		{"serve", "[--addr <addr>] [--token <tok>] [--stdio]",
+			"host a session for a client: pick one to serve, or start a new one", (*app).runServe},
 		{"uninstall", "[--keep-data] [--yes]", "remove kolk and everything it stored", (*app).runUninstall},
-		{"sessions", "[search <text> | rename <id> <title> | fork <id> | export <id> [--json] | rm <id> | clear]", "list, search, fork, export or delete saved sessions", (*app).runSessions},
-		{"stats", "[--json]", "100% local usage and rating dashboard", (*app).runStats},
-		{"dash", "[--addr 127.0.0.1:0]", "open the local usage dashboard in a browser", (*app).runDash},
-		{"serve", "[--addr <addr>] [--token <tok>] [--stdio]", "start headless event server or stdio bridge", (*app).runServe},
-		{"devices", "", "list the devices paired with this machine", (*app).runDevices},
-		{"version", "[--json]", "print the running build", (*app).runVersion},
-		{"completion", "<bash|zsh|fish>", "generate shell completions", (*app).runCompletion},
-		{"doctor", "", "check keys, directories, terminal and network", (*app).runDoctor},
-		{"help", "", "show this help", (*app).runHelp},
+		{"help", "", "what Kolkrabbi is, and every command inside and outside a session", (*app).runHelp},
 	}
 }
 
@@ -317,12 +317,23 @@ func (a *app) runHelp(_ context.Context, args []string) error {
 
 // usageLine renders a command's argument grammar from the table, so a "usage:"
 // message can never drift from what dispatch actually accepts.
+// usageLine is the usage a command prints when it is used wrongly, generated
+// from the registry the command actually lives in.
+//
+// Most commands live in the session now (docs/plan/09, 2026-09-02), so the
+// slash registry is consulted first: `/config set-everything` must answer with
+// `usage: /config …`, not with a `kolk config` that no longer exists. The four
+// outside-session verbs still generate from the command table.
 func usageLine(name string) string {
-	c := lookupCommand(name)
-	if c == nil {
-		return "usage: kolk " + name
+	if c := lookupCommand(name); c != nil {
+		return strings.TrimSpace("usage: kolk " + c.name + " " + c.args)
 	}
-	return strings.TrimSpace("usage: kolk " + c.name + " " + c.args)
+	for _, sc := range slashCommandTable {
+		if sc.name == name {
+			return strings.TrimSpace("usage: /" + sc.name + " " + sc.args)
+		}
+	}
+	return "usage: /" + name
 }
 
 func (a *app) printUsage() {

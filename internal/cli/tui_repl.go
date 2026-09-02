@@ -280,7 +280,7 @@ func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 			continue
 		}
 		out = append(out, tui.ModelSpec{
-			ID: plan.Model, Name: fmt.Sprintf("sign in first:  kolk plans login %s %q", plan.Provider, plan.Plan),
+			ID: plan.Model, Name: fmt.Sprintf("sign in first:  /plans login %s %q", plan.Provider, plan.Plan),
 			Efforts: append([]string(nil), plan.Efforts...),
 			Cost:    tui.CostSubscriptionLogin, Rank: tui.ModelRank(tui.CostSubscriptionLogin),
 		})
@@ -675,13 +675,13 @@ func (a *app) hostModelRows(ctx context.Context, manifest provider.ConnectorMani
 			}
 			rows = append(rows, tui.ModelSpec{
 				ID: id, Cost: tui.CostSubscriptionLogin, Rank: tui.ModelRank(tui.CostSubscriptionLogin),
-				Name: fmt.Sprintf("%scloud via ollama.com · sign in first:  kolk plans login ollama %q", label, plan),
+				Name: fmt.Sprintf("%scloud via ollama.com · sign in first:  /plans login ollama %q", label, plan),
 			})
 			continue
 		}
 		if m.NotPulled {
 			rows = append(rows, tui.ModelSpec{ID: id, Cost: tui.CostLocal, Rank: tui.ModelRank(tui.CostLocal),
-				Name: sizeLabel(m) + "not pulled: kolk localia pull " + m.Name})
+				Name: sizeLabel(m) + "not pulled: /localia pull " + m.Name})
 			continue
 		}
 		name := sizeLabel(m) + "runs on this machine"

@@ -72,7 +72,7 @@ func resolvePlanModel(catalog []PlanModel, ref string, manifest ConnectorManifes
 		wanted = strings.ToLower(target)
 	}
 	if wanted == "" {
-		return PlanModel{}, fmt.Errorf("name a plan model; `kolk pmodels` lists them")
+		return PlanModel{}, fmt.Errorf("name a plan model; `/pmodels` lists them")
 	}
 	qualifier, model := "", wanted
 	if plan, rest, ok := strings.Cut(wanted, "/"); ok {
@@ -97,7 +97,7 @@ func resolvePlanModel(catalog []PlanModel, ref string, manifest ConnectorManifes
 	var selected PlanModel
 	switch len(matches) {
 	case 0:
-		return PlanModel{}, fmt.Errorf("%w: no plan model matches %q; `kolk pmodels` lists them", ErrNotAPlanModel, ref)
+		return PlanModel{}, fmt.Errorf("%w: no plan model matches %q; `/pmodels` lists them", ErrNotAPlanModel, ref)
 	case 1:
 		selected = matches[0]
 	default:
@@ -151,7 +151,7 @@ func resolvePlanModel(catalog []PlanModel, ref string, manifest ConnectorManifes
 	if connectorEnabledFor(selected, manifest) {
 		return selected, nil
 	}
-	return PlanModel{}, fmt.Errorf("%s needs the %s connector; sign in with: kolk plans login %s %q",
+	return PlanModel{}, fmt.Errorf("%s needs the %s connector; sign in with: /plans login %s %q",
 		selected.Model, selected.Connector, selected.Provider, selected.Plan)
 }
 
@@ -435,7 +435,7 @@ func ResolvePlanModelFrom(store VendorCatalogs, ref string, manifest ConnectorMa
 		if catalog, ok := store.Vendors[model.Connector]; ok && catalog.VendorVersion != "" {
 			version = " " + catalog.VendorVersion
 		}
-		return PlanModel{}, fmt.Errorf("%w: %s%s does not list %s; `kolk models` shows what it does",
+		return PlanModel{}, fmt.Errorf("%w: %s%s does not list %s; `/models` shows what it does",
 			ErrModelGone, model.Connector, version, model.Model)
 	}
 	return resolved, err

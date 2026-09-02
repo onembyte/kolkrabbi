@@ -115,7 +115,7 @@ func (a *app) doctorKeys(ctx context.Context) {
 			return
 		}
 	}
-	fmt.Fprintln(a.stdout, "  ✗ openrouter  no key found — add one with `kolk key <API_KEY>`")
+	fmt.Fprintln(a.stdout, "  ✗ openrouter  no key found — add one with `/key <API_KEY>`")
 }
 
 func (a *app) doctorTerminal() {

@@ -28,7 +28,7 @@ func TestKeyFromStdinIsRefusedWhileKolkrabbiOwnsTheTerminal(t *testing.T) {
 		t.Fatal("/key - read the terminal and hung the session")
 	}
 
-	if !strings.Contains(errOut.String(), "kolk key") {
+	if !strings.Contains(errOut.String(), "/key") {
 		t.Fatalf("stderr = %q, want the command to run outside the session", errOut.String())
 	}
 }
@@ -37,7 +37,7 @@ func TestKeyFromStdinStillWorksOutsideASession(t *testing.T) {
 	isolateConnectorState(t)
 	a, out, errOut := newTestApp(t, "sk-or-v1-"+strings.Repeat("a", 64)+"\n")
 
-	if code := a.main(context.Background(), []string{"key", "-"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "key", "-"); code != ExitOK {
 		t.Fatalf("key - exit = %d, stderr = %q", code, errOut.String())
 	}
 	if !strings.Contains(out.String(), "openrouter") {

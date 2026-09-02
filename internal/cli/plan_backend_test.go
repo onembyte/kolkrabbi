@@ -186,7 +186,7 @@ func TestSessionRefusesAPlanModelWhoseConnectorIsNotEnabled(t *testing.T) {
 	if err == nil {
 		t.Fatal("a plan model without an enabled connector must not start a session")
 	}
-	if !strings.Contains(err.Error(), `kolk plans login anthropic "Claude Max"`) {
+	if !strings.Contains(err.Error(), `/plans login anthropic "Claude Max"`) {
 		t.Fatalf("error = %v, want the exact command that enables it", err)
 	}
 }
@@ -366,7 +366,7 @@ func TestSlashModelRefusesAnUnusablePlanModelWithoutChangingTheSession(t *testin
 	if a.slash(context.Background(), ag, "/model claude-opus") {
 		t.Fatal("/model must not exit the session")
 	}
-	if !strings.Contains(out.String(), `kolk plans login anthropic "Claude Max"`) {
+	if !strings.Contains(out.String(), `/plans login anthropic "Claude Max"`) {
 		t.Fatalf("output = %q, want the command that enables it", out.String())
 	}
 	if ag.Model != before || ag.Backend != beforeBackend {
@@ -654,7 +654,7 @@ func TestTopRungLaneSaysWhatASignInWouldUnlock(t *testing.T) {
 
 	a.reportAgentLane(ag)
 	got := out.String()
-	if !strings.Contains(got, "claude-fable only") || !strings.Contains(got, "kolk plans login") || !strings.Contains(got, "claude-haiku") {
+	if !strings.Contains(got, "claude-fable only") || !strings.Contains(got, "/plans login") || !strings.Contains(got, "claude-haiku") {
 		t.Fatalf("top-rung lane = %q, want the sign-in hint naming the cheapest rung", got)
 	}
 	if strings.Contains(got, "out of reach") {

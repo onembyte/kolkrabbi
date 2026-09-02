@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,16 +9,20 @@ import (
 )
 
 func TestDashRefusesANonLoopbackAddress(t *testing.T) {
+	// `kolk dash` retired on 2026-09-02; /dash is the surface. The guard lives
+	// in dashListener, which both entry points used, so removing the verb did
+	// not remove the rule — this drives the path the session actually takes.
 	isolateConnectorState(t)
 	for _, addr := range []string{"0.0.0.0:8080", "192.168.1.10:8080", ":8080", "example.com:80"} {
-		a, _, errOut := newTestApp(t, "")
-		if code := a.main(context.Background(), []string{"dash", "--addr", addr}); code == ExitOK {
+		a, _, _ := newTestApp(t, "")
+		err := a.startDashInSession(addr)
+		if err == nil {
 			t.Fatalf("%s was accepted", addr)
 		}
 		// The refusal has to explain itself, or it reads as an arbitrary limit
 		// someone will look for a flag to defeat.
-		if !strings.Contains(errOut.String(), "loopback") {
-			t.Fatalf("%s refused without a reason: %q", addr, errOut.String())
+		if !strings.Contains(err.Error(), "loopback") {
+			t.Fatalf("%s refused without a reason: %v", addr, err)
 		}
 	}
 }

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -34,7 +33,7 @@ func TestDevicesListsWhatIsPaired(t *testing.T) {
 	paired := pairedDevices(t, "phone", "old laptop")
 
 	a, out, _ := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"devices"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "devices"); code != ExitOK {
 		t.Fatalf("devices exit = %d, want ExitOK", code)
 	}
 	listing := out.String()
@@ -56,7 +55,7 @@ func TestDevicesListsWhatIsPaired(t *testing.T) {
 func TestDevicesSaysSoWhenNothingIsPaired(t *testing.T) {
 	isolateHome(t)
 	a, out, _ := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"devices"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "devices"); code != ExitOK {
 		t.Fatalf("devices exit = %d, want ExitOK", code)
 	}
 	if strings.TrimSpace(out.String()) == "" {
@@ -67,17 +66,23 @@ func TestDevicesSaysSoWhenNothingIsPaired(t *testing.T) {
 	}
 }
 
-func TestDevicesIsInTheCommandTable(t *testing.T) {
-	if lookupCommand("devices") == nil {
-		t.Fatal("devices is not a command, so `kolk help` cannot mention it")
+func TestDevicesIsASessionCommand(t *testing.T) {
+	if lookupCommand("devices") != nil {
+		t.Fatal("devices is an outside-session verb again; the plan closed that surface")
 	}
+	for _, sc := range slashCommandTable {
+		if sc.name == "devices" {
+			return
+		}
+	}
+	t.Fatal("/devices is not advertised, so nothing can find it")
 }
 
 func TestDevicesRevokeRemovesOneAndSaysSo(t *testing.T) {
 	paired := pairedDevices(t, "phone", "old laptop")
 
 	a, out, _ := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"devices", "revoke", paired[1].ID}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "devices", "revoke", paired[1].ID); code != ExitOK {
 		t.Fatalf("devices revoke exit = %d, want ExitOK", code)
 	}
 	if !strings.Contains(out.String(), "old laptop") {
@@ -87,7 +92,7 @@ func TestDevicesRevokeRemovesOneAndSaysSo(t *testing.T) {
 	// Gone from disk, not just from the in-memory copy that did the removing.
 	// A revoke that is not saved is a revoke that lasts until the next command.
 	a, out, _ = newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"devices"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "devices"); code != ExitOK {
 		t.Fatalf("devices exit = %d", code)
 	}
 	if strings.Contains(out.String(), paired[1].ID) {
@@ -104,7 +109,7 @@ func TestDevicesRevokeRefusesAnIDThatIsNotThere(t *testing.T) {
 	paired := pairedDevices(t, "phone")
 
 	a, _, errOut := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"devices", "revoke", "not-an-id"}); code == ExitOK {
+	if code := runRetiredVerb(t, a, "devices", "revoke", "not-an-id"); code == ExitOK {
 		t.Fatal("revoking an unknown id succeeded, want a refusal")
 	}
 	if !strings.Contains(errOut.String(), paired[0].ID) {
@@ -115,7 +120,7 @@ func TestDevicesRevokeRefusesAnIDThatIsNotThere(t *testing.T) {
 func TestDevicesRevokeNeedsAnID(t *testing.T) {
 	pairedDevices(t, "phone")
 	a, _, errOut := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"devices", "revoke"}); code == ExitOK {
+	if code := runRetiredVerb(t, a, "devices", "revoke"); code == ExitOK {
 		t.Fatal("`devices revoke` with no id succeeded, want usage")
 	}
 	if !strings.Contains(errOut.String(), "revoke <id>") {

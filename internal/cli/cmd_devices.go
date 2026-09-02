@@ -30,7 +30,7 @@ func (a *app) runDevices(ctx context.Context, args []string) error {
 			return usagef("unknown devices command %q", args[0])
 		}
 		if len(args) < 2 {
-			return usagef("usage: kolk devices revoke <id>")
+			return usagef("usage: /devices revoke <id>")
 		}
 		return a.revokeDevice(store, d.DevicesFile(), args[1])
 	}

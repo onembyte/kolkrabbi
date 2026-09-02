@@ -127,7 +127,7 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 		if subscriptionLimited(err) {
 			next, ok := a.resolveSubscriptionLimit(ctx, model)
 			if !ok {
-				return provider.Message{}, meta, fmt.Errorf("%s is out of allowance and the run stopped; `kolk config set routing.on_subscription_limit switch` to continue on a metered model instead: %w", model, err)
+				return provider.Message{}, meta, fmt.Errorf("%s is out of allowance and the run stopped; `/config set routing.on_subscription_limit switch` to continue on a metered model instead: %w", model, err)
 			}
 			a.moveToMetered(next)
 			fmt.Fprintf(a.Out, "◆ subscription out of allowance; continuing on %s, billed per token\n", next)
@@ -190,7 +190,7 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 						continue
 					}
 				}
-				return provider.Message{}, meta, fmt.Errorf("every free model is rate-limited and routing.on_free_exhausted is `%s`; `kolk config set routing.on_free_exhausted paid` allows a metered fallback, or use `/model`: %w", onFree, err)
+				return provider.Message{}, meta, fmt.Errorf("every free model is rate-limited and routing.on_free_exhausted is `%s`; `/config set routing.on_free_exhausted paid` allows a metered fallback, or use `/model`: %w", onFree, err)
 			}
 			return provider.Message{}, meta, fmt.Errorf("model %s remains rate-limited after %d attempts; use `/model` to select another model: %w", model, retry+1, err)
 		}

@@ -23,9 +23,9 @@ func Page(records []stats.Record, skipped int, cards []SessionCard, shared []Sha
 	var b strings.Builder
 	b.WriteString(`<!doctype html><html lang="en"><head><meta charset="utf-8">`)
 	b.WriteString(`<meta name="viewport" content="width=device-width,initial-scale=1">`)
-	b.WriteString(`<title>kolk dash</title>`)
+	b.WriteString(`<title>/dash</title>`)
 	b.WriteString("<style>" + pageCSS + "</style></head><body>")
-	b.WriteString(`<h1>kolk dash</h1>`)
+	b.WriteString(`<h1>/dash</h1>`)
 	b.WriteString(`<p class="sub">Everything below is computed on this machine from your own usage log. Nothing is sent anywhere.</p>`)
 
 	if skipped > 0 {

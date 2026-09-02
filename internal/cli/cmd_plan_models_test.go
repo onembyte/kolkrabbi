@@ -8,7 +8,7 @@ import (
 
 func TestPlanModelsListsAndFilters(t *testing.T) {
 	a, out, errOut := newTestApp(t, "")
-	if code := a.main(context.Background(), []string{"pmodels", "gemini"}); code != ExitOK {
+	if code := runRetiredVerb(t, a, "pmodels", "gemini"); code != ExitOK {
 		t.Fatalf("pmodels exit = %d, stderr = %q", code, errOut.String())
 	}
 	if got := out.String(); !strings.Contains(got, "gemini-2.5-pro") ||

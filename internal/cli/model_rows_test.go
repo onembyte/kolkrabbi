@@ -218,7 +218,7 @@ func TestAConfiguredModelTheVendorDroppedIsNamedNotSwapped(t *testing.T) {
 	if err == nil {
 		t.Fatal("a session started on a model the vendor no longer lists")
 	}
-	for _, want := range []string{"gpt-5.6-pro", "codex 0.149.1", "kolk models"} {
+	for _, want := range []string{"gpt-5.6-pro", "codex 0.149.1", "/models"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("startup refusal = %q, want %q", err, want)
 		}

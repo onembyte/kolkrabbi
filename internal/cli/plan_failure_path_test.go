@@ -16,7 +16,7 @@ func TestANamedPlanModelWithoutItsConnectorSaysHowToSignIn(t *testing.T) {
 	if err == nil {
 		t.Fatal("resolving a plan model with no connector succeeded, want a refusal")
 	}
-	for _, want := range []string{"claude", "kolk plans login", "anthropic"} {
+	for _, want := range []string{"claude", "/plans login", "anthropic"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("refusal %q does not contain %q, so it cannot be acted on", err, want)
 		}

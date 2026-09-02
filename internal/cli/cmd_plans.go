@@ -70,7 +70,7 @@ func (a *app) runPlans(ctx context.Context, args []string) error {
 	// One line, not a legend. The table says what it says; a page of prose
 	// under it is read once and skipped forever after.
 	if installed {
-		fmt.Fprintln(a.stdout, "\ninstalled: sign in with  kolk plans login <provider> <plan>")
+		fmt.Fprintln(a.stdout, "\ninstalled: sign in with  /plans login <provider> <plan>")
 	}
 	if unverified {
 		fmt.Fprintln(a.stdout, "\nunverified: the provider CLI exited cleanly, which is not proof of a login.")
@@ -94,7 +94,7 @@ func (a *app) connectorInstalled(connector string) bool {
 
 func (a *app) runPlanLogin(ctx context.Context, args []string) error {
 	if len(args) < 2 {
-		return usagef("kolk plans login <provider> <plan>")
+		return usagef("/plans login <provider> <plan>")
 	}
 	providerName := strings.ToLower(strings.TrimSpace(args[0]))
 	planFilter := strings.TrimSpace(strings.Join(args[1:], " "))

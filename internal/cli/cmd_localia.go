@@ -24,13 +24,13 @@ func (a *app) runLocalia(ctx context.Context, args []string) error {
 			return a.printLocalCatalog(strings.Join(args[1:], " "))
 		case "plan":
 			if len(args) < 2 {
-				return usagef("usage: kolk localia plan <model>")
+				return usagef("usage: /localia plan <model>")
 			}
 			return a.printLocalPlan(ctx, args[1])
 		case "pull":
 			rest, approved := stripYesFlag(args[1:])
 			if len(rest) < 1 {
-				return usagef("usage: kolk localia pull [--yes] <model>")
+				return usagef("usage: /localia pull [--yes] <model>")
 			}
 			return a.pullLocalModel(ctx, rest[0], approved)
 		default:
@@ -78,14 +78,14 @@ func (a *app) runLocalia(ctx context.Context, args []string) error {
 		}
 		fmt.Fprintf(a.stdout, "  %-30s %s\n", key, value)
 	}
-	fmt.Fprintf(a.stdout, "  change with: kolk config set %s <value>\n", config.LocalKeys[0])
+	fmt.Fprintf(a.stdout, "  change with: /config set %s <value>\n", config.LocalKeys[0])
 
 	// What is pulled, by the record that exists: a running server's own list,
 	// else the manifest tree the last pull left in the store.
 	fmt.Fprintln(a.stdout, "\nPULLED")
 	pulled := a.pulledModelNames(ctx)
 	if len(pulled) == 0 {
-		fmt.Fprintln(a.stdout, "  nothing pulled yet; Kolkrabbi never pulls one on its own — `kolk localia pull <model>` asks first")
+		fmt.Fprintln(a.stdout, "  nothing pulled yet; Kolkrabbi never pulls one on its own — `/localia pull <model>` asks first")
 		return nil
 	}
 	for _, name := range pulled {
@@ -159,7 +159,7 @@ func (a *app) printLocalCatalog(filter string) error {
 			local.HumanBytes(entry.StorageBytes),
 			local.HumanBytes(requirement.VRAMBytes), local.HumanBytes(requirement.RAMBytes))
 	}
-	fmt.Fprintln(a.stdout, "\nplan one before pulling it: kolk localia plan <model>")
+	fmt.Fprintln(a.stdout, "\nplan one before pulling it: /localia plan <model>")
 	return nil
 }
 
@@ -294,7 +294,10 @@ func (a *app) pullLocalModel(ctx context.Context, name string, approved bool) er
 		// here would compete with it for the user's keystrokes — the same
 		// contention a provider login would cause.
 		if a.terminalOwned != nil && a.terminalOwned() {
-			return fmt.Errorf("a pull needs a yes or no, which this session cannot ask for; run `kolk localia pull %s` in another terminal, or repeat it here with --yes", entry.Name)
+			// `kolk localia` retired on 2026-09-02, so "another terminal" is no
+			// longer a place this can be done: --yes is the answer, and it is
+			// the same consent given in advance.
+			return fmt.Errorf("a pull needs a yes or no, which this session cannot ask for; repeat it as `/localia pull --yes %s`", entry.Name)
 		}
 		if !a.confirmed("Download and install it now?") {
 			fmt.Fprintln(a.stdout, "cancelled; nothing was downloaded")

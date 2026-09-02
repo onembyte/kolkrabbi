@@ -38,6 +38,6 @@ func TestPlanModelsUseTheSameWord(t *testing.T) {
 		t.Fatalf("runPlanModels: %v", err)
 	}
 	if out := stdout.String(); strings.Contains(out, "available") {
-		t.Errorf("kolk pmodels still calls an unconfigured plan available:\n%s", out)
+		t.Errorf("/pmodels still calls an unconfigured plan available:\n%s", out)
 	}
 }
