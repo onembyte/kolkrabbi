@@ -408,7 +408,7 @@ backend only.
 **Inputs:** `docs/research/openrouter.md`, `docs/research/orcli.md`
 
 ### [x] 9. Command surface — few, obvious, typeable — **hardened → [`docs/plan/09-command-surface.md`](docs/plan/09-command-surface.md)**
-**Decision:** strict parity between CLI verbs and slash commands (`kolk <verb> [args]` ≡ `/<verb> [args]`); rigid guardrails: single-word, lowercase, ≤ 6 letters (`key`, `model`, `effort`, `mode`, `config`, `login`, `update`, `stats`, `dash`, `saga`, `doctor`, `help`, `exit`); deterministic UNIX exit codes (0, 1, 2, 3, 130); `--output stream-json` machine NDJSON; 10-item reserve list.
+**Decision:** *(amended 2026-09-02 — see the amendment in the hardened doc)* the session is the surface. `kolk` on its own opens Kolkrabbi as it always has, and `-r`/`--resume`, a one-shot `kolk "<prompt>"` and the flags are the other ways in — none of them is a verb. Beyond opening a session, **the outside-session command set is closed at exactly `sessions`, `serve`, `uninstall`, `help`**. **No new outside-session command may be added; put it to the owner twice before writing any.** Everything else is a slash command inside the session. Rigid name guardrails remain: single-word, lowercase, ≤ 6 letters with recorded exceptions; deterministic UNIX exit codes (0, 1, 2, 3, 130); `--output stream-json` machine NDJSON.
 **Scope:** the top-level commands and slash commands; what stays out; the reserve list.
 **Today:** top-level `config models sessions stats`; slash `/mode /effort /model /rate /yolo /new /session /changes /rewind /help /exit`; flags `-m --mode -e -y -r -s --base-url -p`.
 **Decide:**

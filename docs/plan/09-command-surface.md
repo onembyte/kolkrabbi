@@ -169,6 +169,50 @@ fails the test, and a second test rejects an exemption for a command that no lon
 unless the shorter name reads worse". `version` in particular is what every other CLI calls it, and
 muscle memory is a stronger argument than a character count.
 
+### Amendment, 2026-09-02 — the outside-session surface is closed
+
+**Owner decision, verbatim:** *"the MAIN usage of ALL commands is within the same session. I don't
+want any other command other than `kolk --resume` outside the kolk session."* And, on this rule:
+*"persist in PLAN to never create another command from outside session, or ask me twice if I'm
+telling you to do it."*
+
+This inverts the parity rule above, and the inversion is the point. Parity was written when the CLI
+was the surface and the REPL echoed it. The product it became is a session: the session holds the
+model, the conversation, the permission tier, the checkpoint and the cost, and a one-shot process
+holds none of them. A verb that runs outside the session is either doing something the session
+cannot do, or it is a second way to do something the session already does — and the second kind is
+what this amendment removes.
+
+**Starting a session — the normal way in, and unchanged.** `kolk` on its own opens Kolkrabbi. That
+is the front door and nothing here narrows it: bare `kolk` starts a session, `kolk -r` / `--resume`
+reopens the last one, `kolk "<prompt>"` runs a single turn, and the flags (`--model --mode --effort
+--print --output-format --session --resume --permission --base-url --debug`) shape whichever of
+those was asked for. None of these is a verb, and the closed set below does not apply to them.
+
+**The closed set.** Beyond opening a session, exactly four verbs run outside one:
+
+| Outside-session | Why it cannot be in-session |
+|---|---|
+| `kolk sessions` | lists the sessions of this folder, which is what you consult *before* choosing one to open |
+| `kolk serve` | the headless event server and stdio bridge; it hosts sessions rather than running inside one, and asks which session to serve (or to make a new one) before it starts |
+| `kolk uninstall` | deletes the running binary and the state a session is writing to |
+| `kolk help` | the front door: what Kolkrabbi is, its version and licence, both command surfaces, and what it can do |
+
+**The rule.** No new outside-session command may be added. If one seems necessary, it is to be put to
+the owner **twice** — asked, and asked again after the answer — before any code is written. This is
+deliberately a higher bar than a code review, because the failure mode is not a bad command; it is a
+surface that grows one reasonable verb at a time until the session is no longer the product.
+
+Everything else the CLI used to expose is a slash command and only a slash command: `key`, `model`,
+`effort`, `mode`, `config`, `models`, `plans`, `pmodels`, `localia`, `update`, `stats`, `dash`,
+`devices`, `version`, `doctor` — and `completion`, which generated a shell script for a surface that
+no longer needs completing.
+
+**Enforced, not documented.** `TestOutsideSessionSurfaceIsClosed` asserts `commandTable()` is exactly
+the four names above; adding a fifth fails the build. §1.1's parity rule now reads in one direction
+only: an outside-session verb must justify itself against this table, while a slash command needs no
+CLI twin and never did.
+
 ## Rationale
 
 1. **Muscle memory unification**: Switching between the shell and the REPL should not require translating verbs (e.g. remembering whether it's `kolk set-model` vs `/model`). One verb behaves identically in both.
