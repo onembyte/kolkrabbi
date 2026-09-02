@@ -6220,6 +6220,35 @@ compiles and the tests pass. Every place that *types* the old name has to be fou
 script that types it twenty times an hour is worse than a user who types it once, because nobody
 reads its output.
 
+## F7.3–F7.4 — a reviewer who had built none of it, and the leaves it earned (2026-09-02)
+
+The reviewer was a fresh agent in its own worktree with one brief: restate each of F1–F3's
+invariants, rerun the named tests, break a guard per phase and prove it went red, then look where the
+tests do not. Fifteen mutations went red. Two did not go the way the record claimed, and one
+invariant turned out not to hold at all.
+
+The one that did not hold is the interesting one. F3.2 says `-e max` on Fable reaches the vendor
+as `--effort max`, and its test proves that — at the adapter. Above the adapter sits `EffortForPlan`,
+which folds Claude's `xhigh` into `max` so a downgrade is never reported between two spellings of the
+same thing, and returns the first offered level at that rank. When F4 taught kolk to discover the
+Claude catalog, every family row began to offer both `xhigh` and `max`, in that order, and from that
+day `max` went to the vendor as `xhigh`. Nothing red, nothing logged; a later phase quietly moved a
+dial the earlier phase had proven. An exact spelling now wins before any folding, and the test that
+pins it offers both spellings.
+
+The smaller two: `_ACCESS_KEY` was on the denylist but no sentinel pinned it — the one sentinel
+with that suffix also contains `SECRET`, so dropping the suffix changed nothing the test could see,
+and the F2.5 dossier's claim that it would was false. `MINIO_ACCESS_KEY` pins it now. And npm's
+`//registry.npmjs.org/:_authToken` was not scrubbed, because `_AUTHTOKEN` is not `_TOKEN`; it is a
+suffix now, with its own sentinel.
+
+F7.4 then judged the seven V34 leaves the program named. One earned its tick: durable chapter
+state, on F1's tests plus the live run's habit of committing `SAGA.md` inside every chapter commit.
+Five stay open with the reason written beside each. One of those is worth the owner's eye:
+V34.3a says lock acquisition errors are fatal, and `run.go` says, in a comment, that the session
+hold is deliberately not fatal so a platform without file locks still runs sessions. Both cannot be
+right; a tick would only have hidden the disagreement.
+
 ## F7.2 — the first live Fable saga, and what it took to get there (2026-09-02)
 
 The plan's line for this point reads like a demo script: install, sign in, pick Fable, switch to

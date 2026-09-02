@@ -106,7 +106,9 @@ func sensitiveEnvName(name string) bool {
 	// CARGO_HOME and whatever else the user's shell set, and an allowlist
 	// would have to know them all. The shapes below are what credentials
 	// look like in the wild; _ACCESS_KEY catches AWS_SECRET_ACCESS_KEY, which
-	// the _SECRET suffix did not, and _PAT the GitHub/Azure spelling.
+	// the _SECRET suffix did not, _PAT the GitHub/Azure spelling, and
+	// _AUTHTOKEN npm's `//registry.npmjs.org/:_authToken`, which the _TOKEN
+	// suffix did not (F7.3's reviewer found it).
 	//
 	// The vendor's own API key is on this list on purpose. A claude or codex
 	// child that receives ANTHROPIC_API_KEY or OPENAI_API_KEY bills the API
@@ -115,7 +117,7 @@ func sensitiveEnvName(name string) bool {
 	// exported is the spend rule violated sideways. Subscription children
 	// authenticate through the vendor's own login, never through the parent
 	// environment.
-	for _, suffix := range []string{"_API_KEY", "_TOKEN", "_PASSWORD", "_PASSWD", "_SECRET", "_CREDENTIAL", "_ACCESS_KEY", "_PAT", "_PASSPHRASE"} {
+	for _, suffix := range []string{"_API_KEY", "_TOKEN", "_PASSWORD", "_PASSWD", "_SECRET", "_CREDENTIAL", "_ACCESS_KEY", "_PAT", "_PASSPHRASE", "_AUTHTOKEN"} {
 		if strings.HasSuffix(upper, suffix) {
 			return true
 		}

@@ -283,6 +283,16 @@ func EffortForPlan(effort string, offered []string) (string, bool) {
 		}
 		return -1
 	}
+	// An exact spelling the vendor offers wins before any folding. Claude
+	// lists xhigh and max as two levels; folding both to the same rank and
+	// returning the first one offered moved a user's `max` to `xhigh` the
+	// moment discovery filled the catalog (F7.3 found it; F3.2 had only been
+	// proven at the adapter, below this call).
+	for _, level := range offered {
+		if strings.EqualFold(strings.TrimSpace(level), strings.TrimSpace(effort)) {
+			return level, false
+		}
+	}
 	wanted := rank(effort)
 	best, bestRank := "", -1
 	lowest, lowestRank := "", len(planEffortOrder)

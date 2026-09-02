@@ -361,6 +361,10 @@ func TestChildrenNeverInheritASentinelSecretOnEitherPath(t *testing.T) {
 		"OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
 		"AWS_SECRET_ACCESS_KEY", "GITHUB_PAT", "KOLK_TEST_SECRET_TOKEN", "SSH_PASSPHRASE",
 		"OPENAI_API_KEY_BACKUP", "MY_SECRET_2", "DB_PASSWORD_PROD",
+		// MINIO_ACCESS_KEY pins the _ACCESS_KEY suffix on its own: AWS_SECRET_ACCESS_KEY is
+		// also caught by the SECRET fragment, so it proved nothing about the suffix (F7.3).
+		// REGISTRY_AUTHTOKEN is npm's `//registry.npmjs.org/:_authToken` shape.
+		"MINIO_ACCESS_KEY", "REGISTRY_AUTHTOKEN",
 	}
 	for _, name := range sentinels {
 		t.Setenv(name, name+"-canary")

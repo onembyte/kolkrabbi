@@ -478,3 +478,24 @@ func TestResolvePlanModelFromTheVendorCatalog(t *testing.T) {
 		t.Fatalf("with no vendor catalog the seed still resolves: %v", err)
 	}
 }
+
+// Once discovery fills the Claude catalog, a family row offers
+// [low medium high xhigh max]. Folding xhigh into max and returning the first
+// spelling at that rank sent `-e max` to the vendor as --effort xhigh, which
+// the vendor treats as a different level. An exact spelling wins; the fold
+// still serves a catalog that offers only one of the two.
+func TestMaxStaysMaxWhenTheVendorOffersBothXhighAndMax(t *testing.T) {
+	both := []string{"low", "medium", "high", "xhigh", "max"}
+	if got, down := EffortForPlan("max", both); got != "max" || down {
+		t.Fatalf("max on %v = %q downgraded=%v, want max", both, got, down)
+	}
+	if got, down := EffortForPlan("xhigh", both); got != "xhigh" || down {
+		t.Fatalf("xhigh on %v = %q downgraded=%v, want xhigh", both, got, down)
+	}
+	if got, down := EffortForPlan("max", []string{"low", "medium", "high", "xhigh"}); got != "xhigh" || down {
+		t.Fatalf("max on an xhigh-only catalog = %q downgraded=%v, want xhigh without a downgrade", got, down)
+	}
+	if got, down := EffortForPlan("xhigh", []string{"low", "medium", "high", "max"}); got != "max" || down {
+		t.Fatalf("xhigh on a max-only catalog = %q downgraded=%v, want max without a downgrade", got, down)
+	}
+}

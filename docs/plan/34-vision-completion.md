@@ -102,8 +102,9 @@ credential or write outside its intended boundary.
 - [~] **V34.1b child environment minimization** — part-done 2026-09-02 (F2 of
   `FABLE_OPTIMIZATION.md`): both delegated child paths (persistent and one-shot) scrub a denylist of
   credential-shaped names, the vendor's own API key included by decision, with a ten-sentinel proof
-  on each path and an ordinary build variable kept. Remaining: the interactive `kolk plans login`
-  PTY/handover path needs its own sentinel proof.
+  on each path and an ordinary build variable kept. Remaining: the interactive `/plans login`
+  PTY/handover path needs its own sentinel proof. F7.4 (2026-09-02): stays part-done; F7.2 exercised
+  neither path's login (a connector already existed) and adds no proof here.
 - [ ] **V34.1c confidential, symlink-safe checkpoints** — prevent backups from copying secrets
   without policy, reject link/race escapes on restore, and preserve restrictive source modes.
 - [ ] **V34.1d bounded and scrubbed outputs** — bound child capture before allocation; redact durable
@@ -150,8 +151,17 @@ from a failed chapter.
 
 - [ ] **V34.3a exclusive ownership and active stop** — lock acquisition errors are fatal and
   Esc cancels the active SAGA wake through the same cancellable turn protocol used by ordinary work.
-- [ ] **V34.3b durable chapter state** — persist planned/executing state before work and coordinate
-  artifact persistence with commits so restart has one unambiguous resume anchor.
+  F7.4 (2026-09-02): stays open, and the two halves disagree. The stop half is proven
+  (`TestTUIInlineSagaEscapeCancelsTheWakeAndRestoresPosture`). The lock half is contradicted by a
+  deliberate decision in `run.go`: the session hold is advisory and "deliberately not fatal: a
+  platform without file locks still runs sessions". Either the leaf's wording or that decision has to
+  give; that is the owner's call, not a tick.
+- [x] **V34.3b durable chapter state** — completed 2026-09-02 (F1 + F7 of `FABLE_OPTIMIZATION.md`):
+  executing state is persisted before the worker starts and terminal state on completion, with a
+  persistence failure surfaced rather than swallowed (four focused tests, red under an independent
+  reviewer's mutations); the live F7.2 run shows `SAGA.md` committed inside every chapter commit, so
+  the artifact and the commit are one resume anchor. The fault-injected crash/restart proof remains
+  V34.3e. Evidence in `CHECKPOINTS.md` §F1 and §F7.
 - [ ] **V34.3c clean rollback** — preserve pre-existing user changes while discarding failed
   chapter changes, including staged and untracked files created by that chapter.
 - [ ] **V34.3d complete saga accounting** — include planner, worker, and repair usage in the same
@@ -162,6 +172,10 @@ from a failed chapter.
   posture, one bounded wake, durable chapter/terminal state, and cancellation lifecycle are built
   through C4.1. The visible running TUI progress log remains C5 and is deliberately not claimed here
   until its own acceptance contract closes; no separate run/resume/status/stop product surface exists.
+  F7.4 (2026-09-02): stays part-done for C5. Live evidence added by F7.2: the inline marker opened,
+  advanced and finished a six-chapter saga across seven wakes on Fable and reset on the next goal,
+  in an isolated repository (`docs/transcripts/f72-fable-saga-2026-09-02.txt`); stop and rollback
+  were not demonstrated live and remain this section's exit review.
 
 **Exit review:** start/stop/resume/rollback is demonstrated in an isolated repository with an
 independent reviewer repeating the failure matrix.
@@ -175,13 +189,17 @@ and the catalog reflects current, supported vendor capabilities.
   `FABLE_OPTIMIZATION.md`): Claude tier eligibility is tested (a Max login reaches every rung, a Pro
   login is told which plan fable needs) and model selection now reads the vendor catalog rather than
   kolk's seed. Remaining: tier gating for a *discovered* model — a vendor catalog carries no tier, so
-  a newly discovered model is listed on every tier its connector already uses.
+  a newly discovered model is listed on every tier its connector already uses. F7.4 (2026-09-02):
+  stays part-done; F7.2 showed a Max login reaching `claude-fable` live and the catalog marking it
+  `verified` with exact id `claude-fable-5-1` on the first answered turn, which is eligibility
+  observed, not the missing gate built.
 - [~] **V34.4b Codex catalog policy** — part-done 2026-09-02 (F4 of `FABLE_OPTIMIZATION.md`): the
   Codex catalog is no longer written by kolk. `codex debug models` is the source, verified live
   against 0.149.1; identifiers, efforts, context and order come from the vendor; `gpt-5.6-pro` — a
   kolk seed the vendor does not list — is reported `gone` and refused by name. Remaining: kolk's dial
   has four levels, so a vendor `ultra` appears in the catalog and is accepted by name but cannot be
-  reached through `/effort`.
+  reached through `/effort`. F7.4 (2026-09-02): stays part-done; unchanged by F5–F7, and F7.2's
+  `/pmodels` output shows `ultra` still listed for the Codex rungs that carry it.
 - [ ] **V34.4c provider-matrix disposition** — choose the next supported provider(s), with current
   terms/capabilities/billing/redaction fixtures, or explicitly defer each remaining matrix row.
 - [ ] **V34.4d managed-local truth** — reconcile host Ollama hardware-fit, runtime, and `/localia`

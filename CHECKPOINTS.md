@@ -11127,7 +11127,7 @@ Verification greps after the change: one `EvalSymlinks` for verified directories
 the only remaining `ag.RunTurn` calls are the boundary itself, markdown-command expansion, and the
 single-shot path. Gates: `make check`, `-race` on engine, cli, agentcli, shell.
 
-#### F7 — proof and walk-back — in progress 2026-09-02
+#### F7 — proof and walk-back — complete 2026-09-02
 
 Closing phase of `FABLE_OPTIMIZATION.md`. Each point is run on its own and recorded here as it
 lands, so a partial F7 is still a truthful one.
@@ -11181,8 +11181,59 @@ lands, so a partial F7 is still a truthful one.
      mode, so `/mode agent` was repeated on every wake. Not built here; a session-schema change.
   Quota: seven agent turns on `claude-fable-5-1` (12,982 tokens by kolk's count) plus the two
   failed attempts and four one-turn diagnostic `claude -p` calls.
-- **F7.3 — independent review of F1–F3.** Not started.
-- **F7.4 — V34 leaves.** Not started; depends on the evidence from F7.1–F7.3.
+- **F7.3 — independent review of F1–F3. Done.** Reviewer: an independent Claude agent
+  (general-purpose, fresh context — it had implemented none of F1–F7), in its own git worktree,
+  2026-09-02. Brief: restate each phase's invariants from `FABLE_OPTIMIZATION.md`, rerun every named
+  test, mutate at least one guard per phase and prove the red and the byte-identical restore, then
+  try to break each invariant where the tests do not look.
+  *Commands (verbatim from the report):*
+  ```
+  go test -count=1 -run '^(TestASecondWakeAsksThePlannerWhenEveryChapterIsDone|TestAWakeNoteDoesNotReplaceTheGoal|TestANewGoalAfterAFinishedSagaArchivesAndStartsFresh|TestArchivingTwiceInTheSameSecondKeepsBoth|TestWakeBudgetCarriesMaxStrikesFromSagaFile)$' -v ./internal/cli
+  go test -count=1 -run '^(TestACancelledCommitKeepsTheGitError|TestAPlannedChapterPersistsExecutingBeforeWorkerStarts)$' -v ./internal/engine
+  go test -count=1 -run '^(TestSubagentNetworkFollowsPolicyKindAndVendorSwitch|TestBackgroundTaskKindsRunWithoutNetwork)$' -v ./internal/engine
+  go test -count=1 -run '^TestSubagentNetworkPolicyRoundTripsAndRejectsUnknown$' -v ./internal/cli
+  go test -count=1 -run '^TestCodexNetworkDisabledIsExplicitNotOmitted$' -v ./internal/provider/agentcli
+  go test -count=1 -run '^TestChildrenNeverInheritASentinelSecretOnEitherPath$' -v ./internal/shell
+  go test -count=1 -run '^(TestPlanCatalogListsFableAndHaikuWithVerifiedEfforts|TestFableNeedsMaxAndHaikuIsOnEveryClaudePlan)$' -v ./internal/provider
+  go test -count=1 -run '^(TestOpeningACheaperRungDoesNotGoThroughThePlanCatalogue|TestTopRungLaneSaysWhatASignInWouldUnlock)$' -v ./internal/cli
+  go test -count=1 -run '^TestMaxEffortReachesClaudeAsMaxOnFable$' -v ./internal/provider/agentcli
+  go test -count=1 -run '^TestAFableSessionRoutesTrivialWorkToHaikuOnThePlan$' -v ./internal/engine
+  go vet ./... && go test -count=1 ./internal/cli ./internal/engine ./internal/provider/... ./internal/shell ./internal/secret
+  ```
+  *Results:* every named test passed (F1 7/7, F2 5/5, F3 6/6); vet clean; the five packages `ok`.
+  *Mutations, all red then restored byte-identical (sha256 prefixes in the report):* F1 — the
+  pre-wake "nothing left" guard reinserted, note→goal, archive collision check disabled,
+  `DoomThreshold` hard-coded, cancellation result dropped on the commit path (5/5 red). F2 — auto
+  policy forced on, Codex network flag made conditional, `_PAT` dropped, `SECRET` fragment dropped,
+  config validation bypassed (5/5 red); **`_ACCESS_KEY` dropped stayed green** — `AWS_SECRET_ACCESS_KEY`
+  is also caught by the `SECRET` fragment, so no sentinel pinned that suffix and the F2.5 dossier
+  claim was false at HEAD. F3 — fable row deleted, `ModelsBelowCeiling` emptied, fable rung removed,
+  `claude-fable` alias deleted, lane hint condition broken (5/5 red).
+  *Verdicts:* F1 **HOLDS**. F2 **HOLDS WITH NOTES** (the unpinned suffix; npm's
+  `//registry.npmjs.org/:_authToken` shape not scrubbed; the strict-policy Claude refusal proven at
+  the adapter only). F3 **DOES NOT HOLD** at HEAD: `-e max` on Fable reaches the vendor as
+  `--effort xhigh` once F4's discovery fills the catalog with `[low medium high xhigh max]` —
+  `EffortForPlan` folded `xhigh` into `max` and returned the first spelling at that rank, and the
+  named test stops at the adapter, below that call. Proven by the reviewer with a throwaway test.
+  *Fixed the same day, before this dossier closed:* an exact spelling the vendor offers now wins
+  before any folding (`TestMaxStaysMaxWhenTheVendorOffersBothXhighAndMax`, four cases, mutation
+  red); `MINIO_ACCESS_KEY` pins `_ACCESS_KEY` and `_AUTHTOKEN` joins the suffix list with
+  `REGISTRY_AUTHTOKEN` as its sentinel (each dropped suffix now goes red). Left as noted: the
+  strict-policy engine-to-factory path is reasoned, not driven; a Lstat→Rename window in archiving
+  on a single-user CLI.
+- **F7.4 — V34 leaves. Done.** Each of the seven judged against evidence in this file, never from
+  the plan alone. `V34.1a` stays ticked (F0; nothing since regressed it). **`V34.3b` ticked**:
+  executing state is persisted before work (`TestAChapterPersistsExecutingBeforeWorkerStarts`,
+  `TestAPlannedChapterPersistsExecutingBeforeWorkerStarts`, terminal state
+  `TestAWakePersistsGoalCompletionAsATerminalState`, failure surfaced
+  `TestAWakeReportsTerminalStatePersistenceFailure`), and the live run shows `SAGA.md` committed
+  inside every chapter commit (`e3fdf00`…`abf772d` in the scratch repo), so artifact and commit are
+  one resume anchor; the reviewer confirmed F1 holds with those tests red under mutation. The
+  fault-injected restart stays V34.3e's. **Stay open, with the reason written into
+  `docs/plan/34`:** `V34.1b` (PTY login sentinel not proven), `V34.3a` (Esc-cancel proven; "lock
+  errors are fatal" contradicted by `run.go`'s deliberate advisory hold — owner's call), `V34.3f`
+  (C5 progress log; live saga evidence added), `V34.4a` (discovered-model tier gate not built; live
+  eligibility observed), `V34.4b` (`ultra` unreachable through `/effort`; unchanged).
 
 #### C5 — TUI progress-log observability — queued
 

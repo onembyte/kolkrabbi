@@ -541,7 +541,7 @@ envelope means every subagent test declares a workspace, and Claude's declare ne
 previously used the unconfined port and asserted a status line without the envelope summary. Those
 are the product's own invariants arriving in the tests, not accommodations.
 
-## F7 — Proof and walk-back  ·  `[ ]`
+## F7 — Proof and walk-back  ·  **done 2026-09-02**
 
 **Observable:** a fresh clone at the closing commit passes `make check`; every claim in README,
 `site/capabilities.html`, `docs/plan/10`, `13`, `24`, `08` matches the binary; `CHECKPOINTS.md` holds
@@ -582,10 +582,18 @@ reruns the failure matrices.
   agent` had to be repeated every wake (recorded, not built). Every chapter the saga committed
   passes `go vet` and `go test` in the scratch repo. SAGA.md's own ledger: $4.05 of a $5.00 limit
   across 6 chapters; the reset's chapter 1 a further $1.16.
-- [ ] **F7.3** Independent review of F1, F2, F3 diffs against their invariants; reviewer and commands
-  named in `CHECKPOINTS.md`.
-- [ ] **F7.4** Tick the corresponding V34 leaves (`V34.1a`, `V34.1b`, `V34.3a/b/f`, `V34.4a/b`) or
-  record exactly why each stays open. Never tick a leaf from this file alone.
+- [x] **F7.3** Independent review of F1, F2, F3 diffs against their invariants; reviewer and commands
+  named in `CHECKPOINTS.md`. **Done 2026-09-02.** F1 holds; F2 holds with notes; **F3 did not hold at
+  HEAD** — `-e max` on Fable became `--effort xhigh` once F4's discovery listed both spellings, a
+  regression the adapter-level test could not see. Fixed the same day (exact spelling wins before
+  folding), with the two F2 notes (an unpinned `_ACCESS_KEY` suffix, npm's `_authToken` shape).
+  Commands, mutations, hashes and verdicts are in the F7 dossier.
+- [x] **F7.4** Tick the corresponding V34 leaves (`V34.1a`, `V34.1b`, `V34.3a/b/f`, `V34.4a/b`) or
+  record exactly why each stays open. Never tick a leaf from this file alone. **Done 2026-09-02:**
+  `V34.3b` ticked on F1's tests plus the live commit-anchored artifact; `V34.1a` stays ticked; the
+  other five stay open with the reason written beside each in `docs/plan/34` — one of them
+  (`V34.3a`) because its wording contradicts a deliberate decision in `run.go`, which is the owner's
+  to reconcile.
 
 ---
 
