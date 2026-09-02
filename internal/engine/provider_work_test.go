@@ -529,10 +529,26 @@ func TestSubagentToolOutputKeepsItsExistingBoundOutsideTheStatusRow(t *testing.T
 			}
 		}
 	}
-	// tools.maxOutput is 12,000 bytes; its line-paging explanation and a
-	// redaction sentinel add a small, deliberate tail to the durable frame.
-	if len(output.Output) == 0 || len(output.Output) > 12_200 || !strings.Contains(output.Output, "truncated") {
-		t.Fatalf("tool output lost its established bound: %d bytes: %.200q", len(output.Output), output.Output)
+	// tools.maxOutput is 12,000 bytes, and the durable frame carries a tail
+	// after it: the truncation marker and a line-paging notice that names the
+	// file. The cap is asserted exactly; the tail is bounded generously,
+	// because its length is not a constant.
+	//
+	// It was asserted as one number — 12,200 total — until macOS CI failed at
+	// 12,259. The paging notice embeds the displayed path, and on macOS
+	// /var is a symlink to /private/var, so a file the test reads relatively
+	// is displayed absolutely and the notice grows by about sixty bytes. The
+	// bound had been calibrated against one platform's temp-directory layout,
+	// which is a property of the runner rather than of the code under test.
+	content, tail, truncated := strings.Cut(output.Output, "\n... [truncated,")
+	if !truncated {
+		t.Fatalf("tool output was not truncated at all: %d bytes: %.200q", len(output.Output), output.Output)
+	}
+	if len(content) == 0 || len(content) > 12_000 {
+		t.Fatalf("the output cap moved: %d bytes of content, want at most 12,000", len(content))
+	}
+	if len(tail) > 512 {
+		t.Fatalf("the explanatory tail is unbounded: %d bytes: %.200q", len(tail), tail)
 	}
 	if strings.Contains(output.Output, "sk-or-v1-0123456789") || !strings.Contains(output.Output, "redacted") {
 		t.Fatalf("tool output was not scrubbed: %.200q", output.Output)
