@@ -38,7 +38,7 @@ func TestAGoalWithNoChaptersPlansOne(t *testing.T) {
 	worker := &workerSpy{}
 	state := &SagaState{Goal: "migrate the store"}
 
-	reason, err := plannedRunner(planner, worker).Run(context.Background(), "/repo", state)
+	reason, err := wakes(t, plannedRunner(planner, worker), state)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestThePlannerSeesWhatIsAlreadyDone(t *testing.T) {
 	planner := &plannerSpy{titles: []string{"first", "second"}}
 	state := &SagaState{Goal: "g"}
 
-	if _, err := plannedRunner(planner, &workerSpy{}).Run(context.Background(), "/repo", state); err != nil {
+	if _, err := wakes(t, plannedRunner(planner, &workerSpy{}), state); err != nil {
 		t.Fatal(err)
 	}
 
@@ -81,7 +81,7 @@ func TestChaptersAreNumberedInSequence(t *testing.T) {
 	planner := &plannerSpy{titles: []string{"a", "b", "c"}}
 	state := &SagaState{Goal: "g"}
 
-	if _, err := plannedRunner(planner, &workerSpy{}).Run(context.Background(), "/repo", state); err != nil {
+	if _, err := wakes(t, plannedRunner(planner, &workerSpy{}), state); err != nil {
 		t.Fatal(err)
 	}
 
@@ -96,7 +96,7 @@ func TestAPlannerThatFailsStopsTheRun(t *testing.T) {
 	planner := &plannerSpy{err: errors.New("the model refused")}
 	worker := &workerSpy{}
 
-	_, err := plannedRunner(planner, worker).Run(context.Background(), "/repo", &SagaState{Goal: "g"})
+	_, err := wakes(t, plannedRunner(planner, worker), &SagaState{Goal: "g"})
 
 	// A planner that errors must not become a loop that asks forever.
 	if err == nil {
@@ -112,7 +112,7 @@ func TestWithoutAPlannerHandWrittenChaptersStillWork(t *testing.T) {
 	state := oneChapter(StatusPending)
 	executor := executorFor(worker, dirtyRunner()) // no Planner
 
-	reason, err := executor.Run(context.Background(), "/repo", state)
+	reason, err := wakes(t, executor, state)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestPlanningStopsAtTheChapterCeiling(t *testing.T) {
 	executor := plannedRunner(planner, worker)
 	executor.Budget = SagaBudget{MaxChapters: 2, CostLimit: 100}
 
-	reason, _ := executor.Run(context.Background(), "/repo", &SagaState{Goal: "g"})
+	reason, _ := wakes(t, executor, &SagaState{Goal: "g"})
 
 	// A planner that can always think of something else would otherwise run
 	// until the money ran out.

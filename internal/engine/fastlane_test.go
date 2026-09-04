@@ -64,3 +64,31 @@ func TestFastLaneChatExecutesIsolatedWithoutTools(t *testing.T) {
 		t.Fatalf("FastLaneChat leaked into session turns: %d messages found, want %d", len(ag.Sess.GetMessages()), initialCount)
 	}
 }
+
+// The fast lane on a vendor-ladder session must be a rung of that vendor. Live
+// on 2026-09-03 the saga planner on a Claude Max session asked the Claude child
+// for the best discovered free gateway model; the child answered as Fable and
+// the catalog recorded a gateway id as a verified Claude model. The planner's
+// cheap judgement belongs on the cheapest signed-in rung, or on the session
+// model when nothing cheaper is signed in — never on a model the child cannot
+// run. A gateway session keeps the free pick.
+func TestFastLaneOnAVendorSessionIsARungOfThatVendor(t *testing.T) {
+	onPlan := enginetest.NewFakeSession("s", "claude-fable")
+	onPlan.SetConnector("claude") // what startup records for a plan session
+	agent := &engine.Agent{Options: engine.Options{Model: "claude-fable", Sess: onPlan, FreeModels: []string{"cohere/north-mini-code:free"}}}
+	agent.RungAvailable = func(vendor, model string) bool { return vendor == "claude" && model == "claude-haiku" }
+	if got := agent.FastLaneModel(); got != "claude-haiku" {
+		t.Fatalf("fast lane on fable with haiku signed in = %q, want claude-haiku", got)
+	}
+	agent.RungAvailable = nil
+	if got := agent.FastLaneModel(); got != "claude-fable" {
+		t.Fatalf("fast lane on fable with nothing cheaper = %q, want the session model", got)
+	}
+	// The same Claude model reached through the gateway: no connector, so the
+	// backend is the gateway and the free pick is right.
+	viaGateway := enginetest.NewFakeSession("s", "anthropic/claude-opus-5")
+	gateway := &engine.Agent{Options: engine.Options{Model: "anthropic/claude-opus-5", Sess: viaGateway, FreeModels: []string{"cohere/north-mini-code:free"}}}
+	if got := gateway.FastLaneModel(); got != "cohere/north-mini-code:free" {
+		t.Fatalf("fast lane on a gateway session = %q, want the discovered free model", got)
+	}
+}

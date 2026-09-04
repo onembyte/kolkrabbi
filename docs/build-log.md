@@ -6220,6 +6220,29 @@ compiles and the tests pass. Every place that *types* the old name has to be fou
 script that types it twenty times an hour is worse than a user who types it once, because nobody
 reads its output.
 
+## Three decisions and the caller the note named (2026-09-03)
+
+The owner answered the three questions F7 left. V34.3a keeps the code and changes the plan: the
+session hold is advisory, so a platform without file locks still runs sessions, and two sessions on
+one directory get a warning from `kolk sessions` rather than a refusal; the leaf is reworded and
+ticked. `SagaRunner.Run`, the continuous loop nothing in the product called, is deleted; the four
+tests that used it to prove the cost limit, the doom loop and the planner's memory now drive repeated
+wakes, which is the only way the product ever runs a saga anyway.
+
+The third was a question rather than a decision: which call had asked the Claude child for a gateway
+model. One more Max wake with the new note active answered it in one line, before any chapter ran —
+it was the saga planner. `AgentPlanner` deliberately runs on the fast lane, because choosing the next
+chapter is a cheap judgement, and `FastLaneModel` returned the best discovered free gateway model
+whenever the session model was not free, without asking whether the session's backend could run it.
+On a plan session that backend is the vendor's child, which runs its own rungs and nothing else; it
+answered as Fable, and the catalog recorded a Cohere id as a verified Claude model.
+
+The fix is where the fast lane is chosen: on a session with a plan connector it is the roster's
+cheapest signed-in rung, or the session model when nothing cheaper is. The first attempt keyed on the
+ladder instead of the connector and broke two tests for the same Claude model reached through the
+gateway — correctly, because that session's backend is the gateway and can run the free pick. The
+connector the session already records is the honest discriminator.
+
 ## Mode survives a resume (2026-09-02)
 
 Plan 06 §3 has said for a long time that `session.Mode` is written on switch and restored on resume.

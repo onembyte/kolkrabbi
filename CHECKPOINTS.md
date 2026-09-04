@@ -11105,7 +11105,7 @@ changes.
   `TestAPlannerThatFailsStopsTheRun` failed the moment the distinction was lost, which is the test
   doing exactly its job. Recorded for the owner: `SagaRunner.Run` has no production caller — SAGA is
   inline, one wake per request — and is kept only because deleting a tested public method is not a
-  cleanup's decision.
+  cleanup's decision. Owner decided 2026-09-03: deleted; its loop tests became repeated wakes.
 - **F6.4** The `posture` option and its pass-through are deleted; nothing ever assigned the field, and
   posture is set by `ag.SetPosture` at wake time. `ExecutionOptions.Provider` is kept and now used —
   it keys F6.5's table — which answers R14's "drop it or use it" the other way.
@@ -11174,9 +11174,16 @@ lands, so a partial F7 is still a truthful one.
      creates a row for any asked id. The recorder now refuses a model the vendor does not list and
      says so once (`TestAVendorVerifiesOnlyModelsItLists`, mutation red). A zero-quota experiment
      (slash-only session, no turn) does not recreate the row, so the asker is a turn-time call.
-     **Open:** which call asked the Claude child for a gateway id — config is empty, tiers and slots
-     unset, the saga path names no model, the planner schema carries none. The note the recorder
-     prints now will name it on the next occurrence.
+     **Resolved 2026-09-03** with one more Claude Max wake, the note active: it fired during the saga
+     *planner's* call, before any chapter — `AgentPlanner` runs on the fast lane, and
+     `FastLaneModel` returned the best discovered free gateway model whenever the session model was
+     not free, without asking whether the session's backend could run it. On a plan session the
+     backend is the vendor child, which runs its own rungs and nothing else. The fast lane on a
+     session with a plan connector is now the roster's cheapest signed-in rung, or the session model
+     when nothing cheaper is; a Claude model reached through the gateway keeps the free pick, because
+     its backend is the gateway (`TestFastLaneOnAVendorSessionIsARungOfThatVendor`, mutation red).
+     The connector recorded on the session is the discriminator, not the ladder — the first attempt
+     used the ladder and broke two gateway-session tests, correctly.
   6. *Resume.* `-r` restores model and effort (run.go precedence) but the session did not persist
      mode, so `/mode agent` was repeated on every wake. **Built 2026-09-02** at the owner's request:
      `session.Mode` (plan 06 §3 had promised it), written by `Agent.SetMode` so every surface that

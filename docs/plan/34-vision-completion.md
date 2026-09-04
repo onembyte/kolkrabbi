@@ -149,13 +149,16 @@ reviewer checks that all public terminal states have exactly one terminal outcom
 **Goal:** a saga can stop, resume, fail, and roll back without silently committing or retaining work
 from a failed chapter.
 
-- [ ] **V34.3a exclusive ownership and active stop** — lock acquisition errors are fatal and
-  Esc cancels the active SAGA wake through the same cancellable turn protocol used by ordinary work.
-  F7.4 (2026-09-02): stays open, and the two halves disagree. The stop half is proven
-  (`TestTUIInlineSagaEscapeCancelsTheWakeAndRestoresPosture`). The lock half is contradicted by a
-  deliberate decision in `run.go`: the session hold is advisory and "deliberately not fatal: a
-  platform without file locks still runs sessions". Either the leaf's wording or that decision has to
-  give; that is the owner's call, not a tick.
+- [x] **V34.3a advisory ownership and active stop** — completed 2026-09-03. Reworded by owner
+  decision: the session hold is *advisory*, not a gate. `run.go` takes the lock so `kolk sessions`
+  and the dashboard can say which session is live and warn when two share a directory, and a
+  platform without file locks still runs sessions — it just cannot report which are running. A lock
+  acquisition error is therefore not fatal, by design; the protection against two writers on one
+  saga is the commit-per-chapter artifact (V34.3b), not the lock. The stop half is unchanged: Esc
+  cancels the active SAGA wake through the same cancellable turn protocol as ordinary work
+  (`TestTUIInlineSagaEscapeCancelsTheWakeAndRestoresPosture`). The earlier wording, "lock acquisition
+  errors are fatal", contradicted the code's deliberate comment and was the reason this leaf stayed
+  open through F7.4; the owner chose the code. Evidence in `CHECKPOINTS.md` §F7.
 - [x] **V34.3b durable chapter state** — completed 2026-09-02 (F1 + F7 of `FABLE_OPTIMIZATION.md`):
   executing state is persisted before the worker starts and terminal state on completion, with a
   persistence failure surfaced rather than swallowed (four focused tests, red under an independent

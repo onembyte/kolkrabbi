@@ -520,8 +520,10 @@ behaviour changed.
   surfaced a real distinction the copies had blurred: a **planner** failure is not a chapter failure,
   and treating it as one made a broken planner loop. `plannerError` marks it, and
   `TestAPlannerThatFailsStopsTheRun` is what caught it.
-  Recorded: `SagaRunner.Run` has **no production caller** — SAGA is inline, one wake per request —
-  and is kept only because deleting a tested public method is the owner's call.
+  Recorded: `SagaRunner.Run` had **no production caller** — SAGA is inline, one wake per request —
+  and was kept only because deleting a tested public method is the owner's call. **Deleted
+  2026-09-03 by owner decision**; the four tests that exercised the loop now drive repeated wakes,
+  which is the product's own shape.
 - [x] **F6.4 (R14)** The `posture` option and its `Options.Posture` pass-through are deleted: nothing
   ever assigned the field, and posture is set by `ag.SetPosture` at wake time. `ExecutionOptions.Provider`
   is kept and now **used** — it keys the network rule below, which is R14's "drop it or use it".

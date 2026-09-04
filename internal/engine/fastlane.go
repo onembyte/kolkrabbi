@@ -31,6 +31,19 @@ func (a *Agent) FastLaneModel() string {
 	if model := a.SessionModel(); model != "" && provider.ModelIsFree(provider.ModelInfo{ID: model}) {
 		return model
 	}
+	// A session on a plan connector is answered by that vendor's own child,
+	// which runs its rungs and nothing else. A gateway free model sent there
+	// is not refused: the child answers on the model it was spawned with, and
+	// the outcome recorder verified the wrong name — seen live on 2026-09-03,
+	// cohere/north-mini-code:free "answered" by claude-fable-5-1 while the
+	// saga planner chose the next chapter. The fast lane on such a session is
+	// the cheapest rung that is signed in, or the session model when nothing
+	// cheaper is. The connector, not the ladder, is the test: a Claude model
+	// reached through the gateway ranks on the same ladder and can run the
+	// free pick below, because its backend is the gateway.
+	if a.Sess != nil && strings.TrimSpace(a.Sess.ConnectorName()) != "" {
+		return a.roster(a.RungAvailable).Cheapest().Model
+	}
 	if len(a.FreeModels) > 0 && provider.ModelIsFree(provider.ModelInfo{ID: a.FreeModels[0]}) {
 		return a.FreeModels[0]
 	}

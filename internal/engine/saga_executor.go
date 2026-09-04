@@ -156,46 +156,6 @@ func (r *SagaRunner) step(ctx context.Context, repoDir string, state *SagaState,
 	return StopNone, nil
 }
 
-// Run works chapters until the budget, the plan or the user stops it.
-//
-// No product surface calls this: SAGA is inline, one bounded wake per request
-// (docs/plan/10 §4), and RunWake is what the CLI uses. It is kept because a
-// continuous loop is the obvious second caller for step, and because deleting
-// a tested public method is the owner's call rather than a cleanup's.
-func (r *SagaRunner) Run(ctx context.Context, repoDir string, state *SagaState) (StopReason, error) {
-	if state == nil {
-		return StopNone, fmt.Errorf("saga: state is required")
-	}
-	started := r.now()
-	failures := 0
-
-	for {
-		reason, err := r.step(ctx, repoDir, state, failures, r.now().Sub(started))
-		if reason != StopNone {
-			return reason, err
-		}
-		if err != nil {
-			if cancelErr := sagaCancellationResult(ctx, err); cancelErr != nil {
-				return StopNone, cancelErr
-			}
-			var persistErr *artifactPersistError
-			var planErr *plannerError
-			if errors.As(err, &persistErr) || errors.As(err, &planErr) {
-				// Neither is a chapter that failed: one is storage, the other
-				// is having no chapter at all. Retrying either would be asking
-				// the same broken thing the same question.
-				return StopNone, err
-			}
-			// A continuous run counts the failure and keeps going: the next
-			// chapter may be the one that works, and the doom threshold is
-			// what stops it when none of them are.
-			failures++
-			continue
-		}
-		failures = 0
-	}
-}
-
 // RunWake advances at most one chapter and then returns. Planning one chapter
 // and working it count as one wake; a planner is never called a second time in
 // the same invocation. The older Run method remains the multi-chapter API for

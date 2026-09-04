@@ -389,7 +389,7 @@ func TestRunPreservesCancellationArtifactFailure(t *testing.T) {
 		return os.ErrPermission
 	}
 
-	reason, err := executor.Run(ctx, "/repo", state)
+	reason, err := executor.RunWake(ctx, "/repo", state)
 	if reason != StopNone {
 		t.Fatalf("reason = %q, want no successful stop after cancellation persistence failure", reason)
 	}
@@ -441,7 +441,7 @@ func TestTheRunStopsAtTheChapterCeiling(t *testing.T) {
 	executor := executorFor(worker, dirtyRunner())
 	executor.Budget = SagaBudget{MaxChapters: 2}
 
-	reason, err := executor.Run(context.Background(), "/repo", state)
+	reason, err := executor.RunWake(context.Background(), "/repo", state)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -453,6 +453,32 @@ func TestTheRunStopsAtTheChapterCeiling(t *testing.T) {
 	}
 }
 
+// wakes drives a saga the way the product does — one bounded wake per request,
+// each reading the persisted state the previous one left — until a wake ends
+// on something other than "wake complete". SagaRunner.Run, the continuous
+// loop, was deleted on 2026-09-03 (no product caller); the invariants it was
+// tested for hold across wakes or they do not hold at all.
+func wakes(t *testing.T, r *SagaRunner, state *SagaState) (StopReason, error) {
+	t.Helper()
+	for i := 0; i < 20; i++ {
+		reason, err := r.RunWake(context.Background(), "/repo", state)
+		var planErr *plannerError
+		if errors.As(err, &planErr) {
+			// A planner that fails has produced nothing to retry: the user is
+			// told, and asking again is the same question to a broken planner.
+			return reason, err
+		}
+		if reason == StopWake || (reason == StopNone && err != nil) {
+			// Wake complete, or a chapter that failed and was reported: the next
+			// request wakes again on the persisted state, strikes included.
+			continue
+		}
+		return reason, err
+	}
+	t.Fatalf("still waking after 20 wakes: %+v", state)
+	return StopNone, nil
+}
+
 func TestTheRunStopsWhenTheMoneyRunsOut(t *testing.T) {
 	worker := &workerSpy{cost: 0.60}
 	state := &SagaState{Goal: "g"}
@@ -462,7 +488,7 @@ func TestTheRunStopsWhenTheMoneyRunsOut(t *testing.T) {
 	executor := executorFor(worker, dirtyRunner())
 	executor.Budget = SagaBudget{CostLimit: 1.00, MaxChapters: 10}
 
-	reason, _ := executor.Run(context.Background(), "/repo", state)
+	reason, _ := wakes(t, executor, state)
 
 	if reason != StopCostLimit {
 		t.Fatalf("reason = %q, want cost-limit", reason)
@@ -605,7 +631,7 @@ func TestRepeatedFailuresStopTheRun(t *testing.T) {
 	executor := executorFor(worker, dirtyRunner())
 	executor.Budget = SagaBudget{DoomThreshold: 2, MaxChapters: 10}
 
-	reason, _ := executor.Run(context.Background(), "/repo", state)
+	reason, _ := wakes(t, executor, state)
 
 	// The point of the doom-loop guard is that a saga failing the same way
 	// forever costs money forever.
@@ -621,7 +647,7 @@ func TestARunWithNothingLeftToDoSaysSo(t *testing.T) {
 	state := oneChapter(StatusDone)
 	worker := &workerSpy{}
 
-	reason, err := executorFor(worker, dirtyRunner()).Run(context.Background(), "/repo", state)
+	reason, err := executorFor(worker, dirtyRunner()).RunWake(context.Background(), "/repo", state)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -639,7 +665,7 @@ func TestCancellingTheRunStopsIt(t *testing.T) {
 	worker := &workerSpy{}
 	state := &SagaState{Goal: "g", Chapters: []Chapter{{Number: 1, Title: "c", Status: StatusPending}}}
 
-	reason, err := executorFor(worker, dirtyRunner()).Run(ctx, "/repo", state)
+	reason, err := executorFor(worker, dirtyRunner()).RunWake(ctx, "/repo", state)
 
 	// `kolk saga stop` and Ctrl+C both arrive as a cancelled context.
 	if !errors.Is(err, context.Canceled) {
