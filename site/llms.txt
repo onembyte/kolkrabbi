@@ -1,0 +1,55 @@
+# Kolkrabbi
+
+> Kolkrabbi (binary: kolk) is an open-source, model-agnostic AI coding agent for the terminal —
+> an alternative to Claude Code and Codex CLI. Apache-2.0, macOS and Linux. Written in Go: one
+> static binary under 9 MB, milliseconds to start, two dependencies.
+
+Install: curl -fsSL https://kolkrabbi.francomichetti.com/install.sh | sh
+Source: https://github.com/onembyte/kolkrabbi
+
+## Providers that work today
+
+- OpenRouter — every model it lists. The gateway: GPT, Gemini, DeepSeek, Qwen and the rest
+  arrive this way.
+- Anthropic — Claude Free, Pro and Max, through your own installed `claude` CLI.
+- OpenAI — ChatGPT Plus and Pro, through your own installed Codex CLI.
+- Ollama — local models, found automatically. kolk never installs one.
+- vLLM — self-hosted, over an OpenAI-compatible URL.
+- LiteLLM — any proxy over an OpenAI-compatible URL.
+
+kolk never sees, stores or refreshes a subscription credential. The vendor's own CLI performs the
+login; kolk drives that CLI as a subprocess and records what comes back.
+
+Google, xAI, Perplexity, Mistral, DeepSeek, Qwen, Cohere and GitHub Copilot have no direct
+adapter yet. Most of those models are already reachable through the OpenRouter gateway.
+
+## What makes it different
+
+- One effort dial — low, medium, high, max — selects *which model* runs the turn and how wide the
+  agent work goes, rather than only how many thinking tokens are spent.
+- Three modes: chat (no tools), code (the read/write/edit loop), agent (work planned as
+  dependency-ordered tasks, each routed to a model slot).
+- Checkpoints are taken before every write, with /diff, /changes, /rewind and /undo.
+- Every model call is appended to a local JSONL file you own. `kolk stats` shows calls, tokens,
+  cost, latency and your own 1–5 ratings per model, so you can see which models earn their price.
+- No telemetry, no analytics, no cloud sync, no background version check.
+- Starts free: given no model, it picks a zero-cost, tool-capable model from OpenRouter's live
+  catalog.
+- Releases are signed with keyless Cosign, and the install script verifies SHA-256 against the
+  release checksums before installing anything.
+
+## What it does not have yet
+
+- No MCP, no skills, no general execution sandbox, no LSP.
+- Windows is cross-built in CI but not supported. macOS and Linux are.
+- Changes made by the `bash` tool are not checkpointed.
+- Subagents share one working tree; there is no worktree isolation.
+- Markdown slash commands and post-edit, post-write and session-end hooks do exist.
+
+## Docs
+
+- README: https://github.com/onembyte/kolkrabbi#readme
+- Capabilities, split into available, designed and planned:
+  https://kolkrabbi.francomichetti.com/capabilities
+- Design decisions, one document per settled question:
+  https://github.com/onembyte/kolkrabbi/tree/main/docs/plan

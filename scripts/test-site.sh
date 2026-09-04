@@ -25,6 +25,50 @@ contains_deploy_doc() {
   if [ -f "$DEPLOY_DOC" ] && grep -Fq -- "$text" "$DEPLOY_DOC"; then pass; else fail "$label"; fi
 }
 
+script_tags_are_safe() {
+  local file="$1" bad
+  bad=$(grep -o '<script[^>]*>' "$SITE/$file" 2>/dev/null \
+    | grep -vx '<script src="app.js" defer>' \
+    | grep -vx '<script type="application/ld+json">' || true)
+  if [ -z "$bad" ]; then pass; else fail "$file runs a script that is neither app.js nor JSON-LD data: $bad"; fi
+}
+
+json_ld_parses() {
+  local file="$1"
+  command -v python3 >/dev/null 2>&1 || return 0
+  if python3 - "$SITE/$file" <<'PYEOF'
+import json, re, sys
+html = open(sys.argv[1], encoding="utf-8").read()
+blocks = re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
+sys.exit(0 if blocks and all(json.loads(b) for b in blocks) else 1)
+PYEOF
+  then pass; else fail "$file has structured data that is not valid JSON"; fi
+}
+
+sitemap_covers_pages() {
+  local page name url
+  for page in "$SITE"/*.html; do
+    name=$(basename "$page")
+    [ "$name" = "404.html" ] && continue
+    if [ "$name" = "index.html" ]; then
+      url="https://kolkrabbi.francomichetti.com/"
+    else
+      url="https://kolkrabbi.francomichetti.com/${name%.html}"
+    fi
+    if grep -Fq "<loc>$url</loc>" "$SITE/sitemap.xml" 2>/dev/null; then pass; else fail "sitemap.xml does not list $url"; fi
+  done
+}
+
+background_is_fixed() {
+  local body_rule
+  body_rule=$(sed -n '/^body {$/,/^}$/p' "$SITE/styles.css")
+  if printf '%s' "$body_rule" | grep -q 'linear-gradient'; then
+    fail "the grid is painted on body, so it scrolls with the document instead of holding still"
+  else
+    pass
+  fi
+}
+
 excludes() {
   local file="$1" pattern="$2" label="$3"
   local result
@@ -50,18 +94,26 @@ last_section_is() {
   if [[ "$found" == *"id=\"$id\""* ]]; then pass; else fail "$id must be the last main-content section"; fi
 }
 
-for file in index.html capabilities.html styles.css app.js logo.svg favicon.svg 404.html _headers robots.txt; do
+for file in index.html capabilities.html styles.css app.js logo.svg favicon.svg 404.html _headers robots.txt sitemap.xml llms.txt; do
   require_file "$file"
 done
 
 contains index.html '<html lang="en">' "index.html must declare its language"
 contains index.html 'name="viewport"' "index.html must configure a mobile viewport"
 contains index.html '<main' "index.html must have a semantic main region"
+contains index.html '<link rel="canonical" href="https://kolkrabbi.francomichetti.com/">' "index.html has no canonical URL"
+contains index.html 'Claude Code &amp; Codex CLI alternative</title>' "the title does not name the category kolk competes in"
+contains index.html 'AI coding agent for the terminal' "the meta description does not say what kolk is"
+contains index.html 'Ollama' "the hero does not name a local provider"
+contains index.html 'One static binary under' "the landing page does not state the binary size"
+contains index.html '9&nbsp;MB, milliseconds to start' "the binary claim drifted from what check-budgets.sh measures"
+contains capabilities.html '<link rel="canonical" href="https://kolkrabbi.francomichetti.com/capabilities">' "capabilities.html has no canonical URL"
 contains index.html 'https://kolkrabbi.francomichetti.com/install.sh' "install URL drifted"
 contains index.html '/key &lt;API_KEY&gt;' "API-key command drifted"
 contains index.html '<code class="key-command"><span class="prompt" aria-hidden="true">❯</span> /key &lt;API_KEY&gt;</code>' "API-key command is not in the run step"
 contains index.html '<code class="use-command"><span class="prompt" aria-hidden="true">$</span> kolk</code>' "use step must contain only the final kolk command"
 contains index.html 'Installer ships with v1.3.0' "current installer release status is missing"
+contains index.html '"softwareVersion": "1.3.0"' "structured data version drifted from the installer release"
 contains index.html 'https://github.com/onembyte/kolkrabbi' "GitHub link is wrong"
 contains index.html 'Apache-2.0 License' "license link or label does not match LICENSE"
 contains index.html 'Chat, code, and agent' "landing page does not name all three modes"
@@ -74,8 +126,12 @@ contains index.html 'class="copy-icon" viewBox="0 0 16 16" aria-hidden="true" fo
 contains index.html 'id="copy-status" role="status" aria-live="polite"' "copy result is not announced accessibly"
 contains index.html '<script src="app.js" defer></script>' "landing page does not load the local copy controller"
 excludes index.html 'parallel subagents|subagents in parallel|at once' "landing page inaccurately claims parallel orchestration"
-excludes index.html '<script[^>]*>[^<]' "landing page must not ship inline JavaScript"
-excludes index.html "<(script|img|link)[^>]+(src|href)=[\"']https?://" "landing page loads an external resource"
+script_tags_are_safe index.html
+json_ld_parses index.html
+contains index.html '"@type": "SoftwareApplication"' "landing page has no machine-readable software identity"
+excludes index.html "<(script|img)[^>]+src=[\"']https?://" "landing page loads an external script or image"
+excludes index.html "<link[^>]+rel=[\"'](stylesheet|icon|preload|prefetch|preconnect|manifest)[\"'][^>]*href=[\"']https?://" "landing page loads an external stylesheet, icon or font"
+excludes index.html "<link[^>]+href=[\"']https?://[^\"']*[\"'][^>]*rel=[\"'](stylesheet|icon|preload|prefetch|preconnect|manifest)" "landing page loads an external stylesheet, icon or font"
 excludes index.html "style=[\"']" "styles must stay in styles.css for a strict CSP"
 
 contains index.html 'id="providers"' "landing page has no provider wall"
@@ -218,9 +274,11 @@ contains capabilities.html 'Coming soon' "video placeholders are not honest abou
 contains capabilities.html 'Próximamente' "Spanish video placeholder is not honest about availability"
 last_section_is capabilities.html videos
 excludes capabilities.html 'claude code' "catalog ships the prohibited Claude Code product or feature name"
-excludes capabilities.html '<script([ >])' "capabilities page must not ship JavaScript"
+excludes capabilities.html '<script[^>]*src=' "capabilities page must not ship JavaScript"
 excludes capabilities.html '<(iframe|video|source)([ >])' "capabilities page ships media before real sources exist"
-excludes capabilities.html "<(script|img|link)[^>]+(src|href)=[\"']https?://" "capabilities page loads an external resource"
+excludes capabilities.html "<(script|img)[^>]+src=[\"']https?://" "capabilities page loads an external script or image"
+excludes capabilities.html "<link[^>]+rel=[\"'](stylesheet|icon|preload|prefetch|preconnect|manifest)[\"'][^>]*href=[\"']https?://" "capabilities page loads an external stylesheet, icon or font"
+excludes capabilities.html "<link[^>]+href=[\"']https?://[^\"']*[\"'][^>]*rel=[\"'](stylesheet|icon|preload|prefetch|preconnect|manifest)" "capabilities page loads an external stylesheet, icon or font"
 excludes capabilities.html "style=[\"']" "capabilities styles must stay in styles.css for a strict CSP"
 
 contains styles.css '--violet:' "purple palette token is missing"
@@ -236,6 +294,9 @@ contains styles.css '[data-support="planned"]' "unsupported providers have no di
 contains styles.css '@media (max-width:' "responsive layout rule is missing"
 contains styles.css ':focus-visible' "keyboard focus style is missing"
 contains styles.css 'prefers-reduced-motion' "reduced-motion support is missing"
+background_is_fixed
+contains styles.css 'background-size: auto, 48px 48px, 48px 48px;' "the fixed background layer lost its per-layer sizing, so the glow tiles"
+contains styles.css 'body::before {' "the fixed background layer is gone"
 excludes styles.css "@import|url\\([\"']?https?://" "CSS loads an external dependency"
 
 contains app.js 'navigator.clipboard.writeText' "copy controller does not use the Clipboard API"
@@ -252,6 +313,16 @@ contains favicon.svg '<svg' "favicon must be an SVG"
 for header in Content-Security-Policy X-Frame-Options X-Content-Type-Options Referrer-Policy Permissions-Policy; do
   contains _headers "$header:" "_headers is missing $header"
 done
+script_tags_are_safe capabilities.html
+json_ld_parses capabilities.html
+contains capabilities.html '"@type": "WebPage"' "capabilities page has no machine-readable page identity"
+
+contains robots.txt 'Sitemap: https://kolkrabbi.francomichetti.com/sitemap.xml' "robots.txt does not point crawlers at the sitemap"
+sitemap_covers_pages
+contains llms.txt 'What it does not have yet' "llms.txt omits the limitations, which is what makes it trustworthy"
+contains llms.txt 'No MCP, no skills, no general execution sandbox, no LSP.' "llms.txt limitation list drifted from the README"
+contains _headers '/llms.txt' "_headers has no plain-text policy for llms.txt"
+
 contains _headers '/install.sh' "_headers has no installer-specific policy"
 contains _headers 'Cache-Control: no-store' "installer must not be cached across releases"
 contains _headers 'Content-Type: text/plain; charset=utf-8' "installer MIME policy is missing"

@@ -28,22 +28,28 @@ body {
   min-width: 320px;
   margin: 0;
   color: var(--paper);
-  background:
-    linear-gradient(rgba(139, 92, 246, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(139, 92, 246, 0.035) 1px, transparent 1px),
-    var(--ink);
-  background-size: 48px 48px;
+  background: var(--ink);
   font-family: var(--sans);
   font-size: 16px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
+/* The grid and the glow are one fixed layer behind the document, so the field
+   holds still and the content scrolls in front of it. The grid used to be painted
+   on body, which meant it travelled with the page. `background-attachment: fixed`
+   would pin it too, but it stutters on iOS Safari and repaints the whole viewport
+   on every scroll frame; a fixed pseudo-element is composited once.
+   Layer order is top-first: the glow stays above the grid, as it always has. */
 body::before {
   position: fixed;
   z-index: -1;
   inset: 0;
-  background: radial-gradient(circle at 72% 14%, rgba(139, 92, 246, 0.14), transparent 34rem);
+  background:
+    radial-gradient(circle at 72% 14%, rgba(139, 92, 246, 0.14), transparent 34rem),
+    linear-gradient(rgba(139, 92, 246, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(139, 92, 246, 0.035) 1px, transparent 1px);
+  background-size: auto, 48px 48px, 48px 48px;
   content: "";
   pointer-events: none;
 }
