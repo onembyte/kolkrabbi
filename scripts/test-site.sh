@@ -105,6 +105,8 @@ contains index.html '<link rel="canonical" href="https://kolkrabbi.francomichett
 contains index.html 'Claude Code &amp; Codex CLI alternative</title>' "the title does not name the category kolk competes in"
 contains index.html 'AI coding agent for the terminal' "the meta description does not say what kolk is"
 contains index.html 'Ollama' "the hero does not name a local provider"
+contains index.html 'One static binary under' "the landing page does not state the binary size"
+contains index.html '9&nbsp;MB, milliseconds to start' "the binary claim drifted from what check-budgets.sh measures"
 contains capabilities.html '<link rel="canonical" href="https://kolkrabbi.francomichetti.com/capabilities">' "capabilities.html has no canonical URL"
 contains index.html 'https://kolkrabbi.francomichetti.com/install.sh' "install URL drifted"
 contains index.html '/key &lt;API_KEY&gt;' "API-key command drifted"
