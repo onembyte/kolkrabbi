@@ -3,16 +3,57 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Kolkrabbi is a local-first terminal for chat, code, and agent work across models.">
+  <meta name="description" content="Kolkrabbi (kolk) is an open-source, model-agnostic AI coding agent for the terminal — a Claude Code and Codex CLI alternative. Any OpenRouter model, your own Claude or ChatGPT subscription, or a local Ollama or vLLM model, with ordered agents, checkpoints and a 100% local cost, latency and rating dashboard.">
   <meta name="theme-color" content="#09070d">
   <meta name="color-scheme" content="dark">
-  <meta property="og:title" content="Kolkrabbi — any model, one terminal">
-  <meta property="og:description" content="Chat, code, and agent work without marrying one model.">
+  <link rel="canonical" href="https://kolkrabbi.francomichetti.com/">
+  <meta property="og:site_name" content="Kolkrabbi">
+  <meta property="og:locale" content="en">
+  <meta property="og:title" content="Kolkrabbi AI coding agent — Claude Code &amp; Codex CLI alternative">
+  <meta property="og:description" content="An open-source, model-agnostic coding agent for the terminal. Any OpenRouter model, your own Claude or ChatGPT subscription, or local models on Ollama and vLLM.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://kolkrabbi.francomichetti.com/">
-  <title>Kolkrabbi — any model, one terminal</title>
+  <meta name="twitter:card" content="summary">
+  <title>Kolkrabbi AI coding agent — Claude Code &amp; Codex CLI alternative</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Kolkrabbi",
+    "alternateName": "kolk",
+    "applicationCategory": "DeveloperApplication",
+    "applicationSubCategory": "AI coding agent",
+    "operatingSystem": "macOS, Linux",
+    "softwareVersion": "1.3.0",
+    "url": "https://kolkrabbi.francomichetti.com/",
+    "codeRepository": "https://github.com/onembyte/kolkrabbi",
+    "downloadUrl": "https://github.com/onembyte/kolkrabbi/releases",
+    "installUrl": "https://kolkrabbi.francomichetti.com/#install",
+    "license": "https://www.apache.org/licenses/LICENSE-2.0",
+    "programmingLanguage": "Go",
+    "isAccessibleForFree": true,
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "description": "Kolkrabbi (kolk) is an open-source, model-agnostic AI coding agent for the terminal — a Claude Code and Codex CLI alternative. Any OpenRouter model, your own Claude or ChatGPT subscription, or a local Ollama or vLLM model, with ordered agents, checkpoints and a 100% local cost, latency and rating dashboard.",
+    "featureList": [
+      "Any model on OpenRouter",
+      "Claude Free, Pro and Max through your own claude CLI",
+      "ChatGPT Plus and Pro through your own Codex CLI",
+      "Local models on Ollama, vLLM and any OpenAI-compatible endpoint",
+      "Chat, code and agent modes",
+      "Effort dial that selects the model, not just thinking tokens",
+      "Dependency-ordered agent tasks",
+      "Per-turn checkpoints with rewind and undo",
+      "100% local cost, latency and rating dashboard",
+      "No telemetry"
+    ]
+  }
+  </script>
 </head>
 <body>
   <a class="skip-link" href="#content">Skip to content</a>
@@ -33,10 +74,12 @@
   <main id="content">
     <section class="hero" aria-labelledby="hero-title">
       <div class="hero-copy">
-        <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Local-first model terminal</p>
+        <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Open-source terminal coding agent</p>
         <h1 id="hero-title">Your models.<br>Your terminal.<br><em>Your call.</em></h1>
-        <p class="lede">Chat, code, and agent work without marrying one model. One small
-          binary, computed defaults, and your sessions kept on your machine.</p>
+        <p class="lede">Kolkrabbi is an open-source AI coding agent for the terminal — a Claude Code
+          and Codex CLI alternative. Chat, code, and agent work across any OpenRouter model, your
+          own Claude or ChatGPT subscription, or a local model on Ollama. One small binary,
+          computed defaults, and your sessions kept on your machine.</p>
         <div class="hero-actions">
           <a class="button button-primary" href="#install">See the three steps</a>
           <a class="button button-quiet" href="https://github.com/onembyte/kolkrabbi">Read the source <span aria-hidden="true">↗</span></a>
