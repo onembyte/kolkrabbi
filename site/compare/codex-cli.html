@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="An honest comparison of Kolkrabbi and OpenAI's Codex CLI, verified 2026-09-03: both are Apache-2.0, both reach local models. Where they actually differ, and what Kolkrabbi lacks.">
+  <meta name="theme-color" content="#09070d">
+  <meta name="color-scheme" content="dark">
+  <link rel="canonical" href="https://kolkrabbi.francomichetti.com/compare/codex-cli">
+  <meta property="og:site_name" content="Kolkrabbi">
+  <meta property="og:locale" content="en">
+  <meta property="og:title" content="Kolkrabbi vs Codex CLI — open-source terminal coding agents compared">
+  <meta property="og:description" content="An honest comparison of Kolkrabbi and OpenAI's Codex CLI, verified 2026-09-03: both are Apache-2.0, both reach local models. Where they actually differ, and what Kolkrabbi lacks.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://kolkrabbi.francomichetti.com/compare/codex-cli">
+  <meta name="twitter:card" content="summary">
+  <title>Kolkrabbi vs Codex CLI — open-source terminal coding agents compared</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Kolkrabbi vs Codex CLI — open-source terminal coding agents compared",
+    "url": "https://kolkrabbi.francomichetti.com/compare/codex-cli",
+    "description": "An honest comparison of Kolkrabbi and OpenAI's Codex CLI, verified 2026-09-03: both are Apache-2.0, both reach local models. Where they actually differ, and what Kolkrabbi lacks.",
+    "dateModified": "2026-09-03",
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "Kolkrabbi",
+      "url": "https://kolkrabbi.francomichetti.com/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+  <header class="site-header" aria-label="Primary navigation">
+    <a class="wordmark" href="/" aria-label="Kolkrabbi home">
+      <span class="wordmark-mark" aria-hidden="true">K</span>
+      <span>KOLKRABBI</span>
+    </a>
+    <nav aria-label="Project links">
+      <a href="/#install">Install</a>
+      <a href="/capabilities.html">Capabilities</a>
+      <a class="nav-button" href="/compare/">Compare</a>
+      <a href="https://github.com/onembyte/kolkrabbi">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="content">
+    <section class="catalog-hero" aria-labelledby="compare-title">
+      <div>
+        <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Compare</p>
+        <h1 id="compare-title">Kolkrabbi<br>vs <em>Codex CLI</em></h1>
+      </div>
+      <div class="catalog-intro">
+        <p><strong>Codex CLI</strong> is OpenAI's terminal coding agent: Apache-2.0, installed
+          by script, npm, Homebrew or a release binary, and signed into with the ChatGPT plan you
+          already pay for. It reaches local and third-party models through
+          <code>model_providers</code> in <code>config.toml</code>, speaks MCP, and sandboxes the
+          commands it runs. <strong>Kolkrabbi</strong> is also Apache-2.0 and also reaches local
+          models — the differences are narrower than the marketing on either side suggests, and
+          worth stating precisely.</p>
+        <p class="verified">Every claim below was checked against primary documentation on
+          <time datetime="2026-09-03">2026-09-03</time>. Both projects move quickly. If something
+          here is out of date, it is a bug —
+          <a href="https://github.com/onembyte/kolkrabbi/issues">say so</a>.</p>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="behind" aria-labelledby="behind-title">
+      <div class="catalog-heading">
+        <p class="section-number">01 / WHERE KOLKRABBI IS BEHIND</p>
+        <div>
+          <h2 id="behind-title">What Codex CLI does better.</h2>
+          <p>This section comes first on purpose. A comparison that opens with its own strengths is an advertisement, and you should not trust the rest of it.</p>
+        </div>
+      </div>
+      <div class="spec-grid">
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Kolkrabbi does not</span><span>SANDBOX</span></div>
+          <h3>Codex sandboxes execution; Kolkrabbi does not</h3>
+          <p>Codex has <code>sandbox_mode</code> — read-only, workspace-write, or danger-full-access — with a matching approval policy. Kolkrabbi has permission tiers, a path jail and confirmation rules, but no OS-level sandbox. This is the most substantive gap on this page.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Kolkrabbi does not</span><span>MCP</span></div>
+          <h3>No MCP servers</h3>
+          <p>Codex's MCP support is deep: OAuth and bearer auth, per-tool approval modes, timeouts. Kolkrabbi has none yet.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Kolkrabbi does not</span><span>WINDOWS</span></div>
+          <h3>macOS and Linux only</h3>
+          <p>Codex runs on Windows through PowerShell. Kolkrabbi cross-builds for Windows in CI and does not support it.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Kolkrabbi does not</span><span>BACKING</span></div>
+          <h3>One person against a vendor's team</h3>
+          <p>Codex is OpenAI's own client for OpenAI's models, and it will always know things about them first.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="ahead" aria-labelledby="ahead-title">
+      <div class="catalog-heading">
+        <p class="section-number">02 / WHERE KOLKRABBI IS AHEAD</p>
+        <div>
+          <h2 id="ahead-title">What Kolkrabbi does differently.</h2>
+          <p>Not better at everything — different in specific ways, each of which you can check in the source or in the first ten minutes of using it.</p>
+        </div>
+      </div>
+      <div class="spec-grid">
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Kolkrabbi has it</span><span>MODELS</span></div>
+          <h3>Not one vendor's models</h3>
+          <p>Codex reaches other providers through configuration, but it is OpenAI's client and defaults to OpenAI. Kolkrabbi treats every provider as a first-class route, including two subscriptions and a gateway with the whole catalogue behind it.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Kolkrabbi has it</span><span>SUBSCRIPTIONS</span></div>
+          <h3>Both subscriptions, one terminal</h3>
+          <p>Codex uses your ChatGPT plan. Kolkrabbi can use your ChatGPT plan <em>and</em> your Claude plan in the same session, by driving each vendor's own CLI as a subprocess. It never sees or stores either credential.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Kolkrabbi has it</span><span>EFFORT</span></div>
+          <h3>The dial picks the model</h3>
+          <p>Low, medium, high and max select which model runs the turn and how wide the agent work goes, rather than only how much thinking one model does.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Kolkrabbi has it</span><span>MEASUREMENT</span></div>
+          <h3>Cost, latency and your own ratings, locally</h3>
+          <p>Every call lands in a JSONL file on your disk. <code>kolk stats</code> turns it into cost per model, latency, token counts and your own 1–5 ratings — the data you need to decide which model is worth its price.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Kolkrabbi has it</span><span>SIZE</span></div>
+          <h3>One static binary under 9&nbsp;MB</h3>
+          <p>No runtime, no package manager, two dependencies in the module graph, and a release whose checksums are verified by the installer and signed with keyless Cosign.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="table" aria-labelledby="table-title">
+      <div class="catalog-heading">
+        <p class="section-number">03 / SIDE BY SIDE</p>
+        <div>
+          <h2 id="table-title">The whole thing, in one table.</h2>
+          <p>Where a cell says a fact was not established, it means exactly that: we did not find it in the documentation we read, and we would rather leave a gap than guess.</p>
+        </div>
+      </div>
+      <div class="compare-scroll">
+        <table class="compare-table">
+          <caption>Verified 2026-09-03 against primary documentation. Both projects move; the date is the promise.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Capability</th>
+              <th scope="col">Kolkrabbi</th>
+              <th scope="col">Codex CLI</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">License</th>
+              <td>Apache-2.0</td>
+              <td>Apache-2.0</td>
+            </tr>
+            <tr>
+              <th scope="row">Distribution</th>
+              <td>One static Go binary under 9&nbsp;MB</td>
+              <td>Install script, npm, Homebrew cask, or release binaries</td>
+            </tr>
+            <tr>
+              <th scope="row">Model providers</th>
+              <td>OpenRouter, plus Anthropic, OpenAI, Ollama, vLLM and LiteLLM directly</td>
+              <td>OpenAI, plus any OpenAI-compatible provider through <code>model_providers.&lt;id&gt;.base_url</code></td>
+            </tr>
+            <tr>
+              <th scope="row">Local models</th>
+              <td>Yes — Ollama, vLLM, or any OpenAI-compatible URL</td>
+              <td>Yes — <code>ollama</code> and <code>lmstudio</code> are reserved built-in provider ids</td>
+            </tr>
+            <tr>
+              <th scope="row">A subscription you already pay for</th>
+              <td>Claude, through your own <code>claude</code> CLI, and ChatGPT, through your own Codex CLI</td>
+              <td>ChatGPT Plus, Pro, Business, Edu or Enterprise, by signing in</td>
+            </tr>
+            <tr>
+              <th scope="row">Which model runs the turn</th>
+              <td>The effort dial picks it: low, medium, high, max map to models you choose</td>
+              <td>You pick the model.</td>
+            </tr>
+            <tr>
+              <th scope="row">Checkpoints</th>
+              <td>Before every write. <code>/diff</code>, <code>/changes</code>, <code>/rewind</code>, <code>/undo</code></td>
+              <td>Not documented in the configuration reference we checked</td>
+            </tr>
+            <tr>
+              <th scope="row">Cost and quality data</th>
+              <td>A local JSONL you own: calls, tokens, cost, latency and your own 1–5 ratings</td>
+              <td>Not documented in the configuration reference we checked</td>
+            </tr>
+            <tr>
+              <th scope="row">Telemetry</th>
+              <td>None</td>
+              <td>Not established here — check their current docs</td>
+            </tr>
+            <tr>
+              <th scope="row">MCP</th>
+              <td>Not yet</td>
+              <td>Yes, and thoroughly: <code>mcp_servers.&lt;id&gt;</code> with OAuth or bearer auth, per-tool approval and timeouts</td>
+            </tr>
+            <tr>
+              <th scope="row">Execution sandbox</th>
+              <td>Not yet. Permission rules and a path jail, but no OS sandbox</td>
+              <td>Yes. <code>sandbox_mode</code> is <code>read-only</code>, <code>workspace-write</code> or <code>danger-full-access</code>, with <code>approval_policy</code> of <code>untrusted</code>, <code>on-request</code> or <code>never</code></td>
+            </tr>
+            <tr>
+              <th scope="row">Operating systems</th>
+              <td>macOS and Linux</td>
+              <td>macOS, Linux and Windows through PowerShell</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="twist" aria-labelledby="twist-title">
+      <div class="catalog-heading">
+        <p class="section-number">04 / THE HONEST PART</p>
+        <div>
+          <h2 id="twist-title">Both of these reach local models.</h2>
+          <p>A lot of comparison pages claim that only their tool can talk to Ollama. That is not
+          true here, and pretending otherwise would make everything else on this page less
+          believable.</p>
+        </div>
+      </div>
+      <div class="spec-grid">
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Codex</span><span>LOCAL</span></div>
+          <h3><code>ollama</code> and <code>lmstudio</code> are built in</h3>
+          <p>They are reserved provider ids in Codex's configuration, and any other
+            OpenAI-compatible endpoint can be added with <code>base_url</code> and
+            <code>wire_api</code>. vLLM works.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Kolkrabbi</span><span>LOCAL</span></div>
+          <h3>Ollama is found, not configured</h3>
+          <p>Kolkrabbi uses the Ollama you already have and never installs one. A pulled model
+            appears in <code>/model</code> even while Ollama is idle, and choosing it starts the
+            server for the session. vLLM and LiteLLM connect over an OpenAI-compatible URL.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">The real difference</span><span>MIXING</span></div>
+          <h3>What you do with several at once</h3>
+          <p>The gap is not whether a local model is reachable. It is whether the tool is built to
+            move between a local model, a gateway model and a subscription in one session, and to
+            record what each one cost and how good it was. That is the part Kolkrabbi is for.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="try" aria-labelledby="try-title">
+      <div class="catalog-heading">
+        <p class="section-number">05 / TRY BOTH</p>
+        <div>
+          <h2 id="try-title">Ten minutes settles more than a table.</h2>
+          <p>Both are one command. Run them on the same repository, on the same task.</p>
+        </div>
+      </div>
+      <div class="compare-scroll">
+        <table class="compare-table">
+          <caption>Install both and judge for yourself. Neither command needs the other uninstalled.</caption>
+          <thead><tr><th scope="col">Tool</th><th scope="col">Install</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Kolkrabbi</th><td><code>curl -fsSL https://kolkrabbi.francomichetti.com/install.sh | sh</code></td></tr>
+            <tr><th scope="row">Codex CLI</th><td><code>curl -fsSL https://chatgpt.com/codex/install.sh | sh</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="compare-more" aria-label="Other comparisons">
+      <p class="section-number">ALSO COMPARE</p>
+      <p class="compare-links"><a href="/compare/claude-code">Kolkrabbi vs Claude Code</a> <a href="/compare/opencode">Kolkrabbi vs OpenCode</a> <a href="/compare/">All comparisons</a></p>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-mark">
+      <span class="wordmark-mark" aria-hidden="true">K</span>
+      <p><strong>Kolkrabbi</strong><br>Built carefully, one checkpoint at a time.</p>
+    </div>
+    <p class="footer-links">
+      <a href="https://github.com/onembyte/kolkrabbi">Source</a>
+      <a href="https://github.com/onembyte/kolkrabbi/blob/main/LICENSE">Apache-2.0 License</a>
+    </p>
+  </footer>
+</body>
+</html>

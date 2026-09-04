@@ -46,17 +46,32 @@ PYEOF
 }
 
 sitemap_covers_pages() {
-  local page name url
-  for page in "$SITE"/*.html; do
-    name=$(basename "$page")
-    [ "$name" = "404.html" ] && continue
-    if [ "$name" = "index.html" ]; then
-      url="https://kolkrabbi.francomichetti.com/"
-    else
-      url="https://kolkrabbi.francomichetti.com/${name%.html}"
-    fi
+  local page rel url
+  while IFS= read -r page; do
+    rel=${page#"$SITE"/}
+    [ "$rel" = "404.html" ] && continue
+    case "$rel" in
+      index.html) url="https://kolkrabbi.francomichetti.com/" ;;
+      */index.html) url="https://kolkrabbi.francomichetti.com/${rel%index.html}" ;;
+      *) url="https://kolkrabbi.francomichetti.com/${rel%.html}" ;;
+    esac
     if grep -Fq "<loc>$url</loc>" "$SITE/sitemap.xml" 2>/dev/null; then pass; else fail "sitemap.xml does not list $url"; fi
-  done
+  done <<EOF
+$(find "$SITE" -name '*.html' | sort)
+EOF
+}
+
+# A comparison page that opens with its own strengths is an advertisement.
+# Whatever else changes, "where Kolkrabbi is behind" must come first.
+behind_comes_first() {
+  local file="$1" behind ahead
+  behind=$(grep -n 'id="behind"' "$SITE/$file" | head -1 | cut -d: -f1)
+  ahead=$(grep -n 'id="ahead"' "$SITE/$file" | head -1 | cut -d: -f1)
+  if [ -n "$behind" ] && [ -n "$ahead" ] && [ "$behind" -lt "$ahead" ]; then
+    pass
+  else
+    fail "$file must put what the other tool does better before what Kolkrabbi does better"
+  fi
 }
 
 background_is_fixed() {
@@ -316,6 +331,30 @@ done
 script_tags_are_safe capabilities.html
 json_ld_parses capabilities.html
 contains capabilities.html '"@type": "WebPage"' "capabilities page has no machine-readable page identity"
+
+require_file "compare/index.html"
+for page in compare/claude-code.html compare/codex-cli.html compare/opencode.html; do
+  require_file "$page"
+  contains "$page" '<html lang="en">' "$page must declare its language"
+  contains "$page" 'name="viewport"' "$page must configure a mobile viewport"
+  contains "$page" '<main id="content">' "$page must have a semantic main region"
+  contains "$page" '<link rel="canonical"' "$page has no canonical URL"
+  contains "$page" 'Kolkrabbi<br>vs ' "$page does not name what it compares against"
+  contains "$page" '<time datetime="2026-09-03">' "$page does not date the facts it asserts"
+  contains "$page" 'class="compare-table"' "$page has no side-by-side table"
+  contains "$page" 'class="compare-scroll"' "$page table must scroll inside its own box, not the page"
+  behind_comes_first "$page"
+  script_tags_are_safe "$page"
+  json_ld_parses "$page"
+  excludes "$page" "<(script|img)[^>]+src=[\"']https?://" "$page loads an external script or image"
+  excludes "$page" "style=[\"']" "$page styles must stay in styles.css for a strict CSP"
+done
+contains compare/index.html '<link rel="canonical"' "the comparison hub has no canonical URL"
+script_tags_are_safe compare/index.html
+json_ld_parses compare/index.html
+contains index.html 'href="/compare/"' "the landing page does not link to the comparisons"
+contains styles.css '.compare-table' "comparison table style is missing"
+contains styles.css '.compare-scroll' "comparison table has no horizontal scroll container"
 
 contains robots.txt 'Sitemap: https://kolkrabbi.francomichetti.com/sitemap.xml' "robots.txt does not point crawlers at the sitemap"
 sitemap_covers_pages

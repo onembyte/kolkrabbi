@@ -1046,3 +1046,108 @@ footer strong {
     animation: none;
   }
 }
+
+/* ── Comparison pages ─────────────────────────────────────────────────────
+   A comparison table is the widest thing on the site, and it must never make
+   the page itself scroll sideways. It scrolls inside its own box instead. */
+
+.verified {
+  margin-top: 1.1rem;
+  color: var(--muted);
+  border-left: 2px solid var(--line-bright);
+  padding-left: 0.9rem;
+  font-size: 0.86rem;
+}
+
+.compare-scroll {
+  overflow-x: auto;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  -webkit-overflow-scrolling: touch;
+}
+
+.compare-table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.compare-table caption {
+  padding: 1rem clamp(1rem, 2.4vw, 1.8rem);
+  color: var(--muted);
+  font: 500 0.8rem/1.5 var(--sans);
+  text-align: left;
+}
+
+.compare-table th,
+.compare-table td {
+  padding: 0.95rem clamp(0.8rem, 1.8vw, 1.4rem);
+  border-top: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.compare-table thead th {
+  position: sticky;
+  top: 0;
+  color: var(--violet-light);
+  background: var(--panel-high);
+  font: 700 0.72rem/1.3 var(--mono);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.compare-table tbody th {
+  width: 22%;
+  color: var(--paper);
+  background: rgba(16, 12, 24, 0.66);
+  font-weight: 600;
+}
+
+.compare-table tbody td:nth-of-type(1) {
+  background: rgba(139, 92, 246, 0.06);
+}
+
+.compare-table td {
+  color: var(--muted);
+}
+
+.compare-table code {
+  color: var(--violet-pale);
+  font: 0.86em var(--mono);
+  word-break: break-word;
+}
+
+.compare-more {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: clamp(2rem, 4vw, 3rem) clamp(1.2rem, 4vw, 3rem);
+  border-top: 1px solid var(--line);
+}
+
+.compare-links {
+  display: flex;
+  gap: 0.6rem 1.6rem;
+  margin: 0.9rem 0 0;
+  flex-wrap: wrap;
+}
+
+.compare-links a {
+  color: var(--violet-pale);
+  text-decoration-color: var(--line-bright);
+}
+
+.spec-card h3 a {
+  color: inherit;
+}
+
+@media (max-width: 720px) {
+  .compare-table {
+    min-width: 520px;
+  }
+
+  .compare-table tbody th {
+    width: 34%;
+  }
+}
