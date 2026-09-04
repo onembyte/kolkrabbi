@@ -30,8 +30,9 @@ adapter yet. Most of those models are already reachable through the OpenRouter g
 - Three modes: chat (no tools), code (the read/write/edit loop), agent (work planned as
   dependency-ordered tasks, each routed to a model slot).
 - Checkpoints are taken before every write, with /diff, /changes, /rewind and /undo.
-- Every model call is appended to a local JSONL file you own. `kolk stats` shows calls, tokens,
-  cost, latency and your own 1–5 ratings per model, so you can see which models earn their price.
+- Every model call is appended to a local JSONL file you own. `/stats` inside the session shows
+  calls, tokens, cost, latency and your own 1–5 ratings per model, so you can see which models
+  earn their price. `/dash` opens the same numbers as a loopback-only page.
 - No telemetry, no analytics, no cloud sync, no background version check.
 - Starts free: given no model, it picks a zero-cost, tool-capable model from OpenRouter's live
   catalog.
@@ -45,6 +46,18 @@ adapter yet. Most of those models are already reachable through the OpenRouter g
 - Changes made by the `bash` tool are not checkpointed.
 - Subagents share one working tree; there is no worktree isolation.
 - Markdown slash commands and post-edit, post-write and session-end hooks do exist.
+
+## Guides
+- Local models — Ollama, vLLM, LiteLLM, any OpenAI-compatible endpoint:
+  https://kolkrabbi.francomichetti.com/local-ai-coding-agent
+- Ollama, step by step: https://kolkrabbi.francomichetti.com/ollama-coding-agent
+- OpenRouter, the free start and the effort dial:
+  https://kolkrabbi.francomichetti.com/openrouter-coding-agent
+
+## Compared with other agents
+- vs Claude Code: https://kolkrabbi.francomichetti.com/compare/claude-code
+- vs Codex CLI: https://kolkrabbi.francomichetti.com/compare/codex-cli
+- vs OpenCode: https://kolkrabbi.francomichetti.com/compare/opencode
 
 ## Docs
 

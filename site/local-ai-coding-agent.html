@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Kolkrabbi is a terminal coding agent that runs on models on your own machine: Ollama, vLLM, LiteLLM, or any OpenAI-compatible endpoint. No API key, no telemetry, and a local record of what every model cost you.">
+  <meta name="theme-color" content="#09070d">
+  <meta name="color-scheme" content="dark">
+  <link rel="canonical" href="https://kolkrabbi.francomichetti.com/local-ai-coding-agent">
+  <meta property="og:site_name" content="Kolkrabbi">
+  <meta property="og:locale" content="en">
+  <meta property="og:title" content="Local AI coding agent — run Kolkrabbi on Ollama, vLLM or any local model">
+  <meta property="og:description" content="Kolkrabbi is a terminal coding agent that runs on models on your own machine: Ollama, vLLM, LiteLLM, or any OpenAI-compatible endpoint. No API key, no telemetry, and a local record of what every model cost you.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://kolkrabbi.francomichetti.com/local-ai-coding-agent">
+  <meta property="og:image" content="https://kolkrabbi.francomichetti.com/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Kolkrabbi: any model, any provider, one terminal. A blocky purple pixel-art octopus.">
+  <meta name="twitter:card" content="summary_large_image">
+  <title>Local AI coding agent — run Kolkrabbi on Ollama, vLLM or any local model</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Local AI coding agent — run Kolkrabbi on Ollama, vLLM or any local model",
+    "url": "https://kolkrabbi.francomichetti.com/local-ai-coding-agent",
+    "description": "Kolkrabbi is a terminal coding agent that runs on models on your own machine: Ollama, vLLM, LiteLLM, or any OpenAI-compatible endpoint. No API key, no telemetry, and a local record of what every model cost you.",
+    "dateModified": "2026-09-04",
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "Kolkrabbi",
+      "url": "https://kolkrabbi.francomichetti.com/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+  <header class="site-header" aria-label="Primary navigation">
+    <a class="wordmark" href="/" aria-label="Kolkrabbi home">
+      <span class="wordmark-mark" aria-hidden="true">K</span>
+      <span>KOLKRABBI</span>
+    </a>
+    <nav aria-label="Project links">
+      <a href="/#install">Install</a>
+      <a href="/capabilities.html">Capabilities</a>
+      <a href="/compare/">Compare</a>
+      <a href="https://github.com/onembyte/kolkrabbi">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="content">
+    <section class="catalog-hero" aria-labelledby="local-ai-coding-agent-title">
+      <div>
+        <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Local models</p>
+        <h1 id="local-ai-coding-agent-title">Your models.<br>Your <em>machine.</em></h1>
+      </div>
+      <div class="catalog-intro">
+        <p>Most terminal coding agents assume a card on file. Kolkrabbi does not: it will run a
+          whole session against a model on your own hardware, with no key, no account and nothing
+          leaving the machine. This page is the overview — how it finds a local server, what it
+          refuses to do to your system, and where the honest limits are.</p>
+        <p class="verified">Every command on this page was checked against <code>kolk help</code> on <time datetime="2026-09-04">2026-09-04</time>.</p>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="routes" aria-labelledby="routes-title">
+      <div class="catalog-heading">
+        <p class="section-number">01 / FOUR WAYS IN</p>
+        <div>
+          <h2 id="routes-title">Four ways to a local model.</h2>
+          <p>One of them needs no configuration at all. The other three are a single flag.</p>
+        </div>
+      </div>
+      <div class="spec-grid">
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Zero config</span><span>OLLAMA</span></div>
+          <h3>Ollama, found not configured</h3>
+          <p>If a server is already listening on <code>127.0.0.1:11434</code>, Kolkrabbi adopts it. If not, and the <code>ollama</code> binary is on your PATH, it starts one on a port it picks itself. Your pulled models appear in the <code>/model</code> picker either way.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">One flag</span><span>VLLM</span></div>
+          <h3>vLLM, over its OpenAI-compatible API</h3>
+          <p>Point <code>--base-url</code> at the server and Kolkrabbi talks to it directly. No key is sent, because there is none to send.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">One flag</span><span>LITELLM</span></div>
+          <h3>LiteLLM, as a proxy in front of anything</h3>
+          <p>Same flag. LiteLLM is the useful shape when you want one endpoint in front of several backends, local and remote.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">One flag</span><span>ANY</span></div>
+          <h3>Anything that speaks OpenAI</h3>
+          <p><code>--base-url</code> takes any OpenAI-compatible endpoint. If it answers at <code>/v1</code>, Kolkrabbi will use it.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="commands" aria-labelledby="commands-title">
+      <div class="catalog-heading">
+        <p class="section-number">02 / THE COMMANDS</p>
+        <div>
+          <h2 id="commands-title">The whole surface, on one screen.</h2>
+          <p>Kolkrabbi's outside-a-session surface is four commands. Everything else is a slash command inside the session, including all of the local-model tooling.</p>
+        </div>
+      </div>
+      <div class="compare-scroll">
+        <table class="compare-table">
+          <caption>Verified against <code>kolk help</code>, 2026-09-04.</caption>
+          <thead><tr><th scope="col">What you want</th><th scope="col">What you type</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Start against a local endpoint</th><td><code>kolk --base-url http://localhost:11434/v1 -m qwen2.5-coder:14b</code></td></tr>
+            <tr><th scope="row">See what this machine can run</th><td><code>/localia</code></td></tr>
+            <tr><th scope="row">List local models, with what fits</th><td><code>/localia models</code></td></tr>
+            <tr><th scope="row">Check a model against your hardware</th><td><code>/localia plan &lt;model&gt;</code></td></tr>
+            <tr><th scope="row">Pull one, explicitly</th><td><code>/localia pull &lt;model&gt;</code></td></tr>
+            <tr><th scope="row">Switch model mid-session</th><td><code>/model</code></td></tr>
+            <tr><th scope="row">See what it cost and how good it was</th><td><code>/stats</code></td></tr>
+            <tr><th scope="row">Check keys, directories, terminal, network</th><td><code>/doctor</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="refuses" aria-labelledby="refuses-title">
+      <div class="catalog-heading">
+        <p class="section-number">03 / WHAT IT REFUSES</p>
+        <div>
+          <h2 id="refuses-title">What Kolkrabbi will not do to your machine.</h2>
+          <p>These are deliberate refusals written into the design, not features that are merely missing. They are the reason it is safe to point at a server you care about.</p>
+        </div>
+      </div>
+      <div class="spec-grid">
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Refused</span><span>INSTALL</span></div>
+          <h3>It never installs Ollama</h3>
+          <p>Kolkrabbi's own rules forbid <code>curl | sh</code> and <code>sudo</code>, and a floor the product steps over is not a floor. If the binary is missing, it names the command that installs it and lets you run it.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Refused</span><span>ADOPTION</span></div>
+          <h3>It never stops a server it did not start</h3>
+          <p>A server already listening is adopted <em>read-only</em>. It might be your shell, or a systemd service holding your sign-in. Kolkrabbi stops only the process it started itself.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Refused</span><span>HOST</span></div>
+          <h3>It only ever probes 127.0.0.1:11434</h3>
+          <p>Never <code>OLLAMA_HOST</code>, which may point at another machine or at ollama.com. If you want a different address, you pass it yourself with <code>--base-url</code>.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Refused</span><span>PULLS</span></div>
+          <h3>It never pulls a model behind your back</h3>
+          <p>A pull is an explicit approval. Cloud models you have not pulled can appear as rows with the exact command visible, but nothing downloads on its own.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Honest</span><span>DEFAULT</span></div>
+          <h3>Local is never the zero-config default</h3>
+          <p>With no model chosen, Kolkrabbi picks a free gateway model — because nothing can tell whether your 1.5B local model is a better choice than a 480B free one. Local is always a choice you make.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Honest</span><span>KEY</span></div>
+          <h3>A local session still expects a gateway key</h3>
+          <p>This is a known rough edge on the list of things to fix, not a design decision. The key is never sent to your local endpoint: it only ever goes to openrouter.ai.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="point" aria-labelledby="point-title">
+      <div class="catalog-heading">
+        <p class="section-number">04 / THE POINT</p>
+        <div>
+          <h2 id="point-title">Why do this at all.</h2>
+          <p>A local model is slower and usually weaker than a frontier one. Three reasons it is still worth having in the same terminal.</p>
+        </div>
+      </div>
+      <div class="spec-grid">
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Reason</span><span>COST</span></div>
+          <h3>$0.00, on the same ledger</h3>
+          <p>Local turns land in the same local stats file as gateway turns, with a real zero next to them. Over a week that is the clearest picture you will get of what your cloud usage is actually buying you.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Reason</span><span>PRIVACY</span></div>
+          <h3>The code never leaves</h3>
+          <p>No telemetry, no analytics, no background version check, no hosted service. With a local model and no gateway turn, nothing goes anywhere at all.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Reason</span><span>MIXING</span></div>
+          <h3>Cheap work on a cheap model</h3>
+          <p>The effort dial chooses the model. Point <code>low</code> at a local model and <code>max</code> at a frontier one, and routine turns stop costing money without you thinking about it.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="compare-more" aria-label="Related guides">
+      <p class="section-number">KEEP READING</p>
+      <p class="compare-links"><a href="/ollama-coding-agent">Ollama coding agent</a> <a href="/openrouter-coding-agent">OpenRouter coding CLI</a> <a href="/compare/">Compared with other agents</a></p>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-mark">
+      <span class="wordmark-mark" aria-hidden="true">K</span>
+      <p><strong>Kolkrabbi</strong><br>Built carefully, one checkpoint at a time.</p>
+    </div>
+    <p class="footer-links">
+      <a href="https://github.com/onembyte/kolkrabbi">Source</a>
+      <a href="https://github.com/onembyte/kolkrabbi/blob/main/LICENSE">Apache-2.0 License</a>
+    </p>
+  </footer>
+</body>
+</html>

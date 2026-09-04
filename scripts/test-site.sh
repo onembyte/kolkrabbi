@@ -84,6 +84,28 @@ background_is_fixed() {
   fi
 }
 
+kolk_commands_are_real() {
+  local file="$1" bad
+  bad=$(grep -o "<code>kolk [a-z][a-z-]*\|\`kolk [a-z][a-z-]*" "$SITE/$file" 2>/dev/null \
+    | sed -e "s/.*kolk //" \
+    | sort -u \
+    | grep -vxE "sessions|serve|uninstall|help" || true)
+  if [ -z "$bad" ]; then
+    pass
+  else
+    fail "$file documents a kolk subcommand outside the closed four: $(echo $bad | tr '\n' ' ')"
+  fi
+}
+
+og_image_present() {
+  local file="$1"
+  if grep -Fq 'content="https://kolkrabbi.francomichetti.com/og.png"' "$SITE/$file" 2>/dev/null; then
+    pass
+  else
+    fail "$file has no og:image, so a shared link unfurls without a preview"
+  fi
+}
+
 excludes() {
   local file="$1" pattern="$2" label="$3"
   local result
@@ -344,6 +366,7 @@ for page in compare/claude-code.html compare/codex-cli.html compare/opencode.htm
   contains "$page" 'class="compare-table"' "$page has no side-by-side table"
   contains "$page" 'class="compare-scroll"' "$page table must scroll inside its own box, not the page"
   behind_comes_first "$page"
+  kolk_commands_are_real "$page"
   script_tags_are_safe "$page"
   json_ld_parses "$page"
   excludes "$page" "<(script|img)[^>]+src=[\"']https?://" "$page loads an external script or image"
@@ -356,8 +379,37 @@ contains index.html 'href="/compare/"' "the landing page does not link to the co
 contains styles.css '.compare-table' "comparison table style is missing"
 contains styles.css '.compare-scroll' "comparison table has no horizontal scroll container"
 
+require_file "og.png"
+while IFS= read -r html; do
+  og_image_present "${html#"$SITE"/}"
+done <<EOF
+$(find "$SITE" -name '*.html' ! -name '404.html' | sort)
+EOF
+contains _headers '/og.png' "_headers has no policy for the link-preview card"
+for page in local-ai-coding-agent.html ollama-coding-agent.html openrouter-coding-agent.html; do
+  require_file "$page"
+  contains "$page" '<html lang="en">' "$page must declare its language"
+  contains "$page" 'name="viewport"' "$page must configure a mobile viewport"
+  contains "$page" '<main id="content">' "$page must have a semantic main region"
+  contains "$page" '<link rel="canonical"' "$page has no canonical URL"
+  contains "$page" '<time datetime="2026-09-04">' "$page does not date the commands it teaches"
+  kolk_commands_are_real "$page"
+  script_tags_are_safe "$page"
+  json_ld_parses "$page"
+  excludes "$page" "<(script|img)[^>]+src=[\"']https?://" "$page loads an external script or image"
+  excludes "$page" "style=[\"']" "$page styles must stay in styles.css for a strict CSP"
+done
+contains local-ai-coding-agent.html 'never installs Ollama' "the local guide must keep saying kolk does not install a runtime"
+contains ollama-coding-agent.html '127.0.0.1:11434' "the Ollama guide must state the literal address kolk probes"
+contains index.html 'href="/local-ai-coding-agent"' "the landing page does not link to the local-model guide"
+contains styles.css '.walkthrough' "walkthrough layout style is missing"
+contains styles.css '.snippet' "walkthrough code-snippet style is missing"
+
 contains robots.txt 'Sitemap: https://kolkrabbi.francomichetti.com/sitemap.xml' "robots.txt does not point crawlers at the sitemap"
 sitemap_covers_pages
+kolk_commands_are_real llms.txt
+kolk_commands_are_real index.html
+kolk_commands_are_real capabilities.html
 contains llms.txt 'What it does not have yet' "llms.txt omits the limitations, which is what makes it trustworthy"
 contains llms.txt 'No MCP, no skills, no general execution sandbox, no LSP.' "llms.txt limitation list drifted from the README"
 contains _headers '/llms.txt' "_headers has no plain-text policy for llms.txt"

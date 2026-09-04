@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A walkthrough: install Kolkrabbi, point it at a model you have already pulled with Ollama, make a real edit, undo it, and read what the turn cost — which is nothing.">
+  <meta name="theme-color" content="#09070d">
+  <meta name="color-scheme" content="dark">
+  <link rel="canonical" href="https://kolkrabbi.francomichetti.com/ollama-coding-agent">
+  <meta property="og:site_name" content="Kolkrabbi">
+  <meta property="og:locale" content="en">
+  <meta property="og:title" content="Ollama coding agent — a terminal agent on your own models, step by step">
+  <meta property="og:description" content="A walkthrough: install Kolkrabbi, point it at a model you have already pulled with Ollama, make a real edit, undo it, and read what the turn cost — which is nothing.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://kolkrabbi.francomichetti.com/ollama-coding-agent">
+  <meta property="og:image" content="https://kolkrabbi.francomichetti.com/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Kolkrabbi: any model, any provider, one terminal. A blocky purple pixel-art octopus.">
+  <meta name="twitter:card" content="summary_large_image">
+  <title>Ollama coding agent — a terminal agent on your own models, step by step</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Ollama coding agent — a terminal agent on your own models, step by step",
+    "url": "https://kolkrabbi.francomichetti.com/ollama-coding-agent",
+    "description": "A walkthrough: install Kolkrabbi, point it at a model you have already pulled with Ollama, make a real edit, undo it, and read what the turn cost — which is nothing.",
+    "dateModified": "2026-09-04",
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "Kolkrabbi",
+      "url": "https://kolkrabbi.francomichetti.com/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+  <header class="site-header" aria-label="Primary navigation">
+    <a class="wordmark" href="/" aria-label="Kolkrabbi home">
+      <span class="wordmark-mark" aria-hidden="true">K</span>
+      <span>KOLKRABBI</span>
+    </a>
+    <nav aria-label="Project links">
+      <a href="/#install">Install</a>
+      <a href="/capabilities.html">Capabilities</a>
+      <a href="/compare/">Compare</a>
+      <a href="https://github.com/onembyte/kolkrabbi">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="content">
+    <section class="catalog-hero" aria-labelledby="ollama-coding-agent-title">
+      <div>
+        <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Walkthrough</p>
+        <h1 id="ollama-coding-agent-title">A coding agent<br>on <em>Ollama.</em></h1>
+      </div>
+      <div class="catalog-intro">
+        <p>Six steps, no account, no key, nothing sent anywhere. At the end you will have made a
+          real edit to a real file with a model running on your own machine, undone it, and seen the
+          turn recorded at $0.00 beside whatever your cloud turns cost.</p>
+        <p class="verified">Commands checked against <code>kolk help</code> on <time datetime="2026-09-04">2026-09-04</time>. Kolkrabbi runs on macOS and Linux.</p>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="walk" aria-labelledby="walk-title">
+      <div class="catalog-heading">
+        <p class="section-number">01 / WALKTHROUGH</p>
+        <div>
+          <h2 id="walk-title">Six steps.</h2>
+          <p>Steps 1 and 2 are one-time. After that, opening a local session is one command.</p>
+        </div>
+      </div>
+      <ol class="walkthrough">
+        <li>
+          <p class="walk-label">01 — INSTALL KOLKRABBI</p>
+          <p>One command. It picks a writable directory on your <code>PATH</code> and verifies the download's SHA-256 against the release checksums before it installs anything.</p><pre class="snippet"><code>curl -fsSL https://kolkrabbi.francomichetti.com/install.sh | sh</code></pre>
+        </li>
+        <li>
+          <p class="walk-label">02 — HAVE A MODEL</p>
+          <p>Kolkrabbi does not install Ollama and does not pull models behind your back. Use the Ollama you already have. A coding-tuned model in the 7B–14B range is the usual starting point on a laptop.</p><pre class="snippet"><code>ollama pull qwen2.5-coder:14b</code></pre>
+        </li>
+        <li>
+          <p class="walk-label">03 — OPEN A SESSION ON IT</p>
+          <p>Point Kolkrabbi at the local endpoint. No key is involved — and your OpenRouter key, if you have one, is never sent here. It only ever goes to openrouter.ai.</p><pre class="snippet"><code>cd your-project
+kolk --base-url http://localhost:11434/v1 -m qwen2.5-coder:14b</code></pre>
+        </li>
+        <li>
+          <p class="walk-label">04 — SEE WHAT THIS MACHINE CAN DO</p>
+          <p>Inside the session, <code>/localia</code> reads your actual hardware and the models on disk, and will tell you whether a given model fits before you spend twenty minutes finding out that it does not.</p><pre class="snippet"><code>/localia
+/localia models
+/localia plan qwen2.5-coder:14b</code></pre>
+        </li>
+        <li>
+          <p class="walk-label">05 — MAKE A REAL EDIT, THEN TAKE IT BACK</p>
+          <p>Ask for something small and specific. Kolkrabbi checkpoints files before every write, so you can look at exactly what changed and undo it.</p><pre class="snippet"><code>add a docstring to the top of the busiest function in this file
+
+/changes      # which files this session touched
+/diff         # what it did, as a diff
+/rewind       # put the files back, keep the conversation</code></pre>
+        </li>
+        <li>
+          <p class="walk-label">06 — RATE IT, THEN READ THE LEDGER</p>
+          <p>This is the part that pays off later. Rate the turn, and the rating is stored next to the cost and latency in a JSONL file on your disk. After a week you can see which models are actually worth their price.</p><pre class="snippet"><code>/rate 4
+/stats        # calls, tokens, cost, latency, your ratings
+/dash         # the same numbers as a loopback-only page</code></pre>
+        </li>
+      </ol>
+    </section>
+
+    <section class="catalog-section" id="what" aria-labelledby="what-title">
+      <div class="catalog-heading">
+        <p class="section-number">02 / WHAT JUST HAPPENED</p>
+        <div>
+          <h2 id="what-title">What Kolkrabbi did to your system.</h2>
+          <p>Worth knowing, because it is less than you might expect.</p>
+        </div>
+      </div>
+      <div class="spec-grid">
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">If one was running</span><span>ADOPT</span></div>
+          <h3>It used your server and left it alone</h3>
+          <p>A server already listening on <code>127.0.0.1:11434</code> is adopted read-only. Kolkrabbi never stops it — it may be your own shell, or a service holding your Ollama Cloud sign-in.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">If none was</span><span>START</span></div>
+          <h3>It started one, on its own port</h3>
+          <p>When nothing is listening and <code>ollama</code> is on your PATH, Kolkrabbi starts a server on a loopback port it chooses, with a curated environment, says so once in the transcript, and stops only that process. The server's lifetime is the session's.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Platform truth</span><span>CLEANUP</span></div>
+          <h3>On macOS, a killed session can leave it running</h3>
+          <p>Linux gets a death signal, so the server dies with Kolkrabbi. macOS has no equivalent and Windows has no job object yet. A server that outlives a killed session is found and adopted by the next one, which is the safe direction — but it is a real difference and the code says so.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="trouble" aria-labelledby="trouble-title">
+      <div class="catalog-heading">
+        <p class="section-number">03 / IF IT GOES WRONG</p>
+        <div>
+          <h2 id="trouble-title">The three things that actually go wrong.</h2>
+          <p>In roughly this order.</p>
+        </div>
+      </div>
+      <div class="spec-grid">
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Common</span><span>NOT FOUND</span></div>
+          <h3>The model does not appear</h3>
+          <p>Kolkrabbi probes the literal address <code>127.0.0.1:11434</code> and nothing else — deliberately, since <code>OLLAMA_HOST</code> can point at another machine or at ollama.com. If your server is elsewhere, pass it yourself with <code>--base-url</code>. Run <code>/doctor</code> to see what Kolkrabbi can actually reach.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Common</span><span>TOO BIG</span></div>
+          <h3>It is unbearably slow, or it swaps</h3>
+          <p>The model does not fit. <code>/localia plan &lt;model&gt;</code> compares a model against your hardware and says so before you commit to it. Drop a size class, or a quantisation.</p>
+        </article>
+        <article class="spec-card" data-status="planned">
+          <div class="spec-meta"><span class="status-badge">Common</span><span>TOOLS</span></div>
+          <h3>It edits nothing and just talks</h3>
+          <p>Code mode needs a model that can call tools. Many small local models cannot, or do it badly. If a model will not use the file tools, that is the model, not the harness — try a coding-tuned one, or a larger size.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="compare-more" aria-label="Related guides">
+      <p class="section-number">KEEP READING</p>
+      <p class="compare-links"><a href="/local-ai-coding-agent">Local AI coding agent</a> <a href="/openrouter-coding-agent">OpenRouter coding CLI</a> <a href="/compare/">Compared with other agents</a></p>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-mark">
+      <span class="wordmark-mark" aria-hidden="true">K</span>
+      <p><strong>Kolkrabbi</strong><br>Built carefully, one checkpoint at a time.</p>
+    </div>
+    <p class="footer-links">
+      <a href="https://github.com/onembyte/kolkrabbi">Source</a>
+      <a href="https://github.com/onembyte/kolkrabbi/blob/main/LICENSE">Apache-2.0 License</a>
+    </p>
+  </footer>
+</body>
+</html>

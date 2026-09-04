@@ -1151,3 +1151,51 @@ footer strong {
     width: 34%;
   }
 }
+
+/* ── Walkthrough pages ────────────────────────────────────────────────────
+   A numbered sequence whose labels carry their own number, so it does not use
+   the .step-label counter the install steps rely on. */
+
+.walkthrough {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 clamp(1.2rem, 4vw, 3rem);
+  list-style: none;
+  counter-reset: none;
+}
+
+.walkthrough li {
+  padding: clamp(1.4rem, 3vw, 2.2rem) 0;
+  border-top: 1px solid var(--line);
+}
+
+.walkthrough li:last-child {
+  border-bottom: 1px solid var(--line);
+}
+
+.walk-label {
+  margin: 0 0 0.7rem;
+  color: var(--violet-light);
+  font: 700 0.7rem var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.walkthrough p {
+  max-width: 62ch;
+  color: var(--muted);
+}
+
+.snippet {
+  overflow-x: auto;
+  margin: 1rem 0 0;
+  padding: 1rem clamp(0.9rem, 2vw, 1.3rem);
+  border: 1px solid var(--line);
+  background: rgba(9, 7, 13, 0.7);
+  -webkit-overflow-scrolling: touch;
+}
+
+.snippet code {
+  color: var(--violet-pale);
+  white-space: pre;
+}

@@ -30,3 +30,7 @@
 /robots.txt
   Content-Type: text/plain; charset=utf-8
   Cache-Control: public, max-age=300, must-revalidate
+
+/og.png
+  Content-Type: image/png
+  Cache-Control: public, max-age=86400, must-revalidate

@@ -10,8 +10,12 @@
   <meta property="og:description" content="One honest catalog for every working and planned Kolkrabbi capability.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://kolkrabbi.francomichetti.com/capabilities">
+  <meta property="og:image" content="https://kolkrabbi.francomichetti.com/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Kolkrabbi: any model, any provider, one terminal. A blocky purple pixel-art octopus.">
   <meta property="og:site_name" content="Kolkrabbi">
-  <meta name="twitter:card" content="summary">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="canonical" href="https://kolkrabbi.francomichetti.com/capabilities">
   <title>Kolkrabbi capabilities — what the coding agent does today</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -590,8 +594,8 @@
           <h3>One revocable token per device</h3>
           <p>Each paired device gets its own token, stored only as a hash, and a device token ranks
             below the operator's: it can read the stream, while steering is a separate, higher
-            grant. <code>kolk devices</code> lists paired devices, and
-            <code>kolk devices revoke &lt;id&gt;</code> withdraws one.</p>
+            grant. <code>/devices</code> lists paired devices, and
+            <code>/devices revoke &lt;id&gt;</code> withdraws one.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>REACHABILITY</span></div>

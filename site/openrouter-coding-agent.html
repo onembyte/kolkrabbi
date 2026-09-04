@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Kolkrabbi is a terminal coding agent that runs any model OpenRouter lists, starts on a free one with no configuration, and records what every model costs you in a local file.">
+  <meta name="theme-color" content="#09070d">
+  <meta name="color-scheme" content="dark">
+  <link rel="canonical" href="https://kolkrabbi.francomichetti.com/openrouter-coding-agent">
+  <meta property="og:site_name" content="Kolkrabbi">
+  <meta property="og:locale" content="en">
+  <meta property="og:title" content="OpenRouter coding CLI — every model behind one gateway, in your terminal">
+  <meta property="og:description" content="Kolkrabbi is a terminal coding agent that runs any model OpenRouter lists, starts on a free one with no configuration, and records what every model costs you in a local file.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://kolkrabbi.francomichetti.com/openrouter-coding-agent">
+  <meta property="og:image" content="https://kolkrabbi.francomichetti.com/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Kolkrabbi: any model, any provider, one terminal. A blocky purple pixel-art octopus.">
+  <meta name="twitter:card" content="summary_large_image">
+  <title>OpenRouter coding CLI — every model behind one gateway, in your terminal</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "OpenRouter coding CLI — every model behind one gateway, in your terminal",
+    "url": "https://kolkrabbi.francomichetti.com/openrouter-coding-agent",
+    "description": "Kolkrabbi is a terminal coding agent that runs any model OpenRouter lists, starts on a free one with no configuration, and records what every model costs you in a local file.",
+    "dateModified": "2026-09-04",
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "Kolkrabbi",
+      "url": "https://kolkrabbi.francomichetti.com/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+  <header class="site-header" aria-label="Primary navigation">
+    <a class="wordmark" href="/" aria-label="Kolkrabbi home">
+      <span class="wordmark-mark" aria-hidden="true">K</span>
+      <span>KOLKRABBI</span>
+    </a>
+    <nav aria-label="Project links">
+      <a href="/#install">Install</a>
+      <a href="/capabilities.html">Capabilities</a>
+      <a href="/compare/">Compare</a>
+      <a href="https://github.com/onembyte/kolkrabbi">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="content">
+    <section class="catalog-hero" aria-labelledby="openrouter-coding-agent-title">
+      <div>
+        <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> The gateway</p>
+        <h1 id="openrouter-coding-agent-title">Every model,<br>one <em>key.</em></h1>
+      </div>
+      <div class="catalog-intro">
+        <p>OpenRouter is the door to most of the catalogue — GPT, Gemini, DeepSeek, Qwen, Kimi
+          and the rest — behind a single key. Kolkrabbi treats it as the default route, and starts
+          on a model that costs nothing before you have decided anything.</p>
+        <p class="verified">Commands checked against <code>kolk help</code> on <time datetime="2026-09-04">2026-09-04</time>.</p>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="free" aria-labelledby="free-title">
+      <div class="catalog-heading">
+        <p class="section-number">01 / FREE FIRST</p>
+        <div>
+          <h2 id="free-title">It starts free, without being asked.</h2>
+          <p>The zero-config path is a real one, not a trial.</p>
+        </div>
+      </div>
+      <div class="spec-grid">
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">How</span><span>DISCOVERY</span></div>
+          <h3>It asks the live catalogue</h3>
+          <p>For a new session with no model chosen, Kolkrabbi asks OpenRouter's live catalogue for zero-cost, tool-capable models and prefers the strongest coding-oriented one. If the catalogue is unreachable, it falls back to OpenRouter's guaranteed zero-cost <code>openrouter/free</code> router.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">How</span><span>OVERRIDE</span></div>
+          <h3>Your choice always wins</h3>
+          <p>A saved model, <code>-m</code>, or a custom effort-tier map beats discovery every time, because those are explicit decisions and discovery is a guess.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">How</span><span>KEY</span></div>
+          <h3>One key, one destination</h3>
+          <p><code>/key</code> stores it. It only ever goes to openrouter.ai — never to a local endpoint, never to a <code>--base-url</code> you pass.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="dial" aria-labelledby="dial-title">
+      <div class="catalog-heading">
+        <p class="section-number">02 / THE DIAL</p>
+        <div>
+          <h2 id="dial-title">The effort dial picks the model.</h2>
+          <p>This is the part that is unlike other agents. Elsewhere, effort means how many thinking tokens one model spends. Here it decides which model runs the turn, and how wide the agent work goes.</p>
+        </div>
+      </div>
+      <div class="compare-scroll">
+        <table class="compare-table">
+          <caption>Set with <code>/effort</code> in a session, or <code>-e</code> on the way in.</caption>
+          <thead><tr><th scope="col">Effort</th><th scope="col">What it selects</th></tr></thead>
+          <tbody>
+            <tr><th scope="row"><code>low</code></th><td>A cheap, fast model. Routine edits, renames, questions about the codebase.</td></tr>
+            <tr><th scope="row"><code>medium</code></th><td>A balanced model. The default working tier.</td></tr>
+            <tr><th scope="row"><code>high</code></th><td>A strong reasoning model, for work that has bitten you before.</td></tr>
+            <tr><th scope="row"><code>max</code></th><td>A frontier model, and wider agent orchestration.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="ledger" aria-labelledby="ledger-title">
+      <div class="catalog-heading">
+        <p class="section-number">03 / THE LEDGER</p>
+        <div>
+          <h2 id="ledger-title">Then it tells you what that cost.</h2>
+          <p>Every call is appended to a JSONL file you own. Nothing is uploaded, and there is no account to log into.</p>
+        </div>
+      </div>
+      <div class="spec-grid">
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Local</span><span>STATS</span></div>
+          <h3>Cost, latency, tokens, ratings</h3>
+          <p><code>/stats</code> aggregates per model: how many calls, how many tokens, what it cost, how long it took, and the 1–5 ratings you gave with <code>/rate</code>. <code>/dash</code> serves the same numbers as a loopback-only page.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Local</span><span>MOMENT</span></div>
+          <h3>And in the moment</h3>
+          <p>The status line carries mode, model, effort, context use and what the session has cost so far, so the number is in front of you while you decide, not afterwards.</p>
+        </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Local</span><span>MIXED</span></div>
+          <h3>Across every route at once</h3>
+          <p>Gateway turns, local turns and subscription turns land in the same file. Subscription turns are labelled <code>API-equiv.</code> and never pooled with metered spend — a Max subscriber's marginal cost is zero, and a number that pretends otherwise is worse than no number.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="compare-more" aria-label="Related guides">
+      <p class="section-number">KEEP READING</p>
+      <p class="compare-links"><a href="/local-ai-coding-agent">Local AI coding agent</a> <a href="/ollama-coding-agent">Ollama coding agent</a> <a href="/compare/">Compared with other agents</a></p>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-mark">
+      <span class="wordmark-mark" aria-hidden="true">K</span>
+      <p><strong>Kolkrabbi</strong><br>Built carefully, one checkpoint at a time.</p>
+    </div>
+    <p class="footer-links">
+      <a href="https://github.com/onembyte/kolkrabbi">Source</a>
+      <a href="https://github.com/onembyte/kolkrabbi/blob/main/LICENSE">Apache-2.0 License</a>
+    </p>
+  </footer>
+</body>
+</html>
