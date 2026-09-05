@@ -381,6 +381,11 @@ contains styles.css '.compare-table' "comparison table style is missing"
 contains styles.css '.compare-scroll' "comparison table has no horizontal scroll container"
 
 require_file "og.png"
+require_file "favicon.ico"
+require_file "apple-touch-icon.png"
+contains _headers '/favicon.ico' "_headers has no policy for the .ico fallback"
+contains _headers '/apple-touch-icon.png' "_headers has no policy for the Apple touch icon"
+contains index.html 'rel="apple-touch-icon"' "pages do not declare an Apple touch icon, so iOS requests one that 404s"
 while IFS= read -r html; do
   og_image_present "${html#"$SITE"/}"
 done <<EOF

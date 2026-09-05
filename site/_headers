@@ -34,3 +34,11 @@
 /og.png
   Content-Type: image/png
   Cache-Control: public, max-age=86400, must-revalidate
+
+/favicon.ico
+  Content-Type: image/x-icon
+  Cache-Control: public, max-age=86400, must-revalidate
+
+/apple-touch-icon.png
+  Content-Type: image/png
+  Cache-Control: public, max-age=86400, must-revalidate
