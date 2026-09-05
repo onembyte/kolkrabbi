@@ -106,8 +106,12 @@ credential or write outside its intended boundary.
   whole parent environment — as was the own-window login runner one process further away. Both now
   build their environment with the same denylist, each with its own sentinel test that was red first
   (`CHECKPOINTS.md` §V34.1b). Three child paths, three proofs.
-- [ ] **V34.1c confidential, symlink-safe checkpoints** — prevent backups from copying secrets
-  without policy, reject link/race escapes on restore, and preserve restrictive source modes.
+- [x] **V34.1c confidential, symlink-safe checkpoints** — completed 2026-09-05 as three sub-leaves
+  (`CHECKPOINTS.md` §V34.1c): a restored file gets back its recorded mode under either store; a
+  restore refuses a path that resolves elsewhere than when recorded or outside the root and writes
+  through a root-anchored `openat`/`renameat` walk (`atomicfile.WriteBeneath`); backups of secrets
+  have a stated policy in `docs/plan/32` §4–§5 — kept byte-exact for `/undo`, never displayed
+  unscrubbed (`/diff` scrubs every rendered line). Each sub-leaf was red first.
 - [ ] **V34.1d bounded and scrubbed outputs** — bound child capture before allocation; redact durable
   session and terminal sinks; reject URL userinfo; replace key/token argv UX with protected input.
 - [x] **V34.1e full-auto safety floor and OS sandbox** — completed 2026-09-05 as V34.1e.0–V34.1e.6 in

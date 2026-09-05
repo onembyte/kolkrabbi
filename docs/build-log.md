@@ -6743,3 +6743,25 @@ had the identical nil `Env`, and a terminal emulator on Linux inherits its paren
 hands it to the `sh -c` it runs. Same defect, same fix, its own red-first test with a fake `$TERMINAL`
 standing in for the emulator. The widening is recorded in the ledger rather than folded in silently.
 V34.1b is closed; V34.1c, confidential and symlink-safe checkpoints, is next.
+
+## A checkpoint that cannot be turned against its owner — V34.1c closed 2026-09-05
+
+Three small findings in the copy store, each with a red that was easy to see once looked for. A
+file removed after its edit and then rewound came back at 0644, whatever it had been — the restore
+had to create it, and creating is where a mode gets invented. The shadow store did the same through
+git, which recreates a changed file at umask mode. Both now give a file back its own mode.
+
+The second finding was the serious one. A rewind wrote the backup's bytes to the recorded path with
+`os.WriteFile`, which follows a symbolic link. A link planted at the path between the edit and the
+undo — by a bash command, or by something bash left running — turned "put my file back" into a write
+into `authorized_keys`, and a directory swapped for a link did the same one level up. Both observed.
+The fix is a root-anchored write: open the project root once, walk each component relative to the
+previous descriptor with `O_NOFOLLOW`, and `renameat` onto the final name, which replaces a link
+rather than following it. The store also records where each path resolved when it was backed up and
+refuses a restore whose answer has changed, naming both paths and the way out. Darwin's stdlib has no
+`openat`, so this is the second package allowed `x/sys`, for the same reason as Landlock.
+
+The third was a policy gap rather than a bug. Backups must keep secrets byte-exact, because the edit
+people most want undone is the one to `.env`; what they must never do is show them. `/diff` now
+scrubs every line it renders, both sides, and plan 32 says in words what the store does with a secret
+it holds. V34.1d, bounded and scrubbed outputs, is next.

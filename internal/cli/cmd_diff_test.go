@@ -163,3 +163,46 @@ func TestAskingForAFileTheSessionNeverTouched(t *testing.T) {
 		t.Fatalf("output = %q, want it to name what was asked for", out.String())
 	}
 }
+
+// A backup exists so that /undo can put the bytes back. It does not exist so
+// that /diff can print them: the file the session edited may be the .env, and
+// the diff of an .env is two secrets, the old one and the new one. Every line
+// /diff renders goes through the same scrubber the transcript does.
+func TestDiffNeverPrintsASecretFromABackupOrTheWorkingFile(t *testing.T) {
+	work := t.TempDir()
+	store, err := checkpoint.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := filepath.Join(work, ".env")
+	if err := os.WriteFile(env, []byte("DATABASE_PASSWORD=hunter2correcthorsebattery\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store.BeginTurn(context.Background())
+	if err := store.Record("edit_file", env); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(env, []byte("DATABASE_PASSWORD=newpasswordalsolongenough99\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	created := filepath.Join(work, "secrets.yaml")
+	store.BeginTurn(context.Background())
+	if err := store.Record("write_file", created); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(created, []byte("api_key: 9f8e7d6c5b4a39281706abcdef012345\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	a, stdout, _ := newTestApp(t, "")
+	a.printSessionDiff(store, "")
+	out := stdout.String()
+	for _, secret := range []string{"hunter2correcthorse", "newpasswordalsolongenough99", "9f8e7d6c5b4a39281706abcdef012345"} {
+		if strings.Contains(out, secret) {
+			t.Fatalf("/diff printed a secret (%s):\n%s", secret, out)
+		}
+	}
+	if !strings.Contains(out, "DATABASE_PASSWORD") || !strings.Contains(out, "api_key") {
+		t.Fatalf("/diff scrubbed the names too, so the diff is unreadable:\n%s", out)
+	}
+}

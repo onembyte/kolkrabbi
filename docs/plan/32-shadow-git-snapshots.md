@@ -95,6 +95,16 @@ Two properties were verified rather than assumed, because both are the reason to
   did not choose, is exactly the kind of surprise this project refuses elsewhere. The store is
   bounded by session deletion, and if that turns out not to be enough, the fix is a cap on snapshots
   per session — a number, visible, in config — not a daemon.
+- **Backups may hold secrets, and this is the policy for them** (V34.1c.3, 2026-09-05). A session
+  edits `.env` files and key files like any other, and `/undo` needs their exact bytes, so the store
+  keeps them: the copy store's `.bak` files are 0600 inside a 0700 directory, the shadow store's
+  objects likewise, and both live under the session and are deleted with it (above). What the store
+  never does is *show* them: every line `/diff` renders — the backup's side and the working file's
+  side, new files included — passes through `internal/redact.Scrub`, the same scrubber the transcript
+  passes through, so the value is replaced and the assignment's name survives. Restores are byte-exact;
+  only display is scrubbed. A backup is never copied anywhere else, never published over the protocol
+  (item 26 keeps content, checksums, modes and store paths private), and never registered with the
+  scrubber as a literal, since a backup is not a credential kolk holds — it is the user's file.
 
 ### 5. What it must refuse
 
@@ -113,6 +123,10 @@ Two properties were verified rather than assumed, because both are the reason to
 - **It respects the project's ignore rules.** `git add -A` reads the work tree's `.gitignore`, so
   build output and `node_modules` stay out for free. A snapshot that captured them would be the one
   thing that made this expensive.
+- **It never displays a backup unscrubbed**, and **it never writes a restore through a link** — a
+  restore resolves the path again, refuses when it resolves elsewhere than it did when recorded or
+  outside the root, and writes through a root-anchored `openat`/`renameat` walk that a link cannot
+  redirect (V34.1c.2). A restored file gets back the mode it had, under either store (V34.1c.1).
 
 ### 6. Migration
 

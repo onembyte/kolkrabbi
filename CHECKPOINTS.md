@@ -10529,7 +10529,7 @@ Subcheckpoints, one at a time:
   environment down; scrubbing one process early makes the question moot. Three child paths, three
   proofs. `-race` clean on shell and cli; lint clean on darwin and linux; `make check` all gates.
   `docs/plan/34` V34.1b ticked.
-- [~] **V34.1c confidential, symlink-safe checkpoints** — `docs/plan/34` V34.1c, subdivided 2026-09-05
+- [x] **V34.1c confidential, symlink-safe checkpoints** — `docs/plan/34` V34.1c, subdivided 2026-09-05
   before code because its three clauses are three separable red→green pairs. Inspection: the copy
   store (`internal/checkpoint.Store.Record`/`RewindLastTurn`) reads the source through symlinks,
   records no mode, and restores with `os.WriteFile(path, data, 0o644)` — which follows a symlink
@@ -10537,6 +10537,7 @@ Subcheckpoints, one at a time:
   `git checkout`/`reset --hard`, which recreates files at umask mode, so it flattens 0600 too. `/diff`
   prints a backup's contents unscrubbed. **Non-goals:** `/undo`/`/rewind` semantics (item 15), the
   choice of store (item 32), the jail (already resolves symlinks before a write is allowed).
+  **Closed 2026-09-05** with all three sub-leaves; `docs/plan/34` V34.1c ticked; policy in plan 32.
   - [x] **V34.1c.1 restrictive modes survive a rewind** — copy store: `Entry.Mode` recorded at
     `Record`, restored with it (older manifests without a mode fall back to the file's current mode,
     then 0644). Shadow store: the modes of the paths about to be restored are read before the git
@@ -10585,11 +10586,20 @@ Subcheckpoints, one at a time:
     without `Real` still get the beneath check and the no-follow walk. Non-goal kept: the shadow store
     restores through git, which does not follow links when writing tracked paths; not re-proven here.
     `-race` clean; vet linux+windows; lint darwin+linux; `make check`.
-  - [ ] **V34.1c.3 backups of secrets have a stated policy** — the policy, written down in
+  - [x] **V34.1c.3 backups of secrets have a stated policy** — the policy, written down in
     `docs/plan/32-shadow-git-snapshots.md`: backups are kept (undo needs the bytes), 0600 inside a
     0700 directory that is removed with the session; they are never displayed unscrubbed — `/diff`
     passes every rendered line through `redact.Scrub`. **Red:** `/diff` prints a canary secret from a
     backed-up `.env`.
+    **Closed 2026-09-05, on main.** Red observed: `/diff` printed `hunter2correcthorse…` from the
+    backup's side of an `.env` edit. Green: `printOneDiff` passes the unified body and the new-file
+    rendering through `redact.Scrub` — the working file's side included, since the diff of an `.env` is
+    two secrets — and the test also requires the assignment *names* to survive, so a scrubbed diff
+    stays readable. The policy is written where the store is specified, `docs/plan/32` §4 and §5:
+    backups are kept byte-exact for `/undo` (0600 in 0700, deleted with the session), never shown
+    unscrubbed, never copied elsewhere, never published over the protocol, never registered with the
+    scrubber as literals. Not done, on purpose: refusing to back up secret-bearing files — that would
+    make `/undo` unable to undo an `.env` edit, which is the edit people most want undone.
 
 - [x] **V34.1e.0 the sandbox policy, the switch and the refusal** — `shell.Sandbox` on
   `shell.Cmd`: root, temp, credential denylist, network `allow|deny`; the root is

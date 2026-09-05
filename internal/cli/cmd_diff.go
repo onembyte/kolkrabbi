@@ -8,6 +8,7 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/checkpoint"
 	"github.com/onembyte/kolkrabbi/internal/diff"
+	"github.com/onembyte/kolkrabbi/internal/redact"
 )
 
 // diffContext is how much unchanged code surrounds each hunk. More than a
@@ -60,7 +61,7 @@ func (a *app) printOneDiff(store *checkpoint.Store, path string) {
 
 	if !existed {
 		fmt.Fprintf(a.stdout, "\n%s — new file\n", label)
-		fmt.Fprint(a.stdout, diff.Truncate(addedLines(string(current)), diffLinesPerFile))
+		fmt.Fprint(a.stdout, redact.Scrub(diff.Truncate(addedLines(string(current)), diffLinesPerFile)))
 		return
 	}
 	body := diff.Unified(string(original), string(current), diffContext)
@@ -70,7 +71,10 @@ func (a *app) printOneDiff(store *checkpoint.Store, path string) {
 		return
 	}
 	fmt.Fprintf(a.stdout, "\n%s\n", label)
-	fmt.Fprint(a.stdout, diff.Truncate(body, diffLinesPerFile))
+	// The backup exists so /undo can put the bytes back, not so /diff can print
+	// them: the file may be the .env, and its diff is two secrets. Every rendered
+	// line goes through the scrubber the transcript goes through (plan 32 §4).
+	fmt.Fprint(a.stdout, redact.Scrub(diff.Truncate(body, diffLinesPerFile)))
 }
 
 // matchingPaths narrows to what the user named, matched on the tail of the
