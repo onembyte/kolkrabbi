@@ -1240,6 +1240,17 @@ func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 					Type: protocol.EventTurnCancelled,
 					Data: cancelledData,
 				})
+			} else {
+				// An ordinary error is the third way a turn ends, and a subscriber
+				// that saw turn.started must see exactly one terminal event for it
+				// (V34.2d). The finished reason vocabulary is open by contract:
+				// "error", with the scrubbed message as the raw reason.
+				failedData, _ := json.Marshal(protocol.TurnFinishedData{Reason: "error", RawReason: secret.Scrub(err.Error())})
+				_, _ = a.Bus.Publish(bus.Event{
+					Turn: a.lastTurnID,
+					Type: protocol.EventTurnFinished,
+					Data: failedData,
+				})
 			}
 		} else {
 			finishedData, _ := json.Marshal(protocol.TurnFinishedData{Reason: "stop"})

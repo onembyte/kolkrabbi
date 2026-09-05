@@ -10619,8 +10619,23 @@ Subcheckpoints, one at a time:
     with the reason and the way (`/undo`). Tests: the two reds as permanent tests (the consumption one
     reopens the store from disk), the existing three-task test adapted to the new result. `-race`
     clean on checkpoint and cli; lint; `make check`.
-  - [ ] **V34.2d terminal event and replay contract** — ordinary errors publish a terminal error event;
+  - [x] **V34.2d terminal event and replay contract** — ordinary errors publish a terminal error event;
     SSE and stdio deliver retained replay before live events without loss or duplication.
+    **Closed 2026-09-05, on main.** Four reds observed. **(1)** A code-mode turn failed by a provider
+    400 published `turn.started` and then nothing: cancellation and success had terminal events, an
+    ordinary error had none (`finished/cancelled = 0/0`). Green: the error branch publishes
+    `turn.finished` with reason `error` and `raw_reason` = the scrubbed message — no new event type,
+    because the finished reason vocabulary is open by contract (`TestTurnFinishedValidatesOpenReasons`),
+    so schemas, fixtures and clients are untouched; one changelog bullet records the semantics and
+    satisfies the spec-change guard. **(2–3)** The SSE handler streamed only `sub.Events()`: a fresh
+    client saw `[3]` where the bus held `[1 2 3]`, and a `Last-Event-ID: 1` resume saw `[3]` instead of
+    `[2 3]`. Green: the retained `sub.Replay()` is written first, then the live channel; the
+    subscription took both atomically, so there is neither loss nor duplication, and the resume test
+    pins that seq 1 is not re-sent. **(4)** `ServeStdio` had the same gap (`[3]`); same fix in
+    `StreamEventsToNDJSON`. Not in this leaf: what an SSE client gets on `ErrCursorExpired`/`ErrCursorAhead`
+    (a 500 today; the contract's `resume-after-drop` fixture is still marked absent in `spec/stdio.md`),
+    recorded for 2d's exit review rather than slipped in. `-race` clean on engine, serve, bus; lint;
+    `make check` including the spec gate.
   - [ ] **V34.2f atomic run-cost limits** — reserve or serialize cost budget before concurrent work so
     `MaxRunCostUSD` cannot be crossed by in-flight calls.
   - [x] **V34.1d.1 child capture is bounded before it is allocated** — `shell.Run` collects a child's

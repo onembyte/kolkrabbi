@@ -5,6 +5,10 @@ are allowed during version 0, but every change is recorded here.
 
 ## 0 — unreleased
 
+- A turn that ends in an ordinary error finishes with `turn.finished` reason `error`, its `raw_reason`
+  the scrubbed message, so every started turn has exactly one terminal event (finished, or
+  cancelled). The SSE and stdio streams deliver the retained replay before live events; a
+  `Last-Event-ID` resume gets what it missed and nothing it already had.
 - Define the six-field event envelope and its first golden conformance frame.
 - Define the `message.delta` and `reasoning.delta` event names and their non-empty `text` payloads.
 - Define the `hello` handshake payload for protocol version, server identity, and capabilities.

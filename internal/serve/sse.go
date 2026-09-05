@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/bus"
+	"github.com/onembyte/kolkrabbi/protocol"
 )
 
 // sseHandler streams events from the event bus to HTTP clients.
@@ -49,6 +50,19 @@ func sseHandler(b *bus.Bus, pingInterval time.Duration) http.HandlerFunc {
 		// Reconnection retry hint
 		fmt.Fprint(w, "retry: 1000\n\n")
 		flusher.Flush()
+		writeFrame := func(env protocol.Envelope) {
+			data, err := json.Marshal(env)
+			if err != nil {
+				return
+			}
+			fmt.Fprintf(w, "id: %d\nevent: %s\ndata: %s\n\n", env.Seq, env.Type, data)
+			flusher.Flush()
+		}
+		// The retained replay first, then the live channel: the subscription took
+		// both atomically, so nothing is missed and nothing arrives twice (V34.2d).
+		for _, env := range sub.Replay() {
+			writeFrame(env)
+		}
 
 		ticker := time.NewTicker(pingInterval)
 		defer ticker.Stop()
@@ -65,12 +79,7 @@ func sseHandler(b *bus.Bus, pingInterval time.Duration) http.HandlerFunc {
 				if !ok {
 					return
 				}
-				data, err := json.Marshal(env)
-				if err != nil {
-					continue
-				}
-				fmt.Fprintf(w, "id: %d\nevent: %s\ndata: %s\n\n", env.Seq, env.Type, data)
-				flusher.Flush()
+				writeFrame(env)
 			}
 		}
 	}
