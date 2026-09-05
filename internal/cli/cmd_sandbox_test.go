@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -25,6 +26,9 @@ func TestSandboxIsOffByDefaultAndSaysSo(t *testing.T) {
 // Turning it on where nothing can enforce it is refused at the command, with
 // the reason, and toggles nothing. Fail closed, but at the moment of the ask.
 func TestSandboxOnIsRefusedWhenNoMechanismExists(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("seatbelt exists here; the refusal is exercised where no mechanism does, and the success below")
+	}
 	isolateConnectorState(t)
 	a, ag, out := replFixture(t, "")
 
@@ -96,5 +100,25 @@ func TestConfigSetSandboxAcceptsOnlyOnOrOff(t *testing.T) {
 	a.slash(context.Background(), ag, "/config get sandbox")
 	if !strings.Contains(out.String(), "on") {
 		t.Fatalf("output = %q", out.String())
+	}
+}
+
+// Where Seatbelt exists, /sandbox on takes effect and names the mechanism.
+func TestSandboxOnSucceedsWhereSeatbeltExists(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("seatbelt is macOS")
+	}
+	isolateConnectorState(t)
+	a, ag, out := replFixture(t, "")
+
+	a.slash(context.Background(), ag, "/sandbox on")
+	if ag.Sandbox == nil {
+		t.Fatalf("/sandbox on did not take effect:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "sandbox → on (seatbelt)") {
+		t.Fatalf("output = %q, want the mechanism named", out.String())
+	}
+	if ag.Sandbox.Root != ag.Root {
+		t.Fatalf("policy root %q is not the jail root %q", ag.Sandbox.Root, ag.Root)
 	}
 }

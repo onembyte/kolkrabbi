@@ -10538,10 +10538,35 @@ Subcheckpoints, one at a time:
   `tools` test relies on the leaf-0 stub; the darwin leaf needs a cross-package test seam before its
   probe becomes real. Verify: `go test -race ./internal/shell/ && go test ./internal/tools/
   ./internal/cli/ ./internal/engine/ && make check` — 3322 tests, all gates green.
-- [ ] **V34.1e.1 macOS: Seatbelt** — profile generator (SBPL string from the policy), 0600 temp
-  file, `sandbox-exec -f` wrapper in `command()`, `Setpgid` and group kill unchanged. **Red:** escape
-  tests 1–5, 7, 8 from plan 13 §7.2 fail on the unwrapped command and pass on the wrapped one,
-  natively on darwin. Startup absence check for `/usr/bin/sandbox-exec` fails closed.
+- [x] **V34.1e.1 macOS: Seatbelt** — profile generator (SBPL from the policy), inline
+  `sandbox-exec -p` wrapper applied to argv in `command()`, `Setpgid` and group kill unchanged;
+  absence of `/usr/bin/sandbox-exec` fails closed at the probe. **Red:** escape tests 1–5, 7, 8 from
+  plan 13 §7.2 fail on the unwrapped command and pass on the wrapped one, natively on darwin.
+  **Closed 2026-09-05.** `sandbox_darwin.go` + `sandbox_other.go` (`!darwin`, refuses); `Run` now
+  calls `prepareSandbox` after the probe and refuses a policy it cannot render (a root that cannot be
+  resolved) as a Result, same as a missing mechanism; `command(ctx, c, wrap)` on both unix and
+  windows. Red was genuine and *runtime*: all seven escape tests failed on "kolk declined to run the
+  command instead of the sandbox refusing it" (exit −1), because the assertion for 1–5 requires the
+  command to have RUN and the kernel to have said `Operation not permitted`. Then green, under
+  `-race`, plus four generator tests (probe finds seatbelt; probe fails closed on a missing binary and
+  names it; profile resolves symlinks, escapes quotes, puts the denylist after the broad allow; an
+  unresolvable root is refused). **Three amendments to §7.2, recorded there:** the profile is inline
+  (`-p`) — it holds only paths, and a 0600 file would need a lifetime, a cleanup and a race with its
+  reader; **writes include the toolchain caches** (`Sandbox.Writable`: user cache dir via a new
+  `paths.UserCacheDir()` seam, `GOPATH`, `GOMODCACHE`) because test 8 showed `go test` writes its
+  build cache outside the root and "root and temp only" broke the one command people turn a sandbox
+  on for; and `Run` sets the child's `TMPDIR` to the policy's temp, or every tool that honours it
+  scatters scratch outside the sandbox. Broad `mach-lookup`, `sysctl-read`, `ipc-posix*` allows are
+  what a shell needs to start; tightening is V34.1e.5's measurement, not this leaf's guess. No
+  cross-package test seam was needed after all: the `tools` refusal test now uses a root that does
+  not exist, which no enforcer can resolve, so it refuses on every platform for a real reason. The
+  cli refusal test skips on darwin and a darwin success test asserts `sandbox → on (seatbelt)` with
+  the policy root equal to the jail root; once V34.1e.2 makes linux real, that refusal test needs a
+  seam or becomes windows-only — noted for .2. Walk-back: nothing removed. README "Known
+  limitations" and the capabilities rows still say no sandbox — on macOS that is now an
+  **under-claim**, deliberately, until V34.1e.6 flips every public statement in one commit with its
+  pins. Verify: `go test -race -count=1 ./internal/shell/ -run 'Escape|Probe|Seatbelt'` and
+  `make check` — 3334 tests, 8.57 MB, all gates.
 - [ ] **V34.1e.2 Linux: Landlock filesystem** — ABI probe via `x/sys/unix`, per-top-level read
   grants with the home directory enumerated minus the denylist, write grants for root and temp, the
   `kolk landlock-exec` re-exec entry that applies the ruleset then `execve`s bash. **Red:** the same

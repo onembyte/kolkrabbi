@@ -48,6 +48,10 @@ type Dirs struct {
 // need a display path without duplicating OS discovery outside this package.
 func UserHomeDir() (string, error) { return os.UserHomeDir() }
 
+// UserCacheDir is the same seam for the user's cache directory, where the Go,
+// npm and pip toolchains keep what they rebuild.
+func UserCacheDir() (string, error) { return os.UserCacheDir() }
+
 // Resolve computes the directories for the current user and environment.
 //
 // It fails only when there is no home directory AND no override, which on a

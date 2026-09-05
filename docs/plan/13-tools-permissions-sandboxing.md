@@ -167,8 +167,12 @@ delegated child comes from §7.1's existing decision; for the user's own bash to
 profile: `(deny default)`, allow `process-exec`/`process-fork`, `(allow file-read*)` with
 `(deny file-read* (subpath …))` for each denylist path, `(allow file-write* (subpath <root>)
 (subpath <temp>))`, network allowed or `(deny network*)`, and the small set of `mach-lookup` and
-`sysctl-read` allowances a shell needs to start. The profile is written to a private 0600 temp file
-and removed after the run. Verified live on Darwin arm64 on 2026-09-05: a deny-default profile
+`sysctl-read` allowances a shell needs to start. **Amended in V34.1e.1:** the profile travels inline
+(`sandbox-exec -p`) rather than through a 0600 file — it holds only paths, and a file would need a
+lifetime, a cleanup and a race with the process that reads it. And **writes also include the
+toolchain caches** (user cache dir, `GOPATH`, `GOMODCACHE`): escape test 8 found that `go test`
+writes its build cache outside the root, so "root and temp only" broke the one command people
+turn a sandbox on for. The child's `TMPDIR` is set to the policy's temp for the same reason. Verified live on Darwin arm64 on 2026-09-05: a deny-default profile
 allowed a write inside the granted subpath and refused one outside with `Operation not permitted`.
 Apple marks `sandbox-exec` deprecated and has shipped it on every release since 10.5; Chromium,
 Bazel and Codex CLI use it today. Its absence is checked once at startup and is a fail-closed

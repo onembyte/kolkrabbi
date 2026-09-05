@@ -6535,3 +6535,40 @@ Nothing public changes. The README's "no general execution sandbox", the capabil
 comparison cells all still say so, because nothing enforces anything yet; they flip in V34.1e.6, in
 one commit, with the site pins that guard them. `/sandbox` does appear in `kolk help` and the README's
 command list, and turning it on tells you truthfully that it cannot yet be established here.
+
+## The sandbox refuses for real on macOS — V34.1e.1 closed 2026-09-05
+
+Seatbelt, through `/usr/bin/sandbox-exec -p` with a profile rendered from the policy. The leaf was
+built the way the contract asks and it mattered here more than usual, because the red had to be the
+*right* red. A sandboxed command can be stopped two ways: kolk declining to run it at all, or the
+kernel refusing it while it runs. Only the second is a sandbox. So the escape tests assert that the
+command ran -- a real exit code -- and that the output says `Operation not permitted`. Before the
+enforcer existed every one of them failed with "kolk declined to run the command instead of the
+sandbox refusing it", which is exactly the failure that proves the test can tell the two apart.
+
+Two properties of Seatbelt shaped the generator. Rules match on the real path, so every path is
+resolved through its symlinks first: `/tmp` is `/private/tmp`, `t.TempDir()` is under
+`/private/var/folders`, and a profile that names the unresolved path matches nothing and refuses
+everything. And the last matching rule wins, so the credential denylist is written after the broad
+allows -- which is what keeps `~/.ssh` refused when the root has been widened to the whole home
+directory, the case test 4 exists for.
+
+Test 8 changed the plan. `go test` on a trivial fixture inside the root failed, because Go writes its
+build cache to `~/Library/Caches/go-build`, its module cache to `~/go/pkg/mod`, and its scratch to
+`$TMPDIR`, none of which are the root. A sandbox that breaks `go test` is a sandbox nobody turns on.
+Plan 13 §7.2 said writes are root and temp only; it now also says the toolchain caches, and the
+policy carries them as `Writable` -- the user cache dir through a new `paths.UserCacheDir()` seam,
+since `internal/paths` is the one owner of that lookup, plus `GOPATH` and `GOMODCACHE`, honouring the
+environment when set and Go's defaults when not, because that is what the toolchain will do. `Run`
+also sets the child's `TMPDIR` to the policy's temp. The profile goes inline rather than through the
+0600 file the plan first described: it holds only paths, and a file would need a lifetime, a cleanup
+and a race with the process that reads it.
+
+The cross-package test seam the previous record worried about turned out to be unnecessary. The
+`tools` test asked for a sandbox that could not be established by naming a root that does not exist,
+which no enforcer can resolve. On macOS that refusal comes from the generator; elsewhere from the
+probe; the model reads the same sentence either way.
+
+Nothing public flips. On this machine `/sandbox on` now confines writes for real, and the README still
+says there is no general execution sandbox. That is an under-claim, and it is deliberate: the
+statements change together in V34.1e.6, with the site pins that guard them, once Linux is real too.

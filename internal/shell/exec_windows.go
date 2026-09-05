@@ -32,7 +32,11 @@ var interpreter = sync.OnceValue(func() [2]string {
 
 func interpreterName() string { return interpreter()[1] }
 
-func command(ctx context.Context, c Cmd) (*exec.Cmd, error) {
+func command(ctx context.Context, c Cmd, wrap sandboxWrap) (*exec.Cmd, error) {
+	if wrap != nil {
+		// Unreachable while the probe refuses here; said out loud anyway.
+		return nil, ErrSandboxUnsupported
+	}
 	path, kind := interpreter()[0], interpreter()[1]
 
 	var cmd *exec.Cmd

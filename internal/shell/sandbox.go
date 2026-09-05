@@ -23,11 +23,20 @@ const NetworkAllow NetworkPolicy = "allow"
 // Root is tools.Options.Root -- the same value the path jail uses. There is
 // deliberately no second setting for it that could drift from the first.
 type Sandbox struct {
-	Root    string
-	Temp    string
-	Deny    []string
-	Network NetworkPolicy
+	Root string
+	Temp string
+	// Writable are the toolchain caches -- the user cache dir, GOPATH, GOMODCACHE
+	// -- that a build writes to outside the root. Without them `go test` fails
+	// inside the sandbox, and a sandbox that breaks the one command people
+	// turn it on for is a sandbox nobody turns on. An amendment to plan 13
+	// §7.2's "root and temp", recorded there.
+	Writable []string
+	Deny     []string
+	Network  NetworkPolicy
 }
+
+// sandboxWrap rewrites a command's argv so the platform's enforcer runs it.
+type sandboxWrap func(argv []string) []string
 
 // ErrSandboxUnsupported is the reason on a platform with no enforcer.
 var ErrSandboxUnsupported = errors.New("no sandbox mechanism is available on this platform")
@@ -36,12 +45,9 @@ var ErrSandboxUnsupported = errors.New("no sandbox mechanism is available on thi
 // "landlock v4" -- or why nothing can. It is a package variable so a test can
 // stand in for the platform; production only ever reads it.
 //
-// V34.1e.0 ships the probe as unsupported everywhere. V34.1e.1 and .2 replace
-// it per platform behind build tags; until then every sandboxed command is
-// refused, which is the fail-closed behaviour the plan asks for.
+// probeMechanism and prepareSandbox are defined per platform behind build tags:
+// sandbox_darwin.go (Seatbelt) and sandbox_other.go (nothing yet, refuses).
 var mechanism = probeMechanism
-
-func probeMechanism() (string, error) { return "", ErrSandboxUnsupported }
 
 // Mechanism is the read-only view the CLI uses to answer `/sandbox on`.
 func Mechanism() (string, error) { return mechanism() }

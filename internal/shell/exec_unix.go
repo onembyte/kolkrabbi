@@ -16,8 +16,14 @@ func interpreterName() string { return "bash" }
 // command builds the process. `bash -c` is byte-compatible with the prototype
 // on purpose: the tool tests assert on real command output, and changing the
 // interpreter would change that output in ways unrelated to this refactor.
-func command(ctx context.Context, c Cmd) (*exec.Cmd, error) {
-	cmd := exec.CommandContext(ctx, "bash", "-c", c.Command)
+func command(ctx context.Context, c Cmd, wrap sandboxWrap) (*exec.Cmd, error) {
+	argv := []string{"bash", "-c", c.Command}
+	if wrap != nil {
+		// The enforcer becomes the process-group leader; the group kill
+		// below reaches it and everything it starts, unchanged.
+		argv = wrap(argv)
+	}
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Dir = c.Dir
 	cmd.Stdin = c.Stdin
 	cmd.Env = inheritedEnv(c.Env)

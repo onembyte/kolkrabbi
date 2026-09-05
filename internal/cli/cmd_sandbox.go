@@ -21,10 +21,11 @@ func sandboxPolicyFor(root string, d paths.Dirs) *shell.Sandbox {
 	// asks it, so "the engine touches no OS" stays a property, not a habit.
 	home, _ := paths.UserHomeDir()
 	return &shell.Sandbox{
-		Root:    root,
-		Temp:    os.TempDir(),
-		Deny:    shell.CredentialDenylist(home, d.CredentialsFile()),
-		Network: shell.NetworkAllow,
+		Root:     root,
+		Temp:     os.TempDir(),
+		Writable: toolchainCaches(home),
+		Deny:     shell.CredentialDenylist(home, d.CredentialsFile()),
+		Network:  shell.NetworkAllow,
 	}
 }
 
@@ -77,4 +78,26 @@ func sandboxFromConfig(setting, root string, d paths.Dirs) *shell.Sandbox {
 		return sandboxPolicyFor(root, d)
 	}
 	return nil
+}
+
+// toolchainCaches are the directories a build writes to that are not the
+// project: the user cache dir (go-build, pip, npm), GOPATH and GOMODCACHE. The
+// environment is honoured when it is set and Go's defaults are used when it is
+// not, because that is exactly what the toolchain itself will do.
+func toolchainCaches(home string) []string {
+	var out []string
+	if cache, err := paths.UserCacheDir(); err == nil && cache != "" {
+		out = append(out, cache)
+	}
+	gopath := os.Getenv("GOPATH")
+	if gopath == "" && home != "" {
+		gopath = home + "/go"
+	}
+	if gopath != "" {
+		out = append(out, gopath)
+	}
+	if mod := os.Getenv("GOMODCACHE"); mod != "" {
+		out = append(out, mod)
+	}
+	return out
 }
