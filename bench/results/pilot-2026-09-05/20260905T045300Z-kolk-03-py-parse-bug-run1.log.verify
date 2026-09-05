@@ -1,0 +1,26 @@
+test_empty_value (test_kv.TestParseKV.test_empty_value) ... ok
+test_simple (test_kv.TestParseKV.test_simple) ... ok
+test_value_contains_equals (test_kv.TestParseKV.test_value_contains_equals) ... FAIL
+
+======================================================================
+FAIL: test_value_contains_equals (test_kv.TestParseKV.test_value_contains_equals)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/var/folders/7w/vznpdfcs2yb8tjzkwlgbdxq40000gn/T/tmp.bKq3XPTB6W/test_kv.py", line 10, in test_value_contains_equals
+    self.assertEqual(parse_kv("url=http://x/?a=b"), ("url", "http://x/?a=b"))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('url', 'http://x/?a') != ('url', 'http://x/?a=b')
+
+First differing element 1:
+'http://x/?a'
+'http://x/?a=b'
+
+- ('url', 'http://x/?a')
++ ('url', 'http://x/?a=b')
+?                     ++
+
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.000s
+
+FAILED (failures=1)

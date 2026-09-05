@@ -13,6 +13,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BENCH="$ROOT/bench"
 
 HARNESS=""; TASK=""; RUNS=5; MODEL=""; BASE_URL=""; OUT="$BENCH/results"; KEEP=0
+TIMEOUT_OVERRIDE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --harness) HARNESS="$2"; shift 2 ;;
@@ -22,6 +23,7 @@ while [ $# -gt 0 ]; do
     --base-url) BASE_URL="$2"; shift 2 ;;
     --out)     OUT="$2";     shift 2 ;;
     --keep)    KEEP=1;       shift ;;
+    --timeout) TIMEOUT_OVERRIDE="$2"; shift 2 ;;
     -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
@@ -114,6 +116,7 @@ for task in $(task_list); do
   prompt="$(grep -m1 '^prompt' "$tdir/task.toml" | sed -E 's/^prompt[[:space:]]*=[[:space:]]*"(.*)"$/\1/')"
   secs="$(grep -m1 '^timeout_seconds' "$tdir/task.toml" | sed -E 's/[^0-9]//g')"
   [ -n "$secs" ] || secs=300
+  [ -n "$TIMEOUT_OVERRIDE" ] && secs="$TIMEOUT_OVERRIDE"
 
   for run in $(seq 1 "$RUNS"); do
     work="$(mktemp -d)"

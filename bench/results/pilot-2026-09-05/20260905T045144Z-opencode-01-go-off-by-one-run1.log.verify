@@ -1,0 +1,7 @@
+--- FAIL: TestSum (0.00s)
+    sum_test.go:11: Sum([5]) = 0, want 5
+    sum_test.go:11: Sum([1 2 3]) = 3, want 6
+    sum_test.go:11: Sum([-1 1]) = -1, want 0
+FAIL
+FAIL	bench	0.437s
+FAIL
