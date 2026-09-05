@@ -15,6 +15,20 @@ many tool calls it burns getting there.
 That number is not published anywhere we could find. It is also the only axis on which a small
 project can honestly compete with a vendor's own client.
 
+## The model has to be capable enough for the question to mean anything
+
+A pilot on 2026-09-05 ran the easiest task against `llama3.1:8b` on a 16 GB machine. All three
+harnesses failed, each producing a different shape of nonsense, because the model could not emit
+usable tool calls under a real agent's prompt. See
+[`results/2026-09-05-local-8b-pilot.md`](results/2026-09-05-local-8b-pilot.md).
+
+**When every harness scores zero, the score is measuring the model.** So the comparative run needs a
+model capable enough that what varies between runs is the agent loop and not the model's ability to
+call a function at all. The local-only track is published as its own finding — useful to anyone
+considering a local coding agent — and is not the harness comparison.
+
+The constant-model requirement below is unchanged; only the choice of model is.
+
 ## How the model is held constant
 
 All harnesses are pointed at **one local model served over one OpenAI-compatible endpoint**. Not

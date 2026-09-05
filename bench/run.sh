@@ -59,15 +59,29 @@ invoke_kolk() {
   run_with_timeout "$secs" "$log" env -C "$dir" \
     "$ROOT/kolk" --base-url "$BASE_URL" -m "$MODEL" -P full-auto -p "$prompt"
 }
-invoke_codex() {   # UNVERIFIED until D4.4
+# Both competitors get a throwaway config home seeded from bench/config, so a
+# run never reads or writes the operator's own configuration, and so the config
+# that produced a published result is itself published.
+invoke_codex() {
   local dir="$1" prompt="$2" log="$3" secs="$4"
-  run_with_timeout "$secs" "$log" env -C "$dir" \
-    codex exec --skip-git-repo-check "$prompt"
+  local home; home="$(mktemp -d)"
+  cp "$BENCH/config/codex/config.toml" "$home/config.toml"
+  run_with_timeout "$secs" "$log" env -C "$dir" CODEX_HOME="$home" \
+    codex exec --skip-git-repo-check "$prompt" </dev/null
+  local rc=$?
+  rm -rf "$home"
+  return $rc
 }
-invoke_opencode() { # UNVERIFIED until D4.4
+invoke_opencode() {
   local dir="$1" prompt="$2" log="$3" secs="$4"
-  run_with_timeout "$secs" "$log" env -C "$dir" \
+  local home; home="$(mktemp -d)"
+  mkdir -p "$home/opencode"
+  cp "$BENCH/config/opencode/opencode.json" "$home/opencode/opencode.json"
+  run_with_timeout "$secs" "$log" env -C "$dir" XDG_CONFIG_HOME="$home" \
     opencode run "$prompt"
+  local rc=$?
+  rm -rf "$home"
+  return $rc
 }
 
 harness_version() {

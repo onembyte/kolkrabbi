@@ -12,28 +12,41 @@ result can be turned into a disagreement about the configuration, which is a fix
 - `-p` is single-shot: one request, the tool loop runs to completion, then the process exits.
 - `--base-url` takes any OpenAI-compatible endpoint and sends no key.
 
-## Codex CLI — **UNVERIFIED**
+## Codex CLI — verified against codex-cli 0.151.0, 2026-09-05
 
-    codex exec --skip-git-repo-check "<PROMPT>"
+    CODEX_HOME=<throwaway> codex exec --skip-git-repo-check "<PROMPT>" </dev/null
 
-with `~/.codex/config.toml` pointing at the local server:
+with a `config.toml` that uses the **built-in** provider and defines no custom block:
 
     model = "<MODEL>"
     model_provider = "ollama"
-    [model_providers.ollama]
-    name = "Ollama"
-    base_url = "http://127.0.0.1:11434/v1"
-    wire_api = "chat"
+    approval_policy = "never"
+    sandbox_mode = "workspace-write"
 
-Written from Codex's published configuration reference on 2026-09-04, **not from a run**. `ollama`
-is a reserved built-in provider id. Correct this file the first time it is actually exercised.
+**Correction, and it is worth recording.** This file first carried a custom
+`[model_providers.ollama]` block with `wire_api = "chat"`, written from the published configuration
+reference. Codex 0.151.0 rejects that outright:
 
-## OpenCode — **UNVERIFIED**
+    Error loading config.toml: `wire_api = "chat"` is no longer supported.
+    How to fix: set `wire_api = "responses"` in your provider config.
 
-    opencode run "<PROMPT>"
+Ollama does not implement the Responses API, so `responses` is not an option either. The path that
+works is the **reserved built-in `ollama` provider id**, with no custom block at all. The published
+docs describe a configuration this version refuses.
 
-with the local provider configured in `opencode.json` per their providers documentation. Also
-written from published docs, not from a run.
+`</dev/null` matters: `codex exec` reads stdin even when the prompt is an argument, and will sit
+waiting without it.
+
+## OpenCode — verified against opencode 1.18.29, 2026-09-05
+
+    XDG_CONFIG_HOME=<throwaway> opencode run "<PROMPT>"
+
+with `<throwaway>/opencode/opencode.json` declaring the local endpoint through
+`@ai-sdk/openai-compatible`. See `bench/config/opencode/opencode.json`.
+
+`XDG_CONFIG_HOME` is what keeps a run out of the operator's own `~/.config/opencode`. Configuring
+the provider in the fixture directory instead would have put a config file inside the repository the
+agent is editing, which would show up in the diff and corrupt the `files_changed` metric.
 
 ## Claude Code — excluded from the local track
 

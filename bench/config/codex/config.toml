@@ -1,0 +1,13 @@
+# Codex CLI, pointed at the local Ollama server. Copied into a throwaway
+# CODEX_HOME for every run, so a benchmark never reads or writes the operator's
+# own ~/.codex/config.toml.
+#
+# `ollama` is a reserved built-in provider id, so there is deliberately no
+# [model_providers.ollama] block here. Codex 0.151.0 rejects a custom provider
+# with `wire_api = "chat"` ("no longer supported; set wire_api = responses"),
+# and Ollama does not implement the Responses API — so the built-in path is the
+# one that works. Verified against codex-cli 0.151.0 on 2026-09-05.
+model = "llama3.1:8b"
+model_provider = "ollama"
+approval_policy = "never"
+sandbox_mode = "workspace-write"
