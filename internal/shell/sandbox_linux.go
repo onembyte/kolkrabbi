@@ -34,8 +34,12 @@ func landlockABI() (int, error) {
 	}
 }
 
+// landlockABIProbe is landlockABI behind a variable, so a test can stand in
+// for a kernel this machine does not have -- an ABI 3 that cannot deny TCP.
+var landlockABIProbe = landlockABI
+
 func probeMechanism() (string, error) {
-	abi, err := landlockABI()
+	abi, err := landlockABIProbe()
 	if err != nil {
 		return "", err
 	}
@@ -114,7 +118,7 @@ func landlockChildMain(args []string, stderr io.Writer) int {
 // rule. The failure mode is over-denying a denylist path's siblings, and
 // TestEscape9 exists to catch it.
 func applyLandlock(p Sandbox) error {
-	abi, err := landlockABI()
+	abi, err := landlockABIProbe()
 	if err != nil {
 		return err
 	}
