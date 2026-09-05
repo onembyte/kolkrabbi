@@ -57,6 +57,7 @@ func (a *app) runSagaLoop(ctx context.Context, agent *engine.Agent, opening saga
 		Budget:   sagaWakeBudget(state),
 		Write:    atomicfile.Write,
 		Out:      a.stdout,
+		Spent:    agent.SessionCostUSD,
 	}
 
 	reason, runErr := runner.RunWake(ctx, repoDir, state)

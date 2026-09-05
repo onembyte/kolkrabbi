@@ -10575,8 +10575,21 @@ Subcheckpoints, one at a time:
     `CommitChapter` does `git add -A`, so a passing chapter can sweep pre-existing user changes into
     its commit — the commit half of the goal, which belongs to V34.3e's proof. `-race` clean on the
     engine suite; lint; `make check`.
-  - [ ] **V34.3d complete saga accounting** — include planner, worker, and repair usage in the same
+  - [x] **V34.3d complete saga accounting** — include planner, worker, and repair usage in the same
     enforceable saga budget.
+    **Closed 2026-09-05, on main.** Inspection: only the worker reported cost (`WorkResult.CostUSD`,
+    a session-cost delta around its turn); `AgentPlanner.Next` and `AgentRepairer.Repair` run on the
+    same agent and report nothing, so `CumulativeCost` — the number `Budget.Check` enforces — saw a
+    fraction of what a saga spent. Red observed: a planner spending $0.30 and a repair turn spending
+    $0.20 under a $0.40 ceiling left `CumulativeCost` at $0.00. Green: the runner gains
+    `Spent func() float64` (the CLI wires `agent.SessionCostUSD`; nil means free); `planNext` charges
+    the meter's change around the planner call to the saga and to the chapter it produced, whether or
+    not a chapter came of it; `step` charges the change around `VerifyChapter`, where the one repair
+    turn runs, to the chapter and the total. The test sees $0.50, and the next wake's opening budget
+    check stops the saga with `StopCostLimit` — a wake whose chapter failed returns before the check,
+    as before, so the stop lands on the wake after. Ports untouched: the meter is read around the calls
+    rather than threaded through three interfaces and their doubles; gates cost nothing on the meter,
+    so nothing is double-counted. `-race` clean on engine and cli; lint; `make check`.
   - [ ] **V34.3e crash and dirty-tree proof** — fault-inject stop, failed verification, persistence
     failure, and restart; prove neither retry nor later commit includes abandoned work.
   - [~] **V34.3f SAGA inline workflow and hidden progression directive** — part-done since C4.1/F7;

@@ -90,6 +90,11 @@ type SagaRunner struct {
 	// Out receives progress. A saga that runs for an hour in silence is one
 	// nobody can tell from a hang.
 	Out io.Writer
+	// Spent reads what the session has spent so far. The worker reports its
+	// own cost; the planner and the repair turn run on the same agent and
+	// report nothing, so their spend is measured as the meter's change around
+	// them and charged to the saga (V34.3d). Nil means those calls are free.
+	Spent func() float64
 }
 
 // step is one chapter attempt, and the only path to one.
@@ -253,7 +258,15 @@ func (r *SagaRunner) RunChapter(ctx context.Context, repoDir string, state *Saga
 		chapter.Changes = append(chapter.Changes, result.Summary)
 	}
 
+	// Verification runs the gates and, when they fail, the one repair turn; the
+	// repair spends on the same agent and reports nothing, so it is charged
+	// here as the meter's change (V34.3d).
+	beforeVerify := r.spent()
 	verifyErr := VerifyChapter(ctx, r.verifier(ctx), repoDir, state, index)
+	if repaired := r.spent() - beforeVerify; repaired > 0 {
+		chapter.CostUSD += repaired
+		state.CumulativeCost += repaired
+	}
 	if persistErr := r.persist(repoDir, state); persistErr != nil {
 		if verifyErr != nil {
 			return errors.Join(verifyErr, persistErr)
@@ -310,7 +323,12 @@ func (r *SagaRunner) planNext(ctx context.Context, state *SagaState) (bool, erro
 	if r.Planner == nil {
 		return false, nil
 	}
+	before := r.spent()
 	title, err := r.Planner.Next(ctx, state.Goal, state.Chapters)
+	// Planning cost is saga cost whether or not a chapter came of it; a budget
+	// that cannot see it is one a saga can plan its way past (V34.3d).
+	planned := r.spent() - before
+	state.CumulativeCost += planned
 	if err != nil {
 		// Returning an error rather than stopping quietly: a planner that
 		// cannot answer is a broken saga, not a finished one.
@@ -320,9 +338,10 @@ func (r *SagaRunner) planNext(ctx context.Context, state *SagaState) (bool, erro
 		return false, nil
 	}
 	state.Chapters = append(state.Chapters, Chapter{
-		Number: len(state.Chapters) + 1,
-		Title:  title,
-		Status: StatusPending,
+		Number:  len(state.Chapters) + 1,
+		Title:   title,
+		Status:  StatusPending,
+		CostUSD: planned,
 	})
 	return true, nil
 }
@@ -443,4 +462,12 @@ func sagaCancellationResult(ctx context.Context, err error) error {
 		return err
 	}
 	return errors.Join(cancelErr, err)
+}
+
+// spent reads the session meter, or zero when none is wired.
+func (r *SagaRunner) spent() float64 {
+	if r.Spent == nil {
+		return 0
+	}
+	return r.Spent()
 }
