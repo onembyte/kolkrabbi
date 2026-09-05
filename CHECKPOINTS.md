@@ -10507,6 +10507,28 @@ Subcheckpoints, one at a time:
   each caught by a focused test with byte-identical restore; the independent reviewer broke the
   binding once (U+0130 case-fold vs IDNA), the hole was closed, and re-review returned CLEAN with a
   7,054-candidate reverse scan; `make check` green at 3,190 tests.
+- [x] **V34.1b login handover environment** — the third child path. F2 proved the one-shot and
+  persistent delegated children never inherit a credential-shaped variable; `docs/plan/34` V34.1b
+  stayed part-done because the interactive `/plans login` handover (`shell.Handover`, the child that
+  gets the keyboard) had no proof. Inspection 2026-09-05: it has no scrubbing either — `exec.Cmd.Env`
+  is left nil, so the vendor's login process inherits the whole parent environment, the parent's own
+  `OPENROUTER_API_KEY` included. **Scope:** `Handover` builds its environment with `inheritedEnv(nil)`,
+  the same denylist as the other two paths, and a sentinel test on this path mirrors
+  `TestChildrenNeverInheritASentinelSecretOnEitherPath`. **Non-goals:** which login runs and how the
+  terminal is handed over are untouched; the own-window runner is inspected and recorded, not changed.
+  **Red:** the sentinel test observes canaries in the handover child's environment before the fix.
+  **Closed 2026-09-05, on main.** Red observed: `TestHandoverNeverInheritsASentinelSecret` read all
+  twelve canaries back from the handover child (`-mod=mod|OPENROUTER_API_KEY-canary|…`). Green: one
+  line, `cmd.Env = inheritedEnv(nil)`, the denylist the other two paths use; `GOFLAGS` survives, so it is
+  a denylist and not an empty environment. **Scope widened by inspection, recorded here:** the non-goal
+  said the own-window runner would be inspected, not changed. Inspection found `LoginWindow` had the
+  same nil `Env` — the emulator inherits kolk's environment and hands it to the `sh -c` running the
+  login — so the same defect got the same one-line fix and its own sentinel test, with a fake
+  `$TERMINAL` that execs whatever follows `-e` standing in for the emulator (red observed first: six
+  canaries back). On macOS a GUI terminal launched through the emulator table may or may not pass its
+  environment down; scrubbing one process early makes the question moot. Three child paths, three
+  proofs. `-race` clean on shell and cli; lint clean on darwin and linux; `make check` all gates.
+  `docs/plan/34` V34.1b ticked.
 
 - [x] **V34.1e.0 the sandbox policy, the switch and the refusal** — `shell.Sandbox` on
   `shell.Cmd`: root, temp, credential denylist, network `allow|deny`; the root is

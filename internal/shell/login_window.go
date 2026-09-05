@@ -104,6 +104,9 @@ func LoginWindow(ctx context.Context, executable string, args []string) error {
 	argv = append(argv, flags...)
 	argv = append(argv, "sh", "-c", loginScript(executable, args))
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	// The emulator inherits this environment and hands it to the login
+	// unchanged, so the denylist is applied here, one process early.
+	cmd.Env = inheritedEnv(nil)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("%s login window exited unsuccessfully: %w", executable, err)
 	}

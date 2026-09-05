@@ -3,6 +3,7 @@ package shell
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -74,5 +75,50 @@ func TestTerminalEmulatorIgnoresAnUninstalledEnvironmentValue(t *testing.T) {
 	}
 	if err := LoginWindow(context.Background(), "claude", nil); !errors.Is(err, ErrNoTerminal) {
 		t.Fatalf("LoginWindow = %v, want ErrNoTerminal", err)
+	}
+}
+
+// The own-window login is the same child one process further away: kolk
+// starts the terminal emulator, the emulator starts `sh -c`, and the vendor's
+// login runs inside. On Linux the emulator inherits kolk's environment and
+// hands it straight down, so the same denylist has to apply here or the
+// handover's proof would have a hole the size of a window. A fake $TERMINAL
+// that execs whatever follows -e stands in for the emulator.
+func TestLoginWindowNeverInheritsASentinelSecret(t *testing.T) {
+	dir := t.TempDir()
+	fake := filepath.Join(dir, "myterm")
+	if err := os.WriteFile(fake, []byte("#!/bin/sh\n[ \"$1\" = -e ] && shift\nexec \"$@\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(dir, "env.txt")
+	sentinels := []string{"OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "AWS_SECRET_ACCESS_KEY", "GITHUB_PAT", "REGISTRY_AUTHTOKEN"}
+	var probe strings.Builder
+	probe.WriteString("#!/bin/sh\nprintf '%s' \"$GOFLAGS\" > \"$KOLK_TEST_WINDOW_OUT\"\n")
+	for _, name := range sentinels {
+		fmt.Fprintf(&probe, "printf '|%%s' \"$%s\" >> \"$KOLK_TEST_WINDOW_OUT\"\n", name)
+	}
+	login := filepath.Join(dir, "vendor-login")
+	if err := os.WriteFile(login, []byte(probe.String()), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range sentinels {
+		t.Setenv(name, name+"-canary")
+	}
+	t.Setenv("GOFLAGS", "-mod=mod")
+	t.Setenv("KOLK_TEST_WINDOW_OUT", out)
+	t.Setenv("PATH", dir+":/bin:/usr/bin")
+	t.Setenv("TERMINAL", "myterm")
+	t.Setenv("TERM_PROGRAM", "")
+
+	if err := LoginWindow(context.Background(), login, nil); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "-mod=mod" + strings.Repeat("|", len(sentinels))
+	if string(got) != want {
+		t.Fatalf("login window child environment = %q, want %q", got, want)
 	}
 }

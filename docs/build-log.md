@@ -6728,3 +6728,18 @@ Code's network rules are finer. Its default state could not be read from the pag
 The site guard learned an inverse pin. `contains` proves the new sentence is present; `not_contains`
 proves the old one is gone, in every page that carried it, so a stale copy nobody re-read cannot
 outlive the flip. V34.1e is closed: one policy, two enforcers, fail closed, off until asked.
+
+## The login child gets the same environment as every other child — V34.1b closed 2026-09-05
+
+Two of kolk's three child paths had a proof that no credential-shaped variable reaches them. The
+third, the one that gets the keyboard, had none — and on inspection had no scrubbing either. The
+`/plans login` handover left `exec.Cmd.Env` nil, which in Go means "inherit everything", so the
+vendor's login process received the parent's `OPENROUTER_API_KEY` a moment after kolk printed that it
+would not see credentials. A sentinel test read all twelve canaries back. One line fixed it: the same
+`inheritedEnv` the other paths use, with `GOFLAGS` surviving to prove it is a denylist and not a wipe.
+
+The scope said the own-window runner would be inspected and left alone. Inspection changed that: it
+had the identical nil `Env`, and a terminal emulator on Linux inherits its parent's environment and
+hands it to the `sh -c` it runs. Same defect, same fix, its own red-first test with a fake `$TERMINAL`
+standing in for the emulator. The widening is recorded in the ledger rather than folded in silently.
+V34.1b is closed; V34.1c, confidential and symlink-safe checkpoints, is next.

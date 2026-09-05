@@ -20,6 +20,12 @@ func Handover(ctx context.Context, executable string, args []string, dir string)
 	}
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Dir = dir
+	// The same environment the delegated children get: normal configuration,
+	// no credential-shaped variables. This child is a vendor CLI signing the
+	// user in through its own login; the parent's keys are not its business,
+	// and "Kolkrabbi will not see credentials" was printed a moment ago -- the
+	// line has to hold in both directions.
+	cmd.Env = inheritedEnv(nil)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

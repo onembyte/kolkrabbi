@@ -99,12 +99,13 @@ credential or write outside its intended boundary.
   query/fragment, cancellation, host/compatible routes) covers catalog, turn, and key-verification
   requests; one targeted mutation per guard is caught by a focused test; an independent reviewer
   attempted an equivalent exfiltration. Evidence in `CHECKPOINTS.md` §V34.1a.3–.4.
-- [~] **V34.1b child environment minimization** — part-done 2026-09-02 (F2 of
-  `FABLE_OPTIMIZATION.md`): both delegated child paths (persistent and one-shot) scrub a denylist of
-  credential-shaped names, the vendor's own API key included by decision, with a ten-sentinel proof
-  on each path and an ordinary build variable kept. Remaining: the interactive `/plans login`
-  PTY/handover path needs its own sentinel proof. F7.4 (2026-09-02): stays part-done; F7.2 exercised
-  neither path's login (a connector already existed) and adds no proof here.
+- [x] **V34.1b child environment minimization** — completed 2026-09-05. F2 (2026-09-02) proved the
+  one-shot and persistent delegated children scrub a denylist of credential-shaped names, the vendor's
+  own API key included by decision, with a sentinel proof on each and an ordinary build variable kept.
+  The remaining path, the interactive `/plans login` handover, was found on inspection to inherit the
+  whole parent environment — as was the own-window login runner one process further away. Both now
+  build their environment with the same denylist, each with its own sentinel test that was red first
+  (`CHECKPOINTS.md` §V34.1b). Three child paths, three proofs.
 - [ ] **V34.1c confidential, symlink-safe checkpoints** — prevent backups from copying secrets
   without policy, reject link/race escapes on restore, and preserve restrictive source modes.
 - [ ] **V34.1d bounded and scrubbed outputs** — bound child capture before allocation; redact durable
