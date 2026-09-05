@@ -348,7 +348,7 @@ contains logo.svg 'shape-rendering="crispEdges"' "logo is not explicitly pixel-r
 contains logo.svg '#a78bfa' "logo is missing the purple highlight"
 contains favicon.svg '<svg' "favicon must be an SVG"
 
-for header in Content-Security-Policy X-Frame-Options X-Content-Type-Options Referrer-Policy Permissions-Policy; do
+for header in Content-Security-Policy X-Frame-Options X-Content-Type-Options Referrer-Policy Permissions-Policy Strict-Transport-Security; do
   contains _headers "$header:" "_headers is missing $header"
 done
 script_tags_are_safe capabilities.html
@@ -431,6 +431,8 @@ contains _headers '/install.sh' "_headers has no installer-specific policy"
 contains _headers 'Cache-Control: no-store' "installer must not be cached across releases"
 contains _headers 'Content-Type: text/plain; charset=utf-8' "installer MIME policy is missing"
 contains _headers "script-src 'self'" "CSP does not allow only the local copy controller"
+contains _headers 'max-age=31536000; includeSubDomains' "HSTS is present but not for a year across subdomains"
+excludes _headers 'Strict-Transport-Security:.*preload' "HSTS preload is a one-way submission and is deliberately not set"
 
 contains_deploy_doc '| Production branch | `main` |' "Pages production branch is not documented"
 contains_deploy_doc '| Build command | `exit 0` |' "Pages build command is not documented"
