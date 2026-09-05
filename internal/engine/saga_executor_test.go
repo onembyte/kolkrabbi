@@ -687,10 +687,10 @@ func TestCancellingTheRunStopsIt(t *testing.T) {
 // lands.
 type cancellingCommitter struct{ cancel context.CancelFunc }
 
-func (c *cancellingCommitter) HasChanges(string) (bool, error)            { return true, nil }
-func (c *cancellingCommitter) RollbackChapter(string, *ChapterMark) error { return nil }
-func (c *cancellingCommitter) MarkChapter(string) (ChapterMark, error)    { return ChapterMark{}, nil }
-func (c *cancellingCommitter) CommitChapter(string, int, string) (string, error) {
+func (c *cancellingCommitter) HasChanges(string, *ChapterMark) (bool, error) { return true, nil }
+func (c *cancellingCommitter) RollbackChapter(string, *ChapterMark) error    { return nil }
+func (c *cancellingCommitter) MarkChapter(string) (ChapterMark, error)       { return ChapterMark{}, nil }
+func (c *cancellingCommitter) CommitChapter(string, int, string, *ChapterMark) (string, error) {
 	c.cancel()
 	return "", errors.New("pre-commit hook exited 1")
 }

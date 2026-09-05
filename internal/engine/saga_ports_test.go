@@ -85,7 +85,7 @@ func TestCommitReturnsTheShortHash(t *testing.T) {
 		"git rev-parse --short HEAD": {Output: "abc1234\n"},
 	}}
 
-	commit, err := NewCommandCheckpointer(context.Background(), runner).CommitChapter("/repo", 3, "add the parser")
+	commit, err := NewCommandCheckpointer(context.Background(), runner).CommitChapter("/repo", 3, "add the parser", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestACommitMessageCannotEscapeItsQuotes(t *testing.T) {
 	}}
 
 	// A chapter title is model-written text on a shell command line.
-	_, err := NewCommandCheckpointer(context.Background(), runner).CommitChapter("/repo", 1, "it's done'; rm -rf /; echo '")
+	_, err := NewCommandCheckpointer(context.Background(), runner).CommitChapter("/repo", 1, "it's done'; rm -rf /; echo '", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestAnEmptyCommitHashIsAnError(t *testing.T) {
 	}}
 
 	// Reporting a chapter as committed at revision "" is worse than failing.
-	if _, err := NewCommandCheckpointer(context.Background(), runner).CommitChapter("/repo", 1, "t"); err == nil {
+	if _, err := NewCommandCheckpointer(context.Background(), runner).CommitChapter("/repo", 1, "t", nil); err == nil {
 		t.Fatal("an empty hash was accepted")
 	}
 }
@@ -134,10 +134,10 @@ func TestHasChangesReadsThePorcelain(t *testing.T) {
 		"git status --porcelain": {Output: "\n"},
 	}}
 
-	if changed, err := NewCommandCheckpointer(context.Background(), dirty).HasChanges("/repo"); err != nil || !changed {
+	if changed, err := NewCommandCheckpointer(context.Background(), dirty).HasChanges("/repo", nil); err != nil || !changed {
 		t.Fatalf("dirty tree: %v %v", changed, err)
 	}
-	if changed, err := NewCommandCheckpointer(context.Background(), clean).HasChanges("/repo"); err != nil || changed {
+	if changed, err := NewCommandCheckpointer(context.Background(), clean).HasChanges("/repo", nil); err != nil || changed {
 		t.Fatalf("clean tree: %v %v", changed, err)
 	}
 }

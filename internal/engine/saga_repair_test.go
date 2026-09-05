@@ -43,7 +43,7 @@ type recordingCheckpointer struct {
 	rolledBack int
 }
 
-func (c *recordingCheckpointer) CommitChapter(string, int, string) (string, error) {
+func (c *recordingCheckpointer) CommitChapter(string, int, string, *ChapterMark) (string, error) {
 	c.committed++
 	return "abc1234", nil
 }
@@ -51,8 +51,8 @@ func (c *recordingCheckpointer) RollbackChapter(string, *ChapterMark) error {
 	c.rolledBack++
 	return nil
 }
-func (c *recordingCheckpointer) MarkChapter(string) (ChapterMark, error) { return ChapterMark{}, nil }
-func (c *recordingCheckpointer) HasChanges(string) (bool, error)         { return true, nil }
+func (c *recordingCheckpointer) MarkChapter(string) (ChapterMark, error)       { return ChapterMark{}, nil }
+func (c *recordingCheckpointer) HasChanges(string, *ChapterMark) (bool, error) { return true, nil }
 
 func verifierWith(gates *gateScript, repairer ChapterRepairer, ckpt *recordingCheckpointer) *ChapterVerifier {
 	return &ChapterVerifier{

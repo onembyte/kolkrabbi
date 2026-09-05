@@ -126,7 +126,7 @@ type fakeCheckpointer struct {
 	rolledBack bool
 }
 
-func (f *fakeCheckpointer) CommitChapter(_ string, _ int, _ string) (string, error) {
+func (f *fakeCheckpointer) CommitChapter(_ string, _ int, _ string, _ *engine.ChapterMark) (string, error) {
 	f.committed = true
 	return f.commitHash, nil
 }
@@ -140,7 +140,7 @@ func (f *fakeCheckpointer) RollbackChapter(_ string, _ *engine.ChapterMark) erro
 	return nil
 }
 
-func (f *fakeCheckpointer) HasChanges(_ string) (bool, error) {
+func (f *fakeCheckpointer) HasChanges(_ string, _ *engine.ChapterMark) (bool, error) {
 	return f.hasChanges, nil
 }
 

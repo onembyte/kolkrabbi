@@ -10607,10 +10607,21 @@ Subcheckpoints, one at a time:
       removed it as a chapter-created untracked file — it is now excluded from both the untracked and
       the newly-indexed removal sets, and the test asserts it survives. `-race` clean on the engine
       suite; lint; `make check`.
-    - [ ] **V34.3e.2 a chapter commit holds only the chapter's changes** — `HasChanges`/`CommitChapter`
+    - [x] **V34.3e.2 a chapter commit holds only the chapter's changes** — `HasChanges`/`CommitChapter`
       become mark-aware: changes are what differs from the mark's snapshot plus untracked files the mark
       did not list; the user's pre-existing dirty files stay uncommitted. **Red:** through real git, the
       user's uncommitted edit is inside the chapter commit today (`git add -A`).
+      **Closed 2026-09-05, on main.** Red observed on a real repository: with an uncommitted edit and
+      an untracked notes file present before the chapter, the chapter commit listed both. Green: the
+      port's `HasChanges` and `CommitChapter` take the chapter mark. Over a tree that was clean at the
+      mark (no snapshot, no untracked) everything dirty afterwards is the chapter's and the whole-tree
+      commands stay, which is also why the scripted-runner tests keep their meaning; over a dirty tree
+      the chapter's paths are `git diff --name-only <snapshot>` (edits, deletions, files it added to the
+      index) plus untracked files the mark did not list, and the commit is `git add -A -- <those>
+      SAGA.md` — the artifact rides with every chapter commit as before, and the user's edit and notes
+      stay uncommitted where they were (asserted through `git status`). A file the user had edited and
+      the chapter edited too is committed with both — entangled by nature, recorded. Three doubles and
+      the verifier follow the port. `-race` clean on the engine suite; lint; `make check`.
     - [ ] **V34.3e.3 the fault matrix, end to end** — stop, failed verification, persistence failure,
       restart; each proven on a real repository to leave no abandoned work in any later commit.
   - [~] **V34.3f SAGA inline workflow and hidden progression directive** — part-done since C4.1/F7;

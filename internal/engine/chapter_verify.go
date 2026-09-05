@@ -45,7 +45,7 @@ func (cv *ChapterVerifier) Verify(ctx context.Context, repoDir string, chapter C
 		return nil, cancelErr
 	}
 	// If no changes were made, skip verification and commit.
-	hasChanges, err := cv.Checkpointer.HasChanges(repoDir)
+	hasChanges, err := cv.Checkpointer.HasChanges(repoDir, chapter.Mark)
 	if err != nil {
 		if cancelErr := sagaCancellationResult(ctx, err); cancelErr != nil {
 			return nil, cancelErr
@@ -70,7 +70,7 @@ func (cv *ChapterVerifier) Verify(ctx context.Context, repoDir string, chapter C
 		if cancelErr := sagaCancellation(ctx, nil); cancelErr != nil {
 			return nil, cancelErr
 		}
-		commit, err := cv.Checkpointer.CommitChapter(repoDir, chapter.Number, chapter.Title)
+		commit, err := cv.Checkpointer.CommitChapter(repoDir, chapter.Number, chapter.Title, chapter.Mark)
 		if err != nil {
 			if cancelErr := sagaCancellationResult(ctx, err); cancelErr != nil {
 				return nil, cancelErr
@@ -107,7 +107,7 @@ func (cv *ChapterVerifier) Verify(ctx context.Context, repoDir string, chapter C
 		if cancelErr := sagaCancellation(ctx, nil); cancelErr != nil {
 			return nil, cancelErr
 		}
-		commit, err := cv.Checkpointer.CommitChapter(repoDir, chapter.Number, chapter.Title)
+		commit, err := cv.Checkpointer.CommitChapter(repoDir, chapter.Number, chapter.Title, chapter.Mark)
 		if err != nil {
 			if cancelErr := sagaCancellationResult(ctx, err); cancelErr != nil {
 				return nil, cancelErr

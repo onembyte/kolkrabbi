@@ -83,9 +83,19 @@ func NewCommandCheckpointer(ctx context.Context, runner CommandRunner) GitCheckp
 }
 
 // CommitChapter stages everything and commits it, returning the short hash.
-func (c commandCheckpointer) CommitChapter(repoDir string, chapterNum int, summary string) (string, error) {
+func (c commandCheckpointer) CommitChapter(repoDir string, chapterNum int, summary string, mark *ChapterMark) (string, error) {
 	message := shell.Quote(fmt.Sprintf("saga(chapter %d): %s", chapterNum, summary))
-	if err := c.mustRun("git add -A && git commit -m "+message, repoDir, "commit"); err != nil {
+	add := "git add -A"
+	if mark.overDirtyTree() {
+		owned, err := c.chapterPaths(repoDir, mark)
+		if err != nil {
+			return "", err
+		}
+		// The artifact rides with every chapter commit, as it always has; a
+		// path that did not change is a no-op to add.
+		add = "git add -A -- " + quoteAll(append(owned, sagaArtifactName))
+	}
+	if err := c.mustRun(add+" && git commit -m "+message, repoDir, "commit"); err != nil {
 		return "", err
 	}
 
@@ -219,7 +229,44 @@ func quoteAll(paths []string) string {
 }
 
 // HasChanges reports whether the working tree has anything to commit.
-func (c commandCheckpointer) HasChanges(repoDir string) (bool, error) {
+// overDirtyTree reports that the mark was taken over a tree that already had
+// uncommitted work. Over a clean tree everything dirty afterwards is the
+// chapter's, and the whole-tree commands are exactly right.
+func (m *ChapterMark) overDirtyTree() bool {
+	return m != nil && (m.Snapshot != "" || len(m.Untracked) > 0)
+}
+
+// chapterPaths lists what the chapter changed: tracked paths that differ from
+// the mark's snapshot (edits, deletions, and files it added to the index) and
+// untracked files the mark did not list. The user's pre-existing dirty files
+// are in the snapshot as they were, so an unchanged one does not appear.
+func (c commandCheckpointer) chapterPaths(repoDir string, mark *ChapterMark) ([]string, error) {
+	base := "HEAD"
+	if mark.Snapshot != "" {
+		if !isHex(mark.Snapshot) {
+			return nil, fmt.Errorf("saga: chapter mark %q is not a commit hash", mark.Snapshot)
+		}
+		base = mark.Snapshot
+	}
+	changed, err := c.lines("git diff --name-only "+base, repoDir, "commit")
+	if err != nil {
+		return nil, err
+	}
+	untracked, err := c.lines("git ls-files --others --exclude-standard", repoDir, "commit")
+	if err != nil {
+		return nil, err
+	}
+	return append(changed, subtract(untracked, mark.Untracked)...), nil
+}
+
+func (c commandCheckpointer) HasChanges(repoDir string, mark *ChapterMark) (bool, error) {
+	if mark.overDirtyTree() {
+		owned, err := c.chapterPaths(repoDir, mark)
+		if err != nil {
+			return false, err
+		}
+		return len(owned) > 0, nil
+	}
 	result, err := c.runner.Run(c.ctx, "git status --porcelain", repoDir)
 	if err != nil {
 		return false, fmt.Errorf("saga: reading the worktree could not run: %w", err)

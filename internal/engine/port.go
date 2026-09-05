@@ -117,7 +117,12 @@ type QualityGateRunner interface {
 type GitCheckpointer interface {
 	// CommitChapter stages all changes and creates a saga commit.
 	// Returns the short commit hash on success.
-	CommitChapter(repoDir string, chapterNum int, summary string) (string, error)
+	// CommitChapter commits the chapter's changes: everything dirty when the
+	// mark shows the tree was clean at chapter start, and otherwise only what
+	// differs from the mark plus the saga artifact, so the user's pre-existing
+	// uncommitted work stays theirs (V34.3e.2). HasChanges answers over the
+	// same set.
+	CommitChapter(repoDir string, chapterNum int, summary string, mark *ChapterMark) (string, error)
 
 	// RollbackChapter discards all uncommitted changes in the repo.
 	// MarkChapter records the tree before a chapter's worker runs; RollbackChapter
@@ -127,5 +132,5 @@ type GitCheckpointer interface {
 	RollbackChapter(repoDir string, mark *ChapterMark) error
 
 	// HasChanges reports whether the working tree has uncommitted modifications.
-	HasChanges(repoDir string) (bool, error)
+	HasChanges(repoDir string, mark *ChapterMark) (bool, error)
 }
