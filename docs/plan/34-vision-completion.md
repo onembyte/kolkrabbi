@@ -205,7 +205,8 @@ from a failed chapter.
   F7.4 (2026-09-02): stays part-done for C5. Live evidence added by F7.2: the inline marker opened,
   advanced and finished a six-chapter saga across seven wakes on Fable and reset on the next goal,
   in an isolated repository (`docs/transcripts/f72-fable-saga-2026-09-02.txt`); stop and rollback
-  were not demonstrated live and remain this section's exit review.
+  were not demonstrated live and remain this section's exit review. **Owner decision 2026-09-05:**
+  marked missing; the owner will do the live demonstration later.
 
 **Exit review:** start/stop/resume/rollback is demonstrated in an isolated repository with an
 independent reviewer repeating the failure matrix.
@@ -222,16 +223,23 @@ and the catalog reflects current, supported vendor capabilities.
   a newly discovered model is listed on every tier its connector already uses. F7.4 (2026-09-02):
   stays part-done; F7.2 showed a Max login reaching `claude-fable` live and the catalog marking it
   `verified` with exact id `claude-fable-5-1` on the first answered turn, which is eligibility
-  observed, not the missing gate built.
+  observed, not the missing gate built. **Owner decision 2026-09-05:** the conservative default — a
+  discovered model with no known tier is listed only after its first answered turn verifies it.
+  Queued as engineering.
 - [~] **V34.4b Codex catalog policy** — part-done 2026-09-02 (F4 of `FABLE_OPTIMIZATION.md`): the
   Codex catalog is no longer written by kolk. `codex debug models` is the source, verified live
   against 0.149.1; identifiers, efforts, context and order come from the vendor; `gpt-5.6-pro` — a
   kolk seed the vendor does not list — is reported `gone` and refused by name. Remaining: kolk's dial
   has four levels, so a vendor `ultra` appears in the catalog and is accepted by name but cannot be
   reached through `/effort`. F7.4 (2026-09-02): stays part-done; unchanged by F5–F7, and F7.2's
-  `/pmodels` output shows `ultra` still listed for the Codex rungs that carry it.
+  `/pmodels` output shows `ultra` still listed for the Codex rungs that carry it. **Owner decision
+  2026-09-05:** add a fifth effort level, `ultra`, reachable through `/effort` (Claude Code has
+  `/ultracode`); plan 07's dial grows one rung. Queued as engineering.
 - [ ] **V34.4c provider-matrix disposition** — choose the next supported provider(s), with current
   terms/capabilities/billing/redaction fixtures, or explicitly defer each remaining matrix row.
+  **Owner decision 2026-09-05:** Google, xAI, Perplexity and GitHub are the next providers; Mistral,
+  DeepSeek, Qwen/Alibaba and Cohere stay deferred. Each chosen row still needs its terms, capability,
+  billing and redaction fixtures before it is supported. Queued as engineering under plan 24.
 - [x] **V34.4d managed-local truth** — completed 2026-09-05: the claims held on Linux and failed on
   macOS, where the probe had no source and refused every plan as "RAM unknown"; a `sysctl` seam now
   supplies memory and chip, Apple silicon is a unified-memory accelerator, an Intel Mac RAM only, with

@@ -10616,12 +10616,16 @@ Subcheckpoints, one at a time:
     they run everywhere and the real-machine test skips itself off darwin — CI's macos-latest is the
     second machine. Plan 25's status moves from "proof pending" to proven, with the finding stated.
     `-race` clean on local and cli; lint darwin+linux; `make check`.
-  - [ ] **V34.4a (remaining) tier gating for a discovered model** — a vendor catalog carries no tier, so a
+  - [ ] **V34.4a (remaining; owner said yes 2026-09-05 to the conservative default) tier gating for a discovered model** — a vendor catalog carries no tier, so a
     newly discovered model is listed on every tier its connector already uses.
-  - [ ] **V34.4b (remaining, owner) a vendor `ultra` the four-level dial cannot reach** — accepted by name,
+  - [ ] **V34.4b (owner decided 2026-09-05: add a fifth level `ultra`) a vendor `ultra` the four-level dial cannot reach** — accepted by name,
     unreachable through `/effort`; a fifth level or a mapping is a product decision.
-  - [ ] **V34.4c (owner) provider-matrix disposition** — choose the next supported provider(s) or
+  - [ ] **V34.4c (owner decided 2026-09-05: Google, xAI, Perplexity, GitHub next; the rest deferred) provider-matrix disposition** — choose the next supported provider(s) or
     explicitly defer each remaining matrix row.
+- [ ] **V35 continuity** — plan drafted 2026-09-05 at the owner's direction (`docs/plan/35-continuity.md`):
+  six leaves V35.1 DETECT → V35.2 PAUSE → V35.3 RECOMMEND → V35.4 CHAIN → V35.5 SAFE DEFAULT → V35.6
+  AUTO, each flipping one capabilities card with inverse pins. Not opened: ten owner questions in §9
+  gate the first leaf.
     - [x] **V34.3e.1 a retried chapter starts from its mark** — a chapter found `executing` on a later
       wake (stopped or crashed mid-work) is rolled back to its persisted mark before the worker runs
       again, so abandoned work is gone before the retry and cannot reach its commit. **Red:** through
@@ -10666,7 +10670,7 @@ Subcheckpoints, one at a time:
       finally written — and the tests pin exactly that: every commit after the chapter's own may touch
       the artifact and nothing else, the committed file is clean, the user's edit is still there.
       Doubles gain `HeadMoved`. `-race` clean on the engine suite; lint; `make check`.
-  - [~] **V34.3f SAGA inline workflow and hidden progression directive** — part-done since C4.1/F7;
+  - [~] **V34.3f SAGA inline workflow and hidden progression directive** — marked missing by the owner 2026-09-05 (live demo later); part-done since C4.1/F7;
     what remains (the C5 running progress log, and a live start/stop/resume/rollback demonstration with
     an independent reviewer) is owner-facing and is not claimed here.
   - [x] **V34.2e joined orchestration cancellation** — cancellation waits for every subagent before

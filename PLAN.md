@@ -826,6 +826,14 @@ have evidence.
 **Inputs:** `CHECKPOINTS.md`, `docs/plan/10-saga-loop.md`, `docs/plan/21-quality-testing-security.md`,
 the 2026-08-31 architecture/security/routing/release review.
 
+### [ ] 35. Continuity — when a limit hits, the work stays
+**Drafted 2026-09-05** ([`docs/plan/35-continuity.md`](docs/plan/35-continuity.md)): six of the seven
+continuity cards on the capabilities page are prose. One continuity engine over the two routing knobs
+that exist: a closed limit taxonomy with a durable cooldown registry, an honest pause with a resume
+path, a ranked recommendation, a chain over every configured option, ask-before-free by default, and
+opt-in automatic switching that never crosses the money boundary unasked. Awaiting the owner's
+answers to §9 before the first leaf opens.
+
 ### [x] 32. Shadow-git snapshots — checkpoint what `bash` did too
 **Hardened 2026-08-27** ([`docs/plan/32-shadow-git-snapshots.md`](docs/plan/32-shadow-git-snapshots.md)): `/undo` restores what kolk's own file tools changed and nothing else, and the README admitting it is honest rather than a fix — the user's model is "kolk changed my files, kolk can put them back", and the carve-out is exactly where a destructive turn lands. Both stores are adopted, not "probably both": the copy store is the only one that works outside a repository or without `git`, and the shadow store is the only one that sees what `bash` did. Measured on this repository rather than guessed — 544 files, a 222 MB `.git` — the first snapshot costs 63 ms, every later one 15 ms, and the store is 148 KB because `objects/info/alternates` reuses the project's blobs instead of rehashing them. Two properties were verified rather than assumed: a `sed -i` made outside kolk shows up in the shadow store, and the user's own `git status` stayed byte-identical throughout, with no index entry, stash or reflog motion. No git version is checked — a version comparison is a guess made once and never revisited, so the probe is the operation itself and any failure falls back to copying for the rest of the session. Cadence is per turn, matching what `/undo` and `/rewind` already mean and what the port's `BeginTurn` already provides. Retention is the session's life, deletion goes with the session, size is reported in `kolk sessions`, and there is no background `git gc` — a daemon collecting garbage a user cannot see is the kind of surprise this project refuses elsewhere. The store is never exposed as a branch or through `/diff --since`: exposing it would make a storage strategy an interface, and there is no branch to offer in a directory that is not a repository. Nothing migrates: existing sessions keep rewinding from their `.bak` files, and the manifest records which strategy captured each turn.
 **Scope:** the storage layer under `/undo`, `/rewind`, `/changes` and `/diff`. Not their semantics,
