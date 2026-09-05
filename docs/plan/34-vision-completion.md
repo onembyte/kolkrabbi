@@ -142,18 +142,25 @@ bypass instead of only reading the fix.
 
 **Goal:** a cancelled or failed turn is terminal, accounted for, and cannot continue mutating state.
 
-- [ ] **V34.2a cancellation-aware provider shutdown** — unread process output cannot deadlock close;
-  cancellation always joins reader and child workers within a testable bound.
-- [ ] **V34.2b consistent session snapshots** — `Save` snapshots messages under the same
-  synchronization as mutation, and `/undo task` persists the reconciliation message.
-- [ ] **V34.2c causal task rewind** — per-task rewind cannot erase a later task’s work and consumes
-  or invalidates the corresponding snapshot after a successful restoration.
-- [ ] **V34.2d terminal event and replay contract** — ordinary errors publish a terminal error event;
-  SSE and stdio deliver retained replay before live events without loss or duplication.
-- [ ] **V34.2e joined orchestration cancellation** — cancellation waits for every subagent before
-  `RunTurn` returns or clears accounting; no post-return file, event, checkpoint, or cost mutation.
-- [ ] **V34.2f atomic run-cost limits** — reserve or serialize cost budget before concurrent work so
-  `MaxRunCostUSD` cannot be crossed by in-flight calls.
+- [x] **V34.2a cancellation-aware provider shutdown** — completed 2026-09-05: a grandchild holding the
+  pipes outside the process group no longer hangs `Close`; the persistent child has `WaitDelay`, kolk's
+  end of the stdout pipe is closed when the reader has not returned after the kill, and the bound is
+  `closeGrace + 2·outputDrainTimeout` (`CHECKPOINTS.md` §V34.2a).
+- [x] **V34.2b consistent session snapshots** — completed 2026-09-05: `Save` marshals under the
+  messages lock (a race under autosave was observed), and `/undo task` saves right after appending its
+  reconciliation message (§V34.2b).
+- [x] **V34.2c causal task rewind** — completed 2026-09-05: a path a still-standing later task also
+  changed is kept and named; a restored snapshot is marked consumed in the manifest, listed as spent,
+  and refused a second time (§V34.2c).
+- [x] **V34.2d terminal event and replay contract** — completed 2026-09-05: an errored turn finishes
+  with `turn.finished` reason `error` (open reason vocabulary, changelog bullet); SSE and stdio write the
+  retained replay before live events, and a `Last-Event-ID` resume duplicates nothing (§V34.2d).
+- [x] **V34.2e joined orchestration cancellation** — completed 2026-09-05: `runTasks` drains every
+  running task before returning on cancellation, and each task releases its backend once, before it
+  reports; the flaky subagent-backend test is deterministic (§V34.2e).
+- [x] **V34.2f atomic run-cost limits** — completed 2026-09-05: admission reserves the worst known
+  call for every task in flight and calibrates on the first call, so a wave cannot cross the ceiling;
+  the run may still exceed it by one call, as a sequential run always could (§V34.2f).
 
 **Exit review:** race, timeout, cancellation, restart, and duplicate-delivery tests pass; the
 reviewer checks that all public terminal states have exactly one terminal outcome.

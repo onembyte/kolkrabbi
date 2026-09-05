@@ -200,6 +200,7 @@ func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([
 				writing = true
 			}
 			running++
+			a.runSpend.start()
 			go a.runOneTask(ctx, finished, userInput, tasks, results, index, childTurns[index])
 		}
 
@@ -209,6 +210,7 @@ func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([
 
 		done := <-finished
 		running--
+		a.runSpend.finish()
 		if ctx.Err() != nil {
 			// The user asked it to stop. Nothing the remaining tasks report is
 			// kept -- that would be answering a question they withdrew -- but
@@ -220,6 +222,7 @@ func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([
 			for running > 0 {
 				<-finished
 				running--
+				a.runSpend.finish()
 			}
 			return nil, ctx.Err()
 		}
@@ -363,6 +366,12 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 // nextRunnable finds the next task that can be started or resolved without
 // running. launch is false for a task that is being resolved in place.
 func (a *Agent) nextRunnable(tasks []Task, outcomes []outcome, resolved, started []bool, writing bool) (index int, launch, ok bool) {
+	// Nothing more starts while the tasks in flight could carry the run past
+	// its ceiling (V34.2f): wait for one to report, then decide again. Only
+	// reached with something running, so the caller's wait cannot hang.
+	if a.runSpend.wouldCrossInFlight() {
+		return 0, false, false
+	}
 	for i := range tasks {
 		if started[i] || !dependenciesResolved(tasks, resolved, i) {
 			continue

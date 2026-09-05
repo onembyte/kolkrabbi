@@ -6786,3 +6786,26 @@ pasted form is refused everywhere, with both ways in named and the key never rep
 4c the TUI kept accepting the paste for one commit, pinned by a test, so nobody was left without a
 way to enter a key; 4c flipped it on purpose. V34.1 is closed. V34.2 is next, and the flaky engine
 test seen on run 33969381063 is the first thing it owes an explanation.
+
+## Turns finish coherently — V34.2 closed 2026-09-05
+
+Six leaves about the same thing: a turn that stops — by success, by error, by cancellation — has
+stopped everywhere, and nothing about it keeps moving afterwards. The first red was already on main:
+a task goroutine released its provider after reporting its result, and on cancellation the runner
+returned while other goroutines were still inside their turns, free to write results, end checkpoints
+and record cost into a turn the caller had declared done. The runner now drains every task before it
+returns, and each task closes its backend before it reports.
+
+Two deadlocks and a race followed. A provider child whose grandchild kept the pipes open in its own
+session could hang `Close` forever; it now returns within a stated bound whatever the grandchild does.
+`Save` marshalled the session without the lock that appends hold, so an autosave during a turn could
+snapshot a slice half-written. `/undo task` left its reconciliation message for the next autosave,
+and could take back a later task's work along with the earlier one, and could be applied twice; now
+it keeps what a later task also changed, saves at once, and spends the snapshot it used.
+
+The transport contract had two holes: an errored turn published no terminal event, and both streams
+dropped the retained replay the subscription had taken atomically. The ceiling on run cost could be
+crossed by a whole wave of concurrent calls, each admitted while the total was still zero; admission
+now reserves the worst known call for every task in flight and lets one task calibrate first, so the
+ceiling can be exceeded by one call at most, as a sequential run always could. V34.2 is closed; V34.3,
+transactional saga runs, is next.

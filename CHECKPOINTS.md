@@ -10543,7 +10543,7 @@ Subcheckpoints, one at a time:
   decided it), the scrubber's patterns (`internal/redact` owns them), and the transcript sinks that
   already scrub (tool output in `engine`, hook output, the debug log, `/diff`, `/commit`, `/pr`).
   **Closed 2026-09-05** with 1d.1–1d.4 (1d.4 as a/b/c); `docs/plan/34` V34.1d ticked.
-- [~] **V34.2 make turns, storage, and transports finish coherently** — `docs/plan/34` V34.2, opened
+- [x] **V34.2 make turns, storage, and transports finish coherently** — `docs/plan/34` V34.2, opened
   2026-09-05 with V34.1 closed. Six leaves as the plan lists them; **2e is taken first** because it has an
   observed red on main: run 33969381063 (ubuntu) failed `TestASubagentBackendIsClosedOnEveryPathOutOfATask`
   on a commit that touched no engine code. Inspection: `runOneTask` sends its `taskRun` and only then
@@ -10551,6 +10551,7 @@ Subcheckpoints, one at a time:
   save the session — before the backend is closed; and on `ctx.Err()` `runTasks` returns while task
   goroutines are still inside `runSubagent`, free to write `results[]`, end checkpoints and record cost
   after the return. The leaf order otherwise follows the plan.
+  **Closed 2026-09-05** with all six leaves; `docs/plan/34` V34.2 ticked.
   - [x] **V34.2e joined orchestration cancellation** — cancellation waits for every subagent before
     `RunTurn` returns or clears accounting; no post-return file, event, checkpoint, or cost mutation.
     **Red:** with a subagent blocked until its context is cancelled, `runTasks` returns on cancellation
@@ -10636,8 +10637,22 @@ Subcheckpoints, one at a time:
     (a 500 today; the contract's `resume-after-drop` fixture is still marked absent in `spec/stdio.md`),
     recorded for 2d's exit review rather than slipped in. `-race` clean on engine, serve, bus; lint;
     `make check` including the spec gate.
-  - [ ] **V34.2f atomic run-cost limits** — reserve or serialize cost budget before concurrent work so
+  - [x] **V34.2f atomic run-cost limits** — reserve or serialize cost budget before concurrent work so
     `MaxRunCostUSD` cannot be crossed by in-flight calls.
+    **Closed 2026-09-05, on main.** Red observed: four $0.60 tasks under a $1.00 ceiling at
+    concurrency four were all admitted (the total was $0 when each was checked) and the run spent
+    $2.40. Green: `spend` gains admission state — tasks in flight, calls reported, the worst single-call
+    cost seen — and `nextRunnable` waits (returns nothing runnable, with something running so the wait
+    cannot hang) while the total plus the worst known call for each task in flight would reach the
+    ceiling; until the first call has reported, one task runs alone to calibrate. `runTasks` brackets
+    every launch and completion, the cancellation drain included. The sequential semantic the
+    existing tests pin is kept on purpose: a call may start while the total is under the ceiling, so
+    the run can still exceed it by that one call — never by a wave. Pinned both ways: the four-task
+    run now spends at most the ceiling plus one call and marks the rest over budget; four cheap tasks
+    under a generous ceiling still overlap (`MaxInFlight ≥ 2`), so the reservation is not
+    serialization. The planner's call calibrates too, and a task costing more than the worst seen
+    can overshoot by its excess — inherent, recorded. `-race` clean on the engine suite, budget
+    tests three times over; lint; `make check`.
   - [x] **V34.1d.1 child capture is bounded before it is allocated** — `shell.Run` collects a child's
     output with `CombinedOutput`, which grows without limit: a command that prints a gigabyte costs a
     gigabyte of kolk's memory before the tool layer cuts it to 12k. A bounded writer keeps the first
