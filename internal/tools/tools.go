@@ -253,8 +253,16 @@ func Execute(ctx context.Context, name, argsJSON string, o Options) (string, err
 		result := truncate(res.Output)
 		if !res.OK() {
 			// The model sees the failure and reacts to it. A command that exits
-			// non-zero is a fact about the world, not a broken tool.
-			return fmt.Sprintf("%s\n[exit error: %s]", result, res.Failure), nil
+			// non-zero is a fact about the world, not a broken tool. Under a
+			// sandbox, a kernel refusal earns one bounded line saying what is
+			// confined and how to change it -- never a claim about cause.
+			diag := ""
+			if o.Sandbox != nil {
+				if line := shell.SandboxDiagnostic(*o.Sandbox, res); line != "" {
+					diag = "\n" + strings.TrimSuffix(line, "\n")
+				}
+			}
+			return fmt.Sprintf("%s\n[exit error: %s]%s", result, res.Failure, diag), nil
 		}
 		if result == "" {
 			result = "(no output)"

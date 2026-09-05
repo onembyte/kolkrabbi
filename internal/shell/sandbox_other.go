@@ -7,3 +7,5 @@ package shell
 func probeMechanism() (string, error) { return "", ErrSandboxUnsupported }
 
 func prepareSandbox(Sandbox) (*sandboxWrap, error) { return nil, ErrSandboxUnsupported }
+
+func networkDenySupported() (bool, string) { return false, ErrSandboxUnsupported.Error() }

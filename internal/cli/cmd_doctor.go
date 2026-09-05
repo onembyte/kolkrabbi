@@ -13,6 +13,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/local"
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/redact"
+	"github.com/onembyte/kolkrabbi/internal/shell"
 	"github.com/onembyte/kolkrabbi/internal/term"
 	"github.com/onembyte/kolkrabbi/internal/tools"
 )
@@ -71,7 +72,29 @@ func (a *app) runDoctor(ctx context.Context, args []string) error {
 	fmt.Fprintln(a.stdout, "\nlocal models")
 	a.doctorLocalModels(ctx)
 
+	fmt.Fprintln(a.stdout, "\nsandbox")
+	a.doctorSandbox()
+
 	return nil
+}
+
+// doctorSandbox reports what would enforce a sandbox here and whether a
+// network deny could be kept. Machine facts only: the session state is what
+// /sandbox prints, and a pasted report should explain why /sandbox on did or
+// did not take on this machine.
+func (a *app) doctorSandbox() {
+	r := shell.Report()
+	if r.Err != nil {
+		fmt.Fprintf(a.stdout, "  ✗ no sandbox mechanism: %v\n", r.Err)
+	} else {
+		fmt.Fprintf(a.stdout, "  ✓ %s — writes confined to the project and temp when on\n", r.Mechanism)
+	}
+	if r.NetworkDenyEnforced {
+		fmt.Fprintln(a.stdout, "  ✓ network deny enforceable")
+	} else {
+		fmt.Fprintf(a.stdout, "  ✗ network deny not enforceable: %s\n", r.NetworkDenyReason)
+	}
+	fmt.Fprintln(a.stdout, "  · off by default; /sandbox on for this session, /config set sandbox on to persist")
 }
 
 // doctorLocalModels reports the user's own Ollama: running and adopted,

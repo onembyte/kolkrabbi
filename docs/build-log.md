@@ -6664,3 +6664,25 @@ which is the exact reason it was deferred out of leaf 0. The green commit reads 
 and the gate passed. What this leaf does not do is decide *when* the user's own commands get a deny.
 §7.1 governs delegated children; in-process subagents inherit the parent's policy. Giving a task
 kind a deny is a design question for the owner, and it is written down as one rather than slipped in.
+
+## The sandbox says what it is doing — V34.1e.4 closed 2026-09-05
+
+Three places the user already looks, each told the truth in one line. A sandboxed command that fails
+with the kernel's own phrase — `Operation not permitted`, `Permission denied` — gets exactly one
+bounded line under its exit error: what is confined, whether the network is allowed, and the switch.
+It does not say the sandbox caused the failure, because it does not know that; the phrase is a strong
+hint and an overstated line is worse than none. Success, an ordinary non-zero exit, kolk's own
+refusal and a timeout get nothing.
+
+`/doctor` reports what would enforce a policy here — Seatbelt, Landlock with its ABI, or why nothing
+can — and whether a network deny could be kept on this machine, so a pasted report explains why
+`/sandbox on` did or did not take. The status line carries a `sandbox` row: `off` is a word there,
+never a blank, since the one rule that survived the switch to opt-in is that the state is always
+visible. The row also has a third value the plan never named: `on, unenforced`, for a policy set
+where nothing can enforce it. In that state every command refuses, and the user should see why
+before the first refusal rather than after.
+
+The leaf is platform-neutral, so it closed on main without a PR: the linux-tagged files were vetted
+and linted from the Mac with `GOOS=linux`, as leaf 2 taught. Red was observed the ordinary way — a
+test asked the status for a field it did not have. Public claims are still unchanged; V34.1e.5
+measures the wrapper's cost, and only V34.1e.6 flips anything.

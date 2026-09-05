@@ -309,3 +309,15 @@ func anyBeneath(deny []string, dir string) bool {
 	}
 	return false
 }
+
+// networkDenySupported: Landlock's network rules exist from ABI 4 (Linux 6.7+).
+func networkDenySupported() (bool, string) {
+	abi, err := landlockABIProbe()
+	if err != nil {
+		return false, err.Error()
+	}
+	if abi < 4 {
+		return false, fmt.Sprintf("needs Landlock ABI 4 (Linux 6.7 or newer); this kernel has ABI %d", abi)
+	}
+	return true, ""
+}

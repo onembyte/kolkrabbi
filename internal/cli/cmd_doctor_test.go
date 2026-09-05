@@ -15,7 +15,7 @@ func TestDoctorReportsEverySection(t *testing.T) {
 		t.Fatalf("runDoctor: %v", err)
 	}
 	out := stdout.String()
-	for _, section := range []string{"keys", "directories", "terminal", "network", "local models"} {
+	for _, section := range []string{"keys", "directories", "terminal", "network", "local models", "sandbox"} {
 		if !strings.Contains(strings.ToLower(out), section) {
 			t.Errorf("doctor never mentions %s:\n%s", section, out)
 		}
@@ -137,5 +137,27 @@ func TestDoctorTellsTheThreeOllamaStatesApart(t *testing.T) {
 	_ = a.runDoctor(context.Background(), nil)
 	if strings.Contains(stdout.String(), "installing") || strings.Contains(stdout.String(), "installed ollama") {
 		t.Fatalf("doctor claims to have installed something:\n%s", stdout.String())
+	}
+}
+
+// The sandbox section says what would enforce a policy here and whether a
+// network deny could be kept -- machine facts, so a pasted /doctor explains
+// why /sandbox on did or did not take.
+func TestDoctorReportsTheSandboxMechanism(t *testing.T) {
+	a, stdout, _ := newTestApp(t, "")
+	if err := a.runDoctor(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	out := stdout.String()
+	i := strings.Index(out, "\nsandbox\n")
+	if i < 0 {
+		t.Fatalf("no sandbox section:\n%s", out)
+	}
+	section := out[i:]
+	if !strings.Contains(section, "network deny") {
+		t.Fatalf("sandbox section must say whether a network deny is enforceable:\n%s", section)
+	}
+	if !strings.Contains(section, "seatbelt") && !strings.Contains(section, "landlock") && !strings.Contains(section, "no sandbox mechanism") {
+		t.Fatalf("sandbox section must name the mechanism or its absence:\n%s", section)
 	}
 }

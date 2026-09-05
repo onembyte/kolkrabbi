@@ -24,7 +24,11 @@ type Status struct {
 	SessionName string
 	Folder      string
 	Approval    string
-	Lifecycle   string
+	// Sandbox is the enforcer confining bash commands, or the word "off".
+	// Never empty: an opt-in sandbox's one surviving rule is that its state
+	// is always visible.
+	Sandbox   string
+	Lifecycle string
 	// Context and Cost are the two numbers that decide whether to compact or
 	// stop. Empty means not measured yet, which is different from zero.
 	Context string
@@ -748,6 +752,9 @@ func formatStatus(status Status) []string {
 		{
 			{label: "mode", value: status.Mode},
 			{label: "effort", value: status.Effort},
+			// What confines the commands this session runs, right after how hard
+			// it is thinking about them; "off" is a word, never a blank.
+			{label: "sandbox", value: status.Sandbox},
 			// Last in this group, so a narrow terminal clips these before the
 			// mode or the tier.
 			{label: "folder", value: status.Folder},

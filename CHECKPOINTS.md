@@ -10648,10 +10648,29 @@ Subcheckpoints, one at a time:
   33950485303. Not in this leaf: a knob that sets `deny` for the user's own bash tool — §7.1's
   policy governs delegated children and in-process subagents inherit the parent's policy; wiring
   `deny` for a task kind is a design question flagged for the owner, not a line of code slipped in.
-- [ ] **V34.1e.4 surface** — status line `sandbox: seatbelt|landlock vN|off`, a `/doctor` row with
+- [x] **V34.1e.4 surface** — status line `sandbox: seatbelt|landlock vN|off`, a `/doctor` row with
   mechanism, ABI/profile and network enforcement, and the one-line bounded diagnostic appended to a
   non-zero result whose output contains `Operation not permitted` / `Permission denied`. **Red:** the
   diagnostic is exactly one line and appears only on that pattern.
+  **Closed 2026-09-05, on main.** Platform-neutral leaf, so no PR round-trip: the code is string and
+  probe logic over what leaves 1–3 built, and `GOOS=linux go vet` plus `GOOS=linux golangci-lint` ran
+  from the Mac beside the darwin run. Red observed: the status-line test named a `Sandbox` field the
+  `tui.Status` did not have and the package refused to compile; the diagnostic and doctor tests were
+  written first the same way. Green, three surfaces. **(1)** `shell.SandboxDiagnostic` appends one
+  bounded line to a sandboxed bash result — only when the exit is a real non-zero (not kolk's own
+  refusal at -1, not a timeout) *and* the output carries `Operation not permitted` or `Permission
+  denied`. The line names what is confined (root, temp, network) and the switch (`/sandbox off`); it
+  never claims the sandbox caused the failure, because the phrase is a hint, not proof. Attached in
+  `internal/tools` after `[exit error: …]`. **(2)** `/doctor` grew a `sandbox` section from
+  `shell.Report()`: the mechanism or why there is none, whether `network = deny` is enforceable here
+  (`networkDenySupported` per platform — Seatbelt always, Landlock from ABI 4), and the default-off
+  note with both switches. **(3)** The status line carries a `sandbox` row after `effort`: `off`,
+  the mechanism name, or `on, unenforced` — a state the plan did not name, reached when a policy is
+  set where nothing can enforce it and every command refuses; the row makes that visible where the
+  user already looks instead of leaving it to be discovered. Approval is not a row in the status
+  groups (it renders as a lead through `permissionLead`), so "beside approval" became "after
+  effort". Focused verification with `-race` on shell, tools, tui, cli; `make check` all gates.
+  Nothing public changes until V34.1e.6.
 - [ ] **V34.1e.5 measurement** — per-command overhead of the wrapper on darwin and linux against the
   cold-start soft budget; confirm the cancel ladder still reaches grandchildren through the wrapper
   (`npm test &` shape). A number over budget is a finding to record, not a note to bury.

@@ -445,7 +445,7 @@ func tuiStatus(ag *engine.Agent, lifecycle, folder string) tui.Status {
 	return tui.Status{
 		Model: model, Mode: ag.Mode, Effort: ag.Effort,
 		Session: sessID, SessionName: sessTitle, Folder: folder,
-		Approval: approval, Lifecycle: lifecycle,
+		Approval: approval, Sandbox: sandboxStatus(ag), Lifecycle: lifecycle,
 		Context: contextLabel(ag), Cost: sessionCostLabel(ag),
 	}
 }
@@ -710,4 +710,19 @@ func sizeLabel(m local.HostModel) string {
 		return ""
 	}
 	return strings.Join(parts, " ") + " · "
+}
+
+// sandboxStatus is the one word the status line carries: "off", the enforcer's
+// name when a policy is on and something can enforce it, or an honest "on,
+// unenforced" when a policy is set where nothing can -- the state in which
+// every command refuses, which the user should see rather than discover.
+func sandboxStatus(ag *engine.Agent) string {
+	if ag.Sandbox == nil {
+		return "off"
+	}
+	name, err := shell.Mechanism()
+	if err != nil {
+		return "on, unenforced"
+	}
+	return name
 }

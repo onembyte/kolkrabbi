@@ -99,3 +99,6 @@ func sbplString(s string) string {
 	s = strings.ReplaceAll(s, `"`, `\"`)
 	return `"` + s + `"`
 }
+
+// networkDenySupported: Seatbelt denies the network on any macOS.
+func networkDenySupported() (bool, string) { return true, "" }
