@@ -232,8 +232,10 @@ and the catalog reflects current, supported vendor capabilities.
   `/pmodels` output shows `ultra` still listed for the Codex rungs that carry it.
 - [ ] **V34.4c provider-matrix disposition** — choose the next supported provider(s), with current
   terms/capabilities/billing/redaction fixtures, or explicitly defer each remaining matrix row.
-- [ ] **V34.4d managed-local truth** — reconcile host Ollama hardware-fit, runtime, and `/localia`
-  claims with executable tests and the accepted local-support matrix.
+- [x] **V34.4d managed-local truth** — completed 2026-09-05: the claims held on Linux and failed on
+  macOS, where the probe had no source and refused every plan as "RAM unknown"; a `sysctl` seam now
+  supplies memory and chip, Apple silicon is a unified-memory accelerator, an Intel Mac RAM only, with
+  deterministic parsing tests and a real-machine test on darwin (`CHECKPOINTS.md` §V34.4d).
 
 **Exit review:** every selector row has a capability/tier test; an unsupported or stale row is
 rejected before becoming the default.

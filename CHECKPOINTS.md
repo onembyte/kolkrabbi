@@ -10594,6 +10594,34 @@ Subcheckpoints, one at a time:
     failure, and restart; prove neither retry nor later commit includes abandoned work. Subdivided
     2026-09-05 after inspection found two gaps behind the proof, each its own red→green: **Closed 2026-09-05** with 3e.1–3e.3 — four gaps, not two,
     by the end (retry-from-mark, commit scope, the artifact's own survival, HEAD-moved resume).
+- [~] **V34.4 make provider and model selection truthful** — `docs/plan/34` V34.4, opened 2026-09-05 with
+  V34.3's engineering closed (3f stays owner-facing). Engineering first, owner decisions named as such:
+  - [x] **V34.4d managed-local truth** — reconcile host Ollama hardware-fit, runtime, and `/localia`
+    claims with executable tests and the accepted local-support matrix.
+    **Closed 2026-09-05, on main.** Reconciliation first: plan 25's checkpoints 1–4 already had tests
+    (eight fit-planner tests, eleven Linux probe tests, the curated host environment and lifecycle,
+    twenty-two `/localia` command tests). The claim that failed was the pages' "`/localia` reads your
+    actual hardware" and "reports what this machine can actually run — accelerators, RAM, free disk":
+    the probe's sources were `/proc/meminfo` and sysfs, so on a Mac it reported no accelerator and
+    unknown RAM and the planner refused every model as "system RAM is unknown" — observed on this
+    machine (`{Accelerators:[] SystemRAM:{Known:false} DiskFree:{Known:true}}`), and the red test is
+    that probe run on darwin. Green: a `Sysctl` seam beside the existing ones; `hw.memsize` fills RAM
+    only where the Linux sources found nothing, so Linux is described exactly as before; an Apple
+    chip (`machdep.cpu.brand_string` starting `Apple`) is reported as one accelerator whose memory is
+    the machine's — CPU and GPU share it, so the planner places on it with its usual headroom — and an
+    Intel Mac gets RAM only, its GPU undescribed rather than invented; garbage or absence stays
+    unknown. A nil filesystem root is no cards rather than a panic (found by the fixture). The test
+    file first carried a `_darwin` suffix, which the arch gate refused (it wanted an explicit build
+    line, and a darwin-only file would have kept the parsing tests off the Linux runner); renamed, so
+    they run everywhere and the real-machine test skips itself off darwin — CI's macos-latest is the
+    second machine. Plan 25's status moves from "proof pending" to proven, with the finding stated.
+    `-race` clean on local and cli; lint darwin+linux; `make check`.
+  - [ ] **V34.4a (remaining) tier gating for a discovered model** — a vendor catalog carries no tier, so a
+    newly discovered model is listed on every tier its connector already uses.
+  - [ ] **V34.4b (remaining, owner) a vendor `ultra` the four-level dial cannot reach** — accepted by name,
+    unreachable through `/effort`; a fifth level or a mapping is a product decision.
+  - [ ] **V34.4c (owner) provider-matrix disposition** — choose the next supported provider(s) or
+    explicitly defer each remaining matrix row.
     - [x] **V34.3e.1 a retried chapter starts from its mark** — a chapter found `executing` on a later
       wake (stopped or crashed mid-work) is rolled back to its persisted mark before the worker runs
       again, so abandoned work is gone before the retry and cannot reach its commit. **Red:** through

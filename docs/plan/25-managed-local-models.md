@@ -1,6 +1,6 @@
 # 25. Local models through a host Ollama
 
-Status: accepted v1 host-Ollama scope · V34.4d proof pending · 2026-09-01 · supersedes the
+Status: accepted v1 host-Ollama scope · V34.4d proven 2026-09-05 · supersedes the
 managed-sidecar contract of 2026-08-26
 
 Kolkrabbi uses the Ollama the user already has. It finds a running server on
@@ -11,9 +11,12 @@ run once the user has signed in. E11 adds bounded, best-effort rows for Cloud
 models not yet pulled, with the exact pull command visible; no pull is implicit.
 
 V34.0c freezes this host-owned shape into v1. Kolkrabbi still does not install a runtime, local
-models remain an explicit selection rather than the zero-config default, and V34.4d must reconcile
-the hardware-fit, lifecycle, and `/localia` claims with executable platform evidence before the
-local-support leaf can close.
+models remain an explicit selection rather than the zero-config default. V34.4d (2026-09-05)
+reconciled the hardware-fit, lifecycle, and `/localia` claims with executable evidence: the fit planner
+and the Linux probes were already tested; the probe had no macOS source at all, so on a Mac RAM was
+unknown and every plan was refused — now `sysctl` supplies total memory and the chip, Apple silicon is
+reported as one unified-memory accelerator, an Intel Mac as RAM only, and unavailability still fails
+closed to unknown. Twenty-two `/localia` command tests cover parity without a GPU or an Ollama.
 
 ## Contract
 

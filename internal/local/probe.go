@@ -28,6 +28,10 @@ type Prober struct {
 	// counters in sysfs, so this is the only way to measure those cards, and it
 	// is a seam because a test must never depend on a driver being installed.
 	NvidiaSMI func(context.Context) ([]string, bool)
+	// Sysctl answers one kernel key, the way macOS describes a machine: total
+	// memory and the chip. A seam so a Mac can be described on a Linux runner
+	// and vice versa. Nil, or a key it cannot answer, is unknown (V34.4d).
+	Sysctl func(context.Context, string) (string, bool)
 }
 
 // NewSystemProber wires the probe to this machine: the real filesystem, a real
@@ -52,6 +56,17 @@ func NewSystemProber(modelDir string) Prober {
 			}
 			return lines, true
 		},
+		Sysctl: func(ctx context.Context, key string) (string, bool) {
+			var out []string
+			err := shell.RunLines(ctx, "sysctl", []string{"-n", key}, nil, func(line []byte) error {
+				out = append(out, string(line))
+				return nil
+			})
+			if err != nil || len(out) == 0 {
+				return "", false
+			}
+			return strings.TrimSpace(strings.Join(out, " ")), true
+		},
 	}
 }
 
@@ -75,7 +90,48 @@ func (p Prober) Probe(ctx context.Context) Hardware {
 		DiskFree:  p.diskFree(),
 	}
 	hardware.Accelerators = p.fillNvidia(ctx, p.accelerators())
+	// macOS has no /proc/meminfo and no sysfs: the kernel is asked directly,
+	// and only where the Linux sources found nothing, so a Linux machine is
+	// described exactly as before.
+	if !hardware.SystemRAM.Known {
+		hardware.SystemRAM = p.sysctlRAM(ctx)
+	}
+	if len(hardware.Accelerators) == 0 {
+		hardware.Accelerators = p.appleSilicon(ctx, hardware.SystemRAM)
+	}
 	return hardware
+}
+
+// sysctlRAM reads hw.memsize, bytes as a bare integer. Anything else is unknown.
+func (p Prober) sysctlRAM(ctx context.Context) Capacity {
+	if p.Sysctl == nil {
+		return Capacity{}
+	}
+	raw, ok := p.Sysctl(ctx, "hw.memsize")
+	if !ok {
+		return Capacity{}
+	}
+	bytes, err := strconv.ParseUint(strings.TrimSpace(raw), 10, 64)
+	if err != nil || bytes == 0 {
+		return Capacity{}
+	}
+	return Capacity{Bytes: bytes, Known: true}
+}
+
+// appleSilicon reports an Apple chip as one accelerator whose memory is the
+// machine's: CPU and GPU share it, so the model that fits in RAM is the model
+// that fits on the GPU, and the planner's reserved headroom is the guard. It
+// is reported only when the chip name says Apple and the memory is known; an
+// Intel Mac has a GPU sysctl cannot describe, and nothing is invented for it.
+func (p Prober) appleSilicon(ctx context.Context, ram Capacity) []Accelerator {
+	if p.Sysctl == nil || !ram.Known {
+		return nil
+	}
+	brand, ok := p.Sysctl(ctx, "machdep.cpu.brand_string")
+	if !ok || !strings.HasPrefix(strings.TrimSpace(brand), "Apple") {
+		return nil
+	}
+	return []Accelerator{{Vendor: "apple", Name: strings.TrimSpace(brand), VRAM: ram, AvailableVRAM: ram}}
 }
 
 // fillNvidia measures NVIDIA cards, which sysfs cannot describe, using the
@@ -170,6 +226,9 @@ func (p Prober) diskFree() Capacity {
 }
 
 func (p Prober) accelerators() []Accelerator {
+	if p.Root == nil {
+		return nil
+	}
 	const drm = "sys/class/drm"
 	entries, err := fs.ReadDir(p.Root, drm)
 	if err != nil {
