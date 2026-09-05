@@ -9,7 +9,10 @@ BIN     ?= kolk
 DIST    ?= dist
 MODULE  := github.com/onembyte/kolkrabbi
 # Every go.mod in the repo. A bare ./... does not see the ones below the root.
-GOMODS  := $(shell find . -name go.mod -not -path './.git/*' -not -path '*/node_modules/*' -exec dirname {} \;)
+# bench/tasks/*/repo are benchmark fixtures, not modules of this project: several
+# do not compile and most fail their tests on purpose. bench/validate-tasks.sh
+# is what holds them to account.
+GOMODS  := $(shell find . -name go.mod -not -path './.git/*' -not -path '*/node_modules/*' -not -path './bench/*' -exec dirname {} \;)
 LDFLAGS := -s -w \
   -X $(MODULE)/internal/buildinfo.version=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev) \
   -X $(MODULE)/internal/buildinfo.commit=$(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown) \

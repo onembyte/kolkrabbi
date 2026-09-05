@@ -1,0 +1,4 @@
+id = "04-py-two-modules"
+kind = "feature"
+prompt = "Add a function cents_to_str(cents) to money.py that formats an integer number of cents as a currency string like \"$12.34\", handling zero and negative amounts, and use it in report.py so that render_line uses it instead of formatting the amount itself. Make python3 -m unittest discover pass."
+timeout_seconds = 420

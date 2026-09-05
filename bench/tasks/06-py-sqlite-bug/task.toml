@@ -1,0 +1,4 @@
+id = "06-py-sqlite-bug"
+kind = "fix"
+prompt = "The tests in this repository are failing. Find the bug in the SQL query and fix it so that python3 -m unittest discover passes."
+timeout_seconds = 300

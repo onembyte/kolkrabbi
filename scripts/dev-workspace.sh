@@ -13,7 +13,7 @@ cd "$(dirname "$0")/.."
 dirs=""
 while IFS= read -r d; do
   dirs="$dirs $d"
-done < <(find . -name go.mod -not -path './.git/*' -not -path '*/node_modules/*' -exec dirname {} \; | sort)
+done < <(find . -name go.mod -not -path './.git/*' -not -path '*/node_modules/*' -not -path './bench/*' -exec dirname {} \; | sort)
 
 rm -f go.work go.work.sum
 go work init

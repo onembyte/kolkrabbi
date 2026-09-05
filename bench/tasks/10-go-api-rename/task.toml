@@ -1,0 +1,4 @@
+id = "10-go-api-rename"
+kind = "api-change"
+prompt = "The tests call a method named Total, but Store currently exposes it as Sum. Rename the method to Total everywhere it is defined or used, so that go test ./... passes. Do not change the test file."
+timeout_seconds = 420

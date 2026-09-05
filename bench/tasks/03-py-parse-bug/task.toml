@@ -1,0 +1,4 @@
+id = "03-py-parse-bug"
+kind = "fix"
+prompt = "The tests in this repository are failing. Find the bug and fix it so that python3 -m unittest discover passes."
+timeout_seconds = 300

@@ -1,0 +1,4 @@
+id = "05-go-dedupe"
+kind = "refactor"
+prompt = "normalizeUser and normalizeTeam in normalize.go duplicate the same normalisation logic. Extract it into a single shared helper function and have both call it, without changing behaviour. go test ./... must still pass."
+timeout_seconds = 420

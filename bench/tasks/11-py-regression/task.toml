@@ -1,0 +1,4 @@
+id = "11-py-regression"
+kind = "regression"
+prompt = "The tests in this repository are failing. Find the bug and fix it so that python3 -m unittest discover passes."
+timeout_seconds = 300

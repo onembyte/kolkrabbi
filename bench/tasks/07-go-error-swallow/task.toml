@@ -1,0 +1,4 @@
+id = "07-go-error-swallow"
+kind = "fix"
+prompt = "The tests in this repository are failing. Find the bug and fix it so that go test ./... passes."
+timeout_seconds = 300

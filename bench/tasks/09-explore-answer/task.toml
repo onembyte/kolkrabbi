@@ -1,0 +1,4 @@
+id = "09-explore-answer"
+kind = "explore"
+prompt = "Somewhere in this repository one function is responsible for deciding whether an API token is still valid. Find it and write only its name, on a single line, to a file called ANSWER.txt in the repository root."
+timeout_seconds = 300

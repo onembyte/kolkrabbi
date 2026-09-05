@@ -1,0 +1,4 @@
+id = "02-go-write-test"
+kind = "write-test"
+prompt = "IsPalindrome in palindrome.go has no test. Write a table-driven test for it in palindrome_test.go that covers the empty string, a single character, an even-length palindrome, an odd-length palindrome and a non-palindrome. Make sure go test ./... passes."
+timeout_seconds = 300

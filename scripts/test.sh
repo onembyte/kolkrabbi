@@ -20,7 +20,10 @@ while IFS= read -r gomod; do
   count="$( (cd "$dir" && go test -count=1 -v ./... 2>/dev/null || true) | grep -c '^=== RUN' || true)"
   echo "   tests: $count"
   total=$(( total + count ))
-done < <(find . -name go.mod -not -path './.git/*' -not -path '*/node_modules/*' | sort)
+# bench/tasks/*/repo are benchmark fixtures. Most of them fail on purpose --
+# that is the whole point of a task -- so they are not this repository's tests.
+# bench/validate-tasks.sh is what checks them.
+done < <(find . -name go.mod -not -path './.git/*' -not -path '*/node_modules/*' -not -path './bench/*' | sort)
 
 echo "── total: $total tests across all modules ──"
 exit $fail

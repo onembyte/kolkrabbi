@@ -1,0 +1,4 @@
+id = "08-go-race"
+kind = "concurrency"
+prompt = "counter.go has a data race. Fix it so that go test -race ./... passes, without changing the public behaviour of Counter."
+timeout_seconds = 420

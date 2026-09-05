@@ -1,0 +1,15 @@
+# Plumbing check, not a benchmark task. Excluded from published results.
+#
+# The scripted mock in cmd/kolk-mock always writes hello-from-mock.txt whatever
+# it is asked, so this task proves the runner copies a fixture, invokes a
+# harness, diffs the tree and runs verify.sh — and proves nothing at all about
+# the harness's reasoning. That distinction is the point of having it.
+id = "00-smoke"
+kind = "smoke"
+prompt = "create the hello file"
+timeout_seconds = 60
+
+# Run this with --runs 1. cmd/kolk-mock replays ONE scripted session and the
+# script is consumed, so a second run receives the agent-mode step, writes
+# nothing and fails. That is the mock behaving as designed, not the runner
+# misbehaving; restart the mock between runs if you want more than one.
