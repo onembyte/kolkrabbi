@@ -23,6 +23,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/bus"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/secret"
+	"github.com/onembyte/kolkrabbi/internal/shell"
 	"github.com/onembyte/kolkrabbi/internal/tools"
 	"github.com/onembyte/kolkrabbi/internal/xid"
 	"github.com/onembyte/kolkrabbi/protocol"
@@ -191,6 +192,10 @@ type Options struct {
 	// Permission is how much may happen without asking. It never removes the
 	// floor: no tier allows an action the hardline rules refuse.
 	Permission Permission
+	// Sandbox confines bash commands when set (plan 13 §7.2); nil is off,
+	// which is the default by the owner's decision. It is built by the CLI
+	// from Root, so the two cannot disagree.
+	Sandbox *shell.Sandbox
 	// Rules are the user's standing answers, consulted before the tier and
 	// after the floor. The last matching rule wins.
 	Rules Rules
@@ -453,6 +458,12 @@ func New(o Options) *Agent {
 }
 
 // SetMode switches mode and refreshes the system prompt accordingly.
+// SetSandbox turns the OS sandbox on (a policy) or off (nil) for the rest of
+// the session. It is a plain setter on purpose: whether a policy CAN be
+// enforced is the CLI's question to ask before calling this, so the refusal
+// happens at `/sandbox on`, not silently at the next command.
+func (a *Agent) SetSandbox(policy *shell.Sandbox) { a.Sandbox = policy }
+
 func (a *Agent) SetMode(mode string) error {
 	for _, m := range Modes {
 		if m == mode {
@@ -1062,6 +1073,7 @@ func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, out i
 	}
 	result, err := tools.Execute(toolCtx, tc.Function.Name, tc.Function.Arguments, tools.Options{
 		Root:      a.Root,
+		Sandbox:   a.Sandbox,
 		Guard:     guard(toolCtx, out),
 		PreWrite:  a.preWrite,
 		PostWrite: a.PostWrite,

@@ -188,24 +188,35 @@ is **refused**, not approximated: the sandbox cannot enforce it, so it does not 
 *Windows and everything else.* Outside the matrix, as §7 already says. The mechanism reports
 `unsupported`, and the bash tool refuses unless `sandbox = off`.
 
-*Config.* `sandbox = on | off`, default `on` on darwin and linux. There is deliberately **no
-`auto`**: auto is a silent downgrade, which is the one behaviour this section exists to forbid.
-The status line shows `sandbox: seatbelt` / `landlock v4` / `off`; `/doctor` shows the mechanism,
-the ABI or profile path, and whether network is enforced. `--yolo` and `full-auto` inside the
-sandbox are the intended pairing, as §7 already states.
+*Config and the command.* **Opt-in, owner's decision 2026-09-05.** `sandbox = on | off`, default
+`off`; `/sandbox on|off` switches it for the session and bare `/sandbox` prints the state;
+`/config set sandbox on` persists it. There is deliberately **no `auto`**: auto is a silent
+downgrade, and the one rule that survives the switch to opt-in is that the state is always explicit
+and always visible — the status line shows `sandbox: off` / `seatbelt` / `landlock v4`, and
+`/doctor` shows the mechanism, the ABI or profile path, and whether network is enforced.
+
+Sandbox on does **not** mean offline. It confines writes to the root and temp; network stays
+`allow` for the user's own bash tool unless §7.1's policy says otherwise, so builds still fetch.
+
+"Fail closed" now means: `/sandbox on` on a platform that cannot establish isolation is **refused
+at the command**, with the reason and nothing toggled; and if a mechanism that was present vanishes
+mid-session, the next command refuses rather than running unconfined. Default-off is a knowing
+trade: `full-auto` runs unconfined unless the user turns the sandbox on, which weakens §7's
+"`--yolo` inside a sandbox" pairing. Mitigation, not a fix: choosing `/full-auto` prints one line
+suggesting `/sandbox on`, once per session — a nudge, never a silent switch.
 
 *Refusal text.* When the sandbox is on and cannot be established, the bash tool does not run and
 says exactly what is missing and what to do:
 
     the sandbox could not be established: /usr/bin/sandbox-exec is not present.
-    kolk will not run commands unconfined by default. To run them anyway: /config set sandbox off
+    Commands will not run unconfined while the sandbox is on. To run them anyway: /sandbox off
 
 *Bounded diagnostics.* No attempt is made to read Seatbelt's system log or Landlock audit. When a
 sandboxed command exits non-zero and its output contains `Operation not permitted` or `Permission
 denied`, one line is appended to the result:
 
     [sandbox: writes are confined to <root> and <temp>; network allowed. If this command
-     legitimately needs more: /config set sandbox off]
+     legitimately needs more: /sandbox off]
 
 One line, never a claim about cause. The model reads it and adapts, or the user changes the knob.
 

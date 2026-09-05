@@ -6495,3 +6495,43 @@ checkpoint explicitly covers concurrent ordering, start/finish replacement, aggr
 and failure, `agent [i/n] — model — effort — summary`, and race/mutation tests. It does not change
 execution scheduling or SAGA semantics and remains queued behind the inline SAGA routing/lifecycle
 checkpoints. No implementation or provider turn was performed for C5.
+
+## The sandbox has a switch before it has an enforcer — V34.1e.0 closed 2026-09-05
+
+Plan 13 accepted OS-level sandboxing into v1 and left the mechanism to "select and prove under
+V34.1e", which was referenced eight times in the ledger and defined nowhere. §7.2 now decides it —
+Seatbelt on macOS, Landlock on Linux, one policy, fail closed — and this leaf ships the part every
+enforcer will read: the policy type, the switch, and the refusal.
+
+The refusal is a `Result`, not an error, and that was the one design choice worth arguing about. In
+this tree `Run`'s error means "the turn was cancelled" and nothing else; a non-zero exit is a
+successful Run with a failing Result, because the model should see a failure and react to it. A
+sandbox that cannot be established is the same kind of fact: "I would not run this, here is what is
+missing, here is the switch" belongs in the conversation, not in an abort. So the command does not
+run, the exit code is -1, and the Failure text names the reason and `/sandbox off` verbatim.
+
+The owner changed the default mid-leaf, from on to off, and the plan was amended in the same session
+rather than left to drift: the sandbox is opt-in, `/sandbox on` turns it on for the session, and the
+one rule that survives is that the state is always explicit — no `auto`, because a sandbox that
+downgrades itself is one nobody notices. Default-off weakens the "yolo inside a sandbox" pairing, and
+the mitigation is deliberately small: choosing `/full-auto` prints one suggestion, once, and never
+throws the switch itself. It also does not mean offline. The sandbox confines writes; network stays
+allowed for the user's own commands, so `go test` still fetches.
+
+Red first, and the red was clean: three packages failed to build on exactly the missing symbols and
+nothing else. Thirteen tests then went green, `internal/shell` under the race detector because the
+mechanism probe is a package variable that tests override.
+
+Two things were got right by the tree rather than by me. `NetworkDeny` was written and then removed
+— nothing reads it until the network leaf, and an exported constant with no user is the kind of
+promise `arch`'s dead-export check exists to refuse; it arrives with V34.1e.3. And `cmd_sandbox.go`
+called `os.UserHomeDir` to build the credential denylist, and `arch` failed the build: home-directory
+lookups have exactly one owner, `internal/paths`, so that "the engine touches no OS" is a property
+and not a habit. `paths.UserHomeDir()` is the seam, and the fix was one line. The rule caught it in
+under a second, which is the whole argument for having rules that are data enforced by Go instead of
+conventions enforced by review.
+
+Nothing public changes. The README's "no general execution sandbox", the capabilities rows and the
+comparison cells all still say so, because nothing enforces anything yet; they flip in V34.1e.6, in
+one commit, with the site pins that guard them. `/sandbox` does appear in `kolk help` and the README's
+command list, and turning it on tells you truthfully that it cannot yet be established here.

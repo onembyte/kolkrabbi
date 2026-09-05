@@ -10508,13 +10508,36 @@ Subcheckpoints, one at a time:
   binding once (U+0130 case-fold vs IDNA), the hole was closed, and re-review returned CLEAN with a
   7,054-candidate reverse scan; `make check` green at 3,190 tests.
 
-- [ ] **V34.1e.0 the sandbox policy and the refusal** — `shell.Sandbox` on `shell.Cmd`: root, temp,
-  credential denylist, network `allow|deny`; the root is `tools.Options.Root`, never a second value.
-  `sandbox = on|off` in config, default `on` on darwin/linux, no `auto`. **Red:** with the mechanism
-  stubbed as `unsupported`, the bash tool refuses and its message names the missing capability and
-  `/config set sandbox off` verbatim; with `sandbox = off` it runs. Non-goals: no enforcer yet.
+- [x] **V34.1e.0 the sandbox policy, the switch and the refusal** — `shell.Sandbox` on
+  `shell.Cmd`: root, temp, credential denylist, network `allow|deny`; the root is
+  `tools.Options.Root`, never a second value. `sandbox = on|off` in config, **default `off`**
+  (owner, 2026-09-05), no `auto`; `/sandbox [on|off]` in session, bare prints state. **Red:** with
+  the mechanism stubbed as `unsupported`, `/sandbox on` is refused with the reason and toggles
+  nothing; a bash call with a sandbox policy attached refuses, names the missing capability and
+  `/sandbox off` verbatim, and does not run the command; with no policy attached it runs. Non-goals:
+  no enforcer, no status line, no `/doctor` row, no network enforcement.
   **Contract note:** opened at the owner's direction on 2026-09-05 while S10.1d2 and S10.1d5 are
   still `[~]`; the one-active rule is knowingly set aside for this leaf, and it rebases before landing.
+  **Closed 2026-09-05.** `shell.Sandbox{Root, Temp, Deny, Network}` rides on `shell.Cmd`;
+  `tools.Options.Sandbox` and `engine.Options.Sandbox` carry it, and the bash tool passes it through
+  unchanged. `Run` refuses a sandboxed command when `mechanism()` cannot name an enforcer — as a
+  **Result, not an error**: an error aborts the turn, and "I would not run this, here is why, here is
+  the switch" is exactly what the model should read and relay. The probe is `unsupported` on every
+  platform this leaf, so every sandboxed command refuses, which is the fail-closed shape the plan asks
+  for until V34.1e.1/.2 fill it in behind build tags. `/sandbox [on|off]` (bare prints state; `on` is
+  refused at the ask with the reason and toggles nothing), `sandbox = on|off` in config (get/set/unset,
+  `auto` refused by name), one `/full-auto` nudge per session, `/sandbox` in the registry and therefore
+  in `kolk help`. Thirteen tests, red first — three packages failed to build on exactly the missing
+  symbols — then green; `internal/shell` under `-race` because the probe is a package variable.
+  Decisions made inside the leaf: **default off, opt-in** (owner, mid-leaf; plan 13 §7.2 amended in
+  the same session); `NetworkDeny` **deferred to V34.1e.3** rather than shipped as an exported constant
+  nothing reads. One gate tripped: `cmd_sandbox.go` called `os.UserHomeDir` and `arch`'s `osOwner` rule
+  said only `internal/paths` may — fixed by asking `paths.UserHomeDir()`, which is the point of the
+  rule. Walk-back: nothing removed; README "Known limitations" and the capabilities rows still say no
+  sandbox, and stay so until V34.1e.6. Left for V34.1e.1: `overrideMechanism` is unexported, so the
+  `tools` test relies on the leaf-0 stub; the darwin leaf needs a cross-package test seam before its
+  probe becomes real. Verify: `go test -race ./internal/shell/ && go test ./internal/tools/
+  ./internal/cli/ ./internal/engine/ && make check` — 3322 tests, all gates green.
 - [ ] **V34.1e.1 macOS: Seatbelt** — profile generator (SBPL string from the policy), 0600 temp
   file, `sandbox-exec -f` wrapper in `command()`, `Setpgid` and group kill unchanged. **Red:** escape
   tests 1–5, 7, 8 from plan 13 §7.2 fail on the unwrapped command and pass on the wrapped one,

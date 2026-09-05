@@ -9,6 +9,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/shell"
 )
 
 func (a *app) runConfig(ctx context.Context, args []string) error {
@@ -83,6 +84,12 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				fmt.Fprintln(a.stdout, cfg.MaxConcurrentTasks)
 			} else {
 				fmt.Fprintf(a.stdout, "(unset — inherits %d)\n", engine.DefaultConcurrentTasks)
+			}
+		case key == "sandbox":
+			if cfg.Sandbox != "" {
+				fmt.Fprintln(a.stdout, cfg.Sandbox)
+			} else {
+				fmt.Fprintln(a.stdout, "(unset — inherits off)")
 			}
 		case key == "subagent_network":
 			if cfg.SubagentNetwork != "" {
@@ -192,6 +199,22 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintf(a.stdout, "max_concurrent_tasks → %d\n", width)
+		case key == "sandbox":
+			state := strings.ToLower(strings.TrimSpace(val))
+			if state != "on" && state != "off" {
+				// No "auto": a sandbox that downgrades itself is one nobody notices.
+				return usagef("sandbox: %q is not a setting; use on or off", val)
+			}
+			cfg.Sandbox = state
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "sandbox → %s\n", state)
+			if state == "on" {
+				if _, err := shell.Mechanism(); err != nil {
+					fmt.Fprintf(a.stdout, "note: %v — sandboxed commands will refuse on this machine until /sandbox off\n", err)
+				}
+			}
 		case key == "subagent_network":
 			policy, ok := engine.NormalizeSubagentNetwork(val)
 			if !ok {
@@ -298,6 +321,12 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 			}
 			fmt.Fprintf(a.stdout, "removed max_concurrent_tasks; back to %d at a time\n",
 				engine.DefaultConcurrentTasks)
+		case key == "sandbox":
+			cfg.Sandbox = ""
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintln(a.stdout, "removed sandbox")
 		case key == "subagent_network":
 			cfg.SubagentNetwork = ""
 			if err := config.Save(d.ConfigFile(), cfg); err != nil {

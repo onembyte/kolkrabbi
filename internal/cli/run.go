@@ -378,6 +378,8 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		Effort:     effort,
 		Permission: permission,
 		Root:       root,
+		// Off unless the saved config says on. The session switch is /sandbox.
+		Sandbox: sandboxFromConfig(cfg.Sandbox, root, d),
 		SubagentCapabilities: engine.SubagentCapabilities{
 			Workspace: root,
 		},

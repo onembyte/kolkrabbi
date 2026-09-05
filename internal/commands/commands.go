@@ -36,6 +36,7 @@ var builtIns = map[string]bool{
 	"plan": true, "remember": true, "rate": true, "changes": true, "diff": true,
 	"new": true, "clear": true, "commit": true, "pr": true, "doctor": true,
 	"saga": true, "plans": true, "plogin": true, "pmodels": true, "localia": true,
+	"sandbox": true,
 }
 
 // Command is one markdown file.

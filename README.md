@@ -181,7 +181,7 @@ machine. `kolk serve` asks which saved session to host before it binds anything 
 `--session <id>` or `--new` answer it up front, and a piped stdin is never blocked.
 
 Everything else is in-session: `/key`, `/model`, `/config`, `/stats`, `/dash`,
-`/localia`, `/plans`, `/pmodels`, `/update`, `/doctor`, `/devices`, `/version`,
+`/sandbox`, `/localia`, `/plans`, `/pmodels`, `/update`, `/doctor`, `/devices`, `/version`,
 `/mode`, `/effort`, `/rate 1-5`, `/diff`, `/changes`,
 `/undo`, `/rewind`, `/plan`, `/compact`, `/remember`, `/new`,
 `/permissions [ask|auto-approve|full-auto]`, `/help` — `/help` lists all of

@@ -53,7 +53,10 @@ type Guard func(Request) bool
 // Options carries the policy and the project root into a tool call.
 type Options struct {
 	// Root confines file paths. Empty disables confinement.
-	Root     string
+	Root string
+	// Sandbox is handed to every bash command unchanged. nil is off. Its Root
+	// is this Root: one value, read twice, never two values.
+	Sandbox  *shell.Sandbox
 	Guard    Guard
 	PreWrite PreWrite
 	// PostWrite is called after a file-modifying tool succeeded, so a hook can
@@ -240,7 +243,7 @@ func Execute(ctx context.Context, name, argsJSON string, o Options) (string, err
 		// already running. Two reads of a small kernel table, and silent on a
 		// machine that will not answer.
 		listeningBefore := ports.Snapshot()
-		res, err := sh.Run(ctx, shell.Cmd{Command: a.Command})
+		res, err := sh.Run(ctx, shell.Cmd{Command: a.Command, Sandbox: o.Sandbox})
 		if err != nil {
 			// Only a cancelled turn reaches here. Everything else — a non-zero
 			// exit, a timeout — is a result the model should see and react to,

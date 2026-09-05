@@ -40,8 +40,12 @@ type Config struct {
 	// "auto" (research tasks only; a vendor with no switch always has it),
 	// "on", or "off" (strict — a vendor that cannot run without network is
 	// refused). Empty means auto.
-	SubagentNetwork string        `json:"subagent_network,omitempty"`
-	Local           LocalSettings `json:"local,omitempty"`
+	SubagentNetwork string `json:"subagent_network,omitempty"`
+	// Sandbox is "on" or "off" (default): whether bash commands run inside
+	// the OS sandbox of plan 13 §7.2. Opt-in by the owner's decision; there
+	// is no "auto", because auto is a downgrade nobody sees.
+	Sandbox string        `json:"sandbox,omitempty"`
+	Local   LocalSettings `json:"local,omitempty"`
 	// Routing decides what happens when the model behind the session stops
 	// being able to answer — today, when a subscription runs out mid-run.
 	Routing RoutingSettings `json:"routing,omitempty"`

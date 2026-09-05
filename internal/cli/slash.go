@@ -38,6 +38,7 @@ var slashCommandTable = []slashCommand{
 	{"version", "[--json]", "print the running build"},
 	{"rate", "<1-5>", "rate the last turn for local stats"},
 	{"permissions", "[ask|auto-approve|full-auto]", "see or choose how much may happen without asking"},
+	{"sandbox", "[on|off]", "confine bash commands to the project and temp (OS sandbox); off by default"},
 	{"ask", "", "confirm before changing a file or running a command"},
 	{"auto-approve", "", "edit inside the project without asking; still ask before commands"},
 	{"full-auto", "", "stop asking; the floor still refuses"},
@@ -392,6 +393,8 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			break
 		}
 		a.setPermission(ag, strings.TrimSpace(arg))
+	case "/sandbox":
+		a.setSandbox(ag, arg)
 	case "/ask", "/auto-approve", "/full-auto":
 		a.setPermission(ag, strings.TrimPrefix(cmd, "/"))
 	case "/model":
@@ -617,6 +620,13 @@ func (a *app) setPermission(ag *engine.Agent, name string) {
 		// The moment to say it is not unlimited is the moment someone asks for
 		// the most permissive tier.
 		fmt.Fprintln(a.stdout, "Kolkrabbi still refuses credential files, system directories, sudo, downloads piped into a shell and unrecoverable deletes.")
+		// Default-off weakens plan 13's "--yolo inside a sandbox" pairing. The
+		// mitigation is one suggestion, once per session, and never a switch
+		// thrown on the user's behalf.
+		if ag.Sandbox == nil && !a.sandboxNudged {
+			a.sandboxNudged = true
+			fmt.Fprintln(a.stdout, "full-auto runs unconfined; consider /sandbox on to confine writes to the project (network stays allowed).")
+		}
 	}
 	fmt.Fprintln(a.stdout, "this process only; start another with `kolk --permission "+string(tier)+"`")
 }

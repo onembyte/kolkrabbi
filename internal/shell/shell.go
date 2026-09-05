@@ -43,6 +43,9 @@ type Cmd struct {
 	Env     []string      // extra KEY=VALUE entries, appended to the environment
 	Timeout time.Duration // 0 means DefaultTimeout
 	Stdin   io.Reader     // usually nil: an agent's command must not block on input
+	// Sandbox confines the command when set (plan 13 §7.2). nil means the
+	// user has not turned it on, which is the default.
+	Sandbox *Sandbox
 }
 
 // Result is what a finished command produced.
@@ -142,6 +145,16 @@ func (s *platformShell) Run(ctx context.Context, c Cmd) (Result, error) {
 	}
 	cctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
+	// A policy this machine cannot enforce is refused before anything is
+	// built. This is a Result and not an error on purpose: an error aborts the
+	// turn, and "I would not run this, here is why and here is the switch" is
+	// exactly the kind of thing the model should read and pass on.
+	if c.Sandbox != nil {
+		if _, err := mechanism(); err != nil {
+			return Result{ExitCode: -1, Failure: Refusal(err)}, nil
+		}
+	}
 
 	cmd, err := command(cctx, c)
 	if err != nil {

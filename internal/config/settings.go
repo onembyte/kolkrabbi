@@ -50,6 +50,7 @@ func (c *Config) settingRows(defaultModel, defaultBaseURL string) []Setting {
 		tasks, tasksDefault = strconv.Itoa(c.MaxConcurrentTasks), false
 	}
 	network, networkDefault := text(c.SubagentNetwork, "auto")
+	sandbox, sandboxDefault := text(c.Sandbox, "off")
 
 	return []Setting{
 		{"model", model, modelDefault, "the model a new session starts on"},
@@ -62,6 +63,8 @@ func (c *Config) settingRows(defaultModel, defaultBaseURL string) []Setting {
 		{"max_concurrent_tasks", tasks, tasksDefault, "how many orchestrated tasks may run at once"},
 		{"subagent_network", network, networkDefault,
 			"network for orchestrated children: auto (research tasks; claude has no switch) · on · off (strict)"},
+		{"sandbox", sandbox, sandboxDefault,
+			"confine bash commands to the project and temp (OS sandbox): on · off; /sandbox switches it for the session"},
 		{"routing.on_subscription_limit", onLimit, onLimitDefault,
 			"when a subscription runs out: ask · switch to a metered model · stop"},
 		{"routing.on_free_exhausted", onFree, onFreeDefault,

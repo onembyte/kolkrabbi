@@ -42,6 +42,8 @@ const defaultModel = "openrouter/free"
 type app struct {
 	// claudeBypassNoted: the full-auto loss on a Claude child is said once.
 	claudeBypassNoted bool
+	// sandboxNudged: the /sandbox suggestion on full-auto is said once.
+	sandboxNudged bool
 	// unknownAskedNoted: a vendor answering for a model it does not list is said once per pair.
 	unknownAskedNoted map[string]bool
 	stdout            io.Writer
