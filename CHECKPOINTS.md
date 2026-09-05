@@ -10559,11 +10559,27 @@ Subcheckpoints, one at a time:
     ErrWaitDelay path is unchanged (`cmd.Run` honours `WaitDelay` the same way). Not changed: the 12k
     tool cap; `maxCapture` is unexported because nothing outside needs the number. `-race` clean on
     shell and tools; lint darwin+linux; vet windows; `make check`.
-  - [~] **V34.1d.2 provider errors reach the terminal and the session scrubbed** — the carry-forward
+  - [x] **V34.1d.2 provider errors reach the terminal and the session scrubbed** — the carry-forward
     from F0: `client.go` `StreamChat`/`listModels` return transport errors that echo the request URL and
     the response body verbatim. Every error the client returns passes through `secret.Scrub` before a
     caller can print or persist it. **Red:** a compatible endpoint answering with a body that quotes the
     key produces an error string containing the key.
+    **Closed 2026-09-05, on main.** Inspection first: the HTTP-status paths of `StreamChat` and
+    `listModels` already went through `secret.ScrubError`; the transport, request-building, stream
+    and error-chunk paths did not. Red observed on three: a key-shaped token in the base URL's
+    *username* slot came back verbatim from `StreamChat` and `ListModels` against a closed port —
+    net/http's `url.Error` strips the password and keeps the username, which is where tokens are put —
+    and a stream `data: {"error":{"message":"invalid key sk-or-v1-…"}}` became an error quoting the
+    key. Green: both methods take named returns and `defer func() { err = secret.ScrubError(err) }()`,
+    so every error leaves through the scrubber whatever path produced it; the wrapper keeps
+    `errors.Is`/`As` through `Unwrap`, so `HTTPError` and `context.Canceled` handling upstream is
+    unchanged (the full provider suite passes under `-race`). The canary is an unregistered
+    `sk-or-v1-` shape, because a compatible endpoint registers nothing and only the shape table can
+    catch it; the test also requires `invalid key` to survive, so a scrubbed error stays a message.
+    Not in this leaf: refusing the URL in the first place — that is 1d.3, and the scrub stays
+    regardless, for the errors a server writes. `make check`. GitHub push protection refused the first
+    push: the canary literal was indistinguishable from a live OpenRouter key. It is now assembled
+    at runtime — the convention for key-shaped canaries in this repository from here on.
   - [ ] **V34.1d.3 a base URL with userinfo is refused** — `https://user:token@host` on `--base-url`,
     `OPENROUTER_BASE_URL` or the saved setting is refused at resolution with the reason (net/http would
     send it as Basic auth on every request and it would sit in shell history and config in clear),

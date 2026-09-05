@@ -284,8 +284,14 @@ func (c *Client) HasKey() bool { return !c.Key().IsZero() }
 // first and collisions in arrival order after them.
 const syntheticSlot = 1 << 20
 
-func (c *Client) StreamChat(ctx context.Context, model string, messages []Message, tools []Tool, onToken func(string)) (Message, Meta, error) {
-	meta := Meta{Model: model}
+func (c *Client) StreamChat(ctx context.Context, model string, messages []Message, tools []Tool, onToken func(string)) (msg Message, meta Meta, err error) {
+	// Every error leaves through the scrubber (V34.1d.2). Transport errors carry
+	// the request URL -- net/http strips its password and keeps its username,
+	// where tokens are put -- and stream error chunks carry whatever the server
+	// wrote. Callers print these and sessions keep them. Wrapping preserves
+	// errors.Is/As through Unwrap.
+	defer func() { err = secret.ScrubError(err) }()
+	meta = Meta{Model: model}
 	if c.requiresKey() && !c.HasKey() {
 		return Message{}, meta, fmt.Errorf("no API key set (run: /key <API_KEY>, or export OPENROUTER_API_KEY)")
 	}
@@ -334,7 +340,7 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []Messag
 		return Message{}, meta, secret.ScrubError(httpErr)
 	}
 
-	msg, err := readStream(resp.Body, &meta, onToken)
+	msg, err = readStream(resp.Body, &meta, onToken)
 	if err != nil {
 		return Message{}, meta, err
 	}
@@ -472,7 +478,8 @@ func (c *Client) ListModelsRanked(ctx context.Context) ([]ModelInfo, error) {
 	return c.listModels(ctx, query)
 }
 
-func (c *Client) listModels(ctx context.Context, query url.Values) ([]ModelInfo, error) {
+func (c *Client) listModels(ctx context.Context, query url.Values) (models []ModelInfo, err error) {
+	defer func() { err = secret.ScrubError(err) }() // as in StreamChat
 	endpoint := c.BaseURL + "/models"
 	if len(query) > 0 {
 		endpoint += "?" + query.Encode()
