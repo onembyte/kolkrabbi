@@ -151,6 +151,9 @@ var thirdParty = map[string][]string{
 	// Landlock (V34.1e.2): x/sys carries the sysnums, constants and attr structs;
 	// the calls themselves are raw. Platform layer, so this is what the budget is for.
 	"internal/shell": {"golang.org/x/sys"},
+	// Root-anchored writes (V34.1c.2): openat/renameat relative to a verified
+	// directory fd, which the stdlib syscall package does not expose on darwin.
+	"internal/atomicfile": {"golang.org/x/sys"},
 }
 
 // osOwner names the single package allowed to touch each piece of the OS.

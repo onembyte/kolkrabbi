@@ -10556,12 +10556,35 @@ Subcheckpoints, one at a time:
     (`reapplyModes`) for every path that is still a regular file. The current mode is used because
     the shadow store records content, not modes, and the mode is the user's; recorded here as the
     limit of the proof. `-race` clean on the package; lint clean darwin and linux; `make check`.
-  - [ ] **V34.1c.2 a rewind refuses link and race escapes** — the copy store learns the project root
+  - [x] **V34.1c.2 a rewind refuses link and race escapes** — the copy store learns the project root
     and records each entry's resolved real path; a restore recomputes it and refuses, naming both
     paths, when it differs or leaves the root; the write itself goes through a root-anchored,
     component-wise `O_NOFOLLOW` open in the platform layer (unix), with a resolve-then-write fallback
     on Windows recorded as such. **Red:** a symlink planted at the path, and a parent directory
     swapped for a symlink, both make today's rewind write outside the project.
+    **Closed 2026-09-05, on main.** Red observed on both shapes: the rewind wrote the backup's bytes
+    into an `authorized_keys` outside the project through a symlink planted at the path, and created
+    `a.txt` outside through a directory swapped for a symlink. Green in three layers. **(1)**
+    `atomicfile.WriteBeneath(root, path, data, perm)`, platform layer: opens the root once, walks each
+    component with `openat(O_DIRECTORY|O_NOFOLLOW)` relative to the previous descriptor (creating a
+    missing directory with `mkdirat`), creates the temp file `O_EXCL|O_NOFOLLOW` relative to the parent,
+    fchmods to the exact mode, fsyncs, and `renameat`s onto the final name — which replaces a link
+    rather than following it. A link where a directory should be fails ELOOP/ENOTDIR and nothing is
+    written. Needs `golang.org/x/sys/unix`: stdlib `syscall` has no `Openat`/`Renameat` on darwin
+    (compile-probed); the arch allowlist gains `internal/atomicfile` with the reason, next to the
+    Landlock entry. Windows is a resolve-then-write with the window stated in its doc comment, vetted
+    with `GOOS=windows`; the arch gate caught the missing explicit `//go:build windows` line before CI
+    could. Four unit tests, including the two escape shapes at the primitive. **(2)** `shell.RealPath`
+    exported (the existing `bestRealPath`; no fourth hand copy of the resolve loop). **(3)** The store
+    learns its root in `UseShadow` — both open sites already pass the project root there, resolved, so
+    the copy-store fallback is confined too — and `Entry.Real` records where each path resolved at
+    `Record`. `restore` resolves again: a changed answer or a resolution outside the root is refused
+    with an error naming both paths and how to proceed (`Remove the link and run /undo again`), the
+    backup and its manifest entry kept so the undo can be retried; otherwise the write goes through
+    `WriteBeneath`. Unconfined (no root, jail off) the old in-place write remains. Older manifests
+    without `Real` still get the beneath check and the no-follow walk. Non-goal kept: the shadow store
+    restores through git, which does not follow links when writing tracked paths; not re-proven here.
+    `-race` clean; vet linux+windows; lint darwin+linux; `make check`.
   - [ ] **V34.1c.3 backups of secrets have a stated policy** — the policy, written down in
     `docs/plan/32-shadow-git-snapshots.md`: backups are kept (undo needs the bytes), 0600 inside a
     0700 directory that is removed with the session; they are never displayed unscrubbed — `/diff`

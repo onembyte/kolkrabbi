@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/atomicfile"
+	"github.com/onembyte/kolkrabbi/internal/shell"
 )
 
 type Entry struct {
@@ -29,6 +31,11 @@ type Entry struct {
 	// before this field existed; the restore then keeps whatever mode the file
 	// has now, and only invents 0644 when there is no file at all.
 	Mode os.FileMode `json:"mode,omitempty"`
+	// Real is where Path resolved to when it was recorded, links included. A
+	// restore resolves Path again and refuses when the answer has changed:
+	// a link planted at the path or at one of its directories since would
+	// otherwise turn "put my file back" into a write somewhere else.
+	Real string `json:"real,omitempty"`
 }
 
 type manifest struct {
@@ -48,6 +55,7 @@ type manifest struct {
 
 type Store struct {
 	dir     string
+	root    string // the project root, resolved; empty means unconfined
 	turn    int
 	seq     int
 	entries []Entry
@@ -136,7 +144,7 @@ func (s *Store) Record(tool, path string) error {
 		}
 	}
 	s.seq++
-	e := Entry{Seq: s.seq, Turn: s.turn, Tool: tool, Path: abs, Existed: existed, Time: time.Now(), Mode: mode}
+	e := Entry{Seq: s.seq, Turn: s.turn, Tool: tool, Path: abs, Existed: existed, Time: time.Now(), Mode: mode, Real: shell.RealPath(abs)}
 	if existed {
 		e.Backup = fmt.Sprintf("%06d.bak", s.seq)
 		if err := os.WriteFile(filepath.Join(s.dir, e.Backup), content, 0o600); err != nil {
@@ -190,10 +198,7 @@ func (s *Store) RewindLastTurn(ctx context.Context) ([]string, error) {
 			if err != nil {
 				return restored, fmt.Errorf("missing backup for %s: %w", e.Path, err)
 			}
-			if err := os.MkdirAll(filepath.Dir(e.Path), 0o755); err != nil {
-				return restored, err
-			}
-			if err := writeRestored(e.Path, data, e.Mode); err != nil {
+			if err := s.restore(e, data); err != nil {
 				return restored, err
 			}
 		}
@@ -265,13 +270,10 @@ func (s *Store) Original(path string) ([]byte, bool, error) {
 // for the recorded case: writing into an existing file keeps its inode and so
 // its current mode, which is not necessarily the recorded one.
 func writeRestored(path string, data []byte, recorded os.FileMode) error {
-	perm := recorded
-	if perm == 0 {
-		perm = 0o644
-		if info, err := os.Stat(path); err == nil {
-			perm = info.Mode().Perm()
-		}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
 	}
+	perm := restorePerm(path, recorded)
 	if err := os.WriteFile(path, data, perm); err != nil {
 		return err
 	}
@@ -279,4 +281,46 @@ func writeRestored(path string, data []byte, recorded os.FileMode) error {
 		return os.Chmod(path, recorded)
 	}
 	return nil
+}
+
+// restorePerm is the mode a restored file gets: the recorded one; failing that
+// (an older manifest) the mode the path has now; failing that, 0644.
+func restorePerm(path string, recorded os.FileMode) os.FileMode {
+	if recorded != 0 {
+		return recorded
+	}
+	if info, err := os.Lstat(path); err == nil && info.Mode().IsRegular() {
+		return info.Mode().Perm()
+	}
+	return 0o644
+}
+
+// restore puts one entry's bytes back. Unconfined (no root: the jail is off
+// too), it writes in place as it always did. Confined, it resolves the path
+// again and refuses when it no longer resolves where it was recorded or lands
+// outside the root -- naming both, so the user can see the link and remove it
+// -- and then writes through a root-anchored walk that cannot be redirected
+// between the check and the write. Refusing leaves the backup and its manifest
+// entry in place: `/undo` can be run again once the path is honest.
+func (s *Store) restore(e Entry, data []byte) error {
+	if s.root == "" {
+		return writeRestored(e.Path, data, e.Mode)
+	}
+	real := shell.RealPath(e.Path)
+	if e.Real != "" && real != e.Real {
+		return fmt.Errorf("checkpoint: %s now resolves to %s, not %s where it was recorded; refusing to write through it. Remove the link and run /undo again", e.Path, real, e.Real)
+	}
+	if !beneath(s.root, real) {
+		return fmt.Errorf("checkpoint: %s resolves to %s, outside the project %s; refusing to write there", e.Path, real, s.root)
+	}
+	return atomicfile.WriteBeneath(s.root, real, data, restorePerm(real, e.Mode))
+}
+
+// beneath reports whether path is strictly inside root, both already resolved.
+func beneath(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil || rel == "." || rel == ".." {
+		return false
+	}
+	return !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }

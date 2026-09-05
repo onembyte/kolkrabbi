@@ -179,6 +179,12 @@ const (
 // Not a repository, no git on PATH, a store that will not open — one answer, so
 // that the alternative to snapshotting is never failing the turn.
 func (s *Store) UseShadow(ctx context.Context, workTree string) {
+	// Whichever store ends up capturing turns, the copy store's restores are
+	// confined to this root from here on -- the same root the file tools are
+	// jailed to, resolved, so the two cannot disagree about what the project is.
+	if strings.TrimSpace(workTree) != "" {
+		s.root = shell.RealPath(workTree)
+	}
 	shadow, err := OpenShadow(ctx, filepath.Join(s.dir, "shadow.git"), workTree)
 	if err != nil {
 		s.fellBack = "Snapshots cover kolk's own edits only: " + reasonOf(err) +

@@ -40,3 +40,9 @@ func bestRealPath(path string) string {
 	}
 	return filepath.Clean(abs)
 }
+
+// RealPath is bestRealPath for callers outside the package: the path with its
+// links resolved where they exist and cleaned where they do not. The checkpoint
+// store records it beside every path it backs up, and compares it again before
+// a restore, so a link planted in between is a difference rather than a write.
+func RealPath(path string) string { return bestRealPath(path) }
