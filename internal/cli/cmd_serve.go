@@ -19,7 +19,9 @@ func (a *app) runServe(ctx context.Context, args []string) error {
 	fs.SetOutput(a.stderr)
 
 	addr := fs.String("addr", "127.0.0.1:4096", "address to listen on (e.g. 127.0.0.1:4096 or unix socket)")
-	token := fs.String("token", os.Getenv("KOLK_AUTH_TOKEN"), "bearer auth token (or KOLK_AUTH_TOKEN env)")
+	// Refused when set: see below. It stays a flag so that the refusal, not a
+	// generic "flag provided but not defined", is what an old script sees.
+	tokenFlag := fs.String("token", "", "refused; set KOLK_AUTH_TOKEN or pair a device with --pair")
 	stdio := fs.Bool("stdio", false, "run as stdio event stream instead of HTTP server")
 	pair := fs.Bool("pair", false, "open a two-minute window for a new device to pair")
 	serveSession := fs.String("session", "", "serve this saved session instead of asking")
@@ -28,6 +30,15 @@ func (a *app) runServe(ctx context.Context, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	// A bearer token on the command line is in `ps` for every user on the
+	// machine and in the shell's history afterwards (V34.1d.4a). The two ways
+	// that do not leak already exist, so the flag form is refused, not merely
+	// discouraged. The value is not repeated back.
+	if *tokenFlag != "" {
+		return usagef("kolk serve refuses --token: a bearer token on the command line sits in `ps` and in shell history. " +
+			"Set KOLK_AUTH_TOKEN in the environment instead, or pair a device with `kolk serve --pair` and let it hold its own token")
+	}
+	token := os.Getenv("KOLK_AUTH_TOKEN")
 
 	// Which conversation the server hosts is asked before anything binds: a
 	// listener opened first would have to be closed again on a refused answer.
@@ -61,7 +72,7 @@ func (a *app) runServe(ctx context.Context, args []string) error {
 	// window between the two was small and it was the wrong way round.
 	srv, err := serve.New(serve.Options{
 		Bus:        b,
-		Token:      *token,
+		Token:      token,
 		Addr:       *addr,
 		Devices:    deviceStore,
 		Pairing:    pairing,

@@ -281,7 +281,7 @@ func commandTable() []command {
 	return []command{
 		{"sessions", "[search <text> | rename <id> <title> | fork <id> | export <id> [--json] | rm <id> | clear]",
 			"list this folder's saved sessions, or search, fork, export or delete one", (*app).runSessions},
-		{"serve", "[--addr <addr>] [--token <tok>] [--stdio]",
+		{"serve", "[--addr <addr>] [--pair] [--stdio]",
 			"host a session for a client: pick one to serve, or start a new one", (*app).runServe},
 		{"uninstall", "[--keep-data] [--yes]", "remove kolk and everything it stored", (*app).runUninstall},
 		{"help", "", "what Kolkrabbi is, and every command inside and outside a session", (*app).runHelp},

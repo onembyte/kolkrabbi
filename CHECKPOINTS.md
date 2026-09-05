@@ -10599,11 +10599,37 @@ Subcheckpoints, one at a time:
     33969381063 (ubuntu) failed `TestASubagentBackendIsClosedOnEveryPathOutOfATask/success` on a commit
     that touched no engine code — a backend released after `runTasks` returns is V34.2a/V34.2e
     territory and is noted there.
-  - [ ] **V34.1d.4 a key is never typed on a command line** — wherever kolk accepts a credential as an
+  - [~] **V34.1d.4 a key is never typed on a command line** — wherever kolk accepts a credential as an
     argument (argv or a slash command's words, which land in shell history, `ps`, and the session
     transcript), it prompts for it with echo off instead and refuses the argument form with the reason.
     Scope fixed by inspection at open: the entry points are enumerated in the record. **Red:** a key
     given as an argument is accepted and echoed somewhere durable.
+    **Enumerated 2026-09-05:** (E1) `/key <KEY>` and `/key <provider> <KEY>` — the paste form, refused
+    only under `CI`; in the TUI the line is echoed in the composer and recorded in the in-memory command
+    history (`↑` recalls the key); in the plain REPL the terminal echoes it. (E2) `kolk serve --token
+    <bearer>` on argv — in `ps` and shell history; `KOLK_AUTH_TOKEN` and `--pair` already exist. (E3)
+    nothing else: `/config set-key` is a hard redirect, `/plogin` hands over to the vendor's login, the
+    remaining `args[1]` in `/config` are setting names. Subdivided:
+    - [x] **V34.1d.4a `serve --token` on argv is refused** — a non-empty flag value is refused with the
+      two ways that remain (`KOLK_AUTH_TOKEN`, `--pair`); the env path is unchanged. **Red:** the flag
+      value reaches `serve.Options.Token` today.
+      **Closed 2026-09-05, on main.** Red observed: `serve --token … --stdio` ran (the context deadline
+      was the only error). Green: the flag's default is no longer the environment value, so argv and
+      environment are distinguishable; a non-empty flag is refused after parse, before a session is
+      picked or a bus opened, with `usagef` naming `KOLK_AUTH_TOKEN` and `kolk serve --pair` and never
+      repeating the value; the environment path is unchanged and pinned by its own test. The flag stays
+      defined so an old script sees the reason rather than "flag provided but not defined". Help line
+      updated (`[--pair]` in place of `[--token <tok>]`); nothing on the site or in the README mentioned
+      the flag. `-race` on the serve tests; lint; `make check`.
+    - [ ] **V34.1d.4b `/key` reads the key hidden, never from its arguments** — a key-shaped argument is
+      refused with the reason and the way; `/key` and `/key <provider>` prompt for the key with echo
+      off (`term.ReadPassword` through `internal/term`, the one package allowed x/term) when stdin is a
+      terminal, and read one line from stdin otherwise (pipes, tests); `/key -` stays. **Red:** `/key
+      sk-…` is accepted and stored today outside CI.
+    - [ ] **V34.1d.4c the TUI masks the key** — kolk owns the terminal in the TUI, so `/key` there opens a
+      masked overlay like the approval overlay: dots for the draft, Enter delivers the value without
+      recording it in the command history, Esc cancels. **Red:** `/key sk-…` in the TUI is recorded in
+      the command history and echoed.
   - [x] **V34.1c.1 restrictive modes survive a rewind** — copy store: `Entry.Mode` recorded at
     `Record`, restored with it (older manifests without a mode fall back to the file's current mode,
     then 0644). Shadow store: the modes of the paths about to be restored are read before the git
