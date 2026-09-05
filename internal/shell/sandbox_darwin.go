@@ -5,7 +5,6 @@ package shell
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -86,36 +85,6 @@ func seatbeltProfile(p Sandbox) (string, error) {
 		fmt.Fprintf(&b, "(deny file-read* (subpath %s))\n(deny file-write* (subpath %s))\n", q, q)
 	}
 	return b.String(), nil
-}
-
-// existingRealPath resolves a path that must exist. A root that does not is a
-// policy that cannot be established, and that is a refusal, not a guess.
-func existingRealPath(label, path string) (string, error) {
-	if strings.TrimSpace(path) == "" {
-		return "", fmt.Errorf("sandbox policy has no %s directory", label)
-	}
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return "", fmt.Errorf("sandbox %s %s: %w", label, path, err)
-	}
-	real, err := filepath.EvalSymlinks(abs)
-	if err != nil {
-		return "", fmt.Errorf("sandbox %s %s cannot be resolved: %w", label, path, err)
-	}
-	return real, nil
-}
-
-// bestRealPath resolves what exists and cleans what does not. A denylist entry
-// for a ~/.gnupg that was never created still deserves its rule.
-func bestRealPath(path string) string {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return filepath.Clean(path)
-	}
-	if real, err := filepath.EvalSymlinks(abs); err == nil {
-		return real
-	}
-	return filepath.Clean(abs)
 }
 
 // sbplString quotes a path for SBPL: double quotes, with the two characters
