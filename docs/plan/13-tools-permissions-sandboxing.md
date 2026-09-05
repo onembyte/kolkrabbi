@@ -104,8 +104,8 @@ exists; background `bash` interacts with U0.4f's detached-process handling and n
 | Platform | Shipped now | Accepted v1 work | Post-v1 |
 |---|---|---|---|
 | all | path jail + blocklist + auto-deny in subagents, in process | one shared sandbox policy, explicit fallback/refusal, and bounded diagnostics | — |
-| Linux | no OS sandbox | **Landlock**, decided in §7.2; proved under V34.1e | — |
-| macOS | no OS sandbox | **Seatbelt** via `sandbox-exec`, decided in §7.2; proved under V34.1e | — |
+| Linux | **Landlock**, opt-in via `/sandbox on` (shipped V34.1e, 2026-09-05) | — | — |
+| macOS | **Seatbelt** via `sandbox-exec`, opt-in via `/sandbox on` (shipped V34.1e, 2026-09-05) | — | — |
 | any | — | — | container execution for `saga` |
 
 #### 7.1 Delegated network policy (decided 2026-09-02, F2 of `FABLE_OPTIMIZATION.md`)
@@ -148,10 +148,10 @@ Windows sandboxing remain outside this accepted matrix.
 
 #### 7.2 The OS sandbox — V34.1e, hardened 2026-09-05
 
-Accepted v1 scope, decided here, **unshipped until V34.1e.0–V34.1e.6 close.** Nothing public says
-"available" before the closing leaf flips it; the README, the capabilities catalogue, the comparison
-pages and `llms.txt` all currently say there is no execution sandbox, and they stay that way until
-the escape tests are green on native macOS and Linux runners.
+Accepted v1 scope, decided here, **shipped: V34.1e.0–V34.1e.6 closed 2026-09-05.** Nothing public
+said "available" before the closing leaf flipped it; the README, the capabilities catalogue, the
+comparison pages and `llms.txt` said there was no execution sandbox until the escape tests were green
+on native macOS and Linux runners, and V34.1e.6 flipped them together with the pins that guard each.
 
 **Decision.** One policy, two enforcers, fail closed.
 

@@ -486,14 +486,17 @@
             claimed. Both child paths drop credential-shaped variables, the vendor's own API key
             included on purpose, while ordinary build variables survive.</p>
         </article>
-        <article class="spec-card" data-status="designed">
-          <div class="spec-meta"><span class="status-badge">Designed, not shipped</span><span>SANDBOX</span></div>
-          <h3>OS-level execution sandboxes</h3>
-          <p>OS-level isolation on supported Linux and macOS targets is accepted v1 scope, with a
-            shared refusal contract and native negative tests required before it can be called
-            available. The current binary still relies on its in-process path, permission, and
-            capability boundaries; full-auto inside a future sandbox remains distinct from
-            unrestricted host access.</p>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>SANDBOX</span></div>
+          <h3>OS-level execution sandbox, opt-in</h3>
+          <p><code>/sandbox on</code> confines the <code>bash</code> tool for the session: Seatbelt on
+            macOS, Landlock on Linux 5.13 or newer. Writes are limited to the project, its temp
+            directory and the toolchain caches; credential paths such as <code>~/.ssh</code> stay
+            unreadable even inside a widened root; <code>network = deny</code> is optional and is
+            refused where the kernel cannot enforce it (Linux before 6.7) rather than approximated.
+            Off by default, so commands keep their normal network access, and the status line always
+            shows the state. Nine native escape tests run on both platforms; the wrapper costs about
+            2 ms per command on Linux and 6 ms on macOS.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>PROTOCOL</span></div>

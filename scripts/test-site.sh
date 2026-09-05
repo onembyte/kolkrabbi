@@ -20,6 +20,14 @@ contains() {
   if [ -f "$SITE/$file" ] && grep -Fq -- "$text" "$SITE/$file"; then pass; else fail "$label"; fi
 }
 
+# The inverse pin: a sentence that used to be true and now would be a lie. A
+# flipped claim needs both -- the new wording present, the old wording gone --
+# or a stale copy survives in a page nobody re-read.
+not_contains() {
+  local file="$1" text="$2" label="$3"
+  if [ -f "$SITE/$file" ] && ! grep -Fq -- "$text" "$SITE/$file"; then pass; else fail "$label"; fi
+}
+
 contains_deploy_doc() {
   local text="$1" label="$2"
   if [ -f "$DEPLOY_DOC" ] && grep -Fq -- "$text" "$DEPLOY_DOC"; then pass; else fail "$label"; fi
@@ -438,7 +446,12 @@ contains llms.txt 'brew install onembyte/tap/kolk' "llms.txt does not offer the 
 if [ -x "$ROOT/scripts/update-homebrew-tap.sh" ]; then pass; else fail "the Homebrew formula generator is missing or not executable"; fi
 contains llms.txt 'gateway (OpenRouter) key' "llms.txt omits the gateway-key requirement"
 contains llms.txt 'What it does not have yet' "llms.txt omits the limitations, which is what makes it trustworthy"
-contains llms.txt 'No MCP, no skills, no general execution sandbox, no LSP.' "llms.txt limitation list drifted from the README"
+contains llms.txt 'No MCP, no skills, no LSP. The execution sandbox is opt-in (`/sandbox on`) and off by default.' "llms.txt limitation list drifted from the README"
+contains capabilities.html 'OS-level execution sandbox, opt-in' "capabilities page lost the sandbox row"
+contains capabilities.html 'Landlock on Linux' "capabilities sandbox row does not name the Linux enforcer"
+not_contains llms.txt 'no general execution sandbox' "llms.txt still denies the sandbox that shipped 2026-09-05"
+not_contains compare/codex-cli.html 'no OS-level sandbox' "codex compare page still denies the sandbox that shipped 2026-09-05"
+not_contains compare/claude-code.html 'no OS-level sandbox' "claude-code compare page still denies the sandbox that shipped 2026-09-05"
 contains _headers '/llms.txt' "_headers has no plain-text policy for llms.txt"
 
 contains _headers '/install.sh' "_headers has no installer-specific policy"

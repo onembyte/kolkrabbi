@@ -325,10 +325,15 @@ The reasoning for each, and the condition that would change it, is in
 - Local models use the Ollama you already have; kolk never installs one. A
   pulled model shows in `/model` even while Ollama is idle, and picking it
   starts the server for the session.
-- No MCP or skills yet. There is no general execution sandbox in the current
-  binary; OS-level sandboxing is accepted v1 work and remains visibly unshipped
-  until the Linux/macOS controls and refusal tests close under V34.1e. Markdown
-  slash commands and post-edit, post-write, and session-end hooks are available.
+- No MCP or skills yet. The execution sandbox is opt-in and off by default:
+  `/sandbox on` (or `/config set sandbox on` to persist) confines kolk's own
+  `bash` tool with Seatbelt on macOS and Landlock on Linux 5.13 or newer.
+  Writes are limited to the project, its temp directory and the toolchain
+  caches; credential paths such as `~/.ssh` stay unreadable even inside a
+  widened root; `network = deny` is optional and is refused, not approximated,
+  where the kernel cannot enforce it (Linux before 6.7). Off, commands keep
+  their normal network access. Markdown slash commands and post-edit,
+  post-write, and session-end hooks are available.
 - A remote device can watch a session and answer its permission prompts; it
   cannot yet send a turn.
 - Unix-only in practice (bash tool, ANSI colors); Windows is cross-built and

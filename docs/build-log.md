@@ -6708,3 +6708,23 @@ under a policy — a timeout and a cancellation — and both pass. To be sure th
 was switched off for a moment: both reported a grandchild surviving through the wrapper, which is the
 exact regression a future forking wrapper would introduce. Switched back, both pass. Nothing public
 has changed yet. V34.1e.6 is the flip, and it needs the owner.
+
+## The flip — V34.1e.6 closed 2026-09-05
+
+Six leaves said nothing in public. This one says it, everywhere at once, and only what the tests
+can defend. The README's "no general execution sandbox" became: opt-in, off by default, `/sandbox
+on`; Seatbelt on macOS, Landlock on Linux 5.13 or newer; writes confined to the project, temp and the
+toolchain caches; credentials unreadable even inside a widened root; a network deny the kernel cannot
+enforce refused rather than approximated. The capabilities card moved from "Designed, not shipped" to
+"Available now" and carries the escape-test count and the measured cost. `llms.txt` follows.
+
+The comparison pages were the delicate part, because a flipped claim about kolk changes a sentence
+about someone else. Codex sandboxes by default with three modes; kolk sandboxes on request with one,
+so the card now names that residual gap instead of a capability gap. Claude Code's sandboxed Bash tool
+was verified today from its own documentation — Seatbelt on macOS, bubblewrap on Linux and WSL2,
+network isolation by allowed domain — and the card says both sandbox the bash tool and that Claude
+Code's network rules are finer. Its default state could not be read from the page and is not claimed.
+
+The site guard learned an inverse pin. `contains` proves the new sentence is present; `not_contains`
+proves the old one is gone, in every page that carried it, so a stale copy nobody re-read cannot
+outlive the flip. V34.1e is closed: one policy, two enforcers, fail closed, off until asked.

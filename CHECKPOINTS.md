@@ -10692,10 +10692,29 @@ Subcheckpoints, one at a time:
   false` in `command()` both twins fail with "grandchild N survived through the sandbox wrapper";
   reverted, both pass. Non-goals kept: the ladder itself is untouched; delegated children stay
   §7.1's. `-race` clean on the goroutine test; `make check` all gates; CI green on both runners.
-- [ ] **V34.1e.6 walk-back and the flip** — in one commit: README "Known limitations",
+- [x] **V34.1e.6 walk-back and the flip** — in one commit: README "Known limitations",
   `site/capabilities.html` 491/495 to Available, the sandbox cells on every `site/compare/*.html`,
   `site/llms.txt`, and the `test-site.sh` pins that guard each; then this ledger, PLAN item 13's
   matrix row, and `docs/build-log.md`. Nothing flips before V34.1e.0–5 are `[x]`.
+  **Closed 2026-09-05, one commit, at the owner's word ("go e.6").** Preconditions held: 1e.0–1e.5
+  `[x]`, CI green on both runners for each. What flipped, and to what: README "Known limitations" now
+  states the sandbox is opt-in and off by default, names both enforcers with the Linux floor (5.13;
+  network deny 6.7), what writes are confined to, that credentials stay unreadable inside a widened
+  root, and that a deny the kernel cannot enforce is refused. `site/capabilities.html` card →
+  `Available now` / "OS-level execution sandbox, opt-in", with the escape-test count and the measured
+  overhead; the legend keeps "Designed, not shipped" so the pin at 238 stays meaningful. `codex-cli`
+  card → "Codex sandboxes by default; Kolkrabbi on request" (badge `Kolkrabbi has it`; the residual
+  gap is the default and the number of modes) and the table cell. `claude-code` card → "Both
+  sandbox the bash tool; Claude Code's network rules are finer", and a new table row — Claude
+  Code's facts (Seatbelt / bubblewrap on Linux and WSL2, filesystem and network isolation by allowed
+  domain) verified today from its official sandboxing page and recorded privately; its default state
+  was not extractable and is not claimed. `llms.txt` limitation line rewritten. `test-site.sh`: the
+  llms pin follows the new sentence; two `contains` pins for the capabilities row; a new
+  `not_contains` helper with three inverse pins so the old "no OS-level sandbox" wording cannot
+  survive in any page — 346 checks. PLAN item 13 says shipped; plan 13's platform matrix and §7.2's
+  "unshipped until" paragraph say shipped. Not in this leaf: the README's unrelated "Sandbox
+  testing" heading (the mock server) keeps its name — a rename is a wording call for the owner.
+  **The sandbox is public. Every public sentence about it is one the tests can defend.**
 
 ##### V34.1a.0 threat model and red evidence — complete 2026-09-02
 

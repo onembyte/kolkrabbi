@@ -95,10 +95,10 @@
           <h3>The terminal, and only the terminal</h3>
           <p>Claude Code runs in your IDE, a desktop app, a browser and a phone, and a session moves between them. Kolkrabbi is a terminal program; a remote device can watch a session and answer its permission prompts, but it cannot start one.</p>
         </article>
-        <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Kolkrabbi does not</span><span>SANDBOX</span></div>
-          <h3>No execution sandbox</h3>
-          <p>Kolkrabbi has permission tiers, a path jail and confirmation rules, but no OS-level sandbox around the commands it runs. That work is accepted and unshipped.</p>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Kolkrabbi has it</span><span>SANDBOX</span></div>
+          <h3>Both sandbox the bash tool; Claude Code's network rules are finer</h3>
+          <p>Claude Code's sandboxed Bash tool uses Seatbelt on macOS and bubblewrap on Linux and WSL2, with filesystem and network isolation down to allowed domains. Kolkrabbi's sandbox is opt-in: <code>/sandbox on</code> uses Seatbelt on macOS and Landlock on Linux, confines writes to the project and temp, denies credential paths, and its network policy is allow or deny with nothing in between.</p>
         </article>
         <article class="spec-card" data-status="planned">
           <div class="spec-meta"><span class="status-badge">Kolkrabbi does not</span><span>WINDOWS</span></div>
@@ -233,6 +233,11 @@
               <th scope="row">Subagents</th>
               <td>Dependency-ordered tasks sharing one working tree</td>
               <td>Parallel subagents, coordinated by a lead agent</td>
+            </tr>
+            <tr>
+              <th scope="row">Execution sandbox</th>
+              <td>Opt-in. <code>/sandbox on</code> uses Seatbelt on macOS and Landlock on Linux; writes confined to the project and temp, credential paths denied, network allow or deny. Off by default</td>
+              <td>Yes. Sandboxed Bash tool with Seatbelt on macOS and bubblewrap on Linux and WSL2; filesystem isolation and network isolation by allowed domain</td>
             </tr>
             <tr>
               <th scope="row">Operating systems</th>

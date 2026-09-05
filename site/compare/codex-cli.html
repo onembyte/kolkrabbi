@@ -86,9 +86,9 @@
       </div>
       <div class="spec-grid">
         <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Kolkrabbi does not</span><span>SANDBOX</span></div>
-          <h3>Codex sandboxes execution; Kolkrabbi does not</h3>
-          <p>Codex has <code>sandbox_mode</code> — read-only, workspace-write, or danger-full-access — with a matching approval policy. Kolkrabbi has permission tiers, a path jail and confirmation rules, but no OS-level sandbox. This is the most substantive gap on this page.</p>
+          <div class="spec-meta"><span class="status-badge">Kolkrabbi has it</span><span>SANDBOX</span></div>
+          <h3>Codex sandboxes by default; Kolkrabbi on request</h3>
+          <p>Codex has <code>sandbox_mode</code> — read-only, workspace-write, or danger-full-access — with a matching approval policy, always on. Kolkrabbi's sandbox is one mode and opt-in: <code>/sandbox on</code> confines the <code>bash</code> tool with Seatbelt on macOS or Landlock on Linux, writes limited to the project and temp, credential paths denied, network deny optional. The gap is now the default and the number of modes, not the capability.</p>
         </article>
         <article class="spec-card" data-status="planned">
           <div class="spec-meta"><span class="status-badge">Kolkrabbi does not</span><span>MCP</span></div>
@@ -216,7 +216,7 @@
             </tr>
             <tr>
               <th scope="row">Execution sandbox</th>
-              <td>Not yet. Permission rules and a path jail, but no OS sandbox</td>
+              <td>Opt-in. <code>/sandbox on</code> uses Seatbelt on macOS and Landlock on Linux; writes confined to the project and temp, credential paths denied, network deny optional. Off by default</td>
               <td>Yes. <code>sandbox_mode</code> is <code>read-only</code>, <code>workspace-write</code> or <code>danger-full-access</code>, with <code>approval_policy</code> of <code>untrusted</code>, <code>on-request</code> or <code>never</code></td>
             </tr>
             <tr>

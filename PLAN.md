@@ -464,7 +464,7 @@ backend only.
 **Inputs:** `docs/research/dashboard.md`, `docs/research/ecosystem.md`
 
 ### [x] 13. Tools, permissions & sandboxing
-**Hardened 2026-08-26; scope amended 2026-09-01** ([`docs/plan/13-tools-permissions-sandboxing.md`](docs/plan/13-tools-permissions-sandboxing.md)): the in-process path jail, hardline floor, scrubbed results, and subagent auto-deny ship first. The owner has now accepted OS-level sandboxing on supported Linux/macOS targets as v1 scope; it remains unshipped until V34.1e supplies native fail-closed evidence.
+**Hardened 2026-08-26; scope amended 2026-09-01** ([`docs/plan/13-tools-permissions-sandboxing.md`](docs/plan/13-tools-permissions-sandboxing.md)): the in-process path jail, hardline floor, scrubbed results, and subagent auto-deny ship first. The owner accepted OS-level sandboxing on supported Linux/macOS targets as v1 scope, and V34.1e shipped it on 2026-09-05: Seatbelt on macOS, Landlock on Linux, opt-in via `/sandbox on`, nine native escape tests on both, network deny refused where the kernel cannot enforce it.
 **Scope:** what the model can do to your machine and how that is controlled.
 **Today:** 5 tools; confirm on bash/write/edit; `-y` yolo; checkpoints on write/edit only; 120 s bash timeout; 12 k char output cap.
 **Decide:**
