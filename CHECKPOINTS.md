@@ -10621,11 +10621,26 @@ Subcheckpoints, one at a time:
       defined so an old script sees the reason rather than "flag provided but not defined". Help line
       updated (`[--pair]` in place of `[--token <tok>]`); nothing on the site or in the README mentioned
       the flag. `-race` on the serve tests; lint; `make check`.
-    - [ ] **V34.1d.4b `/key` reads the key hidden, never from its arguments** — a key-shaped argument is
+    - [x] **V34.1d.4b `/key` reads the key hidden, never from its arguments** — a key-shaped argument is
       refused with the reason and the way; `/key` and `/key <provider>` prompt for the key with echo
       off (`term.ReadPassword` through `internal/term`, the one package allowed x/term) when stdin is a
       terminal, and read one line from stdin otherwise (pipes, tests); `/key -` stays. **Red:** `/key
       sk-…` is accepted and stored today outside CI.
+      **Closed 2026-09-05, on main.** Red observed on three shapes: `/key <key>` exited 0 and stored;
+      `/key` alone was a usage error; `/key mistral` treated the provider name as the key. Green:
+      `term.ReadPassword` (x/term, in the one package allowed it) reads with echo off when stdin is a
+      terminal, the prompt on stderr so stdout stays scriptable; on a pipe one line is read and the
+      source is recorded as `stdin`, so tests and scripts keep working. `/key` and `/key <provider>`
+      prompt; `/key -` and `/key <provider> -` stay; a key on the line is refused with the reason and
+      both ways in, the provider preserved (`/key mistral -`), the key never repeated.
+      `looksLikeAProviderName` tells `/key mistral` from a pasted key: ≤24 chars, a valid keystore
+      provider name, and nothing the shape table recognises — anything else is treated as a key, the
+      side that never echoes. **Interim, pinned by a test:** inside the TUI kolk owns the terminal and
+      cannot hide input until 4c, so the pasted form stays accepted there (and the CI refusal with it);
+      4c flips that on purpose. Seven `/key <API_KEY>` hints reworded (client, advice, doctor, guided
+      action, legacy redirect, recovery hint, slash usage); the existing `/key` tests moved from the
+      pasted form to the piped or prompted form. `-race` clean on cli; lint darwin+linux; vet windows;
+      `make check`.
     - [ ] **V34.1d.4c the TUI masks the key** — kolk owns the terminal in the TUI, so `/key` there opens a
       masked overlay like the approval overlay: dots for the draft, Enter delivers the value without
       recording it in the command history, Esc cancels. **Red:** `/key sk-…` in the TUI is recorded in

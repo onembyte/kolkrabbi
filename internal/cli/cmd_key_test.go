@@ -17,7 +17,7 @@ const cliKeyCanary = "sk-or-v1-0123456789abcdef0123456789abcdef"
 
 func TestKeyCommandInfersVerifiesAndStoresOpenRouter(t *testing.T) {
 	d := isolateHome(t)
-	a, out, errOut := newTestApp(t, "")
+	a, out, errOut := newTestApp(t, cliKeyCanary+"\n")
 	remaining := 74.5
 	var verified int
 	a.verifyOpenRouter = func(_ context.Context, key secret.Secret) (provider.KeyStatus, error) {
@@ -28,7 +28,7 @@ func TestKeyCommandInfersVerifiesAndStoresOpenRouter(t *testing.T) {
 		return provider.KeyStatus{RemainingUSD: &remaining}, nil
 	}
 
-	if code := runRetiredVerb(t, a, "key", cliKeyCanary); code != ExitOK {
+	if code := runRetiredVerb(t, a, "key"); code != ExitOK {
 		t.Fatalf("/key exit = %d, stderr:\n%s", code, errOut)
 	}
 	if verified != 1 {
@@ -53,7 +53,7 @@ func TestKeyCommandInfersVerifiesAndStoresOpenRouter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if entry.Source != "paste" || entry.Verified.IsZero() {
+	if entry.Source != "stdin" || entry.Verified.IsZero() {
 		t.Errorf("stored metadata = %+v", entry)
 	}
 	if _, err := os.Stat(d.Config); !errors.Is(err, os.ErrNotExist) {
@@ -63,12 +63,12 @@ func TestKeyCommandInfersVerifiesAndStoresOpenRouter(t *testing.T) {
 
 func TestKeyCommandStoresWhenVerificationIsOffline(t *testing.T) {
 	d := isolateHome(t)
-	a, out, errOut := newTestApp(t, "")
+	a, out, errOut := newTestApp(t, cliKeyCanary+"\n")
 	a.verifyOpenRouter = func(context.Context, secret.Secret) (provider.KeyStatus, error) {
 		return provider.KeyStatus{}, fmt.Errorf("offline while checking %s", cliKeyCanary)
 	}
 
-	if code := runRetiredVerb(t, a, "key", cliKeyCanary); code != ExitOK {
+	if code := runRetiredVerb(t, a, "key"); code != ExitOK {
 		t.Fatalf("/key exit = %d, stderr:\n%s", code, errOut)
 	}
 	if !strings.Contains(out.String(), "stored, not verified") || !strings.Contains(errOut.String(), "warning:") {
@@ -100,7 +100,7 @@ func TestKeyCommandDenialsAndUnknownShapesHaveNoSideEffects(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := isolateHome(t)
-			a, _, errOut := newTestApp(t, "")
+			a, _, errOut := newTestApp(t, tt.key+"\n")
 			var verified, stored int
 			a.verifyOpenRouter = func(context.Context, secret.Secret) (provider.KeyStatus, error) {
 				verified++
@@ -110,7 +110,7 @@ func TestKeyCommandDenialsAndUnknownShapesHaveNoSideEffects(t *testing.T) {
 				stored++
 				return nil
 			}
-			if code := runRetiredVerb(t, a, "key", tt.key); code != ExitUsage {
+			if code := runRetiredVerb(t, a, "key", "-"); code != ExitUsage {
 				t.Errorf("exit = %d, want %d", code, ExitUsage)
 			}
 			if verified != 0 || stored != 0 {
@@ -198,17 +198,17 @@ func TestKeyCommandExplicitProviderIsTheUnknownShapeEscape(t *testing.T) {
 
 func TestKeyCommandStoreFailureNamesAWorkingRecoveryWithoutLeaking(t *testing.T) {
 	isolateHome(t)
-	a, out, errOut := newTestApp(t, "")
+	a, out, errOut := newTestApp(t, cliKeyCanary+"\n")
 	a.verifyOpenRouter = func(context.Context, secret.Secret) (provider.KeyStatus, error) {
 		return provider.KeyStatus{}, nil
 	}
 	a.setCredential = func(context.Context, string, keystore.Ref, secret.Secret, keystore.WriteMetadata) error {
 		return fmt.Errorf("disk failure involving %s", cliKeyCanary)
 	}
-	if code := runRetiredVerb(t, a, "key", cliKeyCanary); code != ExitError {
+	if code := runRetiredVerb(t, a, "key"); code != ExitError {
 		t.Fatalf("store failure exit = %d, want %d", code, ExitError)
 	}
-	if !strings.Contains(errOut.String(), "couldn't save") || !strings.Contains(errOut.String(), "/key <API_KEY>") {
+	if !strings.Contains(errOut.String(), "couldn't save") || !strings.Contains(errOut.String(), "/key") {
 		t.Errorf("store recovery is incomplete: %s", errOut)
 	}
 	assertNoCLIKey(t, out.String(), errOut.String())
@@ -245,7 +245,7 @@ func TestLegacyConfigSetKeyIsAHardRedirectWithoutSideEffects(t *testing.T) {
 	if code := runRetiredVerb(t, a, "config", "set-key", cliKeyCanary); code != ExitUsage {
 		t.Fatalf("legacy set-key exit = %d, want %d", code, ExitUsage)
 	}
-	if !strings.Contains(errOut.String(), "/key <API_KEY>") {
+	if !strings.Contains(errOut.String(), "/key") {
 		t.Errorf("legacy redirect omits the supported command: %s", errOut)
 	}
 	assertNoCLIKey(t, out.String(), errOut.String())

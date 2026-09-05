@@ -17,7 +17,7 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 	// would leave two supported key commands forever and would bypass the one
 	// provider-agnostic command's CI and shape guidance.
 	if len(args) > 0 && args[0] == "set-key" {
-		return usagef("`/config set-key` was replaced; use `/key <API_KEY>`")
+		return usagef("`/config set-key` was replaced; use `/key` (it asks for the key, hidden)")
 	}
 
 	d, err := a.resolve()

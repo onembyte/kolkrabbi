@@ -321,7 +321,7 @@ func TestFirstRunWithoutAKeyIsExactAndReadOnly(t *testing.T) {
 		t.Errorf("exit = %d, want %d", code, ExitUsage)
 	}
 	const want = "kolk needs an API key before it can use models.\n" +
-		"Add one:  /key <API_KEY>\n" +
+		"Add one:  /key   (it asks for the key, hidden)\n" +
 		"Then run: kolk\n"
 	if got := errOut.String(); got != want {
 		t.Errorf("first-run guidance:\n%s\nwant exactly:\n%s", got, want)

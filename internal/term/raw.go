@@ -65,3 +65,16 @@ func enterRawWith(
 		return restoreErr
 	}, nil
 }
+
+// ReadPassword reads one line from f with echo off, for a credential the user
+// pastes. It is the only way kolk ever takes a key from a person at a
+// terminal: a key typed after a command sits in the scrollback, in the shell's
+// history when it came in on argv, and in `ps` while the process runs. The
+// caller decides that f is a terminal; on a pipe it should read a line instead.
+func ReadPassword(f *os.File) (string, error) {
+	b, err := xterm.ReadPassword(int(f.Fd()))
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}

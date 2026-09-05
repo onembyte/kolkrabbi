@@ -139,7 +139,7 @@ func (a *app) doctorKeys(ctx context.Context) {
 			return
 		}
 	}
-	fmt.Fprintln(a.stdout, "  ✗ openrouter  no key found — add one with `/key <API_KEY>`")
+	fmt.Fprintln(a.stdout, "  ✗ openrouter  no key found — add one with `/key` (it asks for the key, hidden)")
 }
 
 func (a *app) doctorTerminal() {

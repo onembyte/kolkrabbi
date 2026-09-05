@@ -25,7 +25,7 @@ func providerClientForEndpoint(ctx context.Context, endpoint, credentialPath str
 	}
 	if apiKey.IsZero() {
 		return nil, guidedAction("kolk needs an API key before it can use models.\n" +
-			"Add one:  /key <API_KEY>\n" +
+			"Add one:  /key   (it asks for the key, hidden)\n" +
 			"Then run: kolk")
 	}
 	return provider.NewOpenRouterClient(endpoint, apiKey.Reveal())

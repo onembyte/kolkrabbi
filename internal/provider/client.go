@@ -293,7 +293,7 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []Messag
 	defer func() { err = secret.ScrubError(err) }()
 	meta = Meta{Model: model}
 	if c.requiresKey() && !c.HasKey() {
-		return Message{}, meta, fmt.Errorf("no API key set (run: /key <API_KEY>, or export OPENROUTER_API_KEY)")
+		return Message{}, meta, fmt.Errorf("no API key set (run: /key, or export OPENROUTER_API_KEY)")
 	}
 	reqBody := chatRequest{
 		Model:         model,

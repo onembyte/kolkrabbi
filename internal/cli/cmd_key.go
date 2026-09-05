@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/redact"
 	"github.com/onembyte/kolkrabbi/internal/secret"
+	"github.com/onembyte/kolkrabbi/internal/term"
 )
 
 type verifyOpenRouterFunc func(context.Context, secret.Secret) (provider.KeyStatus, error)
@@ -49,35 +51,58 @@ func (a *app) initKeyDependencies() {
 // new key shapes. A literal dash is the only stdin spelling, so an accidental
 // pipe can never silently replace a credential.
 func (a *app) runKey(ctx context.Context, args []string) error {
-	if len(args) != 1 && len(args) != 2 {
+	if len(args) > 2 {
 		return usagef("%s", usageLine("key"))
 	}
-
-	providerName := ""
-	explicitProvider := len(args) == 2
-	input := args[0]
-	if explicitProvider {
-		providerName = args[0]
-		input = args[1]
+	// Inside the TUI kolk owns the terminal and cannot hide what is typed yet
+	// (V34.1d.4c), so the pasted form is still accepted there. Everywhere
+	// else a key on the line is refused: it is in the scrollback, in shell
+	// history when kolk was started with it, and in `ps` while it runs.
+	inTUI := a.terminalOwned != nil && a.terminalOwned()
+	providerName, explicitProvider := "", false
+	source, raw := "", ""
+	switch {
+	case len(args) == 0:
+		source = "prompt"
+	case len(args) == 1 && args[0] == "-":
+		source = "stdin"
+	case len(args) == 1 && looksLikeAProviderName(args[0]):
+		providerName, explicitProvider, source = args[0], true, "prompt"
+	case len(args) == 1:
+		if !inTUI {
+			return refuseKeyOnTheLine("")
+		}
+		source, raw = "paste", args[0]
+	case args[1] == "-":
+		providerName, explicitProvider, source = args[0], true, "stdin"
+	default:
+		if !inTUI {
+			return refuseKeyOnTheLine(args[0])
+		}
+		providerName, explicitProvider, source, raw = args[0], true, "paste", args[1]
 	}
-
-	source := "paste"
-	raw := input
-	if input == "-" {
-		// A session reads the terminal from its own goroutine, so reading it
-		// here would compete for the user's keystrokes and look like a hang.
-		if a.terminalOwned != nil && a.terminalOwned() {
-			// There is no outside-session `kolk key` to fall back to any more
-			// (docs/plan/09, 2026-09-02), so the advice has to be something
-			// that works from here: paste it, or pipe it into the session.
+	switch source {
+	case "stdin":
+		if inTUI {
 			return fmt.Errorf("reading a key from stdin needs a terminal this session already owns; paste the key after /key instead, or pipe it in when starting kolk")
 		}
-		source = "stdin"
 		value, err := io.ReadAll(io.LimitReader(a.in, keystore.MaxValueBytes+2))
 		if err != nil {
 			return fmt.Errorf("reading API key from stdin: %w", secret.ScrubError(err))
 		}
 		raw = string(value)
+	case "prompt":
+		if inTUI {
+			return fmt.Errorf("this session owns the terminal and cannot hide the key yet; paste it after /key on this line, or start kolk with it on stdin")
+		}
+		value, hidden, err := a.readSecretLine("Paste the API key (it will not be shown): ")
+		if err != nil {
+			return fmt.Errorf("reading API key: %w", secret.ScrubError(err))
+		}
+		raw = value
+		if !hidden {
+			source = "stdin" // a pipe, not a person: recorded as such
+		}
 	}
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -150,7 +175,7 @@ func (a *app) runKey(ctx context.Context, args []string) error {
 		}
 		return guided(
 			fmt.Sprintf("couldn't save the API key: %s", scrubCredentialError(err, raw)),
-			"Try again with: /key <API_KEY>",
+			"Try again with: /key",
 		)
 	}
 
@@ -192,4 +217,49 @@ func yesNo(value bool) string {
 		return "yes"
 	}
 	return "no"
+}
+
+// looksLikeAProviderName tells `/key mistral` from `/key <a pasted key>`: a
+// valid keystore provider name, short, and not something the shape table
+// recognises as a credential. Anything else is treated as a key, which is the
+// safe side -- a key mistaken for a provider name would be echoed back.
+func looksLikeAProviderName(arg string) bool {
+	if len(arg) > 24 {
+		return false
+	}
+	if c := redact.Classify(arg); c.Provider != "" || c.Denial != redact.DenyNone {
+		return false
+	}
+	_, err := keystore.NormalizeRef(keystore.Ref{Provider: arg})
+	return err == nil
+}
+
+// refuseKeyOnTheLine is the refusal for a pasted key, naming the ways in and
+// never the key. With a provider given, the piped form keeps it.
+func refuseKeyOnTheLine(providerName string) error {
+	piped := "/key -"
+	prompt := "/key"
+	if providerName != "" {
+		piped = "/key " + providerName + " -"
+		prompt = "/key " + providerName
+	}
+	return usagef("kolk does not take a key on the command line: it stays in the scrollback, in shell history and in `ps`. "+
+		"Run `%s` and paste it at the hidden prompt, or pipe it in with `%s`", prompt, piped)
+}
+
+// readSecretLine reads a credential from the person at the terminal with echo
+// off, or one line from stdin when stdin is a pipe. The prompt goes to stderr
+// so stdout stays scriptable. hidden reports which of the two happened.
+func (a *app) readSecretLine(prompt string) (value string, hidden bool, err error) {
+	if term.IsStdinTerminal() {
+		fmt.Fprint(a.stderr, prompt)
+		line, err := term.ReadPassword(os.Stdin)
+		fmt.Fprintln(a.stderr)
+		return strings.TrimSpace(line), true, err
+	}
+	line, err := a.in.ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return "", false, err
+	}
+	return strings.TrimSpace(line), false, nil
 }

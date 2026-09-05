@@ -63,7 +63,7 @@ func Advise(err error) (Advice, bool) {
 	case http.StatusUnauthorized:
 		return Advice{
 			Summary:    "OpenRouter rejected the API key",
-			NextAction: "Set a working key with `/key <API_KEY>`, or check OPENROUTER_API_KEY if you export one.",
+			NextAction: "Set a working key with `/key` (it asks for the key, hidden), or check OPENROUTER_API_KEY if you export one.",
 		}, true
 	case http.StatusPaymentRequired:
 		return Advice{
