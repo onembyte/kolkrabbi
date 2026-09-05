@@ -67,10 +67,28 @@ else
 fi
 
 echo "── test-count floor ──"
-count="$(go test ./... -count=1 -v 2>/dev/null | grep -c '^=== RUN' || true)"
+# One verbose run serves two budgets: the count below, and the sandbox
+# wrapper's per-command overhead, which the shell package measures against the
+# same 20/30 ms lines as cold start and prints as a single greppable line.
+go test ./... -count=1 -v >"$out/tests.log" 2>/dev/null || true
+count="$(grep -c '^=== RUN' "$out/tests.log" || true)"
 echo "root module: $count tests (floor $TEST_FLOOR)"
 if [ "$count" -lt "$TEST_FLOOR" ]; then
   echo "::error::test count fell below the floor of $TEST_FLOOR (got $count)"; status=1
+fi
+
+echo "── sandbox overhead ──"
+# The test itself fails past the hard line (which `make test` already
+# enforces); this lifts the number into the budgets log beside cold start so
+# both are read from one place, and treats a missing line as a finding rather
+# than silence -- a skipped measurement on the runner that is meant to take it
+# would otherwise vanish without a trace.
+overhead="$(grep -o 'sandbox overhead p50: .*' "$out/tests.log" | head -1 || true)"
+if [ -n "$overhead" ]; then
+  echo "$overhead"
+  grep -o '::warning::sandbox overhead .*' "$out/tests.log" | head -1 || true
+else
+  echo "::error::the sandbox overhead measurement did not run on this runner"; status=1
 fi
 
 echo "── third-party modules in the root graph ──"

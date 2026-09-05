@@ -10671,7 +10671,7 @@ Subcheckpoints, one at a time:
   groups (it renders as a lead through `permissionLead`), so "beside approval" became "after
   effort". Focused verification with `-race` on shell, tools, tui, cli; `make check` all gates.
   Nothing public changes until V34.1e.6.
-- [ ] **V34.1e.5 measurement** — per-command overhead of the wrapper on darwin and linux against the
+- [~] **V34.1e.5 measurement** — per-command overhead of the wrapper on darwin and linux against the
   cold-start soft budget; confirm the cancel ladder still reaches grandchildren through the wrapper
   (`npm test &` shape). A number over budget is a finding to record, not a note to bury.
 - [ ] **V34.1e.6 walk-back and the flip** — in one commit: README "Known limitations",
