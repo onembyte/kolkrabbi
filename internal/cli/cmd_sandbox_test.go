@@ -2,9 +2,10 @@ package cli
 
 import (
 	"context"
-	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/onembyte/kolkrabbi/internal/shell"
 )
 
 func TestSandboxIsOffByDefaultAndSaysSo(t *testing.T) {
@@ -26,8 +27,8 @@ func TestSandboxIsOffByDefaultAndSaysSo(t *testing.T) {
 // Turning it on where nothing can enforce it is refused at the command, with
 // the reason, and toggles nothing. Fail closed, but at the moment of the ask.
 func TestSandboxOnIsRefusedWhenNoMechanismExists(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("seatbelt exists here; the refusal is exercised where no mechanism does, and the success below")
+	if name, err := shell.Mechanism(); err == nil {
+		t.Skipf("%s exists here; the refusal is exercised where no mechanism does, and the success test below", name)
 	}
 	isolateConnectorState(t)
 	a, ag, out := replFixture(t, "")
@@ -103,10 +104,12 @@ func TestConfigSetSandboxAcceptsOnlyOnOrOff(t *testing.T) {
 	}
 }
 
-// Where Seatbelt exists, /sandbox on takes effect and names the mechanism.
-func TestSandboxOnSucceedsWhereSeatbeltExists(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("seatbelt is macOS")
+// Where an enforcer exists -- Seatbelt on macOS, Landlock on linux -- /sandbox
+// on takes effect and names it.
+func TestSandboxOnSucceedsWhereAMechanismExists(t *testing.T) {
+	name, err := shell.Mechanism()
+	if err != nil {
+		t.Skipf("no mechanism here (%v); the refusal test above covers this platform", err)
 	}
 	isolateConnectorState(t)
 	a, ag, out := replFixture(t, "")
@@ -115,8 +118,8 @@ func TestSandboxOnSucceedsWhereSeatbeltExists(t *testing.T) {
 	if ag.Sandbox == nil {
 		t.Fatalf("/sandbox on did not take effect:\n%s", out.String())
 	}
-	if !strings.Contains(out.String(), "sandbox → on (seatbelt)") {
-		t.Fatalf("output = %q, want the mechanism named", out.String())
+	if !strings.Contains(out.String(), "sandbox → on ("+name+")") {
+		t.Fatalf("output = %q, want the mechanism %q named", out.String(), name)
 	}
 	if ag.Sandbox.Root != ag.Root {
 		t.Fatalf("policy root %q is not the jail root %q", ag.Sandbox.Root, ag.Root)
