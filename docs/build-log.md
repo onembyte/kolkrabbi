@@ -6604,3 +6604,38 @@ that deletes unused allowances accepted it, because the scanner parses linux-tag
 host. Red was two packages failing to build on exactly the missing names; green on darwin under the
 race detector, the Seatbelt tests intact, and the tree building for linux/amd64, linux/arm64 and
 windows. That is as far as a Mac can take Landlock; the next step needs a kernel, and CI has one.
+
+## Landlock confines for real, and the kernel taught two things a Mac could not — V34.1e.2b/2c closed 2026-09-05
+
+The leaf ran on a pull request because there is no Linux kernel on the development machine and CI
+has one. A tests-only commit went first, and ubuntu reported exactly the red the tests were built to
+show: every escape test failed with "the confined child refused before running the command", which is
+the child declining for want of rules — not a kernel refusal, not a compile error. Then the ruleset,
+and it took two attempts, because Landlock differs from Seatbelt in two ways that only a running
+kernel exposes.
+
+The first is that there is no deny. Seatbelt lets a later `(deny …)` win over an earlier allow, so
+"everything under the home except `.ssh`" is one line. Landlock can only grant, and a rule on a
+directory grants everything beneath it. The read grant already coped: walk the tree, grant siblings
+whole, descend only along the ancestors of a denied path. The write grant did not — it was one rule
+on the root — and test 4, which widens the root to the whole home, showed `~/.ssh` writable. The walk
+is now `grantTree` and serves both access sets. Tests 4 and 9 pin the two halves.
+
+The second is what "re-execute yourself" means under `go test`. The confined child is kolk itself,
+and in a test the running program is the test binary. `internal/shell` had the `TestMain` that hands
+the child entry `os.Args` before the framework sees them; `internal/tools` did not. Its refusal test
+asked for a sandbox with a root that does not exist. On darwin the profile generator refused in the
+parent. On linux the parent only encoded the policy, forked, and the child — the `tools` test binary —
+ignored the environment it did not know to check and ran the whole suite again, which ran the test
+again, twelve levels deep, until timeouts stopped it. Two fixes, both kept: `prepareSandbox`
+validates root and temp in the parent exactly as Seatbelt does, so a doomed policy never forks; and
+`internal/tools` intercepts the re-exec too, because a future test there could sandbox a real
+command and the recursion would be back.
+
+Lint added a third lesson, cheaper than the other two. golangci on darwin does not analyse
+linux-tagged files, so four findings — `%v` on an `errno` where `%w` belongs, two capitalised error
+strings, two unchecked `unix.Close` — reached CI first. `GOOS=linux golangci-lint run` from the Mac
+finds all four; it is in the loop now, before the push rather than after.
+
+Landlock is real on Linux and Seatbelt is real on macOS. Nothing public says so yet. That flips in
+V34.1e.6, together, with the pins that guard each statement.

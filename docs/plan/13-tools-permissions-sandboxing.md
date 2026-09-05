@@ -181,9 +181,12 @@ condition.
 *Linux — Landlock.* Through `golang.org/x/sys/unix`, which is already the module's dependency; no
 cgo, no external binary. The ABI is probed at runtime: ABI ≥ 1 gives filesystem confinement, ABI ≥ 4
 (kernel 6.7+) gives TCP `connect`/`bind` rules. Landlock is allow-only — there is no deny rule — so
-the read grant is built per top-level directory, with the home directory granted entry by entry
-minus the denylist; the enumeration is a documented function with a test that asserts every
-denylist path is unreadable. Go has no pre-exec hook, so the child is `kolk` re-executed in front of the
+**every** grant, reads and writes alike, is a tree walk (`grantTree`, **amended in V34.1e.2b**): a
+directory is granted whole only when no denylist path lies beneath it, and is otherwise enumerated
+one level with the denied children skipped. Reads start at `/`; writes start at the root, the temp
+and each toolchain cache. The write half was not in the first draft, and CI found the hole: a root
+widened to the whole home carried `~/.ssh` with it, because a single write rule on the root cannot be
+"excepted". Escape tests 4 and 9 pin both halves. Go has no pre-exec hook, so the child is `kolk` re-executed in front of the
 command, told what to do by two environment variables (`KOLK_LANDLOCK_CHILD=1` and the policy as
 JSON in `KOLK_LANDLOCK_POLICY` — paths only) rather than by an argv verb: **amended in V34.1e.2a**,
 because a `landlock-exec` verb would have been a fifth outside-session command on a surface this

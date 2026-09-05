@@ -10567,7 +10567,7 @@ Subcheckpoints, one at a time:
   **under-claim**, deliberately, until V34.1e.6 flips every public statement in one commit with its
   pins. Verify: `go test -race -count=1 ./internal/shell/ -run 'Escape|Probe|Seatbelt'` and
   `make check` — 3334 tests, 8.57 MB, all gates.
-- [ ] **V34.1e.2 Linux: Landlock filesystem** — subdivided 2026-09-05 before any code, because one
+- [x] **V34.1e.2 Linux: Landlock filesystem** — subdivided 2026-09-05 before any code, because one
   leaf cannot be red→green on this machine: there is no Linux kernel here (no colima/lima instance;
   docker's daemon is down), and `x/sys` v0.47 turned out to ship Landlock's constants and attr
   structs but **not** the syscall wrappers, so this is raw `unix.Syscall` on `SYS_LANDLOCK_*`.
@@ -10600,15 +10600,34 @@ Subcheckpoints, one at a time:
     2b's red→green is observed on a PR branch on ubuntu-latest. Verify: `GOOS=linux go vet
     ./internal/shell/ ./internal/cli/`, `go test -race ./internal/shell/ -run Landlock`, `make check`
     — 3340 tests, all gates.
-  - [~] **V34.1e.2b the ruleset and the escape tests** — `prctl(PR_SET_NO_NEW_PRIVS)`, create
+  - [x] **V34.1e.2b the ruleset and the escape tests** — `prctl(PR_SET_NO_NEW_PRIVS)`, create
     ruleset with the fs access set for the probed ABI, add rules: **allow-only** reads per top-level
     entry of `/` except the home, then per entry of the home except the denylist (an enumeration
     with a test asserting every denylist path is unreadable); execute everywhere readable; writes
     for root, temp and `Writable`; `restrict_self`; then `execve` bash. Linux-tagged escape tests
     1–5, 7, 8. **Red must be observed on a Linux kernel**, not assumed.
-  - [ ] **V34.1e.2c verification on a real kernel** — ubuntu-latest CI runs `make test` on push and
+  - [x] **V34.1e.2c verification on a real kernel** — ubuntu-latest CI runs `make test` on push and
     is authorised; a local VM (`colima start`: an image download and a booted VM) is **the owner's
     call** and the loop stops to ask if CI alone is not enough to observe red→green.
+    **2b and 2c closed 2026-09-05, on PR #1, rebase-merged as four commits.** Red was observed on
+    ubuntu-latest from a tests-only commit: all seven escape tests and the new ninth failed with "the
+    confined child refused before running the command (no ruleset yet)" — exit 125, never a kernel
+    refusal, never a compile error. The ruleset then went green on the second attempt; the first
+    taught two things the darwin tests could not. **(1) Writes must honour the denylist the same way
+    reads do.** Test 4 widens the root to the whole home; a single write rule on it granted `~/.ssh`,
+    and Landlock has no deny to lay over an allow. `grantReads` became `grantTree` and serves both
+    access sets. **(2) A test binary must intercept the re-exec.** The `tools` refusal test used a
+    root that does not exist; on darwin the generator refused it in the parent, on linux the parent
+    only encoded the policy and forked — and the child was the `tools` test binary, which had no
+    `TestMain` and ran the whole suite again, a dozen levels deep. `prepareSandbox` now validates root
+    and temp in the parent exactly as Seatbelt does, and `internal/tools` has the same `TestMain`
+    `internal/shell` has. Lint taught a third: golangci on darwin never analyses linux-tagged files, and
+    `GOOS=linux golangci-lint run` from a Mac does — four findings (errorlint `%w` on errno, ST1005
+    capitalised errors, two unchecked `unix.Close`) fixed before CI could repeat them. Both cli
+    sandbox tests now key on `shell.Mechanism()` rather than GOOS, which is what they were asking.
+    Green run: 33949991895. On main: `make check` 3340+ tests, all gates. Plan §7.2 amended for
+    `grantTree`. **Landlock now confines for real on Linux; Seatbelt on macOS.** Public claims still
+    unchanged until V34.1e.6.
 - [ ] **V34.1e.3 network** — `(deny network*)` in the Seatbelt profile; Landlock ABI ≥ 4
   connect/bind rules; ABI < 4 with `network = deny` is refused, never approximated. **Red:** escape
   test 6 on both platforms; the refusal on a simulated ABI 3.
