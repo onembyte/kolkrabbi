@@ -42,6 +42,8 @@ adapter yet. Most of those models are already reachable through the OpenRouter g
 ## What it does not have yet
 
 - No MCP, no skills, no general execution sandbox, no LSP.
+- Starting a session still expects a gateway (OpenRouter) key, even when a Claude or
+  ChatGPT subscription is what answers the turns.
 - Windows is cross-built in CI but not supported. macOS and Linux are.
 - Changes made by the `bash` tool are not checkpointed.
 - Subagents share one working tree; there is no worktree isolation.

@@ -410,6 +410,10 @@ sitemap_covers_pages
 kolk_commands_are_real llms.txt
 kolk_commands_are_real index.html
 kolk_commands_are_real capabilities.html
+for page in compare/claude-code.html compare/codex-cli.html compare/opencode.html; do
+  contains "$page" 'expects a gateway key' "$page sells the subscription backends without the gateway-key caveat the README states"
+done
+contains llms.txt 'gateway (OpenRouter) key' "llms.txt omits the gateway-key requirement"
 contains llms.txt 'What it does not have yet' "llms.txt omits the limitations, which is what makes it trustworthy"
 contains llms.txt 'No MCP, no skills, no general execution sandbox, no LSP.' "llms.txt limitation list drifted from the README"
 contains _headers '/llms.txt' "_headers has no plain-text policy for llms.txt"
