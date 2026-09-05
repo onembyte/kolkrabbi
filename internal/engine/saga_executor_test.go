@@ -427,8 +427,11 @@ func TestAWakePersistsExecutingWithoutAStrikeWhenVerificationIsCancelled(t *test
 	if reason != StopNone || state.Chapters[0].Status != StatusExecuting || state.Strikes != 0 || writes == 0 {
 		t.Fatalf("reason=%q chapter=%q strikes=%d writes=%d; want cancelled executing state without strike", reason, state.Chapters[0].Status, state.Strikes, writes)
 	}
-	if len(runner.asked) != 1 || runner.asked[0] != "git status --porcelain" {
-		t.Fatalf("verification commands = %v, want only the status check before cancellation", runner.asked)
+	// The chapter mark (two read-only git commands, V34.3c) and then the
+	// status check; nothing that writes to the repository before cancellation.
+	want := "git stash create|git ls-files --others --exclude-standard|git status --porcelain"
+	if got := strings.Join(runner.asked, "|"); got != want {
+		t.Fatalf("commands before cancellation = %v, want the mark and then only the status check", runner.asked)
 	}
 }
 
@@ -684,8 +687,9 @@ func TestCancellingTheRunStopsIt(t *testing.T) {
 // lands.
 type cancellingCommitter struct{ cancel context.CancelFunc }
 
-func (c *cancellingCommitter) HasChanges(string) (bool, error) { return true, nil }
-func (c *cancellingCommitter) RollbackChapter(string) error    { return nil }
+func (c *cancellingCommitter) HasChanges(string) (bool, error)            { return true, nil }
+func (c *cancellingCommitter) RollbackChapter(string, *ChapterMark) error { return nil }
+func (c *cancellingCommitter) MarkChapter(string) (ChapterMark, error)    { return ChapterMark{}, nil }
 func (c *cancellingCommitter) CommitChapter(string, int, string) (string, error) {
 	c.cancel()
 	return "", errors.New("pre-commit hook exited 1")

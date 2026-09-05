@@ -142,13 +142,16 @@ func TestHasChangesReadsThePorcelain(t *testing.T) {
 	}
 }
 
-func TestRollbackDiscardsTheWorktree(t *testing.T) {
+// Without a mark the rollback is conservative: tracked files back to HEAD and
+// nothing else touched, because deleting untracked files without knowing
+// which were the user's would be the destruction it exists to prevent.
+func TestRollbackWithoutAMarkOnlyRestoresTrackedFiles(t *testing.T) {
 	runner := &scriptedRunner{}
 
-	if err := NewCommandCheckpointer(context.Background(), runner).RollbackChapter("/repo"); err != nil {
+	if err := NewCommandCheckpointer(context.Background(), runner).RollbackChapter("/repo", nil); err != nil {
 		t.Fatal(err)
 	}
-	if len(runner.asked) == 0 || !strings.Contains(runner.asked[0], "git checkout") {
+	if len(runner.asked) != 1 || !strings.Contains(runner.asked[0], "git checkout HEAD -- .") {
 		t.Fatalf("rollback ran %v", runner.asked)
 	}
 }

@@ -103,8 +103,113 @@ func (c commandCheckpointer) CommitChapter(repoDir string, chapterNum int, summa
 }
 
 // RollbackChapter discards everything uncommitted.
-func (c commandCheckpointer) RollbackChapter(repoDir string) error {
-	return c.mustRun("git checkout -- .", repoDir, "rollback")
+func (c commandCheckpointer) MarkChapter(repoDir string) (ChapterMark, error) {
+	// `git stash create` writes a commit object for the current worktree and
+	// index without moving anything: the user's uncommitted edits, captured,
+	// their history untouched. Empty output means a clean tree.
+	snapshot, err := c.output("git stash create", repoDir, "mark")
+	if err != nil {
+		return ChapterMark{}, err
+	}
+	untracked, err := c.lines("git ls-files --others --exclude-standard", repoDir, "mark")
+	if err != nil {
+		return ChapterMark{}, err
+	}
+	return ChapterMark{Snapshot: strings.TrimSpace(snapshot), Untracked: untracked}, nil
+}
+
+// RollbackChapter puts the tree back to the mark: tracked files to their
+// content at chapter start (the user's own edits included, the chapter's
+// gone), files the chapter added to the index unstaged and removed, and
+// untracked files that were not there at the mark removed. Without a mark it
+// does the one thing that cannot destroy the user's files: tracked files back
+// to HEAD, untracked files left where they are.
+func (c commandCheckpointer) RollbackChapter(repoDir string, mark *ChapterMark) error {
+	base := "HEAD"
+	if mark != nil && mark.Snapshot != "" {
+		if !isHex(mark.Snapshot) {
+			return fmt.Errorf("saga: rollback mark %q is not a commit hash", mark.Snapshot)
+		}
+		base = mark.Snapshot
+	}
+	if err := c.mustRun("git checkout "+base+" -- .", repoDir, "rollback"); err != nil {
+		return err
+	}
+	if mark == nil {
+		return nil
+	}
+	indexed, err := c.lines("git ls-files", repoDir, "rollback")
+	if err != nil {
+		return err
+	}
+	inBase, err := c.lines("git ls-tree -r --name-only "+base, repoDir, "rollback")
+	if err != nil {
+		return err
+	}
+	if added := subtract(indexed, inBase); len(added) > 0 {
+		quoted := quoteAll(added)
+		if err := c.mustRun("git rm -q --cached -- "+quoted+" && rm -f -- "+quoted, repoDir, "rollback"); err != nil {
+			return err
+		}
+	}
+	untrackedNow, err := c.lines("git ls-files --others --exclude-standard", repoDir, "rollback")
+	if err != nil {
+		return err
+	}
+	if created := subtract(untrackedNow, mark.Untracked); len(created) > 0 {
+		if err := c.mustRun("rm -rf -- "+quoteAll(created), repoDir, "rollback"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c commandCheckpointer) output(command, repoDir, what string) (string, error) {
+	result, err := c.runner.Run(c.ctx, command, repoDir)
+	if err != nil {
+		return "", fmt.Errorf("saga: %s could not run: %w", what, err)
+	}
+	if result.Failure != "" || result.ExitCode != 0 {
+		return "", fmt.Errorf("saga: %s failed: %s", what, result.Failure)
+	}
+	return result.Output, nil
+}
+
+func (c commandCheckpointer) lines(command, repoDir, what string) ([]string, error) {
+	out, err := c.output(command, repoDir, what)
+	if err != nil {
+		return nil, err
+	}
+	var lines []string
+	for _, line := range strings.Split(out, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return lines, nil
+}
+
+// subtract returns the members of have that are not in except, in order.
+func subtract(have, except []string) []string {
+	skip := make(map[string]bool, len(except))
+	for _, e := range except {
+		skip[e] = true
+	}
+	var out []string
+	for _, h := range have {
+		if !skip[h] {
+			out = append(out, h)
+		}
+	}
+	return out
+}
+
+func quoteAll(paths []string) string {
+	quoted := make([]string, len(paths))
+	for i, p := range paths {
+		quoted[i] = shell.Quote(p)
+	}
+	return strings.Join(quoted, " ")
 }
 
 // HasChanges reports whether the working tree has anything to commit.
@@ -128,4 +233,18 @@ func (c commandCheckpointer) mustRun(command, repoDir, what string) error {
 		return fmt.Errorf("saga: %s failed: %s", what, result.Failure)
 	}
 	return nil
+}
+
+// isHex accepts the one shape a snapshot may have: a git object hash. HEAD is
+// the only other base and is a constant, so neither needs quoting.
+func isHex(s string) bool {
+	if len(s) < 7 || len(s) > 64 {
+		return false
+	}
+	for _, r := range s {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
 }

@@ -131,7 +131,11 @@ func (f *fakeCheckpointer) CommitChapter(_ string, _ int, _ string) (string, err
 	return f.commitHash, nil
 }
 
-func (f *fakeCheckpointer) RollbackChapter(_ string) error {
+func (f *fakeCheckpointer) MarkChapter(_ string) (engine.ChapterMark, error) {
+	return engine.ChapterMark{}, nil
+}
+
+func (f *fakeCheckpointer) RollbackChapter(_ string, _ *engine.ChapterMark) error {
 	f.rolledBack = true
 	return nil
 }

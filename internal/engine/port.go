@@ -120,7 +120,11 @@ type GitCheckpointer interface {
 	CommitChapter(repoDir string, chapterNum int, summary string) (string, error)
 
 	// RollbackChapter discards all uncommitted changes in the repo.
-	RollbackChapter(repoDir string) error
+	// MarkChapter records the tree before a chapter's worker runs; RollbackChapter
+	// restores to that mark. A nil mark restores tracked files to HEAD and
+	// leaves untracked files alone -- the conservative reading of "no mark".
+	MarkChapter(repoDir string) (ChapterMark, error)
+	RollbackChapter(repoDir string, mark *ChapterMark) error
 
 	// HasChanges reports whether the working tree has uncommitted modifications.
 	HasChanges(repoDir string) (bool, error)

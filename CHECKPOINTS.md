@@ -10552,6 +10552,36 @@ Subcheckpoints, one at a time:
   goroutines are still inside `runSubagent`, free to write `results[]`, end checkpoints and record cost
   after the return. The leaf order otherwise follows the plan.
   **Closed 2026-09-05** with all six leaves; `docs/plan/34` V34.2 ticked.
+- [~] **V34.3 make saga runs transactional and controllable** — `docs/plan/34` V34.3, opened 2026-09-05
+  with V34.2 closed. 3a and 3b were closed earlier (F1/F7); the open leaves in plan order:
+  - [x] **V34.3c clean rollback** — preserve pre-existing user changes while discarding failed chapter
+    changes, including staged and untracked files created by that chapter.
+    **Closed 2026-09-05, on main.** Red observed through real git on all four shapes: `git checkout
+    -- .` discarded the user's uncommitted edit, left the chapter's untracked file, left the file the
+    chapter had staged, and left it in the index. Green: a `ChapterMark` is taken before the worker
+    runs — `git stash create` (a commit object of the worktree and index as they stand, the user's
+    edits included, their history untouched; empty on a clean tree, meaning HEAD) plus the untracked
+    files already present — stored on the chapter, rendered into `SAGA.md` as one JSON line and parsed
+    back, so a restart can still roll back to it (round-trip test). `RollbackChapter(repo, mark)`
+    checks out the snapshot over the tracked tree, unstages and removes files in the index but not in
+    the snapshot, and removes untracked files not present at the mark; the snapshot must be a hex
+    hash or the rollback refuses. Without a mark it only restores tracked files to HEAD and touches no
+    untracked file, because deleting untracked files without knowing which were the user's would be
+    the destruction the leaf exists to prevent. The executor takes the mark right after the chapter
+    enters executing and before the in-flight state is persisted; a mark that cannot be taken is said
+    and the rollback stays conservative. The three checkpointer doubles, the scripted-runner test and
+    the cancellation test (which now expects the read-only mark preamble) follow the new port.
+    Recorded, not solved here: `HasChanges` still answers yes for the user's own dirty tree and
+    `CommitChapter` does `git add -A`, so a passing chapter can sweep pre-existing user changes into
+    its commit — the commit half of the goal, which belongs to V34.3e's proof. `-race` clean on the
+    engine suite; lint; `make check`.
+  - [ ] **V34.3d complete saga accounting** — include planner, worker, and repair usage in the same
+    enforceable saga budget.
+  - [ ] **V34.3e crash and dirty-tree proof** — fault-inject stop, failed verification, persistence
+    failure, and restart; prove neither retry nor later commit includes abandoned work.
+  - [~] **V34.3f SAGA inline workflow and hidden progression directive** — part-done since C4.1/F7;
+    what remains (the C5 running progress log, and a live start/stop/resume/rollback demonstration with
+    an independent reviewer) is owner-facing and is not claimed here.
   - [x] **V34.2e joined orchestration cancellation** — cancellation waits for every subagent before
     `RunTurn` returns or clears accounting; no post-return file, event, checkpoint, or cost mutation.
     **Red:** with a subagent blocked until its context is cancelled, `runTasks` returns on cancellation

@@ -125,7 +125,7 @@ func (cv *ChapterVerifier) Verify(ctx context.Context, repoDir string, chapter C
 	if cancelErr := sagaCancellation(ctx, nil); cancelErr != nil {
 		return nil, cancelErr
 	}
-	if err := cv.Checkpointer.RollbackChapter(repoDir); err != nil {
+	if err := cv.Checkpointer.RollbackChapter(repoDir, chapter.Mark); err != nil {
 		if cancelErr := sagaCancellationResult(ctx, err); cancelErr != nil {
 			return nil, cancelErr
 		}

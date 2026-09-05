@@ -198,6 +198,15 @@ func (r *SagaRunner) RunChapter(ctx context.Context, repoDir string, state *Saga
 	if err := r.advanceToExecuting(chapter); err != nil {
 		return err
 	}
+	// Mark the tree before the worker touches it, so a failed chapter can be
+	// rolled back to exactly here -- the user's uncommitted work included --
+	// and so the mark is in the persisted state a restart would read (V34.3c).
+	// A mark that cannot be taken is said, and the rollback stays conservative.
+	if mark, err := NewCommandCheckpointer(ctx, r.Runner).MarkChapter(repoDir); err == nil {
+		chapter.Mark = &mark
+	} else {
+		r.say("chapter %d: no rollback mark (%v); a rollback would restore tracked files only", chapter.Number, err)
+	}
 	// Persist the in-flight marker before the worker can mutate the repository.
 	// A crash or an unavailable artifact writer must leave a truthful resume
 	// boundary; starting work first would make the durable state claim that the

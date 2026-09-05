@@ -2,6 +2,7 @@ package engine
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -70,6 +71,20 @@ type Chapter struct {
 	Commit       string        `json:"commit,omitempty"`
 	CostUSD      float64       `json:"cost_usd,omitempty"`
 	DurationSec  int           `json:"duration_sec,omitempty"`
+	// Mark is where the tree stood when the chapter began: what a rollback
+	// restores to, so the user's own uncommitted work survives it (V34.3c).
+	Mark *ChapterMark `json:"mark,omitempty"`
+}
+
+// ChapterMark records the worktree at chapter start. Snapshot is a commit
+// object made by `git stash create` -- the tree as it was, including the
+// user's uncommitted edits, without touching their history; empty when the
+// tree was clean, meaning HEAD. Untracked lists the untracked files that
+// already existed, so a rollback knows which untracked files are the
+// chapter's to remove.
+type ChapterMark struct {
+	Snapshot  string   `json:"snapshot,omitempty"`
+	Untracked []string `json:"untracked,omitempty"`
 }
 
 type AcceptanceCriterion struct {
@@ -179,6 +194,11 @@ func FormatSagaMarkdown(s *SagaState) string {
 			}
 			if ch.Commit != "" {
 				fmt.Fprintf(&b, "- **Commit**: `%s`\n", ch.Commit)
+			}
+			if ch.Mark != nil {
+				if encoded, err := json.Marshal(ch.Mark); err == nil {
+					fmt.Fprintf(&b, "- **Mark**: %s\n", encoded)
+				}
 			}
 			if ch.CostUSD > 0 || ch.DurationSec > 0 {
 				fmt.Fprintf(&b, "- **Cost**: $%.2f · %ds\n", ch.CostUSD, ch.DurationSec)
@@ -298,6 +318,11 @@ func ParseSagaMarkdown(data string) (*SagaState, error) {
 				} else if strings.HasPrefix(line, "- **Commit**:") {
 					val := strings.TrimSpace(strings.TrimPrefix(line, "- **Commit**:"))
 					currentChapter.Commit = strings.Trim(val, "`")
+				} else if strings.HasPrefix(line, "- **Mark**:") {
+					var mark ChapterMark
+					if err := json.Unmarshal([]byte(strings.TrimSpace(strings.TrimPrefix(line, "- **Mark**:"))), &mark); err == nil {
+						currentChapter.Mark = &mark
+					}
 				} else if strings.HasPrefix(line, "- **Cost**:") {
 					val := strings.TrimSpace(strings.TrimPrefix(line, "- **Cost**:"))
 					_, _ = fmt.Sscanf(val, "$%f · %ds", &currentChapter.CostUSD, &currentChapter.DurationSec)
