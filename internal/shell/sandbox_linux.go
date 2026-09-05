@@ -28,9 +28,9 @@ func landlockABI() (int, error) {
 	case errno == 0:
 		return int(abi), nil
 	case errors.Is(errno, unix.ENOSYS), errors.Is(errno, unix.EOPNOTSUPP):
-		return 0, fmt.Errorf("Landlock is not available on this kernel (%w): it needs Linux 5.13 or newer with the Landlock LSM enabled", errno)
+		return 0, fmt.Errorf("landlock is not available on this kernel (%w): it needs Linux 5.13 or newer with the Landlock LSM enabled", errno)
 	default:
-		return 0, fmt.Errorf("Landlock probe failed: %w", errno)
+		return 0, fmt.Errorf("landlock probe failed: %w", errno)
 	}
 }
 
@@ -114,7 +114,7 @@ func applyLandlock(p Sandbox) error {
 		return fmt.Errorf("landlock_create_ruleset: %w", errno)
 	}
 	ruleset := int(rs)
-	defer unix.Close(ruleset)
+	defer func() { _ = unix.Close(ruleset) }()
 
 	root, err := existingRealPath("root", p.Root)
 	if err != nil {
@@ -203,7 +203,7 @@ func addRule(ruleset int, path string, access, handled uint64) error {
 	if err != nil {
 		return fmt.Errorf("open %s: %w", path, err)
 	}
-	defer unix.Close(fd)
+	defer func() { _ = unix.Close(fd) }()
 	var st unix.Stat_t
 	if err := unix.Fstat(fd, &st); err != nil {
 		return fmt.Errorf("stat %s: %w", path, err)
