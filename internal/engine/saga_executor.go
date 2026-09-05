@@ -200,6 +200,18 @@ func (r *SagaRunner) RunChapter(ctx context.Context, repoDir string, state *Saga
 	// stale marker would make both SAGA.md and the CLI report the wrong chapter.
 	state.ActiveChapter = chapter.Number
 
+	// A chapter found executing was stopped or crashed mid-work on an earlier
+	// wake. Whatever that attempt left in the tree is not this chapter's work to
+	// build on, and must not ride into the retry's commit as if it had been
+	// meant: back to the mark first (V34.3e.1). Without a mark the rollback is
+	// the conservative one, and says nothing about untracked files.
+	if chapter.Status == StatusExecuting {
+		if err := NewCommandCheckpointer(ctx, r.Runner).RollbackChapter(repoDir, chapter.Mark); err != nil {
+			return fmt.Errorf("saga: chapter %d: discarding the stopped attempt before retrying: %w", chapter.Number, err)
+		}
+		r.say("chapter %d: resuming; the stopped attempt's changes were discarded", chapter.Number)
+	}
+
 	if err := r.advanceToExecuting(chapter); err != nil {
 		return err
 	}

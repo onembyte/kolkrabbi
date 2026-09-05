@@ -10590,8 +10590,29 @@ Subcheckpoints, one at a time:
     as before, so the stop lands on the wake after. Ports untouched: the meter is read around the calls
     rather than threaded through three interfaces and their doubles; gates cost nothing on the meter,
     so nothing is double-counted. `-race` clean on engine and cli; lint; `make check`.
-  - [ ] **V34.3e crash and dirty-tree proof** — fault-inject stop, failed verification, persistence
-    failure, and restart; prove neither retry nor later commit includes abandoned work.
+  - [~] **V34.3e crash and dirty-tree proof** — fault-inject stop, failed verification, persistence
+    failure, and restart; prove neither retry nor later commit includes abandoned work. Subdivided
+    2026-09-05 after inspection found two gaps behind the proof, each its own red→green:
+    - [x] **V34.3e.1 a retried chapter starts from its mark** — a chapter found `executing` on a later
+      wake (stopped or crashed mid-work) is rolled back to its persisted mark before the worker runs
+      again, so abandoned work is gone before the retry and cannot reach its commit. **Red:** through
+      real git, a file written by the stopped attempt is in the retry's commit today.
+      **Closed 2026-09-05, on main.** Red observed on a real repository: wake one's worker wrote
+      `abandoned.txt` and reported cancellation (chapter left `executing`, mark persisted in `SAGA.md`);
+      the state was parsed back from disk as a restart would; wake two's retry committed — and the
+      commit listed `abandoned.txt`. Green: `RunChapter` rolls a chapter found `executing` back to its
+      persisted mark before taking a fresh mark and running the worker, and says so; without a mark the
+      rollback is 3c's conservative one. Found while proving it and fixed in the same leaf: the saga's
+      own `SAGA.md` is written after the mark on the wake that creates it, so 3c's rollback would have
+      removed it as a chapter-created untracked file — it is now excluded from both the untracked and
+      the newly-indexed removal sets, and the test asserts it survives. `-race` clean on the engine
+      suite; lint; `make check`.
+    - [ ] **V34.3e.2 a chapter commit holds only the chapter's changes** — `HasChanges`/`CommitChapter`
+      become mark-aware: changes are what differs from the mark's snapshot plus untracked files the mark
+      did not list; the user's pre-existing dirty files stay uncommitted. **Red:** through real git, the
+      user's uncommitted edit is inside the chapter commit today (`git add -A`).
+    - [ ] **V34.3e.3 the fault matrix, end to end** — stop, failed verification, persistence failure,
+      restart; each proven on a real repository to leave no abandoned work in any later commit.
   - [~] **V34.3f SAGA inline workflow and hidden progression directive** — part-done since C4.1/F7;
     what remains (the C5 running progress log, and a live start/stop/resume/rollback demonstration with
     an independent reviewer) is owner-facing and is not claimed here.

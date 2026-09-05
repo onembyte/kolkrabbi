@@ -69,6 +69,9 @@ func gateOutput(result CommandResult) string {
 }
 
 // commandCheckpointer makes saga commits through a CommandRunner.
+// sagaArtifactName is the progress artifact the saga keeps in the repository.
+const sagaArtifactName = "SAGA.md"
+
 type commandCheckpointer struct {
 	ctx    context.Context
 	runner CommandRunner
@@ -146,7 +149,10 @@ func (c commandCheckpointer) RollbackChapter(repoDir string, mark *ChapterMark) 
 	if err != nil {
 		return err
 	}
-	if added := subtract(indexed, inBase); len(added) > 0 {
+	// The saga's own artifact is never a chapter's file: it is written after
+	// the mark on the wake that creates it, and a rollback that removed it would
+	// erase the record of the rollback.
+	if added := subtract(subtract(indexed, inBase), []string{sagaArtifactName}); len(added) > 0 {
 		quoted := quoteAll(added)
 		if err := c.mustRun("git rm -q --cached -- "+quoted+" && rm -f -- "+quoted, repoDir, "rollback"); err != nil {
 			return err
@@ -156,7 +162,7 @@ func (c commandCheckpointer) RollbackChapter(repoDir string, mark *ChapterMark) 
 	if err != nil {
 		return err
 	}
-	if created := subtract(untrackedNow, mark.Untracked); len(created) > 0 {
+	if created := subtract(subtract(untrackedNow, mark.Untracked), []string{sagaArtifactName}); len(created) > 0 {
 		if err := c.mustRun("rm -rf -- "+quoteAll(created), repoDir, "rollback"); err != nil {
 			return err
 		}
