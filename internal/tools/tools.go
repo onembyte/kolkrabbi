@@ -115,8 +115,16 @@ const maxOutput = 12000 // chars; keeps huge command/file output from blowing up
 // goes through it. A file containing an accented name, a smart quote or an
 // emoji would otherwise put invalid bytes into the conversation, which is then
 // sent to the provider and saved in the session.
-func truncate(s string) string {
+func truncate(s string) string { return truncateDropped(s, 0) }
+
+// truncateDropped is truncate for output the shell already bounded: dropped is
+// what the child wrote past the shell's capture, so the note the model reads
+// counts everything it is not seeing, not only the part kolk held in memory.
+func truncateDropped(s string, dropped int64) string {
 	if len(s) <= maxOutput {
+		if dropped > 0 {
+			return s + fmt.Sprintf("\n... [truncated, %d more chars]", dropped)
+		}
 		return s
 	}
 	cut := s[:maxOutput]
@@ -128,7 +136,7 @@ func truncate(s string) string {
 	} else {
 		cut = trimPartialRune(cut)
 	}
-	return cut + fmt.Sprintf("\n... [truncated, %d more chars]", len(s)-len(cut))
+	return cut + fmt.Sprintf("\n... [truncated, %d more chars]", int64(len(s)-len(cut))+dropped)
 }
 
 // trimPartialRune drops an incomplete trailing rune, leaving a valid string. A
@@ -250,7 +258,7 @@ func Execute(ctx context.Context, name, argsJSON string, o Options) (string, err
 			// not an error that aborts the turn.
 			return "", err
 		}
-		result := truncate(res.Output)
+		result := truncateDropped(res.Output, res.Dropped)
 		if !res.OK() {
 			// The model sees the failure and reacts to it. A command that exits
 			// non-zero is a fact about the world, not a broken tool. Under a

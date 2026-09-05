@@ -60,7 +60,16 @@ type Result struct {
 	ExitCode int    // 0 on success; -1 when the process never produced a code
 	TimedOut bool   // the command was killed for exceeding its timeout
 	Failure  string // "" on success; otherwise a sentence explaining what went wrong
+	// Dropped counts the bytes the child wrote past maxCapture, which were read
+	// and discarded rather than kept. Zero for ordinary output.
+	Dropped int64
 }
+
+// maxCapture bounds what Run keeps of a child's output. The tool layer cuts a
+// result to 12k characters for the model, but it can only cut what has been read
+// into memory, so the bound has to be here: a command that prints a gigabyte
+// costs a megabyte, the first one, and a count.
+const maxCapture = 1 << 20
 
 // OK reports whether the command succeeded.
 func (r Result) OK() bool { return r.Failure == "" }
@@ -175,8 +184,12 @@ func (s *platformShell) Run(ctx context.Context, c Cmd) (Result, error) {
 	}
 	cmd.WaitDelay = outputDrainTimeout
 
-	out, runErr := cmd.CombinedOutput()
-	res := Result{Output: string(out), ExitCode: exitCodeOf(runErr)}
+	// CombinedOutput with a ceiling: both streams into one bounded writer, in
+	// the order a person would have seen them.
+	out := &capture{limit: maxCapture}
+	cmd.Stdout, cmd.Stderr = out, out
+	runErr := cmd.Run()
+	res := Result{Output: out.String(), ExitCode: exitCodeOf(runErr), Dropped: out.dropped}
 
 	switch {
 	case runErr == nil:

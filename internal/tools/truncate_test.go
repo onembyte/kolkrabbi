@@ -62,3 +62,17 @@ func TestTruncateReportsWhatWasDropped(t *testing.T) {
 		t.Fatalf("the amount dropped was not reported: %q", got[len(got)-60:])
 	}
 }
+
+// Output the shell already bounded reports everything the model is not seeing,
+// including the bytes kolk never held.
+func TestTruncationNoteCountsWhatTheShellDropped(t *testing.T) {
+	got := truncateDropped("short", 5000)
+	if got != "short\n... [truncated, 5000 more chars]" {
+		t.Fatalf("got %q", got)
+	}
+	long := strings.Repeat("y", maxOutput+10)
+	got = truncateDropped(long, 90)
+	if !strings.HasSuffix(got, "[truncated, 100 more chars]") {
+		t.Fatalf("got tail %q", got[len(got)-40:])
+	}
+}

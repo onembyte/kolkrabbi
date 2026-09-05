@@ -2,7 +2,6 @@ package shell
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -99,8 +98,10 @@ func RunLinesWithOptions(ctx context.Context, executable string, args []string, 
 	cmd.Dir = options.Dir
 	cmd.Env = inheritedEnv(nil)
 	cmd.Stdin = stdin
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+	// Bounded like Run's capture: a provider CLI that floods stderr must not
+	// cost that much memory to report a failure from.
+	stderr := &capture{limit: maxCapture}
+	cmd.Stderr = stderr
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("opening %s stdout: %w", executable, err)

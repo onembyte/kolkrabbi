@@ -10538,6 +10538,41 @@ Subcheckpoints, one at a time:
   prints a backup's contents unscrubbed. **Non-goals:** `/undo`/`/rewind` semantics (item 15), the
   choice of store (item 32), the jail (already resolves symlinks before a write is allowed).
   **Closed 2026-09-05** with all three sub-leaves; `docs/plan/34` V34.1c ticked; policy in plan 32.
+- [~] **V34.1d bounded and scrubbed outputs** — `docs/plan/34` V34.1d, subdivided 2026-09-05 before
+  code: four clauses, four red→green pairs. **Non-goals:** the 12k-character tool cap itself (item 13
+  decided it), the scrubber's patterns (`internal/redact` owns them), and the transcript sinks that
+  already scrub (tool output in `engine`, hook output, the debug log, `/diff`, `/commit`, `/pr`).
+  - [x] **V34.1d.1 child capture is bounded before it is allocated** — `shell.Run` collects a child's
+    output with `CombinedOutput`, which grows without limit: a command that prints a gigabyte costs a
+    gigabyte of kolk's memory before the tool layer cuts it to 12k. A bounded writer keeps the first
+    `MaxCapture` bytes, drains and counts the rest, and `Result.Dropped` carries the count so the tool's
+    truncation note stays honest. The line runners' stderr buffer gets the same bound. **Red:** a child
+    printing far past the bound comes back with all of it in `Result.Output`.
+    **Closed 2026-09-05, on main.** Red observed with the field and bound in place and the capture
+    still `CombinedOutput`: `captured 8388619 bytes; the bound is 1048576`. Green: `shell.capture`, a
+    writer that keeps the first `maxCapture` (1 MiB) bytes and counts the rest, handed to `exec.Cmd`
+    as both `Stdout` and `Stderr` by pointer so os/exec uses one pipe and one goroutine (interleaving
+    preserved, no concurrent `Write`); the child is always drained, so a full pipe cannot stall it.
+    `Result.Dropped` carries the count; the line runners' stderr buffer uses the same writer. The tool
+    layer's `truncateDropped` adds the dropped bytes to its `[truncated, N more chars]` note, so the
+    model's count covers what kolk never held, and a bounded-but-short output still gets the note. The
+    ErrWaitDelay path is unchanged (`cmd.Run` honours `WaitDelay` the same way). Not changed: the 12k
+    tool cap; `maxCapture` is unexported because nothing outside needs the number. `-race` clean on
+    shell and tools; lint darwin+linux; vet windows; `make check`.
+  - [ ] **V34.1d.2 provider errors reach the terminal and the session scrubbed** — the carry-forward
+    from F0: `client.go` `StreamChat`/`listModels` return transport errors that echo the request URL and
+    the response body verbatim. Every error the client returns passes through `secret.Scrub` before a
+    caller can print or persist it. **Red:** a compatible endpoint answering with a body that quotes the
+    key produces an error string containing the key.
+  - [ ] **V34.1d.3 a base URL with userinfo is refused** — `https://user:token@host` on `--base-url`,
+    `OPENROUTER_BASE_URL` or the saved setting is refused at resolution with the reason (net/http would
+    send it as Basic auth on every request and it would sit in shell history and config in clear),
+    never sent. **Red:** such a URL is accepted today.
+  - [ ] **V34.1d.4 a key is never typed on a command line** — wherever kolk accepts a credential as an
+    argument (argv or a slash command's words, which land in shell history, `ps`, and the session
+    transcript), it prompts for it with echo off instead and refuses the argument form with the reason.
+    Scope fixed by inspection at open: the entry points are enumerated in the record. **Red:** a key
+    given as an argument is accepted and echoed somewhere durable.
   - [x] **V34.1c.1 restrictive modes survive a rewind** — copy store: `Entry.Mode` recorded at
     `Record`, restored with it (older manifests without a mode fall back to the file's current mode,
     then 0644). Shadow store: the modes of the paths about to be restored are read before the git
