@@ -413,6 +413,9 @@ kolk_commands_are_real capabilities.html
 for page in compare/claude-code.html compare/codex-cli.html compare/opencode.html; do
   contains "$page" 'expects a gateway key' "$page sells the subscription backends without the gateway-key caveat the README states"
 done
+contains index.html 'brew install onembyte/tap/kolk' "the landing page does not offer the Homebrew tap"
+contains llms.txt 'brew install onembyte/tap/kolk' "llms.txt does not offer the Homebrew tap"
+if [ -x "$ROOT/scripts/update-homebrew-tap.sh" ]; then pass; else fail "the Homebrew formula generator is missing or not executable"; fi
 contains llms.txt 'gateway (OpenRouter) key' "llms.txt omits the gateway-key requirement"
 contains llms.txt 'What it does not have yet' "llms.txt omits the limitations, which is what makes it trustworthy"
 contains llms.txt 'No MCP, no skills, no general execution sandbox, no LSP.' "llms.txt limitation list drifted from the README"

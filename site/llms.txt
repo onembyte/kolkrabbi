@@ -5,6 +5,7 @@
 > static binary under 9 MB, milliseconds to start, two dependencies.
 
 Install: curl -fsSL https://kolkrabbi.francomichetti.com/install.sh | sh
+Or: brew install onembyte/tap/kolk
 Source: https://github.com/onembyte/kolkrabbi
 
 ## Providers that work today
