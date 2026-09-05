@@ -10,6 +10,11 @@ import (
 // before touching OpenRouter's credential store. Compatible endpoints are
 // deliberately keyless; only canonical OpenRouter loads and receives its key.
 func providerClientForEndpoint(ctx context.Context, endpoint, credentialPath string) (*provider.Client, error) {
+	// Before the keyed/keyless decision: a URL carrying credentials is refused
+	// whatever host it names (V34.1d.3).
+	if err := provider.RefuseCredentialedEndpoint(endpoint); err != nil {
+		return nil, err
+	}
 	if !provider.IsOpenRouterEndpoint(endpoint) {
 		return provider.NewCompatibleClient(endpoint), nil
 	}

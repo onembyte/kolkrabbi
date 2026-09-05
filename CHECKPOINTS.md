@@ -10580,10 +10580,25 @@ Subcheckpoints, one at a time:
     regardless, for the errors a server writes. `make check`. GitHub push protection refused the first
     push: the canary literal was indistinguishable from a live OpenRouter key. It is now assembled
     at runtime — the convention for key-shaped canaries in this repository from here on.
-  - [ ] **V34.1d.3 a base URL with userinfo is refused** — `https://user:token@host` on `--base-url`,
+  - [x] **V34.1d.3 a base URL with userinfo is refused** — `https://user:token@host` on `--base-url`,
     `OPENROUTER_BASE_URL` or the saved setting is refused at resolution with the reason (net/http would
     send it as Basic auth on every request and it would sit in shell history and config in clear),
     never sent. **Red:** such a URL is accepted today.
+    **Closed 2026-09-05, on main.** Red observed at all three arrival points: `providerClientForEndpoint`
+    built a client whose `BaseURL` was `http://sk-token-here@host.invalid/v1`; `/config set-base-url`
+    saved such a URL; `/doctor` printed `OPENROUTER_BASE_URL` with the token in it. Green: one check,
+    `provider.RefuseCredentialedEndpoint`, which names the host and never the credential and says where
+    a key belongs (`/key`; an endpoint's own login), applied before the keyed/keyless decision at the
+    client site — so `https://user:pw@openrouter.ai` is refused rather than falling to the keyless
+    branch and sending its userinfo as Basic auth to openrouter.ai — before the save in `set-base-url`,
+    and before the probe in `/doctor`. The V34.1a endpoint matrix listed the three userinfo shapes as
+    *keyless* rows (never given the credential, but built); they are now *refused* rows, still against
+    a corrupt manifest, so the no-read proof stands and the stricter disposition is pinned. The
+    resolver `config.ResolveBaseURL` is unchanged: every consumer goes through the client site. `-race`
+    clean on cli and provider; lint; `make check`. Finding carried forward, not this leaf's: run
+    33969381063 (ubuntu) failed `TestASubagentBackendIsClosedOnEveryPathOutOfATask/success` on a commit
+    that touched no engine code — a backend released after `runTasks` returns is V34.2a/V34.2e
+    territory and is noted there.
   - [ ] **V34.1d.4 a key is never typed on a command line** — wherever kolk accepts a credential as an
     argument (argv or a slash command's words, which land in shell history, `ps`, and the session
     transcript), it prompts for it with echo off instead and refuses the argument form with the reason.

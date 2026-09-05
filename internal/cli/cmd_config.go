@@ -400,6 +400,9 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 		if len(args) < 2 {
 			return usagef("usage: /config set-base-url <url>")
 		}
+		if err := provider.RefuseCredentialedEndpoint(args[1]); err != nil {
+			return err
+		}
 		cfg.BaseURL = strings.TrimRight(args[1], "/")
 		if err := config.Save(d.ConfigFile(), cfg); err != nil {
 			return err

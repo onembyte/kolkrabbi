@@ -12,6 +12,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/buildinfo"
 	"github.com/onembyte/kolkrabbi/internal/local"
 	"github.com/onembyte/kolkrabbi/internal/paths"
+	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/redact"
 	"github.com/onembyte/kolkrabbi/internal/shell"
 	"github.com/onembyte/kolkrabbi/internal/term"
@@ -176,6 +177,10 @@ func (a *app) doctorNetwork(ctx context.Context) {
 	base := strings.TrimSpace(os.Getenv("OPENROUTER_BASE_URL"))
 	if base == "" {
 		base = "https://openrouter.ai/api/v1"
+	}
+	if err := provider.RefuseCredentialedEndpoint(base); err != nil {
+		fmt.Fprintf(a.stdout, "  ✗ refused: %v\n", err)
+		return
 	}
 	// Short, because someone with no network is the expected caller and a
 	// diagnostic that hangs is worse than one that says "unreachable".

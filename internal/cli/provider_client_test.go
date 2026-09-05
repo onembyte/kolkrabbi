@@ -106,11 +106,17 @@ func TestProviderClientEndpointMatrixDecidesKeyedOrKeyless(t *testing.T) {
 		"http://openrouter.ai/api/v1",
 		"http://openrouter.ai:443/api/v1",
 		"https://openrouter.ai:8443/api/v1",
+		"http://127.0.0.1:11434/v1",
+		"http://localhost:4000/v1",
+	}
+	// Userinfo shapes were keyless rows until V34.1d.3: they never received the
+	// credential, but they were still built and would have sent their own
+	// userinfo as Basic auth. Now they are refused before either branch, with
+	// the manifest never read (it is corrupt here, so a read would show).
+	refused := []string{
 		"https://openrouter.ai@evil.invalid/api/v1",
 		"https://user:pass@openrouter.ai/api/v1",
 		"https://sk-or-v1-userinfo-canary@openrouter.ai/api/v1",
-		"http://127.0.0.1:11434/v1",
-		"http://localhost:4000/v1",
 	}
 
 	for _, endpoint := range keyed {
@@ -145,6 +151,20 @@ func TestProviderClientEndpointMatrixDecidesKeyedOrKeyless(t *testing.T) {
 			}
 			if err := client.SetKey(secret.New("sk-or-v1-late-key")); !errors.Is(err, provider.ErrCredentialBinding) {
 				t.Fatalf("late SetKey on %q = %v, want ErrCredentialBinding", endpoint, err)
+			}
+		})
+	}
+
+	for _, endpoint := range refused {
+		t.Run("refused "+endpoint, func(t *testing.T) {
+			d := isolateHome(t)
+			writeCorruptCredentialManifest(t, d.CredentialsFile())
+			_, err := providerClientForEndpoint(context.Background(), endpoint, d.CredentialsFile())
+			if err == nil || !strings.Contains(err.Error(), "carries a username or password") {
+				t.Fatalf("credentialed endpoint %q was not refused as such: %v", endpoint, err)
+			}
+			if strings.Contains(err.Error(), "userinfo-canary") || strings.Contains(err.Error(), "user:pass") {
+				t.Fatalf("the refusal echoes the credential: %v", err)
 			}
 		})
 	}
