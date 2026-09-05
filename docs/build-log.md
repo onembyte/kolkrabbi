@@ -6639,3 +6639,28 @@ finds all four; it is in the loop now, before the push rather than after.
 
 Landlock is real on Linux and Seatbelt is real on macOS. Nothing public says so yet. That flips in
 V34.1e.6, together, with the pins that guard each statement.
+
+## The network deny is enforced, or refused — V34.1e.3 closed 2026-09-05
+
+One word in the policy, one line in each enforcer, and a refusal where the kernel cannot keep the
+promise. Red first on both runners: a TCP connect under `network = deny` printed `connected`, and a
+simulated Landlock ABI 3 asked for a deny handed back no error. Then the two lines.
+
+Seatbelt's is `(deny network*)`. A probe earlier settled two things the test needed to know: a shell
+still starts under it, and `curl` fails silently — exit 7, not a word — so the escape test connects
+through bash's `/dev/tcp`, which prints the kernel's own phrase. The test opens a real loopback
+listener first, and a control test makes the same connect under `allow` and requires `connected`,
+because a refusal against a closed port would prove nothing.
+
+Landlock's line is `Access_net` on the ruleset. Its network rules are allow-only like its filesystem
+rules, so handling connect and bind and then adding no port rule denies every TCP connect and bind —
+which is precisely the policy. It exists only from ABI 4, Linux 6.7. Below that the parent refuses in
+`prepareSandbox`, naming the floor and the two ways out, before any child is forked: the plan's rule
+that a deny the kernel cannot enforce is refused, never approximated. The ABI probe went behind a
+variable so a Mac can stand in for a kernel it does not have, and the refusal has a test.
+
+Guard rails failed on the red commit, and correctly: `NetworkDeny` was reachable only from tests,
+which is the exact reason it was deferred out of leaf 0. The green commit reads it in both enforcers
+and the gate passed. What this leaf does not do is decide *when* the user's own commands get a deny.
+§7.1 governs delegated children; in-process subagents inherit the parent's policy. Giving a task
+kind a deny is a design question for the owner, and it is written down as one rather than slipped in.

@@ -10628,9 +10628,26 @@ Subcheckpoints, one at a time:
     Green run: 33949991895. On main: `make check` 3340+ tests, all gates. Plan §7.2 amended for
     `grantTree`. **Landlock now confines for real on Linux; Seatbelt on macOS.** Public claims still
     unchanged until V34.1e.6.
-- [~] **V34.1e.3 network** — `(deny network*)` in the Seatbelt profile; Landlock ABI ≥ 4
+- [x] **V34.1e.3 network** — `(deny network*)` in the Seatbelt profile; Landlock ABI ≥ 4
   connect/bind rules; ABI < 4 with `network = deny` is refused, never approximated. **Red:** escape
   test 6 on both platforms; the refusal on a simulated ABI 3.
+  **Closed 2026-09-05, PR #2, rebase-merged as two commits.** `NetworkDeny` returns, with its
+  enforcement. Red first, on both kernels: a TCP connect under `deny` printed `connected` on ubuntu
+  and macOS; a simulated Landlock ABI 3 asked for a deny returned no error. Then green: Seatbelt
+  renders `(deny network*)` for `deny` and `(allow network*)` otherwise — a shell still starts under
+  the deny, verified; Landlock handles `ACCESS_NET_BIND_TCP|CONNECT_TCP` on the ruleset and adds no
+  port rule, which denies every TCP connect and bind — its network rules are allow-only like its
+  filesystem ones — and only from ABI 4, so `prepareSandbox` **refuses** a deny below that in the
+  parent, naming the floor and the two ways out, never approximating. The escape harness connects
+  through bash's `/dev/tcp`, because `curl` fails silently under a denied network (exit 7, no text)
+  and the assertion needs the kernel's phrase; a real loopback listener is opened first, and a
+  control test (6b) proves the same connect succeeds under `allow`, so 6 cannot pass for a broken
+  reason. The probe went behind `landlockABIProbe` so a Mac can simulate a kernel it does not have.
+  Guard rails failed on the red commit for exactly the reason `NetworkDeny` was deferred in leaf 0 —
+  reachable only from tests — and passed on the green, where both enforcers read it. Green run
+  33950485303. Not in this leaf: a knob that sets `deny` for the user's own bash tool — §7.1's
+  policy governs delegated children and in-process subagents inherit the parent's policy; wiring
+  `deny` for a task kind is a design question flagged for the owner, not a line of code slipped in.
 - [ ] **V34.1e.4 surface** — status line `sandbox: seatbelt|landlock vN|off`, a `/doctor` row with
   mechanism, ABI/profile and network enforcement, and the one-line bounded diagnostic appended to a
   non-zero result whose output contains `Operation not permitted` / `Permission denied`. **Red:** the
