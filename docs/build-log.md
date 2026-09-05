@@ -6809,3 +6809,26 @@ crossed by a whole wave of concurrent calls, each admitted while the total was s
 now reserves the worst known call for every task in flight and lets one task calibrate first, so the
 ceiling can be exceeded by one call at most, as a sequential run always could. V34.2 is closed; V34.3,
 transactional saga runs, is next.
+
+## A saga that can fail without lying — V34.3c–e closed 2026-09-05
+
+Three leaves, every one proven on a real repository rather than a scripted runner, because the
+question was what git does, not what kolk asks it to do. Rollback was `git checkout -- .`: it threw
+the user's own uncommitted edits away with the chapter's and left the chapter's new files behind. A
+chapter now marks the tree before its worker runs — a `git stash create` object of the worktree as it
+stood, the untracked files present, and the commit it stood on — and the mark travels in `SAGA.md`.
+Rollback restores the snapshot, removes what the chapter added, and leaves the user's work exactly
+where it was.
+
+The mark paid for itself three more times. A chapter stopped mid-work was retried on top of the
+abandoned attempt and `git add -A` committed it as if it had been meant; the retry now starts from the
+mark. The same `git add -A` swept the user's dirty files into every chapter commit; a commit now holds
+what differs from the mark plus the artifact. And when the artifact write after a commit failed, the
+restart rolled the committed chapter back out of the worktree and did it again — visible only over a
+dirty tree, where the mark has a snapshot older than the commit; the mark's recorded HEAD now tells a
+resume that the work stands, and the one commit the restart still makes carries only the artifact,
+the record that was lost. The saga's budget also learned to see the planner and the repair turn, which
+spent on the same agent and reported nothing.
+
+What remains of V34.3 is the owner's: 3f's running progress log in the TUI, and a live
+start/stop/resume/rollback with an independent reviewer. V34.4, provider and local truth, is next.

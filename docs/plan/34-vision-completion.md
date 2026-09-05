@@ -186,12 +186,18 @@ from a failed chapter.
   reviewer's mutations); the live F7.2 run shows `SAGA.md` committed inside every chapter commit, so
   the artifact and the commit are one resume anchor. The fault-injected crash/restart proof remains
   V34.3e. Evidence in `CHECKPOINTS.md` §F1 and §F7.
-- [ ] **V34.3c clean rollback** — preserve pre-existing user changes while discarding failed
-  chapter changes, including staged and untracked files created by that chapter.
-- [ ] **V34.3d complete saga accounting** — include planner, worker, and repair usage in the same
-  enforceable saga budget.
-- [ ] **V34.3e crash and dirty-tree proof** — fault-inject stop, failed verification, persistence
-  failure, and restart; prove neither retry nor later commit includes abandoned work.
+- [x] **V34.3c clean rollback** — completed 2026-09-05: a chapter marks the tree before its worker runs
+  (`git stash create` snapshot plus the untracked files present, persisted in `SAGA.md`); a rollback
+  restores that snapshot, unstages and removes what the chapter added, removes untracked files the mark
+  did not list, and never touches the saga artifact; without a mark it is conservative (§V34.3c).
+- [x] **V34.3d complete saga accounting** — completed 2026-09-05: the runner reads a session meter around
+  the planner call and around verification (where the repair turn runs) and charges the change to the
+  chapter and the cumulative total the budget enforces (§V34.3d).
+- [x] **V34.3e crash and dirty-tree proof** — completed 2026-09-05 on a real repository: a retried chapter
+  starts from its mark; a chapter commit holds only the chapter's changes and the artifact; failed
+  verification, a post-commit persistence failure (clean and dirty tree) and restart each leave no
+  abandoned work in any later commit, and a resume whose HEAD moved does not revert committed work
+  (§V34.3e).
 - [~] **V34.3f SAGA inline workflow and hidden progression directive** — the inline marker, internal
   posture, one bounded wake, durable chapter/terminal state, and cancellation lifecycle are built
   through C4.1. The visible running TUI progress log remains C5 and is deliberately not claimed here

@@ -85,6 +85,11 @@ type Chapter struct {
 type ChapterMark struct {
 	Snapshot  string   `json:"snapshot,omitempty"`
 	Untracked []string `json:"untracked,omitempty"`
+	// Head is the commit the tree stood on when the mark was taken. A resume
+	// that finds HEAD elsewhere knows the chapter was committed and only its
+	// record was lost; rolling back to the snapshot then would revert the
+	// committed work in the worktree (V34.3e.3).
+	Head string `json:"head,omitempty"`
 }
 
 type AcceptanceCriterion struct {

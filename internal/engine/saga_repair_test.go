@@ -52,6 +52,7 @@ func (c *recordingCheckpointer) RollbackChapter(string, *ChapterMark) error {
 	return nil
 }
 func (c *recordingCheckpointer) MarkChapter(string) (ChapterMark, error)       { return ChapterMark{}, nil }
+func (c *recordingCheckpointer) HeadMoved(string, *ChapterMark) (bool, error)  { return false, nil }
 func (c *recordingCheckpointer) HasChanges(string, *ChapterMark) (bool, error) { return true, nil }
 
 func verifierWith(gates *gateScript, repairer ChapterRepairer, ckpt *recordingCheckpointer) *ChapterVerifier {

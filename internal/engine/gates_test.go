@@ -252,3 +252,5 @@ func TestVerifyNoGatesCommitsUnconditionally(t *testing.T) {
 		t.Error("expected CommitChapter to be called")
 	}
 }
+
+func (f *fakeCheckpointer) HeadMoved(string, *engine.ChapterMark) (bool, error) { return false, nil }

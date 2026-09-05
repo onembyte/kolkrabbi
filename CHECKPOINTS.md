@@ -10590,9 +10590,10 @@ Subcheckpoints, one at a time:
     as before, so the stop lands on the wake after. Ports untouched: the meter is read around the calls
     rather than threaded through three interfaces and their doubles; gates cost nothing on the meter,
     so nothing is double-counted. `-race` clean on engine and cli; lint; `make check`.
-  - [~] **V34.3e crash and dirty-tree proof** — fault-inject stop, failed verification, persistence
+  - [x] **V34.3e crash and dirty-tree proof** — fault-inject stop, failed verification, persistence
     failure, and restart; prove neither retry nor later commit includes abandoned work. Subdivided
-    2026-09-05 after inspection found two gaps behind the proof, each its own red→green:
+    2026-09-05 after inspection found two gaps behind the proof, each its own red→green: **Closed 2026-09-05** with 3e.1–3e.3 — four gaps, not two,
+    by the end (retry-from-mark, commit scope, the artifact's own survival, HEAD-moved resume).
     - [x] **V34.3e.1 a retried chapter starts from its mark** — a chapter found `executing` on a later
       wake (stopped or crashed mid-work) is rolled back to its persisted mark before the worker runs
       again, so abandoned work is gone before the retry and cannot reach its commit. **Red:** through
@@ -10622,8 +10623,21 @@ Subcheckpoints, one at a time:
       stay uncommitted where they were (asserted through `git status`). A file the user had edited and
       the chapter edited too is committed with both — entangled by nature, recorded. Three doubles and
       the verifier follow the port. `-race` clean on the engine suite; lint; `make check`.
-    - [ ] **V34.3e.3 the fault matrix, end to end** — stop, failed verification, persistence failure,
+    - [x] **V34.3e.3 the fault matrix, end to end** — stop, failed verification, persistence failure,
       restart; each proven on a real repository to leave no abandoned work in any later commit.
+      **Closed 2026-09-05, on main.** On a real repository: *stop and restart* — 3e.1's test (the
+      abandoned file is gone before the retry and absent from its commit). *Failed verification* — a
+      real gate (`test -f pass.marker`) rejects the chapter, HEAD does not move, the attempt's file is
+      gone, and the passing retry's commit holds the retry's work only. *Persistence failure after the
+      commit* — the disk still says executing. Over a clean tree the restart was benign (no snapshot,
+      so the rollback resolves to HEAD, by then the chapter commit); over a dirty tree it was not: the
+      snapshot predates the commit, and the restart reverted the committed files in the worktree, redid
+      the chapter on top of its own commit, and lost the user's edit — observed. Green: the mark records
+      the HEAD it was taken on; a resume whose HEAD has moved skips the rollback and says so. The restart
+      then produces one more commit that carries only `SAGA.md` — the record the failed write lost,
+      finally written — and the tests pin exactly that: every commit after the chapter's own may touch
+      the artifact and nothing else, the committed file is clean, the user's edit is still there.
+      Doubles gain `HeadMoved`. `-race` clean on the engine suite; lint; `make check`.
   - [~] **V34.3f SAGA inline workflow and hidden progression directive** — part-done since C4.1/F7;
     what remains (the C5 running progress log, and a live start/stop/resume/rollback demonstration with
     an independent reviewer) is owner-facing and is not claimed here.

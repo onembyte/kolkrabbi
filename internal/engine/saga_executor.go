@@ -206,10 +206,23 @@ func (r *SagaRunner) RunChapter(ctx context.Context, repoDir string, state *Saga
 	// meant: back to the mark first (V34.3e.1). Without a mark the rollback is
 	// the conservative one, and says nothing about untracked files.
 	if chapter.Status == StatusExecuting {
-		if err := NewCommandCheckpointer(ctx, r.Runner).RollbackChapter(repoDir, chapter.Mark); err != nil {
-			return fmt.Errorf("saga: chapter %d: discarding the stopped attempt before retrying: %w", chapter.Number, err)
+		checkpointer := NewCommandCheckpointer(ctx, r.Runner)
+		moved, err := checkpointer.HeadMoved(repoDir, chapter.Mark)
+		if err != nil {
+			return fmt.Errorf("saga: chapter %d: reading HEAD before retrying: %w", chapter.Number, err)
 		}
-		r.say("chapter %d: resuming; the stopped attempt's changes were discarded", chapter.Number)
+		if moved {
+			// The chapter was committed and only the record of it was lost (the
+			// artifact write after the commit failed). Rolling back to the mark
+			// would revert committed work in the worktree; the retry runs on
+			// what is there and finds nothing left to do (V34.3e.3).
+			r.say("chapter %d: resuming; HEAD moved since the chapter began, so its work stands", chapter.Number)
+		} else {
+			if err := checkpointer.RollbackChapter(repoDir, chapter.Mark); err != nil {
+				return fmt.Errorf("saga: chapter %d: discarding the stopped attempt before retrying: %w", chapter.Number, err)
+			}
+			r.say("chapter %d: resuming; the stopped attempt's changes were discarded", chapter.Number)
+		}
 	}
 
 	if err := r.advanceToExecuting(chapter); err != nil {

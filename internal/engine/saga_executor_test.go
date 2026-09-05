@@ -429,7 +429,7 @@ func TestAWakePersistsExecutingWithoutAStrikeWhenVerificationIsCancelled(t *test
 	}
 	// The chapter mark (two read-only git commands, V34.3c) and then the
 	// status check; nothing that writes to the repository before cancellation.
-	want := "git stash create|git ls-files --others --exclude-standard|git status --porcelain"
+	want := "git stash create|git ls-files --others --exclude-standard|git rev-parse HEAD|git status --porcelain"
 	if got := strings.Join(runner.asked, "|"); got != want {
 		t.Fatalf("commands before cancellation = %v, want the mark and then only the status check", runner.asked)
 	}
@@ -690,6 +690,7 @@ type cancellingCommitter struct{ cancel context.CancelFunc }
 func (c *cancellingCommitter) HasChanges(string, *ChapterMark) (bool, error) { return true, nil }
 func (c *cancellingCommitter) RollbackChapter(string, *ChapterMark) error    { return nil }
 func (c *cancellingCommitter) MarkChapter(string) (ChapterMark, error)       { return ChapterMark{}, nil }
+func (c *cancellingCommitter) HeadMoved(string, *ChapterMark) (bool, error)  { return false, nil }
 func (c *cancellingCommitter) CommitChapter(string, int, string, *ChapterMark) (string, error) {
 	c.cancel()
 	return "", errors.New("pre-commit hook exited 1")

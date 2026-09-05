@@ -129,6 +129,10 @@ type GitCheckpointer interface {
 	// restores to that mark. A nil mark restores tracked files to HEAD and
 	// leaves untracked files alone -- the conservative reading of "no mark".
 	MarkChapter(repoDir string) (ChapterMark, error)
+	// HeadMoved reports that HEAD is not the commit the mark was taken on: the
+	// chapter was committed and only its record was lost, so a resume must not
+	// roll back to the mark.
+	HeadMoved(repoDir string, mark *ChapterMark) (bool, error)
 	RollbackChapter(repoDir string, mark *ChapterMark) error
 
 	// HasChanges reports whether the working tree has uncommitted modifications.

@@ -128,7 +128,11 @@ func (c commandCheckpointer) MarkChapter(repoDir string) (ChapterMark, error) {
 	if err != nil {
 		return ChapterMark{}, err
 	}
-	return ChapterMark{Snapshot: strings.TrimSpace(snapshot), Untracked: untracked}, nil
+	head, err := c.output("git rev-parse HEAD", repoDir, "mark")
+	if err != nil {
+		return ChapterMark{}, err
+	}
+	return ChapterMark{Snapshot: strings.TrimSpace(snapshot), Untracked: untracked, Head: strings.TrimSpace(head)}, nil
 }
 
 // RollbackChapter puts the tree back to the mark: tracked files to their
@@ -300,4 +304,17 @@ func isHex(s string) bool {
 		}
 	}
 	return true
+}
+
+// HeadMoved reports that the repository's HEAD is no longer the commit the
+// mark was taken on -- the chapter, or something else, has been committed since.
+func (c commandCheckpointer) HeadMoved(repoDir string, mark *ChapterMark) (bool, error) {
+	if mark == nil || mark.Head == "" {
+		return false, nil
+	}
+	head, err := c.output("git rev-parse HEAD", repoDir, "resume")
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(head) != mark.Head, nil
 }
