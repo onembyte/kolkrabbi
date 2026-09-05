@@ -1,10 +1,9 @@
-//go:build !darwin
+//go:build !darwin && !linux
 
 package shell
 
-// No enforcer here yet. V34.1e.2 adds Landlock for linux and narrows this tag to
-// !darwin && !linux; until then every sandboxed command on these platforms is
-// refused, which is what fail-closed means.
+// No enforcer here. Every sandboxed command on these platforms is refused,
+// which is what fail-closed means; windows is outside plan 13's matrix.
 func probeMechanism() (string, error) { return "", ErrSandboxUnsupported }
 
-func prepareSandbox(Sandbox) (sandboxWrap, error) { return nil, ErrSandboxUnsupported }
+func prepareSandbox(Sandbox) (*sandboxWrap, error) { return nil, ErrSandboxUnsupported }

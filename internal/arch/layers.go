@@ -148,6 +148,9 @@ var commandPackages = map[string]bool{
 // dependency the package had decided against.
 var thirdParty = map[string][]string{
 	"internal/term": {"golang.org/x/sys", "golang.org/x/term"},
+	// Landlock (V34.1e.2): x/sys carries the sysnums, constants and attr structs;
+	// the calls themselves are raw. Platform layer, so this is what the budget is for.
+	"internal/shell": {"golang.org/x/sys"},
 }
 
 // osOwner names the single package allowed to touch each piece of the OS.

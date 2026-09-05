@@ -30,14 +30,14 @@ func probeMechanism() (string, error) {
 // inline (-p) rather than through a 0600 file: there is nothing secret in it --
 // only paths -- and a file would need a lifetime, a cleanup, and a race with
 // the process that reads it. An argument has none of those.
-func prepareSandbox(p Sandbox) (sandboxWrap, error) {
+func prepareSandbox(p Sandbox) (*sandboxWrap, error) {
 	profile, err := seatbeltProfile(p)
 	if err != nil {
 		return nil, err
 	}
-	return func(argv []string) []string {
+	return &sandboxWrap{Argv: func(argv []string) []string {
 		return append([]string{sandboxExecPath, "-p", profile}, argv...)
-	}, nil
+	}}, nil
 }
 
 // seatbeltProfile renders the policy as SBPL. Two properties of Seatbelt shape

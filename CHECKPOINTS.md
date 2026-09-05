@@ -10567,11 +10567,48 @@ Subcheckpoints, one at a time:
   **under-claim**, deliberately, until V34.1e.6 flips every public statement in one commit with its
   pins. Verify: `go test -race -count=1 ./internal/shell/ -run 'Escape|Probe|Seatbelt'` and
   `make check` — 3334 tests, 8.57 MB, all gates.
-- [ ] **V34.1e.2 Linux: Landlock filesystem** — ABI probe via `x/sys/unix`, per-top-level read
-  grants with the home directory enumerated minus the denylist, write grants for root and temp, the
-  `kolk landlock-exec` re-exec entry that applies the ruleset then `execve`s bash. **Red:** the same
-  escape tests on ubuntu-latest; `ENOSYS`/`EOPNOTSUPP` fails closed with the refusal text; a test
-  asserts every denylist path is unreadable.
+- [ ] **V34.1e.2 Linux: Landlock filesystem** — subdivided 2026-09-05 before any code, because one
+  leaf cannot be red→green on this machine: there is no Linux kernel here (no colima/lima instance;
+  docker's daemon is down), and `x/sys` v0.47 turned out to ship Landlock's constants and attr
+  structs but **not** the syscall wrappers, so this is raw `unix.Syscall` on `SYS_LANDLOCK_*`.
+  - [x] **V34.1e.2a the re-exec entry and the probe** — cross-compiled and vetted for linux, no
+    kernel needed. `sandboxWrap` becomes `{Argv, Env}` so an enforcer can add environment as well as
+    rewrite argv; linux's wrap is `[self, bash, -c, cmd]` with `KOLK_LANDLOCK_CHILD=1` and the policy
+    as JSON in `KOLK_LANDLOCK_POLICY` — paths only, nothing secret. `cli.Main` checks that env before
+    building an app, so the closed four-command surface is untouched and `kolk help` shows nothing
+    new. The child strips both variables before `execve`, or a `kolk` run *inside* the sandbox would
+    believe it is the child. `probeMechanism` calls `landlock_create_ruleset(NULL,0,VERSION)` and
+    reports `landlock vN`; `ENOSYS`/`EOPNOTSUPP` refuse with a sentence naming the kernel floor.
+    **Red (observable here):** policy JSON round-trips; env stripping removes exactly the two names;
+    argv shape; on a non-linux host the env-gated entry refuses with a message naming linux and exit
+    125, and with the variable unset `Main` dispatches as before. Non-goals: no ruleset, no rules.
+    **Closed 2026-09-05.** `landlock.go` (codec, env contract, `MaybeRunAsLandlockChild`),
+    `landlock_notlinux.go` (refuses naming the GOOS, 125), `sandbox_linux.go` (raw `unix.Syscall`
+    on `SYS_LANDLOCK_CREATE_RULESET` for the ABI probe — `x/sys` v0.47 has sysnums, constants and
+    attr structs and **no wrappers**; `prepareSandbox` re-execs `SelfPath()` with the two variables;
+    `landlockChildMain` decodes, applies, strips, `execve`s; `applyLandlock` is a deliberate refusal
+    until 2b). `sandboxWrap` is `{Argv, Env}` behind a pointer; darwin uses Argv only, `Run` appends
+    `Env`. The entry sits at the top of `(*app).main`, env-gated: `kolk help` and the four-command
+    pins are untouched. **Red:** shell and cli failed to build on exactly the missing symbols;
+    **green** on darwin under `-race`, seatbelt escape tests intact after the refactor;
+    cross-compiled and vetted for linux/amd64, linux/arm64, windows. **Two gates tripped and were
+    right:** `arch`'s third-party allow-list refused `x/sys` in `internal/shell` until the entry was
+    added with its reason (platform layer; the map exists for exactly this), and the reverse rot test
+    accepts it because the scanner parses linux-tagged files on any host. **Plan amendment in
+    §7.2:** env variables instead of a `landlock-exec` verb. Non-goal held: no rules; the linux child
+    refuses rather than running unconfined. **2c resolved without a VM:** CI runs on pull requests, so
+    2b's red→green is observed on a PR branch on ubuntu-latest. Verify: `GOOS=linux go vet
+    ./internal/shell/ ./internal/cli/`, `go test -race ./internal/shell/ -run Landlock`, `make check`
+    — 3340 tests, all gates.
+  - [ ] **V34.1e.2b the ruleset and the escape tests** — `prctl(PR_SET_NO_NEW_PRIVS)`, create
+    ruleset with the fs access set for the probed ABI, add rules: **allow-only** reads per top-level
+    entry of `/` except the home, then per entry of the home except the denylist (an enumeration
+    with a test asserting every denylist path is unreadable); execute everywhere readable; writes
+    for root, temp and `Writable`; `restrict_self`; then `execve` bash. Linux-tagged escape tests
+    1–5, 7, 8. **Red must be observed on a Linux kernel**, not assumed.
+  - [ ] **V34.1e.2c verification on a real kernel** — ubuntu-latest CI runs `make test` on push and
+    is authorised; a local VM (`colima start`: an image download and a booted VM) is **the owner's
+    call** and the loop stops to ask if CI alone is not enough to observe red→green.
 - [ ] **V34.1e.3 network** — `(deny network*)` in the Seatbelt profile; Landlock ABI ≥ 4
   connect/bind rules; ABI < 4 with `network = deny` is refused, never approximated. **Red:** escape
   test 6 on both platforms; the refusal on a simulated ABI 3.

@@ -211,6 +211,11 @@ func Main(ctx context.Context, args []string) int {
 }
 
 func (a *app) main(ctx context.Context, args []string) int {
+	// The sandbox's confined child is kolk re-executed with an environment
+	// variable set, never an argv verb: the four-command surface stays four.
+	if handled, code := shell.MaybeRunAsLandlockChild(args, a.stderr); handled {
+		return code
+	}
 	err := a.dispatch(ctx, args)
 	code := exitCode(err)
 	a.printFailure(err, code)

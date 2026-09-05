@@ -35,8 +35,13 @@ type Sandbox struct {
 	Network  NetworkPolicy
 }
 
-// sandboxWrap rewrites a command's argv so the platform's enforcer runs it.
-type sandboxWrap func(argv []string) []string
+// sandboxWrap is how an enforcer inserts itself: it rewrites the command's
+// argv, and may add environment the wrapper needs. Seatbelt uses only Argv;
+// Landlock uses both, because its child is told what to do through Env.
+type sandboxWrap struct {
+	Argv func(argv []string) []string
+	Env  []string
+}
 
 // ErrSandboxUnsupported is the reason on a platform with no enforcer.
 var ErrSandboxUnsupported = errors.New("no sandbox mechanism is available on this platform")

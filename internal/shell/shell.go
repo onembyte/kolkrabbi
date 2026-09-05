@@ -150,7 +150,7 @@ func (s *platformShell) Run(ctx context.Context, c Cmd) (Result, error) {
 	// built. This is a Result and not an error on purpose: an error aborts the
 	// turn, and "I would not run this, here is why and here is the switch" is
 	// exactly the kind of thing the model should read and pass on.
-	var wrap sandboxWrap
+	var wrap *sandboxWrap
 	if c.Sandbox != nil {
 		if _, err := mechanism(); err != nil {
 			return Result{ExitCode: -1, Failure: Refusal(err)}, nil
@@ -160,6 +160,7 @@ func (s *platformShell) Run(ctx context.Context, c Cmd) (Result, error) {
 			return Result{ExitCode: -1, Failure: Refusal(err)}, nil
 		}
 		wrap = w
+		c.Env = append(c.Env, w.Env...)
 		// The policy's temp IS the child's temp. Otherwise every tool that
 		// honours TMPDIR -- go, npm, pip -- writes its scratch outside the
 		// sandbox and is refused for doing what it was told.

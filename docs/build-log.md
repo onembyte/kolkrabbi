@@ -6572,3 +6572,35 @@ probe; the model reads the same sentence either way.
 Nothing public flips. On this machine `/sandbox on` now confines writes for real, and the README still
 says there is no general execution sandbox. That is an under-claim, and it is deliberate: the
 statements change together in V34.1e.6, with the site pins that guard them, once Linux is real too.
+
+## Linux gets its child before it gets its rules — V34.1e.2a closed 2026-09-05
+
+Leaf 2 was subdivided before a line of it was written, for a reason the machine made plain: there is
+no Linux kernel here. No colima or lima instance, docker's daemon down, and Landlock is a kernel
+feature. A leaf whose red cannot be observed is not a leaf, so 2a is everything that can be proven on
+this Mac and cross-compiled for the rest, 2b is the ruleset and the escape tests, and 2c is running
+them on a real kernel — which CI's ubuntu runner provides on a pull request, so no VM is needed.
+
+`x/sys` v0.47 turned out to ship Landlock's constants and attr structs and none of the syscall
+wrappers, so the calls are raw `unix.Syscall` on the sysnums, which are the same on every Linux
+architecture. The probe asks the kernel its ABI and reports `landlock vN`; `ENOSYS` and `EOPNOTSUPP`
+refuse with the kernel floor named.
+
+Go has no pre-exec hook, so the confined child is kolk itself, re-executed in front of the command.
+The plan said an internal `landlock-exec` verb. That would have been a fifth outside-session command
+on a surface the same plan, the README, the site guard and two tests insist has exactly four. The
+entry is gated on an environment variable instead, checked at the top of `main` before an app is
+built, with the policy as JSON in a second variable — paths and a network word, nothing secret. The
+child strips both before it execs, or a `kolk` run inside the sandbox would think it was the child.
+
+The one decision worth defending is that the linux child *refuses*. It has no rules yet; the honest
+options were to refuse, or to exec the command unconfined and call it progress. A child that quietly
+runs unconfined is the exact silent downgrade §7.2 exists to forbid, so `applyLandlock` returns an
+error and the exit code is 125 until 2b gives it a body.
+
+Two gates earned their keep. The third-party allow-list refused `x/sys` in `internal/shell` until it
+was added with a reason — which is the point of a budget rather than a convention — and the rot test
+that deletes unused allowances accepted it, because the scanner parses linux-tagged files on any
+host. Red was two packages failing to build on exactly the missing names; green on darwin under the
+race detector, the Seatbelt tests intact, and the tree building for linux/amd64, linux/arm64 and
+windows. That is as far as a Mac can take Landlock; the next step needs a kernel, and CI has one.

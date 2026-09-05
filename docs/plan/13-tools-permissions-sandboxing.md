@@ -183,9 +183,14 @@ cgo, no external binary. The ABI is probed at runtime: ABI ≥ 1 gives filesyste
 (kernel 6.7+) gives TCP `connect`/`bind` rules. Landlock is allow-only — there is no deny rule — so
 the read grant is built per top-level directory, with the home directory granted entry by entry
 minus the denylist; the enumeration is a documented function with a test that asserts every
-denylist path is unreadable. Go has no pre-exec hook, so the child is `kolk` re-executed with an
-internal `landlock-exec` entry that applies the ruleset and `execve`s `bash -c <cmd>`; the wrapper
-is the process-group leader, so §S10.1d2's group kill is unchanged. A kernel without Landlock
+denylist path is unreadable. Go has no pre-exec hook, so the child is `kolk` re-executed in front of the
+command, told what to do by two environment variables (`KOLK_LANDLOCK_CHILD=1` and the policy as
+JSON in `KOLK_LANDLOCK_POLICY` — paths only) rather than by an argv verb: **amended in V34.1e.2a**,
+because a `landlock-exec` verb would have been a fifth outside-session command on a surface this
+plan and its tests insist has four. The child applies the ruleset, strips both variables so a
+`kolk` run inside the sandbox cannot mistake itself for the child, and `execve`s `bash -c <cmd>`;
+the wrapper is the process-group leader, so §S10.1d2's group kill is unchanged. Until the ruleset
+exists the child **refuses** (exit 125) rather than exec unconfined. A kernel without Landlock
 (`ENOSYS`, `EOPNOTSUPP`, LSM not enabled) is a fail-closed condition. `network = deny` on ABI < 4
 is **refused**, not approximated: the sandbox cannot enforce it, so it does not pretend to.
 
