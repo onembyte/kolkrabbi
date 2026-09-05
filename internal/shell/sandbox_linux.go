@@ -46,6 +46,18 @@ func probeMechanism() (string, error) {
 // policy in the environment. Nothing is enforced in this process; the child
 // does that, after fork and before exec, where Go cannot otherwise reach.
 func prepareSandbox(p Sandbox) (*sandboxWrap, error) {
+	// Validate here, in the parent, exactly as Seatbelt does: an unresolvable
+	// root is a policy that cannot be established, and it is refused before
+	// any child is forked to discover the same thing at exit 125.
+	if _, err := existingRealPath("root", p.Root); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(p.Temp) == "" {
+		return nil, fmt.Errorf("sandbox policy has no temp directory")
+	}
+	if err := os.MkdirAll(p.Temp, 0o700); err != nil {
+		return nil, fmt.Errorf("sandbox temp %s: %w", p.Temp, err)
+	}
 	self, err := SelfPath()
 	if err != nil {
 		return nil, fmt.Errorf("locating kolk for the sandbox child: %w", err)
@@ -138,7 +150,7 @@ func applyLandlock(p Sandbox) error {
 
 	// Reads and execution, everywhere the denylist does not reach.
 	readAccess := uint64(unix.LANDLOCK_ACCESS_FS_EXECUTE | unix.LANDLOCK_ACCESS_FS_READ_FILE | unix.LANDLOCK_ACCESS_FS_READ_DIR)
-	if err := grantReads(ruleset, "/", deny, readAccess, 0); err != nil {
+	if err := grantTree(ruleset, "/", deny, readAccess, readAccess, 0); err != nil {
 		return err
 	}
 
@@ -150,8 +162,11 @@ func applyLandlock(p Sandbox) error {
 		_ = os.MkdirAll(w, 0o755)
 		writable = append(writable, bestRealPath(w))
 	}
+	// The same tree walk as for reads: a root widened to the whole home must
+	// not carry ~/.ssh with it, and Landlock cannot say "except" -- it can
+	// only not grant. TestEscape4 is the case.
 	for _, w := range writable {
-		if err := addRule(ruleset, w, handled, handled); err != nil {
+		if err := grantTree(ruleset, w, deny, handled, handled, 0); err != nil {
 			return fmt.Errorf("granting writes under %s: %w", w, err)
 		}
 	}
@@ -223,11 +238,13 @@ func addRule(ruleset int, path string, access, handled uint64) error {
 	return nil
 }
 
-// grantReads grants dir whole when nothing denied lies beneath it, and
+// grantTree grants dir whole when nothing denied lies beneath it, and
 // otherwise descends one level and grants each child that is not itself
-// denied. Children that cannot be opened -- /root, a vanished temp -- are
-// skipped: a read that would have failed anyway is not a policy failure.
-func grantReads(ruleset int, dir string, deny []string, access uint64, depth int) error {
+// denied. It is the only way to express "this tree, except that path" in a
+// model with no deny rule, and it serves reads and writes alike. Children that
+// cannot be opened -- /root, a vanished temp -- are skipped: an access that
+// would have failed anyway is not a policy failure. Only depth 0 is fatal.
+func grantTree(ruleset int, dir string, deny []string, access, handled uint64, depth int) error {
 	if depth > 64 {
 		return fmt.Errorf("denylist enumeration too deep under %s", dir)
 	}
@@ -237,7 +254,7 @@ func grantReads(ruleset int, dir string, deny []string, access uint64, depth int
 		}
 	}
 	if !anyBeneath(deny, dir) {
-		if err := addRule(ruleset, dir, access, access); err != nil {
+		if err := addRule(ruleset, dir, access, handled); err != nil {
 			if depth == 0 {
 				return err
 			}
@@ -253,8 +270,7 @@ func grantReads(ruleset int, dir string, deny []string, access uint64, depth int
 		return nil
 	}
 	for _, e := range entries {
-		child := filepath.Join(dir, e.Name())
-		if err := grantReads(ruleset, child, deny, access, depth+1); err != nil {
+		if err := grantTree(ruleset, filepath.Join(dir, e.Name()), deny, access, handled, depth+1); err != nil {
 			return err
 		}
 	}
