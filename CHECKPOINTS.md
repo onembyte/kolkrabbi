@@ -10711,7 +10711,7 @@ Subcheckpoints, one at a time:
   was not extractable and is not claimed. `llms.txt` limitation line rewritten. `test-site.sh`: the
   llms pin follows the new sentence; two `contains` pins for the capabilities row; a new
   `not_contains` helper with three inverse pins so the old "no OS-level sandbox" wording cannot
-  survive in any page — 346 checks. PLAN item 13 says shipped; plan 13's platform matrix and §7.2's
+  survive in any page — 343 checks. PLAN item 13 says shipped; plan 13's platform matrix and §7.2's
   "unshipped until" paragraph say shipped. Not in this leaf: the README's unrelated "Sandbox
   testing" heading (the mock server) keeps its name — a rename is a wording call for the owner.
   **The sandbox is public. Every public sentence about it is one the tests can defend.**
