@@ -79,7 +79,7 @@ Accepted scope matrix:
 | Disposition | Capability/platform boundary | Remaining proof owner |
 |---|---|---|
 | shipped candidate | macOS/Linux amd64+arm64 CLI/TUI; chat/code/agent; OpenRouter-compatible endpoints; host Ollama; Claude Pro/Max and ChatGPT Plus/Pro CLI handoff; sessions, dashboard/service, current permissions, and inline SAGA | owning V34.1–V34.5 leaves must close known safety, integrity, provider, local, SAGA, and release gaps |
-| accepted v1, not shipped | OS-level sandboxing on supported Linux and macOS targets | V34.1e chooses the mechanisms and proves fail-closed native isolation; README/site must say unavailable until then |
+| shipped 2026-09-05, opt-in | OS-level sandboxing on supported Linux and macOS targets (`/sandbox on`; Seatbelt, Landlock) | V34.1e closed with native fail-closed evidence on both runners; README/site say opt-in, off by default |
 | owner-proven release input | clean-machine install and provider response | owner confirmed completion on 2026-09-01; V34.5b owns the exact reproducible transcript link |
 | post-v1 deferred | Windows runtime support; desktop/iPad/Android clients; additional subscription providers; generated clients; containerized SAGA execution | revisit when an owner requests the surface and supplies a checkpoint/evidence environment |
 
@@ -109,10 +109,13 @@ credential or write outside its intended boundary.
   without policy, reject link/race escapes on restore, and preserve restrictive source modes.
 - [ ] **V34.1d bounded and scrubbed outputs** — bound child capture before allocation; redact durable
   session and terminal sinks; reject URL userinfo; replace key/token argv UX with protected input.
-- [ ] **V34.1e full-auto safety floor and OS sandbox** — implement the owner-accepted containment
-  boundary on supported Linux/macOS targets, preserve the existing in-process floor, fail closed or
-  fall back only under an explicit documented policy, and prove native escape/refusal cases. Until
-  this closes, OS sandboxing is accepted v1 scope but not an available feature.
+- [x] **V34.1e full-auto safety floor and OS sandbox** — completed 2026-09-05 as V34.1e.0–V34.1e.6 in
+  `CHECKPOINTS.md`: one policy, two enforcers (Seatbelt on macOS, Landlock on Linux), opt-in via
+  `/sandbox on` and off by default at the owner's direction; fail closed, no `auto`; a network deny the
+  kernel cannot enforce is refused in the parent; nine native escape tests on both runners; the
+  in-process floor untouched; wrapper overhead 2 ms (linux) / 6 ms (macOS); the cancel ladder proven
+  through the wrapper; public claims flipped in one commit with inverse pins. Design in
+  `docs/plan/13-tools-permissions-sandboxing.md` §7.2.
 - [x] **V34.1f delegated execution capability envelope** — completed 2026-09-01: every provider child
   receives an explicit canonical repository root/working directory and declared network capability;
   Codex workspace-write network access and Claude web tools are enabled only through that envelope,
