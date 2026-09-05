@@ -62,6 +62,18 @@ func prepareSandbox(p Sandbox) (*sandboxWrap, error) {
 	if err := os.MkdirAll(p.Temp, 0o700); err != nil {
 		return nil, fmt.Errorf("sandbox temp %s: %w", p.Temp, err)
 	}
+	// A TCP deny needs Landlock ABI 4 (Linux 6.7+). Below that the kernel has
+	// no network rules at all, and the plan says refuse, never approximate:
+	// an "off" the child could contradict is worse than an honest refusal.
+	if p.Network == NetworkDeny {
+		abi, err := landlockABIProbe()
+		if err != nil {
+			return nil, err
+		}
+		if abi < 4 {
+			return nil, fmt.Errorf("network = deny needs Landlock ABI 4 (Linux 6.7 or newer); this kernel has ABI %d. Use network allow, or /sandbox off", abi)
+		}
+	}
 	self, err := SelfPath()
 	if err != nil {
 		return nil, fmt.Errorf("locating kolk for the sandbox child: %w", err)
@@ -124,6 +136,12 @@ func applyLandlock(p Sandbox) error {
 	}
 	handled := fsAccessForABI(abi)
 	attr := unix.LandlockRulesetAttr{Access_fs: handled}
+	// Landlock network rules are allow-only too: handling connect and bind
+	// and then adding no port rule denies every TCP connect and bind. That is
+	// exactly "network = deny", and it only exists from ABI 4.
+	if p.Network == NetworkDeny && abi >= 4 {
+		attr.Access_net = unix.LANDLOCK_ACCESS_NET_BIND_TCP | unix.LANDLOCK_ACCESS_NET_CONNECT_TCP
+	}
 	rs, _, errno := unix.Syscall(unix.SYS_LANDLOCK_CREATE_RULESET,
 		uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr), 0)
 	if errno != 0 {
