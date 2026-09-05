@@ -10543,6 +10543,43 @@ Subcheckpoints, one at a time:
   decided it), the scrubber's patterns (`internal/redact` owns them), and the transcript sinks that
   already scrub (tool output in `engine`, hook output, the debug log, `/diff`, `/commit`, `/pr`).
   **Closed 2026-09-05** with 1d.1–1d.4 (1d.4 as a/b/c); `docs/plan/34` V34.1d ticked.
+- [~] **V34.2 make turns, storage, and transports finish coherently** — `docs/plan/34` V34.2, opened
+  2026-09-05 with V34.1 closed. Six leaves as the plan lists them; **2e is taken first** because it has an
+  observed red on main: run 33969381063 (ubuntu) failed `TestASubagentBackendIsClosedOnEveryPathOutOfATask`
+  on a commit that touched no engine code. Inspection: `runOneTask` sends its `taskRun` and only then
+  runs the deferred `release()`, so `runTasks` can return — and the caller assert, clear accounting, or
+  save the session — before the backend is closed; and on `ctx.Err()` `runTasks` returns while task
+  goroutines are still inside `runSubagent`, free to write `results[]`, end checkpoints and record cost
+  after the return. The leaf order otherwise follows the plan.
+  - [x] **V34.2e joined orchestration cancellation** — cancellation waits for every subagent before
+    `RunTurn` returns or clears accounting; no post-return file, event, checkpoint, or cost mutation.
+    **Red:** with a subagent blocked until its context is cancelled, `runTasks` returns on cancellation
+    with the backend still open and the goroutine still running; on success the backend is released
+    after the result is delivered.
+    **Closed 2026-09-05, on main.** Red observed, deterministic on both shapes: with two subagents
+    blocked until cancellation and shutting down at 10 ms and 300 ms, `runTasks` returned on the first
+    result while the second was still inside its turn with its backend open; on success, a backend
+    whose `Close` takes 50 ms was still open when `runTasks` returned. Green, two lines of intent:
+    on `ctx.Err()` `runTasks` drains `finished` until `running == 0` before returning — every
+    goroutine observes the same cancelled context and comes back, and nothing it reports is kept — and
+    `runOneTask` calls `release()` before sending its result, with `releaseSubagentBackend` made
+    idempotent (`sync.Once`) so the deferred release on the early-return paths cannot tell a vendor
+    child to leave twice. The previously flaky `TestASubagentBackendIsClosedOnEveryPathOutOfATask`
+    is deterministic now; the whole engine suite is `-race` clean and the five cancellation tests pass
+    five times in a row under `-race`. Not in this leaf: how long a provider child may take to stop
+    (2a bounds that), and a `RunTurn`-level assertion that accounting is cleared only after the join —
+    `runOrchestrated` already clears `runSpend` in a defer after `runTasks` returns, which the join
+    now orders correctly. `make check`.
+  - [ ] **V34.2a cancellation-aware provider shutdown** — unread process output cannot deadlock close;
+    cancellation always joins reader and child workers within a testable bound.
+  - [ ] **V34.2b consistent session snapshots** — `Save` snapshots messages under the same
+    synchronization as mutation, and `/undo task` persists the reconciliation message.
+  - [ ] **V34.2c causal task rewind** — per-task rewind cannot erase a later task's work and consumes or
+    invalidates the corresponding snapshot after a successful restoration.
+  - [ ] **V34.2d terminal event and replay contract** — ordinary errors publish a terminal error event;
+    SSE and stdio deliver retained replay before live events without loss or duplication.
+  - [ ] **V34.2f atomic run-cost limits** — reserve or serialize cost budget before concurrent work so
+    `MaxRunCostUSD` cannot be crossed by in-flight calls.
   - [x] **V34.1d.1 child capture is bounded before it is allocated** — `shell.Run` collects a child's
     output with `CombinedOutput`, which grows without limit: a command that prints a gigabyte costs a
     gigabyte of kolk's memory before the tool layer cuts it to 12k. A bounded writer keeps the first

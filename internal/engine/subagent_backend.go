@@ -6,6 +6,7 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // SubagentCapabilities is the explicit execution envelope handed to one
@@ -179,7 +180,10 @@ func releaseSubagentBackend(backend ChatBackend) (ChatBackend, func()) {
 	if !ok {
 		return backend, func() {}
 	}
-	return backend, func() { _ = closer.Close() }
+	// Once: the task closes it before reporting and again in a deferred call,
+	// and a vendor child must not be told to leave twice.
+	var once sync.Once
+	return backend, func() { once.Do(func() { _ = closer.Close() }) }
 }
 
 // pinnedBackend is a provider opened for one model.

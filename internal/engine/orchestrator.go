@@ -210,8 +210,17 @@ func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([
 		done := <-finished
 		running--
 		if ctx.Err() != nil {
-			// The user asked it to stop. Draining the rest and reporting them
-			// as failures would be answering a question they withdrew.
+			// The user asked it to stop. Nothing the remaining tasks report is
+			// kept -- that would be answering a question they withdrew -- but
+			// the run is not over until every one of them has stopped (V34.2e).
+			// Returning earlier leaves goroutines free to write results, end
+			// checkpoints, record cost and publish events into a turn the caller
+			// has already declared done. Each observes the same cancelled
+			// context and comes back.
+			for running > 0 {
+				<-finished
+				running--
+			}
 			return nil, ctx.Err()
 		}
 		if writesFiles(tasks[done.index].Kind) {
@@ -344,6 +353,10 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	if buffered != nil {
 		run.output = buffered.String()
 	}
+	// Close the backend before reporting: a result whose child is still alive
+	// is not a finished task. The deferred release above then has nothing left
+	// to do -- it is idempotent -- and stays for the early-return paths.
+	release()
 	finished <- run
 }
 
