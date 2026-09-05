@@ -91,6 +91,8 @@ func (s *Store) RewindTask(ctx context.Context, n int) ([]string, error) {
 
 	snapshot := s.tasks[n-1]
 	restored := make([]string, 0, len(snapshot.Paths))
+	modes := s.shadow.modesOf(snapshot.Paths)
+	defer s.shadow.reapplyModes(modes)
 	for _, path := range snapshot.Paths {
 		if err := s.shadow.restorePath(ctx, snapshot.Commit, path); err != nil {
 			return restored, err

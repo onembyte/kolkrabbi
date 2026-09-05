@@ -23,6 +23,12 @@ type Entry struct {
 	Existed bool      `json:"existed"`
 	Backup  string    `json:"backup,omitempty"` // filename within the store dir
 	Time    time.Time `json:"time"`
+	// Mode is the permission bits the file had when it was recorded, so a
+	// restore that has to recreate it (the file was removed since) gives it
+	// back its own mode rather than inventing one. Zero in manifests written
+	// before this field existed; the restore then keeps whatever mode the file
+	// has now, and only invents 0644 when there is no file at all.
+	Mode os.FileMode `json:"mode,omitempty"`
 }
 
 type manifest struct {
@@ -123,8 +129,14 @@ func (s *Store) Record(tool, path string) error {
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
+	var mode os.FileMode
+	if existed {
+		if info, err := os.Stat(abs); err == nil {
+			mode = info.Mode().Perm()
+		}
+	}
 	s.seq++
-	e := Entry{Seq: s.seq, Turn: s.turn, Tool: tool, Path: abs, Existed: existed, Time: time.Now()}
+	e := Entry{Seq: s.seq, Turn: s.turn, Tool: tool, Path: abs, Existed: existed, Time: time.Now(), Mode: mode}
 	if existed {
 		e.Backup = fmt.Sprintf("%06d.bak", s.seq)
 		if err := os.WriteFile(filepath.Join(s.dir, e.Backup), content, 0o600); err != nil {
@@ -181,7 +193,7 @@ func (s *Store) RewindLastTurn(ctx context.Context) ([]string, error) {
 			if err := os.MkdirAll(filepath.Dir(e.Path), 0o755); err != nil {
 				return restored, err
 			}
-			if err := os.WriteFile(e.Path, data, 0o644); err != nil {
+			if err := writeRestored(e.Path, data, e.Mode); err != nil {
 				return restored, err
 			}
 		}
@@ -244,4 +256,27 @@ func (s *Store) Original(path string) ([]byte, bool, error) {
 		return content, true, nil
 	}
 	return nil, false, fmt.Errorf("%s was not changed by this session", path)
+}
+
+// writeRestored puts a backup's bytes back at path with the mode the file was
+// recorded with. A recorded mode wins over whatever the path has now; without
+// one (an older manifest) the current mode is kept, and 0644 is used only when
+// the file has to be created from nothing. The chmod after the write matters
+// for the recorded case: writing into an existing file keeps its inode and so
+// its current mode, which is not necessarily the recorded one.
+func writeRestored(path string, data []byte, recorded os.FileMode) error {
+	perm := recorded
+	if perm == 0 {
+		perm = 0o644
+		if info, err := os.Stat(path); err == nil {
+			perm = info.Mode().Perm()
+		}
+	}
+	if err := os.WriteFile(path, data, perm); err != nil {
+		return err
+	}
+	if recorded != 0 {
+		return os.Chmod(path, recorded)
+	}
+	return nil
 }

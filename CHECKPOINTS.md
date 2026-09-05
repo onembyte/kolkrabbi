@@ -10529,6 +10529,44 @@ Subcheckpoints, one at a time:
   environment down; scrubbing one process early makes the question moot. Three child paths, three
   proofs. `-race` clean on shell and cli; lint clean on darwin and linux; `make check` all gates.
   `docs/plan/34` V34.1b ticked.
+- [~] **V34.1c confidential, symlink-safe checkpoints** — `docs/plan/34` V34.1c, subdivided 2026-09-05
+  before code because its three clauses are three separable red→green pairs. Inspection: the copy
+  store (`internal/checkpoint.Store.Record`/`RewindLastTurn`) reads the source through symlinks,
+  records no mode, and restores with `os.WriteFile(path, data, 0o644)` — which follows a symlink
+  planted at the path and flattens a 0600 file to 0644. The shadow store restores through
+  `git checkout`/`reset --hard`, which recreates files at umask mode, so it flattens 0600 too. `/diff`
+  prints a backup's contents unscrubbed. **Non-goals:** `/undo`/`/rewind` semantics (item 15), the
+  choice of store (item 32), the jail (already resolves symlinks before a write is allowed).
+  - [x] **V34.1c.1 restrictive modes survive a rewind** — copy store: `Entry.Mode` recorded at
+    `Record`, restored with it (older manifests without a mode fall back to the file's current mode,
+    then 0644). Shadow store: the modes of the paths about to be restored are read before the git
+    restore and reapplied after, for every path that still exists. **Red:** a 0600 file rewound under
+    each strategy comes back 0644.
+    **Closed 2026-09-05, on main.** The first red attempt did not go red, and that was the finding:
+    `os.WriteFile` on an *existing* file truncates in place, keeping the inode and its mode, so the
+    copy store never had the bug for a file that still existed. The red is the file removed between
+    the edit and the undo (a `rm` by bash, then `/undo`): the restore has to create it, and creating
+    is where 0644 was invented — observed `mode after rewind = 644`. Green: `Entry.Mode` is recorded
+    at `Record` (omitted from JSON when zero, so older manifests still load) and `writeRestored`
+    writes with it and chmods afterwards; a zero mode keeps the file's current mode and invents 0644
+    only when there is no file at all. Recording the mode also protects 1c.2, whose atomic replace
+    will *not* keep the inode. Shadow store: observed the same 644 — `git checkout`/`reset --hard`
+    recreate a changed file at index mode filtered by umask — so `rewindSnapshot` and `RewindTask`
+    read the regular files' modes before the git restore (`modesOf`) and reapply them after
+    (`reapplyModes`) for every path that is still a regular file. The current mode is used because
+    the shadow store records content, not modes, and the mode is the user's; recorded here as the
+    limit of the proof. `-race` clean on the package; lint clean darwin and linux; `make check`.
+  - [ ] **V34.1c.2 a rewind refuses link and race escapes** — the copy store learns the project root
+    and records each entry's resolved real path; a restore recomputes it and refuses, naming both
+    paths, when it differs or leaves the root; the write itself goes through a root-anchored,
+    component-wise `O_NOFOLLOW` open in the platform layer (unix), with a resolve-then-write fallback
+    on Windows recorded as such. **Red:** a symlink planted at the path, and a parent directory
+    swapped for a symlink, both make today's rewind write outside the project.
+  - [ ] **V34.1c.3 backups of secrets have a stated policy** — the policy, written down in
+    `docs/plan/32-shadow-git-snapshots.md`: backups are kept (undo needs the bytes), 0600 inside a
+    0700 directory that is removed with the session; they are never displayed unscrubbed — `/diff`
+    passes every rendered line through `redact.Scrub`. **Red:** `/diff` prints a canary secret from a
+    backed-up `.env`.
 
 - [x] **V34.1e.0 the sandbox policy, the switch and the refusal** — `shell.Sandbox` on
   `shell.Cmd`: root, temp, credential denylist, network `allow|deny`; the root is

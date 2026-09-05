@@ -302,12 +302,50 @@ func (s *Store) rewindSnapshot(ctx context.Context, turn int, commit string) ([]
 	if err != nil {
 		return nil, err
 	}
+	modes := s.shadow.modesOf(changed)
 	if err := s.shadow.RestoreTo(ctx, commit); err != nil {
 		return nil, err
 	}
+	s.shadow.reapplyModes(modes)
 	delete(s.snapshots, turn)
 	if err := s.saveManifest(); err != nil {
 		return changed, err
 	}
 	return changed, nil
+}
+
+// modesOf reads the permission bits of the regular files among paths, before a
+// git restore rewrites them. Git recreates a changed file at the index mode
+// filtered by umask -- 0644 for anything not executable -- so a user's 0600
+// .env would come back world-readable. The current mode is the best knowledge
+// there is of what the user wants: the shadow store records content, not modes,
+// and a file's mode almost never changes between a snapshot and its undo.
+func (s *Shadow) modesOf(paths []string) map[string]os.FileMode {
+	modes := make(map[string]os.FileMode, len(paths))
+	for _, path := range paths {
+		abs := s.absolute(path)
+		if info, err := os.Lstat(abs); err == nil && info.Mode().IsRegular() {
+			modes[abs] = info.Mode().Perm()
+		}
+	}
+	return modes
+}
+
+// reapplyModes puts the modes read by modesOf back on every path that is still
+// a regular file after the restore. A path the restore removed is left alone.
+func (s *Shadow) reapplyModes(modes map[string]os.FileMode) {
+	for abs, perm := range modes {
+		if info, err := os.Lstat(abs); err == nil && info.Mode().IsRegular() && info.Mode().Perm() != perm {
+			_ = os.Chmod(abs, perm)
+		}
+	}
+}
+
+// absolute anchors a work-tree path the way restorePath does; a path that is
+// already absolute is returned as it is.
+func (s *Shadow) absolute(path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(s.workTree, filepath.FromSlash(path))
 }
