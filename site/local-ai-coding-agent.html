@@ -159,10 +159,10 @@
           <h3>Local is never the zero-config default</h3>
           <p>With no model chosen, Kolkrabbi picks a free gateway model — because nothing can tell whether your 1.5B local model is a better choice than a 480B free one. Local is always a choice you make.</p>
         </article>
-        <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Honest</span><span>KEY</span></div>
-          <h3>A local session still expects a gateway key</h3>
-          <p>This is a known rough edge on the list of things to fix, not a design decision. The key is never sent to your local endpoint: it only ever goes to openrouter.ai.</p>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Kolkrabbi has it</span><span>KEY</span></div>
+          <h3>A <code>--base-url</code> session needs no key at all</h3>
+          <p>Verified on a machine with no Kolkrabbi config and no key anywhere: <code>kolk --base-url &hellip; -m &hellip;</code> goes straight to the endpoint and fails, if it fails, on the connection rather than on a missing credential. Where a key <em>is</em> still expected today is a subscription plan answering the turns; that is a known rough edge and it does not touch this path.</p>
         </article>
       </div>
     </section>
