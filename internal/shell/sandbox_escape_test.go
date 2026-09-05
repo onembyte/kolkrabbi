@@ -1,4 +1,4 @@
-//go:build darwin
+//go:build darwin || linux
 
 package shell
 
@@ -11,11 +11,14 @@ import (
 	"time"
 )
 
-// The escape tests from plan 13 §7.2, run natively. Each one distinguishes
-// two very different refusals: kolk declining to run the command at all (exit
-// -1, the Refusal text) and the operating system refusing the command while
-// it ran (a real exit code, "Operation not permitted" in the output). Only the
-// second is a sandbox. Before V34.1e.1 every one of these sees the first.
+// The escape tests from plan 13 §7.2, run natively on darwin and linux. Each
+// one distinguishes refusals that look alike from the outside: kolk declining
+// to run the command at all (exit -1, the Refusal text), the confined child
+// refusing before exec (exit 125, "kolk: sandbox child"), and the kernel
+// refusing the command while it ran (a real exit code and the platform's own
+// phrase -- osRefusalPhrase, "Operation not permitted" on darwin, "Permission
+// denied" on linux). Only the last is a sandbox. Before an enforcer exists on a
+// platform, every test here sees one of the first two, which is the red.
 
 type escapeFixture struct {
 	home, root, temp, creds string
@@ -59,11 +62,14 @@ func refusedByTheOS(t *testing.T, res Result, what string) {
 	if res.ExitCode == -1 {
 		t.Fatalf("%s: kolk declined to run the command instead of the sandbox refusing it:\n%s", what, res.Failure)
 	}
+	if strings.Contains(res.Output, "kolk: sandbox child") {
+		t.Fatalf("%s: the confined child refused before running the command (no ruleset yet):\n%s", what, res.Output)
+	}
 	if res.OK() {
 		t.Fatalf("%s: was ALLOWED. output:\n%s", what, res.Output)
 	}
-	if !strings.Contains(res.Output, "Operation not permitted") {
-		t.Fatalf("%s: failed, but not as a sandbox refusal. output:\n%s", what, res.Output)
+	if !strings.Contains(res.Output, osRefusalPhrase) {
+		t.Fatalf("%s: failed, but not as a kernel refusal (%q absent). output:\n%s", what, osRefusalPhrase, res.Output)
 	}
 }
 
@@ -160,5 +166,28 @@ func TestEscape8_GoTestInsideRootPasses(t *testing.T) {
 	)
 	if !res.OK() || !strings.Contains(res.Output, "ok") {
 		t.Fatalf("go test inside the sandbox failed: exit %d\n%s\n%s", res.ExitCode, res.Failure, res.Output)
+	}
+}
+
+// Landlock has no deny rule: reads are granted by enumerating what is allowed.
+// A denylist path two levels under the home therefore forces the enumeration
+// to recurse -- grant `.local`'s siblings, then `.local/share`'s siblings, then
+// refuse the store -- and the failure mode is over-denying everything nearby.
+// Seatbelt expresses the same policy as a plain deny; the test is the same.
+func TestEscape9_NestedDenylistPathIsRefusedWhileSiblingsStayReadable(t *testing.T) {
+	f := newEscapeFixture(t)
+	sibling := filepath.Join(f.home, ".local", "notes.txt")
+	top := filepath.Join(f.home, "readme.txt")
+	for _, p := range []string{sibling, top} {
+		if err := os.WriteFile(p, []byte("readable\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	refusedByTheOS(t, sandboxed(t, f.policy, "cat "+Quote(f.creds)), "read nested credential store")
+	for _, p := range []string{sibling, top} {
+		res := sandboxed(t, f.policy, "cat "+Quote(p))
+		if !res.OK() || !strings.Contains(res.Output, "readable") {
+			t.Fatalf("over-denied: %s should be readable: exit %d\n%s\n%s", p, res.ExitCode, res.Failure, res.Output)
+		}
 	}
 }
