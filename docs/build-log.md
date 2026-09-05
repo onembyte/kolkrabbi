@@ -6686,3 +6686,25 @@ The leaf is platform-neutral, so it closed on main without a PR: the linux-tagge
 and linted from the Mac with `GOOS=linux`, as leaf 2 taught. Red was observed the ordinary way — a
 test asked the status for a field it did not have. Public claims are still unchanged; V34.1e.5
 measures the wrapper's cost, and only V34.1e.6 flips anything.
+
+## The wrapper costs two to seven milliseconds — V34.1e.5 closed 2026-09-05
+
+A sandbox that made every `ls` feel slow would be a sandbox people switch off, so the leaf was a
+measurement first. The shell package now times a bare `true` against a sandboxed one, p50 of
+twenty-one runs, and holds the difference to the same two lines the binary's cold start is held to:
+twenty milliseconds earns a warning, thirty fails the test. The budgets script lifts the line into
+its log beside cold start from the one verbose run it already makes, and treats a missing line as an
+error rather than silence.
+
+The numbers: about six milliseconds on this Mac, where `sandbox-exec` compiles a profile per command,
+and two on the ubuntu runner, where kolk re-executes itself and installs a Landlock ruleset before
+handing over to the shell. The plan had guessed ten to thirty. It is corrected to what was measured.
+
+The second half was a property, not a number. The cancel ladder kills a process group so that
+`npm test &` does not outlive a cancelled turn; the question was whether a wrapper in front of the
+shell breaks that. It does not, and the reason is worth pinning: both enforcers exec the command in
+place, so the wrapper *becomes* the shell and the group leader. Two twins of the grandchild test run
+under a policy — a timeout and a cancellation — and both pass. To be sure they could fail, Setpgid
+was switched off for a moment: both reported a grandchild surviving through the wrapper, which is the
+exact regression a future forking wrapper would introduce. Switched back, both pass. Nothing public
+has changed yet. V34.1e.6 is the flip, and it needs the owner.

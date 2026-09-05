@@ -10671,9 +10671,27 @@ Subcheckpoints, one at a time:
   groups (it renders as a lead through `permissionLead`), so "beside approval" became "after
   effort". Focused verification with `-race` on shell, tools, tui, cli; `make check` all gates.
   Nothing public changes until V34.1e.6.
-- [~] **V34.1e.5 measurement** — per-command overhead of the wrapper on darwin and linux against the
+- [x] **V34.1e.5 measurement** — per-command overhead of the wrapper on darwin and linux against the
   cold-start soft budget; confirm the cancel ladder still reaches grandchildren through the wrapper
   (`npm test &` shape). A number over budget is a finding to record, not a note to bury.
+  **Closed 2026-09-05, on main (green `1a31ae8`, CI run 33966380022).** Two numbers and one
+  property. **The numbers:** `TestSandboxWrapperOverheadStaysUnderTheColdStartBudget` times bare
+  against sandboxed `true`, p50 of 21 after one warming exec, and holds the difference to the same
+  lines cold start is held to — soft 20 ms logged as a `::warning`, hard 30 ms failing. darwin
+  (this Mac): 5.5–6.7 ms (bare ~2.2, sandboxed ~8; `sandbox-exec` compiling the profile). linux
+  (ubuntu-latest budgets job): **2.1 ms** (bare 1.5, sandboxed 3.6; kolk re-exec plus the ruleset).
+  Both under the soft budget; §7.2's expectation of 10–30 ms was pessimistic by 2–5× and is
+  walked back to the measured figures. `check-budgets.sh` lifts the line into the budgets log from
+  the one verbose run it already makes for the test-count floor, and a missing line there is an
+  `::error`, so the measurement cannot quietly stop running on the runner meant to take it.
+  **The property:** two ladder twins run the `npm test &` shape under a policy — a 300 ms timeout
+  and a context cancel — and require the grandchild dead within 3 s and `Run` back within 5 s. Both
+  pass because both enforcers exec the command in place (`sandbox-exec` applies then execs; the
+  Landlock child installs its ruleset then `syscall.Exec`s), so the wrapper *is* the group leader
+  and Setpgid covers everything the shell starts. Red was observed by mutation: with `Setpgid:
+  false` in `command()` both twins fail with "grandchild N survived through the sandbox wrapper";
+  reverted, both pass. Non-goals kept: the ladder itself is untouched; delegated children stay
+  §7.1's. `-race` clean on the goroutine test; `make check` all gates; CI green on both runners.
 - [ ] **V34.1e.6 walk-back and the flip** — in one commit: README "Known limitations",
   `site/capabilities.html` 491/495 to Available, the sandbox cells on every `site/compare/*.html`,
   `site/llms.txt`, and the `test-site.sh` pins that guard each; then this ledger, PLAN item 13's

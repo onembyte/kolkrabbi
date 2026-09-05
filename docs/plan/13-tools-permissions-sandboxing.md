@@ -271,8 +271,13 @@ leaf only**, in one commit, together with the `test-site.sh` pins that guard the
   asserts each denylist path is unreadable, so drift fails the build rather than the user.
 - Legitimate work sometimes needs to write outside the root. The refusal names the path and the
   knob — the same mitigation §1 already uses for the jail — and `tools.root` widens it explicitly.
-- Overhead: `sandbox-exec` adds process startup on every command. Measured in V34.1e.5; the
-  expectation is 10–30 ms, and a number above the cold-start soft budget is a finding, not a note.
+- Overhead: the wrapper adds one exec in front of every command — `sandbox-exec` compiling a
+  profile on macOS, kolk re-executing itself and installing a ruleset on Linux. Measured in
+  V34.1e.5 (2026-09-05) as p50 of bare against sandboxed `true`: **5.5–6.7 ms on macOS, 2.1 ms on
+  Linux** (ubuntu-latest). The pre-measurement expectation of 10–30 ms was pessimistic. The test
+  holds the difference to the cold-start lines — 20 ms soft as a logged warning, 30 ms hard as a
+  failure — and `check-budgets.sh` carries the number in the budgets log beside cold start, so a
+  regression is a red gate, not a note.
 - `exec_unix.go` is territory the open S10.1d2 touched. The change here is one wrapper at one call
   site, the cancel ladder is not touched, and the leaf rebases before it lands.
 
