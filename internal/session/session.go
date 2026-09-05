@@ -221,7 +221,13 @@ func (s *Session) Save() error {
 		return err
 	}
 	s.UpdatedAt = time.Now()
+	// The snapshot is taken under the same lock the mutations hold, so what
+	// reaches disk is a state the session was actually in -- never a slice
+	// half-appended by the turn that is running while the autosave fires
+	// (V34.2b). The write itself happens outside the lock.
+	s.messagesMu.Lock()
 	b, err := json.MarshalIndent(s, "", " ")
+	s.messagesMu.Unlock()
 	if err != nil {
 		return err
 	}

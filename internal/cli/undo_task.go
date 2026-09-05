@@ -72,5 +72,10 @@ func (a *app) undoTask(ctx context.Context, ag *engine.Agent, arg string) {
 				"the rest of the turn stands. Do not assume those edits are still on disk.",
 				n, title, n, strings.Join(restored, ", ")),
 		})
+		// Persisted now, not at the next autosave: a transcript on disk that
+		// still believes the edits exist is what a resume would act on (V34.2b).
+		if err := ag.Sess.Save(); err != nil {
+			fmt.Fprintf(a.stderr, "warning: the undo note was not saved with the session: %v\n", err)
+		}
 	}
 }

@@ -10590,8 +10590,21 @@ Subcheckpoints, one at a time:
     no state; it is not joined explicitly, recorded rather than hidden. `ClaudeSession.Close` and
     `ClaudeBackend.Close` go through this `Close`, so the bound is theirs; `CodexBackend` is one-shot.
     `-race` clean on shell and agentcli; lint darwin+linux; vet windows; `make check`.
-  - [ ] **V34.2b consistent session snapshots** — `Save` snapshots messages under the same
+  - [x] **V34.2b consistent session snapshots** — `Save` snapshots messages under the same
     synchronization as mutation, and `/undo task` persists the reconciliation message.
+    **Closed 2026-09-05, on main.** Two reds. **(1)** `Session.Save` marshalled the whole struct with
+    no lock while `AppendMessage` appended under `messagesMu`; a test appending 200 messages against
+    50 saves reported `DATA RACE` between `session.go:224` (marshal) and `:319` (append) under `-race`.
+    Green: the marshal happens under `messagesMu` and the file write outside it, so what reaches disk
+    is a state the session was in — never a slice half-appended by the turn running while the autosave
+    fires. Three runs under `-race` clean. **(2)** `/undo task` appended its reconciliation message
+    ("I took back subagent n … do not assume those edits are still on disk") to the in-memory session
+    and never saved; a test that undoes a task through a real shadow store and then loads the session
+    file found no file at all. Green: `ag.Sess.Save()` right after the append, a warning on stderr if
+    it fails. The end-to-end test builds a git project, a shadow store with one ended task, runs
+    `undoTask`, and reads the message back from disk. Not in this leaf: the other unsynchronised
+    fields of `Session` (title, model, effort) — set by one goroutine at slash-command time, not by the
+    turn; recorded as the limit of the proof. `-race` clean on session and cli; lint; `make check`.
   - [ ] **V34.2c causal task rewind** — per-task rewind cannot erase a later task's work and consumes or
     invalidates the corresponding snapshot after a successful restoration.
   - [ ] **V34.2d terminal event and replay contract** — ordinary errors publish a terminal error event;
