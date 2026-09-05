@@ -363,7 +363,8 @@ func TestSecretOverlayEscapeDismissesWithoutAValue(t *testing.T) {
 }
 
 // A `/key ...` line, whatever followed the word, is remembered as the bare
-// command: the up arrow must never bring a key back.
+// command: the up arrow must never bring a key back. CommandHistory.Record
+// keeps only the first word by construction; this pins that it stays so.
 func TestAKeyCommandLineIsRememberedWithoutItsArgument(t *testing.T) {
 	c := NewController(Status{Mode: "code", Lifecycle: "ready"}, 1024)
 	c.SetCommands([]CommandSpec{{Name: "key"}}, 5)

@@ -199,7 +199,7 @@ func (c *Controller) HandleKey(key Key) Effect {
 	effect := Effect{Interrupt: result.Interrupt && c.busy, Exit: result.Exit}
 	if result.Submit {
 		if strings.HasPrefix(result.Submitted, "/") && c.commandHistory != nil {
-			c.commandHistory.Record(historyForm(result.Submitted))
+			c.commandHistory.Record(result.Submitted)
 		}
 		c.clearSuggestions()
 		c.busy = true
@@ -311,7 +311,7 @@ func (c *Controller) RememberCommand(line string) {
 	if c.commandHistory == nil {
 		c.commandHistory = NewCommandHistory(c.suggestionLimit)
 	}
-	c.commandHistory.Record(historyForm(line))
+	c.commandHistory.Record(line)
 	c.updateSuggestions()
 }
 
@@ -815,16 +815,6 @@ func activityPhase(activity string) string {
 		}
 	}
 	return "working"
-}
-
-// historyForm is what the command history keeps of a submitted line. For
-// `/key` it is the bare word: whatever followed it -- a key pasted against
-// advice, before the refusal -- must not come back on the up arrow.
-func historyForm(line string) string {
-	if first, _, _ := strings.Cut(strings.TrimSpace(line), " "); first == "/key" {
-		return "/key"
-	}
-	return line
 }
 
 // SecretPrompt is the masked overlay: a credential is typed here, rendered as

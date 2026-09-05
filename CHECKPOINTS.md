@@ -10647,15 +10647,16 @@ Subcheckpoints, one at a time:
       recording it in the command history, Esc cancels. **Red:** `/key sk-…` in the TUI is recorded in
       the command history and echoed.
       **Closed 2026-09-05, on main.** Red observed: the 4b interim test (paste accepted in the TUI)
-      flipped to the new expectation failed on the missing hook; the history test found `/key sk-…`
-      kept whole. Green: `Controller.RequestSecret` opens a `SecretPrompt` overlay with its own
+      flipped to the new expectation failed on the missing hook. **Correction, same day:** the
+      history test did *not* find a key kept — `CommandHistory.Record` already keeps only the first
+      word by construction, so the history was safe before this leaf; the test stays as the pin and the
+      redundant `historyForm` written before reading `Record` was removed. Green: `Controller.RequestSecret` opens a `SecretPrompt` overlay with its own
       `Editor` (1024 runes — a key is longer than an approval's eight), rendered as one dot per rune
       with a line saying nothing typed there is shown, kept or recalled; Enter delivers
       `Effect.Secret` once, Esc/EOF dismiss, Ctrl-C interrupts; the main draft is untouched (tested
       like the approval overlay). `Runtime.ReadSecret` is `Decide`'s exact sibling — one overlay at a
       time, the turn goroutine blocks, the UI goroutine never waits, the context cancels — and `Decide`
-      now also refuses while a secret prompt is open. `historyForm` records any `/key …` line as the
-      bare command at both record sites, so the up arrow cannot bring a key back. The app gets a
+      now also refuses while a secret prompt is open. The app gets a
       `readHidden` hook installed while the TUI runs (nil elsewhere); `/key` in the TUI reads through
       it, and the pasted form is now refused everywhere — the interim is over, and the unreachable CI
       paste branch is gone. The rendered output is checked to never contain the value. `-race` clean
