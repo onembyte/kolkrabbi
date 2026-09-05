@@ -10605,8 +10605,20 @@ Subcheckpoints, one at a time:
     `undoTask`, and reads the message back from disk. Not in this leaf: the other unsynchronised
     fields of `Session` (title, model, effort) — set by one goroutine at slash-command time, not by the
     turn; recorded as the limit of the proof. `-race` clean on session and cli; lint; `make check`.
-  - [ ] **V34.2c causal task rewind** — per-task rewind cannot erase a later task's work and consumes or
+  - [x] **V34.2c causal task rewind** — per-task rewind cannot erase a later task's work and consumes or
     invalidates the corresponding snapshot after a successful restoration.
+    **Closed 2026-09-05, on main.** Red observed against the old API on both clauses: taking back
+    task one restored `shared.txt` to before task one, erasing task two's edit on top of it; and the
+    same task was taken back twice with no refusal. Green: `RewindTask` returns a `TaskRewind`
+    {Restored, Kept} — a path any still-standing later task also changed is kept and named, since
+    restoring it would erase that task's work too, which is `/undo`'s job; consumed later tasks do not
+    count, because their changes are already gone. After a successful restore the snapshot is marked
+    `Consumed` and the manifest saved, so a reopened session sees it spent; a consumed snapshot is
+    listed (numbering stays stable, marked "already taken back") and refused if asked again. The
+    modes-preserving wrap from 1c.1 stays around the restore. `/undo task` prints the kept paths
+    with the reason and the way (`/undo`). Tests: the two reds as permanent tests (the consumption one
+    reopens the store from disk), the existing three-task test adapted to the new result. `-race`
+    clean on checkpoint and cli; lint; `make check`.
   - [ ] **V34.2d terminal event and replay contract** — ordinary errors publish a terminal error event;
     SSE and stdio deliver retained replay before live events without loss or duplication.
   - [ ] **V34.2f atomic run-cost limits** — reserve or serialize cost budget before concurrent work so

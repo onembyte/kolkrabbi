@@ -69,10 +69,11 @@ func TestRewindTaskTakesBackOneSubagentAndLeavesTheRest(t *testing.T) {
 		t.Fatalf("second snapshot titled %q, want the task's own title", snapshots[1].Title)
 	}
 
-	restored, err := store.RewindTask(ctx, 2)
+	result, err := store.RewindTask(ctx, 2)
 	if err != nil {
 		t.Fatalf("RewindTask: %v", err)
 	}
+	restored := result.Restored
 
 	// The messy task is gone: its new file removed, its clobbering reverted.
 	if _, err := os.Stat(filepath.Join(project, "mess.txt")); !os.IsNotExist(err) {

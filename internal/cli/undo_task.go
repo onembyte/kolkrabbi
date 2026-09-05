@@ -33,7 +33,11 @@ func (a *app) undoTask(ctx context.Context, ag *engine.Agent, arg string) {
 		}
 		fmt.Fprintln(a.stdout, "subagents that can be taken back on their own:")
 		for i, snapshot := range snapshots {
-			fmt.Fprintf(a.stdout, "  %d. %s (%d file(s))\n", i+1, snapshot.Title, len(snapshot.Paths))
+			spent := ""
+			if snapshot.Consumed {
+				spent = " — already taken back"
+			}
+			fmt.Fprintf(a.stdout, "  %d. %s (%d file(s))%s\n", i+1, snapshot.Title, len(snapshot.Paths), spent)
 		}
 		fmt.Fprintln(a.stdout, "`/undo task <n>` takes one back and leaves the rest of the turn alone.")
 		return
@@ -45,17 +49,27 @@ func (a *app) undoTask(ctx context.Context, ag *engine.Agent, arg string) {
 		return
 	}
 
-	restored, err := store.RewindTask(ctx, n)
+	result, err := store.RewindTask(ctx, n)
 	if err != nil {
 		fmt.Fprintf(a.stderr, "undo failed: %v\n", err)
 		return
 	}
+	restored := result.Restored
 	title := ""
 	if n >= 1 && n <= len(snapshots) {
 		title = snapshots[n-1].Title
 	}
-	if len(restored) == 0 {
+	if len(restored) == 0 && len(result.Kept) == 0 {
 		fmt.Fprintf(a.stdout, "subagent %d (%s) changed no files; nothing to take back.\n", n, title)
+		return
+	}
+	if len(result.Kept) > 0 {
+		fmt.Fprintf(a.stdout, "kept %d file(s) a later subagent also changed — taking them back would erase that work too; `/undo` takes back the whole turn:\n", len(result.Kept))
+		for _, path := range result.Kept {
+			fmt.Fprintln(a.stdout, "  "+path)
+		}
+	}
+	if len(restored) == 0 {
 		return
 	}
 	fmt.Fprintf(a.stdout, "took back subagent %d (%s), %d file(s) restored:\n", n, title, len(restored))

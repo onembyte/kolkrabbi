@@ -22,6 +22,18 @@ type TaskSnapshot struct {
 	Turn   int      `json:"turn"`
 	Commit string   `json:"commit"`
 	Paths  []string `json:"paths,omitempty"`
+	// Consumed is set once the snapshot has been restored. A spent snapshot is
+	// listed so the numbering stays stable, refused if asked again, and no
+	// longer counts as later work when an earlier task is taken back.
+	Consumed bool `json:"consumed,omitempty"`
+}
+
+// TaskRewind is what taking one task back did: the paths restored, and the
+// paths kept because a later, still-standing task also changed them -- taking
+// those back would erase that task's work too, which is /undo's job, not this.
+type TaskRewind struct {
+	Restored []string
+	Kept     []string
 }
 
 // BeginTask snapshots the tree before a writing subagent starts and returns a
@@ -77,29 +89,54 @@ func (s *Store) TaskSnapshots() []TaskSnapshot {
 // before and after it stays where it is. A path the task created is removed,
 // because putting it "back" to a state where it did not exist means deleting
 // it.
-func (s *Store) RewindTask(ctx context.Context, n int) ([]string, error) {
+func (s *Store) RewindTask(ctx context.Context, n int) (TaskRewind, error) {
 	if s.shadow == nil {
-		return nil, fmt.Errorf("checkpoint: this session snapshots single files rather than the whole tree, " +
+		return TaskRewind{}, fmt.Errorf("checkpoint: this session snapshots single files rather than the whole tree, " +
 			"so it cannot take back one subagent on its own; `/undo` still takes back the turn")
 	}
 	if n < 1 || n > len(s.tasks) {
 		if len(s.tasks) == 0 {
-			return nil, fmt.Errorf("checkpoint: no subagent in this session has a snapshot to take back")
+			return TaskRewind{}, fmt.Errorf("checkpoint: no subagent in this session has a snapshot to take back")
 		}
-		return nil, fmt.Errorf("checkpoint: there is no subagent %d. This session recorded:\n%s", n, s.taskTitles())
+		return TaskRewind{}, fmt.Errorf("checkpoint: there is no subagent %d. This session recorded:\n%s", n, s.taskTitles())
 	}
-
 	snapshot := s.tasks[n-1]
-	restored := make([]string, 0, len(snapshot.Paths))
+	if snapshot.Consumed {
+		return TaskRewind{}, fmt.Errorf("checkpoint: subagent %d (%s) was already taken back", n, snapshot.Title)
+	}
+	// Causality (V34.2c): a path a later task also changed carries that task's
+	// work on top of this one's. Restoring it to before this task would erase
+	// both, so it is kept and named; only still-standing later tasks count.
+	later := map[string]bool{}
+	for _, other := range s.tasks[n:] {
+		if other.Consumed {
+			continue
+		}
+		for _, path := range other.Paths {
+			later[path] = true
+		}
+	}
+	var result TaskRewind
 	modes := s.shadow.modesOf(snapshot.Paths)
 	defer s.shadow.reapplyModes(modes)
 	for _, path := range snapshot.Paths {
-		if err := s.shadow.restorePath(ctx, snapshot.Commit, path); err != nil {
-			return restored, err
+		if later[path] {
+			result.Kept = append(result.Kept, path)
+			continue
 		}
-		restored = append(restored, path)
+		if err := s.shadow.restorePath(ctx, snapshot.Commit, path); err != nil {
+			return result, err
+		}
+		result.Restored = append(result.Restored, path)
 	}
-	return restored, nil
+	// Spent, and durably so: the manifest is the record a reopened session
+	// reads, and an undo that could be re-applied after a restart would put
+	// old bytes over whatever has happened since.
+	s.tasks[n-1].Consumed = true
+	if err := s.saveManifest(); err != nil {
+		return result, fmt.Errorf("checkpoint: the task was taken back but the record of it was not saved: %w", err)
+	}
+	return result, nil
 }
 
 // restorePath puts one path back to its state in commit, deleting it when the
