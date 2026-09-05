@@ -86,3 +86,21 @@ func TestSeatbeltProfileRefusesARootThatDoesNotExist(t *testing.T) {
 		t.Fatalf("want a refusal naming the unresolvable root, got %v", err)
 	}
 }
+
+func TestSeatbeltProfileDeniesTheNetworkWhenAsked(t *testing.T) {
+	root := t.TempDir()
+	deny, err := seatbeltProfile(Sandbox{Root: root, Temp: t.TempDir(), Network: NetworkDeny})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(deny, "(deny network*)") || strings.Contains(deny, "(allow network*)") {
+		t.Fatalf("network=deny must render as a deny and not an allow:\n%s", deny)
+	}
+	allow, err := seatbeltProfile(Sandbox{Root: root, Temp: t.TempDir(), Network: NetworkAllow})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(allow, "(allow network*)") || strings.Contains(allow, "(deny network*)") {
+		t.Fatalf("network=allow must render as an allow:\n%s", allow)
+	}
+}

@@ -10628,7 +10628,7 @@ Subcheckpoints, one at a time:
     Green run: 33949991895. On main: `make check` 3340+ tests, all gates. Plan §7.2 amended for
     `grantTree`. **Landlock now confines for real on Linux; Seatbelt on macOS.** Public claims still
     unchanged until V34.1e.6.
-- [ ] **V34.1e.3 network** — `(deny network*)` in the Seatbelt profile; Landlock ABI ≥ 4
+- [~] **V34.1e.3 network** — `(deny network*)` in the Seatbelt profile; Landlock ABI ≥ 4
   connect/bind rules; ABI < 4 with `network = deny` is refused, never approximated. **Red:** escape
   test 6 on both platforms; the refusal on a simulated ABI 3.
 - [ ] **V34.1e.4 surface** — status line `sandbox: seatbelt|landlock vN|off`, a `/doctor` row with

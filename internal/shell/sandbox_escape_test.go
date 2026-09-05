@@ -4,6 +4,7 @@ package shell
 
 import (
 	"context"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -189,5 +190,48 @@ func TestEscape9_NestedDenylistPathIsRefusedWhileSiblingsStayReadable(t *testing
 		if !res.OK() || !strings.Contains(res.Output, "readable") {
 			t.Fatalf("over-denied: %s should be readable: exit %d\n%s\n%s", p, res.ExitCode, res.Failure, res.Output)
 		}
+	}
+}
+
+// listenLoopback opens a real TCP listener so the connect below has somewhere
+// to go; a refusal against a closed port would prove nothing.
+func listenLoopback(t *testing.T) (port string) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_ = c.Close()
+		}
+	}()
+	_, port, _ = net.SplitHostPort(ln.Addr().String())
+	return port
+}
+
+// bash's /dev/tcp is the portable connect: curl fails silently under a denied
+// network (exit 7, no message), and the harness needs the kernel's phrase.
+func TestEscape6_TCPConnectIsRefusedWhenNetworkIsDenied(t *testing.T) {
+	f := newEscapeFixture(t)
+	deny := f.policy
+	deny.Network = NetworkDeny
+	port := listenLoopback(t)
+	refusedByTheOS(t, sandboxed(t, deny, "exec 3<>/dev/tcp/127.0.0.1/"+port+" && echo connected"), "TCP connect under network=deny")
+}
+
+// The control: the same connect, allowed, must succeed -- otherwise test 6 could
+// pass because the command or the listener was broken rather than refused.
+func TestEscape6b_TCPConnectSucceedsWhenNetworkIsAllowed(t *testing.T) {
+	f := newEscapeFixture(t)
+	port := listenLoopback(t)
+	res := sandboxed(t, f.policy, "exec 3<>/dev/tcp/127.0.0.1/"+port+" && echo connected")
+	if !res.OK() || !strings.Contains(res.Output, "connected") {
+		t.Fatalf("allowed connect failed: exit %d\n%s\n%s", res.ExitCode, res.Failure, res.Output)
 	}
 }

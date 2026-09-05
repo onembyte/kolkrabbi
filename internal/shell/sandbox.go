@@ -11,9 +11,13 @@ import (
 // bash tool -- and enforced here, or refused when it cannot be.
 type NetworkPolicy string
 
-// NetworkDeny arrives with the enforcement that needs it (V34.1e.3); an
-// exported constant nothing reads is the kind of promise this tree refuses.
-const NetworkAllow NetworkPolicy = "allow"
+const (
+	NetworkAllow NetworkPolicy = "allow"
+	// NetworkDeny refuses every TCP connect and bind. Seatbelt enforces it on
+	// any macOS; Landlock needs ABI 4 (Linux 6.7+), and a kernel below that is
+	// refused rather than approximated (plan 13 §7.2).
+	NetworkDeny NetworkPolicy = "deny"
+)
 
 // Sandbox is the one policy every enforcer reads (plan 13 §7.2). Writes are
 // allowed under Root and Temp and nowhere else; reads are allowed everywhere
