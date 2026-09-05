@@ -50,6 +50,7 @@
       <a href="/#install">Install</a>
       <a href="/capabilities">Capabilities</a>
       <a href="/compare/">Compare</a>
+      <a href="/benchmarks">Benchmarks</a>
       <a href="https://github.com/onembyte/kolkrabbi">GitHub</a>
     </nav>
   </header>
@@ -162,7 +163,7 @@ kolk --base-url http://localhost:11434/v1 -m qwen2.5-coder:14b</code></pre>
         <article class="spec-card" data-status="planned">
           <div class="spec-meta"><span class="status-badge">Common</span><span>TOOLS</span></div>
           <h3>It edits nothing and just talks</h3>
-          <p>Code mode needs a model that can call tools. Many small local models cannot, or do it badly. If a model will not use the file tools, that is the model, not the harness — try a coding-tuned one, or a larger size.</p>
+          <p>Code mode needs a model that can call tools, and at 8B on 16&nbsp;GB, none we tried could do it under a real agent prompt. We measured this: three harnesses, three tasks, two runs each, <a href="/benchmarks">0 of 18</a>, including Kolkrabbi. If a model will not use the file tools, that is the model, not the harness. Expect to need something considerably larger than 8B for code mode, and treat the walkthrough above as the plumbing check it is.</p>
         </article>
       </div>
     </section>

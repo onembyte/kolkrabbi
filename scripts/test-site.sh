@@ -411,6 +411,20 @@ contains index.html 'href="/local-ai-coding-agent"' "the landing page does not l
 contains styles.css '.walkthrough' "walkthrough layout style is missing"
 contains styles.css '.snippet' "walkthrough code-snippet style is missing"
 
+require_file "benchmarks.html"
+contains benchmarks.html '<link rel="canonical" href="https://kolkrabbi.francomichetti.com/benchmarks">' "benchmarks page has no canonical URL"
+contains benchmarks.html '0/6' "benchmarks page lost its result table"
+contains benchmarks.html '<em>(ours)</em>' "the benchmark page must mark which harness is ours"
+contains benchmarks.html 'null result' "the benchmark page must say the pilot is a null result"
+contains benchmarks.html 'kolkbench-tasks-v1' "benchmarks page does not cite the pre-registration tag"
+script_tags_are_safe benchmarks.html
+json_ld_parses benchmarks.html
+kolk_commands_are_real benchmarks.html
+excludes benchmarks.html "style=[\"']" "benchmarks styles must stay in styles.css for a strict CSP"
+contains index.html 'href="/benchmarks"' "the landing page does not link to the benchmarks"
+contains ollama-coding-agent.html '0 of 18' "the Ollama walkthrough no longer states the measured small-model result"
+contains llms.txt '/benchmarks' "llms.txt does not point at the benchmarks"
+
 contains robots.txt 'Sitemap: https://kolkrabbi.francomichetti.com/sitemap.xml' "robots.txt does not point crawlers at the sitemap"
 sitemap_covers_pages
 kolk_commands_are_real llms.txt

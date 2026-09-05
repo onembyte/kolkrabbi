@@ -58,6 +58,11 @@ adapter yet. Most of those models are already reachable through the OpenRouter g
 - OpenRouter, the free start and the effort dial:
   https://kolkrabbi.francomichetti.com/openrouter-coding-agent
 
+## Benchmarks
+- KolkBench, a pre-registered benchmark of harnesses rather than models. First result, 2026-09-05:
+  on a local 8B model, Kolkrabbi, Codex CLI and OpenCode all scored 0 of 18 — including ours.
+  https://kolkrabbi.francomichetti.com/benchmarks
+
 ## Compared with other agents
 - vs Claude Code: https://kolkrabbi.francomichetti.com/compare/claude-code
 - vs Codex CLI: https://kolkrabbi.francomichetti.com/compare/codex-cli
