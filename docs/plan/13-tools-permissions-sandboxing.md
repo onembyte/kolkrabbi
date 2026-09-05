@@ -274,7 +274,8 @@ leaf only**, in one commit, together with the `test-site.sh` pins that guard the
 - Overhead: the wrapper adds one exec in front of every command — `sandbox-exec` compiling a
   profile on macOS, kolk re-executing itself and installing a ruleset on Linux. Measured in
   V34.1e.5 (2026-09-05) as p50 of bare against sandboxed `true`: **5.5–6.7 ms on macOS, 2.1 ms on
-  Linux** (ubuntu-latest). The pre-measurement expectation of 10–30 ms was pessimistic. The test
+  Linux** (ubuntu-latest); a shared macos-latest CI runner measured 30.1 ms once (2026-09-05). The
+  pre-measurement expectation of 10–30 ms was pessimistic on real hardware and right on CI. The test
   holds the difference to the cold-start lines — 20 ms soft as a logged warning, 30 ms hard as a
   failure — and `check-budgets.sh` carries the number in the budgets log beside cold start, so a
   regression is a red gate, not a note.

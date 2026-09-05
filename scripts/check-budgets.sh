@@ -86,7 +86,15 @@ echo "── sandbox overhead ──"
 overhead="$(grep -o 'sandbox overhead p50: .*' "$out/tests.log" | head -1 || true)"
 if [ -n "$overhead" ]; then
   echo "$overhead"
-  grep -o '::warning::sandbox overhead .*' "$out/tests.log" | head -1 || true
+  # The test only fails at three times the hard line, because a shared runner's
+  # timing is noise; this job runs where the number is trusted, so here the
+  # hard line is an error and the soft line a warning, like cold start.
+  ohms="$(echo "$overhead" | sed -E 's/^sandbox overhead p50: ([0-9.]+) ms.*/\1/')"
+  if [ "$(awk -v m="$ohms" -v h="$START_HARD_MS" 'BEGIN{print (m>h)?1:0}')" = 1 ]; then
+    echo "::error::sandbox overhead ${ohms} ms exceeds the ${START_HARD_MS} ms budget"; status=1
+  elif [ "$(awk -v m="$ohms" -v s="$START_SOFT_MS" 'BEGIN{print (m>s)?1:0}')" = 1 ]; then
+    echo "::warning::sandbox overhead ${ohms} ms is over the ${START_SOFT_MS} ms soft budget"
+  fi
 else
   echo "::error::the sandbox overhead measurement did not run on this runner"; status=1
 fi

@@ -10559,7 +10559,7 @@ Subcheckpoints, one at a time:
     ErrWaitDelay path is unchanged (`cmd.Run` honours `WaitDelay` the same way). Not changed: the 12k
     tool cap; `maxCapture` is unexported because nothing outside needs the number. `-race` clean on
     shell and tools; lint darwin+linux; vet windows; `make check`.
-  - [ ] **V34.1d.2 provider errors reach the terminal and the session scrubbed** — the carry-forward
+  - [~] **V34.1d.2 provider errors reach the terminal and the session scrubbed** — the carry-forward
     from F0: `client.go` `StreamChat`/`listModels` return transport errors that echo the request URL and
     the response body verbatim. Every error the client returns passes through `secret.Scrub` before a
     caller can print or persist it. **Red:** a compatible endpoint answering with a body that quotes the
@@ -10820,6 +10820,13 @@ Subcheckpoints, one at a time:
   false` in `command()` both twins fail with "grandchild N survived through the sandbox wrapper";
   reverted, both pass. Non-goals kept: the ladder itself is untouched; delegated children stay
   §7.1's. `-race` clean on the goroutine test; `make check` all gates; CI green on both runners.
+  **Amended 2026-09-05, later the same day:** the macos-latest runner measured **30.1 ms** on run
+  33968918614 (bare 2.2, sandboxed 32.3) and the test turned main red at the 30 ms hard line — the
+  flake the design said it would not produce. Finding recorded, not buried: on a shared macOS runner
+  `sandbox-exec` profile compilation sits at the hard budget, five times this Mac. The test now fails
+  only at 3× hard (90 ms — a real regression, not noise) and logs a `::warning` above soft and above
+  hard; `check-budgets.sh`, on the ubuntu runner whose timing is trusted, turns a hard-line crossing
+  into `::error`. Plan 13 §7.2 carries the CI number.
 - [x] **V34.1e.6 walk-back and the flip** — in one commit: README "Known limitations",
   `site/capabilities.html` 491/495 to Available, the sandbox cells on every `site/compare/*.html`,
   `site/llms.txt`, and the `test-site.sh` pins that guard each; then this ledger, PLAN item 13's
