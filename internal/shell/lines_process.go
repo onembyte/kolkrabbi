@@ -12,7 +12,10 @@ import (
 
 // closeGrace is how long a provider process may take to exit after its stdin
 // closes before Kolkrabbi terminates it.
-const closeGrace = 5 * time.Second
+// closeGrace is how long Close gives the child to leave on its own after its
+// stdin is closed, before the group is killed. A variable so a test can walk
+// the whole shutdown without spending the real five seconds.
+var closeGrace = 5 * time.Second
 
 // stderrRingBytes is how much of a provider's stderr is kept. This process
 // lives for the whole session, so its stderr is not a transcript to retain —
@@ -69,6 +72,7 @@ type LinesProcess struct {
 	executable string
 	ctx        context.Context
 	stdin      io.WriteCloser
+	stdout     io.ReadCloser // kolk's end; closed by Close when a grandchild keeps the other alive
 	lines      chan []byte
 	stop       chan struct{}
 	// writes carries outbound lines to the single writer goroutine. Buffered so
@@ -143,12 +147,16 @@ func StartLinesProcessWithOptions(ctx context.Context, executable string, args [
 	}
 	var stderr stderrRing
 	cmd.Stderr = &stderr
+	// Wait must not hang on a pipe a grandchild kept: after the child has
+	// exited, os/exec gives the copying goroutines this long, then closes the
+	// pipes itself. The same grace the one-shot runner uses (V34.2a).
+	cmd.WaitDelay = outputDrainTimeout
 	if err := cmd.Start(); err != nil {
 		_ = stdin.Close()
 		return nil, fmt.Errorf("starting %s: %w", executable, err)
 	}
 	process := &LinesProcess{
-		cmd: cmd, executable: executable, ctx: ctx, stdin: stdin, lines: make(chan []byte),
+		cmd: cmd, executable: executable, ctx: ctx, stdin: stdin, stdout: stdout, lines: make(chan []byte),
 		stop: make(chan struct{}), exited: exited,
 		writes: make(chan []byte, 8),
 	}
@@ -187,6 +195,13 @@ func (p *LinesProcess) read(stdout io.Reader, stderr *stderrRing) {
 			waitErr = p.cmd.Wait()
 		}
 		p.hardExit = exitedHard(waitErr)
+		// A read that failed because Close took the pipe away is the close
+		// working, not a fault to report.
+		select {
+		case <-p.stop:
+			readErr = errLinesProcessClosed
+		default:
+		}
 		if !errors.Is(readErr, errLinesProcessClosed) {
 			err = fmt.Errorf("reading %s output: %w", p.executable, readErr)
 		}
@@ -274,11 +289,26 @@ func (p *LinesProcess) Close() error {
 	defer timer.Stop()
 	select {
 	case <-p.exited:
+		return p.exitErr
 	case <-timer.C:
-		// The group, not the leader: a provider that will not exit on stdin
-		// close is exactly the one likely to be sitting on a running tool.
-		if p.cmd.Process != nil {
-			_ = killChild(p.cmd)
+	}
+	// The group, not the leader: a provider that will not exit on stdin close
+	// is exactly the one likely to be sitting on a running tool. Then one drain
+	// period for the reader to come back. If it still has not, it is parked in
+	// a read on a pipe something outside the group kept open; closing kolk's
+	// end returns that read, the reader Waits, and Wait is bounded by
+	// WaitDelay. Close therefore returns within closeGrace + 2*outputDrainTimeout
+	// whatever a grandchild does (V34.2a).
+	if p.cmd.Process != nil {
+		_ = killChild(p.cmd)
+	}
+	drain := time.NewTimer(outputDrainTimeout)
+	defer drain.Stop()
+	select {
+	case <-p.exited:
+	case <-drain.C:
+		if p.stdout != nil {
+			_ = p.stdout.Close()
 		}
 		<-p.exited
 	}

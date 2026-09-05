@@ -10570,8 +10570,26 @@ Subcheckpoints, one at a time:
     (2a bounds that), and a `RunTurn`-level assertion that accounting is cleared only after the join —
     `runOrchestrated` already clears `runSpend` in a defer after `runTasks` returns, which the join
     now orders correctly. `make check`.
-  - [ ] **V34.2a cancellation-aware provider shutdown** — unread process output cannot deadlock close;
+  - [x] **V34.2a cancellation-aware provider shutdown** — unread process output cannot deadlock close;
     cancellation always joins reader and child workers within a testable bound.
+    **Closed 2026-09-05, on main.** Inspection first: unread output was already covered — the reader
+    delivers under a select that also watches `stop` and the context, pinned by
+    `TestLinesProcessCloseUnblocksUnreadOutput`. The uncovered deadlock was one level down: the child
+    leaves, but a grandchild it started in its own session (outside the group the kill reaches) keeps
+    stdout and stderr open; the reader is parked in the read syscall, never reaches `Wait`, `exited`
+    never closes, `Close` never returns. Red observed with a `python3 … os.setsid(); sleep 20` grandchild
+    behind `exec cat`: `Close blocked on a pipe held by a grandchild outside the process group` (5 s).
+    Green, three parts: `cmd.WaitDelay = outputDrainTimeout` on the persistent child (the one-shot
+    runner already had it), so `Wait` is bounded once the child has exited; `Close` keeps kolk's end of
+    the stdout pipe and, when the reader has not returned one drain period after the group kill,
+    closes it — the read returns, the reader kills and Waits, Wait returns within WaitDelay; and a read
+    that failed because `stop` was closed is reported as the clean close it is, not as a provider
+    fault. Bound: `closeGrace + 2·outputDrainTimeout` (5 s + 1 s in production), whatever the
+    grandchild does. `closeGrace` became a variable so the test walks the whole shutdown in about a
+    second; the shell tests do not run in parallel. The writer goroutine ends on `exited` and holds
+    no state; it is not joined explicitly, recorded rather than hidden. `ClaudeSession.Close` and
+    `ClaudeBackend.Close` go through this `Close`, so the bound is theirs; `CodexBackend` is one-shot.
+    `-race` clean on shell and agentcli; lint darwin+linux; vet windows; `make check`.
   - [ ] **V34.2b consistent session snapshots** — `Save` snapshots messages under the same
     synchronization as mutation, and `/undo task` persists the reconciliation message.
   - [ ] **V34.2c causal task rewind** — per-task rewind cannot erase a later task's work and consumes or
