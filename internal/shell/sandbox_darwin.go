@@ -77,8 +77,13 @@ func seatbeltProfile(p Sandbox) (string, error) {
 		fmt.Fprintf(&b, "(allow file-write* (subpath %s))\n", sbplString(bestRealPath(w)))
 	}
 	b.WriteString(`(allow file-write* (literal "/dev/null") (literal "/dev/zero") (literal "/dev/stdout") (literal "/dev/stderr") (literal "/dev/tty"))` + "\n")
-	// Network: V34.1e.1 ships allow; V34.1e.3 makes deny enforceable.
-	b.WriteString("(allow network*)\n")
+	// Network is one word in the policy and one line here. `network*` covers
+	// outbound, inbound and bind; a shell still starts under the deny.
+	if p.Network == NetworkDeny {
+		b.WriteString("(deny network*)\n")
+	} else {
+		b.WriteString("(allow network*)\n")
+	}
 	// Last, so they win: the hardline credential paths, read and write.
 	for _, d := range p.Deny {
 		q := sbplString(bestRealPath(d))
