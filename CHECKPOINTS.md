@@ -10600,7 +10600,7 @@ Subcheckpoints, one at a time:
     2b's red→green is observed on a PR branch on ubuntu-latest. Verify: `GOOS=linux go vet
     ./internal/shell/ ./internal/cli/`, `go test -race ./internal/shell/ -run Landlock`, `make check`
     — 3340 tests, all gates.
-  - [ ] **V34.1e.2b the ruleset and the escape tests** — `prctl(PR_SET_NO_NEW_PRIVS)`, create
+  - [~] **V34.1e.2b the ruleset and the escape tests** — `prctl(PR_SET_NO_NEW_PRIVS)`, create
     ruleset with the fs access set for the probed ABI, add rules: **allow-only** reads per top-level
     entry of `/` except the home, then per entry of the home except the denylist (an enumeration
     with a test asserting every denylist path is unreadable); execute everywhere readable; writes

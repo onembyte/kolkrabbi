@@ -9,6 +9,9 @@ import (
 	"testing"
 )
 
+// Seatbelt reports a refused open as EPERM.
+const osRefusalPhrase = "Operation not permitted"
+
 func TestProbeReportsSeatbeltWhereSandboxExecExists(t *testing.T) {
 	name, err := mechanism()
 	if err != nil || name != "seatbelt" {
