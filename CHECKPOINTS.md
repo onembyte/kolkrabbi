@@ -10508,6 +10508,37 @@ Subcheckpoints, one at a time:
   binding once (U+0130 case-fold vs IDNA), the hole was closed, and re-review returned CLEAN with a
   7,054-candidate reverse scan; `make check` green at 3,190 tests.
 
+- [ ] **V34.1e.0 the sandbox policy and the refusal** — `shell.Sandbox` on `shell.Cmd`: root, temp,
+  credential denylist, network `allow|deny`; the root is `tools.Options.Root`, never a second value.
+  `sandbox = on|off` in config, default `on` on darwin/linux, no `auto`. **Red:** with the mechanism
+  stubbed as `unsupported`, the bash tool refuses and its message names the missing capability and
+  `/config set sandbox off` verbatim; with `sandbox = off` it runs. Non-goals: no enforcer yet.
+  **Contract note:** opened at the owner's direction on 2026-09-05 while S10.1d2 and S10.1d5 are
+  still `[~]`; the one-active rule is knowingly set aside for this leaf, and it rebases before landing.
+- [ ] **V34.1e.1 macOS: Seatbelt** — profile generator (SBPL string from the policy), 0600 temp
+  file, `sandbox-exec -f` wrapper in `command()`, `Setpgid` and group kill unchanged. **Red:** escape
+  tests 1–5, 7, 8 from plan 13 §7.2 fail on the unwrapped command and pass on the wrapped one,
+  natively on darwin. Startup absence check for `/usr/bin/sandbox-exec` fails closed.
+- [ ] **V34.1e.2 Linux: Landlock filesystem** — ABI probe via `x/sys/unix`, per-top-level read
+  grants with the home directory enumerated minus the denylist, write grants for root and temp, the
+  `kolk landlock-exec` re-exec entry that applies the ruleset then `execve`s bash. **Red:** the same
+  escape tests on ubuntu-latest; `ENOSYS`/`EOPNOTSUPP` fails closed with the refusal text; a test
+  asserts every denylist path is unreadable.
+- [ ] **V34.1e.3 network** — `(deny network*)` in the Seatbelt profile; Landlock ABI ≥ 4
+  connect/bind rules; ABI < 4 with `network = deny` is refused, never approximated. **Red:** escape
+  test 6 on both platforms; the refusal on a simulated ABI 3.
+- [ ] **V34.1e.4 surface** — status line `sandbox: seatbelt|landlock vN|off`, a `/doctor` row with
+  mechanism, ABI/profile and network enforcement, and the one-line bounded diagnostic appended to a
+  non-zero result whose output contains `Operation not permitted` / `Permission denied`. **Red:** the
+  diagnostic is exactly one line and appears only on that pattern.
+- [ ] **V34.1e.5 measurement** — per-command overhead of the wrapper on darwin and linux against the
+  cold-start soft budget; confirm the cancel ladder still reaches grandchildren through the wrapper
+  (`npm test &` shape). A number over budget is a finding to record, not a note to bury.
+- [ ] **V34.1e.6 walk-back and the flip** — in one commit: README "Known limitations",
+  `site/capabilities.html` 491/495 to Available, the sandbox cells on every `site/compare/*.html`,
+  `site/llms.txt`, and the `test-site.sh` pins that guard each; then this ledger, PLAN item 13's
+  matrix row, and `docs/build-log.md`. Nothing flips before V34.1e.0–5 are `[x]`.
+
 ##### V34.1a.0 threat model and red evidence — complete 2026-09-02
 
 Data flow proven from the current tree:

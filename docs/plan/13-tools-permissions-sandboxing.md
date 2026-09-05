@@ -104,8 +104,8 @@ exists; background `bash` interacts with U0.4f's detached-process handling and n
 | Platform | Shipped now | Accepted v1 work | Post-v1 |
 |---|---|---|---|
 | all | path jail + blocklist + auto-deny in subagents, in process | one shared sandbox policy, explicit fallback/refusal, and bounded diagnostics | — |
-| Linux | no OS sandbox | select and prove a narrow OS isolation mechanism under V34.1e; `bubblewrap` and Landlock remain candidates | — |
-| macOS | no OS sandbox | select and prove a native profile under V34.1e; Seatbelt/sandbox profiles remain candidates | — |
+| Linux | no OS sandbox | **Landlock**, decided in §7.2; proved under V34.1e | — |
+| macOS | no OS sandbox | **Seatbelt** via `sandbox-exec`, decided in §7.2; proved under V34.1e | — |
 | any | — | — | container execution for `saga` |
 
 #### 7.1 Delegated network policy (decided 2026-09-02, F2 of `FABLE_OPTIMIZATION.md`)
@@ -145,6 +145,113 @@ Scope acceptance does not choose a mechanism by prose. V34.1e must name the supp
 matrix, fail closed when an accepted platform cannot establish isolation, explain the exact refused
 capability, and exercise escape attempts on native Linux and macOS runners. Container execution and
 Windows sandboxing remain outside this accepted matrix.
+
+#### 7.2 The OS sandbox — V34.1e, hardened 2026-09-05
+
+Accepted v1 scope, decided here, **unshipped until V34.1e.0–V34.1e.6 close.** Nothing public says
+"available" before the closing leaf flips it; the README, the capabilities catalogue, the comparison
+pages and `llms.txt` all currently say there is no execution sandbox, and they stay that way until
+the escape tests are green on native macOS and Linux runners.
+
+**Decision.** One policy, two enforcers, fail closed.
+
+*One policy.* A `shell.Sandbox` value carried on `shell.Cmd`: writes are allowed only under the jail
+root and the process temp dir; reads are allowed everywhere except a credential denylist (`~/.ssh`,
+`~/.aws`, `~/.gnupg`, kolk's own credential store — §3's hardline paths, now enforced by the kernel
+instead of by matching strings); network is `allow` or `deny`. The root is `tools.Options.Root` —
+the same value the path jail uses, never a second setting that can drift from it. Network for a
+delegated child comes from §7.1's existing decision; for the user's own bash tool it defaults to
+`allow`, because `go test`, `npm` and `pip` fetch, and the status line says which it is.
+
+*macOS — Seatbelt.* `/usr/bin/sandbox-exec -f <profile> bash -c <cmd>`, with a generated SBPL
+profile: `(deny default)`, allow `process-exec`/`process-fork`, `(allow file-read*)` with
+`(deny file-read* (subpath …))` for each denylist path, `(allow file-write* (subpath <root>)
+(subpath <temp>))`, network allowed or `(deny network*)`, and the small set of `mach-lookup` and
+`sysctl-read` allowances a shell needs to start. The profile is written to a private 0600 temp file
+and removed after the run. Verified live on Darwin arm64 on 2026-09-05: a deny-default profile
+allowed a write inside the granted subpath and refused one outside with `Operation not permitted`.
+Apple marks `sandbox-exec` deprecated and has shipped it on every release since 10.5; Chromium,
+Bazel and Codex CLI use it today. Its absence is checked once at startup and is a fail-closed
+condition.
+
+*Linux — Landlock.* Through `golang.org/x/sys/unix`, which is already the module's dependency; no
+cgo, no external binary. The ABI is probed at runtime: ABI ≥ 1 gives filesystem confinement, ABI ≥ 4
+(kernel 6.7+) gives TCP `connect`/`bind` rules. Landlock is allow-only — there is no deny rule — so
+the read grant is built per top-level directory, with the home directory granted entry by entry
+minus the denylist; the enumeration is a documented function with a test that asserts every
+denylist path is unreadable. Go has no pre-exec hook, so the child is `kolk` re-executed with an
+internal `landlock-exec` entry that applies the ruleset and `execve`s `bash -c <cmd>`; the wrapper
+is the process-group leader, so §S10.1d2's group kill is unchanged. A kernel without Landlock
+(`ENOSYS`, `EOPNOTSUPP`, LSM not enabled) is a fail-closed condition. `network = deny` on ABI < 4
+is **refused**, not approximated: the sandbox cannot enforce it, so it does not pretend to.
+
+*Windows and everything else.* Outside the matrix, as §7 already says. The mechanism reports
+`unsupported`, and the bash tool refuses unless `sandbox = off`.
+
+*Config.* `sandbox = on | off`, default `on` on darwin and linux. There is deliberately **no
+`auto`**: auto is a silent downgrade, which is the one behaviour this section exists to forbid.
+The status line shows `sandbox: seatbelt` / `landlock v4` / `off`; `/doctor` shows the mechanism,
+the ABI or profile path, and whether network is enforced. `--yolo` and `full-auto` inside the
+sandbox are the intended pairing, as §7 already states.
+
+*Refusal text.* When the sandbox is on and cannot be established, the bash tool does not run and
+says exactly what is missing and what to do:
+
+    the sandbox could not be established: /usr/bin/sandbox-exec is not present.
+    kolk will not run commands unconfined by default. To run them anyway: /config set sandbox off
+
+*Bounded diagnostics.* No attempt is made to read Seatbelt's system log or Landlock audit. When a
+sandboxed command exits non-zero and its output contains `Operation not permitted` or `Permission
+denied`, one line is appended to the result:
+
+    [sandbox: writes are confined to <root> and <temp>; network allowed. If this command
+     legitimately needs more: /config set sandbox off]
+
+One line, never a claim about cause. The model reads it and adapts, or the user changes the knob.
+
+*Escape tests, red first.* Each must fail before the mechanism lands and pass after, natively on
+macOS and Linux — CI already has both runners:
+
+1. write outside the root — refused
+2. write through a symlink created inside the root that points outside — refused
+3. `../` traversal past the root — refused
+4. write to `~/.ssh/` — refused even when it is inside a widened root
+5. read kolk's credential store — refused
+6. TCP connect to `127.0.0.1` with `network = deny` — refused (Seatbelt; Landlock ABI ≥ 4)
+7. write under the temp dir — allowed
+8. `go test ./...` on a fixture inside the root — allowed and passes
+
+Windows skips each with the matrix as the stated reason, loudly, never silently.
+
+*Claims flip in lockstep.* README "Known limitations", `site/capabilities.html` rows 491/495, the
+sandbox cells on `site/compare/*.html`, and `site/llms.txt` line 46 all change **in the closing
+leaf only**, in one commit, together with the `test-site.sh` pins that guard them.
+
+**Alternatives rejected**
+
+- **bubblewrap** — the most common Linux answer, and an install-time dependency. Every binary this
+  repository ships is a single static file with nothing to install beside it; a sandbox that needs
+  `apt install` first is a sandbox most users will not have.
+- **seccomp-bpf alone** — filters syscalls, not paths. It cannot express "write here but not there".
+- **chroot** — needs root, and is not a security boundary.
+- **Containers** — post-v1 for `saga`, per the matrix. Not a per-command mechanism.
+- **`sandbox = auto`** — a downgrade nobody sees. Rejected by name.
+- **Enforcing network on Linux ABI < 4** via iptables or a network namespace — needs privileges the
+  process does not have. Refusing is the honest answer.
+
+**Risks**
+
+- `sandbox-exec` is deprecated and could be removed. The mechanism sits behind the `Sandbox`
+  interface; a replacement is a new file, not a redesign, and the absence check already fails
+  closed.
+- Landlock's allow-only reads make the denylist an enumeration, and enumerations drift. The test
+  asserts each denylist path is unreadable, so drift fails the build rather than the user.
+- Legitimate work sometimes needs to write outside the root. The refusal names the path and the
+  knob — the same mitigation §1 already uses for the jail — and `tools.root` widens it explicitly.
+- Overhead: `sandbox-exec` adds process startup on every command. Measured in V34.1e.5; the
+  expectation is 10–30 ms, and a number above the cold-start soft budget is a finding, not a note.
+- `exec_unix.go` is territory the open S10.1d2 touched. The change here is one wrapper at one call
+  site, the cancel ladder is not touched, and the leaf rebases before it lands.
 
 ## Rationale
 
