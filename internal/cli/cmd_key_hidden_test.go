@@ -87,16 +87,39 @@ func TestKeyWithAProviderReadsTheKeyHidden(t *testing.T) {
 	}
 }
 
-// Inside the TUI kolk owns the terminal and cannot yet hide input (V34.1d.4c),
-// so the pasted form stays accepted there until it can. This pins the interim
-// so that 4c has to flip it on purpose.
-func TestKeyOnTheLineIsStillAcceptedInsideTheTUIUntilItCanBeHidden(t *testing.T) {
-	isolateHome(t)
+// Inside the TUI kolk owns the terminal, so the hidden read goes through the
+// TUI's own masked overlay: the app is handed a reader while the TUI runs.
+// With it in place, /key prompts and stores, and a key on the line is refused
+// there too -- the interim that 4b pinned is over.
+func TestInsideTheTUIKeyIsReadThroughTheMaskedOverlayAndNeverFromTheLine(t *testing.T) {
+	d := isolateHome(t)
 	a, out, errOut := newTestApp(t, "")
 	a.terminalOwned = func() bool { return true }
+	asked := 0
+	a.readHidden = func(_ context.Context, prompt string) (string, bool) {
+		asked++
+		if !strings.Contains(prompt, "not be shown") {
+			t.Errorf("prompt does not promise hiding: %q", prompt)
+		}
+		return cliKeyCanary, true
+	}
 	a.verifyOpenRouter = func(context.Context, secret.Secret) (provider.KeyStatus, error) { return provider.KeyStatus{}, nil }
-	if code := runRetiredVerb(t, a, "key", cliKeyCanary); code != ExitOK {
-		t.Fatalf("/key <key> in the TUI exit = %d, stderr: %s", code, errOut)
+	if code := runRetiredVerb(t, a, "key"); code != ExitOK {
+		t.Fatalf("/key in the TUI exit = %d, stderr: %s", code, errOut)
+	}
+	if asked != 1 {
+		t.Fatalf("the masked overlay was asked %d times, want 1", asked)
+	}
+	assertNoCLIKey(t, out.String(), errOut.String())
+	stored, err := keystore.NewFileStore(d.CredentialsFile()).Get(context.Background(), keystore.Ref{Provider: "openrouter"})
+	if err != nil || stored.Reveal() != cliKeyCanary {
+		t.Fatalf("stored = %v, %v", stored, err)
+	}
+
+	a, out, errOut = newTestApp(t, "")
+	a.terminalOwned = func() bool { return true }
+	if code := runRetiredVerb(t, a, "key", cliKeyCanary); code != ExitUsage {
+		t.Fatalf("/key <key> in the TUI exit = %d, want %d", code, ExitUsage)
 	}
 	assertNoCLIKey(t, out.String(), errOut.String())
 }

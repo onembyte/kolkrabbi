@@ -129,9 +129,12 @@ type app struct {
 	startHost func(context.Context, local.Host) (string, func(), error)
 	// pulledNames reads the host store manifest tree; injected so a test never
 	// reads the real ~/.ollama.
-	pulledNames    func() map[string]bool
-	enterRaw       func(*os.File) (func() error, error)
-	terminalOwned  func() bool
+	pulledNames   func() map[string]bool
+	enterRaw      func(*os.File) (func() error, error)
+	terminalOwned func() bool
+	// readHidden reads a credential through the TUI's masked overlay while the
+	// TUI owns the terminal; nil everywhere else.
+	readHidden     func(ctx context.Context, prompt string) (string, bool)
 	probeHardware  func(context.Context, string) local.Hardware
 	catalog        []provider.ModelInfo
 	dashURL        string

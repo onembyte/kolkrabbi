@@ -189,6 +189,8 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 	}
 	screen.Controller().AppendTranscript(tuiWelcome(msgCount))
 
+	a.readHidden = func(ctx context.Context, prompt string) (string, bool) { return screen.ReadSecret(ctx, prompt) }
+	defer func() { a.readHidden = nil }()
 	a.stdout, a.stderr = screen, screen
 	ag.Out = screen
 	ag.Activity = screen

@@ -6765,3 +6765,24 @@ The third was a policy gap rather than a bug. Backups must keep secrets byte-exa
 people most want undone is the one to `.env`; what they must never do is show them. `/diff` now
 scrubs every line it renders, both sides, and plan 32 says in words what the store does with a secret
 it holds. V34.1d, bounded and scrubbed outputs, is next.
+
+## Nothing kolk prints, keeps or accepts can carry a secret by accident — V34.1d closed 2026-09-05
+
+Four small leaves with one shape: find the sink or the entry point, prove the leak, close it. A child
+that printed eight megabytes cost eight megabytes before the tool layer cut it to twelve thousand
+characters; the shell now keeps the first megabyte and counts the rest, and the model's truncation
+note counts what kolk never held. The provider client already scrubbed its HTTP errors but not its
+transport errors, and net/http keeps a URL's username in those — where people put tokens — so every
+error now leaves through the scrubber whatever path made it. A base URL of the form token@host is
+refused wherever it can arrive, and the V34.1a endpoint matrix moved those shapes from "keyless" to
+"refused".
+
+The last leaf was about hands, not code paths. `kolk serve --token` put a bearer secret in `ps` and
+shell history when an environment variable and device pairing already existed, so the flag form is
+refused. `/key <key>` did the same in the terminal's scrollback; `/key` now reads the key with echo
+off, and inside the TUI, where kolk owns the terminal, through a masked overlay that shows one dot
+per character and delivers the value once, with the command history keeping only the bare word. The
+pasted form is refused everywhere, with both ways in named and the key never repeated. Between 4b and
+4c the TUI kept accepting the paste for one commit, pinned by a test, so nobody was left without a
+way to enter a key; 4c flipped it on purpose. V34.1 is closed. V34.2 is next, and the flaky engine
+test seen on run 33969381063 is the first thing it owes an explanation.

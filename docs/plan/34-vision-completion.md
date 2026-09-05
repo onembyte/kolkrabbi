@@ -112,8 +112,14 @@ credential or write outside its intended boundary.
   through a root-anchored `openat`/`renameat` walk (`atomicfile.WriteBeneath`); backups of secrets
   have a stated policy in `docs/plan/32` §4–§5 — kept byte-exact for `/undo`, never displayed
   unscrubbed (`/diff` scrubs every rendered line). Each sub-leaf was red first.
-- [ ] **V34.1d bounded and scrubbed outputs** — bound child capture before allocation; redact durable
-  session and terminal sinks; reject URL userinfo; replace key/token argv UX with protected input.
+- [x] **V34.1d bounded and scrubbed outputs** — completed 2026-09-05 as four sub-leaves
+  (`CHECKPOINTS.md` §V34.1d): a child's output is bounded to 1 MiB before it is kept and the tool's
+  note counts what was dropped; every error the provider client returns leaves through the scrubber;
+  a base URL carrying userinfo is refused at the client site, the saved setting and `/doctor`; a key or
+  token is never taken from a command line — `serve --token` is refused for the environment and
+  pairing, `/key` reads hidden (no-echo on a terminal, a masked overlay in the TUI, one line from a
+  pipe) and refuses a key typed after it, and the TUI's history keeps only the bare `/key`. Each
+  sub-leaf was red first.
 - [x] **V34.1e full-auto safety floor and OS sandbox** — completed 2026-09-05 as V34.1e.0–V34.1e.6 in
   `CHECKPOINTS.md`: one policy, two enforcers (Seatbelt on macOS, Landlock on Linux), opt-in via
   `/sandbox on` and off by default at the owner's direction; fail closed, no `auto`; a network deny the

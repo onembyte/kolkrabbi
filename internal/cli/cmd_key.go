@@ -54,12 +54,11 @@ func (a *app) runKey(ctx context.Context, args []string) error {
 	if len(args) > 2 {
 		return usagef("%s", usageLine("key"))
 	}
-	// Inside the TUI kolk owns the terminal and cannot hide what is typed yet
-	// (V34.1d.4c), so the pasted form is still accepted there. Everywhere
-	// else a key on the line is refused: it is in the scrollback, in shell
-	// history when kolk was started with it, and in `ps` while it runs.
+	// A key on the line is refused everywhere: it is in the scrollback, in
+	// shell history when kolk was started with it, and in `ps` while it runs.
+	// Inside the TUI the hidden read goes through the masked overlay.
 	inTUI := a.terminalOwned != nil && a.terminalOwned()
-	providerName, explicitProvider := "", false
+	providerName := ""
 	source, raw := "", ""
 	switch {
 	case len(args) == 0:
@@ -67,24 +66,18 @@ func (a *app) runKey(ctx context.Context, args []string) error {
 	case len(args) == 1 && args[0] == "-":
 		source = "stdin"
 	case len(args) == 1 && looksLikeAProviderName(args[0]):
-		providerName, explicitProvider, source = args[0], true, "prompt"
+		providerName, source = args[0], "prompt"
 	case len(args) == 1:
-		if !inTUI {
-			return refuseKeyOnTheLine("")
-		}
-		source, raw = "paste", args[0]
+		return refuseKeyOnTheLine("")
 	case args[1] == "-":
-		providerName, explicitProvider, source = args[0], true, "stdin"
+		providerName, source = args[0], "stdin"
 	default:
-		if !inTUI {
-			return refuseKeyOnTheLine(args[0])
-		}
-		providerName, explicitProvider, source, raw = args[0], true, "paste", args[1]
+		return refuseKeyOnTheLine(args[0])
 	}
 	switch source {
 	case "stdin":
 		if inTUI {
-			return fmt.Errorf("reading a key from stdin needs a terminal this session already owns; paste the key after /key instead, or pipe it in when starting kolk")
+			return fmt.Errorf("reading a key from stdin needs a terminal this session already owns; run /key and paste it at the hidden prompt, or pipe it in when starting kolk")
 		}
 		value, err := io.ReadAll(io.LimitReader(a.in, keystore.MaxValueBytes+2))
 		if err != nil {
@@ -92,10 +85,19 @@ func (a *app) runKey(ctx context.Context, args []string) error {
 		}
 		raw = string(value)
 	case "prompt":
+		const ask = "Paste the API key (it will not be shown): "
 		if inTUI {
-			return fmt.Errorf("this session owns the terminal and cannot hide the key yet; paste it after /key on this line, or start kolk with it on stdin")
+			if a.readHidden == nil {
+				return fmt.Errorf("this session owns the terminal and has no hidden prompt; pipe the key in when starting kolk")
+			}
+			value, ok := a.readHidden(ctx, ask)
+			if !ok {
+				return usagef("no key entered")
+			}
+			raw = value
+			break
 		}
-		value, hidden, err := a.readSecretLine("Paste the API key (it will not be shown): ")
+		value, hidden, err := a.readSecretLine(ask)
 		if err != nil {
 			return fmt.Errorf("reading API key: %w", secret.ScrubError(err))
 		}
@@ -130,14 +132,6 @@ func (a *app) runKey(ctx context.Context, args []string) error {
 	if classification.Provider != "" && classification.Provider != ref.Provider {
 		return usagef("API key shape belongs to %s, not %s", classification.Provider, ref.Provider)
 	}
-	if source == "paste" && strings.TrimSpace(os.Getenv("CI")) != "" {
-		safeCommand := "/key -"
-		if explicitProvider {
-			safeCommand = "/key " + ref.Provider + " -"
-		}
-		return usagef("refusing an API key in process arguments while CI is set; use `%s`", safeCommand)
-	}
-
 	dirs, err := a.resolve()
 	if err != nil {
 		return err

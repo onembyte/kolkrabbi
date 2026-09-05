@@ -321,3 +321,66 @@ func TestEscDisarmsTheArmedExitAndPutsTheNoticeAway(t *testing.T) {
 		t.Fatalf("re-armed interrupt did not explain the exit gesture: %#v", controller.Snapshot())
 	}
 }
+
+// The masked overlay shows dots, never the text; Enter delivers it once; and
+// the main draft is untouched throughout, exactly like the approval overlay.
+func TestSecretOverlayMasksWhatIsTypedAndDeliversItOnce(t *testing.T) {
+	c := NewController(Status{Mode: "code", Lifecycle: "ready"}, 1024)
+	c.HandleKey(Key{Kind: KeyText, Text: "main draft"})
+	c.RequestSecret("Paste the API key (it will not be shown): ")
+	for _, r := range "sk-secret" {
+		if effect := c.HandleKey(Key{Kind: KeyText, Text: string(r)}); effect.SecretSubmitted || effect.SecretDismissed {
+			t.Fatal("a keystroke resolved the overlay")
+		}
+	}
+	view := c.View(80, 24)
+	if strings.Contains(view, "sk-secret") || strings.Contains(view, "secret") {
+		t.Fatalf("the overlay shows the text:\n%s", view)
+	}
+	if !strings.Contains(view, strings.Repeat("•", len("sk-secret"))) {
+		t.Fatalf("the overlay does not show one dot per rune:\n%s", view)
+	}
+	effect := c.HandleKey(Key{Kind: KeyEnter})
+	if !effect.SecretSubmitted || effect.Secret != "sk-secret" || effect.SecretDismissed {
+		t.Fatalf("Enter effect = %+v", effect)
+	}
+	if c.Secret() != nil || c.status.Lifecycle != "ready" {
+		t.Fatalf("overlay did not close cleanly: %+v %q", c.Secret(), c.status.Lifecycle)
+	}
+	if got := c.Snapshot().Draft; got != "main draft" {
+		t.Fatalf("the overlay consumed the main draft: %q", got)
+	}
+}
+
+func TestSecretOverlayEscapeDismissesWithoutAValue(t *testing.T) {
+	c := NewController(Status{Mode: "code", Lifecycle: "ready"}, 1024)
+	c.RequestSecret("Paste: ")
+	c.HandleKey(Key{Kind: KeyText, Text: "abc"})
+	effect := c.HandleKey(Key{Kind: KeyEscape})
+	if !effect.SecretDismissed || effect.SecretSubmitted || effect.Secret != "" {
+		t.Fatalf("Escape effect = %+v", effect)
+	}
+}
+
+// A `/key ...` line, whatever followed the word, is remembered as the bare
+// command: the up arrow must never bring a key back.
+func TestAKeyCommandLineIsRememberedWithoutItsArgument(t *testing.T) {
+	c := NewController(Status{Mode: "code", Lifecycle: "ready"}, 1024)
+	c.SetCommands([]CommandSpec{{Name: "key"}}, 5)
+	for _, r := range "/key sk-or-v1-pasted-against-advice" {
+		c.HandleKey(Key{Kind: KeyText, Text: string(r)})
+	}
+	c.HandleKey(Key{Kind: KeyEnter})
+	c.RememberCommand("/key openrouter sk-or-v1-also-pasted")
+	for _, line := range c.commandHistory.Recent() {
+		if strings.Contains(line, "sk-or-v1") {
+			t.Fatalf("history kept a key: %q", line)
+		}
+		if line != "key" && line != "/key" { // Record keeps the bare name
+			t.Fatalf("history kept %q, want the bare key command", line)
+		}
+	}
+	if len(c.commandHistory.Recent()) == 0 {
+		t.Fatal("the bare command was not remembered at all")
+	}
+}

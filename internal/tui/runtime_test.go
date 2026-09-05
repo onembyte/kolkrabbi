@@ -641,3 +641,50 @@ func waitFor(t *testing.T, limit time.Duration, what string, condition func() bo
 		}
 	}
 }
+
+// ReadSecret blocks the turn goroutine the way Decide does, and returns what
+// Enter delivered; the main draft survives, and nothing of the value reaches
+// the rendered output.
+func TestRuntimeReadSecretBlocksUntilEnterAndNeverRendersTheValue(t *testing.T) {
+	var output bytes.Buffer
+	runtime := NewRuntime(RuntimeOptions{
+		Input: bytes.NewReader(nil), Output: &output,
+		Width: func() int { return 60 }, Height: func() int { return 12 },
+		Status: Status{Mode: "code", Lifecycle: "ready"},
+	})
+	runtime.Controller().HandleKey(Key{Kind: KeyText, Text: "next draft"})
+	type reply struct {
+		value string
+		ok    bool
+	}
+	result := make(chan reply, 1)
+	go func() {
+		v, ok := runtime.ReadSecret(context.Background(), "Paste the API key (it will not be shown): ")
+		result <- reply{v, ok}
+	}()
+	deadline := time.Now().Add(time.Second)
+	for runtime.Secret() == nil {
+		if time.Now().After(deadline) {
+			t.Fatal("the masked overlay did not become visible")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	for _, r := range "sk-hidden" {
+		runtime.HandleKey(Key{Kind: KeyText, Text: string(r)})
+	}
+	runtime.HandleKey(Key{Kind: KeyEnter})
+	select {
+	case got := <-result:
+		if !got.ok || got.value != "sk-hidden" {
+			t.Fatalf("ReadSecret = %+v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("ReadSecret did not unblock")
+	}
+	if strings.Contains(output.String(), "sk-hidden") {
+		t.Fatal("the value reached the rendered output")
+	}
+	if got := runtime.Snapshot().Draft; got != "next draft" {
+		t.Fatalf("the overlay consumed the main draft: %q", got)
+	}
+}

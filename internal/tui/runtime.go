@@ -103,6 +103,7 @@ type Runtime struct {
 	animIdle chan struct{}
 	turns    sync.WaitGroup
 	approval chan Decision
+	secret   chan secretReply
 	// question is the reply channel of the model worker waiting on a picker.
 	question chan questionReply
 	// output is the terminal itself, kept so a child process can be given the
@@ -289,6 +290,10 @@ func (r *Runtime) HandleKey(key Key) Effect {
 	if effect.Decision != DecisionNone && r.approval != nil {
 		r.approval <- effect.Decision
 		r.approval = nil
+	}
+	if (effect.SecretSubmitted || effect.SecretDismissed) && r.secret != nil {
+		r.secret <- secretReply{value: effect.Secret, ok: effect.SecretSubmitted}
+		r.secret = nil
 	}
 	if (effect.Choice > 0 || effect.ChoiceDismissed) && r.question != nil {
 		r.question <- r.controller.chosen(effect)
@@ -644,7 +649,7 @@ func (r *Runtime) Confirm(ctx context.Context, approval Approval) bool {
 func (r *Runtime) Decide(ctx context.Context, approval Approval) Decision {
 	reply := make(chan Decision, 1)
 	r.mu.Lock()
-	if r.approval != nil || r.question != nil || r.modelPick != nil || r.configPick != nil || r.attached != nil {
+	if r.approval != nil || r.secret != nil || r.question != nil || r.modelPick != nil || r.configPick != nil || r.attached != nil {
 		r.mu.Unlock()
 		return DecisionDeny
 	}
@@ -847,3 +852,45 @@ func (r *Runtime) flushFrameLocked() {
 type emptyReader struct{}
 
 func (emptyReader) Read([]byte) (int, error) { return 0, io.EOF }
+
+type secretReply struct {
+	value string
+	ok    bool
+}
+
+// ReadSecret opens the masked overlay and blocks the caller -- a slash command
+// running on the turn goroutine -- until Enter delivers the value or the
+// overlay is dismissed. Decide's shape exactly: one overlay at a time, the
+// context cancels it, and the UI goroutine never waits on anyone.
+func (r *Runtime) ReadSecret(ctx context.Context, prompt string) (string, bool) {
+	reply := make(chan secretReply, 1)
+	r.mu.Lock()
+	if r.approval != nil || r.secret != nil || r.question != nil || r.modelPick != nil || r.configPick != nil || r.attached != nil {
+		r.mu.Unlock()
+		return "", false
+	}
+	r.secret = reply
+	r.controller.RequestSecret(prompt)
+	r.renderLocked()
+	r.mu.Unlock()
+
+	select {
+	case got := <-reply:
+		return got.value, got.ok
+	case <-ctx.Done():
+		r.mu.Lock()
+		if r.secret == reply {
+			r.secret = nil
+			_ = r.controller.HandleKey(Key{Kind: KeyInterrupt})
+			r.renderLocked()
+		}
+		r.mu.Unlock()
+		return "", false
+	}
+}
+
+func (r *Runtime) Secret() *SecretPrompt {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.controller.Secret()
+}

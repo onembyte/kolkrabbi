@@ -47,6 +47,12 @@ type Effect struct {
 	// controller cannot do it itself: what the tiers are, and what changing
 	// one means, belongs to the engine rather than to a screen.
 	CyclePermission bool
+	// Secret is what the masked overlay delivered on Enter; SecretSubmitted
+	// says Enter happened even when the value is empty, and SecretDismissed
+	// says the overlay was closed without a value. None of it is ever echoed.
+	Secret          string
+	SecretSubmitted bool
+	SecretDismissed bool
 }
 
 // Approval is the independent permission overlay. Input never shares storage
@@ -104,6 +110,9 @@ type Controller struct {
 	approval        *Approval
 	approvalEditor  *Editor
 	beforeApproval  string
+	secret          *SecretPrompt
+	secretEditor    *Editor
+	beforeSecret    string
 	commands        []CommandSpec
 	models          []ModelSpec
 	plans           []PlanSpec
@@ -130,6 +139,9 @@ func NewController(status Status, maxDraftRunes int) *Controller {
 
 // HandleKey updates either the approval overlay or the main composer.
 func (c *Controller) HandleKey(key Key) Effect {
+	if c.secret != nil {
+		return c.handleSecretKey(key)
+	}
 	if c.approval != nil {
 		return c.handleApprovalKey(key)
 	}
@@ -187,7 +199,7 @@ func (c *Controller) HandleKey(key Key) Effect {
 	effect := Effect{Interrupt: result.Interrupt && c.busy, Exit: result.Exit}
 	if result.Submit {
 		if strings.HasPrefix(result.Submitted, "/") && c.commandHistory != nil {
-			c.commandHistory.Record(result.Submitted)
+			c.commandHistory.Record(historyForm(result.Submitted))
 		}
 		c.clearSuggestions()
 		c.busy = true
@@ -299,7 +311,7 @@ func (c *Controller) RememberCommand(line string) {
 	if c.commandHistory == nil {
 		c.commandHistory = NewCommandHistory(c.suggestionLimit)
 	}
-	c.commandHistory.Record(line)
+	c.commandHistory.Record(historyForm(line))
 	c.updateSuggestions()
 }
 
@@ -426,6 +438,9 @@ func (c *Controller) RenderView(width, height int) string {
 }
 
 func (c *Controller) renderView(width, height int, styled bool) string {
+	if c.secret != nil {
+		return c.overlayView(c.secretLines(width), width, height, styled)
+	}
 	if c.modelPicker != nil {
 		return c.overlayView(c.modelPickerLines(width), width, height, styled)
 	}
@@ -800,4 +815,75 @@ func activityPhase(activity string) string {
 		}
 	}
 	return "working"
+}
+
+// historyForm is what the command history keeps of a submitted line. For
+// `/key` it is the bare word: whatever followed it -- a key pasted against
+// advice, before the refusal -- must not come back on the up arrow.
+func historyForm(line string) string {
+	if first, _, _ := strings.Cut(strings.TrimSpace(line), " "); first == "/key" {
+		return "/key"
+	}
+	return line
+}
+
+// SecretPrompt is the masked overlay: a credential is typed here, rendered as
+// dots, delivered once on Enter, and kept nowhere. Typed is the only thing the
+// view learns about the draft.
+type SecretPrompt struct {
+	Prompt string
+	Typed  int
+}
+
+// RequestSecret opens the masked overlay. Like the approval overlay it has
+// its own editor, so the main draft is untouched, and it is wide enough for
+// any key a keystore accepts.
+func (c *Controller) RequestSecret(prompt string) {
+	c.secret = &SecretPrompt{Prompt: prompt}
+	c.secretEditor = NewEditor(1024)
+	c.beforeSecret = c.status.Lifecycle
+	c.setLifecycle("key")
+}
+
+// Secret returns a copy of the open masked overlay, or nil.
+func (c *Controller) Secret() *SecretPrompt {
+	if c.secret == nil {
+		return nil
+	}
+	copyOfSecret := *c.secret
+	return &copyOfSecret
+}
+
+func (c *Controller) handleSecretKey(key Key) Effect {
+	switch key.Kind {
+	case KeyInterrupt:
+		return c.resolveSecret("", false, true)
+	case KeyEOF, KeyEscape:
+		return c.resolveSecret("", false, false)
+	case KeyEnter:
+		return c.resolveSecret(c.secretEditor.Draft(), true, false)
+	default:
+		if result := c.secretEditor.Update(key); result.Changed {
+			c.secret.Typed = len([]rune(c.secretEditor.Draft()))
+		}
+		return Effect{}
+	}
+}
+
+func (c *Controller) resolveSecret(value string, submitted, interrupt bool) Effect {
+	c.secret = nil
+	c.secretEditor = nil
+	c.setLifecycle(c.beforeSecret)
+	c.beforeSecret = ""
+	return Effect{Secret: value, SecretSubmitted: submitted, SecretDismissed: !submitted, Interrupt: interrupt}
+}
+
+func (c *Controller) secretLines(width int) []string {
+	return []string{
+		horizontalRule("key", width),
+		clipLine(sanitizeTerminalLine(c.secret.Prompt), width),
+		clipLine(strings.Repeat("•", c.secret.Typed)+"▌", width),
+		clipLine("Enter saves · Esc cancels · nothing typed here is shown, kept or recalled", width),
+		strings.Repeat("─", max(0, width)),
+	}
 }

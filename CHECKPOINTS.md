@@ -10538,10 +10538,11 @@ Subcheckpoints, one at a time:
   prints a backup's contents unscrubbed. **Non-goals:** `/undo`/`/rewind` semantics (item 15), the
   choice of store (item 32), the jail (already resolves symlinks before a write is allowed).
   **Closed 2026-09-05** with all three sub-leaves; `docs/plan/34` V34.1c ticked; policy in plan 32.
-- [~] **V34.1d bounded and scrubbed outputs** — `docs/plan/34` V34.1d, subdivided 2026-09-05 before
+- [x] **V34.1d bounded and scrubbed outputs** — `docs/plan/34` V34.1d, subdivided 2026-09-05 before
   code: four clauses, four red→green pairs. **Non-goals:** the 12k-character tool cap itself (item 13
   decided it), the scrubber's patterns (`internal/redact` owns them), and the transcript sinks that
   already scrub (tool output in `engine`, hook output, the debug log, `/diff`, `/commit`, `/pr`).
+  **Closed 2026-09-05** with 1d.1–1d.4 (1d.4 as a/b/c); `docs/plan/34` V34.1d ticked.
   - [x] **V34.1d.1 child capture is bounded before it is allocated** — `shell.Run` collects a child's
     output with `CombinedOutput`, which grows without limit: a command that prints a gigabyte costs a
     gigabyte of kolk's memory before the tool layer cuts it to 12k. A bounded writer keeps the first
@@ -10599,7 +10600,7 @@ Subcheckpoints, one at a time:
     33969381063 (ubuntu) failed `TestASubagentBackendIsClosedOnEveryPathOutOfATask/success` on a commit
     that touched no engine code — a backend released after `runTasks` returns is V34.2a/V34.2e
     territory and is noted there.
-  - [~] **V34.1d.4 a key is never typed on a command line** — wherever kolk accepts a credential as an
+  - [x] **V34.1d.4 a key is never typed on a command line** — wherever kolk accepts a credential as an
     argument (argv or a slash command's words, which land in shell history, `ps`, and the session
     transcript), it prompts for it with echo off instead and refuses the argument form with the reason.
     Scope fixed by inspection at open: the entry points are enumerated in the record. **Red:** a key
@@ -10641,10 +10642,24 @@ Subcheckpoints, one at a time:
       action, legacy redirect, recovery hint, slash usage); the existing `/key` tests moved from the
       pasted form to the piped or prompted form. `-race` clean on cli; lint darwin+linux; vet windows;
       `make check`.
-    - [ ] **V34.1d.4c the TUI masks the key** — kolk owns the terminal in the TUI, so `/key` there opens a
+    - [x] **V34.1d.4c the TUI masks the key** — kolk owns the terminal in the TUI, so `/key` there opens a
       masked overlay like the approval overlay: dots for the draft, Enter delivers the value without
       recording it in the command history, Esc cancels. **Red:** `/key sk-…` in the TUI is recorded in
       the command history and echoed.
+      **Closed 2026-09-05, on main.** Red observed: the 4b interim test (paste accepted in the TUI)
+      flipped to the new expectation failed on the missing hook; the history test found `/key sk-…`
+      kept whole. Green: `Controller.RequestSecret` opens a `SecretPrompt` overlay with its own
+      `Editor` (1024 runes — a key is longer than an approval's eight), rendered as one dot per rune
+      with a line saying nothing typed there is shown, kept or recalled; Enter delivers
+      `Effect.Secret` once, Esc/EOF dismiss, Ctrl-C interrupts; the main draft is untouched (tested
+      like the approval overlay). `Runtime.ReadSecret` is `Decide`'s exact sibling — one overlay at a
+      time, the turn goroutine blocks, the UI goroutine never waits, the context cancels — and `Decide`
+      now also refuses while a secret prompt is open. `historyForm` records any `/key …` line as the
+      bare command at both record sites, so the up arrow cannot bring a key back. The app gets a
+      `readHidden` hook installed while the TUI runs (nil elsewhere); `/key` in the TUI reads through
+      it, and the pasted form is now refused everywhere — the interim is over, and the unreachable CI
+      paste branch is gone. The rendered output is checked to never contain the value. `-race` clean
+      on tui and cli; lint; `make check`.
   - [x] **V34.1c.1 restrictive modes survive a rewind** — copy store: `Entry.Mode` recorded at
     `Record`, restored with it (older manifests without a mode fall back to the file's current mode,
     then 0644). Shadow store: the modes of the paths about to be restored are read before the git
