@@ -9,6 +9,13 @@ Or: brew install onembyte/tap/kolk  (macOS and Linux; `kolkrabbi` is an alias fo
      usable as a short name after `brew trust onembyte/tap`)
 Source: https://github.com/onembyte/kolkrabbi
 
+## More than one subscription at once
+Kolkrabbi works with several subscriptions in one session — Claude Pro/Max, ChatGPT Plus/Pro (Codex)
+and GitHub Copilot — through each vendor's own CLI, no API key. When one plan hits its limit kolk
+pauses and resumes by itself, recommends the equivalent model on another plan, and can switch to it
+(`/continue`, or `continuity.mode on`). Page: https://kolkrabbi.francomichetti.com/subscriptions
+(Spanish: https://kolkrabbi.francomichetti.com/es/suscripciones).
+
 ## Providers that work today
 
 - OpenRouter — every model it lists. The gateway: GPT, Gemini, DeepSeek, Qwen and the rest

@@ -4,10 +4,13 @@
 with a 100% local rating dashboard.**
 
 Kolkrabbi (binary: **`kolk`**) is an open-source, model-agnostic AI coding agent
-for the terminal — an alternative to Claude Code and Codex CLI. It runs any model
-on [OpenRouter](https://openrouter.ai), *your own* Claude or ChatGPT subscription
-through that vendor's own CLI, or a local model on Ollama, vLLM, or any
-OpenAI-compatible endpoint.
+for the terminal — an alternative to Claude Code and Codex CLI that works with
+**several subscriptions in one session**: *your own* Claude Pro/Max, ChatGPT
+Plus/Pro (Codex) and GitHub Copilot, each through that vendor's own CLI with no
+API key; any model on [OpenRouter](https://openrouter.ai); or a local model on
+Ollama, vLLM, or any OpenAI-compatible endpoint. When one plan hits its limit,
+Kolkrabbi pauses and resumes by itself, or continues on your next subscription
+([how](https://kolkrabbi.francomichetti.com/subscriptions)).
 
 Think Claude Code, but: separate chat, code, and agent modes, an effort dial that
 selects *which model* and agent task width instead of just thinking tokens, and

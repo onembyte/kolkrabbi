@@ -474,6 +474,31 @@ for page in local-ai-coding-agent.html ollama-coding-agent.html openrouter-codin
   excludes "$page" "<(script|img)[^>]+src=[\"']https?://" "$page loads an external script or image"
   excludes "$page" "style=[\"']" "$page styles must stay in styles.css for a strict CSP"
 done
+# The subscriptions pages (2026-09-06): the exact question a cold ChatGPT test asked in Spanish
+# and got OpenCode for — "algo como claude code pero que acepte más suscripciones".
+for page in subscriptions.html es/suscripciones.html; do
+  require_file "$page"
+  contains "$page" 'name="viewport"' "$page must configure a mobile viewport"
+  contains "$page" '<main id="content">' "$page must have a semantic main region"
+  contains "$page" '<link rel="canonical"' "$page has no canonical URL"
+  contains "$page" 'hreflang="es"' "$page must link its Spanish twin"
+  contains "$page" 'hreflang="en"' "$page must link its English twin"
+  contains "$page" '<time datetime="2026-09-06">' "$page does not date the claims it makes"
+  contains "$page" 'OpenCode' "$page must name OpenCode honestly as another agent that connects a subscription"
+  kolk_commands_are_real "$page"
+  script_tags_are_safe "$page"
+  json_ld_parses "$page"
+  excludes "$page" "<(script|img)[^>]+src=[\"']https?://" "$page loads an external script or image"
+  excludes "$page" "style=[\"']" "$page styles must stay in styles.css for a strict CSP"
+done
+contains subscriptions.html '<html lang="en">' "the English subscriptions page must declare its language"
+contains es/suscripciones.html '<html lang="es">' "the Spanish subscriptions page must declare its language"
+contains subscriptions.html 'more than one subscription' "the subscriptions page must say the words of the question"
+contains es/suscripciones.html 'más de una suscripción' "the Spanish page must say the words of the question"
+contains index.html 'href="/subscriptions"' "the landing page does not link to the subscriptions page"
+contains sitemap.xml '/subscriptions</loc>' "the sitemap lacks the subscriptions page"
+contains sitemap.xml '/es/suscripciones</loc>' "the sitemap lacks the Spanish subscriptions page"
+contains llms.txt 'More than one subscription at once' "llms.txt must lead with the subscriptions hook"
 contains local-ai-coding-agent.html 'never installs Ollama' "the local guide must keep saying kolk does not install a runtime"
 contains ollama-coding-agent.html '127.0.0.1:11434' "the Ollama guide must state the literal address kolk probes"
 contains index.html 'href="/local-ai-coding-agent"' "the landing page does not link to the local-model guide"

@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Kolkrabbi is an open-source terminal coding agent that works with more than one subscription at once: Claude Pro or Max, ChatGPT Plus or Pro (Codex), and GitHub Copilot, through each vendor's own CLI. No API key. When one plan hits its limit, kolk pauses and resumes, or continues on your next subscription.">
+  <meta name="theme-color" content="#09070d">
+  <meta name="color-scheme" content="dark">
+  <link rel="canonical" href="https://kolkrabbi.francomichetti.com/subscriptions">
+  <link rel="alternate" hreflang="en" href="https://kolkrabbi.francomichetti.com/subscriptions">
+  <link rel="alternate" hreflang="es" href="https://kolkrabbi.francomichetti.com/es/suscripciones">
+  <link rel="alternate" hreflang="x-default" href="https://kolkrabbi.francomichetti.com/subscriptions">
+  <meta property="og:site_name" content="Kolkrabbi">
+  <meta property="og:locale" content="en">
+  <meta property="og:title" content="Use your Claude, ChatGPT and Copilot subscriptions from one coding agent — Kolkrabbi">
+  <meta property="og:description" content="Kolkrabbi is an open-source terminal coding agent that works with more than one subscription at once: Claude Pro or Max, ChatGPT Plus or Pro (Codex), and GitHub Copilot, through each vendor's own CLI. No API key. When one plan hits its limit, kolk pauses and resumes, or continues on your next subscription.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://kolkrabbi.francomichetti.com/subscriptions">
+  <meta property="og:image" content="https://kolkrabbi.francomichetti.com/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Kolkrabbi: any model, cloud or local, one terminal. A blocky purple pixel-art octopus.">
+  <meta name="twitter:card" content="summary_large_image">
+  <title>Use your Claude, ChatGPT and Copilot subscriptions from one coding agent — Kolkrabbi</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Use your Claude, ChatGPT and Copilot subscriptions from one coding agent — Kolkrabbi",
+    "url": "https://kolkrabbi.francomichetti.com/subscriptions",
+    "inLanguage": "en",
+    "description": "Kolkrabbi is an open-source terminal coding agent that works with more than one subscription at once: Claude Pro or Max, ChatGPT Plus or Pro (Codex), and GitHub Copilot, through each vendor's own CLI. No API key. When one plan hits its limit, kolk pauses and resumes, or continues on your next subscription.",
+    "dateModified": "2026-09-06",
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "Kolkrabbi",
+      "url": "https://kolkrabbi.francomichetti.com/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+  <header class="site-header" aria-label="Primary navigation">
+    <a class="wordmark" href="/" aria-label="Kolkrabbi home">
+      <span class="wordmark-mark" aria-hidden="true">K</span>
+      <span>KOLKRABBI</span>
+    </a>
+    <nav aria-label="Project links">
+      <a href="/#install">Install</a>
+      <a href="/capabilities">Capabilities</a>
+      <a href="/compare/">Compare</a>
+      <a href="/benchmarks">Benchmarks</a>
+      <a href="https://github.com/onembyte/kolkrabbi">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="content">
+    <section class="catalog-hero" aria-labelledby="subscriptions-title">
+      <div>
+        <p class="eyebrow">Existing subscriptions</p>
+        <h1 id="subscriptions-title">Your subscriptions.<br>One <em>terminal.</em></h1>
+      </div>
+      <div class="catalog-intro">
+        <p>Something like Claude Code, but for more than one plan. Kolkrabbi signs into <strong>Claude Pro or Max</strong>,
+          <strong>ChatGPT Plus or Pro</strong> (the Codex plans) and <strong>GitHub Copilot</strong> through each vendor's own
+          CLI, and lets one session move between them. No API key, no metered bill for what your plans already cover, and
+          when one plan hits its limit the work does not stop.</p>
+        <p class="sub"><time datetime="2026-09-06">Verified 6 September 2026</time> on Claude Max, ChatGPT Plus and Copilot Free.
+          Also in Spanish: <a href="/es/suscripciones" hreflang="es" lang="es">agente de código para varias suscripciones</a>.</p>
+      </div>
+    </section>
+
+    <section class="catalog-section" id="plans" aria-labelledby="plans-title">
+      <div class="catalog-heading">
+        <div>
+          <p class="eyebrow">What works today</p>
+          <h2 id="plans-title">Three subscriptions, one session.</h2>
+        </div>
+      </div>
+      <table class="compare-table">
+        <thead><tr><th>Plan</th><th>How kolk uses it</th><th>Models</th></tr></thead>
+        <tbody>
+          <tr><td>Claude Pro · Max</td><td>the <code>claude</code> CLI, signed in by you, driven as a subprocess</td><td>Sonnet and Haiku on Pro; Opus and Fable on Max</td></tr>
+          <tr><td>ChatGPT Plus · Pro</td><td>the <code>codex</code> CLI, the same way</td><td>the GPT-5.6 family the vendor lists for your plan</td></tr>
+          <tr><td>GitHub Copilot Free · Pro · Business</td><td>the <code>copilot</code> CLI, the same way</td><td>the model Copilot picks for your plan</td></tr>
+          <tr><td>Any OpenRouter model, or Ollama</td><td>an API key, or nothing at all for a local model</td><td>hundreds, or whatever you pulled</td></tr>
+        </tbody>
+      </table>
+      <p>Kolk never reads a vendor's credential, token or cookie. It starts the CLI you already logged into and records what
+        comes back. Each plan's own limits apply exactly as the vendor set them.</p>
+    </section>
+
+    <section class="catalog-section" id="limits" aria-labelledby="limits-title">
+      <div class="catalog-heading">
+        <div>
+          <p class="eyebrow">When a plan runs out</p>
+          <h2 id="limits-title">The limit is the vendor's. The stop is not.</h2>
+        </div>
+      </div>
+      <p>A subscription allowance, an account quota and a capacity limit are told apart, and each is remembered across your
+        sessions. By default kolk <strong>pauses, keeps your turn, and resumes by itself when the limit lifts</strong> —
+        spending nothing to wait. It also tells you what could carry on: the best equivalent model on another plan you have,
+        the same rung of the ladder, and the command that switches to it.</p>
+      <ul>
+        <li><code>/continue</code> walks that chain when you say so.</li>
+        <li><code>/config set continuity.mode on</code> walks it by itself, subscriptions first, then paid keys, then a free
+          model only if you listed one.</li>
+        <li><code>/config set continuity.select ask</code> asks once per run instead.</li>
+      </ul>
+    </section>
+
+    <section class="catalog-section" id="start" aria-labelledby="start-title">
+      <div class="catalog-heading">
+        <div>
+          <p class="eyebrow">Two minutes</p>
+          <h2 id="start-title">Sign in, then pick a plan per model.</h2>
+        </div>
+      </div>
+      <pre><code>curl -fsSL https://kolkrabbi.francomichetti.com/install.sh | sh
+kolk
+/plans login anthropic "Claude Max"
+/plans login openai "ChatGPT Plus"
+/plans login github "Copilot Free"
+/model "ChatGPT Plus/gpt-5.6-sol"</code></pre>
+      <p>Each login opens the vendor's own sign-in and comes back. <code>/plans</code> shows which are signed in and
+        verified; <code>/model</code> lists every model every plan offers, with the plan it belongs to.</p>
+    </section>
+
+    <section class="catalog-section" id="honest" aria-labelledby="honest-title">
+      <div class="catalog-heading">
+        <div>
+          <p class="eyebrow">Also true</p>
+          <h2 id="honest-title">What this is not.</h2>
+        </div>
+      </div>
+      <p>It is not a way around a plan's limits: kolk never proxies one account for several people, never bypasses a quota,
+        and never scrapes a browser session. It is not the only open-source agent that connects a subscription — OpenCode
+        does too, through its own connectors. What kolk adds is the continuity across plans described above, a local
+        record of what each model cost and how you rated it, and one static binary that starts in milliseconds.</p>
+    </section>
+
+    <section class="compare-more" aria-label="Related guides">
+      <a href="/compare/codex-cli">Kolkrabbi vs Codex CLI</a>
+      <a href="/compare/claude-code">Kolkrabbi vs Claude Code</a>
+      <a href="/capabilities">Every capability, with what is shipped</a>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-mark">
+      <span class="wordmark-mark" aria-hidden="true">K</span>
+      <p><strong>Kolkrabbi</strong><br>Built carefully, one checkpoint at a time.</p>
+    </div>
+    <p class="footer-links">
+      <a href="https://github.com/onembyte/kolkrabbi">Source</a>
+      <a href="https://github.com/onembyte/kolkrabbi/blob/main/LICENSE">Apache-2.0 License</a>
+    </p>
+  </footer>
+</body>
+</html>
