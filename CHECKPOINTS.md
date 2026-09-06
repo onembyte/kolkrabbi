@@ -10825,9 +10825,9 @@ Subcheckpoints, one at a time:
       translator, or defer. Not mine to choose.
     - [ ] **V34.4c.4 the surfaces** — plan 24 rows, `/plans`, the capabilities card, pinned; each
       row says its status in the words the disposition uses.
-- [~] **V36 the owner's morning list** — four requests sent 2026-09-06 while an orchestrated run was
+- [x] **V36 the owner's morning list** — four requests sent 2026-09-06 while an orchestrated run was
   going, recorded here at the owner's ask ("make a checkpoint to do one request at a time") and taken
-  in this order, one at a time, each with red first, green, verification, record.
+  in this order, one at a time, each with red first, green, verification, record. Closed 2026-09-06.
   - [x] **V36.0 publish the frontier number** — closed 2026-09-06. The first launch never ran (the
     background shell held an open stdin and no process ever appeared; stopped). The run that counts:
     session `s_01M1VJZ95PJSNMFZY10YYETKRM`, agent mode, dial max, `Claude Max/claude-fable`, four
@@ -10893,10 +10893,22 @@ Subcheckpoints, one at a time:
       user's tree (`go test ./...` green there), the store empty afterwards and `git worktree list`
       showing only the main tree. Not done: a Spanish capabilities page does not exist, so the
       Spanish site says nothing about it.
-  - [ ] **V36.3 the animated kolk terminal on the site** — an illustration of the terminal from the
-    screenshots: a chat, agent mode, a plan, agents deploying with their logs and status rows, a zoom
-    on the logs and on the agent rows, animated, clean and smooth, no external assets, under the
-    site's CSP and pins.
+  - [x] **V36.3 the animated kolk terminal on the site** — closed 2026-09-06. Section "02 / AGENTS"
+    on the landing page, between install and the capability cards: a terminal in the site's own
+    chrome replaying the V36.0 run in kolk's real lines — `/mode agent`, the typed prompt,
+    `◆ planning`, `◆ plan (4 tasks)` with each task's kind, level and model, the tree line, the
+    started and completed lines, `◆ synthesizing`, the answer — with a panel of four
+    `agent [n/4] · model · effort` rows whose state and step change on time (queued → working →
+    landing its changes → done), an `agents N` count in the bar, and a log card for agent 3 that
+    zooms in over the transcript and out again. Twenty-eight seconds; every timing is a `--t`/`--d`
+    pair in the stylesheet; app.js only starts it when scrolled into view, replays it, and stands
+    aside under reduced motion, where the section is a still of the finished run — as it is with
+    no script at all. No image, no external asset, no inline style; ten site pins. Verified by
+    seeking the animations in headless Chrome and reading five frames: the first three lines were
+    clipped (hidden lines still took space under a bottom-anchored list), the log card showed
+    before its time (the exit animation's fill beat the entry's), it covered the fourth row, and
+    the count digit sat below the baseline; all four fixed and re-read. Not done: a real browser on
+    the owner's screen, and the mobile layout was reasoned, not screenshotted.
 - [x] **I27.7 many sessions, one view, for a paired device** — plan 27, opened and closed
   2026-09-06 at the owner's request; I27.1–6 were built and the dash drew the cards on the machine.
   **Scope:** `GET /v1/client/sessions` for any paired device (read or steer), the dash's cards and

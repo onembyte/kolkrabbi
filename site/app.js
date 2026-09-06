@@ -72,3 +72,42 @@
     }
   });
 })();
+
+// The animated terminal (V36.3). The stylesheet holds every timing; this only
+// starts the scene when it scrolls into view, replays it when it ends, and
+// stays out of it entirely when the reader asked for reduced motion — the
+// section is then the finished run, still.
+(() => {
+  const show = document.querySelector("[data-show]");
+  if (!show || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    return;
+  }
+  const length = Number(show.dataset.show) || 28000;
+  let timer;
+  const play = () => {
+    show.classList.remove("is-playing");
+    void show.offsetWidth;
+    show.classList.add("is-playing");
+    clearTimeout(timer);
+    timer = setTimeout(play, length);
+  };
+  const stop = () => {
+    clearTimeout(timer);
+    show.classList.remove("is-playing");
+  };
+  if (!("IntersectionObserver" in window)) {
+    play();
+    return;
+  }
+  new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        if (!show.classList.contains("is-playing")) {
+          play();
+        }
+      } else {
+        stop();
+      }
+    });
+  }, { threshold: 0.35 }).observe(show);
+})();

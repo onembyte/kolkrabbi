@@ -1042,6 +1042,12 @@ footer strong {
     scroll-behavior: auto;
   }
 
+  .show.is-playing *,
+  .show.is-playing .show-screen {
+    animation: none !important;
+    opacity: 1;
+  }
+
   .mascot img {
     animation: none;
   }
@@ -1199,3 +1205,172 @@ footer strong {
   color: var(--violet-pale);
   white-space: pre;
 }
+
+/* ── The animated terminal (V36.3) ──────────────────────────────────────────
+   A replay of an agent-mode run. Every element is in its final state by
+   default: with no script, or under reduced motion, the section is a still of
+   the finished run. The replay controller in app.js adds .is-playing, and only
+   then do the timings below apply. Times are seconds into the scene, set per
+   element as --t (start) and --d (how long a state holds). */
+
+.showcase {
+  padding: clamp(5rem, 9vw, 9rem) 0;
+  border-top: 1px solid var(--line);
+}
+
+.show-count b { font-weight: 600; color: var(--violet-pale); display: inline-grid; vertical-align: baseline; }
+.show-count b i { font-style: normal; grid-area: 1 / 1; opacity: 0; }
+.show-count b i:last-child { opacity: 1; }
+
+.show-screen {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  min-height: 24rem;
+  position: relative;
+  font: 0.78rem/1.55 var(--mono);
+}
+
+.show-lines {
+  list-style: none;
+  margin: 0;
+  padding: 1.1rem 1.2rem;
+  overflow: hidden;
+  border-right: 1px solid var(--line);
+  min-height: 31rem;
+}
+
+.show-lines li { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+.show-lines .u { color: var(--paper); }
+.show-lines .s { color: var(--muted); }
+.show-lines .m { color: var(--violet-light); }
+.show-lines .d { color: var(--muted); }
+.show-lines .a { color: var(--paper); }
+.show-lines .typed { display: inline-block; white-space: nowrap; overflow: hidden; vertical-align: bottom; max-width: 100%; }
+
+.show-agents {
+  padding: 1.1rem 1.2rem;
+  background: rgba(21, 16, 32, 0.6);
+}
+
+.show-agents-title,
+.show-log-title {
+  margin: 0 0 0.6rem;
+  color: var(--muted);
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.show-row {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.show-row .lbl { color: var(--paper); }
+.show-row .sts { display: grid; min-height: 1.55em; }
+.show-row .st { grid-area: 1 / 1; min-width: 0; opacity: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+.show-row .st:last-child { opacity: 1; }
+.show-row .st.working { color: var(--violet-pale); }
+.show-row .st.done { color: var(--green); }
+.show-row .st.queued { color: var(--muted); }
+
+.show-log {
+  position: absolute;
+  left: 1.2rem;
+  bottom: 1.2rem;
+  width: min(34rem, 56%);
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--violet);
+  background: var(--panel-high);
+  box-shadow: 10px 10px 0 rgba(76, 29, 149, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transform-origin: 0 100%;
+}
+
+.show-log p { margin: 0; color: var(--paper); white-space: pre-wrap; overflow-wrap: anywhere; }
+.show-log .g { opacity: 0; }
+
+/* Playing: reveal, hold, type, zoom. */
+@keyframes reveal { from { opacity: 0; transform: translateY(0.35rem); } to { opacity: 1; transform: none; } }
+@keyframes hold { 0% { opacity: 0; } 6% { opacity: 1; } 94% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes type { from { max-width: 0; } to { max-width: 100%; } }
+@keyframes zoom-in { from { opacity: 0; transform: scale(0.72); } to { opacity: 1; transform: none; } }
+@keyframes zoom-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(0.85); } }
+@keyframes settle { from { opacity: 0.35; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes scene { 0%, 96% { opacity: 1; } 100% { opacity: 0; } }
+
+.show.is-playing .show-screen { animation: scene 28.0s both; }
+.show.is-playing .l { opacity: 0; animation: reveal 0.35s ease-out both; animation-delay: calc(var(--t) * 1s); }
+.show.is-playing .typed { max-width: 0; animation: type calc(var(--k) * 1s) steps(40, end) both; animation-delay: calc(var(--t) * 1s); }
+.show.is-playing .show-agents { animation: settle 0.6s ease-out both; animation-delay: 8s; }
+.show.is-playing .st,
+.show.is-playing .show-count b i { opacity: 0; animation: hold calc(var(--d) * 1s) linear both; animation-delay: calc(var(--t) * 1s); }
+.show.is-playing .show-log { animation: zoom-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), zoom-out 0.45s ease-in; animation-fill-mode: both, forwards; animation-delay: 13.6s, 18.6s; }
+.show.is-playing .g { animation: reveal 0.3s ease-out both; animation-delay: calc(var(--t) * 1s); }
+
+.show .l0 { --t: 0.3; --k: 0.9; }
+.show .l1 { --t: 1.4; }
+.show .l2 { --t: 1.9; --k: 2.2; }
+.show .l3 { --t: 4.5; }
+.show .l4 { --t: 5.8; }
+.show .l5 { --t: 6.1; }
+.show .l6 { --t: 6.4; }
+.show .l7 { --t: 6.7; }
+.show .l8 { --t: 7.0; }
+.show .l9 { --t: 7.3; }
+.show .l10 { --t: 8.0; }
+.show .l11 { --t: 8.3; }
+.show .l12 { --t: 8.6; }
+.show .l13 { --t: 13.0; }
+.show .l14 { --t: 13.3; }
+.show .l15 { --t: 17.0; }
+.show .l16 { --t: 19.5; }
+.show .l17 { --t: 21.0; }
+.show .l18 { --t: 21.8; }
+.show .l19 { --t: 23.2; }
+.show .l20 { --t: 23.7; }
+.show .s0-0 { --t: 8.0; --d: 1.2; }
+.show .s0-1 { --t: 9.2; --d: 1.2; }
+.show .s0-2 { --t: 10.4; --d: 2.0; }
+.show .s0-3 { --t: 12.4; --d: 0.6; }
+.show .s0-4 { --t: 13.0; --d: 15.0; }
+.show .s1-0 { --t: 8.3; --d: 1.3; }
+.show .s1-1 { --t: 9.6; --d: 1.4; }
+.show .s1-2 { --t: 11.0; --d: 3.0; }
+.show .s1-3 { --t: 14.0; --d: 2.4; }
+.show .s1-4 { --t: 16.4; --d: 0.6; }
+.show .s1-5 { --t: 17.0; --d: 11.0; }
+.show .s2-0 { --t: 8.6; --d: 1.3; }
+.show .s2-1 { --t: 9.9; --d: 1.5; }
+.show .s2-2 { --t: 11.4; --d: 2.2; }
+.show .s2-3 { --t: 13.6; --d: 4.4; }
+.show .s2-4 { --t: 18.0; --d: 2.4; }
+.show .s2-5 { --t: 20.4; --d: 0.6; }
+.show .s2-6 { --t: 21.0; --d: 7.0; }
+.show .s3-0 { --t: 8.0; --d: 5.3; }
+.show .s3-1 { --t: 13.3; --d: 1.2; }
+.show .s3-2 { --t: 14.5; --d: 1.3; }
+.show .s3-3 { --t: 15.8; --d: 3.1; }
+.show .s3-4 { --t: 18.9; --d: 0.6; }
+.show .s3-5 { --t: 19.5; --d: 8.5; }
+.show .c0 { --t: 0.0; --d: 8.0; }
+.show .c1 { --t: 8.0; --d: 9.0; }
+.show .c2 { --t: 17.0; --d: 2.5; }
+.show .c3 { --t: 19.5; --d: 1.5; }
+.show .c4 { --t: 21.0; --d: 7.0; }
+.show .g0 { --t: 13.8; }
+.show .g1 { --t: 14.6; }
+.show .g2 { --t: 15.4; }
+.show .g3 { --t: 16.2; }
+.show .g4 { --t: 17.0; }
+.show .g5 { --t: 17.8; }
+
+@media (max-width: 760px) {
+  .show-screen { grid-template-columns: 1fr; min-height: 0; }
+  .show-lines { min-height: 0; border-right: 0; border-bottom: 1px solid var(--line); }
+  .show-log { left: 0.6rem; bottom: auto; top: 0.6rem; width: calc(100% - 1.2rem); transform-origin: 0 0; }
+}
+

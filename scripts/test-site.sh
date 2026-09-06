@@ -225,6 +225,18 @@ contains index.html 'class="copy-button" type="button" data-copy-target="install
 contains index.html 'class="copy-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"' "copy button has no decorative copy icon"
 contains index.html 'id="copy-status" role="status" aria-live="polite"' "copy result is not announced accessibly"
 contains index.html '<script src="app.js" defer></script>' "landing page does not load the local copy controller"
+# The animated terminal (V36.3): a replay of an agent-mode run in kolk's own words,
+# no image, no external asset, static final frame without script or motion.
+contains index.html 'class="showcase"' "the landing page lost the animated terminal section (V36.3)"
+contains index.html 'data-show=' "the animated terminal has no scene length for the replay controller"
+contains index.html '◆ plan (4 tasks):' "the animated terminal does not print the plan the way kolk does"
+contains index.html 'agent [4/4] · claude-fable · medium' "the animated terminal does not draw agent rows the way kolk does"
+contains index.html 'each writer in its own tree, landed when it finishes' "the animated terminal does not say where writers run"
+contains index.html 'landing its changes' "the animated terminal never lands a tree"
+contains styles.css '.showcase' "the animated terminal has no styles"
+contains styles.css '@keyframes reveal' "the animated terminal has no reveal keyframe"
+contains app.js 'data-show' "app.js does not drive the animated terminal's replay"
+contains app.js 'prefers-reduced-motion' "the replay controller ignores reduced motion"
 excludes index.html 'parallel subagents|subagents in parallel|at once' "landing page inaccurately claims parallel orchestration"
 script_tags_are_safe index.html
 json_ld_parses index.html

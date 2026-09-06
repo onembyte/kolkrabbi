@@ -7174,3 +7174,13 @@ on the binary with worktree isolation, and it did what the tests said: three wri
 together, the fourth the moment a slot freed, each in its own tree, all four landed, the store
 empty after. The setting is `isolation`, worktree by default and shared on request, and the plan
 print names the choice. Noted for the owner: the Claude Max window sat above 90% during the run.
+
+## The terminal, on the page — V36.3 closed 2026-09-06
+
+The owner sent two screenshots of agent mode and asked for the same thing on the site, animated,
+clean and smooth. The section replays the run measured that morning in the lines kolk prints,
+with four agent rows changing state on time and one agent's log zooming in over the transcript.
+The whole scene is timings in the stylesheet; the script only starts it in view and replays it,
+and under reduced motion the section is a still of the finished run. It was read, not assumed:
+headless Chrome seeking the animations to chosen seconds found the first lines clipped, the log
+card early and misplaced, and a digit off its baseline, and each was fixed before it shipped.

@@ -152,9 +152,66 @@
       <p class="release-note"><strong>Prefer Homebrew?</strong> <code>brew install onembyte/tap/kolk</code> — macOS and Linux, and the formula is generated from the release&rsquo;s own signed checksums, so <code>brew</code> verifies the same bytes. To type the short name instead, trust the tap once with <code>brew tap onembyte/tap &amp;&amp; brew trust onembyte/tap</code>, then <code>brew install kolkrabbi</code>.</p>
     </section>
 
+    <section class="showcase" id="agents" aria-labelledby="showcase-title">
+      <div class="section-heading">
+        <p class="section-number">02 / AGENTS</p>
+        <h2 id="showcase-title">One prompt. Four agents, each in its own tree.</h2>
+        <p>A replay of a real agent-mode run, in the lines kolk prints: the plan, one row per agent, the log of one of them up close, and every tree landed back into yours.</p>
+      </div>
+      <div class="terminal show" data-show="28000" aria-label="An agent-mode session in Kolkrabbi, replayed">
+        <div class="terminal-bar">
+          <span class="terminal-lights" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>~/mathkit · agent · max</span>
+          <span class="show-count" aria-hidden="true">agents <b><i class="c0">0</i><i class="c1">3</i><i class="c2">2</i><i class="c3">1</i><i class="c4">0</i></b></span>
+        </div>
+        <div class="show-screen">
+          <ol class="show-lines" aria-label="Transcript">
+            <li class="l l0 u"><span class="typed">❯ /mode agent</span></li>
+            <li class="l l1 s">mode: agent</li>
+            <li class="l l2 u"><span class="typed">❯ add an MIT LICENSE, a README, stats.go with tests, and table tests for the package</span></li>
+            <li class="l l3 m">◆ planning (claude-fable)…</li>
+            <li class="l l4 m">◆ plan (4 tasks):</li>
+            <li class="l l5 d">  1. Add an MIT LICENSE  [boilerplate · trivial · claude-haiku]</li>
+            <li class="l l6 d">  2. Write README.md with one example per function  [edit · routine · claude-fable]</li>
+            <li class="l l7 d">  3. Add stats.go with Mean and Median, and tests  [edit · routine · claude-fable]</li>
+            <li class="l l8 d">  4. Table tests for Add, Sub, Mul and Div  [test · routine · claude-fable]</li>
+            <li class="l l9 d">  each writer in its own tree, landed when it finishes</li>
+            <li class="l l10 m">◆ subagent 1/4 started: Add an MIT LICENSE</li>
+            <li class="l l11 m">◆ subagent 2/4 started: Write README.md with one example per function</li>
+            <li class="l l12 m">◆ subagent 3/4 started: Add stats.go with Mean and Median, and tests</li>
+            <li class="l l13 d">◆ subagent 1/4 completed: Add an MIT LICENSE</li>
+            <li class="l l14 m">◆ subagent 4/4 started: Table tests for Add, Sub, Mul and Div</li>
+            <li class="l l15 d">◆ subagent 2/4 completed: Write README.md with one example per function</li>
+            <li class="l l16 d">◆ subagent 4/4 completed: Table tests for Add, Sub, Mul and Div</li>
+            <li class="l l17 d">◆ subagent 3/4 completed: Add stats.go with Mean and Median, and tests</li>
+            <li class="l l18 m">◆ synthesizing</li>
+            <li class="l l19 a">Four tasks landed in your tree: LICENSE, README.md, stats.go with stats_test.go, and mathkit_test.go.</li>
+            <li class="l l20 a">go test ./... passes. Nothing is staged; review it with git diff.</li>
+          </ol>
+          <div class="show-agents" aria-label="Agents">
+            <p class="show-agents-title">agents</p>
+            <div class="show-row r0"><span class="lbl">agent [1/4] · claude-haiku · low</span><span class="sts"><span class="st s0-0 working">working: preparing a tree of its own</span><span class="st s0-1 working">working: opening claude-haiku</span><span class="st s0-2 working">working: · Write: LICENSE → ok</span><span class="st s0-3 working">working: landing its changes</span><span class="st s0-4 done">done: completed</span></span></div>
+            <div class="show-row r1"><span class="lbl">agent [2/4] · claude-fable · medium</span><span class="sts"><span class="st s1-0 working">working: preparing a tree of its own</span><span class="st s1-1 working">working: opening claude-fable</span><span class="st s1-2 working">working: · Bash: cat mathkit.go → ok</span><span class="st s1-3 working">working: · Write: README.md → ok</span><span class="st s1-4 working">working: landing its changes</span><span class="st s1-5 done">done: completed</span></span></div>
+            <div class="show-row r2"><span class="lbl">agent [3/4] · claude-fable · medium</span><span class="sts"><span class="st s2-0 working">working: preparing a tree of its own</span><span class="st s2-1 working">working: opening claude-fable</span><span class="st s2-2 working">working: · Write: stats.go → ok</span><span class="st s2-3 working">working: · Bash: go test ./...</span><span class="st s2-4 working">working: · Write: stats_test.go → ok</span><span class="st s2-5 working">working: landing its changes</span><span class="st s2-6 done">done: completed</span></span></div>
+            <div class="show-row r3"><span class="lbl">agent [4/4] · claude-fable · medium</span><span class="sts"><span class="st s3-0 queued">queued: Table tests for Add, Sub, Mul and Div</span><span class="st s3-1 working">working: preparing a tree of its own</span><span class="st s3-2 working">working: opening claude-fable</span><span class="st s3-3 working">working: · Bash: go test ./...</span><span class="st s3-4 working">working: landing its changes</span><span class="st s3-5 done">done: completed</span></span></div>
+          </div>
+          <div class="show-log" aria-hidden="true">
+            <p class="show-log-title">agent [3/4] · log</p>
+            <p class="g g0">· Bash: {&quot;command&quot;:&quot;go test ./...&quot;}</p>
+            <p class="g g1">  → ok  ok  mathkit  0.31s</p>
+            <p class="g g2">· Write: {&quot;file_path&quot;:&quot;stats_test.go&quot;, …}</p>
+            <p class="g g3">  → ok File created successfully</p>
+            <p class="g g4">· Bash: {&quot;command&quot;:&quot;go test ./...&quot;}</p>
+            <p class="g g5">  → ok  ok  mathkit  0.29s</p>
+          </div>
+        </div>
+      </div>
+      <p class="release-note"><strong>Real lines.</strong> The plan, the rows and the log are what kolk printed on <time datetime="2026-09-06">6 September 2026</time> for the run measured on the <a href="/subscriptions">subscriptions page</a>, shortened to fit. Three agents start together, the fourth the moment a slot frees; each writer edits a git worktree of its own and lands it when it finishes.</p>
+    </section>
+
     <section class="capabilities" aria-labelledby="capabilities-title">
       <div class="section-heading compact">
-        <p class="section-number">02 / THE POINT</p>
+        <p class="section-number">03 / THE POINT</p>
         <h2 id="capabilities-title">Complexity, shipped off.</h2>
       </div>
       <div class="capability-grid">
@@ -186,7 +243,7 @@
 
     <section class="principles" id="principles" aria-labelledby="principles-title">
       <div class="principles-copy">
-        <p class="section-number">03 / OPINIONATED</p>
+        <p class="section-number">04 / OPINIONATED</p>
         <h2 id="principles-title">The interface should disappear.</h2>
       </div>
       <ul>
@@ -199,7 +256,7 @@
 
     <section class="providers" id="providers" aria-labelledby="providers-title">
       <div class="section-heading compact">
-        <p class="section-number">04 / PROVIDERS</p>
+        <p class="section-number">05 / PROVIDERS</p>
         <h2 id="providers-title">Every provider on the map.</h2>
         <p>Lit means Kolkrabbi can reach it today. Dimmed means it sits on the provider matrix with
           no adapter written yet — listed, never promised.</p>
