@@ -10628,7 +10628,7 @@ Subcheckpoints, one at a time:
   same day (plan 35 §9): default is pause + code-only auto-resume; switching is `continuity.mode
   off|on` with `select auto|preferred|ask`, equivalence by effort rung, subs → paid → free, free only
   when preferred, switches shown in the console and never persisted, no dashboard rows. V35.1 opens.
-  - [~] **V35.1 DETECT** — `Limit` taxonomy and classifier with fixtures; durable `Cooldowns`
+  - [x] **V35.1 DETECT** — `Limit` taxonomy and classifier with fixtures; durable `Cooldowns`
     (session and connector); `provider.limit` event with schema and changelog; `/doctor limits`;
     status line.
     - [x] **V35.1a the classifier** — `provider.Limit{Kind, Scope, Model, Connector, ResetAt, RetryAfter,
@@ -10679,7 +10679,15 @@ Subcheckpoints, one at a time:
       what the transcript line says in a shape it can read; nothing is persisted (owner). Tests: a
       rotation publishes exactly one `rotate`, a 402 stop exactly one `stop`. `-race` clean on protocol,
       engine, bus; lint; `make check` with the spec gate.
-    - [ ] **V35.1d the surfaces** — `/doctor limits` and the status line `cooling · … · resets …`.
+    - [x] **V35.1d the surfaces** — `/doctor limits` and the status line `cooling · … · resets …`.
+      **Closed 2026-09-05, on main.** `/doctor` gained a `limits` section over the user-wide cooldown
+      file (doctor runs outside a session): each remembered plan or account limit as `<connector> ·
+      <kind> · resumes HH:MM (source)`, or the sentence that nothing is cooling. The status line carries
+      `cooling · <model or connector> · <kind> · resumes HH:MM` while the session's own connector, model
+      or endpoint is cooling, and nothing otherwise — the renderer drops empty values, so a blank
+      label never appears. `Cooldowns.Active` and `Cooldown.Describe` are the shared renderers;
+      `Agent.CoolingNotice` composes the line. Two tests, one per surface. `-race` clean on engine, tui
+      and cli; lint; `make check`.
     - [x] **V34.3e.1 a retried chapter starts from its mark** — a chapter found `executing` on a later
       wake (stopped or crashed mid-work) is rolled back to its persisted mark before the worker runs
       again, so abandoned work is gone before the retry and cannot reach its commit. **Red:** through

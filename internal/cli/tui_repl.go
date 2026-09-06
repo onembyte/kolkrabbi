@@ -447,7 +447,7 @@ func tuiStatus(ag *engine.Agent, lifecycle, folder string) tui.Status {
 	return tui.Status{
 		Model: model, Mode: ag.Mode, Effort: ag.Effort,
 		Session: sessID, SessionName: sessTitle, Folder: folder,
-		Approval: approval, Sandbox: sandboxStatus(ag), Lifecycle: lifecycle,
+		Approval: approval, Sandbox: sandboxStatus(ag), Cooling: ag.CoolingNotice(), Lifecycle: lifecycle,
 		Context: contextLabel(ag), Cost: sessionCostLabel(ag),
 	}
 }

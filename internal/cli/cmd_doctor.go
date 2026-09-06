@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/buildinfo"
+	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/local"
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -76,7 +77,30 @@ func (a *app) runDoctor(ctx context.Context, args []string) error {
 	fmt.Fprintln(a.stdout, "\nsandbox")
 	a.doctorSandbox()
 
+	fmt.Fprintln(a.stdout, "\nlimits")
+	a.doctorLimits()
+
 	return nil
+}
+
+// doctorLimits lists the limits kolk remembers for this user -- a plan's window,
+// an account out of credit -- with when each lifts. Doctor runs outside any
+// session, so this is the user-wide file only; a session's own model and
+// endpoint cooldowns are on its status line (V35.1d).
+func (a *app) doctorLimits() {
+	d, err := a.resolve()
+	if err != nil {
+		fmt.Fprintf(a.stdout, "  ✗ %v\n", err)
+		return
+	}
+	active := engine.OpenCooldowns("", d.CooldownsFile()).Active()
+	if len(active) == 0 {
+		fmt.Fprintln(a.stdout, "  ✓ nothing is cooling; no remembered limit on any plan or account")
+		return
+	}
+	for _, cd := range active {
+		fmt.Fprintf(a.stdout, "  · %s (%s)\n", cd.Describe(), cd.Source)
+	}
 }
 
 // doctorSandbox reports what would enforce a sandbox here and whether a

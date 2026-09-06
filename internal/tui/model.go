@@ -27,7 +27,10 @@ type Status struct {
 	// Sandbox is the enforcer confining bash commands, or the word "off".
 	// Never empty: an opt-in sandbox's one surviving rule is that its state
 	// is always visible.
-	Sandbox   string
+	Sandbox string
+	// Cooling is the one-line notice while the session's connector or model is
+	// cooling after a limit; empty, and then absent from the line, otherwise.
+	Cooling   string
 	Lifecycle string
 	// Context and Cost are the two numbers that decide whether to compact or
 	// stop. Empty means not measured yet, which is different from zero.
@@ -755,6 +758,9 @@ func formatStatus(status Status) []string {
 			// What confines the commands this session runs, right after how hard
 			// it is thinking about them; "off" is a word, never a blank.
 			{label: "sandbox", value: status.Sandbox},
+			// A remembered limit, only while there is one: the renderer drops an
+			// empty value, so nothing cooling means no word about it.
+			{label: "cooling", value: status.Cooling},
 			// Last in this group, so a narrow terminal clips these before the
 			// mode or the tier.
 			{label: "folder", value: status.Folder},

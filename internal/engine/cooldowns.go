@@ -3,8 +3,10 @@ package engine
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -142,6 +144,37 @@ func (c *Cooldowns) Cooling(scope provider.LimitScope, connector, model string) 
 	return cd, true
 }
 
+// Active lists what is still cooling, soonest to lift first, for /doctor and
+// the status line. Lifted entries are pruned on the way.
+func (c *Cooldowns) Active() []Cooldown {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	now := c.now()
+	out := make([]Cooldown, 0, len(c.entries))
+	for key, cd := range c.entries {
+		if cd.Until.After(now) {
+			out = append(out, cd)
+		} else {
+			delete(c.entries, key)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Until.Before(out[j].Until) })
+	return out
+}
+
+// Describe is the one line a cooldown is shown as: what is cooling, why, and
+// when it lifts, in the local clock the person reading it keeps.
+func (cd Cooldown) Describe() string {
+	what := cd.Connector
+	if cd.Scope == provider.ScopeModel && cd.Model != "" {
+		what = cd.Model
+	}
+	return fmt.Sprintf("%s · %s · resumes %s", what, strings.ReplaceAll(string(cd.Kind), "_", " "), cd.Until.Local().Format("15:04"))
+}
+
 // shared says which file a scope belongs to: the user's, or the session's.
 func shared(scope provider.LimitScope) bool {
 	return scope == provider.ScopeAccount
@@ -213,4 +246,24 @@ func writeCooldowns(path string, list []Cooldown) error {
 		return err
 	}
 	return atomicfile.Write(path, data, 0o600)
+}
+
+// CoolingNotice is what the status line says while the session's own connector
+// or model is cooling: one line, or nothing at all when nothing is.
+func (a *Agent) CoolingNotice() string {
+	if a.Cooldowns == nil {
+		return ""
+	}
+	model := a.SessionModel()
+	connector := a.connectorFor(model)
+	if cd, ok := a.Cooldowns.Cooling(provider.ScopeAccount, connector, ""); ok {
+		return "cooling · " + cd.Describe()
+	}
+	if cd, ok := a.Cooldowns.Cooling(provider.ScopeModel, connector, model); ok {
+		return "cooling · " + cd.Describe()
+	}
+	if cd, ok := a.Cooldowns.Cooling(provider.ScopeEndpoint, connector, ""); ok {
+		return "cooling · " + cd.Describe()
+	}
+	return ""
 }
