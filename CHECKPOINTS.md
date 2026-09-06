@@ -10841,10 +10841,23 @@ Subcheckpoints, one at a time:
     excluded before that check. Tests: `TestRestartDoesNotResumeASessionThatWasNeverSaved`,
     `TestAMissingFileIsNotAdvisedAsATransportFailure`. Not done: a live `/update` on the owner's
     machine — the next release is the proof.
-  - [ ] **V36.2 why agents queue instead of running together** — the screenshots show one working
-    and three waiting, then two working; `max_concurrent_tasks` defaults to three. Find what bounds
-    it in practice (the vendor child, the roster, the planner's dependency order, the setting) and
-    either fix it or say exactly why the bound is right.
+  - [~] **V36.2 why agents queue instead of running together** — the screenshots show one working
+    and three waiting, then two working; `max_concurrent_tasks` defaults to three.
+    - [x] **V36.2a the finding and the design** — closed 2026-09-06. The bound is the scheduler's
+      shared-tree rule (`nextRunnable`: a writer waits while another writer runs), not the width,
+      the roster, the dependency edges or the vendor child; every kind but research and explain
+      writes, so a plan of edits is a queue by construction. Decision in
+      `docs/plan/36-parallel-writers.md`: a writer task in its own git worktree, seeded from HEAD
+      plus the uncommitted diff, landed in finish order under the per-task snapshot, with fallback
+      to today's rule wherever git cannot do it. Path-disjoint overlap refused as parallelism by
+      hope. PLAN.md item 36 opened.
+    - [ ] **V36.2b the shell owns the git plumbing** — add a detached worktree, binary patch of a
+      tree against HEAD including untracked files, apply, remove; deadlines; real-git tests.
+    - [ ] **V36.2c the engine isolates and lands** — a writer gets a worktree when it can, writers
+      no longer wait for one another when they did, landing under the snapshot, fallback rows,
+      `-race` on the scheduler.
+    - [ ] **V36.2d the setting and the surface** — `orchestration.isolation`, the plan print, the
+      settings table, docs and the site's claim.
   - [ ] **V36.3 the animated kolk terminal on the site** — an illustration of the terminal from the
     screenshots: a chat, agent mode, a plan, agents deploying with their logs and status rows, a zoom
     on the logs and on the agent rows, animated, clean and smooth, no external assets, under the
