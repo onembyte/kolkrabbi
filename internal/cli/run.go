@@ -23,6 +23,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/hooks"
 	"github.com/onembyte/kolkrabbi/internal/local"
 	"github.com/onembyte/kolkrabbi/internal/mcp"
+	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/provider/agentcli"
 	"github.com/onembyte/kolkrabbi/internal/session"
@@ -394,7 +395,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		SubagentNetwork: cfg.SubagentNetwork,
 		Sess:            sess,
 		Ckpt:            ckpt,
-		Isolator:        shell.NewWorktreeIsolator(d.Worktrees()),
+		Isolator:        isolatorFor(cfg, d),
 		Cooldowns:       engine.OpenCooldowns(sess.CooldownsFile(), d.CooldownsFile()),
 		In:              a.in,
 		Out:             a.stdout,
@@ -930,4 +931,14 @@ func extraTools(pool *mcp.Pool) engine.ExtraTools {
 		return nil
 	}
 	return pool
+}
+
+// isolatorFor is the Isolator the setting asks for: a worktree per writing
+// subagent unless the owner chose the shared tree, in which case nil, which
+// is the scheduler's own one-writer-at-a-time rule.
+func isolatorFor(cfg *config.Config, d paths.Dirs) engine.Isolator {
+	if cfg.EffectiveIsolation() == config.IsolationShared {
+		return nil
+	}
+	return shell.NewWorktreeIsolator(d.Worktrees())
 }

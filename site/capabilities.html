@@ -404,10 +404,11 @@
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>AGENTS</span></div>
           <h3>Orchestrated agent runs</h3>
-          <p>Independent readers run three at a time across the dependency graph while anything that
-            may write is serialised. A failed task is reported instead of discarding the run, the
-            answer says what is missing, and the spend is shown as it goes against an optional
-            ceiling. Worktree isolation and a dedicated critic are still planned.</p>
+          <p>Tasks run three at a time across the dependency graph, and each writing task gets a git worktree of its own,
+            seeded with your uncommitted changes and landed back when it finishes; a change that does not fit is
+            refused, kept, and named. Where git cannot do that, writers take turns in the one tree and the row says
+            why. A failed task is reported instead of discarding the run, the answer says what is missing, and the
+            spend is shown as it goes against an optional ceiling. A dedicated critic is still planned.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>FREE</span></div>

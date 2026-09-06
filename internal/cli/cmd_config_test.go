@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/onembyte/kolkrabbi/internal/config"
 )
 
 // The two brakes on a fan-out run were printed by `kolk config` and refused by
@@ -146,5 +148,39 @@ func TestSubagentNetworkPolicyRoundTripsAndRejectsUnknown(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "auto") {
 		t.Fatalf("get after unset = %q, want the auto default named", out.String())
+	}
+}
+
+// The isolation setting (plan 36) has two values and a default that is named
+// when asked, so nobody has to guess whether writers share a tree.
+func TestIsolationSettingAcceptsWorktreeOrSharedAndNamesTheDefault(t *testing.T) {
+	a, out, _ := newTestApp(t, "")
+	if err := a.runConfig(context.Background(), []string{"get", "isolation"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "worktree") {
+		t.Fatalf("the unset value did not name the default:\n%s", out.String())
+	}
+	if err := a.runConfig(context.Background(), []string{"set", "isolation", "sometimes"}); err == nil {
+		t.Error("an unknown isolation value was accepted")
+	}
+	if err := a.runConfig(context.Background(), []string{"set", "isolation", "shared"}); err != nil {
+		t.Fatalf("shared is a value: %v", err)
+	}
+	out.Reset()
+	if err := a.runConfig(context.Background(), []string{"get", "isolation"}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(out.String()) != "shared" {
+		t.Fatalf("get after set = %q", out.String())
+	}
+	listed := false
+	for _, setting := range (&config.Config{}).Settings("m", "u") {
+		if setting.Key == "isolation" && strings.Contains(setting.Value, config.IsolationWorktree) {
+			listed = true
+		}
+	}
+	if !listed {
+		t.Fatal("the settings table does not list isolation with its default")
 	}
 }

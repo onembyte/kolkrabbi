@@ -7162,3 +7162,15 @@ and its row says why. The two leaves share a commit because the dead-export gate
 plumbing without a caller, and the answer to that gate is a caller, not an allowlist entry. The
 race detector earned its place: the tree was being removed after the task had reported, which
 the vendor child's own release had long ago been written to avoid.
+
+## The number, and the setting — V36.0 and V36.2d closed 2026-09-06
+
+The owner asked for one orchestrated run on Claude Max and the number published. The run was
+four tasks in a scratch module with the dial at max; the plan and the final answer ran on the
+frontier model at max, three tasks at medium, one trivial task on the small model. Of the run's
+tokens, 87% ran below the top rung and 13% on the small model. It is published on both
+subscriptions pages as one dated paragraph that says it is one run. The same run was the first
+on the binary with worktree isolation, and it did what the tests said: three writers started
+together, the fourth the moment a slot freed, each in its own tree, all four landed, the store
+empty after. The setting is `isolation`, worktree by default and shared on request, and the plan
+print names the choice. Noted for the owner: the Claude Max window sat above 90% during the run.

@@ -85,10 +85,7 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 	// reads is the plan that runs, models included.
 	a.assignModels(tasks)
 
-	fmt.Fprintf(a.Out, "%s◆ plan (%d tasks):%s\n", colorMag, len(tasks), colorReset)
-	for i, task := range tasks {
-		fmt.Fprintf(a.Out, "%s  %d. %s%s%s\n", colorDim, i+1, task.Title, task.annotation(), colorReset)
-	}
+	a.announcePlan(tasks)
 	a.publishMainWork(protocol.WorkStateWorking, protocol.WorkPhaseSchedule,
 		fmt.Sprintf("delegating %d tasks", len(tasks)), model, a.Effort)
 
@@ -140,6 +137,29 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 		fmt.Fprintf(a.Out, "%s  run total: $%.2f across %d tasks%s\n", colorDim, total, len(tasks), colorReset)
 	}
 	return nil
+}
+
+// announcePlan prints the plan as it will run, and names once where its
+// writers run: each in a tree of its own (plan 36) or one at a time in the
+// shared tree. A plan with no writer says nothing about trees.
+func (a *Agent) announcePlan(tasks []Task) {
+	fmt.Fprintf(a.Out, "%s◆ plan (%d tasks):%s\n", colorMag, len(tasks), colorReset)
+	for i, task := range tasks {
+		fmt.Fprintf(a.Out, "%s  %d. %s%s%s\n", colorDim, i+1, task.Title, task.annotation(), colorReset)
+	}
+	writers := 0
+	for _, task := range tasks {
+		if writesFiles(task.Kind) {
+			writers++
+		}
+	}
+	switch {
+	case writers == 0:
+	case a.Isolator != nil:
+		fmt.Fprintf(a.Out, "%s  each writer in its own tree, landed when it finishes%s\n", colorDim, colorReset)
+	default:
+		fmt.Fprintf(a.Out, "%s  one tree, writers one at a time%s\n", colorDim, colorReset)
+	}
 }
 
 // runTasks delegates the plan and returns what became of each task.

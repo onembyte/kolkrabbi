@@ -173,3 +173,27 @@ func TestALandingThatDoesNotFitFailsOnlyItsTask(t *testing.T) {
 		t.Fatalf("released %d trees, want 2", released)
 	}
 }
+
+// The plan print names the choice once per run, so a user watching four
+// writers start together knows why, and one watching them queue knows too.
+func TestThePlanPrintSaysWhereWritersRun(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		iso  Isolator
+		want string
+	}{
+		{"isolated", &fakeIsolator{}, "each writer in its own tree"},
+		{"shared", nil, "one tree, writers one at a time"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := enginetest.New(enginetest.Step{Text: "edited one"}, enginetest.Step{Text: "edited two"})
+			defer srv.Close()
+			a, out, _, _ := newTestAgentInternal(t, srv, ModeAgent)
+			a.Isolator = tc.iso
+			a.announcePlan(twoEdits())
+			if !strings.Contains(out.String(), tc.want) {
+				t.Fatalf("plan print:\n%s\nwant %q", out.String(), tc.want)
+			}
+		})
+	}
+}

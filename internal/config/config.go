@@ -36,6 +36,10 @@ type Config struct {
 	// MaxConcurrentTasks is how many orchestrated tasks may run at once.
 	// Zero means the default of three; one makes a run sequential.
 	MaxConcurrentTasks int `json:"max_concurrent_tasks,omitempty"`
+	// Isolation is where writing subagents run (plan 36): "worktree" — each
+	// in a git worktree of its own, landed when it finishes — or "shared",
+	// one tree with writers one at a time. Empty means worktree.
+	Isolation string `json:"isolation,omitempty"`
 	// SubagentNetwork is the network policy for orchestrated children:
 	// "auto" (research tasks only; a vendor with no switch always has it),
 	// "on", or "off" (strict — a vendor that cannot run without network is
@@ -108,4 +112,18 @@ type MCPServer struct {
 	Command string   `json:"command"`
 	Args    []string `json:"args,omitempty"`
 	Env     []string `json:"env,omitempty"`
+}
+
+// Isolation values.
+const (
+	IsolationWorktree = "worktree"
+	IsolationShared   = "shared"
+)
+
+// EffectiveIsolation is the isolation setting with its default applied.
+func (c *Config) EffectiveIsolation() string {
+	if c.Isolation == IsolationShared {
+		return IsolationShared
+	}
+	return IsolationWorktree
 }

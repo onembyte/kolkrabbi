@@ -86,6 +86,12 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 			} else {
 				fmt.Fprintf(a.stdout, "(unset — inherits %d)\n", engine.DefaultConcurrentTasks)
 			}
+		case key == "isolation":
+			if cfg.Isolation != "" {
+				fmt.Fprintln(a.stdout, cfg.Isolation)
+			} else {
+				fmt.Fprintf(a.stdout, "(unset — %s: each writing subagent in its own git worktree)\n", config.IsolationWorktree)
+			}
 		case key == "sandbox":
 			if cfg.Sandbox != "" {
 				fmt.Fprintln(a.stdout, cfg.Sandbox)
@@ -206,6 +212,16 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintf(a.stdout, "max_concurrent_tasks → %d\n", width)
+		case key == "isolation":
+			where := strings.ToLower(strings.TrimSpace(val))
+			if where != config.IsolationWorktree && where != config.IsolationShared {
+				return usagef("isolation: %q is not a place; use %s (each writer in its own git worktree) or %s (one tree, one writer at a time)", val, config.IsolationWorktree, config.IsolationShared)
+			}
+			cfg.Isolation = where
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "isolation → %s\n", where)
 		case key == "sandbox":
 			state := strings.ToLower(strings.TrimSpace(val))
 			if state != "on" && state != "off" {
@@ -355,6 +371,12 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 			}
 			fmt.Fprintf(a.stdout, "removed max_concurrent_tasks; back to %d at a time\n",
 				engine.DefaultConcurrentTasks)
+		case key == "isolation":
+			cfg.Isolation = ""
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "removed isolation; back to %s, each writing subagent in its own git worktree\n", config.IsolationWorktree)
 		case key == "sandbox":
 			cfg.Sandbox = ""
 			if err := config.Save(d.ConfigFile(), cfg); err != nil {

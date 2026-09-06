@@ -10828,8 +10828,16 @@ Subcheckpoints, one at a time:
 - [~] **V36 the owner's morning list** — four requests sent 2026-09-06 while an orchestrated run was
   going, recorded here at the owner's ask ("make a checkpoint to do one request at a time") and taken
   in this order, one at a time, each with red first, green, verification, record.
-  - [ ] **V36.0 publish the frontier number** — one orchestrated run on Claude Max (authorised), the
-    session's tokens by rung read from the log, one dated sentence on both subscriptions pages.
+  - [x] **V36.0 publish the frontier number** — closed 2026-09-06. The first launch never ran (the
+    background shell held an open stdin and no process ever appeared; stopped). The run that counts:
+    session `s_01M1VJZ95PJSNMFZY10YYETKRM`, agent mode, dial max, `Claude Max/claude-fable`, four
+    tasks in a scratch Go module, 73 s wall, six model calls, 154 s of model time, billing
+    subscription. Planner and synthesis at max on claude-fable; three tasks at medium on
+    claude-fable; one trivial task at low on claude-haiku. Of 188,301 tokens (prompt, completion
+    and cache), 163,333 = 86.7% ran below max and 24,493 = 13.0% ran on haiku; of 11,280 output
+    tokens, 66.1% ran below max. Published as one dated paragraph on `/subscriptions` and
+    `/es/suscripciones`, pinned, saying it is one run. Observed on the way: the Claude Max plan
+    window was at 92–97% during the run (resets 18:20 UTC), so nothing else ran on it.
   - [x] **V36.1 kolk does not come back after `kolk update`** — closed 2026-09-06. Two faults, both
     reproduced red first. (1) The restart named the session it was in on the assumption that
     "sessions save after every step"; a session where `/update` was the first thing typed had no
@@ -10841,8 +10849,8 @@ Subcheckpoints, one at a time:
     excluded before that check. Tests: `TestRestartDoesNotResumeASessionThatWasNeverSaved`,
     `TestAMissingFileIsNotAdvisedAsATransportFailure`. Not done: a live `/update` on the owner's
     machine — the next release is the proof.
-  - [~] **V36.2 why agents queue instead of running together** — the screenshots show one working
-    and three waiting, then two working; `max_concurrent_tasks` defaults to three.
+  - [x] **V36.2 why agents queue instead of running together** — closed 2026-09-06 with its four
+    leaves; the screenshots showed one working and three waiting, then two working.
     - [x] **V36.2a the finding and the design** — closed 2026-09-06. The bound is the scheduler's
       shared-tree rule (`nextRunnable`: a writer waits while another writer runs), not the width,
       the roster, the dependency edges or the vendor child; every kind but research and explain
@@ -10875,8 +10883,16 @@ Subcheckpoints, one at a time:
       store at `<data>/worktrees`. Not done: a live orchestrated run on the new binary — the
       owner's next agent-mode run is the proof, and the status rows will say "preparing a tree of
       its own" and "landing its changes".
-    - [ ] **V36.2d the setting and the surface** — `orchestration.isolation`, the plan print, the
-      settings table, docs and the site's claim.
+    - [x] **V36.2d the setting and the surface** — closed 2026-09-06. Setting `isolation`
+      (`worktree`, the default, or `shared`), with get, set, unset and the settings row; `shared`
+      leaves the Isolator nil so the scheduler's own rule applies. The plan print names the choice
+      once per run when the plan has a writer. The AGENTS card on `/capabilities` now says each
+      writing task gets a worktree of its own and no longer calls it planned; pinned. Live proof,
+      the V36.0 run on the new binary: subagents 1, 2 and 3 started together, 4 the moment 1
+      finished, each in `<data>/worktrees/<turn>`, all four landed as unstaged changes in the
+      user's tree (`go test ./...` green there), the store empty afterwards and `git worktree list`
+      showing only the main tree. Not done: a Spanish capabilities page does not exist, so the
+      Spanish site says nothing about it.
   - [ ] **V36.3 the animated kolk terminal on the site** — an illustration of the terminal from the
     screenshots: a chat, agent mode, a plan, agents deploying with their logs and status rows, a zoom
     on the logs and on the agent rows, animated, clean and smooth, no external assets, under the

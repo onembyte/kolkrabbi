@@ -341,6 +341,8 @@ contains capabilities.html 'Ask before free fallback' "catalog does not state th
 contains capabilities.html 'Automatic switching' "catalog does not state the opt-in automatic policy"
 contains capabilities.html 'Themes' "catalog does not cover theme choices"
 contains capabilities.html 'Orchestrated agent runs' "catalog does not cover the shipped orchestrator"
+contains capabilities.html 'each writing task gets a git worktree of its own' "AGENTS card no longer says writers run in their own trees (plan 36)"
+not_contains capabilities.html 'Worktree isolation and a dedicated critic are still planned' "AGENTS card still calls worktree isolation planned"
 # Self-update shipped as U0.2a-d and was the one capability the catalog forgot,
 # found by an audit comparing `kolk help` against the page rather than trusting
 # the release checkpoint that said the two were in line.
@@ -499,6 +501,9 @@ contains index.html 'href="/subscriptions"' "the landing page does not link to t
 # The routing claim (2026-09-06): the mechanism as the code has it, never a superlative.
 contains index.html 'the trivial ones to the cheapest rung' "the landing page must state the routing mechanism"
 contains subscriptions.html 'The frontier model runs only the hard steps.' "the subscriptions page must carry the routing claim"
+contains subscriptions.html "87% of the run's tokens ran below the top rung" "the measured routing number (V36.0) left the subscriptions page"
+contains subscriptions.html 'One run, from kolk' "the measured number must say it is one run"
+contains es/suscripciones.html 'El 87% de los tokens de la corrida' "the measured routing number (V36.0) left the Spanish subscriptions page"
 contains es/suscripciones.html 'hace solo los pasos difíciles' "the Spanish page must carry the routing claim"
 excludes index.html 'most efficient|the cheapest way|fewest tokens' "the landing page must not claim a superlative nobody measured"
 excludes subscriptions.html 'most efficient|the cheapest way|fewest tokens' "the subscriptions page must not claim a superlative nobody measured"
