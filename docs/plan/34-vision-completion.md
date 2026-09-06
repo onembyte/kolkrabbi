@@ -216,7 +216,7 @@ independent reviewer repeating the failure matrix.
 **Goal:** users can select only a model their configured provider and subscription can actually run,
 and the catalog reflects current, supported vendor capabilities.
 
-- [~] **V34.4a subscription eligibility and tier matching** — part-done 2026-09-02 (F3/F4 of
+- [x] **V34.4a subscription eligibility and tier matching** — part-done 2026-09-02 (F3/F4 of
   `FABLE_OPTIMIZATION.md`): Claude tier eligibility is tested (a Max login reaches every rung, a Pro
   login is told which plan fable needs) and model selection now reads the vendor catalog rather than
   kolk's seed. Remaining: tier gating for a *discovered* model — a vendor catalog carries no tier, so
@@ -225,7 +225,9 @@ and the catalog reflects current, supported vendor capabilities.
   `verified` with exact id `claude-fable-5-1` on the first answered turn, which is eligibility
   observed, not the missing gate built. **Owner decision 2026-09-05:** the conservative default — a
   discovered model with no known tier is listed only after its first answered turn verifies it.
-  Queued as engineering.
+  **Built 2026-09-05:** `DerivePlanModels` adds a discovered row to the connector's tiers only when
+  its status is `verified`; before that the model is reachable by name on the plan its signed-in
+  connector has, never a tier row, never a keyed model. Leaf closed.
 - [~] **V34.4b Codex catalog policy** — part-done 2026-09-02 (F4 of `FABLE_OPTIMIZATION.md`): the
   Codex catalog is no longer written by kolk. `codex debug models` is the source, verified live
   against 0.149.1; identifiers, efforts, context and order come from the vendor; `gpt-5.6-pro` — a

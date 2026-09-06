@@ -327,9 +327,11 @@ func EffortForPlan(effort string, offered []string) (string, bool) {
 // For a vendor the store knows: a seed row the vendor lists keeps its tiers
 // and takes the vendor's efforts, context, and status; a seed row the vendor
 // no longer lists becomes `gone`; a model the vendor lists and the seed never
-// heard of is added on every tier the seed uses for that connector, because
-// the vendor's catalog is what a login sees and tier gating is not in it. For
-// a vendor the store does not know, the seed rows stand, marked `unverified`.
+// heard of carries no tier, so it is added on every tier the seed uses for
+// that connector only once a turn has verified it (V34.4a, the owner's
+// conservative default) — until then it is reachable by name on the plan the
+// signed-in connector has (ResolvePlanModelFrom) and is a row nowhere. For a
+// vendor the store does not know, the seed rows stand, marked `unverified`.
 func DerivePlanModels(store VendorCatalogs) []PlanModel {
 	out := make([]PlanModel, 0, len(planModelCatalog)+8)
 	tiers := map[string][]string{}
@@ -374,6 +376,11 @@ func DerivePlanModels(store VendorCatalogs) []PlanModel {
 		}
 		for _, discovered := range catalog.Visible() {
 			if listed[connector+"\x00"+strings.ToLower(discovered.ID)] {
+				continue
+			}
+			// The vendor named it; nobody has seen it answer. A tier row would be
+			// a claim about plans the catalog knows nothing of.
+			if discovered.Status != StatusVerified {
 				continue
 			}
 			for _, plan := range plans {
@@ -437,6 +444,9 @@ func ResolvePlanModelFrom(store VendorCatalogs, ref string, manifest ConnectorMa
 	if _, rest, ok := strings.Cut(wanted, "/"); ok {
 		wanted = rest
 	}
+	if row, handled, err := resolveDiscoveredByName(store, wanted, manifest); handled {
+		return row, err
+	}
 	for _, model := range gone {
 		if strings.ToLower(model.Model) != wanted {
 			continue
@@ -449,4 +459,41 @@ func ResolvePlanModelFrom(store VendorCatalogs, ref string, manifest ConnectorMa
 			ErrModelGone, model.Connector, version, model.Model)
 	}
 	return resolved, err
+}
+
+// resolveDiscoveredByName is how a discovered model with no tier row is
+// reached before a turn verifies it: by name, on the plan the vendor's enabled
+// connector is signed into — the one plan known to see the vendor's catalog.
+// Not signed in, the answer names the connector; it is never a keyed model.
+// handled is false when no known vendor lists the name.
+func resolveDiscoveredByName(store VendorCatalogs, wanted string, manifest ConnectorManifest) (PlanModel, bool, error) {
+	for connector, catalog := range store.Vendors {
+		discovered, ok := catalog.Find(wanted)
+		if !ok || discovered.Hidden || discovered.Status == StatusGone {
+			continue
+		}
+		providerName := ""
+		for _, seed := range planModelCatalog {
+			if seed.Connector == connector {
+				providerName = seed.Provider
+				break
+			}
+		}
+		if providerName == "" {
+			continue
+		}
+		for _, signedIn := range manifest.Connectors {
+			if signedIn.Provider != providerName || signedIn.Name != connector || !signedIn.Enabled {
+				continue
+			}
+			return PlanModel{
+				Provider: providerName, Plan: signedIn.Plan, Connector: connector, Model: discovered.ID,
+				Efforts: append([]string(nil), discovered.Efforts...), Access: "provider CLI",
+				Status: discovered.Status, Context: discovered.Context,
+			}, true, nil
+		}
+		return PlanModel{}, true, fmt.Errorf("%s needs the %s connector; sign in with: /plans login %s",
+			discovered.ID, connector, providerName)
+	}
+	return PlanModel{}, false, nil
 }

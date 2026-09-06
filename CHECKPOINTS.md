@@ -10616,8 +10616,22 @@ Subcheckpoints, one at a time:
     they run everywhere and the real-machine test skips itself off darwin — CI's macos-latest is the
     second machine. Plan 25's status moves from "proof pending" to proven, with the finding stated.
     `-race` clean on local and cli; lint darwin+linux; `make check`.
-  - [ ] **V34.4a (remaining; owner said yes 2026-09-05 to the conservative default) tier gating for a discovered model** — a vendor catalog carries no tier, so a
+  - [x] **V34.4a (remaining; owner said yes 2026-09-05 to the conservative default) tier gating for a discovered model** — a vendor catalog carries no tier, so a
     newly discovered model is listed on every tier its connector already uses.
+    **Closed 2026-09-05, on main.** Red observed: `DerivePlanModels` put a vendor-listed model the
+    seed never heard of (`gpt-5.5`, status `listed`) on both ChatGPT tiers before anyone had seen it
+    answer; `/pmodels` carried the rows. Green: a discovered row reaches the connector's tiers only
+    once its status is `verified` — the first answered turn, through `VendorCatalogs.Verify`. Until
+    then it is a row nowhere, and reachable by name through a new resolver step: on the plan the
+    vendor's enabled connector is signed into (the one plan known to see that catalog), with the
+    vendor's efforts and context; not signed in, the answer names the connector and the login command
+    — it never falls through to "not a plan model", which would have routed a subscription model to
+    the keyed gateway. The rule needed that step to be alive: without it a hidden model could never
+    earn its first turn. Two tests re-read their old claim honestly (the derive test and the rung
+    availability test now expect verified-first, then the rows). Non-goals: which tier a verified
+    model truly belongs to stays the connector's set — the catalog still carries no tier, and the
+    owner chose conservatism over invention. provider, cli, arch; lint linux; vet windows; site
+    347/347; `make check`.
   - [ ] **V34.4b (owner decided 2026-09-05: add a fifth level `ultra`) a vendor `ultra` the four-level dial cannot reach** — accepted by name,
     unreachable through `/effort`; a fifth level or a mapping is a product decision.
   - [ ] **V34.4c (owner decided 2026-09-05: Google, xAI, Perplexity, GitHub next; the rest deferred) provider-matrix disposition** — choose the next supported provider(s) or

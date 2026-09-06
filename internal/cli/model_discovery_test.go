@@ -307,8 +307,18 @@ func TestRungAvailabilityFollowsTheVendorCatalog(t *testing.T) {
 	if got, err := a.resolvePlanModel("gpt-5.5", manifest); err != nil || got.Model != "gpt-5.5" {
 		t.Fatalf("selecting a discovered model = %+v, %v", got, err)
 	}
+	// V34.4a: a discovered model carries no tier, so /pmodels lists it on the
+	// connector's tiers only once a turn has verified it; before that it is
+	// reachable by name (above) and a row nowhere.
+	if strings.Contains(fmt.Sprint(a.planModels("gpt-5.5")), "gpt-5.5") {
+		t.Fatal("pmodels lists a discovered model on tiers before any turn verified it")
+	}
+	store.Verify("codex", "gpt-5.5", "gpt-5.5", time.Now())
+	if err := provider.SaveVendorCatalogs(dirs.VendorCatalogFile(), store); err != nil {
+		t.Fatal(err)
+	}
 	if !strings.Contains(fmt.Sprint(a.planModels("gpt-5.5")), "gpt-5.5") {
-		t.Fatal("pmodels does not carry the discovered model")
+		t.Fatal("pmodels does not carry the discovered model once a turn verified it")
 	}
 }
 

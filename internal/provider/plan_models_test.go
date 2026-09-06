@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPlanModelsFilterAndEfforts(t *testing.T) {
@@ -426,9 +427,8 @@ func TestDerivedPlanCatalogIsWhatTheVendorsSaid(t *testing.T) {
 		t.Fatalf("sol = %+v, want the vendor's efforts (with ultra) and context", sol)
 	}
 	for _, plan := range []string{"ChatGPT Plus", "ChatGPT Pro"} {
-		row, ok := find(plan, "gpt-5.5")
-		if !ok || row.Status != StatusListed || row.Provider != "openai" || row.Access != "provider CLI" || strings.Join(row.Efforts, ",") != "low,medium,high,xhigh" {
-			t.Fatalf("gpt-5.5 on %s = %+v, %v; want added from the vendor catalog", plan, row, ok)
+		if row, ok := find(plan, "gpt-5.5"); ok {
+			t.Fatalf("gpt-5.5 on %s = %+v; a discovered model carries no tier and is listed only once a turn verified it (V34.4a)", plan, row)
 		}
 	}
 	if _, ok := find("ChatGPT Plus", "gpt-5.4"); ok {
@@ -497,5 +497,59 @@ func TestMaxStaysMaxWhenTheVendorOffersBothXhighAndMax(t *testing.T) {
 	}
 	if got, down := EffortForPlan("xhigh", []string{"low", "medium", "high", "max"}); got != "max" || down {
 		t.Fatalf("xhigh on a max-only catalog = %q downgraded=%v, want max without a downgrade", got, down)
+	}
+}
+
+// V34.4a, the owner's conservative default: a model the vendor lists and the
+// seed never heard of carries no tier, so it is listed on the connector's tiers
+// only after its first answered turn verifies it. Until then it is reachable by
+// name on the plan the signed-in connector has, and nowhere else — never a
+// keyed model by default, never a row on a tier nobody has seen reach it.
+func TestADiscoveredModelIsListedOnTiersOnlyOnceATurnVerifiedIt(t *testing.T) {
+	var store VendorCatalogs
+	store.Replace(VendorCatalog{Vendor: "codex", Models: []DiscoveredModel{
+		{ID: "gpt-5.5", Rank: 7, Efforts: []string{"low", "medium"}, Context: 200000, Status: StatusListed},
+	}})
+	rows := func(model string) []PlanModel {
+		var out []PlanModel
+		for _, row := range DerivePlanModels(store) {
+			if strings.EqualFold(row.Model, model) {
+				out = append(out, row)
+			}
+		}
+		return out
+	}
+	if got := rows("gpt-5.5"); len(got) != 0 {
+		t.Fatalf("unverified discovered model has plan rows %+v, want none", got)
+	}
+
+	signedIn := ConnectorManifest{Connectors: []Connector{{Provider: "openai", Plan: "ChatGPT Pro", Name: "codex", Enabled: true}}}
+	resolved, err := ResolvePlanModelFrom(store, "gpt-5.5", signedIn)
+	if err != nil {
+		t.Fatalf("by name on the signed-in plan: %v", err)
+	}
+	if resolved.Plan != "ChatGPT Pro" || resolved.Connector != "codex" || resolved.Provider != "openai" ||
+		resolved.Access != "provider CLI" || resolved.Status != StatusListed || strings.Join(resolved.Efforts, ",") != "low,medium" || resolved.Context != 200000 {
+		t.Fatalf("resolved = %+v, want the vendor's row on the plan the connector is signed into", resolved)
+	}
+	if _, err := ResolvePlanModelFrom(store, "ChatGPT Pro/gpt-5.5", signedIn); err != nil {
+		t.Fatalf("plan-qualified by name: %v", err)
+	}
+	_, err = ResolvePlanModelFrom(store, "gpt-5.5", ConnectorManifest{})
+	if err == nil || errors.Is(err, ErrNotAPlanModel) || !strings.Contains(err.Error(), "codex") {
+		t.Fatalf("not signed in: err = %v; want the connector named, never a keyed model", err)
+	}
+
+	store.Verify("codex", "gpt-5.5", "gpt-5.5", time.Now())
+	got := rows("gpt-5.5")
+	plans := map[string]bool{}
+	for _, row := range got {
+		if row.Status != StatusVerified {
+			t.Fatalf("row after verification = %+v, want verified", row)
+		}
+		plans[row.Plan] = true
+	}
+	if !plans["ChatGPT Plus"] || !plans["ChatGPT Pro"] || len(got) != 2 {
+		t.Fatalf("verified discovered model rows = %+v, want one per tier the connector uses", got)
 	}
 }

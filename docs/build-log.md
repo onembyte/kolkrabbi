@@ -6863,3 +6863,15 @@ and its old sentence is pinned as a lie the site check will refuse if it ever co
 V35.2: kolk stops when the model behind a session hits a limit, keeps the turn, waits without
 spending, and continues by itself. What follows is V35.3, the recommendation of an equivalent model
 on another subscription, which the owner wants gated by the tier equivalence V34.4a has yet to build.
+
+## A model nobody has seen answer is not on a tier — V34.4a closed 2026-09-05
+
+A vendor's catalog is what a login sees; it says nothing about which plan sees it. Kolk used to take
+a model the vendor listed and the seed never heard of and put it on every tier the connector uses,
+which is an invention dressed as a listing. The owner chose the conservative default: a discovered
+model earns its tier rows with its first answered turn, the moment the catalog marks it verified.
+Until then it is a row nowhere. The rule only works if the first turn can happen, so the resolver
+learned one more step: a discovered name resolves onto the plan the signed-in connector has, with
+the vendor's efforts and context, and when nobody is signed in the answer names the connector rather
+than falling through to the keyed gateway. Two tests that had asserted the old listing now assert
+the order the owner wants: verified first, rows after. V34.4b, the fifth effort level, is next.
