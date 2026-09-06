@@ -2,10 +2,8 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -49,46 +47,18 @@ func NormalizeSubscriptionLimit(value string) (string, error) {
 // is matched on wording and will miss phrasings nobody has seen yet. A miss
 // costs nothing: the error surfaces exactly as it does today. A false positive
 // would stop a healthy run, so the wording test stays narrow on purpose.
+// subscriptionLimited is the continuity classifier's answer to one question:
+// is this the plan or the account saying no (as opposed to the endpoint, the
+// model, or the network)? Behaviour unchanged from before V35.1a; the
+// classification now lives in one place, provider.Classify.
 func subscriptionLimited(err error) bool {
-	if err == nil {
+	limit, ok := provider.Classify(err)
+	if !ok {
 		return false
 	}
-	var httpErr *provider.HTTPError
-	if errors.As(err, &httpErr) {
-		if httpErr.StatusCode == http.StatusPaymentRequired {
-			return true
-		}
-		return httpErr.StatusCode == http.StatusTooManyRequests && limitSourceIsAllowance(httpErr.LimitSource)
-	}
-	return allowancePhrase(err.Error())
+	return limit.Kind == provider.LimitSubscriptionAllowance || limit.Kind == provider.LimitAccountQuota
 }
 
-func limitSourceIsAllowance(source string) bool {
-	source = strings.ToLower(source)
-	for _, word := range []string{"subscription", "plan", "quota", "credit"} {
-		if strings.Contains(source, word) {
-			return true
-		}
-	}
-	return false
-}
-
-func allowancePhrase(message string) bool {
-	message = strings.ToLower(message)
-	for _, phrase := range []string{"usage limit", "quota exceeded", "out of credit", "plan limit", "subscription limit"} {
-		if strings.Contains(message, phrase) {
-			return true
-		}
-	}
-	return false
-}
-
-// afterSubscriptionLimit applies the configured policy and returns the metered
-// model to continue on, if any. ok false means the run stops here.
-//
-// metered is empty when the session has no metered fallback at all — an
-// OpenRouter key that was never configured, say. Then every policy stops,
-// including switch, because there is nothing to switch to.
 func (a *Agent) afterSubscriptionLimit(ctx context.Context, policy, metered string) (string, bool) {
 	if strings.TrimSpace(metered) == "" {
 		return "", false

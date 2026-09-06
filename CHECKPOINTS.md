@@ -10631,6 +10631,31 @@ Subcheckpoints, one at a time:
   - [~] **V35.1 DETECT** — `Limit` taxonomy and classifier with fixtures; durable `Cooldowns`
     (session and connector); `provider.limit` event with schema and changelog; `/doctor limits`;
     status line.
+    - [x] **V35.1a the classifier** — `provider.Limit{Kind, Scope, Model, Connector, ResetAt, RetryAfter,
+      Message, Source}`, `provider.Classify(err)` over `HTTPError`, the existing allowance phrases and
+      transport errors; an already-classified limit passes through so the engine can hand it its own
+      budget stops. `subscriptionLimited` becomes a thin wrapper with its behaviour unchanged.
+      **Red:** a 429 with `limit_source: plan` and a bare 429 are indistinguishable today; a 400 for
+      context length is "an error".
+      **Closed 2026-09-05, on main.** Red: the taxonomy did not exist (compile red), and behaviourally
+      `subscriptionLimited` was the only distinction kolk drew. Green: `provider.Limit` (also an error,
+      so the engine's own stops pass through `Classify` stamped `kolk`), six kinds, four scopes, per-kind
+      default cooldowns (capacity 60 s, allowance 15 min, quota 24 h, refusal 1 h, transport 30 s,
+      budget none — plan 35 §2.1; the owner's rule is that fixed durations apply only when no reset and
+      no probe exist), `Classify` table-driven over status → `limit_source` → phrases, transport errors
+      by type, and a source string on every limit saying how kolk knew. A bare 429 is keyed on the key
+      for the OpenRouter origin and on the endpoint for a compatible one — the dead-export gate asked
+      what `ScopeKey` was for, and that is the answer. Twelve positive rows and four refusals as tests;
+      messages scrubbed. `subscriptionLimited` is now a thin wrapper — the retry loop's behaviour is
+      unchanged and its tests pass. `LimitBudgetStop` sits on the dead-export allowlist with V35.2 named
+      as the consumer that removes it. `-race` clean on provider, engine and arch; lint; `make check`.
+    - [ ] **V35.1b the cooldown registry** — `engine.Cooldowns`: `Mark`, `Cooling`, persisted with the
+      atomic writer at two paths (session-scope keys with the session, plan/account-scope keys at the
+      connector level under the data dir); default durations when the vendor gave no reset. **Red:**
+      nothing remembers a limit past the retry loop.
+    - [ ] **V35.1c the event** — `provider.limit` with data, validator, schema, golden fixture and
+      changelog through the spec gate; published from the retry loop wherever a limit is classified.
+    - [ ] **V35.1d the surfaces** — `/doctor limits` and the status line `cooling · … · resets …`.
     - [x] **V34.3e.1 a retried chapter starts from its mark** — a chapter found `executing` on a later
       wake (stopped or crashed mid-work) is rolled back to its persisted mark before the worker runs
       again, so abandoned work is gone before the retry and cannot reach its commit. **Red:** through
