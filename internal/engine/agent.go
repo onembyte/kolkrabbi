@@ -771,6 +771,7 @@ func (a *Agent) recordAtEffort(role string, meta provider.Meta, toolCalls int, e
 	// whether or not stats are being written anywhere.
 	a.runSpend.add(meta.Cost)
 	a.sessionSpend.add(meta.Cost)
+	a.sessionSpend.noteBilling(meta.Billing)
 
 	if a.Recorder == nil || a.Sess == nil {
 		return
@@ -1181,6 +1182,10 @@ func (a *Agent) footer(meta provider.Meta) {
 // SessionCostUSD is what every call in this session has cost so far,
 // orchestrated subagents included.
 func (a *Agent) SessionCostUSD() float64 { return a.sessionSpend.total() }
+
+// SessionBilling is how this session's calls have been billed: one of the
+// provider.Billing* modes, "mixed", or empty before any call.
+func (a *Agent) SessionBilling() string { return a.sessionSpend.billingMode() }
 
 // Context is how full the window is, measured the same way the turn footer
 // measures it. Exported because the status line is where someone looks before

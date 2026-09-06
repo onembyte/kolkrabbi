@@ -10742,9 +10742,25 @@ Subcheckpoints, one at a time:
             compatible endpoints print nothing. The helper is tested with real vendor clients and
             no request, because startup makes a bounded catalog fetch that a test must not send to
             Google. cli, provider, arch; lint; vet; `make check`.
-          - [ ] **the live probe and the flip** — xAI `/models` probed live before discovery relies
+          - [~] **the live probe and the flip** — xAI `/models` probed live before discovery relies
             on it; the xAI and Google plan rows flipped from metadata to keyed rows; the status
             line's cost label learns the modes. Gate: xAI terms confirmed by the owner.
+            **Built 2026-09-06 (the parts that need no key):** the session's `spend` folds each
+            call's billing mode into one word or `mixed` under its own mutex, `Agent.SessionBilling`
+            exposes it, and the status line's cost is `costLabel(total, mode)`: the figure where one
+            is known, `$x.xx · +metered` where metered turns also ran, `metered` or `subscription`
+            where nothing is priced, nothing for local or unknown — pinned as a table. `/plans` gains
+            Google's keyed row (`Gemini API`, `gemini-api`, API key, metered: the documented path,
+            beside the three subscription rows that stay unsupported metadata) and every keyed
+            vendor row says `key set` or `no key` from env and store. The connector-lister gate
+            demanded a lister for the new connector: the gateway's preview, marked like every
+            unshipped vendor's, until the live keyed lister. Re-read: the plans filter test counts
+            four Gemini rows. Found and hardened: the diskspace test compared two free-space
+            readings for equality and lost by one block under a parallel run; it now allows 1 MiB,
+            since the claim is the same filesystem, not the same instant. engine and cli with
+            `-race`; whole tree; lint; vet; site; `make check`.
+            **Still open, yours:** the live xAI `/models` probe and Google's live keyed lister need a
+            real key; the xAI row says shipped only after you confirm its terms.
     - [ ] **V34.4c.2 the Copilot CLI handover (GitHub)** — `agentcli` backend on the `-p`/`-s`
       contract with `--allow-tool`/`--deny-tool` as the sandbox seam, `--model` from the vendor's
       `/model` list (verified by turn, as Claude), cancellation, redaction fixtures, the plan rows for

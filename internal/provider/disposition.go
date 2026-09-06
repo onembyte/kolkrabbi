@@ -89,7 +89,7 @@ var dispositions = []Disposition{
 			"https://ai.google.dev/gemini-api/terms (effective 2026-03-23)",
 		},
 		Blockers: []string{
-			"the row flip (V34.4c.1b.ii)",
+			"a live keyed lister for /models (needs a key); the row says shipped after the terms are read in full",
 			"the consumer-use clause: kolk is a developer tool, and the row must say what the terms say",
 		},
 	},
@@ -110,7 +110,7 @@ var dispositions = []Disposition{
 		},
 		Blockers: []string{
 			"terms not readable by tool; owner confirmation",
-			"a models listing must be probed live before discovery relies on it; the row flip (V34.4c.1b.ii)",
+			"a models listing must be probed live before discovery relies on it (needs a key)",
 		},
 	},
 	{

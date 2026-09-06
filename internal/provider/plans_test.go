@@ -3,8 +3,9 @@ package provider
 import "testing"
 
 func TestPlansFilterAcrossProviderAndPlanFields(t *testing.T) {
-	if got := Plans("gemini"); len(got) != 3 {
-		t.Fatalf("Gemini plans = %d, want 3", len(got))
+	// Three subscription rows and, since V34.4c.1b.ii, the Gemini API key row.
+	if got := Plans("gemini"); len(got) != 4 {
+		t.Fatalf("Gemini plans = %d, want 4", len(got))
 	}
 	if got := Plans("pro"); len(got) < 3 {
 		t.Fatalf("Pro plans = %d, want at least 3", len(got))

@@ -23,7 +23,11 @@ func TestFreeMeasuresTheFilesystemAPathWillLiveOn(t *testing.T) {
 		t.Fatal("a path whose ancestor exists must be measurable")
 	}
 	here, _ := Free(base)
-	if deep != here {
+	// The two readings are a moment apart on a disk other tests write to, so
+	// they may differ by a block or so; the claim is the same filesystem, not
+	// the same instant. Seen 4 KiB apart under `go test ./...` on 2026-09-06.
+	const tolerance = 1 << 20
+	if diff := int64(deep) - int64(here); diff > tolerance || diff < -tolerance {
 		t.Fatalf("nested path measured %d, its existing ancestor %d", deep, here)
 	}
 }

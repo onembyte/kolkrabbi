@@ -31,6 +31,11 @@ func modelListerFor(connector string, gateway []provider.ModelInfo) provider.Mod
 		return agentcli.ClaudePreviewLister{Gateway: gateway}
 	case "gemini":
 		return provider.GatewayPreviewLister{Vendor: "gemini", Prefix: "google", Gateway: gateway}
+	case "gemini-api":
+		// Google documents GET /models on its OpenAI-compatible endpoint; the
+		// live, keyed lister is V34.4c.1b.ii's next step. Until then the
+		// gateway's preview, marked as such like every unshipped vendor's.
+		return provider.GatewayPreviewLister{Vendor: "gemini-api", Prefix: "google", Gateway: gateway}
 	case "xai-api":
 		return provider.GatewayPreviewLister{Vendor: "xai-api", Prefix: "x-ai", Gateway: gateway}
 	case "perplexity-api":

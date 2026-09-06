@@ -305,3 +305,43 @@ func TestPlansMarksAnUnverifiedConnectorAsSuch(t *testing.T) {
 		t.Fatalf("plans output = %q, want an explanation of what unverified means", got)
 	}
 }
+
+// V34.4c.1b.ii: the keyed vendor rows say whether kolk holds their key, and
+// Google has a keyed row beside its unsupported subscription rows, since the
+// documented path to Gemini is an API key on the OpenAI-compatible endpoint.
+func TestPlansShowsWhetherAKeyedVendorHasItsKey(t *testing.T) {
+	d := isolateHome(t)
+	t.Setenv("XAI_API_KEY", "")
+	a, out, _ := newTestApp(t, "")
+	if code := runRetiredVerb(t, a, "plans"); code != ExitOK {
+		t.Fatalf("plans exit = %d", code)
+	}
+	got := out.String()
+	xai := lineWith(got, "xai")
+	if !strings.Contains(xai, "no key") {
+		t.Fatalf("xai row without a key = %q, want 'no key'", xai)
+	}
+	gemini := lineWith(got, "gemini-api")
+	if gemini == "" || !strings.Contains(gemini, "API key") || !strings.Contains(gemini, "no key") {
+		t.Fatalf("google keyed row = %q, want an API-key row saying 'no key'", gemini)
+	}
+
+	t.Setenv("XAI_API_KEY", "xai-"+strings.Repeat("0", 24))
+	a, out, _ = newTestApp(t, "")
+	if code := runRetiredVerb(t, a, "plans", "xai"); code != ExitOK {
+		t.Fatalf("plans exit = %d", code)
+	}
+	if xai := lineWith(out.String(), "xai"); !strings.Contains(xai, "key set") {
+		t.Fatalf("xai row with a key = %q, want 'key set'", xai)
+	}
+	_ = d
+}
+
+func lineWith(text, needle string) string {
+	for _, line := range strings.Split(text, "\n") {
+		if strings.Contains(line, needle) {
+			return line
+		}
+	}
+	return ""
+}

@@ -54,6 +54,14 @@ func (a *app) runPlans(ctx context.Context, args []string) error {
 			status = "installed"
 			installed = true
 		}
+		// A keyed vendor row says whether kolk holds the key (env or store);
+		// every other API-key row is a catalog entry kolk cannot yet use.
+		if plan.Auth == "API key" && isKeyedVendor(plan.Provider) {
+			status = "no key"
+			if key, err := resolveVendorCredential(ctx, plan.Provider, dirs.CredentialsFile()); err == nil && !key.IsZero() {
+				status = "key set"
+			}
+		}
 		for _, connector := range manifest.Connectors {
 			if connector.Provider == plan.Provider && connector.Name == plan.Connector && connector.Enabled {
 				status = "enabled"
@@ -256,4 +264,15 @@ func (a *app) signInPoll() time.Duration {
 		return 10 * time.Millisecond
 	}
 	return poll
+}
+
+// isKeyedVendor reports whether a provider is one whose documented API origin
+// takes a key, per its disposition.
+func isKeyedVendor(providerName string) bool {
+	for _, vendor := range provider.KeyedVendors() {
+		if vendor == providerName {
+			return true
+		}
+	}
+	return false
 }

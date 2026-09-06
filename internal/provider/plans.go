@@ -22,6 +22,10 @@ var planCatalog = []Plan{
 	{Provider: "google", Name: "Gemini Free", Connector: "gemini", Auth: "provider CLI", Billing: "subscription", Sandbox: true},
 	{Provider: "google", Name: "Google AI Pro", Connector: "gemini", Auth: "provider CLI", Billing: "subscription", Sandbox: true},
 	{Provider: "google", Name: "Google AI Ultra", Connector: "gemini", Auth: "provider CLI", Billing: "subscription", Sandbox: true},
+	// The documented path to Gemini: an API key on the OpenAI-compatible
+	// endpoint (plan 24, read 2026-09-05). The subscription rows above stay
+	// unsupported metadata; this row is the one kolk can use.
+	{Provider: "google", Name: "Gemini API", Connector: "gemini-api", Auth: "API key", Billing: "metered", Sandbox: false},
 	{Provider: "xai", Name: "Grok", Connector: "xai-api", Auth: "API key", Billing: "metered", Sandbox: false},
 	{Provider: "perplexity", Name: "Perplexity Pro", Connector: "perplexity-api", Auth: "API key", Billing: "metered", Sandbox: false},
 	{Provider: "mistral", Name: "Le Chat Pro", Connector: "mistral-api", Auth: "API key", Billing: "metered", Sandbox: false},

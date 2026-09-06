@@ -6953,3 +6953,15 @@ cannot tell which tier a key is on without asking, so it tells every Google key 
 words, with their date, once at the session's start and before any turn. xAI, whose terms refused
 to be read, gets silence rather than an invented warning. The notice lives with the disposition,
 beside the evidence it came from, so the next reading of the terms updates one place.
+
+## The status line and the plans table say what a key buys — V34.4c.1b.ii, the flip, 2026-09-06
+
+The session now remembers how its turns were billed, folded into one word or an honest "mixed", and
+the status line's cost cell reads it: a figure where one is known, a figure plus "+metered" where
+unpriced turns also ran, "metered" or "subscription" where nothing is priced, and nothing at all for
+a local model. The plans table grew Google's keyed row, the documented path to Gemini, beside the
+three subscription rows that stay metadata, and every keyed vendor row says whether kolk holds the
+key. The gate that every connector must list its models caught the new row at once; it lists through
+the gateway's preview, marked as such, until a live keyed lister exists. A flaky disk test was
+hardened on the way: two readings a moment apart differed by one block, and the claim was never
+about the instant. What is left in this leaf needs a real key or your reading of xAI's terms.

@@ -28,3 +28,19 @@ func TestTheUsageRecordCarriesTheBillingMode(t *testing.T) {
 		t.Fatalf("recorded calls = %+v, want billing %q on the first", rec.Calls, provider.BillingAPIMetered)
 	}
 }
+
+// The session remembers how its turns were billed, so the status line can say
+// "metered" for a session whose vendor priced nothing rather than nothing.
+func TestTheSessionRemembersItsBillingModes(t *testing.T) {
+	a := New(Options{Backend: billingBackend{}, Mode: ModeChat, Model: "grok-4.6", Effort: EffortMedium,
+		Permission: PermissionFullAuto, Out: io.Discard, Sess: enginetest.NewFakeSession("s", "grok-4.6")})
+	if got := a.SessionBilling(); got != "" {
+		t.Fatalf("billing before any turn = %q, want empty", got)
+	}
+	if err := a.RunTurn(context.Background(), "hello"); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.SessionBilling(); got != provider.BillingAPIMetered {
+		t.Fatalf("billing after a metered turn = %q, want %q", got, provider.BillingAPIMetered)
+	}
+}

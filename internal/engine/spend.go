@@ -18,6 +18,34 @@ type spend struct {
 	inflight int
 	calls    int
 	worst    float64
+	// billing is the one mode every call was billed under, "mixed" once two
+	// differ, empty until a call said (provider.Billing*).
+	billing string
+}
+
+// noteBilling folds one call's billing mode into the session's.
+func (s *spend) noteBilling(mode string) {
+	if s == nil || mode == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	switch {
+	case s.billing == "":
+		s.billing = mode
+	case s.billing != mode:
+		s.billing = "mixed"
+	}
+}
+
+// billingMode is what noteBilling has folded so far.
+func (s *spend) billingMode() string {
+	if s == nil {
+		return ""
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.billing
 }
 
 func (s *spend) add(usd float64) {

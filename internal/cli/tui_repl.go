@@ -478,11 +478,26 @@ func contextLabel(ag *engine.Agent) string {
 
 // sessionCostLabel is what this session has cost, once it has cost anything.
 func sessionCostLabel(ag *engine.Agent) string {
-	total := ag.SessionCostUSD()
-	if total <= 0 {
-		return ""
+	return costLabel(ag.SessionCostUSD(), ag.SessionBilling())
+}
+
+// costLabel is the status line's cost: the figure where one is known, and
+// where none is, the billing mode in a word — a metered session is never
+// blank as if it were free, a subscription session says so, and a local or
+// unknown one says nothing. A priced session that also ran metered turns
+// says both, since the figure alone would understate it.
+func costLabel(total float64, billing string) string {
+	switch {
+	case total > 0 && billing == "mixed":
+		return fmt.Sprintf("$%.2f · +metered", total)
+	case total > 0:
+		return fmt.Sprintf("$%.2f", total)
+	case billing == provider.BillingAPIMetered:
+		return "metered"
+	case billing == provider.BillingSubscription:
+		return "subscription"
 	}
-	return fmt.Sprintf("$%.2f", total)
+	return ""
 }
 
 func workingFolderLabel() string {
