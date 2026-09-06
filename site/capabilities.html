@@ -459,12 +459,15 @@
             repository are listed in full and confirmed before any of them runs — cloning is never
             enough to execute anything.</p>
         </article>
-        <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Planned</span><span>MCP</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>MCP</span></div>
           <h3>External tool servers</h3>
-          <p>Permission rules already name them — <code>allow mcp(github__*)</code> governs one
-            server and nothing else — and the cost of tool schemas is measured and budgeted. The
-            transports themselves are still to come.</p>
+          <p><code>/mcp add &lt;name&gt; &lt;command&gt;</code> names a server; kolk starts it over stdio on
+            the first turn that needs tools, lists what it offers, and loads the tools that fit under
+            the schema budget every request pays — the rest are named with their cost. Its tools appear
+            as <code>name__tool</code>, and <code>allow mcp(name__*)</code> governs one server and
+            nothing else; without a rule, each call asks. The stdio transport is here; HTTP and the
+            search-and-load bridge for large servers are still to come.</p>
         </article>
       </div>
     </section>

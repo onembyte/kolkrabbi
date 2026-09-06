@@ -24,6 +24,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/keystore"
 	"github.com/onembyte/kolkrabbi/internal/local"
 	"github.com/onembyte/kolkrabbi/internal/lock"
+	"github.com/onembyte/kolkrabbi/internal/mcp"
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/selfupdate"
@@ -50,8 +51,11 @@ type app struct {
 	// keychainSpawner is the seam a test uses to play /usr/bin/security; nil is
 	// the real one from the shell package.
 	keychainSpawner keystore.Spawner
-	stdout          io.Writer
-	stderr          io.Writer
+	// mcpStarter is the seam a test uses to play an MCP server; nil is the
+	// shell's line process.
+	mcpStarter mcp.Starter
+	stdout     io.Writer
+	stderr     io.Writer
 	// dirs is resolved lazily and once. `kolk help` and `kolk version` must
 	// work on a machine where the home directory cannot be found at all, so
 	// nothing touches the filesystem until a command actually needs it.
@@ -323,7 +327,7 @@ var retiredVerbs = map[string]string{
 	"key": "/key", "model": "/model", "effort": "/effort", "mode": "/mode",
 	"config": "/config", "models": "/model", "plans": "/plans", "pmodels": "/pmodels",
 	"localia": "/localia", "update": "/update", "stats": "/stats", "dash": "/dash",
-	"devices": "/devices", "version": "/version", "doctor": "/doctor", "resume": "/resume", "continue": "/continue", "theme": "/theme",
+	"devices": "/devices", "version": "/version", "doctor": "/doctor", "resume": "/resume", "continue": "/continue", "theme": "/theme", "mcp": "/mcp",
 }
 
 // dispatch routes a command line. An unrecognised first word is deliberately

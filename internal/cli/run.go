@@ -22,6 +22,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/hooks"
 	"github.com/onembyte/kolkrabbi/internal/local"
+	"github.com/onembyte/kolkrabbi/internal/mcp"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/provider/agentcli"
 	"github.com/onembyte/kolkrabbi/internal/session"
@@ -416,6 +417,8 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		// for /resume; the monitor confirms the lift without spending tokens,
 		// and a handover's check is the sign-in it already has (V35.2b).
 		ResumePolicy: cfg.Continuity.Resume,
+		// Tool servers, started on first need (plan 16 §3).
+		ExtraTools: extraTools(a.newMCPPool(cfg)),
 		// The continuity block, aliases folded in (plan 35 §2.4, §2.6).
 		ContinuityMode: cfg.EffectiveContinuity().Mode,
 		Select:         cfg.EffectiveContinuity().Select,
@@ -918,4 +921,12 @@ func (a *app) refuseToollessHostModel(ctx context.Context, ag *engine.Agent, ref
 		}
 	}
 	return nil
+}
+
+// extraTools keeps a nil pool from becoming a non-nil interface.
+func extraTools(pool *mcp.Pool) engine.ExtraTools {
+	if pool == nil {
+		return nil
+	}
+	return pool
 }

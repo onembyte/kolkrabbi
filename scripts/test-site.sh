@@ -153,6 +153,11 @@ contains index.html 'Ollama' "the hero does not name a local provider"
 contains index.html 'One static binary under' "the landing page does not state the binary size"
 contains index.html '9&nbsp;MB, milliseconds to start' "the binary claim drifted from what check-budgets.sh measures"
 contains capabilities.html '<link rel="canonical" href="https://kolkrabbi.francomichetti.com/capabilities">' "capabilities.html has no canonical URL"
+# MCP stdio shipped 2026-09-06 (G16.6): /mcp, the budget fit, one server per rule.
+contains capabilities.html '<span class="status-badge">Available now</span><span>MCP</span>' "the MCP card must say it ships"
+not_contains capabilities.html 'transports themselves are still to come' "the MCP card's planned wording must be gone"
+contains capabilities.html 'loads the tools that fit under' "the MCP card must name the budget fit"
+contains capabilities.html 'search-and-load bridge for large servers are still to come' "the MCP card must say what is not here"
 # THEME shipped 2026-09-06: three looks, NO_COLOR still wins, appearance only.
 contains capabilities.html '<span class="status-badge">Available now</span><span>THEME</span>' "the THEME card must say it ships"
 not_contains capabilities.html 'Multiple terminal themes and a quieter' "the THEME card's planned wording must be gone"
@@ -300,7 +305,9 @@ contains capabilities.html '>LOOP GUARD<' "catalog does not mention the doom-loo
 contains capabilities.html '>DOCTOR<' "catalog does not mention kolk doctor and --debug"
 contains capabilities.html '>COMMANDS<' "catalog does not mention markdown commands"
 contains capabilities.html '>HOOKS<' "catalog does not mention hooks and their confirmation"
-excludes capabilities.html 'status-badge">Available now</span><span>MCP<' "MCP is claimed as shipped; only its permission rules and schema budget are"
+# Until 2026-09-06 MCP was pinned as not shipped (only its rules and budget were). The stdio
+# transport shipped as G16.6; the card now says so and names what remains (HTTP, the bridge).
+contains capabilities.html '<span class="status-badge">Available now</span><span>MCP</span>' "MCP shipped over stdio on 2026-09-06 and the card must say so"
 
 # The reach section is a server surface with no first-party client, and it read
 # as a phone app until someone said so. These two lines keep the distinction:

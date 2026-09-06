@@ -93,6 +93,14 @@ func (p Permission) judgeWith(rules Rules, r tools.Request) (Verdict, string) {
 		return VerdictAsk, reason
 	}
 
+	if isMCPTool(r.Tool) {
+		// A server's tool, plan 16 §3: a rule names it (matched above) or the
+		// person is asked every time; only full-auto runs it unasked.
+		if p == PermissionFullAuto {
+			return VerdictAllow, "runs " + r.Tool
+		}
+		return VerdictAsk, "runs " + r.Tool + " on its server"
+	}
 	switch r.Tool {
 	case "read_file", "list_dir":
 		// Reading inside the project is the bulk of the work and carries no

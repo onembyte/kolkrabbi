@@ -10825,6 +10825,31 @@ Subcheckpoints, one at a time:
       translator, or defer. Not mine to choose.
     - [ ] **V34.4c.4 the surfaces** — plan 24 rows, `/plans`, the capabilities card, pinned; each
       row says its status in the words the disposition uses.
+- [x] **G16.6 MCP over stdio** — plan 16 §3, opened and closed 2026-09-06 at the owner's request to
+  build what the card called planned; its two blockers (G16.4 rules, G16.5 budget) were already done.
+  **Scope:** `internal/mcp` (L3): a JSON-RPC 2.0 client over a line transport — `initialize` and the
+  `initialized` notification, `tools/list`, `tools/call` with the text contents as the result and the
+  tool's own `isError` kept apart from a transport error, ids matched, notifications skipped; tools
+  namespaced `<server>__<tool>` (`Definitions`), so `allow mcp(github__*)` names one server; `Fit`
+  loads a server's tools in its order until `tools.SchemaBudgetBytes` (4096, now one constant the
+  failing test and the loader share) is reached and names each left-out tool with its cost; `Pool`
+  starts every configured server once on the first tool listing through a `Starter` the CLI supplies
+  over `shell.StartLinesProcessWithOptions` (os/exec is the shell's), reports a server that fails as
+  a line, never fatally, and routes a namespaced call to its server. Engine: `Options.ExtraTools`
+  merged outside chat and never in it; a namespaced call goes through the same guard as bash, and
+  the judge learned the family — a rule decides first, full-auto runs it, anything else asks every
+  time (the plan's posture). Config: `mcp.<name>` with command, args and env. `/mcp add|rm|list|tools`
+  (a name is lowercase letters, digits and dashes, never a double underscore). **Non-goals:** the
+  HTTP transport, the search-and-load bridge for servers that do not fit, `kolk mcp` as a verb (the
+  four are closed), and — said plainly — **no real MCP server was started tonight**: the client and
+  pool are proven against an in-memory server speaking the protocol, and the line process is the
+  shell's already-tested one; the first `/mcp add` of a real server is the live proof. **Red
+  observed:** no client, no seam, the judge calling a namespaced tool "unrecognised", no slash.
+  Tests: the handshake and namespacing over the fake server, the tool's error kept apart, a server
+  error surfaced, the budget fit; the engine merging outside chat only, a call reaching the extra
+  tools under full-auto and stopped by `deny mcp(github__*)`; `/mcp` add, a refused name, list,
+  tools through the seam, rm. mcp, engine and cli with `-race`; arch (the mcp package placed at
+  L3, one invented context removed by the gate); whole tree; lint; vet; site; `make check`.
 - [x] **V11.T THEME** — plan 09 lists `theme` as the v0.3 colour-scheme picker; opened and closed
   2026-09-06 at the owner's request to build what the card called planned. **Scope:** three looks,
   `kolkrabbi` (the purple the product ships), `nord` (cool blues) and `quiet` (no hue: bold headings,

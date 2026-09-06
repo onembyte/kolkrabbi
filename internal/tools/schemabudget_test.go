@@ -19,7 +19,7 @@ const (
 	// The item's doc said "about 5 KB". It was wrong by nearly a factor of two,
 	// which is the reason this leaf exists — a mechanism was going to be
 	// designed around a number nobody had taken.
-	schemaBudgetBytes = 4096
+	schemaBudgetBytes = SchemaBudgetBytes
 
 	// No single tool may dominate. The largest today is read_file at 769 bytes;
 	// a schema twice that is a description doing work a system prompt should do.

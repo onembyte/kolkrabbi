@@ -49,6 +49,10 @@ type Config struct {
 	// Routing decides what happens when the model behind the session stops
 	// being able to answer — today, when a subscription runs out mid-run.
 	Routing RoutingSettings `json:"routing,omitempty"`
+	// MCP names the tool servers kolk may start, each a command with its
+	// arguments and environment (plan 16 §3). Their tools appear as
+	// <name>__<tool> and answer to `allow mcp(<name>__*)`.
+	MCP map[string]MCPServer `json:"mcp,omitempty"`
 	// Theme is the terminal look: kolkrabbi (default), nord, quiet. Appearance
 	// only; the colour tier still follows the terminal and NO_COLOR.
 	Theme string `json:"theme,omitempty"`
@@ -97,4 +101,11 @@ func Save(file string, cfg *Config) error {
 	// Atomic: a config file truncated by a crash mid-write silently forgets the
 	// user's model and endpoint choices.
 	return atomicfile.Write(file, append(b, '\n'), 0o600)
+}
+
+// MCPServer is one configured tool server.
+type MCPServer struct {
+	Command string   `json:"command"`
+	Args    []string `json:"args,omitempty"`
+	Env     []string `json:"env,omitempty"`
 }

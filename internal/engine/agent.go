@@ -22,6 +22,7 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/bus"
 	"github.com/onembyte/kolkrabbi/internal/continuity"
+	"github.com/onembyte/kolkrabbi/internal/mcp"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/secret"
 	"github.com/onembyte/kolkrabbi/internal/shell"
@@ -288,6 +289,10 @@ type Options struct {
 	// ConnectorName says which connector a model runs through, for the cooldown
 	// keys; nil means everything is the keyed endpoint.
 	ConnectorName func(model string) string
+	// ExtraTools are tools beyond the built-ins — MCP servers' — namespaced
+	// <server>__<tool>, merged into the tool set outside chat, and asked for
+	// permission through the same rules as every other tool (plan 16 §3).
+	ExtraTools ExtraTools
 	// Candidates lists what could continue the work when the session's model
 	// hits a limit (plan 35 §2.3): the surface assembles them, the engine ranks
 	// and shows them, nothing is applied. Nil means the block only says what
@@ -382,6 +387,8 @@ type ChatBackend interface {
 type Agent struct {
 	Options
 	lastTurnID string
+	// loadExtraOnce starts the extra tool servers on the first tool listing.
+	loadExtraOnce sync.Once
 	// hopsThisRun bounds the automatic chain per run, and askedThisRun keeps
 	// `select ask` to one question per run (plan 35 §2.4).
 	hopsThisRun  int
@@ -632,12 +639,35 @@ func (a *Agent) modelFor(effort string) string {
 	return a.SessionModel()
 }
 
-// toolsFor returns the tool set for a mode: chat gets none.
-func toolsFor(mode string) []provider.Tool {
+// ExtraTools is a tool set beyond the built-ins. Execute reports handled
+// false for a name that is not its own.
+type ExtraTools interface {
+	Definitions() []provider.Tool
+	Execute(ctx context.Context, name, args string) (result string, handled bool, err error)
+}
+
+// toolsFor returns the tool set for a mode: chat gets none; the others get
+// the built-ins and whatever extra tools the surface attached.
+func (a *Agent) toolsFor(ctx context.Context, mode string) []provider.Tool {
 	if mode == ModeChat {
 		return nil
 	}
-	return tools.Definitions()
+	defs := tools.Definitions()
+	if a.ExtraTools != nil {
+		if loader, ok := a.ExtraTools.(interface {
+			Load(context.Context) []mcp.Report
+		}); ok {
+			a.loadExtraOnce.Do(func() {
+				for _, r := range loader.Load(ctx) {
+					if r.Err != nil {
+						fmt.Fprintf(a.Out, "◆ mcp %s: %v\n", r.Name, r.Err)
+					}
+				}
+			})
+		}
+		defs = append(defs, a.ExtraTools.Definitions()...)
+	}
+	return defs
 }
 
 func (a *Agent) systemPrompt(mode string) string {
@@ -1144,6 +1174,17 @@ func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, out i
 		toolCtx, cancel = context.WithTimeout(ctx, TimeoutForEffort(effort))
 		defer cancel()
 	}
+	if a.ExtraTools != nil && isMCPTool(tc.Function.Name) {
+		// An MCP tool asks the same way bash does: through the rules, then
+		// the person. Its arguments are the preview.
+		if g := guard(toolCtx, out); g != nil && !g(tools.Request{Tool: tc.Function.Name, Summary: "run " + tc.Function.Name, Detail: tc.Function.Arguments}) {
+			return "", fmt.Errorf("%s: not permitted", tc.Function.Name)
+		}
+		result, handled, err := a.ExtraTools.Execute(toolCtx, tc.Function.Name, tc.Function.Arguments)
+		if handled {
+			return secret.Scrub(result), err
+		}
+	}
 	result, err := tools.Execute(toolCtx, tc.Function.Name, tc.Function.Arguments, tools.Options{
 		Root:      a.Root,
 		Sandbox:   a.Sandbox,
@@ -1381,7 +1422,7 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 	}
 
 	model := a.modelFor(a.Effort)
-	toolset := toolsFor(a.Mode)
+	toolset := a.toolsFor(ctx, a.Mode)
 	var requestMessages []provider.Message
 	if a.Sess != nil {
 		requestMessages = a.Sess.GetMessages()

@@ -7094,3 +7094,19 @@ theme. The test that matters strips the escapes and proves the three renders are
 the same places, because a theme that moved anything would be a change of behaviour dressed as a
 change of look. `/theme` tries one for the session; the setting keeps it; nothing is written until
 asked.
+
+## Tool servers, over stdio, under the budget — G16.6 closed 2026-09-06
+
+Plan 16 deferred MCP behind two blockers and both were already cleared: a rule could name a server's
+tool, and the schemas had a budget that fails. What remained was the transport and the discipline
+around it. The client speaks JSON-RPC over the shell's line process — the handshake, the list, the
+call — and keeps a tool's own error apart from a transport failure, because the model should read
+the first and kolk should handle the second. A server's tools join the built-ins under one name that
+carries the server's, so one rule governs one server. The budget is respected by loading what fits
+and naming what does not, with its cost, rather than letting a twelve-tool server eat the window
+before the work starts. Without a rule, every call asks; only full-auto runs one unasked.
+
+What did not happen is said plainly: no real server was started. The protocol is proven against an
+in-memory server, and the process transport is the one Codex already runs through. The first
+`/mcp add` of a real server will be the live proof, and HTTP plus the search-and-load bridge for
+servers that do not fit remain the card's honest "still to come".

@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
-	"github.com/onembyte/kolkrabbi/internal/tools"
 	"github.com/onembyte/kolkrabbi/internal/xid"
 	"github.com/onembyte/kolkrabbi/protocol"
 )
@@ -573,7 +572,7 @@ Overall request: %s
 	// are two pieces of work, not one loop.
 	var loop doomLoop
 	for round := 0; round < maxRounds; round++ {
-		msg, meta, err := a.streamChatOnObserved(ctx, pinned, activityWorking, model, msgs, tools.Definitions(), func(tok string) {
+		msg, meta, err := a.streamChatOnObserved(ctx, pinned, activityWorking, model, msgs, a.toolsFor(ctx, ModeCode), func(tok string) {
 			fmt.Fprint(out, tok)
 		}, tokensVisible, a.subagentProviderProgress(idx))
 		if err != nil {

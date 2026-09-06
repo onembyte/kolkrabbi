@@ -2,6 +2,11 @@ package tools
 
 import "encoding/json"
 
+// SchemaBudgetBytes is what every request may spend on tool schemas; the
+// built-ins are measured against it by a failing test and an MCP server
+// loads only the tools that fit under it (plan 16 §3).
+const SchemaBudgetBytes = 4096
+
 // SchemaCost reports what the tool schemas cost one request: the total bytes
 // sent, and the bytes each tool contributes.
 //

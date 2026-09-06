@@ -101,6 +101,7 @@ var packageLayer = map[string]Layer{
 	"internal/provider":   L3Domain,
 	"internal/continuity": L3Domain,
 	"internal/tools":      L3Domain,
+	"internal/mcp":        L3Domain,
 
 	// L4 — engine. orchestrator is still inside engine/ until step 9.
 	"internal/engine": L4Engine,

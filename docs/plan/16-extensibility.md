@@ -123,6 +123,7 @@ stdlib, so the module budget is not the obstacle. `kolk mcp add/list/rm`, namesp
 - **G16.3 project hooks are shown before they run** — ✓ all of them listed together, confirmed once per session, keyed by the file's fingerprint so an edit re-asks. Cloning a repository executes nothing.
 - **G16.4 `mcp(...)` permission rules** — ✓ `mcp` is a rule family whose membership is the `__` namespace, so `allow mcp(github__*)` means one server and nothing else.
 - **G16.5 tool-schema budget** — ✓ measured (2,816 bytes for five tools), bounded by a failing budget, and reported by `kolk doctor`.
+- **G16.6 MCP over stdio** — ✓ 2026-09-06: `internal/mcp` client and pool, `/mcp add|rm|list|tools`, tools namespaced and loaded under the budget with the rest named by cost, the judge asking for an unruled server tool. HTTP and the search-and-load bridge remain.
 
 ## Open questions
 
