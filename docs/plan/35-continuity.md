@@ -114,6 +114,9 @@ resets; the wait costs no tokens.** Switching models is a separate opt-in (§2.4
 
 ### 2.3 RECOMMEND — explain the next move
 
+*Shipped 2026-09-06 as V35.3a–c: `continuity.Recommend`, the block after a pause or stop, the
+CLI's candidate list, the card. Keyed vendor origins join the list with their live listers.*
+
 - `Eligible(task) []Candidate`: configured connectors that are `Enabled` and `Verified` (or a stored
   key), not cooling for this scope, tier-eligible for the signed-in plan (V34.4a's gate), and
   capability-fit for the task (tools needed → `supports_tools`; context need → `context_length`).

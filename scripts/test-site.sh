@@ -157,6 +157,11 @@ contains capabilities.html '<link rel="canonical" href="https://kolkrabbi.franco
 contains capabilities.html '<span class="status-badge">Available now</span><span>DETECT</span>' "the DETECT card must say it ships"
 not_contains capabilities.html 'refusal remain distinct. Reset times and cooldown scope are preserved when available' "the DETECT card's designed wording must be gone"
 contains capabilities.html 'cooldown is remembered per session and per account' "the DETECT card must name the remembered cooldown"
+# RECOMMEND shipped with V35.3 (2026-09-06): the block after a limit, equivalence by rung.
+contains capabilities.html '<span class="status-badge">Available now</span><span>RECOMMEND</span>' "the RECOMMEND card must say it ships"
+not_contains capabilities.html 'Kolkrabbi will preserve the turn, say which backend stopped' "the RECOMMEND card's planned wording must be gone"
+contains capabilities.html 'the best equivalent among your configured options with the command that applies it' "the RECOMMEND card must name the block"
+contains capabilities.html 'Nothing is applied for you.' "the RECOMMEND card must say nothing is applied"
 # PAUSE shipped with V35.2 (2026-09-05): the card says so, its planned wording is gone, and it names
 # the two facts a reader needs — the resume is automatic and it spends nothing to wait.
 contains capabilities.html '<span class="status-badge">Available now</span><span>PAUSE</span>' "the PAUSE card must say it ships"

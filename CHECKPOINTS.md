@@ -10899,7 +10899,7 @@ Subcheckpoints, one at a time:
     pinned by two `contains` and one `not_contains` on the designed sentence. It had shipped on
     2026-09-05 and the card had not followed; the owner asked for every planned or designed card to
     be reviewed against the tree.
-  - [~] **V35.3 RECOMMEND** — plan 35 §2.3, opened 2026-09-06. **Scope:** `Eligible(task)` — the
+  - [x] **V35.3 RECOMMEND** — plan 35 §2.3, opened 2026-09-06; closed 2026-09-06. **Scope:** `Eligible(task)` — the
     configured connectors and keys that are enabled and verified, not cooling for the scope, tier-
     eligible and capability-fit; **equivalence** by effort rung (same rung, or one above; never more
     than one below; free never equivalent to a subscription or paid rung unless on the preferred
@@ -10911,6 +10911,37 @@ Subcheckpoints, one at a time:
     the same sentence for every model and every limit — "out of allowance; `/config set … switch`".
     Leaves: 3a eligibility and equivalence as pure functions over the catalog, connectors, keys,
     cooldowns and ratings; 3b the recommendation block on the pause path; 3c the capabilities card.
+    *Record note:* commit f210e3e carried the code for 3a and 3b and a message that also claimed
+    the card and this record; the script that wrote them had stopped at its first edit. They
+    landed in the next commit. Said here so the history reads true.
+    - [x] **V35.3a eligibility and equivalence** — **Closed 2026-09-06.** `continuity.Candidate`
+      (model, the exact id a routing word resolved to, connector, plan, billing, free, preferred,
+      rating, known lack of tools, known context), `Need`, and `Recommend(current, need,
+      candidates, order, cooling, rank)`: the one that stopped, anything cooling, a known lack of
+      tools when the task needs them, or a context below the task's are set aside with the reason;
+      a preferred model is equal by the person's word; a free one never is otherwise; equivalence
+      is the same rung, one above, or one below on the vendor ladder the engine keeps (`Rank` is
+      passed in, since this package sits below the engine), with copilot's `auto` ranked by the
+      model it chose; the order is subscriptions, paid, free (the owner's, overridable), then the
+      person's ratings, average then count; a current model on no rung offers only preferred and
+      says so. Three tests, one of them the owner's example (fable → sol first, gemini-2.5-pro
+      after it as paid, opus cooling, luna three rungs down, grok unranked, free qwen out unless
+      preferred). Pure: nothing read, nothing spent.
+    - [x] **V35.3b the block** — **Closed 2026-09-06.** Red observed: the pause said only the
+      pause line. Green: `Options.Candidates` (the surface's list), `engine.RankModel` exported,
+      `recommendation(limit)` glues the session's model and billing, the cooldown registry
+      (account scope by connector, model scope by model) and the ladder, needing tools outside
+      chat; `printRecommendation` prints `Lines()` after the pause line and after a stop: the best
+      equivalent with its label and `/model` command, the others, and "Set aside: …" with reasons,
+      or "nothing else configured could continue this on an equal rung". The CLI's
+      `continuityCandidates`: every model row of every connector that has answered, billed as the
+      plan's turn, with the exact id from the vendor catalog and the person's rating; ranked
+      gateway models when the gateway has a key, free flagged and a known lack of tools carried;
+      a connector that never answered is never offered; keyed vendor origins join with their live
+      listers. One activity test re-read: the pause notice is no longer the last write. engine and
+      cli with `-race`; whole tree; lint; vet.
+    - [x] **V35.3c the card** — **Closed 2026-09-06.** RECOMMEND is Available now with the shipped
+      contract, pinned by three `contains` and one `not_contains`. site; `make check`.
     - [x] **V35.2a the pause** — `Pause` on the session (kind, scope, connector, model, reset, since, the
       pending input verbatim), persisted under the messages lock; a paused session refuses to spend and
       says when it resumes; the turn that paused ends with `turn.finished{paused}` and `provider.limit

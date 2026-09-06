@@ -7000,3 +7000,19 @@ plan-qualified name typed on the command line, which the vendor refused. The `/m
 settled on the plan's own model; startup now does too. The second turn answered on the model the
 vendor chose, the connector is verified, and the usage log records the turn as the plan's, with its
 own token counts and no invented price. The provider wall says GitHub works today.
+
+## Which model could carry on, and why — V35.3 closed 2026-09-06
+
+Until today a limit ended with one sentence, the same for every model: out of allowance, change a
+setting to continue. Now it ends with a block. Which backend stopped and why. That the turn is kept
+and when kolk resumes. The best equivalent among the person's own configured options, with the
+command that applies it, and the others after it. And what was set aside, each with its reason:
+cooling, too many rungs below, no rung known, free and not on the preferred list.
+
+Equivalence is the rule the owner gave when asked: the same rung of the vendor ladder, or one
+either side, and never a free model unless the person named it, so a run on a frontier model is not
+quietly continued on a small one. Subscriptions come first, then paid, then free, and within a group
+the person's own ratings decide. The ranking lives below the engine as pure functions that read
+nothing and spend nothing; the engine passes in its ladder and its cooldowns; the surface assembles
+the candidates from the connectors that have actually answered a turn. Nothing is applied. That is
+the next three leaves, each an opt-in.
