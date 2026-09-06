@@ -4,6 +4,7 @@
 package tui
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -207,11 +208,64 @@ var palette16 = palette{
 	styleWarn:        "\x1b[33m",
 }
 
+// A theme is the two coloured tiers of one look; the colourless tier is the
+// same for every theme, because a person who asked out of colour gets none.
+// Appearance is all a theme may change: the styles attach to the same
+// structural facts and the layout never reads the theme.
+type theme struct {
+	name string
+	c256 palette
+	c16  palette
+}
+
+var themes = []theme{
+	{name: "kolkrabbi", c256: palette256, c16: palette16},
+	{name: "nord", c256: palette{
+		stylePurple:      "\x1b[38;5;110m",
+		stylePurpleMuted: "\x1b[38;5;103m",
+		styleHeading:     "\x1b[38;5;110;1m",
+		styleMeta:        "\x1b[2m",
+		styleAdd:         "\x1b[38;5;108m",
+		styleDel:         "\x1b[38;5;131m",
+		styleWarn:        "\x1b[38;5;222m",
+	}, c16: palette{
+		stylePurple:      "\x1b[94m",
+		stylePurpleMuted: "\x1b[90m",
+		styleHeading:     "\x1b[94;1m",
+		styleMeta:        "\x1b[2m",
+		styleAdd:         "\x1b[32m",
+		styleDel:         "\x1b[31m",
+		styleWarn:        "\x1b[33m",
+	}},
+	// quiet has no hue of its own: bold for headings, dim for meta, and only
+	// the diff and warning colours, which carry meaning rather than brand.
+	{name: "quiet", c256: palette{
+		stylePurple:      "\x1b[1m",
+		stylePurpleMuted: "\x1b[2m",
+		styleHeading:     "\x1b[1m",
+		styleMeta:        "\x1b[2m",
+		styleAdd:         "\x1b[32m",
+		styleDel:         "\x1b[31m",
+		styleWarn:        "\x1b[33m",
+	}, c16: palette{
+		stylePurple:      "\x1b[1m",
+		stylePurpleMuted: "\x1b[2m",
+		styleHeading:     "\x1b[1m",
+		styleMeta:        "\x1b[2m",
+		styleAdd:         "\x1b[32m",
+		styleDel:         "\x1b[31m",
+		styleWarn:        "\x1b[33m",
+	}},
+}
+
 // activePalette is process state, not screen state: the terminal's colour
 // capability cannot change while kolk is attached to it, and every render
-// reads it. The CLI picks the tier once at startup, honouring NO_COLOR.
+// reads it. The CLI picks the tier once at startup, honouring NO_COLOR, and
+// the theme from its setting; /theme changes the theme for the session.
 var (
 	paletteMu     sync.RWMutex
+	activeTier    = "256"
+	activeTheme   = themes[0]
 	activePalette = palette256
 )
 
@@ -222,13 +276,57 @@ func SetPalette(tier string) {
 	paletteMu.Lock()
 	defer paletteMu.Unlock()
 	switch tier {
-	case "16":
-		activePalette = palette16
-	case "none":
-		activePalette = palette{styleNone: ""}
+	case "16", "none":
+		activeTier = tier
 	default:
-		activePalette = palette256
+		activeTier = "256"
 	}
+	activePalette = activeTheme.palette(activeTier)
+}
+
+// SetTheme selects a look by name; the tier stays whatever the terminal can
+// show. An unknown name is refused with the names that exist.
+func SetTheme(name string) error {
+	name = strings.ToLower(strings.TrimSpace(name))
+	if name == "" {
+		name = themes[0].name
+	}
+	for _, t := range themes {
+		if t.name == name {
+			paletteMu.Lock()
+			defer paletteMu.Unlock()
+			activeTheme = t
+			activePalette = t.palette(activeTier)
+			return nil
+		}
+	}
+	return fmt.Errorf("no theme %q; the themes are %s", name, strings.Join(Themes(), ", "))
+}
+
+// Themes lists the names, in the order they are offered.
+func Themes() []string {
+	out := make([]string, 0, len(themes))
+	for _, t := range themes {
+		out = append(out, t.name)
+	}
+	return out
+}
+
+// ActiveTheme is the name in force.
+func ActiveTheme() string {
+	paletteMu.RLock()
+	defer paletteMu.RUnlock()
+	return activeTheme.name
+}
+
+func (t theme) palette(tier string) palette {
+	switch tier {
+	case "16":
+		return t.c16
+	case "none":
+		return palette{styleNone: ""}
+	}
+	return t.c256
 }
 
 const resetANSI = "\x1b[0m"

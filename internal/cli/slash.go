@@ -55,6 +55,7 @@ var slashCommandTable = []slashCommand{
 	{"commit", "", "draft a commit message from the staged diff, and stop"},
 	{"pr", "", "draft a pull request title and body, and hand over `gh pr create`"},
 	{"doctor", "", "check keys, directories, terminal and network"},
+	{"theme", "[kolkrabbi|nord|quiet]", "change the look for this session; /config set theme keeps it"},
 	{"resume", "", "lift a limit pause now and re-send the turn that was waiting"},
 	{"continue", "[n]", "switch to the nth equivalent model the pause recommended and re-send the turn"},
 	{"help", "", "show all slash commands"},
@@ -178,6 +179,16 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		if err := a.runDoctor(ctx, nil); err != nil {
 			fmt.Fprintln(a.stdout, err)
 		}
+	case "/theme":
+		if arg == "" {
+			fmt.Fprintf(a.stdout, "theme: %s (%s)\n", tui.ActiveTheme(), strings.Join(tui.Themes(), "|"))
+			break
+		}
+		if err := tui.SetTheme(arg); err != nil {
+			fmt.Fprintln(a.stdout, err)
+			break
+		}
+		fmt.Fprintf(a.stdout, "theme: %s for this session; `/config set theme %s` keeps it\n", tui.ActiveTheme(), tui.ActiveTheme())
 	case "/resume":
 		a.resumeNow(ctx, ag)
 	case "/continue":

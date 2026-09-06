@@ -90,6 +90,12 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 	// of colour should not find purple SGR on every frame.
 	if term.Color() {
 		tui.SetPalette(paletteTier())
+		// The look from the setting; an unset or unknown theme is the default.
+		if d, err := a.resolve(); err == nil {
+			if cfg, err := config.Load(d.ConfigFile()); err == nil {
+				_ = tui.SetTheme(cfg.Theme)
+			}
+		}
 	} else {
 		tui.SetPalette("none")
 	}

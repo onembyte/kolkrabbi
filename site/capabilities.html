@@ -569,11 +569,14 @@
             rendered line by line before you approve them, <code>@</code> file completion, and a
             status line carrying mode, model, effort, context, and session cost.</p>
         </article>
-        <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Planned</span><span>THEME</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>THEME</span></div>
           <h3>Themes</h3>
-          <p><code>NO_COLOR</code> is already honored. Multiple terminal themes and a quieter
-            presentation will change appearance without changing behavior or requiring setup.</p>
+          <p>Three looks — <code>kolkrabbi</code>, <code>nord</code>, and <code>quiet</code>, which has
+            no hue of its own — each in a 256-colour and a 16-colour tier chosen by what the terminal
+            can show. <code>NO_COLOR</code> still wins over every theme. <code>/theme</code> tries one
+            for the session, <code>/config set theme</code> keeps it, and no file is written until you
+            ask. A theme changes appearance only: the same words, the same layout, different escapes.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>DASH</span></div>

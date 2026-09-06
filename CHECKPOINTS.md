@@ -10825,6 +10825,20 @@ Subcheckpoints, one at a time:
       translator, or defer. Not mine to choose.
     - [ ] **V34.4c.4 the surfaces** — plan 24 rows, `/plans`, the capabilities card, pinned; each
       row says its status in the words the disposition uses.
+- [x] **V11.T THEME** — plan 09 lists `theme` as the v0.3 colour-scheme picker; opened and closed
+  2026-09-06 at the owner's request to build what the card called planned. **Scope:** three looks,
+  `kolkrabbi` (the purple the product ships), `nord` (cool blues) and `quiet` (no hue: bold headings,
+  dim meta, only the diff and warning colours, which carry meaning rather than brand), each with a
+  256-colour and a 16-colour tier chosen by the same capability probe as before, the colourless tier
+  the same for every theme so `NO_COLOR` still wins; `tui.SetTheme`/`Themes`/`ActiveTheme`, the
+  palette now a lookup by theme and tier; a `theme` setting with its row and `/config get|set|unset`
+  (an unknown name refused with the three named); `/theme [name]` for the session, saying how to
+  keep it; the setting applied at startup beside the tier. **Non-goals:** no per-element
+  customisation, no light/dark detection, no file written until asked. **Red observed:** one palette
+  per tier, no setting, no slash. Tests: the three themes at the painter with the text and layout
+  proven identical across them, the colourless tier untouched, the 16-colour tier free of
+  256-colour sequences, the unknown name; the setting and the slash. tui, cli, config, arch; whole
+  tree; lint; vet; site; `make check`.
 - [x] **V05.S SECRETS, the wider chain** — closed 2026-09-06 with one live check left to the owner (below). — plan 05 §1 and §3, opened 2026-09-06 at the owner's
   request to build what the capabilities card still calls designed. The card promises four things:
   the environment, the provider environment, one named store, a visible first-hit order, and an

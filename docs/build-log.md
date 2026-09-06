@@ -7083,3 +7083,14 @@ One thing did not happen, on purpose: no real keychain was touched, because a re
 locked login keychain raises the macOS password dialog and the owner is asleep. The exit codes are
 the man page's; the owner's first `kolk key --backend keychain` will be the live proof. The
 SECRETS card says what shipped and only the claim the plan allows.
+
+## Three looks, one layout — THEME closed 2026-09-06
+
+The TUI had one palette per colour tier and a promise on the site of themes to come. Now a theme is
+a pair of tiers behind a name, three of them: the product's purple, a cool blue, and a quiet one
+with no hue at all that keeps only the colours that mean something, the diff and the warning. The
+tier still follows what the terminal can show and a person who set NO_COLOR gets no colour from any
+theme. The test that matters strips the escapes and proves the three renders are the same text in
+the same places, because a theme that moved anything would be a change of behaviour dressed as a
+change of look. `/theme` tries one for the session; the setting keeps it; nothing is written until
+asked.

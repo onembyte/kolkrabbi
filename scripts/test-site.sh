@@ -153,6 +153,11 @@ contains index.html 'Ollama' "the hero does not name a local provider"
 contains index.html 'One static binary under' "the landing page does not state the binary size"
 contains index.html '9&nbsp;MB, milliseconds to start' "the binary claim drifted from what check-budgets.sh measures"
 contains capabilities.html '<link rel="canonical" href="https://kolkrabbi.francomichetti.com/capabilities">' "capabilities.html has no canonical URL"
+# THEME shipped 2026-09-06: three looks, NO_COLOR still wins, appearance only.
+contains capabilities.html '<span class="status-badge">Available now</span><span>THEME</span>' "the THEME card must say it ships"
+not_contains capabilities.html 'Multiple terminal themes and a quieter' "the THEME card's planned wording must be gone"
+contains capabilities.html 'still wins over every theme' "the THEME card must keep NO_COLOR first"
+contains capabilities.html 'A theme changes appearance only' "the THEME card must promise appearance only"
 # SECRETS shipped with V05.S (2026-09-06): the chain, --why, the opt-in keychain.
 contains capabilities.html '<span class="status-badge">Available now</span><span>SECRETS</span>' "the SECRETS card must say it ships"
 not_contains capabilities.html 'is settled design that is not built yet' "the SECRETS card's designed wording must be gone"

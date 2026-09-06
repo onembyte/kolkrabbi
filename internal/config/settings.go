@@ -40,6 +40,7 @@ func (c *Config) settingRows(defaultModel, defaultBaseURL string) []Setting {
 	onLimit, onLimitDefault := text(c.Routing.OnSubscriptionLimit, "ask")
 	onFree, onFreeDefault := text(c.Routing.OnFreeExhausted, "free")
 	resume, resumeDefault := text(c.Continuity.Resume, "auto")
+	theme, themeDefault := text(c.Theme, "kolkrabbi")
 	effective := c.EffectiveContinuity()
 	continuityMode, continuityModeDefault := text(c.Continuity.Mode, effective.Mode)
 	selection, selectionDefault := text(c.Continuity.Select, "auto")
@@ -86,6 +87,7 @@ func (c *Config) settingRows(defaultModel, defaultBaseURL string) []Setting {
 			"your own models to continue on, plan-qualified or bare, comma-separated; the only way a free model joins a chain"},
 		{"continuity.order", order, orderDefault,
 			"the groups to try, in order: subscription · paid · free"},
+		{"theme", theme, themeDefault, "the terminal look: kolkrabbi · nord · quiet (appearance only; NO_COLOR still wins); /theme tries one for the session"},
 		{"continuity.resume", resume, resumeDefault,
 			"a session paused on a limit: auto (comes back when the limit lifts, no tokens spent) · manual (waits for /resume)"},
 	}

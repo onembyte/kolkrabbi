@@ -144,7 +144,7 @@ Future capabilities must not invent one-off top-level commands without architect
 | `diff` | Item 15 | v0.2 | View session file modifications |
 | `undo` | Item 12 | v0.2 | Undo turn changes and session history |
 | `cost` | Item 17 | v0.2 | Print detailed session expenditure breakdown |
-| `theme` | Item 11 | v0.3 | Terminal color scheme picker |
+| `theme` | Item 11 | v0.3 | Terminal color scheme picker — landed 2026-09-06 as `/theme` in-session and the `theme` setting (kolkrabbi, nord, quiet) |
 | `serve` | Item 2 | v0.4 | Background daemon / headless event server |
 
 ---

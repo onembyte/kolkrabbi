@@ -10,6 +10,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/shell"
+	"github.com/onembyte/kolkrabbi/internal/tui"
 )
 
 func (a *app) runConfig(ctx context.Context, args []string) error {
@@ -105,6 +106,12 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 			}
 		case key == "routing.on_subscription_limit":
 			a.printContinuityKey(cfg, key)
+		case key == "theme":
+			if cfg.Theme != "" {
+				fmt.Fprintln(a.stdout, cfg.Theme)
+			} else {
+				fmt.Fprintln(a.stdout, "(unset — kolkrabbi)")
+			}
 		case key == "continuity.mode" || key == "continuity.select" || key == "continuity.preferred" || key == "continuity.order":
 			a.printContinuityKey(cfg, key)
 		case key == "continuity.resume":
@@ -254,6 +261,15 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintf(a.stdout, "routing.on_subscription_limit → %s\n", policy)
+		case key == "theme":
+			if err := tui.SetTheme(val); err != nil {
+				return usagef("theme: %v", err)
+			}
+			cfg.Theme = tui.ActiveTheme()
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "theme → %s\n", cfg.Theme)
 		case key == "continuity.mode" || key == "continuity.select" || key == "continuity.preferred" || key == "continuity.order":
 			if err := setContinuityKey(cfg, key, val); err != nil {
 				return usagef("%s: %v", key, err)
@@ -369,6 +385,13 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintln(a.stdout, "removed routing.on_subscription_limit; back to asking")
+		case key == "theme":
+			cfg.Theme = ""
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			_ = tui.SetTheme("")
+			fmt.Fprintln(a.stdout, "removed theme; back to kolkrabbi")
 		case key == "continuity.mode" || key == "continuity.select" || key == "continuity.preferred" || key == "continuity.order":
 			switch key {
 			case "continuity.mode":

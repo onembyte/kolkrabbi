@@ -49,6 +49,9 @@ type Config struct {
 	// Routing decides what happens when the model behind the session stops
 	// being able to answer — today, when a subscription runs out mid-run.
 	Routing RoutingSettings `json:"routing,omitempty"`
+	// Theme is the terminal look: kolkrabbi (default), nord, quiet. Appearance
+	// only; the colour tier still follows the terminal and NO_COLOR.
+	Theme string `json:"theme,omitempty"`
 	// Continuity is the plan-35 successor: pause and resume today, switching
 	// and chains as the plan lands.
 	Continuity ContinuitySettings `json:"continuity,omitempty"`
