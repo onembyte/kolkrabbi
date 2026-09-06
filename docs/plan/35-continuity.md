@@ -1,6 +1,6 @@
 # 35. Continuity — when a limit hits, the work stays
 
-Status: decided 2026-09-05 (owner answers folded in, §9) · supersedes: the "03 / CONTINUITY" cards on
+Status: shipped 2026-09-06 — V35.1 DETECT, V35.2 PAUSE+RESUME, V35.3 RECOMMEND, V35.4 CHAIN, V35.5 settings, V35.6 AUTO all on main; the six capabilities cards say Available now; the old routing knobs remain as aliases for one release (§2.6)
 `site/capabilities.html` as the only statement of this policy · PLAN.md item 35
 
 ## Decision (the short version)
@@ -137,7 +137,8 @@ CLI's candidate list, the card. Keyed vendor origins join the list with their li
 ### 2.4 CONTINUITY — switching, an opt-in with three shapes
 
 *Settings shipped 2026-09-06 as V35.5 (`continuity.mode|select|preferred|order`, the aliases of
-§2.6, the deprecation lines). `mode on` acting by itself and `select ask` asking are V35.6.*
+§2.6, the deprecation lines); `mode on` walking by itself and `select ask` asking once per run
+shipped the same day as V35.6, bounded at three hops per run.*
 
 Owner decision, verbatim in structure: `continuity.mode = off (default) | on`. With `on`, a second
 setting opens:

@@ -157,6 +157,15 @@ contains capabilities.html '<link rel="canonical" href="https://kolkrabbi.franco
 contains capabilities.html '<span class="status-badge">Available now</span><span>DETECT</span>' "the DETECT card must say it ships"
 not_contains capabilities.html 'refusal remain distinct. Reset times and cooldown scope are preserved when available' "the DETECT card's designed wording must be gone"
 contains capabilities.html 'cooldown is remembered per session and per account' "the DETECT card must name the remembered cooldown"
+# SAFE DEFAULT and AUTO shipped with V35.6 (2026-09-06): mode off by default, free only if listed, ask once.
+contains capabilities.html '<span class="status-badge">Available now</span><span>SAFE DEFAULT</span>' "the SAFE DEFAULT card must say it ships"
+not_contains capabilities.html 'Kolkrabbi will ask
+            before continuing with a free model' "the SAFE DEFAULT card's planned wording must be gone"
+contains capabilities.html 'A free' "the SAFE DEFAULT card must state the free rule"
+contains capabilities.html 'model never continues a run unless you listed it' "the SAFE DEFAULT card must state the free rule in full"
+contains capabilities.html '<span class="status-badge">Available now</span><span>AUTO</span>' "the AUTO card must say it ships"
+not_contains capabilities.html 'An opt-in policy will follow the same visible eligibility' "the AUTO card's planned wording must be gone"
+contains capabilities.html 'Silent auto-switching is never the default.' "the AUTO card must keep its promise"
 # CHAIN shipped with V35.4 (2026-09-06): /continue walks the equivalents, skipping what is cooling.
 contains capabilities.html '<span class="status-badge">Available now</span><span>CHAIN</span>' "the CHAIN card must say it ships"
 not_contains capabilities.html 'The continuation chain will consider eligible subscription and metered backends' "the CHAIN card's planned wording must be gone"

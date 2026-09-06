@@ -10825,7 +10825,7 @@ Subcheckpoints, one at a time:
       translator, or defer. Not mine to choose.
     - [ ] **V34.4c.4 the surfaces** — plan 24 rows, `/plans`, the capabilities card, pinned; each
       row says its status in the words the disposition uses.
-- [ ] **V35 continuity** — plan drafted 2026-09-05 at the owner's direction (`docs/plan/35-continuity.md`):
+- [x] **V35 continuity** — closed 2026-09-06, all six leaves on main. Plan drafted 2026-09-05 at the owner's direction (`docs/plan/35-continuity.md`):
   six leaves V35.1 DETECT → V35.2 PAUSE → V35.3 RECOMMEND → V35.4 CHAIN → V35.5 SAFE DEFAULT → V35.6
   AUTO, each flipping one capabilities card with inverse pins. Owner answered all ten questions the
   same day (plan 35 §9): default is pause + code-only auto-resume; switching is `continuity.mode
@@ -10978,6 +10978,22 @@ Subcheckpoints, one at a time:
     fixed. Tests: the defaults and the three aliases with explicit keys winning; the four keys
     through `/config` with two refusals and the deprecation line; the engine order. cli with
     `-race`; whole tree; lint; vet; `make check`.
+  - [x] **V35.6 AUTO** — plan 35 §2.4, opened and closed 2026-09-06. **Scope:** with
+    `continuity.mode on`, a pause is followed at once by `autoContinue`: under `select auto` or
+    `preferred` the chain is walked (`ContinueOn`) and the waiting turn re-runs on the new model
+    inside the same `RunTurn`, so the person sees the hop line above the answer and no pause is
+    left; under `select ask` the block becomes one `Ask.Choose` question — the top equivalent, the
+    next, or "pause and resume later", each with its billing path — asked once per run, the
+    answer walked from, declining keeping the pause; hops are bounded at three per run so a run
+    that keeps hitting limits pauses rather than circling; both counters reset when a turn
+    finishes without a limit. `mode off`, the default, never continues. **Non-goals:** nothing
+    persisted about a hop (owner answer 10), no dashboard rows (answer 9), no free model in a
+    chain unless listed (answer 2). **Red observed:** with the mode on, a limit still ended the
+    turn in a pause. Tests: mode on finishes the turn on the next model with the hop printed and
+    no pause; mode off pauses; ask asks once with three options and walks from the answer;
+    declining keeps the pause and a second limit in the run does not ask again. The SAFE DEFAULT
+    and AUTO cards are Available now with seven pins. engine with `-race`; whole tree; lint; vet;
+    site; `make check`.
     - [x] **V35.2a the pause** — `Pause` on the session (kind, scope, connector, model, reset, since, the
       pending input verbatim), persisted under the messages lock; a paused session refuses to spend and
       says when it resumes; the turn that paused ends with `turn.finished{paused}` and `provider.limit

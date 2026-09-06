@@ -7040,3 +7040,18 @@ before are read as aliases of these for one more release, say so when asked, and
 continuity key always wins over them. The order already reaches the ranking, so a person who puts
 paid before subscriptions sees the paid equivalent lead the block; the list already reaches the
 chain. What the mode itself does when it is on is the last leaf of the plan.
+
+## A limit no longer ends the work — V35.6 closed 2026-09-06, and with it plan 35
+
+With the mode on, the pause is followed at once by the walk: the session moves to the best
+equivalent and the turn that hit the limit runs there, inside the same turn, so what the person
+sees is the hop line and then the answer. Under ask, the block becomes one question per run — the
+best, the next, or pause and resume later — and declining keeps the pause. Three hops per run is
+the bound; past it kolk pauses rather than circles. The defaults are the owner's: off, so nothing
+switches unless asked; free never in a chain unless listed; nothing about a hop written down.
+
+Plan 35 is now whole. A limit is told apart from every other limit and remembered across sessions;
+a paused turn comes back by itself without spending; the person is told what could carry on and
+why; the chain is walked when asked, or by itself when the person said so. Six cards on the site
+went from designed or planned to available in two days, each with a pin that fails if the old
+wording ever returns.

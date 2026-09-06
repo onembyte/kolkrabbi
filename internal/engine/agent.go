@@ -382,6 +382,10 @@ type ChatBackend interface {
 type Agent struct {
 	Options
 	lastTurnID string
+	// hopsThisRun bounds the automatic chain per run, and askedThisRun keeps
+	// `select ask` to one question per run (plan 35 §2.4).
+	hopsThisRun  int
+	askedThisRun bool
 	// resume is the monitor watching this session's pause, nil when nothing is
 	// paused; resumeMu guards its hand-over between the pause path, /resume
 	// and Close.
@@ -1303,8 +1307,17 @@ func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 	// A limit that waiting will lift pauses the session instead of failing the
 	// turn; the pause owns its own terminal events. Any other classified limit
 	// is a stop, published as one; the finished event below still follows.
+	if err == nil {
+		a.hopsThisRun, a.askedThisRun = 0, false
+	}
 	if err != nil {
 		if paused, ok := a.pauseIfWaitingHelps(ctx, err, pending); ok {
+			// With continuity on, the chain is walked by itself (V35.6): the
+			// session moves to the next equivalent and the waiting turn runs
+			// there, in this same turn, so the person sees the answer.
+			if next, ok := a.autoContinue(ctx, paused.Pause); ok {
+				return a.RunTurn(ctx, next)
+			}
 			return &paused
 		}
 		if limit, ok := provider.Classify(err); ok && ctx.Err() == nil {

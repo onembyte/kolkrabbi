@@ -340,17 +340,23 @@
             runs on it at the same effort, the hop is printed and published, and nothing about it is
             persisted. Or name the one you want: <code>/continue 2</code>.</p>
         </article>
-        <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Planned</span><span>SAFE DEFAULT</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>SAFE DEFAULT</span></div>
           <h3>Ask before free fallback</h3>
-          <p>After configured subscription and paid options are unavailable, Kolkrabbi will ask
-            before continuing with a free model. The model, tradeoffs, and retained context are shown.</p>
+          <p>Off by default: a limit pauses and resumes on the same model, and nothing switches. A free
+            model never continues a run unless you listed it under <code>continuity.preferred</code>,
+            whatever else is unavailable. With <code>continuity.select ask</code>, every switch is a
+            question, once per run: the best equivalent, the next, or pause and resume later, each with
+            its billing path. The turn is kept whichever you choose.</p>
         </article>
-        <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Planned</span><span>AUTO</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>AUTO</span></div>
           <h3>Automatic switching</h3>
-          <p>An opt-in policy will follow the same visible eligibility and cooldown rules without
-            asking at each switch. Silent auto-switching is never the default.</p>
+          <p><code>continuity.mode on</code> with <code>select auto</code> walks the chain by itself under
+            the same rules the block shows: equivalents only, subscriptions then paid then listed
+            free, skipping what is cooling, bounded per run, every hop printed and published and none
+            of it persisted. The turn that hit the limit runs on the next model in the same turn.
+            Silent auto-switching is never the default.</p>
         </article>
         <article class="spec-card" data-status="available">
           <div class="spec-meta"><span class="status-badge">Available now</span><span>PAUSE</span></div>
