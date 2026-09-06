@@ -2,6 +2,7 @@ package enginetest
 
 import (
 	"context"
+	"github.com/onembyte/kolkrabbi/internal/continuity"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ type FakeSession struct {
 	connector     string
 	providerState string
 	messages      []provider.Message
+	paused        *continuity.Pause
 }
 
 // NewFakeSession creates an in-memory session.
@@ -206,4 +208,26 @@ func FakeClock(start time.Time, step time.Duration) func() time.Time {
 		current = current.Add(step)
 		return t
 	}
+}
+
+// Paused and SetPaused mirror the session port for the continuity tests.
+func (s *FakeSession) Paused() *continuity.Pause {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.paused == nil {
+		return nil
+	}
+	copyOfPause := *s.paused
+	return &copyOfPause
+}
+
+func (s *FakeSession) SetPaused(p *continuity.Pause) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if p == nil {
+		s.paused = nil
+		return
+	}
+	copyOfPause := *p
+	s.paused = &copyOfPause
 }

@@ -46,8 +46,8 @@ func TestEveryLimitDecisionIsPublishedOnce(t *testing.T) {
 	}
 }
 
-// A run that stops on a limit says so once, and never twice.
-func TestAStopOnALimitIsPublishedOnce(t *testing.T) {
+// A run that pauses on a limit that will lift says so once, and never twice.
+func TestAPauseOnALimitIsPublishedOnce(t *testing.T) {
 	b := newTestBus(t)
 	srv := enginetest.New(enginetest.Step{StatusCode: http.StatusPaymentRequired, ErrorBody: `{"error":{"message":"insufficient credits"}}`})
 	defer srv.Close()
@@ -59,17 +59,17 @@ func TestAStopOnALimitIsPublishedOnce(t *testing.T) {
 	if err := a.RunTurn(context.Background(), "hello"); err == nil {
 		t.Fatal("a 402 did not stop the run")
 	}
-	stops := 0
+	stops := 0 // "pause" actions: an account out of credit lifts when the user tops up, and is a pause
 	for _, env := range bReplay(t, b) {
 		if env.Type == protocol.EventProviderLimit {
 			var data protocol.ProviderLimitData
 			_ = json.Unmarshal(env.Data, &data)
-			if data.Action == "stop" && data.Kind == "account_quota" {
+			if data.Action == "pause" && data.Kind == "account_quota" {
 				stops++
 			}
 		}
 	}
 	if stops != 1 {
-		t.Fatalf("stop events = %d, want exactly one", stops)
+		t.Fatalf("pause events = %d, want exactly one", stops)
 	}
 }

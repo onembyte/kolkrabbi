@@ -10688,6 +10688,35 @@ Subcheckpoints, one at a time:
       label never appears. `Cooldowns.Active` and `Cooldown.Describe` are the shared renderers;
       `Agent.CoolingNotice` composes the line. Two tests, one per surface. `-race` clean on engine, tui
       and cli; lint; `make check`.
+  - [~] **V35.2 PAUSE and RESUME** — the default the owner chose: stop when a limit hits, resume by itself
+    when it lifts, spending nothing to wait. Subdivided 2026-09-05:
+    - [x] **V35.2a the pause** — `Pause` on the session (kind, scope, connector, model, reset, since, the
+      pending input verbatim), persisted under the messages lock; a paused session refuses to spend and
+      says when it resumes; the turn that paused ends with `turn.finished{paused}` and `provider.limit
+      {pause}`; a pinned model pauses and is never substituted. **Red:** today a limit under `stop` is an
+      error and the pending input is gone with nothing durable saying why.
+      **Closed 2026-09-05, on main.** Red: a pinned model's 429 with a 30-minute Retry-After was an
+      error and nothing kept the turn. Green: `continuity.Pause` (new `internal/continuity`, L3 — the
+      type the engine decides, the session stores, the fake mirrors and the surfaces show, placed below
+      all of them because the test kit cannot import the engine) with `Pausable` (allowance, quota,
+      capacity, transport; refusal and budget are stops) and `PauseFor` (the cooldown's own reset rule);
+      `SessionPort.Paused/SetPaused` under the messages lock, persisted with the session. `RunTurn`
+      refuses to spend while paused (a second prompt sends no request), and on a pausable limit keeps
+      the original input verbatim, removes the dangling user message so the transcript claims no answer,
+      saves, publishes `provider.limit{pause}` and `turn.finished{paused}`, prints one line with the
+      resume time and `/resume`, and returns a typed `PausedError`. The retry loop no longer publishes
+      the terminal action; `RunTurn` owns it as `pause` or `stop`. Two engine tests re-read their old
+      expectations honestly: a 503 and a 30 s Retry-After now pause rather than fail. `LimitBudgetStop`
+      left the dead-export allowlist as promised. Not yet: resuming (2b) and the surfaces (2c). `-race`
+      clean on engine, session, continuity, cli, arch; lint; `make check`.
+    - [ ] **V35.2b the resume monitor** — a goroutine per paused session that waits for the reset (or the
+      kind's default), confirms the limit lifted without spending tokens (key status for keyed models,
+      the vendor's quota-free auth status for a handover, `/models` for a compatible endpoint), and hands
+      the pending turn back to the surface to run on the same model; backs off to the next reset when
+      still capped; dies with the session. `continuity.resume auto|manual`; `/resume` always works.
+      **Red:** nothing brings a paused turn back.
+    - [ ] **V35.2c the surfaces** — status line `paused · <reason> · resumes HH:MM`, `/doctor`, and the
+      capabilities card PAUSE flipped with inverse pins.
     - [x] **V34.3e.1 a retried chapter starts from its mark** — a chapter found `executing` on a later
       wake (stopped or crashed mid-work) is rolled back to its persisted mark before the worker runs
       again, so abandoned work is gone before the retry and cannot reach its commit. **Red:** through

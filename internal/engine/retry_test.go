@@ -163,9 +163,17 @@ func TestRateLimitRetryAfterHonorsOnlyBoundedServerDelay(t *testing.T) {
 		ag, _, _, _ := newTestAgentInternal(t, srv, ModeCode)
 		waited := false
 		ag.RetryWait = func(context.Context, time.Duration) error { waited = true; return nil }
+		before := time.Now()
 		err := ag.RunTurn(context.Background(), "continue")
-		if err == nil || !strings.Contains(err.Error(), "30s") || !strings.Contains(err.Error(), "/model") {
-			t.Fatalf("long Retry-After error = %v", err)
+		// Beyond the bounded backoff the turn no longer fails: the limit will lift,
+		// so the session pauses until the server's own reset and spends nothing
+		// meanwhile (V35.2a).
+		var paused *PausedError
+		if !errors.As(err, &paused) {
+			t.Fatalf("long Retry-After error = %v, want a pause", err)
+		}
+		if until := paused.Pause.ResetAt; until.Before(before.Add(25*time.Second)) || until.After(before.Add(35*time.Second)) {
+			t.Fatalf("pause resets at %s, want about 30s out", until)
 		}
 		if waited || len(srv.Requests) != 1 {
 			t.Fatalf("long Retry-After waited=%v requests=%d", waited, len(srv.Requests))

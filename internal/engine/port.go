@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"github.com/onembyte/kolkrabbi/internal/continuity"
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -41,6 +42,10 @@ type SessionPort interface {
 	SetMessages([]provider.Message)
 	AppendMessage(provider.Message)
 	Save() error
+	// Paused is the limit the session is stopped on, or nil; SetPaused records or
+	// clears it. Persisted with the session (plan 35 §2.2).
+	Paused() *continuity.Pause
+	SetPaused(*continuity.Pause)
 }
 
 // Checkpointer is the pre-write snapshot port.

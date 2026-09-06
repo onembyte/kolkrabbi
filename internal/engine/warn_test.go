@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"github.com/onembyte/kolkrabbi/internal/continuity"
 	"strings"
 	"testing"
 
@@ -83,3 +84,6 @@ func TestRestoringACompactionReportsAFailedSave(t *testing.T) {
 		t.Fatalf("out = %q, want the failed save surfaced", out.String())
 	}
 }
+
+func (s *failingSaveSession) Paused() *continuity.Pause   { return nil }
+func (s *failingSaveSession) SetPaused(*continuity.Pause) {}

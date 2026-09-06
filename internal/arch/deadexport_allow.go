@@ -24,11 +24,6 @@ var DeadExportAllowlist = map[string]string{
 	// The rule's own allowlist. Only its test reads it, necessarily.
 	"DeadExportAllowlist": "read by the rule that uses this list",
 
-	// The continuity classifier's vocabulary is complete before its consumers
-	// exist (plan 35 §2.0). V35.2 PAUSE constructs a budget stop as a Limit and
-	// removes this entry; added 2026-09-05.
-	"LimitBudgetStop": "V35.2 wires it; the vocabulary ships whole ahead of its readers",
-
 	// ChapterVerifier and FileGateDetector left this list on 2026-08-27: the
 	// owner chose wire-and-drop, so they are now the live path and the ad-hoc
 	// one is deleted. SagaBudget left it the same day, when the old saga CLI

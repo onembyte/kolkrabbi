@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/onembyte/kolkrabbi/internal/atomicfile"
+	"github.com/onembyte/kolkrabbi/internal/continuity"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/xid"
 )
@@ -71,6 +72,8 @@ type Session struct {
 	// child having ever reported anything secret. Names a conversation, never
 	// a credential.
 	ProviderState string `json:"provider_state,omitempty"`
+	// Pause is the limit this session is stopped on, when it is (plan 35 §2.2).
+	Pause *continuity.Pause `json:"pause,omitempty"`
 	// TitleAuto marks a title Kolkrabbi derived rather than one the user chose.
 	TitleAuto bool      `json:"title_auto,omitempty"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -312,6 +315,29 @@ func (s *Session) ConnectorName() string         { return s.Connector }
 func (s *Session) SetConnector(n string)         { s.Connector = n }
 func (s *Session) ProviderStateName() string     { return s.ProviderState }
 func (s *Session) SetProviderStateName(v string) { s.ProviderState = v }
+
+// Paused and SetPaused read and record the limit the session is stopped on,
+// under the same lock the messages use, so a save sees a consistent pair.
+func (s *Session) Paused() *continuity.Pause {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
+	if s.Pause == nil {
+		return nil
+	}
+	copyOfPause := *s.Pause
+	return &copyOfPause
+}
+
+func (s *Session) SetPaused(p *continuity.Pause) {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
+	if p == nil {
+		s.Pause = nil
+		return
+	}
+	copyOfPause := *p
+	s.Pause = &copyOfPause
+}
 func (s *Session) GetMessages() []provider.Message {
 	s.messagesMu.Lock()
 	defer s.messagesMu.Unlock()

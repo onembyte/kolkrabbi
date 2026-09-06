@@ -1184,6 +1184,11 @@ func (a *Agent) window() int {
 
 // RunTurn dispatches a user message according to the current mode.
 func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
+	// A paused session spends nothing until its limit lifts (plan 35 §2.2).
+	if paused := a.stillPaused(); paused != nil {
+		return paused
+	}
+	pending := userInput
 	a.lastTurnID = xid.New(xid.Turn)
 	a.resetMainWork()
 	if a.Ckpt != nil {
@@ -1224,6 +1229,17 @@ func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 	// wait on it to read the answer they asked for gets the priority backwards.
 	if err == nil {
 		a.titleSessionIfNeeded(ctx)
+	}
+	// A limit that waiting will lift pauses the session instead of failing the
+	// turn; the pause owns its own terminal events. Any other classified limit
+	// is a stop, published as one; the finished event below still follows.
+	if err != nil {
+		if paused, ok := a.pauseIfWaitingHelps(ctx, err, pending); ok {
+			return &paused
+		}
+		if limit, ok := provider.Classify(err); ok && ctx.Err() == nil {
+			a.publishLimit(limit, "stop")
+		}
 	}
 	if a.Mode == ModeAgent {
 		state := protocol.WorkStateDone

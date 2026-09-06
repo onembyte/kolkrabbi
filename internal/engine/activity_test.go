@@ -247,12 +247,18 @@ func TestActivityStopsBeforeToolHandlingAndErrors(t *testing.T) {
 			t.Fatal("expected provider error")
 		}
 		got := events.snapshot()
-		if eventCount(got, "start:thinking") != 1 || eventCount(got, "stop:thinking") != 1 || got[len(got)-1] != "write:\n" {
-			// runLoop prints its trailing newline only after streamChat has stopped.
+		// runLoop prints its trailing newline only after streamChat has stopped;
+		// a 503 is a capacity limit that waiting lifts, so the turn then pauses
+		// and says so (V35.2a) -- after the newline, never before the stop.
+		newline := eventIndex(got, "write:\n")
+		if eventCount(got, "start:thinking") != 1 || eventCount(got, "stop:thinking") != 1 || newline < 0 {
 			t.Fatalf("error lifecycle = %#v", got)
 		}
-		if eventIndex(got, "stop:thinking") >= len(got)-1 {
+		if stop := eventIndex(got, "stop:thinking"); stop >= newline {
 			t.Fatalf("error returned before activity stopped: %#v", got)
+		}
+		if !strings.Contains(got[len(got)-1], "paused") {
+			t.Fatalf("a capacity limit did not end in a pause notice: %#v", got)
 		}
 	})
 }

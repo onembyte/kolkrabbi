@@ -131,7 +131,8 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 			}
 			a.Cooldowns.Mark(limit)
 		}
-		// Every decision below about a limit is published as it is made (V35.1c).
+		// Every hop or wait below is published as it is made (V35.1c); the terminal
+		// action -- pause or stop -- is RunTurn's to publish (V35.2a).
 		decided := func(action string) {
 			if limited {
 				a.publishLimit(limit, action)
@@ -144,7 +145,6 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 		if subscriptionLimited(err) {
 			next, ok := a.resolveSubscriptionLimit(ctx, model)
 			if !ok {
-				decided("stop")
 				return provider.Message{}, meta, fmt.Errorf("%s is out of allowance and the run stopped; `/config set routing.on_subscription_limit switch` to continue on a metered model instead: %w", model, err)
 			}
 			a.moveToMetered(next)
@@ -158,7 +158,6 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 
 		var httpErr *provider.HTTPError
 		if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusTooManyRequests {
-			decided("stop")
 			return provider.Message{}, meta, err
 		}
 
@@ -170,7 +169,6 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 			onFree = OnFreeExhaustedFree
 		}
 		if onFree == OnFreeExhaustedStop && provider.ModelIsFree(provider.ModelInfo{ID: model}) {
-			decided("stop")
 			return provider.Message{}, meta, fmt.Errorf("%s is rate-limited and routing.on_free_exhausted is `stop`, so nothing was substituted; set it to free or paid to keep going: %w", model, err)
 		}
 
@@ -217,16 +215,13 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 						continue
 					}
 				}
-				decided("stop")
 				return provider.Message{}, meta, fmt.Errorf("every free model is rate-limited and routing.on_free_exhausted is `%s`; `/config set routing.on_free_exhausted paid` allows a metered fallback, or use `/model`: %w", onFree, err)
 			}
-			decided("stop")
 			return provider.Message{}, meta, fmt.Errorf("model %s remains rate-limited after %d attempts; use `/model` to select another model: %w", model, retry+1, err)
 		}
 
 		delay := rateLimitRetryDelays[retry]
 		if httpErr.RetryAfter > maxRateLimitRetryDelay {
-			decided("stop")
 			return provider.Message{}, meta, fmt.Errorf("model %s is rate-limited for at least %s; retry later or use `/model` to select another model: %w", model, httpErr.RetryAfter.Round(time.Second), err)
 		}
 		if httpErr.RetryAfter > delay {
