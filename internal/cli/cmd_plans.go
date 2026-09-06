@@ -54,6 +54,17 @@ func (a *app) runPlans(ctx context.Context, args []string) error {
 			status = "installed"
 			installed = true
 		}
+		// A row whose provider has a disposition says it in the record's own
+		// word (V34.4c.4): chosen, investigating or deferred — and a
+		// subscription row of a provider whose only path is a key is
+		// "unsupported", because the plan grants nothing kolk can use. A
+		// shipped provider's rows keep the words below, which say more.
+		if d, ok := provider.DispositionOf(plan.Provider); ok && d.Status != "shipped" {
+			status = d.Status
+			if d.Unsupported(plan.Auth) {
+				status = "unsupported"
+			}
+		}
 		// A keyed vendor row says whether kolk holds the key (env or store);
 		// every other API-key row is a catalog entry kolk cannot yet use.
 		if plan.Auth == "API key" && isKeyedVendor(plan.Provider) {

@@ -30,7 +30,7 @@ kolk never sees, stores or refreshes a subscription credential. The vendor's own
 login; kolk drives that CLI as a subprocess and records what comes back.
 
 GitHub Copilot (Free through Enterprise) is a third handover, via the copilot CLI, verified live on
-2026-09-06. Google, xAI, Perplexity, Mistral, DeepSeek, Qwen and Cohere have no direct adapter yet.
+2026-09-06. Google and xAI are chosen: a keyed client exists and no live key has proven it yet. Perplexity is under investigation until its endpoint is settled. Mistral, DeepSeek, Qwen and Cohere are deferred past v1.
 Most of those models are already reachable through the OpenRouter gateway.
 
 ## What makes it different

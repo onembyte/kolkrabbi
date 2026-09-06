@@ -257,13 +257,20 @@ provider_status Ollama live
 provider_status LiteLLM live
 provider_status vLLM live
 provider_status OpenAI live
-provider_status Google planned
-provider_status xAI planned
-provider_status Perplexity planned
-provider_status Mistral planned
-provider_status DeepSeek planned
-provider_status Qwen planned
-provider_status Cohere planned
+# The wall says each vendor's status in the disposition's own word (V34.4c.4):
+# chosen (a keyed client exists, no live key has proven it), investigating
+# (the access path is not settled), deferred (past v1 by the owner's decision).
+provider_status Google chosen
+provider_status xAI chosen
+provider_status Perplexity investigating
+provider_status Mistral deferred
+provider_status DeepSeek deferred
+provider_status Qwen deferred
+provider_status Cohere deferred
+not_contains index.html 'No adapter yet' "the wall still says 'no adapter yet' where the record says chosen, investigating or deferred"
+contains index.html 'Dimmed says where the rest stand, in the words of the record' "the wall's lede no longer explains dimmed in the record's words"
+not_contains index.html 'Perplexity Pro, by native API key' "the wall claims Perplexity Pro grants API access; nothing read says so"
+not_contains index.html '<span class="provider-route">Gemini Free · AI Pro · AI Ultra</span>' "the Google row names consumer plans as the route; the supported path is the Gemini API key"
 # GitHub went live on 2026-09-06: the Copilot CLI handover answered a turn on the Free plan.
 provider_status GitHub live
 not_contains index.html 'Copilot Pro, if its terms permit a handover' "the GitHub row's planned wording must be gone"
@@ -411,7 +418,8 @@ contains styles.css '.key-command' "run-step key command layout is missing"
 contains styles.css '.status-badge' "capability status style is missing"
 contains styles.css '.video-grid' "bilingual video layout style is missing"
 contains styles.css '.provider-wall' "provider wall layout style is missing"
-contains styles.css '[data-support="planned"]' "unsupported providers have no dimmed style"
+contains styles.css ':not([data-support="live"])' "providers that are not live have no dimmed style"
+contains styles.css '[data-support="chosen"]' "a chosen provider has no state style of its own"
 contains styles.css '@media (max-width:' "responsive layout rule is missing"
 contains styles.css ':focus-visible' "keyboard focus style is missing"
 contains styles.css 'prefers-reduced-motion' "reduced-motion support is missing"

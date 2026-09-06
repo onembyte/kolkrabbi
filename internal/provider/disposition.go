@@ -177,3 +177,18 @@ func VendorNotice(vendor string) string {
 	}
 	return d.Notice
 }
+
+// DispositionOf is the recorded disposition of a provider kolk names, for a
+// surface that must say a row's status in the record's own word. ok is false
+// for a provider with no record, which is a provider kolk has nothing to say
+// about.
+func DispositionOf(provider string) (Disposition, bool) {
+	return dispositionFor(provider)
+}
+
+// Unsupported reports whether a provider-CLI plan row of this provider is
+// metadata rather than a path: the record's only access path is a key, so a
+// consumer subscription grants nothing kolk can use.
+func (d Disposition) Unsupported(auth string) bool {
+	return auth == "provider CLI" && strings.HasPrefix(d.AccessPath, "API key")
+}

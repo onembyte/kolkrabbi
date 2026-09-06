@@ -878,27 +878,33 @@ footer strong {
   background: rgba(126, 231, 135, 0.08);
 }
 
-.provider[data-support="planned"] {
+.provider:not([data-support="live"]) {
   background: rgba(16, 12, 24, 0.22);
 }
 
-.provider[data-support="planned"] .provider-mark {
+.provider:not([data-support="live"]) .provider-mark {
   color: #574d64;
 }
 
-.provider[data-support="planned"] .provider-name {
+.provider:not([data-support="live"]) .provider-name {
   color: var(--muted);
   font-weight: 500;
 }
 
-.provider[data-support="planned"] .provider-route {
+.provider:not([data-support="live"]) .provider-route {
   color: #6f6580;
 }
 
-.provider[data-support="planned"] .provider-state {
+.provider:not([data-support="live"]) .provider-state {
   color: #6f6580;
   border-color: var(--line);
   background: transparent;
+}
+
+.provider[data-support="chosen"] .provider-state,
+.provider[data-support="investigating"] .provider-state {
+  color: var(--violet-pale);
+  border-color: #5b3b77;
 }
 
 .provider-note {

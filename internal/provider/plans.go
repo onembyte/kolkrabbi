@@ -27,7 +27,7 @@ var planCatalog = []Plan{
 	// unsupported metadata; this row is the one kolk can use.
 	{Provider: "google", Name: "Gemini API", Connector: "gemini-api", Auth: "API key", Billing: "metered", Sandbox: false},
 	{Provider: "xai", Name: "Grok", Connector: "xai-api", Auth: "API key", Billing: "metered", Sandbox: false},
-	{Provider: "perplexity", Name: "Perplexity Pro", Connector: "perplexity-api", Auth: "API key", Billing: "metered", Sandbox: false},
+	{Provider: "perplexity", Name: "Perplexity API", Connector: "perplexity-api", Auth: "API key", Billing: "metered", Sandbox: false},
 	{Provider: "mistral", Name: "Le Chat Pro", Connector: "mistral-api", Auth: "API key", Billing: "metered", Sandbox: false},
 	{Provider: "deepseek", Name: "DeepSeek", Connector: "deepseek-api", Auth: "API key", Billing: "metered", Sandbox: false},
 	{Provider: "qwen", Name: "Qwen", Connector: "qwen-api", Auth: "API key", Billing: "metered", Sandbox: false},

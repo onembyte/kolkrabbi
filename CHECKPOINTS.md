@@ -10823,8 +10823,19 @@ Subcheckpoints, one at a time:
     - [ ] **V34.4c.3 Perplexity** — blocked on an owner decision: confirm the Router API's
       chat-completions base and ship it as a keyed origin (4c.1 shape), or build a Responses
       translator, or defer. Not mine to choose.
-    - [ ] **V34.4c.4 the surfaces** — plan 24 rows, `/plans`, the capabilities card, pinned; each
-      row says its status in the words the disposition uses.
+    - [x] **V34.4c.4 the surfaces** — closed 2026-09-06. Each surface now says a vendor's status in
+      the disposition's own word. `/plans`: a row of a provider with a record says `chosen`,
+      `investigating` or `deferred` where it said `listed`; a subscription row of a provider whose
+      only path is a key says `unsupported` (Gemini Free, AI Pro, AI Ultra); keyed rows keep `no
+      key`/`key set`; the Perplexity row is `Perplexity API`, not `Perplexity Pro`, because
+      nothing read says Pro grants API access. The provider wall: Google and xAI `chosen · key,
+      unproven`, Perplexity `investigating`, Mistral, DeepSeek, Qwen and Cohere `deferred past
+      v1`; the Google route no longer names consumer plans as the path; the lede explains dimmed
+      in the record's words; states styled without a new script. `llms.txt` says the same. Plan
+      24's rows already carried the words. The older test that required `listed` was re-read: its
+      intent was never "available", kept; its vocabulary was the old one, replaced. Pins: seven
+      wall states, three refusals, the lede, the styles. Rendered in headless Chrome and read. Not
+      touched: the capabilities cards, which name no vendor beyond Claude, Codex and Copilot.
 - [x] **V36 the owner's morning list** — four requests sent 2026-09-06 while an orchestrated run was
   going, recorded here at the owner's ask ("make a checkpoint to do one request at a time") and taken
   in this order, one at a time, each with red first, green, verification, record. Closed 2026-09-06.

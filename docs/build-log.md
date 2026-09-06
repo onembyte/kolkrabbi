@@ -7184,3 +7184,13 @@ The whole scene is timings in the stylesheet; the script only starts it in view 
 and under reduced motion the section is a still of the finished run. It was read, not assumed:
 headless Chrome seeking the animations to chosen seconds found the first lines clipped, the log
 card early and misplaced, and a digit off its baseline, and each was fixed before it shipped.
+
+## The surfaces say the record's words — V34.4c.4 closed 2026-09-06
+
+The disposition record has known since 2026-09-05 which vendors are chosen, which is under
+investigation and which are deferred; the surfaces kept saying "listed" and "no adapter yet"
+about all of them, and one plan row was named after a consumer plan that grants no API access.
+Now `/plans`, the provider wall and `llms.txt` say each vendor's word from the record, a
+subscription row of a key-only vendor says unsupported, and Perplexity's row is named after its
+path. The test that once required "listed" was re-read rather than deleted: it guarded against
+"available", and still does.
