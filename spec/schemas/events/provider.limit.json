@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/events/provider.limit.json",
+  "title": "provider.limit payload",
+  "type": "object",
+  "required": ["kind", "scope", "action"],
+  "properties": {
+    "kind": {"type": "string", "minLength": 1},
+    "scope": {"type": "string", "minLength": 1},
+    "action": {"type": "string", "minLength": 1},
+    "model": {"type": "string", "minLength": 1},
+    "connector": {"type": "string", "minLength": 1},
+    "reset_at": {"type": "string", "minLength": 1},
+    "retry_after_ms": {"type": "integer"},
+    "message": {"type": "string", "minLength": 1},
+    "source": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": true
+}

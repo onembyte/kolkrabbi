@@ -58,6 +58,9 @@ const (
 	EventTurnFinished EventType = "turn.finished"
 	// EventTurnCancelled records why a turn was cancelled.
 	EventTurnCancelled EventType = "turn.cancelled"
+	// EventProviderLimit records one classified limit a model hit and what kolk
+	// did about it (plan 35 §2.1).
+	EventProviderLimit EventType = "provider.limit"
 )
 
 var knownEventTypes = []EventType{
@@ -85,6 +88,7 @@ var knownEventTypes = []EventType{
 	EventTurnStarted,
 	EventTurnFinished,
 	EventTurnCancelled,
+	EventProviderLimit,
 }
 
 // KnownEventTypes returns the ordered event vocabulary shipped by this
@@ -417,6 +421,25 @@ type TurnFinishedData struct {
 type TurnCancelledData struct {
 	Reason string `json:"reason"`
 }
+
+// ProviderLimitData is the payload of EventProviderLimit: which limit, keyed on
+// what, when it lifts if known, and the action kolk took. Kind, scope and
+// action are closed vocabularies; the message is already scrubbed.
+type ProviderLimitData struct {
+	Kind         string `json:"kind"`
+	Scope        string `json:"scope"`
+	Action       string `json:"action"`
+	Model        string `json:"model,omitempty"`
+	Connector    string `json:"connector,omitempty"`
+	ResetAt      string `json:"reset_at,omitempty"`       // RFC 3339, UTC; absent when unknown
+	RetryAfterMs int64  `json:"retry_after_ms,omitempty"` // the provider's own answer, when given
+	Message      string `json:"message,omitempty"`
+	Source       string `json:"source,omitempty"`
+}
+
+var providerLimitKinds = map[string]bool{"subscription_allowance": true, "account_quota": true, "endpoint_capacity": true, "budget_stop": true, "model_refusal": true, "transport": true}
+var providerLimitScopes = map[string]bool{"model": true, "account": true, "endpoint": true}
+var providerLimitActions = map[string]bool{"retry": true, "rotate": true, "recommend": true, "ask": true, "switch": true, "pause": true, "stop": true}
 
 func validateEventData(event EventType, raw json.RawMessage) error {
 	var text string
@@ -854,6 +877,21 @@ func validateEventData(event EventType, raw json.RawMessage) error {
 		}
 		if data.Reason == "" {
 			return fmt.Errorf("protocol: %s data.reason must be non-empty", event)
+		}
+		return nil
+	case EventProviderLimit:
+		var data ProviderLimitData
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return fmt.Errorf("protocol: %s data: %w", event, err)
+		}
+		if !providerLimitKinds[data.Kind] {
+			return fmt.Errorf("protocol: %s data.kind %q is not a limit kind", event, data.Kind)
+		}
+		if !providerLimitScopes[data.Scope] {
+			return fmt.Errorf("protocol: %s data.scope %q is not a limit scope", event, data.Scope)
+		}
+		if !providerLimitActions[data.Action] {
+			return fmt.Errorf("protocol: %s data.action %q is not a continuity action", event, data.Action)
 		}
 		return nil
 	default:

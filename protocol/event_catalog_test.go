@@ -26,6 +26,7 @@ func TestEventVocabularyIsClosedAcrossCodeSchemasAndGoldens(t *testing.T) {
 		EventUsageReported, EventScoreRecorded, EventCheckpointCreated, EventError, EventLog,
 		EventSessionStarted, EventSessionUpdated, EventSessionEnded,
 		EventTurnStarted, EventTurnFinished, EventTurnCancelled,
+		EventProviderLimit,
 	}
 	if got := KnownEventTypes(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("known event catalog = %v, want %v", got, want)

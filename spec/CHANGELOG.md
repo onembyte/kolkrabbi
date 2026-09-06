@@ -5,6 +5,10 @@ are allowed during version 0, but every change is recorded here.
 
 ## 0 — unreleased
 
+- Add `provider.limit`: one event per limit a model hits, with closed `kind` (subscription_allowance,
+  account_quota, endpoint_capacity, budget_stop, model_refusal, transport), `scope` (model, account,
+  endpoint) and `action` (retry, rotate, recommend, ask, switch, pause, stop), the reset time when
+  known, the provider's Retry-After when given, and a scrubbed message.
 - A turn that ends in an ordinary error finishes with `turn.finished` reason `error`, its `raw_reason`
   the scrubbed message, so every started turn has exactly one terminal event (finished, or
   cancelled). The SSE and stdio streams deliver the retained replay before live events; a

@@ -1,0 +1,1 @@
+{"seq":603,"ts":"2026-09-05T19:45:02Z","session":"s_01ARYZ6S41TSV4RRFFQ69G5FAV","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"provider.limit","data":{"kind":"subscription_allowance","scope":"account","action":"pause","model":"claude-fable","connector":"claude","reset_at":"2026-09-05T20:25:00Z","message":"usage limit reached","source":"vendor-frame"}}

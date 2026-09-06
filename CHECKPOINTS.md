@@ -10667,8 +10667,18 @@ Subcheckpoints, one at a time:
       says why — a key-wide cooldown would cool every model at once. Tests: cross-session visibility by
       scope, defaults and expiry, reload seeing another session's mark, the rotation skip. `-race`
       clean on provider, engine, session, paths and cli; lint; `make check`.
-    - [ ] **V35.1c the event** — `provider.limit` with data, validator, schema, golden fixture and
+    - [x] **V35.1c the event** — `provider.limit` with data, validator, schema, golden fixture and
       changelog through the spec gate; published from the retry loop wherever a limit is classified.
+      **Closed 2026-09-05, on main.** `provider.limit` joins the closed event vocabulary: constant, known
+      list, `ProviderLimitData` (kind, scope, action closed and validated at decode; model, connector,
+      RFC 3339 reset, Retry-After in ms, scrubbed message, source), schema, golden frame, changelog
+      bullet; the catalog test that binds code, schemas and goldens gained the entry and the contract
+      test round-trips the golden byte for byte and refuses words outside the vocabularies. The engine
+      publishes one event per decision the retry loop makes — `retry`, `rotate`, `switch`, `stop` today;
+      `recommend`, `ask`, `pause` belong to V35.2–6 — carrying the classified limit, so a surface learns
+      what the transcript line says in a shape it can read; nothing is persisted (owner). Tests: a
+      rotation publishes exactly one `rotate`, a 402 stop exactly one `stop`. `-race` clean on protocol,
+      engine, bus; lint; `make check` with the spec gate.
     - [ ] **V35.1d the surfaces** — `/doctor limits` and the status line `cooling · … · resets …`.
     - [x] **V34.3e.1 a retried chapter starts from its mark** — a chapter found `executing` on a later
       wake (stopped or crashed mid-work) is rolled back to its persisted mark before the worker runs

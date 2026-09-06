@@ -123,12 +123,19 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 		// Every limit is remembered before any policy reads it (V35.1b). The
 		// policies that read it are V35.2 onward; the free rotation below is
 		// the first, skipping a candidate that is known to be cooling.
-		if limit, ok := provider.Classify(err); ok {
+		limit, limited := provider.Classify(err)
+		if limited {
 			limit.Model = model
 			if limit.Connector == "" {
 				limit.Connector = a.connectorFor(model)
 			}
 			a.Cooldowns.Mark(limit)
+		}
+		// Every decision below about a limit is published as it is made (V35.1c).
+		decided := func(action string) {
+			if limited {
+				a.publishLimit(limit, action)
+			}
 		}
 
 		// An exhausted allowance is checked before the rate-limit gate below:
@@ -137,9 +144,11 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 		if subscriptionLimited(err) {
 			next, ok := a.resolveSubscriptionLimit(ctx, model)
 			if !ok {
+				decided("stop")
 				return provider.Message{}, meta, fmt.Errorf("%s is out of allowance and the run stopped; `/config set routing.on_subscription_limit switch` to continue on a metered model instead: %w", model, err)
 			}
 			a.moveToMetered(next)
+			decided("switch")
 			fmt.Fprintf(a.Out, "◆ subscription out of allowance; continuing on %s, billed per token\n", next)
 			model = next
 			tried[next] = true
@@ -149,6 +158,7 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 
 		var httpErr *provider.HTTPError
 		if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusTooManyRequests {
+			decided("stop")
 			return provider.Message{}, meta, err
 		}
 
@@ -160,6 +170,7 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 			onFree = OnFreeExhaustedFree
 		}
 		if onFree == OnFreeExhaustedStop && provider.ModelIsFree(provider.ModelInfo{ID: model}) {
+			decided("stop")
 			return provider.Message{}, meta, fmt.Errorf("%s is rate-limited and routing.on_free_exhausted is `stop`, so nothing was substituted; set it to free or paid to keep going: %w", model, err)
 		}
 
@@ -177,6 +188,7 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 			}
 			if nextCandidate != "" {
 				tried[nextCandidate] = true
+				decided("rotate")
 				fmt.Fprintf(a.Out, "◆ free model rate-limited (429); rotating to %s\n", nextCandidate)
 				model = nextCandidate
 				a.SetSessionModel(nextCandidate)
@@ -197,6 +209,7 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 				if onFree == OnFreeExhaustedPaid {
 					if metered := a.meteredFallback(model); metered != "" {
 						fmt.Fprintf(a.Out, "◆ every free model is rate-limited; continuing on %s, billed per token\n", metered)
+						decided("switch")
 						a.moveToMetered(metered)
 						model = metered
 						tried[metered] = true
@@ -204,18 +217,22 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 						continue
 					}
 				}
+				decided("stop")
 				return provider.Message{}, meta, fmt.Errorf("every free model is rate-limited and routing.on_free_exhausted is `%s`; `/config set routing.on_free_exhausted paid` allows a metered fallback, or use `/model`: %w", onFree, err)
 			}
+			decided("stop")
 			return provider.Message{}, meta, fmt.Errorf("model %s remains rate-limited after %d attempts; use `/model` to select another model: %w", model, retry+1, err)
 		}
 
 		delay := rateLimitRetryDelays[retry]
 		if httpErr.RetryAfter > maxRateLimitRetryDelay {
+			decided("stop")
 			return provider.Message{}, meta, fmt.Errorf("model %s is rate-limited for at least %s; retry later or use `/model` to select another model: %w", model, httpErr.RetryAfter.Round(time.Second), err)
 		}
 		if httpErr.RetryAfter > delay {
 			delay = httpErr.RetryAfter
 		}
+		decided("retry")
 		if err := a.RetryWait(ctx, delay); err != nil {
 			return provider.Message{}, meta, err
 		}
