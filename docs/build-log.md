@@ -6889,3 +6889,19 @@ tests had pinned the old alias, one of them in the dash, where a record spelled 
 as ultra rather than max; each was re-read rather than flipped. V34.4c, the next four providers, is
 the last of V34.4's owner decisions and a large one; V35.3 RECOMMEND can now be built on a
 five-rung equivalence.
+
+## Where each provider stands, as data — V34.4c.0 closed 2026-09-05
+
+The owner chose Google, xAI, Perplexity and GitHub as the next providers. Before a line of backend
+code, each vendor's current documentation was read, and what was read changed the plan. GitHub Models,
+the only API path GitHub had, was retired on 2026-07-30, so GitHub is a Copilot CLI handover and
+nothing else. Perplexity's chat completions is deprecated with a date, and its Agent API is shaped like
+the Responses API, which kolk does not speak, so that row waits on an owner decision rather than on
+engineering. Google's and xAI's OpenAI-compatible endpoints have everything a backend needs and are
+blocked only on kolk taking a key for an origin other than OpenRouter. Two vendors' terms pages
+refused a read-only fetch; that is written down as unverified, not guessed.
+
+All of it is now a table in the provider package with a gate: every provider kolk names has a
+disposition with its evidence and dates, and no model row may claim a provider-CLI path for a
+provider that is not shipped. The four leaves that follow are cut to those findings: keyed vendor
+origins, the Copilot handover, the Perplexity decision, and the surfaces.

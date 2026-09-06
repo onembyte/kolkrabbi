@@ -10649,8 +10649,43 @@ Subcheckpoints, one at a time:
     plan 03's two "four-level" sentences carry the count as of today, llms.txt and the Claude Code
     comparison name five. Seven old tests re-read honestly. Whole tree; lint linux; vet windows;
     site 347/347; `make check`.
-  - [ ] **V34.4c (owner decided 2026-09-05: Google, xAI, Perplexity, GitHub next; the rest deferred) provider-matrix disposition** — choose the next supported provider(s) or
-    explicitly defer each remaining matrix row.
+  - [~] **V34.4c (owner decided 2026-09-05: Google, xAI, Perplexity, GitHub next; the rest deferred) provider-matrix disposition** — choose the next supported provider(s) or
+    explicitly defer each remaining matrix row. Subdivided 2026-09-05 after reading each vendor's
+    current documentation (read-only fetches; what refused the fetch is recorded as unverified):
+    - [x] **V34.4c.0 the disposition record and its gate** — every provider kolk names carries a
+      `Disposition` (status, access path, API base, key env and shape, billing, capabilities, terms
+      read, evidence with dates, blockers); no `planModelCatalog` row may claim a provider-CLI path
+      for a provider that is not shipped. **Red:** no such record existed; a future Copilot model row
+      could have landed on a seed alone.
+      **Closed 2026-09-05, on main.** Findings that shaped the leaves below: GitHub Models — the
+      only API path GitHub had — "has been fully retired" as of 2026-07-30, so GitHub is a Copilot
+      CLI handover (`-p`, `-s`, `--allow-tool`, `--model`; PAT with "Copilot Requests"), nothing else.
+      Perplexity's chat completions is deprecated ("Sonar will be supported until September 27,
+      2026") and its Agent API is Responses-shaped, which kolk does not speak; the Router API is
+      called OpenAI-compatible but its base was on no page read — the row is `investigating`, with an
+      owner decision named. Google's OpenAI-compatible endpoint has everything a backend needs (Bearer
+      key, `/models`, streaming, tools, `reasoning_effort`), its terms (effective 2026-03-23) say
+      professional-or-business use and that the unpaid tier trains on inputs, and no consumer plan is
+      said to grant API access. xAI's endpoint is complete (`reasoning_effort` none…xhigh, tools,
+      SSE) and per-token billed; its terms pages returned 403 to the fetch, recorded as unverified
+      for the owner. Plan 24's four rows carry the findings with dates. Non-goals: no backend, no
+      key storage, no site claim changed. provider; arch; `make check`.
+    - [ ] **V34.4c.1 keyed vendor origins (Google, xAI)** — the client accepts a key for an
+      allow-listed vendor origin (today only OpenRouter takes one), stored per provider and read from
+      `GEMINI_API_KEY`/`XAI_API_KEY`, redacted by the shapes redaction already knows; `/models` where
+      the vendor documents it, verified-by-turn where not; the vendor's reasoning vocabulary projected
+      from kolk's five rungs; billing labelled `API metered`; a free Gemini key told before its first
+      turn that the unpaid tier trains on inputs. **Red:** a `xai-` key on `api.x.ai` is refused
+      today. Gate: xAI terms confirmed by the owner before the row says shipped.
+    - [ ] **V34.4c.2 the Copilot CLI handover (GitHub)** — `agentcli` backend on the `-p`/`-s`
+      contract with `--allow-tool`/`--deny-tool` as the sandbox seam, `--model` from the vendor's
+      `/model` list (verified by turn, as Claude), cancellation, redaction fixtures, the plan rows for
+      the Copilot plans a login actually shows. **Red:** `kolk plans login github` does nothing.
+    - [ ] **V34.4c.3 Perplexity** — blocked on an owner decision: confirm the Router API's
+      chat-completions base and ship it as a keyed origin (4c.1 shape), or build a Responses
+      translator, or defer. Not mine to choose.
+    - [ ] **V34.4c.4 the surfaces** — plan 24 rows, `/plans`, the capabilities card, pinned; each
+      row says its status in the words the disposition uses.
 - [ ] **V35 continuity** — plan drafted 2026-09-05 at the owner's direction (`docs/plan/35-continuity.md`):
   six leaves V35.1 DETECT → V35.2 PAUSE → V35.3 RECOMMEND → V35.4 CHAIN → V35.5 SAFE DEFAULT → V35.6
   AUTO, each flipping one capabilities card with inverse pins. Owner answered all ten questions the

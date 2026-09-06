@@ -244,6 +244,10 @@ and the catalog reflects current, supported vendor capabilities.
   **Owner decision 2026-09-05:** Google, xAI, Perplexity and GitHub are the next providers; Mistral,
   DeepSeek, Qwen/Alibaba and Cohere stay deferred. Each chosen row still needs its terms, capability,
   billing and redaction fixtures before it is supported. Queued as engineering under plan 24.
+  **2026-09-05:** dispositions are data with a gate (`internal/provider/disposition.go`, V34.4c.0);
+  GitHub Models is retired (2026-07-30) so GitHub is a Copilot CLI handover; Perplexity's
+  chat-completions path is deprecated and its Agent API is Responses-shaped, so that row awaits an
+  owner decision; Google and xAI are keyed OpenAI-compatible origins pending V34.4c.1.
 - [x] **V34.4d managed-local truth** — completed 2026-09-05: the claims held on Linux and failed on
   macOS, where the probe had no source and refused every plan as "RAM unknown"; a `sysctl` seam now
   supplies memory and chip, Apple silicon is a unified-memory accelerator, an Intel Mac RAM only, with
