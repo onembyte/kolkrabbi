@@ -51,6 +51,9 @@ func (a *app) initKeyDependencies() {
 // new key shapes. A literal dash is the only stdin spelling, so an accidental
 // pipe can never silently replace a credential.
 func (a *app) runKey(ctx context.Context, args []string) error {
+	if len(args) >= 1 && args[0] == "--why" {
+		return a.runKeyWhy(ctx, args[1:])
+	}
 	if len(args) > 2 {
 		return usagef("%s", usageLine("key"))
 	}
@@ -256,4 +259,48 @@ func (a *app) readSecretLine(prompt string) (value string, hidden bool, err erro
 		return "", false, err
 	}
 	return strings.TrimSpace(line), false, nil
+}
+
+// runKeyWhy is `kolk key --why [provider]` (plan 05 §1): the chain rendered
+// link by link — the flag that is empty by design, KOLK_API_KEY, the
+// provider's own variable, the store — with the first hit and what it
+// shadowed, masks only, never a value.
+func (a *app) runKeyWhy(ctx context.Context, args []string) error {
+	dirs, err := a.resolve()
+	if err != nil {
+		return err
+	}
+	providers := []string{"openrouter"}
+	if len(args) > 0 {
+		providers = []string{strings.ToLower(strings.TrimSpace(args[0]))}
+	} else {
+		providers = append(providers, provider.KeyedVendors()...)
+	}
+	store := keystore.NewFileStore(dirs.CredentialsFile())
+	for _, name := range providers {
+		res, err := keystore.Resolve(ctx, keystore.Ref{Provider: name, Profile: "default"}, os.Getenv, store)
+		fmt.Fprintf(a.stdout, "%s\n", name)
+		for _, link := range res.Trace {
+			detail := link.Detail
+			if detail != "" {
+				detail = "  " + detail
+			}
+			fmt.Fprintf(a.stdout, "  %d  %-20s %-9s%s\n", link.Rank, link.Name, link.Outcome, detail)
+		}
+		switch {
+		case err == nil:
+			fmt.Fprintf(a.stdout, "  → %s\n", res.Source)
+		case errors.Is(err, keystore.ErrNotFound):
+			fmt.Fprintln(a.stdout, "  → no credential; add one with `kolk key "+name+"`")
+		default:
+			fmt.Fprintf(a.stdout, "  → %v\n", err)
+			if advice := keyStoreAdvice(err); advice != "" {
+				fmt.Fprintf(a.stdout, "    %s\n", advice)
+			}
+		}
+		if res.Warning != "" {
+			fmt.Fprintf(a.stdout, "  ! %s\n", res.Warning)
+		}
+	}
+	return nil
 }

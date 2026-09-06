@@ -7055,3 +7055,15 @@ a paused turn comes back by itself without spending; the person is told what cou
 why; the chain is walked when asked, or by itself when the person said so. Six cards on the site
 went from designed or planned to available in two days, each with a pin that fails if the old
 wording ever returns.
+
+## Where a key comes from, shown — V05.S.a closed 2026-09-06
+
+Plan 05 wrote the chain a year ago in a table: a flag that is empty by design, one variable that
+overrides everything, the provider's own variable from a short list nobody derives, and the store.
+It also wrote the rule that makes the chain safe: a store that cannot answer stops the search with
+its own name, because a locked keychain rendered as "no key" invites a second key that nobody
+rotates. Both are code now, and the CLI's two resolvers are that one chain rather than two copies
+of it. `kolk key --why` shows the links with the hit and what it shadowed, masks only; `/doctor`
+says the same source kolk will use. The keychain that the card promises is next, built against the
+security command's documented exit codes, with its live reading left for the owner because that
+reading can raise the login password dialog.

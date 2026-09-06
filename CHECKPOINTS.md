@@ -10825,6 +10825,38 @@ Subcheckpoints, one at a time:
       translator, or defer. Not mine to choose.
     - [ ] **V34.4c.4 the surfaces** — plan 24 rows, `/plans`, the capabilities card, pinned; each
       row says its status in the words the disposition uses.
+- [~] **V05.S SECRETS, the wider chain** — plan 05 §1 and §3, opened 2026-09-06 at the owner's
+  request to build what the capabilities card still calls designed. The card promises four things:
+  the environment, the provider environment, one named store, a visible first-hit order, and an
+  opt-in OS keychain. **Scope:** the chain as plan 05 §1 step B writes it and the keychain as §3
+  writes it; **non-goals:** `kolk login` (§4), helpers (`helper:<name>`), DPAPI on Windows, the
+  project-local file (§7) — each its own leaf later.
+  - [x] **V05.S.a the chain and the first-hit order** — **Closed 2026-09-06, on main.** Red observed:
+    `kolk key --why` did not exist, the two resolvers read `OPENROUTER_API_KEY` and the store in
+    two copies of the same logic, and a store that failed for any reason read as "no key".
+    Green: `keystore.Resolve(ctx, ref, getenv, store)` walks the four links — the flag, structurally
+    empty and printed as such; `KOLK_API_KEY`, whose shape belonging to another provider warns and
+    never re-routes; the provider's own variable from a curated list (`ProviderEnv`, ten names,
+    nothing derived from an id); the store, a lookup not a cascade — with the three outcomes per
+    link: nothing found continues, a hit records its source and probes the rest so the trace says
+    what was shadowed, and a store that is locked, unavailable or slow stops the chain with a named
+    error (`ErrLocked` and `ErrTimeout` added beside `ErrUnavailable`) that never reads as "no key".
+    The CLI's resolvers are that chain; `kolk key --why [provider]` renders it link by link with
+    masks only and the remedy under a stopped store; `/doctor keys` prints what the chain returned,
+    source named, and the remedy when it stopped; the vendor resolver refuses to run if a
+    disposition's variable ever drifts from the curated list. Tests: the chain's order and trace,
+    a locked store stopping and nothing anywhere continuing, the shape warning, the curated list,
+    `--why`'s render without a value, the three remedies. cli with `-race`; keystore; arch; whole
+    tree; lint; vet; `make check`.
+  - [ ] **V05.S.b the OS keychain, opt-in** — plan 05 §3: `keychain_darwin.go` over
+    `/usr/bin/security` with the exit-code table (36 is "no GUI to prompt in", a locked login
+    keychain raises the dialog, so the read has a 2 s deadline and `ErrLocked`/`ErrTimeout` are the
+    outcomes), `keychain_unix.go` over `secret-tool`, opportunistic and never `dbus-launch`; the
+    manifest's `backend` field routes one credential to it; `kolk key --backend keychain|file` moves
+    one credential; the one-time notice says exactly what it buys (at rest, not against code running
+    as you). Built to the table through a runner seam with fixtures. **Live check is the owner's:**
+    a read against a locked login keychain raises the macOS password dialog, which is not for a
+    night the owner is asleep. The card flips when this lands.
 - [x] **V35 continuity** — closed 2026-09-06, all six leaves on main. Plan drafted 2026-09-05 at the owner's direction (`docs/plan/35-continuity.md`):
   six leaves V35.1 DETECT → V35.2 PAUSE → V35.3 RECOMMEND → V35.4 CHAIN → V35.5 SAFE DEFAULT → V35.6
   AUTO, each flipping one capabilities card with inverse pins. Owner answered all ten questions the

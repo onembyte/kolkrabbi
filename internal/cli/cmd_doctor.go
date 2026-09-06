@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/buildinfo"
 	"github.com/onembyte/kolkrabbi/internal/engine"
+	"github.com/onembyte/kolkrabbi/internal/keystore"
 	"github.com/onembyte/kolkrabbi/internal/local"
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -174,20 +176,24 @@ func (a *app) doctorLocalModels(ctx context.Context) {
 }
 
 func (a *app) doctorKeys(ctx context.Context) {
-	if env := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY")); env != "" {
-		fmt.Fprintf(a.stdout, "  ✓ openrouter  %s  from OPENROUTER_API_KEY\n", redact.Mask(env))
-		a.doctorVendorKeys(ctx)
+	d, err := a.resolve()
+	if err != nil {
+		fmt.Fprintf(a.stdout, "  ✗ %v\n", err)
 		return
 	}
-	d, err := a.resolve()
-	if err == nil {
-		if cred, err := resolveOpenRouterCredential(ctx, filepath.Join(d.Config, "keys.json")); err == nil && cred.Reveal() != "" {
-			fmt.Fprintf(a.stdout, "  ✓ openrouter  %s  from the key store\n", redact.Mask(cred.Reveal()))
-			a.doctorVendorKeys(ctx)
-			return
+	// The chain, not a second copy of it: what /doctor says is what kolk uses.
+	res, err := keystore.Resolve(ctx, keystore.Ref{Provider: "openrouter", Profile: "default"}, os.Getenv, keystore.NewFileStore(d.CredentialsFile()))
+	switch {
+	case err == nil:
+		fmt.Fprintf(a.stdout, "  ✓ openrouter  %s  from %s  (kolk key --why shows the chain)\n", redact.Mask(res.Value.Reveal()), res.Source)
+	case errors.Is(err, keystore.ErrNotFound):
+		fmt.Fprintln(a.stdout, "  ✗ openrouter  no key found — add one with `/key` (it asks for the key, hidden)")
+	default:
+		fmt.Fprintf(a.stdout, "  ✗ openrouter  %v\n", err)
+		if advice := keyStoreAdvice(err); advice != "" {
+			fmt.Fprintf(a.stdout, "    %s\n", advice)
 		}
 	}
-	fmt.Fprintln(a.stdout, "  ✗ openrouter  no key found — add one with `/key` (it asks for the key, hidden)")
 	a.doctorVendorKeys(ctx)
 }
 
