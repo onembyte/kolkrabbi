@@ -7124,3 +7124,14 @@ the same origin. The ratchets did their work: the test that pins the steer set f
 form post was mounted and grew by one on purpose, and the test that pins "a GET never pairs" was
 re-read to "a GET renders and pairs nothing" with the device count as its proof. No browser opened
 the page tonight; the owner's phone will.
+
+## Every session, from a phone — I27.7 closed 2026-09-06
+
+The dash already knew which sessions were live, which were blocked on a prompt, what each had cost
+and which two shared a checkout; it showed that only on the machine. A paired device now sees the
+same cards through the client, and each live card gained the one thing the plan asked for and the
+dash had not: what source control is doing in that session's tree, the branch and how many files
+differ, read through git under a deadline so a slow repository cannot hold the page. What the card
+does not claim is steering a session other than the one the device paired with; a session is
+steered through its own server, and a broker for the others is a design still to be written. The
+arch gate caught two invented contexts on the way and both now come from the request.

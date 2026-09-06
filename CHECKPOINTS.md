@@ -10825,6 +10825,22 @@ Subcheckpoints, one at a time:
       translator, or defer. Not mine to choose.
     - [ ] **V34.4c.4 the surfaces** — plan 24 rows, `/plans`, the capabilities card, pinned; each
       row says its status in the words the disposition uses.
+- [x] **I27.7 many sessions, one view, for a paired device** — plan 27, opened and closed
+  2026-09-06 at the owner's request; I27.1–6 were built and the dash drew the cards on the machine.
+  **Scope:** `GET /v1/client/sessions` for any paired device (read or steer), the dash's cards and
+  shared-checkout warning framed by the client, through a `Sessions` option the CLI fills from the
+  same `sessionCards` the dash uses; each live card now says what source control is doing in its
+  tree — `shell.RepoState` runs `git rev-parse --abbrev-ref HEAD` and `git status --porcelain`
+  under a 2 s deadline, os/exec staying the shell's, and a directory git will not speak for gets no
+  line; the client page links to the view and back. **Non-goals, said on the card:** steering a
+  session other than the one this server is attached to — a session is steered through its own
+  server, and a broker for the others is a design, not a line; context per card stays refused for
+  plan 27's reason. **Red observed:** `/v1/client/sessions` 404, no git state on a card. Tests: the
+  branch line and the clean case at the dash, none for a card without git; `RepoState` on a real
+  temporary repository, clean and dirty, and a plain directory; the page for a read device, 401
+  without a cookie, the "not attached" case, blocked and shared shown, no script. Two invented
+  contexts caught by the arch gate and threaded from the request. serve and shell with `-race`;
+  dash, cli, arch; whole tree; lint; vet; site; `make check`.
 - [x] **I26.7 the remote client** — plan 26 §5, opened and closed 2026-09-06 at the owner's request
   to build what the card called planned; I26.1–6 were done. **Scope:** `GET /v1/client`, a
   server-rendered page with no script: an iframe on `GET /v1/client/stream`, chunked HTML that

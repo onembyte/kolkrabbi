@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/bus"
+	"github.com/onembyte/kolkrabbi/internal/dash"
 	"github.com/onembyte/kolkrabbi/internal/devices"
 	"github.com/onembyte/kolkrabbi/internal/serve"
 )
@@ -71,6 +72,10 @@ func (a *app) runServe(ctx context.Context, args []string) error {
 	// from other machines is refused rather than bound and then refused. The
 	// window between the two was small and it was the wrong way round.
 	srv, err := serve.New(serve.Options{
+		// Every session on the machine, for the paired client's sessions page.
+		Sessions: func(ctx context.Context) ([]dash.SessionCard, []dash.SharedCheckout) {
+			return a.sessionCards(ctx, dirs.Data)
+		},
 		Bus:        b,
 		Token:      token,
 		Addr:       *addr,

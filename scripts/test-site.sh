@@ -153,6 +153,12 @@ contains index.html 'Ollama' "the hero does not name a local provider"
 contains index.html 'One static binary under' "the landing page does not state the binary size"
 contains index.html '9&nbsp;MB, milliseconds to start' "the binary claim drifted from what check-budgets.sh measures"
 contains capabilities.html '<link rel="canonical" href="https://kolkrabbi.francomichetti.com/capabilities">' "capabilities.html has no canonical URL"
+# MANY shipped 2026-09-06 (I27.7): the sessions view for a paired device, with git state.
+contains capabilities.html '<span class="status-badge">Available now</span><span>MANY</span>' "the MANY card must say it ships"
+not_contains capabilities.html 'is the next stretch of
+            this road' "the MANY card's planned wording must be gone"
+contains capabilities.html 'what source' "the MANY card must name source control"
+contains capabilities.html 'sending a turn to another session from here is still to come' "the MANY card must say steering another session is not here"
 # CLIENT shipped 2026-09-06 (I26.7): a paired browser's page, cookie-scoped, same-origin posts.
 contains capabilities.html '<span class="status-badge">Available now</span><span>CLIENT</span>' "the CLIENT card must say it ships"
 not_contains capabilities.html 'this section is a server waiting for a client' "the CLIENT card's planned wording must be gone"

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/dash"
 	"github.com/onembyte/kolkrabbi/internal/netaddr"
 	"github.com/onembyte/kolkrabbi/internal/session"
+	"github.com/onembyte/kolkrabbi/internal/shell"
 	"github.com/onembyte/kolkrabbi/internal/stats"
 )
 
@@ -78,7 +80,7 @@ func (a *app) dashHandler(dataDir string) http.Handler {
 		// The page embeds nothing and loads nothing; say so to the browser too.
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
 		w.Header().Set("Cache-Control", "no-store")
-		cards, shared := a.sessionCards(dataDir)
+		cards, shared := a.sessionCards(r.Context(), dataDir)
 		_, _ = w.Write([]byte(dash.Page(records, skipped, cards, shared)))
 	})
 	return mux
@@ -114,7 +116,7 @@ func dashAddrFrom(args []string) (string, error) {
 // lock probed without taking it, a 64 KiB journal tail read only for live
 // sessions, and one pass over the usage log for the sessions being shown — and
 // re-reading them from inside a template would undo all four.
-func (a *app) sessionCards(dataDir string) ([]dash.SessionCard, []dash.SharedCheckout) {
+func (a *app) sessionCards(ctx context.Context, dataDir string) ([]dash.SessionCard, []dash.SharedCheckout) {
 	sessionsDir := filepath.Join(dataDir, "sessions")
 	overview, err := session.Overview(sessionsDir)
 	if err != nil || len(overview) == 0 {
@@ -148,6 +150,13 @@ func (a *app) sessionCards(dataDir string) ([]dash.SessionCard, []dash.SharedChe
 		if live {
 			if blocked, waiting := session.BlockedOn(sessionsDir, card.ID); waiting {
 				view.BlockedOn = blocked.Tool
+			}
+			// What source control is doing in a live session's tree; a
+			// directory git will not speak for gets no line.
+			if card.CWD != "" {
+				if branch, dirty, ok := shell.RepoState(ctx, card.CWD); ok {
+					view.Branch, view.Dirty, view.VCSKnown = branch, dirty, true
+				}
 			}
 		}
 		cards = append(cards, view)

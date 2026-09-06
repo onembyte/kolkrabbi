@@ -318,3 +318,7 @@ func costCell(row stats.ModelRow) string {
 	}
 	return money(row.Cost)
 }
+
+// CSS is the page's stylesheet, for a surface that frames the sessions
+// section itself.
+func CSS() string { return pageCSS }

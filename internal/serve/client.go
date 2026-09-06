@@ -1,6 +1,7 @@
 package serve
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/bus"
+	"github.com/onembyte/kolkrabbi/internal/dash"
 	"github.com/onembyte/kolkrabbi/internal/devices"
 	"github.com/onembyte/kolkrabbi/protocol"
 )
@@ -90,7 +92,7 @@ func clientPageHandler(token string, store *devices.Store) http.HandlerFunc {
 		var b strings.Builder
 		b.WriteString(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`)
 		b.WriteString(`<title>kolk</title><link rel="manifest" href="/v1/client/manifest.json"><style>` + clientCSS + `</style></head><body>`)
-		b.WriteString(`<header><h1>kolk</h1><span class="sub">this session, live</span></header>`)
+		b.WriteString(`<header><h1>kolk</h1><span class="sub">this session, live</span><a class="sub" href="/v1/client/sessions">every session</a></header>`)
 		b.WriteString(`<iframe src="/v1/client/stream" title="transcript"></iframe>`)
 		if tier == devices.TierSteer {
 			b.WriteString(`<form method="post" action="/v1/client/turn"><textarea name="prompt" placeholder="Ask kolk…" required></textarea><button type="submit">Send</button></form>`)
@@ -243,4 +245,34 @@ func reasonSuffix(reason string) string {
 		return ""
 	}
 	return " (" + html.EscapeString(reason) + ")"
+}
+
+// clientSessionsHandler is GET /v1/client/sessions: every session on the
+// machine as the dash draws it — blocked first, live, cost, the checkout it
+// shares, what source control is doing — for any paired device. Steering a
+// session other than the one this server is attached to is not here: a
+// session is steered through its own server.
+func clientSessionsHandler(token string, store *devices.Store, sessions func(context.Context) ([]dash.SessionCard, []dash.SharedCheckout)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := clientTier(r, token, store); !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		var b strings.Builder
+		b.WriteString(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>kolk · sessions</title><style>` + clientCSS + dash.CSS() + `</style></head><body>`)
+		b.WriteString(`<header><h1>kolk</h1><span class="sub">every session on this machine</span><a class="sub" href="/v1/client">this session</a></header><main style="padding:0 1rem;overflow:auto">`)
+		if sessions == nil {
+			b.WriteString(`<p class="sub">This server is not attached to a machine's sessions.</p>`)
+		} else {
+			cards, shared := sessions(r.Context())
+			if len(cards) == 0 {
+				b.WriteString(`<p class="sub">No sessions yet.</p>`)
+			} else {
+				b.WriteString(dash.Sessions(cards, shared))
+			}
+		}
+		b.WriteString(`</main></body></html>`)
+		_, _ = w.Write([]byte(b.String()))
+	}
 }

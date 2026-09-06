@@ -101,6 +101,7 @@ thing discovered when an undo restores someone else's work.
 - **I27.4 cost and context per card** — from `stats.jsonl` and the last usage event.
 - **I27.5 shared-checkout warning** — two live cards in one directory say so.
 - **I27.6 the view** — ✓ the dash renders cards, blocked first; steering is item 26's tiers.
+- **I27.7 the view for a paired device** — ✓ 2026-09-06: `/v1/client/sessions` shows the same cards to any paired device, and a live card carries its branch and dirty count from git. Steering another session from the view remains.
 
 ## Open questions
 

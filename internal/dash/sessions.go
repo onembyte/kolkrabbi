@@ -23,6 +23,11 @@ type SessionCard struct {
 	BlockedOn string // the tool a stopped session is waiting on; empty if it is not
 	Cost      float64
 	CostKnown bool
+	// Branch and Dirty are what source control says about the working tree
+	// of a live session; VCSKnown is false where git said nothing.
+	Branch   string
+	Dirty    int
+	VCSKnown bool
 }
 
 // SharedCheckout is one directory more than one live session is working in.
@@ -81,6 +86,15 @@ func renderSessionCards(cards []SessionCard) string {
 		if card.CWD != "" {
 			fmt.Fprintf(&b, `<p class="meta">%s</p>`, escape(card.CWD))
 		}
+		if card.VCSKnown {
+			changed := "clean"
+			if card.Dirty == 1 {
+				changed = "1 file changed"
+			} else if card.Dirty > 1 {
+				changed = fmt.Sprintf("%d files changed", card.Dirty)
+			}
+			fmt.Fprintf(&b, `<p class="meta">on %s · %s</p>`, escape(card.Branch), changed)
+		}
 		fmt.Fprintf(&b, `<p class="meta">%s</p></article>`, escape(card.ID))
 	}
 	b.WriteString(`</div></section>`)
@@ -106,3 +120,9 @@ func renderSharedCheckouts(shared []SharedCheckout) string {
 // session title is whatever the fast lane named it after reading a user's
 // words, and a working directory is whatever the filesystem holds.
 func escape(text string) string { return html.EscapeString(text) }
+
+// Sessions is the sessions view alone — the shared-checkout warning and the
+// cards — for a surface that frames it itself, such as the paired client.
+func Sessions(cards []SessionCard, shared []SharedCheckout) string {
+	return renderSharedCheckouts(shared) + renderSessionCards(cards)
+}

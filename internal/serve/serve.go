@@ -10,6 +10,7 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/buildinfo"
 	"github.com/onembyte/kolkrabbi/internal/bus"
+	"github.com/onembyte/kolkrabbi/internal/dash"
 	"github.com/onembyte/kolkrabbi/internal/devices"
 )
 
@@ -23,6 +24,9 @@ type Options struct {
 	// Turns is how a remote prompt reaches a session. Nil means this server
 	// is not attached to one, which is what `kolk serve` standalone is.
 	Turns TurnStarter
+	// Sessions lists every session on the machine for the client's sessions
+	// page (plan 27; MANY). Nil means the page says the server has none to show.
+	Sessions func(context.Context) ([]dash.SessionCard, []dash.SharedCheckout)
 	// Devices holds the paired devices. Nil disables device auth and pairing.
 	Devices *devices.Store
 	// Pairing is the short window during which a new device may be added.
@@ -94,6 +98,7 @@ func Mux(opts Options) (http.Handler, error) {
 	mux.Handle("/v1/client/stream", clientStreamHandler(opts.Bus, opts.PingInterval))
 	mux.Handle("/v1/client/turn", clientTurnHandler(opts.Token, opts.Devices, opts.Turns))
 	mux.Handle("/v1/client/manifest.json", clientManifestHandler())
+	mux.Handle("/v1/client/sessions", clientSessionsHandler(opts.Token, opts.Devices, opts.Sessions))
 
 	guarded := authMiddleware(opts.Token, openRoutes, opts.Devices, mux)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
