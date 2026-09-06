@@ -38,7 +38,7 @@ contains "$CLI/slash.go" '"full-auto", "", "stop asking' "in-session help does n
 # Update retired as an outside-session verb on 2026-09-02 (docs/plan/09): the
 # session is the surface, so the check is that /update exists and that the
 # closed outside-session set is exactly the four verbs that survived.
-contains "$CLI/slash.go" '{"update", "", "install the latest verified release"}' "in-session update command is missing"
+contains "$CLI/slash.go" '{"update", "", "install the latest verified release", nil}' "in-session update command is missing"
 contains "$CLI/cli.go" '{"sessions", ' "outside-session sessions command is missing"
 contains "$CLI/cli.go" '{"serve", ' "outside-session serve command is missing"
 contains "$CLI/cli.go" '{"uninstall", ' "outside-session uninstall command is missing"

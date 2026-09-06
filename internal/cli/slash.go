@@ -18,50 +18,56 @@ type slashCommand struct {
 	name    string
 	args    string
 	summary string
+	// choices is the command's fixed vocabulary for completion, by
+	// position; see tui.Choice. What the args text says may be typed, the
+	// composer finishes — a test derives one from the other.
+	choices []tui.Choice
 }
 
+func words(list ...string) []tui.Choice { return []tui.Choice{{Words: list}} }
+
 var slashCommandTable = []slashCommand{
-	{"key", "[<provider>] | - | --why [<provider>] | --backend <keychain|file> [<provider>]", "add an API key (read hidden, never from the line); --why shows where it comes from; --backend moves it"},
-	{"mode", "<chat|code|agent>", "switch mode (agent = orchestrated; code is default)"},
-	{"effort", "<low|medium|high|max|ultra>", "select model tier and orchestration width"},
-	{"model", "[id | alias] [effort]", "pick or switch this session's model (bare opens a picker in a terminal)"},
-	{"plans", "[filter] | login <provider> <plan>", "list plans or start provider-owned login"},
-	{"plogin", "[filter]", "search plans and start provider-owned login"},
-	{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors"},
-	{"localia", "[models [filter] | plan <model> | pull [--yes] <model>]", "local hardware, model catalog, fit plans, and pulls"},
-	{"compact", "[undo]", "shrink the conversation now, or put back the last one"},
-	{"remember", "[--project] <note>", "add one line of standing guidance"},
-	{"config", "[get <k> | set <k> <v> | unset <k> | show]", "read and write saved settings"},
-	{"update", "", "install the latest verified release"},
-	{"stats", "[--json]", "100% local usage and rating dashboard"},
-	{"dash", "[--addr 127.0.0.1:0]", "open the local usage dashboard in a browser"},
-	{"version", "[--json]", "print the running build"},
-	{"rate", "<1-5>", "rate the last turn for local stats"},
-	{"permissions", "[ask|auto-approve|full-auto]", "see or choose how much may happen without asking"},
-	{"sandbox", "[on|off]", "confine bash commands to the project and temp (OS sandbox); off by default"},
-	{"ask", "", "confirm before changing a file or running a command"},
-	{"auto-approve", "", "edit inside the project without asking; still ask before commands"},
-	{"full-auto", "", "stop asking; the floor still refuses"},
-	{"new", "", "start a fresh saved session"},
-	{"clear", "", "alias for /new"},
-	{"session", "", "show the current session id and file"},
-	{"changes", "", "list files modified by this session"},
-	{"diff", "[path]", "show what this session changed, as a diff"},
-	{"plan", "[off]", "read-only: explore and propose, without writing or running anything"},
-	{"saga", "inline marker", "mark this normal request for careful, checkpointed progression"},
-	{"devices", "[revoke <id>]", "list paired devices, or revoke one without stopping the session"},
-	{"undo", "[task <n>]", "take back the last turn, or one subagent's file changes alone"},
-	{"rewind", "", "restore the last turn's files only, leaving the conversation"},
-	{"commit", "", "draft a commit message from the staged diff, and stop"},
-	{"pr", "", "draft a pull request title and body, and hand over `gh pr create`"},
-	{"doctor", "", "check keys, directories, terminal and network"},
-	{"theme", "[kolkrabbi|nord|quiet]", "change the look for this session; /config set theme keeps it"},
-	{"mcp", "add <name> <command> [args…] | rm <name> | list | tools", "tool servers: their tools appear as <name>__<tool> and answer to `allow mcp(<name>__*)`"},
-	{"resume", "", "lift a limit pause now and re-send the turn that was waiting"},
-	{"continue", "[n]", "switch to the nth equivalent model the pause recommended and re-send the turn"},
-	{"help", "", "show all slash commands"},
-	{"exit", "", "quit Kolkrabbi"},
-	{"quit", "", "alias for /exit"},
+	{"key", "[<provider>] | - | --why [<provider>] | --backend <keychain|file> [<provider>]", "add an API key (read hidden, never from the line); --why shows where it comes from; --backend moves it", []tui.Choice{{Words: []string{"-", "--why", "--backend"}}, {After: []string{"--backend"}, Words: []string{"keychain", "file"}}}},
+	{"mode", "<chat|code|agent>", "switch mode (agent = orchestrated; code is default)", words("chat", "code", "agent")},
+	{"effort", "<low|medium|high|max|ultra>", "select model tier and orchestration width", words("low", "medium", "high", "max", "ultra")},
+	{"model", "[id | alias] [effort]", "pick or switch this session's model (bare opens a picker in a terminal)", nil},
+	{"plans", "[filter] | login <provider> <plan>", "list plans or start provider-owned login", words("login")},
+	{"plogin", "[filter]", "search plans and start provider-owned login", nil},
+	{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors", nil},
+	{"localia", "[models [filter] | plan <model> | pull [--yes] <model>]", "local hardware, model catalog, fit plans, and pulls", []tui.Choice{{Words: []string{"models", "plan", "pull"}}, {After: []string{"pull"}, Words: []string{"--yes"}}}},
+	{"compact", "[undo]", "shrink the conversation now, or put back the last one", words("undo")},
+	{"remember", "[--project] <note>", "add one line of standing guidance", words("--project")},
+	{"config", "[get <k> | set <k> <v> | unset <k> | show]", "read and write saved settings", words("get", "set", "unset", "show")},
+	{"update", "", "install the latest verified release", nil},
+	{"stats", "[--json]", "100% local usage and rating dashboard", words("--json")},
+	{"dash", "[--addr 127.0.0.1:0]", "open the local usage dashboard in a browser", words("--addr")},
+	{"version", "[--json]", "print the running build", words("--json")},
+	{"rate", "<1-5>", "rate the last turn for local stats", words("1", "2", "3", "4", "5")},
+	{"permissions", "[ask|auto-approve|full-auto]", "see or choose how much may happen without asking", words("ask", "auto-approve", "full-auto")},
+	{"sandbox", "[on|off]", "confine bash commands to the project and temp (OS sandbox); off by default", words("on", "off")},
+	{"ask", "", "confirm before changing a file or running a command", nil},
+	{"auto-approve", "", "edit inside the project without asking; still ask before commands", nil},
+	{"full-auto", "", "stop asking; the floor still refuses", nil},
+	{"new", "", "start a fresh saved session", nil},
+	{"clear", "", "alias for /new", nil},
+	{"session", "", "show the current session id and file", nil},
+	{"changes", "", "list files modified by this session", nil},
+	{"diff", "[path]", "show what this session changed, as a diff", nil},
+	{"plan", "[off]", "read-only: explore and propose, without writing or running anything", words("off")},
+	{"saga", "inline marker", "mark this normal request for careful, checkpointed progression", nil},
+	{"devices", "[revoke <id>]", "list paired devices, or revoke one without stopping the session", words("revoke")},
+	{"undo", "[task <n>]", "take back the last turn, or one subagent's file changes alone", words("task")},
+	{"rewind", "", "restore the last turn's files only, leaving the conversation", nil},
+	{"commit", "", "draft a commit message from the staged diff, and stop", nil},
+	{"pr", "", "draft a pull request title and body, and hand over `gh pr create`", nil},
+	{"doctor", "", "check keys, directories, terminal and network", nil},
+	{"theme", "[kolkrabbi|nord|quiet]", "change the look for this session; /config set theme keeps it", nil},
+	{"mcp", "add <name> <command> [args…] | rm <name> | list | tools", "tool servers: their tools appear as <name>__<tool> and answer to `allow mcp(<name>__*)`", words("add", "rm", "list", "tools")},
+	{"resume", "", "lift a limit pause now and re-send the turn that was waiting", nil},
+	{"continue", "[n]", "switch to the nth equivalent model the pause recommended and re-send the turn", nil},
+	{"help", "", "show all slash commands", nil},
+	{"exit", "", "quit Kolkrabbi", nil},
+	{"quit", "", "alias for /exit", nil},
 }
 
 func slashSuggestions() []tui.CommandSpec {
@@ -71,8 +77,18 @@ func slashSuggestions() []tui.CommandSpec {
 		if command.args != "" {
 			usage += " " + command.args
 		}
+		choices := append([]tui.Choice(nil), command.choices...)
+		// Vocabularies that live elsewhere ride along: the themes the TUI
+		// knows, and the providers a key may belong to.
+		switch command.name {
+		case "theme":
+			choices = append(choices, tui.Choice{Words: tui.Themes()})
+		case "key":
+			providers := append([]string{"openrouter"}, provider.KeyedVendors()...)
+			choices = append(choices, tui.Choice{Words: providers}, tui.Choice{After: []string{"--why"}, Words: providers})
+		}
 		commands = append(commands, tui.CommandSpec{
-			Name: command.name, Usage: usage, Summary: command.summary,
+			Name: command.name, Usage: usage, Summary: command.summary, Choices: choices,
 		})
 	}
 	return commands

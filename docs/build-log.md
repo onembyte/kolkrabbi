@@ -7194,3 +7194,12 @@ Now `/plans`, the provider wall and `llms.txt` say each vendor's word from the r
 subscription row of a key-only vendor says unsupported, and Perplexity's row is named after its
 path. The test that once required "listed" was re-read rather than deleted: it guarded against
 "available", and still does.
+
+## Tab fills the word — V36.4 closed 2026-09-06
+
+The owner wanted `/mode age` and Tab to become `/mode agent`, and the same for every command.
+The composer completed names, models and settings but never a command's own vocabulary, so a
+vocabulary per position now rides on the command table, one suggester matches the word being
+typed, Tab fills it and Enter runs it. A table test reads each command's usage text and fails
+the moment a word appears there that completion does not offer. The one gate that broke was a
+pin on the update row's exact shape, re-read for the new column.

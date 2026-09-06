@@ -10904,6 +10904,20 @@ Subcheckpoints, one at a time:
       user's tree (`go test ./...` green there), the store empty afterwards and `git worktree list`
       showing only the main tree. Not done: a Spanish capabilities page does not exist, so the
       Spanish site says nothing about it.
+  - [x] **V36.4 every command completes its own words** — asked 2026-09-06 ("/mode age[TAB]" fills
+    `agent`, Enter runs it, "for each command that we have"), closed the same day. The composer
+    already completed command names, models, plan logins and setting keys; it did not complete a
+    command's fixed words. Now each `slashCommand` carries `choices`, a vocabulary by position
+    (`tui.Choice{After, Words}`), and `tui.SuggestArguments` matches the word under the cursor
+    against what may be typed there; Tab fills it; Enter with nothing highlighted fills a partial
+    word and sends a full one, while the older rule for command names — Enter completes only an
+    explicit selection — is untouched and its test still passes. `/config get|set|unset <key>`
+    completes the key after the verb, `/plans login` completes the same pairs as `/plogin`,
+    `/theme` takes its names from the TUI and `/key` its providers from the keyed vendors.
+    Red first: three composer tests, and one table test that derives every fixed word from each
+    command's own usage text, so a word added to the help line without its completion fails.
+    The surface gate's pin on the update row was re-read for the table's new column. `make check`
+    green, cross-platform lint and vet green. Not done: a live keystroke in the owner's terminal.
   - [x] **V36.3 the animated kolk terminal on the site** — closed 2026-09-06. Section "02 / AGENTS"
     on the landing page, between install and the capability cards: a terminal in the site's own
     chrome replaying the V36.0 run in kolk's real lines — `/mode agent`, the typed prompt,

@@ -12,6 +12,18 @@ type CommandSpec struct {
 	Usage    string
 	Summary  string
 	Complete string
+	// Choices is the command's fixed vocabulary, by position: what may be
+	// typed after the command name, or after a given run of earlier words.
+	// The composer completes these the way it completes command names.
+	Choices []Choice
+}
+
+// Choice is the words allowed at one argument position: After is the exact
+// run of earlier argument words that leads there (empty for the first
+// argument), Words is what may be typed next.
+type Choice struct {
+	After []string
+	Words []string
 }
 
 // ModelSpec is the presentation subset of one provider model.
@@ -239,8 +251,14 @@ func SuggestModels(models []ModelSpec, draft string, limit int) []CommandSpec {
 
 // SuggestPlanLogins filters provider plans while /plogin is being typed.
 func SuggestPlanLogins(plans []PlanSpec, draft string, limit int) []CommandSpec {
-	const prefix = "/plogin "
-	if !strings.HasPrefix(strings.ToLower(draft), prefix) {
+	// Two spellings of the same act: /plogin, and /plans login.
+	prefix := ""
+	for _, candidate := range []string{"/plogin ", "/plans login "} {
+		if strings.HasPrefix(strings.ToLower(draft), candidate) {
+			prefix = candidate
+		}
+	}
+	if prefix == "" {
 		return nil
 	}
 	if limit <= 0 {
@@ -287,8 +305,20 @@ func SuggestSettings(settings []SettingSpec, draft string, limit int) []CommandS
 	// `/config set …` is already past the picker: the user has chosen a key and
 	// is typing its value, and re-offering the list would fight the typing.
 	rest := strings.TrimSpace(draft[len(prefix):])
-	if strings.HasPrefix(strings.ToLower(rest), "set ") || strings.HasPrefix(strings.ToLower(rest), "get ") {
-		return nil
+	// After a verb the key is what is being typed, until it is typed: once
+	// "set <key> " has its space the value follows, and that is the user's.
+	verb := ""
+	for _, candidate := range []string{"set", "get", "unset"} {
+		if strings.HasPrefix(strings.ToLower(rest), candidate+" ") || strings.EqualFold(rest, candidate) {
+			verb = candidate
+		}
+	}
+	if verb != "" {
+		after := strings.TrimSpace(rest[len(verb):])
+		if strings.ContainsAny(after, " \t") || (after != "" && strings.HasSuffix(draft, " ")) {
+			return nil
+		}
+		rest = after
 	}
 	if limit <= 0 {
 		limit = 8
@@ -307,11 +337,17 @@ func SuggestSettings(settings []SettingSpec, draft string, limit int) []CommandS
 		if setting.Default {
 			value += " (default)"
 		}
+		complete := prefix + "set " + setting.Key + " "
+		usage := setting.Key + "  " + value
+		if verb == "get" || verb == "unset" {
+			complete = prefix + verb + " " + setting.Key
+			usage = complete
+		}
 		matches = append(matches, scoredSpec{score: score, spec: CommandSpec{
 			Name:     setting.Key,
-			Usage:    setting.Key + "  " + value,
+			Usage:    usage,
 			Summary:  setting.Summary,
-			Complete: prefix + "set " + setting.Key + " ",
+			Complete: complete,
 		}})
 	}
 	suggestions := rankByScore(matches)
@@ -319,4 +355,84 @@ func SuggestSettings(settings []SettingSpec, draft string, limit int) []CommandS
 		suggestions = suggestions[:limit]
 	}
 	return suggestions
+}
+
+// SuggestArguments completes a command's fixed vocabulary while an argument
+// is being typed: the draft's command is looked up, the earlier argument
+// words select the position, and the word under the cursor is matched
+// against what may be typed there. A command with no vocabulary at that
+// position, or a word that matches nothing, yields no suggestion at all:
+// a guess offered for an unknown word would be worse than silence.
+func SuggestArguments(catalog []CommandSpec, draft string, limit int) []CommandSpec {
+	if !strings.HasPrefix(draft, "/") || !strings.ContainsAny(draft, " \t") {
+		return nil
+	}
+	if limit <= 0 {
+		limit = 8
+	}
+	fields := strings.Fields(draft)
+	if len(fields) == 0 {
+		return nil
+	}
+	name := strings.ToLower(strings.TrimPrefix(fields[0], "/"))
+	var command CommandSpec
+	found := false
+	for _, candidate := range catalog {
+		if strings.ToLower(candidate.Name) == name {
+			command, found = candidate, true
+			break
+		}
+	}
+	if !found || len(command.Choices) == 0 {
+		return nil
+	}
+	args := fields[1:]
+	partial := ""
+	if !strings.HasSuffix(draft, " ") && !strings.HasSuffix(draft, "\t") && len(args) > 0 {
+		partial, args = args[len(args)-1], args[:len(args)-1]
+	}
+	var words []string
+	for _, choice := range command.Choices {
+		if sameWords(choice.After, args) {
+			words = append(words, choice.Words...)
+		}
+	}
+	if len(words) == 0 {
+		return nil
+	}
+	lead := "/" + command.Name
+	if len(args) > 0 {
+		lead += " " + strings.Join(args, " ")
+	}
+	matches := make([]scoredSpec, 0, len(words))
+	for _, word := range words {
+		score, ok := fuzzyScore(word, strings.ToLower(partial))
+		if !ok {
+			continue
+		}
+		full := lead + " " + word
+		matches = append(matches, scoredSpec{score: score, spec: CommandSpec{
+			Name: word, Usage: full, Summary: command.Summary, Complete: full,
+		}})
+	}
+	suggestions := rankByScore(matches)
+	if len(suggestions) > limit {
+		suggestions = suggestions[:limit]
+	}
+	if len(suggestions) == 0 {
+		return nil
+	}
+	return suggestions
+}
+
+func sameWords(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !strings.EqualFold(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
 }

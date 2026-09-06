@@ -120,6 +120,10 @@ type Controller struct {
 	files           []string
 	suggestionLimit int
 	suggestions     []CommandSpec
+
+	// argumentWords marks a suggestion list that completes a command\'s own
+	// vocabulary, where Enter on a partial word fills it before sending.
+	argumentWords   bool
 	suggestionIndex int
 	// suggestionTop is the first row on screen. The selection moves through the
 	// whole list; this follows it, so a catalog longer than the window is
@@ -708,12 +712,23 @@ func (c *Controller) updateSuggestions() {
 	if c.commandHistory != nil {
 		recent = c.commandHistory.Recent()
 	}
+	c.argumentWords = false
 	c.suggestions = SuggestSettings(c.settings, c.editor.Draft(), c.suggestionLimit)
 	if len(c.suggestions) == 0 {
 		c.suggestions = SuggestModels(c.models, c.editor.Draft(), c.suggestionLimit)
 	}
 	if len(c.suggestions) == 0 {
 		c.suggestions = SuggestPlanLogins(c.plans, c.editor.Draft(), c.suggestionLimit)
+	}
+	// A command's own words come after the richer pickers above, and beside
+	// the settings picker for /config, whose verbs are words too.
+	if words := SuggestArguments(c.commands, c.editor.Draft(), c.suggestionLimit); len(words) > 0 {
+		if len(c.suggestions) == 0 {
+			c.argumentWords = true
+			c.suggestions = words
+		} else {
+			c.suggestions = append(c.suggestions, words...)
+		}
 	}
 	if len(c.suggestions) == 0 {
 		// Every match, not the first few: the window below decides how many are on
@@ -767,6 +782,12 @@ func (c *Controller) handleSuggestionKey(key Key) (Effect, bool) {
 			c.completeSuggestion(c.suggestions[c.suggestionIndex])
 			return Effect{}, true
 		}
+		// A partial argument word is filled, not sent: sending it would only
+		// have the command refuse it. A word typed in full is sent as it is.
+		if c.argumentWords && !c.draftIsASuggestion() {
+			c.completeSuggestion(c.suggestions[0])
+			return Effect{}, true
+		}
 	}
 	return Effect{}, false
 }
@@ -805,6 +826,7 @@ func (c *Controller) completeSuggestion(command CommandSpec) {
 func (c *Controller) clearSuggestions() {
 	c.suggestions = nil
 	c.suggestionIndex = -1
+	c.argumentWords = false
 	c.screen.SetSuggestions(nil)
 }
 
@@ -884,4 +906,16 @@ func (c *Controller) QueueRequest(text string) {
 	c.queued = text
 	c.syncQueued()
 	c.screen.SetActivity(queuedNotice)
+}
+
+// draftIsASuggestion reports whether the draft already is one of the words on
+// offer, typed in full.
+func (c *Controller) draftIsASuggestion() bool {
+	draft := strings.TrimSpace(c.editor.Draft())
+	for _, suggestion := range c.suggestions {
+		if strings.EqualFold(strings.TrimSpace(suggestion.Complete), draft) {
+			return true
+		}
+	}
+	return false
 }
