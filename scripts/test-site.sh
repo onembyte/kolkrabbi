@@ -496,6 +496,12 @@ contains es/suscripciones.html '<html lang="es">' "the Spanish subscriptions pag
 contains subscriptions.html 'more than one subscription' "the subscriptions page must say the words of the question"
 contains es/suscripciones.html 'más de una suscripción' "the Spanish page must say the words of the question"
 contains index.html 'href="/subscriptions"' "the landing page does not link to the subscriptions page"
+# The routing claim (2026-09-06): the mechanism as the code has it, never a superlative.
+contains index.html 'the trivial ones to the cheapest rung' "the landing page must state the routing mechanism"
+contains subscriptions.html 'The frontier model runs only the hard steps.' "the subscriptions page must carry the routing claim"
+contains es/suscripciones.html 'hace solo los pasos difíciles' "the Spanish page must carry the routing claim"
+excludes index.html 'most efficient|the cheapest way|fewest tokens' "the landing page must not claim a superlative nobody measured"
+excludes subscriptions.html 'most efficient|the cheapest way|fewest tokens' "the subscriptions page must not claim a superlative nobody measured"
 contains sitemap.xml '/subscriptions</loc>' "the sitemap lacks the subscriptions page"
 contains sitemap.xml '/es/suscripciones</loc>' "the sitemap lacks the Spanish subscriptions page"
 contains llms.txt 'More than one subscription at once' "llms.txt must lead with the subscriptions hook"

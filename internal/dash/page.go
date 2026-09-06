@@ -161,7 +161,11 @@ func writeBreakdown(b *strings.Builder, records []stats.Record) {
 	if len(byEffort) == 0 && len(byMode) == 0 {
 		return
 	}
-	b.WriteString(`<section><h2>Where the effort went</h2><div class="cols">`)
+	b.WriteString(`<section><h2>Where the effort went</h2>`)
+	if line := frontierShare(records); line != "" {
+		b.WriteString(`<p class="sub">` + line + `</p>`)
+	}
+	b.WriteString(`<div class="cols">`)
 	writeCostList(b, "By effort", byEffort)
 	writeCostList(b, "By mode", byMode)
 	b.WriteString(`</div></section>`)
@@ -322,3 +326,40 @@ func costCell(row stats.ModelRow) string {
 // CSS is the page's stylesheet, for a surface that frames the sessions
 // section itself.
 func CSS() string { return pageCSS }
+
+// rungOrder ranks the effort dial for the frontier share.
+var rungOrder = map[string]int{"low": 1, "medium": 2, "high": 3, "max": 4, "ultra": 5}
+
+// frontierShare says what share of the tokens ran below the highest rung this
+// log used — the number that shows whether the routing spent the frontier
+// model only where it counted. Tokens, not dollars: a subscription's turn has
+// no price, and the point is the plan's allowance. Empty with nothing to say.
+func frontierShare(records []stats.Record) string {
+	top, topRank := "", 0
+	total, below := 0, 0
+	byRung := map[string]int{}
+	for _, r := range records {
+		if r.Kind != "call" {
+			continue
+		}
+		effort, ok := engine.NormalizeEffort(r.Effort)
+		if !ok {
+			continue
+		}
+		tokens := r.PromptTokens + r.CompletionTokens
+		byRung[effort] += tokens
+		total += tokens
+		if rungOrder[effort] > topRank {
+			top, topRank = effort, rungOrder[effort]
+		}
+	}
+	if total == 0 || len(byRung) < 2 {
+		return ""
+	}
+	for effort, tokens := range byRung {
+		if rungOrder[effort] < topRank {
+			below += tokens
+		}
+	}
+	return fmt.Sprintf("%d%% of %s tokens ran below your top rung (%s): work the routing kept off the frontier model.", below*100/total, count(total), top)
+}
