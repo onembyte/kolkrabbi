@@ -167,3 +167,7 @@ func ModelsAboveCeiling(ceiling string) []string {
 	}
 	return nil
 }
+
+// RankModel is the vendor ladder for anyone ranking continuations: which
+// ladder a model sits on and its rung from the top, or unknown.
+func RankModel(model string) (ladder string, rung int, known bool) { return modelRank(model) }

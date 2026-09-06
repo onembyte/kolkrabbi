@@ -18,6 +18,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/bus"
 	"github.com/onembyte/kolkrabbi/internal/checkpoint"
 	"github.com/onembyte/kolkrabbi/internal/config"
+	"github.com/onembyte/kolkrabbi/internal/continuity"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/hooks"
 	"github.com/onembyte/kolkrabbi/internal/local"
@@ -414,7 +415,9 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		// A session paused on a limit comes back on its own unless told to wait
 		// for /resume; the monitor confirms the lift without spending tokens,
 		// and a handover's check is the sign-in it already has (V35.2b).
-		ResumePolicy:     cfg.Continuity.Resume,
+		ResumePolicy: cfg.Continuity.Resume,
+		// What could continue the work when the model stops (plan 35 §2.3).
+		Candidates:       func() []continuity.Candidate { return a.continuityCandidates(ctx) },
 		HandoverSignedIn: a.connectorSignedIn,
 		MeteredModel:     func() string { return meteredFallback },
 		// The catalogue the session already fetched, so an unset slot can be

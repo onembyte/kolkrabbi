@@ -257,8 +257,18 @@ func TestActivityStopsBeforeToolHandlingAndErrors(t *testing.T) {
 		if stop := eventIndex(got, "stop:thinking"); stop >= newline {
 			t.Fatalf("error returned before activity stopped: %#v", got)
 		}
-		if !strings.Contains(got[len(got)-1], "paused") {
-			t.Fatalf("a capacity limit did not end in a pause notice: %#v", got)
+		// The pause notice comes after the stop and the newline; since V35.3b
+		// the recommendation block follows the notice, so the notice is no
+		// longer the last write — it is the first after the newline.
+		paused := -1
+		for i, event := range got {
+			if strings.Contains(event, "paused") {
+				paused = i
+				break
+			}
+		}
+		if paused < 0 || paused <= newline {
+			t.Fatalf("a capacity limit did not end in a pause notice after the newline: %#v", got)
 		}
 	})
 }

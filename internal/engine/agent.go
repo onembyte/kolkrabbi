@@ -288,6 +288,11 @@ type Options struct {
 	// ConnectorName says which connector a model runs through, for the cooldown
 	// keys; nil means everything is the keyed endpoint.
 	ConnectorName func(model string) string
+	// Candidates lists what could continue the work when the session's model
+	// hits a limit (plan 35 §2.3): the surface assembles them, the engine ranks
+	// and shows them, nothing is applied. Nil means the block only says what
+	// stopped and that kolk resumes.
+	Candidates func() []continuity.Candidate
 	// ResumePolicy is auto (default) or manual: whether a paused session comes
 	// back on its own once the monitor sees the limit lifted, or waits for
 	// /resume (plan 35 §2.2). The monitor spends no tokens either way.
@@ -1288,6 +1293,7 @@ func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 		}
 		if limit, ok := provider.Classify(err); ok && ctx.Err() == nil {
 			a.publishLimit(limit, "stop")
+			a.printRecommendation(limit)
 		}
 	}
 	if a.Mode == ModeAgent {

@@ -56,6 +56,7 @@ func (a *Agent) pauseIfWaitingHelps(ctx context.Context, err error, pending stri
 		_, _ = a.Bus.Publish(bus.Event{Turn: a.lastTurnID, Type: protocol.EventTurnFinished, Data: data})
 	}
 	fmt.Fprintf(a.Out, "◆ %s\n", (&PausedError{Pause: pause}).Error())
+	a.printRecommendation(limit)
 	a.armResume()
 	return PausedError{Pause: pause}, true
 }
