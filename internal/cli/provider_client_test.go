@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/onembyte/kolkrabbi/internal/config"
+	"github.com/onembyte/kolkrabbi/internal/keystore"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/secret"
 )
@@ -211,5 +212,45 @@ func TestModelsUsesCustomEndpointWithoutReadingOpenRouterCredential(t *testing.T
 	}
 	if !strings.Contains(out.String(), "custom/catalog-model") {
 		t.Fatalf("custom model missing from output:\n%s", out)
+	}
+}
+
+// V34.4c.1: a base URL that is an owner-chosen vendor's documented API origin
+// gets a keyed vendor client — the key from the vendor's own env variable
+// first, then the key store under the vendor's name — and, with neither, an
+// answer that names the vendor's key rather than OpenRouter's.
+func TestAVendorOriginGetsAKeyedVendorClient(t *testing.T) {
+	d := storeFirstRunKey(t)
+	t.Setenv("XAI_API_KEY", "xai-from-env-"+strings.Repeat("0", 20))
+	client, err := providerClientForEndpoint(context.Background(), "https://api.x.ai/v1", d.CredentialsFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client.Origin != "xai" || !client.HasKey() || client.BaseURL != "https://api.x.ai/v1" {
+		t.Fatalf("xai client = origin %q key %v base %q", client.Origin, client.HasKey(), client.BaseURL)
+	}
+
+	t.Setenv("XAI_API_KEY", "")
+	_, err = providerClientForEndpoint(context.Background(), "https://api.x.ai/v1", d.CredentialsFile())
+	if err == nil || !strings.Contains(err.Error(), "/key xai") || !strings.Contains(err.Error(), "XAI_API_KEY") || strings.Contains(err.Error(), "OPENROUTER") {
+		t.Fatalf("no xai key: err = %v; want /key xai and XAI_API_KEY named, not OpenRouter", err)
+	}
+
+	stored := secret.New("xai-from-store-" + strings.Repeat("1", 20))
+	if err := keystore.NewFileStore(d.CredentialsFile()).Set(context.Background(), keystore.Ref{Provider: "xai"}, stored); err != nil {
+		t.Fatal(err)
+	}
+	client, err = providerClientForEndpoint(context.Background(), "https://api.x.ai/v1", d.CredentialsFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client.Key().Reveal() != stored.Reveal() {
+		t.Fatal("the stored xai key was not used")
+	}
+
+	// A compatible endpoint nobody chose stays keyless, as before.
+	plain, err := providerClientForEndpoint(context.Background(), "http://saved.invalid/v1", d.CredentialsFile())
+	if err != nil || plain.HasKey() || plain.Origin != provider.CompatibleOrigin {
+		t.Fatalf("compatible endpoint = %+v, %v; want keyless", plain, err)
 	}
 }

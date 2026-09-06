@@ -10670,13 +10670,36 @@ Subcheckpoints, one at a time:
       SSE) and per-token billed; its terms pages returned 403 to the fetch, recorded as unverified
       for the owner. Plan 24's four rows carry the findings with dates. Non-goals: no backend, no
       key storage, no site claim changed. provider; arch; `make check`.
-    - [ ] **V34.4c.1 keyed vendor origins (Google, xAI)** — the client accepts a key for an
+    - [~] **V34.4c.1 keyed vendor origins (Google, xAI)** — the client accepts a key for an
       allow-listed vendor origin (today only OpenRouter takes one), stored per provider and read from
       `GEMINI_API_KEY`/`XAI_API_KEY`, redacted by the shapes redaction already knows; `/models` where
       the vendor documents it, verified-by-turn where not; the vendor's reasoning vocabulary projected
       from kolk's five rungs; billing labelled `API metered`; a free Gemini key told before its first
       turn that the unpaid tier trains on inputs. **Red:** a `xai-` key on `api.x.ai` is refused
-      today. Gate: xAI terms confirmed by the owner before the row says shipped.
+      today. Gate: xAI terms confirmed by the owner before the row says shipped. Split 2026-09-05:
+      - [x] **V34.4c.1a the keyed client and its credential** — **Closed 2026-09-05, on main.** Red
+        observed: `base_url https://api.x.ai/v1` with `XAI_API_KEY` set produced a keyless
+        `compatible` client; the key was dropped on the floor. Green: `NewVendorClient(vendor, key)`
+        binds the key through the same `secret.AuthTransport` the gateway uses, to the vendor's
+        documented API base from its disposition and nowhere else (a request to another host through
+        the same client is refused without leaking the key); the client's `Origin` is the vendor, so
+        its errors carry the vendor's remedies; `KeyedVendorOrigin(baseURL)` recognises the two
+        chosen origins and no other (`perplexity`, deferred vendors and handovers get no client);
+        `requiresKey` is now "holds a bound credential", so a vendor client without a key answers
+        with the vendor's own env and `/key <vendor>`, never OpenRouter's. The CLI's one construction
+        site routes a vendor base to it, resolving the credential env-first then the key store under
+        the vendor's name — `/key` already classified `xai-` and `AIza` into those names. `/doctor`
+        lists vendor keys it can see and says nothing about vendors with none. Non-goals here: no
+        reasoning projection, no billing label, no free-tier notice, no site claim, no `shipped`.
+        provider, cli with `-race`; arch (both exports wired, not allowlisted); lint; vet; `make
+        check`.
+      - [ ] **V34.4c.1b truth around the key** — `reasoning_effort` projected from kolk's five rungs
+        onto xAI's `none…xhigh` and Google's `thinking_level`; cost from the response's usage where
+        the vendor gives none, labelled `API metered` and never an estimate dressed as the vendor's;
+        a free Gemini key told before its first turn that the unpaid tier trains on inputs; a live
+        probe of xAI `/models` before discovery relies on it; the plan rows for xAI and Google
+        flipped from metadata to keyed rows. **Red:** a Grok turn at `max` sends no reasoning
+        effort. Gate: xAI terms confirmed by the owner before the row says shipped.
     - [ ] **V34.4c.2 the Copilot CLI handover (GitHub)** — `agentcli` backend on the `-p`/`-s`
       contract with `--allow-tool`/`--deny-tool` as the sandbox seam, `--model` from the vendor's
       `/model` list (verified by turn, as Claude), cancellation, redaction fixtures, the plan rows for

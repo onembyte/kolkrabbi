@@ -176,16 +176,39 @@ func (a *app) doctorLocalModels(ctx context.Context) {
 func (a *app) doctorKeys(ctx context.Context) {
 	if env := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY")); env != "" {
 		fmt.Fprintf(a.stdout, "  ✓ openrouter  %s  from OPENROUTER_API_KEY\n", redact.Mask(env))
+		a.doctorVendorKeys(ctx)
 		return
 	}
 	d, err := a.resolve()
 	if err == nil {
 		if cred, err := resolveOpenRouterCredential(ctx, filepath.Join(d.Config, "keys.json")); err == nil && cred.Reveal() != "" {
 			fmt.Fprintf(a.stdout, "  ✓ openrouter  %s  from the key store\n", redact.Mask(cred.Reveal()))
+			a.doctorVendorKeys(ctx)
 			return
 		}
 	}
 	fmt.Fprintln(a.stdout, "  ✗ openrouter  no key found — add one with `/key` (it asks for the key, hidden)")
+	a.doctorVendorKeys(ctx)
+}
+
+// doctorVendorKeys names the owner-chosen vendor keys kolk can see — env first,
+// then the store — and says nothing about a vendor with none, since a vendor
+// key is optional where the gateway's is not.
+func (a *app) doctorVendorKeys(ctx context.Context) {
+	d, err := a.resolve()
+	if err != nil {
+		return
+	}
+	for _, vendor := range provider.KeyedVendors() {
+		env := provider.VendorKeyEnv(vendor)
+		if value := strings.TrimSpace(os.Getenv(env)); value != "" {
+			fmt.Fprintf(a.stdout, "  ✓ %-11s %s  from %s\n", vendor, redact.Mask(value), env)
+			continue
+		}
+		if cred, err := resolveVendorCredential(ctx, vendor, filepath.Join(d.Config, "keys.json")); err == nil && cred.Reveal() != "" {
+			fmt.Fprintf(a.stdout, "  ✓ %-11s %s  from the key store\n", vendor, redact.Mask(cred.Reveal()))
+		}
+	}
 }
 
 func (a *app) doctorTerminal() {

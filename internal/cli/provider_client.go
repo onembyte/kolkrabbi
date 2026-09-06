@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
 )
@@ -14,6 +15,21 @@ func providerClientForEndpoint(ctx context.Context, endpoint, credentialPath str
 	// whatever host it names (V34.1d.3).
 	if err := provider.RefuseCredentialedEndpoint(endpoint); err != nil {
 		return nil, err
+	}
+	// An owner-chosen vendor's documented API origin takes that vendor's key,
+	// bound to that origin alone (V34.4c.1); any other non-gateway endpoint is
+	// a compatible server and takes none.
+	if vendor, ok := provider.KeyedVendorOrigin(endpoint); ok {
+		apiKey, err := resolveVendorCredential(ctx, vendor, credentialPath)
+		if err != nil {
+			return nil, err
+		}
+		if apiKey.IsZero() {
+			return nil, guidedAction(fmt.Sprintf("kolk needs your %s API key before it can use %s.\n"+
+				"Add one:  /key %s   (it asks for the key, hidden)\n"+
+				"Or export %s. Then run: kolk", vendor, endpoint, vendor, provider.VendorKeyEnv(vendor)))
+		}
+		return provider.NewVendorClient(vendor, apiKey.Reveal())
 	}
 	if !provider.IsOpenRouterEndpoint(endpoint) {
 		return provider.NewCompatibleClient(endpoint), nil

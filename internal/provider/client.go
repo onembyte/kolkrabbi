@@ -181,7 +181,73 @@ func NewHostClient(addr string) *Client {
 
 // requiresKey is true for the gateway, which refuses unauthenticated calls,
 // and false for a local origin, which has nothing to authenticate.
-func (c *Client) requiresKey() bool { return c.Origin == "" }
+// requiresKey is true for the gateway and for a keyed vendor origin: any
+// client that holds a bound credential needs one to be set. A compatible or
+// host endpoint takes none.
+func (c *Client) requiresKey() bool { return c.Origin == "" || c.auth != nil }
+
+// keyAdvice names the key a keyless client needs, in the vendor's own words.
+func (c *Client) keyAdvice() string {
+	if d, ok := dispositionFor(c.Origin); ok && d.KeyEnv != "" {
+		return fmt.Sprintf("no %s API key set (run: /key %s, or export %s)", c.Origin, c.Origin, d.KeyEnv)
+	}
+	return "no API key set (run: /key, or export OPENROUTER_API_KEY)"
+}
+
+// KeyedVendorOrigin reports the owner-chosen vendor whose documented API base
+// a URL is — the origins besides OpenRouter that take a key (V34.4c.1).
+func KeyedVendorOrigin(baseURL string) (string, bool) {
+	for _, d := range dispositions {
+		if d.APIBase != "" && (d.Status == dispositionChosen || d.Status == dispositionShipped) && secret.SameOrigin(baseURL, d.APIBase) {
+			return d.Provider, true
+		}
+	}
+	return "", false
+}
+
+// KeyedVendors lists the owner-chosen vendors whose documented API origin
+// takes a key, in disposition order.
+func KeyedVendors() []string {
+	var out []string
+	for _, d := range dispositions {
+		if d.APIBase != "" && (d.Status == dispositionChosen || d.Status == dispositionShipped) {
+			out = append(out, d.Provider)
+		}
+	}
+	return out
+}
+
+// VendorKeyEnv is the environment variable a vendor documents for its key,
+// empty for a provider that has none on record.
+func VendorKeyEnv(vendor string) string {
+	d, ok := dispositionFor(vendor)
+	if !ok {
+		return ""
+	}
+	return d.KeyEnv
+}
+
+// NewVendorClient is a keyed client for an owner-chosen vendor origin: the key
+// is bound to that vendor's documented API base and is sent nowhere else, and
+// the client names the vendor so its errors carry the vendor's remedies. A
+// provider whose disposition is not a keyed origin — a handover, one still
+// under investigation, one deferred — gets no client.
+func NewVendorClient(provider, apiKey string) (*Client, error) {
+	d, ok := dispositionFor(provider)
+	if !ok || d.APIBase == "" || (d.Status != dispositionChosen && d.Status != dispositionShipped) {
+		return nil, fmt.Errorf("%w: %q is not a keyed vendor origin", ErrCredentialBinding, provider)
+	}
+	auth, err := secret.NewAuthTransport(secret.New(apiKey), d.APIBase, newProviderTransport())
+	if err != nil {
+		return nil, fmt.Errorf("provider: %s origin: %w", provider, err)
+	}
+	return &Client{
+		BaseURL:    strings.TrimRight(d.APIBase, "/"),
+		HTTPClient: noRedirectClient(auth),
+		Origin:     d.Provider,
+		auth:       auth,
+	}, nil
+}
 
 // IsOpenRouterEndpoint reports whether baseURL has the canonical OpenRouter
 // origin. Paths may vary; credential trust is an origin boundary.
@@ -293,7 +359,7 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []Messag
 	defer func() { err = secret.ScrubError(err) }()
 	meta = Meta{Model: model}
 	if c.requiresKey() && !c.HasKey() {
-		return Message{}, meta, fmt.Errorf("no API key set (run: /key, or export OPENROUTER_API_KEY)")
+		return Message{}, meta, errors.New(c.keyAdvice())
 	}
 	reqBody := chatRequest{
 		Model:         model,

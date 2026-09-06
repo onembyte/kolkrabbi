@@ -6905,3 +6905,17 @@ All of it is now a table in the provider package with a gate: every provider kol
 disposition with its evidence and dates, and no model row may claim a provider-CLI path for a
 provider that is not shipped. The four leaves that follow are cut to those findings: keyed vendor
 origins, the Copilot handover, the Perplexity decision, and the surfaces.
+
+## A vendor's key goes to the vendor and nowhere else — V34.4c.1a closed 2026-09-05
+
+Until today kolk took a key for one origin, OpenRouter, and a base URL pointing at any other host got
+a keyless client — so an xAI key exported the way xAI documents it was dropped on the floor. The
+client now knows the two owner-chosen vendor origins from their dispositions and builds a keyed
+client for them through the same binding transport the gateway uses: the key is attached only to
+requests for that vendor's documented base, and a request to any other host through the same client
+is refused without the key appearing in the error. A vendor client without a key says which key, in
+the vendor's own words. The CLI's single construction site routes a vendor base to it, the key store
+already filed keys under the vendor's name from their shape, and `/doctor` lists what it can see.
+What is not yet true is written as the next leaf: reasoning effort is not projected onto the
+vendor's vocabulary, cost is not labelled, a free Gemini key is not yet told its inputs train the
+model, and nothing says shipped.

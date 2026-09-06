@@ -81,8 +81,8 @@ var dispositions = []Disposition{
 			"https://ai.google.dev/gemini-api/terms (effective 2026-03-23)",
 		},
 		Blockers: []string{
-			"kolk's client takes a key only for the OpenRouter origin; a keyed vendor origin is V34.4c.1",
-			"the free tier trains on inputs: kolk must say so before a free Gemini key answers",
+			"the free tier trains on inputs: kolk must say so before a free Gemini key answers (V34.4c.1b)",
+			"reasoning_effort projection and the API-metered billing label (V34.4c.1b)",
 			"the consumer-use clause: kolk is a developer tool, and the row must say what the terms say",
 		},
 	},
@@ -102,7 +102,7 @@ var dispositions = []Disposition{
 		},
 		Blockers: []string{
 			"terms not readable by tool; owner confirmation",
-			"keyed vendor origin (V34.4c.1); a models listing must be probed live before discovery relies on it",
+			"a models listing must be probed live before discovery relies on it; reasoning projection and billing label (V34.4c.1b)",
 		},
 	},
 	{
