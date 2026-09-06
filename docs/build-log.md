@@ -7203,3 +7203,11 @@ vocabulary per position now rides on the command table, one suggester matches th
 typed, Tab fills it and Enter runs it. A table test reads each command's usage text and fails
 the moment a word appears there that completion does not offer. The one gate that broke was a
 pin on the update row's exact shape, re-read for the new column.
+
+## v1.3.1 — released 2026-09-06
+
+Tag v1.3.1 on the release commit; the verify and publish jobs both succeeded and the release
+carries the four archives, the checksums and their sigstore bundle. The site's installer badge
+and structured data say v1.3.1 and were live before the workflow finished. The Homebrew formula
+for v1.3.1 was generated from the published checksums and left for the owner to read, as the
+tap script asks; the tap still serves v1.3.0 until it lands.

@@ -10918,6 +10918,11 @@ Subcheckpoints, one at a time:
     command's own usage text, so a word added to the help line without its completion fails.
     The surface gate's pin on the update row was re-read for the table's new column. `make check`
     green, cross-platform lint and vet green. Not done: a live keystroke in the owner's terminal.
+  - [x] **V36.5 release v1.3.1** — 2026-09-06, on the owner's ask. Version bumped in the goreleaser
+    template, the release pin, the site badge and its structured data; tag pushed; workflow run
+    34055561559 verify and publish both `success`; six assets on the release. The Homebrew formula
+    for v1.3.1 is generated at the job's scratch path and not pushed: the tap script keeps that
+    for a human, and the tap still serves v1.3.0.
   - [x] **V36.3 the animated kolk terminal on the site** — closed 2026-09-06. Section "02 / AGENTS"
     on the landing page, between install and the capability cards: a terminal in the site's own
     chrome replaying the V36.0 run in kolk's real lines — `/mode agent`, the typed prompt,
