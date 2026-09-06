@@ -21,7 +21,7 @@ type slashCommand struct {
 }
 
 var slashCommandTable = []slashCommand{
-	{"key", "[<provider>] | - | <provider> -", "add an API key; it is read hidden, never from the line"},
+	{"key", "[<provider>] | - | --why [<provider>] | --backend <keychain|file> [<provider>]", "add an API key (read hidden, never from the line); --why shows where it comes from; --backend moves it"},
 	{"mode", "<chat|code|agent>", "switch mode (agent = orchestrated; code is default)"},
 	{"effort", "<low|medium|high|max|ultra>", "select model tier and orchestration width"},
 	{"model", "[id | alias] [effort]", "pick or switch this session's model (bare opens a picker in a terminal)"},

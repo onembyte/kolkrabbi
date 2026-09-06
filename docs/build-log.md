@@ -7067,3 +7067,19 @@ of it. `kolk key --why` shows the links with the hit and what it shadowed, masks
 says the same source kolk will use. The keychain that the card promises is next, built against the
 security command's documented exit codes, with its live reading left for the owner because that
 reading can raise the login password dialog.
+
+## The keychain, built to the table — V05.S.b closed 2026-09-06
+
+Plan 05 wrote six rules for the macOS keychain from six observed failures, and every one is code:
+the write travels on stdin so no secret sits in argv; the login keychain is named on every call as
+the last argument so nothing lands in whichever keychain happened to be default; the value is the
+tagged base64 that keeps the security tool's output honest; the assembled line is refused before
+the size at which the tool splits it; exit codes decide, never English; and a write is not a write
+until it has been read back. The manifest routes each key to exactly one backend and the chain asks
+exactly that one, so a locked keychain stops the search with its own name instead of inviting a
+second key. Moving a key between backends reads, writes, proves, reroutes and only then deletes.
+
+One thing did not happen, on purpose: no real keychain was touched, because a read against a
+locked login keychain raises the macOS password dialog and the owner is asleep. The exit codes are
+the man page's; the owner's first `kolk key --backend keychain` will be the live proof. The
+SECRETS card says what shipped and only the claim the plan allows.

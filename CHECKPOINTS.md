@@ -10825,7 +10825,7 @@ Subcheckpoints, one at a time:
       translator, or defer. Not mine to choose.
     - [ ] **V34.4c.4 the surfaces** — plan 24 rows, `/plans`, the capabilities card, pinned; each
       row says its status in the words the disposition uses.
-- [~] **V05.S SECRETS, the wider chain** — plan 05 §1 and §3, opened 2026-09-06 at the owner's
+- [x] **V05.S SECRETS, the wider chain** — closed 2026-09-06 with one live check left to the owner (below). — plan 05 §1 and §3, opened 2026-09-06 at the owner's
   request to build what the capabilities card still calls designed. The card promises four things:
   the environment, the provider environment, one named store, a visible first-hit order, and an
   opt-in OS keychain. **Scope:** the chain as plan 05 §1 step B writes it and the keychain as §3
@@ -10848,7 +10848,7 @@ Subcheckpoints, one at a time:
     a locked store stopping and nothing anywhere continuing, the shape warning, the curated list,
     `--why`'s render without a value, the three remedies. cli with `-race`; keystore; arch; whole
     tree; lint; vet; `make check`.
-  - [ ] **V05.S.b the OS keychain, opt-in** — plan 05 §3: `keychain_darwin.go` over
+  - [x] **V05.S.b the OS keychain, opt-in** — plan 05 §3: `keychain_darwin.go` over
     `/usr/bin/security` with the exit-code table (36 is "no GUI to prompt in", a locked login
     keychain raises the dialog, so the read has a 2 s deadline and `ErrLocked`/`ErrTimeout` are the
     outcomes), `keychain_unix.go` over `secret-tool`, opportunistic and never `dbus-launch`; the
@@ -10857,6 +10857,33 @@ Subcheckpoints, one at a time:
     as you). Built to the table through a runner seam with fixtures. **Live check is the owner's:**
     a read against a locked login keychain raises the macOS password dialog, which is not for a
     night the owner is asleep. The card flips when this lands.
+    **Closed 2026-09-06, on main, built to the table.** Red observed: no backend but the file, a
+    manifest probe that refused any row routed elsewhere, no `--backend`. Green: `keystore.Spawner`
+    is the port and `shell.SecretSpawner` its one implementation (os/exec is the shell package's by
+    the ownership rule): fixed argv, an environment of PATH and HOME only, a real stdin pipe, its
+    own session, the caller's deadline. `KeychainStore` follows the six rules: the whole
+    `add-generic-password` line on stdin to `security -q -i`, never a value in argv; the login
+    keychain resolved through `security login-keychain` and passed as the trailing positional on
+    every call, with no value-taking flag last; the tagged base64 as the value; a 3800-byte guard on
+    the assembled line (provable through `LineLimit`); exit codes, never messages — 36 and 128 are
+    `ErrLocked`, 53 `ErrUnavailable`, 44 `ErrUnavailable` when the manifest says the row exists and
+    `ErrNotFound` otherwise, a deadline `ErrTimeout`; a write proven by reading it back before the
+    manifest row is written, and the row (`SetRouted`) carrying route, mask, hash, machine and the
+    keychain path but no value; a delete that reads the exit code and not the stderr sentence;
+    `Probe` attributes-only, which cannot prompt. `keystore.Routed` is the store the chain reads: one
+    manifest read names the backend and exactly that backend is asked, a route this machine cannot
+    open being unavailable by name. `kolk key --backend keychain|file [provider]` reads the old copy,
+    writes the new, reads it back, and only then deletes the old, saying aloud when an orphan
+    remains; the notice is plan 05 §3.1's sentence, said once, only on a move to the keychain.
+    `metadata` no longer refuses a routed row: a probe reads where, never what. Not built: the Linux
+    `secret-tool` twin (the file is the default there and `Available` says why) and `kolk key clean`
+    for orphans — each a leaf when asked. Tests: the argv and stdin shape, the read-back, the
+    manifest row without a value, the exit-code table with a slow helper, the guard, the round-trip
+    migration both ways through a fake `security` with the notice said once. keystore, shell, cli
+    with `-race`; arch; whole tree; lint; vet; site 372/372; `make check`.
+    **Yours, when you are at the machine:** `/key --backend keychain` once inside a session, then
+    `/key --why`. If the login keychain is locked it will raise the macOS password dialog, by design; the
+    exit codes above are the man page's and `gh`'s, not yet this machine's.
 - [x] **V35 continuity** — closed 2026-09-06, all six leaves on main. Plan drafted 2026-09-05 at the owner's direction (`docs/plan/35-continuity.md`):
   six leaves V35.1 DETECT → V35.2 PAUSE → V35.3 RECOMMEND → V35.4 CHAIN → V35.5 SAFE DEFAULT → V35.6
   AUTO, each flipping one capabilities card with inverse pins. Owner answered all ten questions the

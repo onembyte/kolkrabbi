@@ -54,6 +54,9 @@ func (a *app) runKey(ctx context.Context, args []string) error {
 	if len(args) >= 1 && args[0] == "--why" {
 		return a.runKeyWhy(ctx, args[1:])
 	}
+	if len(args) >= 2 && args[0] == "--backend" {
+		return a.runKeyBackend(ctx, args[1], args[2:])
+	}
 	if len(args) > 2 {
 		return usagef("%s", usageLine("key"))
 	}
@@ -276,7 +279,7 @@ func (a *app) runKeyWhy(ctx context.Context, args []string) error {
 	} else {
 		providers = append(providers, provider.KeyedVendors()...)
 	}
-	store := keystore.NewFileStore(dirs.CredentialsFile())
+	store := routedStore(dirs.CredentialsFile(), a.keychainSpawner)
 	for _, name := range providers {
 		res, err := keystore.Resolve(ctx, keystore.Ref{Provider: name, Profile: "default"}, os.Getenv, store)
 		fmt.Fprintf(a.stdout, "%s\n", name)
@@ -301,6 +304,84 @@ func (a *app) runKeyWhy(ctx context.Context, args []string) error {
 		if res.Warning != "" {
 			fmt.Fprintf(a.stdout, "  ! %s\n", res.Warning)
 		}
+	}
+	return nil
+}
+
+// keychainNotice is the one claim kolk makes for the keychain, exactly
+// (plan 05 §3.1), said once when a credential first moves there.
+const keychainNotice = "The OS keychain encrypts the credential at rest — against a stolen disk, a backup, a synced dotfiles directory. It gives you nothing against code running as you, which can read it back with no prompt."
+
+// runKeyBackend is `kolk key --backend keychain|file [provider]` (plan 05
+// §3.6): read the old copy, write the new one, read it back and compare,
+// update the manifest, then delete the old — never delete-then-write. A
+// failed last delete leaves an orphan that is said aloud, because a silently
+// orphaned credential is one nobody rotates.
+func (a *app) runKeyBackend(ctx context.Context, backendName string, rest []string) error {
+	target := keystore.Backend(strings.ToLower(strings.TrimSpace(backendName)))
+	if target != keystore.BackendFile && target != keystore.BackendKeychain {
+		return usagef("kolk key --backend <keychain|file> [provider]")
+	}
+	providerName := "openrouter"
+	if len(rest) > 0 {
+		providerName = strings.ToLower(strings.TrimSpace(rest[0]))
+	}
+	dirs, err := a.resolve()
+	if err != nil {
+		return err
+	}
+	routed := routedStore(dirs.CredentialsFile(), a.keychainSpawner)
+	ref := keystore.Ref{Provider: providerName, Profile: "default"}
+	entry, err := routed.Manifest.Probe(ctx, ref)
+	if err != nil {
+		return fmt.Errorf("no stored credential for %s to move: %w", providerName, secret.ScrubError(err))
+	}
+	if entry.Backend == target {
+		fmt.Fprintf(a.stdout, "%s is already kept in the %s\n", ref, target)
+		return nil
+	}
+	from, ok := routed.Backends[entry.Backend]
+	if !ok {
+		return fmt.Errorf("%s is kept in %s, which this machine cannot open", ref, entry.Backend)
+	}
+	to := routed.Backends[target]
+	if err := to.Available(ctx); err != nil {
+		return fmt.Errorf("the %s cannot be used here: %w", target, err)
+	}
+	value, err := from.Get(ctx, ref)
+	if err != nil {
+		if advice := keyStoreAdvice(err); advice != "" {
+			return fmt.Errorf("%w\n  %s", secret.ScrubError(err), advice)
+		}
+		return secret.ScrubError(err)
+	}
+	if target == keystore.BackendKeychain {
+		fmt.Fprintln(a.stderr, "◆ "+keychainNotice)
+	}
+	// The new backend writes, proves by reading back, and records the route
+	// itself; the file backend's Set does the same for the file.
+	if err := to.Set(ctx, ref, value); err != nil {
+		return fmt.Errorf("writing %s to the %s: %w", ref, target, secret.ScrubError(err))
+	}
+	back, err := to.Get(ctx, ref)
+	if err != nil || back.Reveal() != value.Reveal() {
+		return fmt.Errorf("the %s did not read back what was written for %s; the old copy in %s is untouched", target, ref, entry.Backend)
+	}
+	if err := deleteOrphan(ctx, from, ref); err != nil {
+		fmt.Fprintf(a.stderr, "warning: an orphaned copy of %s remains in %s — remove it with `kolk key clean`: %v\n", ref, entry.Backend, secret.ScrubError(err))
+	}
+	fmt.Fprintf(a.stdout, "%s moved to the %s\n", ref, target)
+	return nil
+}
+
+// deleteOrphan removes the old backend's copy after the manifest has moved
+// on: the file's copy went with the row it overwrote; the keychain's item is
+// deleted by account.
+func deleteOrphan(ctx context.Context, from keystore.Store, ref keystore.Ref) error {
+	if orphan, ok := from.(interface {
+		DeleteItem(context.Context, keystore.Ref) error
+	}); ok {
+		return orphan.DeleteItem(ctx, ref)
 	}
 	return nil
 }

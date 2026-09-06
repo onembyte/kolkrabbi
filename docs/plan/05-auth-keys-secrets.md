@@ -1,6 +1,6 @@
 # 5. Auth, keys & secrets — "One Key In, Nothing Out"
 
-Status: hardened on 2026-08-22 · supersedes: — · PLAN.md item 5
+Status: hardened on 2026-08-22 · supersedes: — · PLAN.md item 5 · the wider chain (§1 step B, `kolk key --why`) and the opt-in macOS keychain (§3.6, `kolk key --backend`) built 2026-09-06 as V05.S, to the table, with the live keychain read left to the owner; Linux `secret-tool` and `kolk key clean` remain
 
 ## Decision (the short version)
 

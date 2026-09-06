@@ -202,9 +202,12 @@ func (s *FileStore) List(ctx context.Context) ([]Entry, error) {
 	return out, nil
 }
 
+// metadata is the row as the routing table shows it, for every backend: a
+// probe reads where a credential is and never its value, so a row kept in
+// the keychain is as readable here as one kept in the file.
 func metadata(ref Ref, row diskEntry) (Entry, error) {
-	if row.Backend != BackendFile {
-		return Entry{}, fmt.Errorf("credential backend for %s: %w", ref, ErrUnavailable)
+	if row.Backend == "" {
+		return Entry{}, fmt.Errorf("credential row for %s names no backend: %w", ref, ErrCorrupt)
 	}
 	return Entry{
 		Ref: ref, Backend: row.Backend, Mask: row.Mask, KeyHash: row.KeyHash,
@@ -267,4 +270,54 @@ func (s *FileStore) ensureDir() error {
 
 func emptyManifest() *diskManifest {
 	return &diskManifest{Version: manifestVersion, Credentials: map[string]diskEntry{}}
+}
+
+// SetRouted records a credential that lives in another backend: the route,
+// the mask, the hash, where the backend keeps it (the keychain path, in
+// Note) and the metadata — and no value, which is the point.
+func (s *FileStore) SetRouted(ctx context.Context, ref Ref, backend Backend, mask, keyHash, where string, meta WriteMetadata) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	ref, err := canonicalRef(ref)
+	if err != nil {
+		return err
+	}
+	if backend == BackendFile || backend == "" {
+		return fmt.Errorf("SetRouted is for a backend other than the file: %w", ErrInvalidRef)
+	}
+	if err := s.ensureDir(); err != nil {
+		return err
+	}
+	m, err := s.load()
+	if err != nil {
+		return err
+	}
+	host, _ := s.hostname()
+	m.Credentials[ref.String()] = diskEntry{
+		Backend: backend, Mask: mask, KeyHash: keyHash, Machine: host,
+		Created: s.now().UTC(), Verified: meta.Verified, Source: meta.Source, Note: where,
+	}
+	return s.save(m)
+}
+
+// removeRouted drops a row that another backend has already emptied; a row
+// routed elsewhere is left alone.
+func (s *FileStore) removeRouted(ctx context.Context, ref Ref, backend Backend) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	m, err := s.load()
+	if err != nil {
+		return err
+	}
+	row, ok := m.Credentials[ref.String()]
+	if !ok {
+		return fmt.Errorf("%s: %w", ref, ErrNotFound)
+	}
+	if row.Backend != backend {
+		return fmt.Errorf("%s is kept in %s, not %s: %w", ref, row.Backend, backend, ErrNotFound)
+	}
+	delete(m.Credentials, ref.String())
+	return s.save(m)
 }

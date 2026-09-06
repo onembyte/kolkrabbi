@@ -21,6 +21,7 @@ import (
 
 	"github.com/onembyte/kolkrabbi/internal/buildinfo"
 	"github.com/onembyte/kolkrabbi/internal/engine"
+	"github.com/onembyte/kolkrabbi/internal/keystore"
 	"github.com/onembyte/kolkrabbi/internal/local"
 	"github.com/onembyte/kolkrabbi/internal/lock"
 	"github.com/onembyte/kolkrabbi/internal/paths"
@@ -46,8 +47,11 @@ type app struct {
 	sandboxNudged bool
 	// unknownAskedNoted: a vendor answering for a model it does not list is said once per pair.
 	unknownAskedNoted map[string]bool
-	stdout            io.Writer
-	stderr            io.Writer
+	// keychainSpawner is the seam a test uses to play /usr/bin/security; nil is
+	// the real one from the shell package.
+	keychainSpawner keystore.Spawner
+	stdout          io.Writer
+	stderr          io.Writer
 	// dirs is resolved lazily and once. `kolk help` and `kolk version` must
 	// work on a machine where the home directory cannot be found at all, so
 	// nothing touches the filesystem until a command actually needs it.

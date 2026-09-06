@@ -283,12 +283,17 @@
             Kolkrabbi owns the keyboard, and a clean exit is recorded as unverified until a real turn
             proves it. Optional browser login is still planned.</p>
         </article>
-        <article class="spec-card" data-status="designed">
-          <div class="spec-meta"><span class="status-badge">Designed</span><span>SECRETS</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>SECRETS</span></div>
           <h3>Inspectable credential sources</h3>
-          <p>Keys live in a locked, permission-checked manifest outside config today. The wider chain —
-            environment, provider environment, one named store, a visible first-hit order, and opt-in
-            OS keychain storage — is settled design that is not built yet.</p>
+          <p>One chain, first hit wins: <code>KOLK_API_KEY</code>, then the provider's own variable from a
+            short fixed list, then the store, where a manifest routes each key to exactly one backend.
+            <code>/key --why</code> shows every link, the hit and what it shadowed, masks only. A store
+            that is locked or unavailable stops with its own remedy and is never read as "no key".
+            The 0600 file is the default everywhere; the macOS login keychain is opt-in per key
+            (<code>/key --backend keychain</code>), driven through the system's own
+            <code>security</code> tool with the command on stdin and every write proven by reading it
+            back — it protects the key at rest, and buys nothing against code running as you.</p>
         </article>
       </div>
     </section>

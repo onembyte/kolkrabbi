@@ -153,6 +153,11 @@ contains index.html 'Ollama' "the hero does not name a local provider"
 contains index.html 'One static binary under' "the landing page does not state the binary size"
 contains index.html '9&nbsp;MB, milliseconds to start' "the binary claim drifted from what check-budgets.sh measures"
 contains capabilities.html '<link rel="canonical" href="https://kolkrabbi.francomichetti.com/capabilities">' "capabilities.html has no canonical URL"
+# SECRETS shipped with V05.S (2026-09-06): the chain, --why, the opt-in keychain.
+contains capabilities.html '<span class="status-badge">Available now</span><span>SECRETS</span>' "the SECRETS card must say it ships"
+not_contains capabilities.html 'is settled design that is not built yet' "the SECRETS card's designed wording must be gone"
+contains capabilities.html 'the macOS login keychain is opt-in per key' "the SECRETS card must say the keychain is opt-in"
+contains capabilities.html 'buys nothing against code running as you' "the SECRETS card must make only the claim plan 05 allows"
 # DETECT shipped with V35.1 (2026-09-05): the taxonomy, the cooldown registry, the event, /doctor.
 contains capabilities.html '<span class="status-badge">Available now</span><span>DETECT</span>' "the DETECT card must say it ships"
 not_contains capabilities.html 'refusal remain distinct. Reset times and cooldown scope are preserved when available' "the DETECT card's designed wording must be gone"

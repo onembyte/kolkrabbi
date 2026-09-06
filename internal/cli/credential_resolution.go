@@ -9,6 +9,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/keystore"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/secret"
+	"github.com/onembyte/kolkrabbi/internal/shell"
 )
 
 // resolveCredential walks plan 05's chain for one provider: KOLK_API_KEY,
@@ -17,7 +18,7 @@ import (
 // error with its own remedy, never mistaken for "no key".
 func resolveCredential(ctx context.Context, providerName, manifestPath string) (secret.Secret, error) {
 	ref := keystore.Ref{Provider: providerName, Profile: "default"}
-	res, err := keystore.Resolve(ctx, ref, os.Getenv, keystore.NewFileStore(manifestPath))
+	res, err := keystore.Resolve(ctx, ref, os.Getenv, routedStore(manifestPath, nil))
 	switch {
 	case err == nil:
 		return res.Value, nil
@@ -57,4 +58,15 @@ func keyStoreAdvice(err error) string {
 		return "the credential store is unavailable on this machine; move the key with `kolk key --backend file`, or set the provider's own variable for this session"
 	}
 	return ""
+}
+
+// routedStore is the store the chain reads: the manifest routing each
+// credential to the file or, opt-in, the OS keychain. A nil spawner means
+// the real one from the shell package.
+func routedStore(manifestPath string, spawn keystore.Spawner) *keystore.Routed {
+	manifest := keystore.NewFileStore(manifestPath)
+	if spawn == nil {
+		spawn = shell.SecretSpawner{}
+	}
+	return keystore.NewRouted(manifest, keystore.NewKeychainStore(manifest, spawn))
 }
