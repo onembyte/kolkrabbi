@@ -43,6 +43,9 @@ type Capabilities struct {
 	Tools           bool
 	ModelsList      bool
 	ReasoningVocab  []string
+	// ReasoningByRung projects kolk's five rungs onto the vendor's words; a
+	// rung absent here sends nothing.
+	ReasoningByRung map[string]string
 }
 
 const (
@@ -74,7 +77,8 @@ var dispositions = []Disposition{
 		KeyEnv:     "GEMINI_API_KEY", KeyShape: "AIza",
 		Billing: "API metered (a paid key); the free tier is billed nothing and trains on inputs",
 		Capabilities: Capabilities{ChatCompletions: true, Streaming: true, Tools: true, ModelsList: true,
-			ReasoningVocab: []string{"reasoning_effort → thinking_level / thinking_budget"}},
+			ReasoningVocab:  []string{"reasoning_effort → thinking_level / thinking_budget"},
+			ReasoningByRung: map[string]string{"low": "low", "medium": "medium", "high": "high", "max": "high", "ultra": "high"}},
 		Terms: "Gemini API additional terms, effective 2026-03-23: 'for developers building with Google AI models for professional or business purposes, not for consumer use'; unpaid tier: 'Do not submit sensitive, confidential, or personal information'; Google AI Pro/Ultra subscriptions are not said to grant API access",
 		Evidence: []string{
 			"https://ai.google.dev/gemini-api/docs/openai (last updated 2026-09-02): Bearer key, /models, streaming, function calling, 'still in beta while we extend feature support'",
@@ -82,7 +86,7 @@ var dispositions = []Disposition{
 		},
 		Blockers: []string{
 			"the free tier trains on inputs: kolk must say so before a free Gemini key answers (V34.4c.1b)",
-			"reasoning_effort projection and the API-metered billing label (V34.4c.1b)",
+			"the API-metered billing label and the row flip (V34.4c.1b.ii)",
 			"the consumer-use clause: kolk is a developer tool, and the row must say what the terms say",
 		},
 	},
@@ -93,7 +97,8 @@ var dispositions = []Disposition{
 		KeyEnv:     "XAI_API_KEY", KeyShape: "xai-",
 		Billing: "API metered, per million tokens; consumer Grok subscriptions are not documented to grant API access",
 		Capabilities: Capabilities{ChatCompletions: true, Streaming: true, Tools: true, ModelsList: false,
-			ReasoningVocab: []string{"none", "low", "medium", "high", "xhigh"}},
+			ReasoningVocab:  []string{"none", "low", "medium", "high", "xhigh"},
+			ReasoningByRung: map[string]string{"low": "low", "medium": "medium", "high": "high", "max": "xhigh", "ultra": "xhigh"}},
 		Terms: "unverified: x.ai/legal terms pages refused the read-only fetch (HTTP 403) on 2026-09-05; the owner confirms before the row ships",
 		Evidence: []string{
 			"https://docs.x.ai/docs/overview (2026-09-05): base https://api.x.ai/v1, Bearer XAI_API_KEY, function calling",
@@ -102,7 +107,7 @@ var dispositions = []Disposition{
 		},
 		Blockers: []string{
 			"terms not readable by tool; owner confirmation",
-			"a models listing must be probed live before discovery relies on it; reasoning projection and billing label (V34.4c.1b)",
+			"a models listing must be probed live before discovery relies on it; billing label and row flip (V34.4c.1b.ii)",
 		},
 	},
 	{

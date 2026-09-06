@@ -10693,13 +10693,30 @@ Subcheckpoints, one at a time:
         reasoning projection, no billing label, no free-tier notice, no site claim, no `shipped`.
         provider, cli with `-race`; arch (both exports wired, not allowlisted); lint; vet; `make
         check`.
-      - [ ] **V34.4c.1b truth around the key** — `reasoning_effort` projected from kolk's five rungs
+      - [~] **V34.4c.1b truth around the key** — `reasoning_effort` projected from kolk's five rungs
         onto xAI's `none…xhigh` and Google's `thinking_level`; cost from the response's usage where
         the vendor gives none, labelled `API metered` and never an estimate dressed as the vendor's;
         a free Gemini key told before its first turn that the unpaid tier trains on inputs; a live
         probe of xAI `/models` before discovery relies on it; the plan rows for xAI and Google
         flipped from metadata to keyed rows. **Red:** a Grok turn at `max` sends no reasoning
-        effort. Gate: xAI terms confirmed by the owner before the row says shipped.
+        effort. Gate: xAI terms confirmed by the owner before the row says shipped. Split 2026-09-05:
+        - [x] **V34.4c.1b.i the rung in the vendor's word** — **Closed 2026-09-05, on main.** Red
+          observed twice: no code sent any reasoning parameter to any provider (plan 07's second
+          dimension was designed, not built), and — found while reading the request build —
+          yesterday's `requiresKey` widening had begun sending OpenRouter's private `usage.include`
+          to vendor origins. Green: `provider.WithEffort(ctx, rung)` carries the turn's rung from
+          `RunTurn` and the fast lane to whatever backend serves it; a keyed vendor client projects
+          it through `Disposition.Capabilities.ReasoningByRung` (xAI: low/medium/high, max and ultra
+          → `xhigh`; Google: low/medium/high, max and ultra → `high`) into `reasoning_effort`; the
+          gateway and compatible endpoints are sent exactly what they were, pinned by body, because
+          no one vocabulary fits them and a wrong word is a 400 (plan 03). `usage.include` goes to
+          the gateway alone again. A backend fake proves the rung reaches `StreamChat`. Not here:
+          the billing label, the free-tier notice, the live probe, the row flips. provider, engine
+          with `-race`; whole tree; lint; vet; `make check`.
+        - [ ] **V34.4c.1b.ii the rest of the truth** — cost labelled `API metered` from usage, never
+          an estimate as the vendor's; a free Gemini key told before its first turn; xAI `/models`
+          probed live before discovery relies on it; the xAI and Google plan rows flipped to keyed
+          rows. Gate: xAI terms confirmed by the owner before the row says shipped.
     - [ ] **V34.4c.2 the Copilot CLI handover (GitHub)** — `agentcli` backend on the `-p`/`-s`
       contract with `--allow-tool`/`--deny-tool` as the sandbox seam, `--model` from the vendor's
       `/model` list (verified by turn, as Claude), cancellation, redaction fixtures, the plan rows for

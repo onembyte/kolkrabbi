@@ -96,5 +96,5 @@ func (a *Agent) fastLaneCall(ctx context.Context, model string, messages []provi
 	if err != nil {
 		return provider.Message{}, provider.Meta{Model: model}, err
 	}
-	return backend.StreamChat(ctx, wire, messages, nil, onToken)
+	return backend.StreamChat(provider.WithEffort(ctx, a.Effort), wire, messages, nil, onToken)
 }

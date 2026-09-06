@@ -93,6 +93,9 @@ type chatRequest struct {
 	// usage.include is OpenRouter's extension that additionally reports the
 	// exact cost of the call; only sent when talking to openrouter.ai.
 	Usage *usageInclude `json:"usage,omitempty"`
+	// reasoning_effort is the OpenAI-compatible reasoning knob; sent only to
+	// a keyed vendor whose disposition projects kolk's rung onto its words.
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 }
 
 type streamOptions struct {
@@ -370,10 +373,14 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []Messag
 	}
 	// OpenRouter-specific request shape follows the client's origin, not a
 	// substring of the URL: a proxy path or lookalike host that happens to
-	// contain "openrouter.ai" is a compatible endpoint, not OpenRouter.
-	if c.requiresKey() {
+	// contain "openrouter.ai" is a compatible endpoint, not OpenRouter — and
+	// a keyed vendor is not the gateway either.
+	if c.Origin == "" {
 		reqBody.Usage = &usageInclude{Include: true}
 	}
+	// A vendor with a reasoning vocabulary on record gets kolk's rung in its
+	// own word (V34.4c.1b); everyone else gets no reasoning field.
+	reqBody.ReasoningEffort = c.reasoningWord(EffortFrom(ctx))
 	body, err := json.Marshal(reqBody)
 	if err != nil {
 		return Message{}, meta, err

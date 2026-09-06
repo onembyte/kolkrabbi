@@ -6919,3 +6919,16 @@ already filed keys under the vendor's name from their shape, and `/doctor` lists
 What is not yet true is written as the next leaf: reasoning effort is not projected onto the
 vendor's vocabulary, cost is not labelled, a free Gemini key is not yet told its inputs train the
 model, and nothing says shipped.
+
+## The rung reaches the vendor in the vendor's word — V34.4c.1b.i closed 2026-09-05
+
+Plan 07 promised that effort governs the provider's reasoning depth. Reading the request build for
+this leaf showed no code had ever sent a reasoning parameter to any provider: the dimension was
+designed, not built. It is built now for the two keyed vendor origins, where the vocabulary is
+known: the turn carries its rung in the context, and a vendor client says it in the vendor's word,
+`xhigh` for xAI's top two rungs and `high` for Google's. The gateway and compatible endpoints get no
+reasoning field at all, pinned by body, because plan 03 counted eight vocabularies among the models
+they front and a wrong word is a refused request. The same reading found a regression from the day
+before: widening "needs a key" to the vendor origins had started sending OpenRouter's private usage
+flag to them. It goes to the gateway alone again. What remains for the vendor rows is the honest
+billing label, the free-tier notice for Gemini, a live probe of xAI's model listing, and the flip.

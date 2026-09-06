@@ -1228,6 +1228,9 @@ func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 	if paused := a.stillPaused(); paused != nil {
 		return paused
 	}
+	// The rung travels with the turn so a keyed vendor client can say it in
+	// the vendor's word; the gateway and compatible endpoints ignore it.
+	ctx = provider.WithEffort(ctx, a.Effort)
 	pending := userInput
 	a.lastTurnID = xid.New(xid.Turn)
 	a.resetMainWork()
