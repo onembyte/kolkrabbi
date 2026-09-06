@@ -56,6 +56,7 @@ var slashCommandTable = []slashCommand{
 	{"pr", "", "draft a pull request title and body, and hand over `gh pr create`"},
 	{"doctor", "", "check keys, directories, terminal and network"},
 	{"resume", "", "lift a limit pause now and re-send the turn that was waiting"},
+	{"continue", "[n]", "switch to the nth equivalent model the pause recommended and re-send the turn"},
 	{"help", "", "show all slash commands"},
 	{"exit", "", "quit Kolkrabbi"},
 	{"quit", "", "alias for /exit"},
@@ -179,6 +180,8 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		}
 	case "/resume":
 		a.resumeNow(ctx, ag)
+	case "/continue":
+		a.continueNow(ctx, ag, arg)
 	case "/help":
 		printSlashHelp(a.stdout)
 		// Listed after the built-ins and marked, so a reader can tell what came

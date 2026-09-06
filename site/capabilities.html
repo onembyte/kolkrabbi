@@ -330,11 +330,15 @@
             either side, subscriptions first, then paid, then free only if you listed it. What was
             set aside is named with its reason. Nothing is applied for you.</p>
         </article>
-        <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Planned</span><span>CHAIN</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>CHAIN</span></div>
           <h3>Respect every configured option</h3>
-          <p>The continuation chain will consider eligible subscription and metered backends in
-            priority order while skipping known cooldowns instead of repeatedly hitting a cap.</p>
+          <p><code>/continue</code> walks the chain the pause recommended: every equivalent among your
+            subscriptions, then your paid keys, then the free models you listed, in that order,
+            skipping whatever is cooling — including a limit another session met, read before each hop —
+            and setting aside a hop that fails for the next. When one takes, the turn that was waiting
+            runs on it at the same effort, the hop is printed and published, and nothing about it is
+            persisted. Or name the one you want: <code>/continue 2</code>.</p>
         </article>
         <article class="spec-card" data-status="planned">
           <div class="spec-meta"><span class="status-badge">Planned</span><span>SAFE DEFAULT</span></div>

@@ -125,3 +125,25 @@ func TestRecommendWithAnUnrankedCurrentModelOnlyOffersPreferred(t *testing.T) {
 		t.Fatalf("rec = %+v", rec)
 	}
 }
+
+// select=preferred: the chain is exactly the person's list, in their order,
+// filtered by eligibility and cooling; equivalence is not enforced, because
+// they wrote the list (plan 35 §2.4).
+func TestPreferredChainIsThePersonsListFilteredByEligibility(t *testing.T) {
+	current := Candidate{Model: "claude-fable", Connector: "claude", Billing: "subscription"}
+	candidates := []Candidate{
+		{Model: "qwen/qwen3-coder:free", Connector: "openrouter", Billing: "gateway", Free: true},
+		{Model: "gpt-5.6-luna", Connector: "codex", Plan: "ChatGPT Plus", Billing: "subscription"},
+		{Model: "gpt-5.6-sol", Connector: "codex", Plan: "ChatGPT Plus", Billing: "subscription"},
+		{Model: "claude-opus", Connector: "claude", Billing: "subscription"},
+	}
+	cooling := func(connector, _ string) bool { return connector == "claude" }
+	chain := PreferredChain(current, Need{}, candidates, []string{"claude-opus", "gpt-5.6-luna", "ChatGPT Plus/gpt-5.6-sol", "qwen/qwen3-coder:free", "nobody/nothing"}, cooling)
+	var got []string
+	for _, c := range chain {
+		got = append(got, c.Model)
+	}
+	if strings.Join(got, " ") != "gpt-5.6-luna gpt-5.6-sol qwen/qwen3-coder:free" {
+		t.Fatalf("preferred chain = %v", got)
+	}
+}

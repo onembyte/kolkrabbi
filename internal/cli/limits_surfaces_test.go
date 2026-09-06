@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -96,5 +97,32 @@ func TestDoctorNamesPausedSessions(t *testing.T) {
 		if !strings.Contains(section, want) {
 			t.Fatalf("limits section omits %q:\n%s", want, section)
 		}
+	}
+}
+
+// /continue with nothing paused says so; with a pause and no equivalent it
+// keeps the pause and says why; a bad number is a usage line. The walk
+// itself is the engine's, tested there.
+func TestSlashContinueSaysWhatItCannotDo(t *testing.T) {
+	isolateConnectorState(t)
+	a, ag, out := replFixture(t, "")
+	if a.slash(context.Background(), ag, "/continue") {
+		t.Fatal("/continue must not exit the REPL")
+	}
+	if !strings.Contains(out.String(), "nothing") {
+		t.Fatalf("with nothing paused: %q", out.String())
+	}
+	out.Reset()
+	a.slash(context.Background(), ag, "/continue zero")
+	if !strings.Contains(out.String(), "usage: /continue") {
+		t.Fatalf("bad number: %q", out.String())
+	}
+	out.Reset()
+	ag.Switch = func(context.Context, continuity.Candidate) (string, error) { return "", errors.New("unused") }
+	ag.Sess.SetPaused(&continuity.Pause{Kind: string(provider.LimitSubscriptionAllowance), Scope: string(provider.ScopeAccount),
+		Connector: "claude", Model: ag.SessionModel(), Since: time.Now(), ResetAt: time.Now().Add(time.Hour), PendingTurn: "go on"})
+	a.slash(context.Background(), ag, "/continue")
+	if !strings.Contains(out.String(), "nothing configured can continue") || ag.Sess.Paused() == nil {
+		t.Fatalf("with a pause and no equivalent: %q paused=%v", out.String(), ag.Sess.Paused() != nil)
 	}
 }

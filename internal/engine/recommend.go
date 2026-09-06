@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/continuity"
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -30,7 +31,45 @@ func (a *Agent) recommendation(limit provider.Limit) continuity.Recommendation {
 		return ok
 	}
 	need := continuity.Need{Tools: a.Mode != ModeChat}
+	for i := range candidates {
+		candidates[i].Preferred = a.isPreferred(candidates[i])
+	}
 	return continuity.Recommend(current, need, candidates, nil, cooling, modelRank)
+}
+
+// isPreferred reports whether a candidate is on the person's own list, by
+// its plan-qualified reference or its bare model.
+func (a *Agent) isPreferred(c continuity.Candidate) bool {
+	for _, name := range a.Preferred {
+		if strings.EqualFold(name, c.Ref()) || strings.EqualFold(name, c.Model) {
+			return true
+		}
+	}
+	return false
+}
+
+// chain is what ContinueOn walks: the recommendation's equivalents, or the
+// person's preferred list when they chose it.
+func (a *Agent) chain(limit provider.Limit) []continuity.Candidate {
+	rec := a.recommendation(limit)
+	if strings.EqualFold(a.Select, "preferred") {
+		var candidates []continuity.Candidate
+		if a.Candidates != nil {
+			candidates = a.Candidates()
+		}
+		cooling := func(connector, model string) bool {
+			if a.Cooldowns == nil {
+				return false
+			}
+			if _, ok := a.Cooldowns.Cooling(provider.ScopeAccount, connector, ""); ok {
+				return true
+			}
+			_, ok := a.Cooldowns.Cooling(provider.ScopeModel, connector, model)
+			return ok
+		}
+		return continuity.PreferredChain(rec.Current, continuity.Need{Tools: a.Mode != ModeChat}, candidates, a.Preferred, cooling)
+	}
+	return rec.Equivalent
 }
 
 // printRecommendation is the block after the line that says what stopped.

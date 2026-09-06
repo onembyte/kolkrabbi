@@ -157,6 +157,10 @@ contains capabilities.html '<link rel="canonical" href="https://kolkrabbi.franco
 contains capabilities.html '<span class="status-badge">Available now</span><span>DETECT</span>' "the DETECT card must say it ships"
 not_contains capabilities.html 'refusal remain distinct. Reset times and cooldown scope are preserved when available' "the DETECT card's designed wording must be gone"
 contains capabilities.html 'cooldown is remembered per session and per account' "the DETECT card must name the remembered cooldown"
+# CHAIN shipped with V35.4 (2026-09-06): /continue walks the equivalents, skipping what is cooling.
+contains capabilities.html '<span class="status-badge">Available now</span><span>CHAIN</span>' "the CHAIN card must say it ships"
+not_contains capabilities.html 'The continuation chain will consider eligible subscription and metered backends' "the CHAIN card's planned wording must be gone"
+contains capabilities.html 'skipping whatever is cooling' "the CHAIN card must say cooling hops are skipped"
 # RECOMMEND shipped with V35.3 (2026-09-06): the block after a limit, equivalence by rung.
 contains capabilities.html '<span class="status-badge">Available now</span><span>RECOMMEND</span>' "the RECOMMEND card must say it ships"
 not_contains capabilities.html 'Kolkrabbi will preserve the turn, say which backend stopped' "the RECOMMEND card's planned wording must be gone"

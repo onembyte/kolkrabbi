@@ -10942,6 +10942,24 @@ Subcheckpoints, one at a time:
       cli with `-race`; whole tree; lint; vet.
     - [x] **V35.3c the card** — **Closed 2026-09-06.** RECOMMEND is Available now with the shipped
       contract, pinned by three `contains` and one `not_contains`. site; `make check`.
+  - [x] **V35.4 CHAIN** — plan 35 §2.5, opened and closed 2026-09-06. **Scope:** the walk over
+    the recommendation's equivalents when the person says so: `/continue [n]` → `Agent.ContinueOn`
+    reloads the cooldown registry first (a limit another session met since is respected at this
+    hop — the owner's "active sessions should be aware"), builds the chain (the equivalents in the
+    owner's order, or the person's `Preferred` list when `Select` is `preferred`, filtered by
+    eligibility and cooling, equivalence not enforced because they wrote it), switches the session
+    through `Options.Switch` (the surface owns the backends: the CLI's `switchModel`), sets a hop
+    that fails aside with its reason and tries the next, and when one takes lifts the pause, stops
+    the resume monitor, prints `◆ <connector>/<model> <kind>; continuing on <label> at <effort>
+    (<billing>)`, publishes `provider.limit{switch}`, and hands the waiting turn back for the surface
+    to run on the new model; a chain with nothing left keeps the pause and says why. Candidates are
+    marked preferred from the list by plan-qualified reference or bare model. **Non-goals:** no
+    automatic walk (V35.6), no config keys yet (V35.5 feeds `Select` and `Preferred`; `mode off`
+    stays the behaviour), nothing persisted about a hop. **Red observed:** no `Switch`, no
+    `ContinueOn`, `/continue` unknown. Tests: the walk in order past a failing hop with the pending
+    turn returned and one switch event; `/continue 2`; an exhausted chain; `PreferredChain` over
+    the person's list; `/continue` saying what it cannot do. The CHAIN card is Available now with
+    three pins. engine and cli with `-race`; whole tree; lint; vet; site; `make check`.
     - [x] **V35.2a the pause** — `Pause` on the session (kind, scope, connector, model, reset, since, the
       pending input verbatim), persisted under the messages lock; a paused session refuses to spend and
       says when it resumes; the turn that paused ends with `turn.finished{paused}` and `provider.limit

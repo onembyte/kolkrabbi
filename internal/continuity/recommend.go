@@ -234,3 +234,33 @@ func (r Recommendation) Lines() []string {
 	}
 	return lines
 }
+
+// Ref is the reference a surface switches to: plan-qualified for a handover,
+// the bare id otherwise.
+func (c Candidate) Ref() string {
+	if c.Plan != "" {
+		return c.Plan + "/" + c.Model
+	}
+	return c.Model
+}
+
+// PreferredChain is the chain when the person chose their own list (plan 35
+// §2.4 `select preferred`): exactly that list, in that order, keeping only
+// candidates that are eligible now; equivalence is not enforced, because
+// they wrote the list. A name may be plan-qualified or bare.
+func PreferredChain(current Candidate, need Need, candidates []Candidate, preferred []string, cooling Cooling) []Candidate {
+	var chain []Candidate
+	for _, name := range preferred {
+		for _, c := range candidates {
+			if !strings.EqualFold(name, c.Ref()) && !strings.EqualFold(name, c.Model) {
+				continue
+			}
+			if ineligible(current, c, need, cooling) != "" {
+				continue
+			}
+			chain = append(chain, c)
+			break
+		}
+	}
+	return chain
+}

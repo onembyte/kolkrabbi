@@ -7016,3 +7016,17 @@ the person's own ratings decide. The ranking lives below the engine as pure func
 nothing and spend nothing; the engine passes in its ladder and its cooldowns; the surface assembles
 the candidates from the connectors that have actually answered a turn. Nothing is applied. That is
 the next three leaves, each an opt-in.
+
+## The chain is walked when asked — V35.4 closed 2026-09-06
+
+The recommendation already knew the order: every equivalent on a subscription, then on a paid key,
+then the free models the person listed, ranked by their own ratings. Now `/continue` walks it. The
+engine asks the surface to switch, since the surface owns the vendor processes; a hop that fails is
+set aside with its reason and the next is tried; when one takes, the pause is lifted, the monitor
+that was waiting for the reset is dismissed, the hop is printed and published, and the turn that was
+waiting runs on the new model at the same effort. Before each hop the cooldown registry is reloaded,
+so a limit another session met a minute ago is respected here — the owner's ask that sessions be
+aware of each other, kept without any session waiting on another. Nothing about a hop is written
+down. The person's own list, when they choose it, is the chain as written, eligibility applied and
+equivalence not, because they wrote it. What is left is the two opt-ins: the settings that name the
+mode, and the automatic walk under them.

@@ -438,6 +438,11 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		UserMemoryFile:     d.MemoryFile(),
 		ArchiveCompaction:  archiveCompaction(d.Sessions(), sess.ID),
 	})
+	// How the session moves to one of the candidates when asked (plan 35
+	// §2.5): the surface owns the backends, so it performs the switch.
+	ag.Switch = func(ctx context.Context, c continuity.Candidate) (string, error) {
+		return a.switchModel(ctx, ag, c.Ref())
+	}
 	// The user's own Ollama, when one is running, answers for ollama/<model>
 	// through the router (E2, E5). Adopted read-only: this session never
 	// stops a server it did not start. Discovery costs 230 µs, measured.

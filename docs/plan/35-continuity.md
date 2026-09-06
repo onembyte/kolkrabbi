@@ -163,6 +163,9 @@ continuity.resume    auto | manual                  # §2.2
 
 ### 2.5 CHAIN — respect every configured option
 
+*Shipped 2026-09-06 as V35.4: `Agent.ContinueOn` and `/continue [n]`, `Options.Switch`, the
+preferred chain behind `Select`/`Preferred` (fed by V35.5), cooldowns reloaded before each hop.*
+
 - Default chain derivation: for the current effort rung, the equivalent models of every verified
   subscription connector in the order configured, then metered key models, then free models on the
   preferred list; each filtered by `Eligible`, each skipped while cooling, each tried once per turn

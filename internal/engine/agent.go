@@ -293,6 +293,16 @@ type Options struct {
 	// and shows them, nothing is applied. Nil means the block only says what
 	// stopped and that kolk resumes.
 	Candidates func() []continuity.Candidate
+	// Select is how the chain is chosen when the session continues (plan 35
+	// §2.4): auto (the default) walks the equivalents in the owner's order;
+	// preferred walks Preferred, the person's own list, in their order. The
+	// settings that feed these are V35.5's.
+	Select    string
+	Preferred []string
+	// Switch moves the session to a candidate (plan 35 §2.5): the surface owns
+	// the backends, so it performs the switch and returns the label it settled
+	// on. Nil means the chain cannot be walked and /continue says so.
+	Switch func(context.Context, continuity.Candidate) (string, error)
 	// ResumePolicy is auto (default) or manual: whether a paused session comes
 	// back on its own once the monitor sees the limit lifted, or waits for
 	// /resume (plan 35 §2.2). The monitor spends no tokens either way.
