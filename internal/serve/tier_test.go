@@ -132,13 +132,16 @@ func TestOnlyTheActingRoutesNeedSteer(t *testing.T) {
 	// answerable by any paired device, which is the failure this exists to
 	// make loud.
 	//
-	// It made exactly that noise when /v1/turns was mounted (I26.7b), which is
-	// why this list grew on purpose rather than by accident. Both entries let a
-	// device *act*: one answers a permission prompt, the other asks for work.
-	// Anything authenticated and absent from this list is readable only.
+	// It made exactly that noise when /v1/turns was mounted (I26.7b), and
+	// again when the client's form post was mounted (I26.7, 2026-09-06), which
+	// is why this list grew on purpose rather than by accident. Every entry
+	// lets a device *act*: one answers a permission prompt, two ask for work
+	// — the API's JSON and the page's form. Anything authenticated and absent
+	// from this list is readable only.
 	want := map[string]bool{
 		"/v1/permissions/resolve": true,
 		"/v1/turns":               true,
+		"/v1/client/turn":         true,
 	}
 
 	if len(steerRoutes) != len(want) {

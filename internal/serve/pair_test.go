@@ -162,14 +162,20 @@ func TestABodyThatIsNotJSONIsRejected(t *testing.T) {
 }
 
 func TestOnlyPostPairs(t *testing.T) {
-	handler, pairing, _ := pairFixture(t)
+	handler, pairing, store := pairFixture(t)
 	pairing.Arm()
+	before := len(store.List())
 
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/v1/pair", nil))
 
-	// A GET that pairs is a GET a link can trigger.
-	if recorder.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("answered %d to GET, want method not allowed", recorder.Code)
+	// A GET that pairs is a GET a link can trigger. Since I26.7 a GET while
+	// armed renders the pairing form — and still pairs nothing: no device
+	// exists until a POST carries the code.
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `method="post"`) {
+		t.Fatalf("answered %d to GET, want the form", recorder.Code)
+	}
+	if len(store.List()) != before || !pairing.Armed() {
+		t.Fatal("a GET paired a device or consumed the code")
 	}
 }

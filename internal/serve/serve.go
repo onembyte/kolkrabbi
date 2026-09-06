@@ -88,6 +88,13 @@ func Mux(opts Options) (http.Handler, error) {
 	pair := pairHandler(opts.Pairing, opts.Devices, opts.DeviceFile)
 	mux.Handle("/v1/pair", pair)
 
+	// The client (plan 26 §5, I26.7): server-rendered, no script, behind the
+	// same auth as the API with a device cookie honoured under this prefix.
+	mux.Handle("/v1/client", clientPageHandler(opts.Token, opts.Devices))
+	mux.Handle("/v1/client/stream", clientStreamHandler(opts.Bus, opts.PingInterval))
+	mux.Handle("/v1/client/turn", clientTurnHandler(opts.Token, opts.Devices, opts.Turns))
+	mux.Handle("/v1/client/manifest.json", clientManifestHandler())
+
 	guarded := authMiddleware(opts.Token, openRoutes, opts.Devices, mux)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Routed before auth rather than exempted inside it, so the exempt set

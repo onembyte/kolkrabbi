@@ -24,6 +24,7 @@ func isLoopback(addr string) bool { return netaddr.IsLoopback(addr) }
 // by any paired device, and that failure is silent. Everything authenticated
 // and not listed here is readable by any device.
 var steerRoutes = map[string]bool{
+	"/v1/client/turn":         true,
 	"/v1/permissions/resolve": true,
 	"/v1/turns":               true,
 }
@@ -50,11 +51,18 @@ func authMiddleware(token string, exemptRoutes map[string]bool, store *devices.S
 		}
 
 		authHeader := r.Header.Get("Authorization")
-		if !strings.HasPrefix(authHeader, "Bearer ") {
-			http.Error(w, `{"error":"unauthorized","message":"missing or invalid bearer token"}`, http.StatusUnauthorized)
-			return
-		}
 		provided := strings.TrimPrefix(authHeader, "Bearer ")
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			// The client routes, and only they, accept the device cookie the
+			// pairing form set: a browser cannot send a bearer from a form or
+			// a stream, and the cookie never leaves the /v1 path.
+			if c, err := r.Cookie(clientCookie); err == nil && c.Value != "" && strings.HasPrefix(r.URL.Path, clientPrefix) {
+				provided = c.Value
+			} else {
+				http.Error(w, `{"error":"unauthorized","message":"missing or invalid bearer token"}`, http.StatusUnauthorized)
+				return
+			}
+		}
 
 		if subtle.ConstantTimeCompare([]byte(provided), []byte(token)) == 1 {
 			next.ServeHTTP(w, r)

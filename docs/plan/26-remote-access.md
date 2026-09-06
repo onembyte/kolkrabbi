@@ -127,7 +127,7 @@ process between a fix and its users. Recorded as a refusal, not a deferral.
 - **I26.4 pairing** — armed briefly, six digits, single use, attempt-capped, 404 when not armed.
 - **I26.5 reachability** — `kolk serve` says how to reach it, Tailscale first.
 - **I26.6 read and steer tiers** — a device's tier decides which endpoints answer it.
-- **I26.7 the remote client** — the dash page, authenticated, able to steer.
+- **I26.7 the remote client** — ✓ 2026-09-06: `/v1/client` (page, stream, form post, manifest), the pairing form setting a client-scoped device cookie, same-origin posts, the steer set grown by the form post and the open set still two. Interrupt and permission forms, and a service worker, remain.
 
 ## Open questions
 

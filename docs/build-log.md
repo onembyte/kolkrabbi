@@ -7110,3 +7110,17 @@ What did not happen is said plainly: no real server was started. The protocol is
 in-memory server, and the process transport is the one Codex already runs through. The first
 `/mcp add` of a real server will be the live proof, and HTTP plus the search-and-load bridge for
 servers that do not fit remain the card's honest "still to come".
+
+## Something to use it from — I26.7 closed 2026-09-06
+
+The serve surface had been a server waiting for a client since I26.2 ratcheted it shut. The client
+is what plan 26 asked for and nothing more: a page the server renders, with no script, whose
+transcript is a stream that the browser draws as it arrives and whose only control is a box that
+posts a turn. The hard part was the credential. A browser cannot send a bearer from a form, so the
+pairing route learned to render a form while armed and to set a cookie on a right code — scoped to
+the client path, HttpOnly, strict, never in a URL — and the middleware honours that cookie under the
+client path alone, so the API's bearer rule is untouched. Every post from the page must come from
+the same origin. The ratchets did their work: the test that pins the steer set failed the moment the
+form post was mounted and grew by one on purpose, and the test that pins "a GET never pairs" was
+re-read to "a GET renders and pairs nothing" with the device count as its proof. No browser opened
+the page tonight; the owner's phone will.

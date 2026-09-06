@@ -10825,6 +10825,29 @@ Subcheckpoints, one at a time:
       translator, or defer. Not mine to choose.
     - [ ] **V34.4c.4 the surfaces** — plan 24 rows, `/plans`, the capabilities card, pinned; each
       row says its status in the words the disposition uses.
+- [x] **I26.7 the remote client** — plan 26 §5, opened and closed 2026-09-06 at the owner's request
+  to build what the card called planned; I26.1–6 were done. **Scope:** `GET /v1/client`, a
+  server-rendered page with no script: an iframe on `GET /v1/client/stream`, chunked HTML that
+  renders each event as a line as it arrives (the prompt, the reply's deltas, tool lines, the turn's
+  end, a limit) and pings with a comment; a steer device gets a form that posts to
+  `POST /v1/client/turn`, a read device is told it may watch; `manifest.json` so the page installs
+  where the platform allows a manifest without a service worker. **Auth, said carefully:** a browser
+  cannot send a bearer from a form or a stream, so the pairing route gained a form — `GET /v1/pair`
+  while armed renders it and pairs nothing, `POST` with a form body redeems the code exactly as JSON
+  does, sets a device cookie (HttpOnly, SameSite=Strict, Path=/v1, Secure over TLS, 90 days) and
+  redirects to the page; the token appears in no URL and is shown to nobody. The cookie is honoured
+  by the middleware **only under `/v1/client`** — the API keeps its bearer, pinned. Every client post
+  requires an Origin or Referer whose host is the server's (second line behind SameSite). The form
+  post joined the steer set, and the ratchet that pins the set grew by it, on purpose; the open set is
+  still two, pinned. **Non-goals:** no interrupt or permission answer from the page (the API has
+  them; a form for each is a small later leaf), no service worker, no session list (MANY), and — said
+  plainly — **no browser opened it tonight**: the page, stream, post, cookie and form are proven by
+  handlers and a live loopback connection in tests; the owner's phone is the live proof. **Red
+  observed:** `/v1/client` 404; a GET on `/v1/pair` method-not-allowed; no steer route for a form.
+  Two ratchet tests re-read honestly: a GET on `/v1/pair` renders and still pairs nothing (device
+  count and the armed code both unchanged), and the steer set names the third acting route. One
+  test race was the test's own recorder read mid-write; it reads a live connection now. serve with
+  `-race`; whole tree; lint; vet; site; `make check`.
 - [x] **G16.6 MCP over stdio** — plan 16 §3, opened and closed 2026-09-06 at the owner's request to
   build what the card called planned; its two blockers (G16.4 rules, G16.5 budget) were already done.
   **Scope:** `internal/mcp` (L3): a JSON-RPC 2.0 client over a line transport — `initialize` and the

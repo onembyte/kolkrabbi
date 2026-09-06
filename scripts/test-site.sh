@@ -153,6 +153,11 @@ contains index.html 'Ollama' "the hero does not name a local provider"
 contains index.html 'One static binary under' "the landing page does not state the binary size"
 contains index.html '9&nbsp;MB, milliseconds to start' "the binary claim drifted from what check-budgets.sh measures"
 contains capabilities.html '<link rel="canonical" href="https://kolkrabbi.francomichetti.com/capabilities">' "capabilities.html has no canonical URL"
+# CLIENT shipped 2026-09-06 (I26.7): a paired browser's page, cookie-scoped, same-origin posts.
+contains capabilities.html '<span class="status-badge">Available now</span><span>CLIENT</span>' "the CLIENT card must say it ships"
+not_contains capabilities.html 'this section is a server waiting for a client' "the CLIENT card's planned wording must be gone"
+contains capabilities.html 'never in a URL' "the CLIENT card must say the token is never in a URL"
+contains capabilities.html 'The open surface is still exactly two routes.' "the CLIENT card must keep the ratchet's claim"
 # MCP stdio shipped 2026-09-06 (G16.6): /mcp, the budget fit, one server per rule.
 contains capabilities.html '<span class="status-badge">Available now</span><span>MCP</span>' "the MCP card must say it ships"
 not_contains capabilities.html 'transports themselves are still to come' "the MCP card's planned wording must be gone"
