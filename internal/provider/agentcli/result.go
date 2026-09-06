@@ -9,6 +9,14 @@ import (
 // Collect projects translated Claude events into the provider-neutral result
 // shape used by engine adapters. It never reconstructs or stores raw frames.
 func Collect(events []Event, elapsed time.Duration) (provider.Message, provider.Meta, error) {
+	message, meta, err := collect(events, elapsed)
+	// A handover's reply is the plan's turn, whatever the vendor's frame says
+	// about cost: kolk never turns a subscription turn into a dollar figure.
+	meta.Billing = provider.BillingSubscription
+	return message, meta, err
+}
+
+func collect(events []Event, elapsed time.Duration) (provider.Message, provider.Meta, error) {
 	var message provider.Message
 	var meta provider.Meta
 	for _, event := range events {

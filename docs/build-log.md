@@ -6932,3 +6932,15 @@ they front and a wrong word is a refused request. The same reading found a regre
 before: widening "needs a key" to the vendor origins had started sending OpenRouter's private usage
 flag to them. It goes to the gateway alone again. What remains for the vendor rows is the honest
 billing label, the free-tier notice for Gemini, a live probe of xAI's model listing, and the flip.
+
+## A turn says how it is paid for — V34.4c.1b.ii, the billing label, closed 2026-09-06
+
+Kolk's usage log had one number for what a call cost, and one number cannot tell a free turn from a
+metered turn the vendor did not price in its reply. With a paid xAI key that meant the dash would
+have shown grok at $0.00, which is the estimate-as-billing lie plan 24 forbids, turned inside out.
+Every reply now carries how it is paid for, decided where the truth is known: the client's origin
+says gateway, metered, local or unknown, and a handover says subscription. The record keeps the
+word beside the cost, the aggregate keeps one mode per model or admits it is mixed, and the dash
+prints a figure where there is one and the mode in words where there is not. No estimate is
+computed from token prices anywhere; that stays a rule. Next in this leaf: a Google key told before
+its first turn that the unpaid tier trains on inputs.

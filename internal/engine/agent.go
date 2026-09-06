@@ -787,6 +787,7 @@ func (a *Agent) recordAtEffort(role string, meta provider.Meta, toolCalls int, e
 		CacheReadTokens:     meta.CacheReadTokens,
 		CacheCreationTokens: meta.CacheCreationTokens,
 		Cost:                meta.Cost,
+		Billing:             meta.Billing,
 		Ms:                  meta.Elapsed.Milliseconds(),
 		ToolCalls:           toolCalls,
 	})

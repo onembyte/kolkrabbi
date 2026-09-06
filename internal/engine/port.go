@@ -75,6 +75,7 @@ type CallRecord struct {
 	CacheReadTokens     int
 	CacheCreationTokens int
 	Cost                float64
+	Billing             string
 	Ms                  int64
 	ToolCalls           int
 }

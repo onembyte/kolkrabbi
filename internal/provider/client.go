@@ -70,7 +70,11 @@ type Meta struct {
 	PromptTokens     int
 	CompletionTokens int
 	Cost             float64 // USD; 0 if the server did not report it
-	Elapsed          time.Duration
+	// Billing is how this reply is paid for, from the origin that served it
+	// (the Billing* constants). A metered reply the vendor did not price
+	// keeps Cost 0 and says so here, so nothing reads it as free.
+	Billing string
+	Elapsed time.Duration
 	// Cache accounting, when the provider reports it. A cached turn costs a
 	// fraction of an uncached one, so a cost chart that ignores these cannot
 	// explain why two turns on one model differ.
@@ -360,7 +364,7 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []Messag
 	// wrote. Callers print these and sessions keep them. Wrapping preserves
 	// errors.Is/As through Unwrap.
 	defer func() { err = secret.ScrubError(err) }()
-	meta = Meta{Model: model}
+	meta = Meta{Model: model, Billing: c.billing()}
 	if c.requiresKey() && !c.HasKey() {
 		return Message{}, meta, errors.New(c.keyAdvice())
 	}

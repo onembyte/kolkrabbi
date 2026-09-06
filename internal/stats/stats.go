@@ -52,6 +52,7 @@ func (s *Store) RecordCall(r engine.CallRecord) error {
 		CacheReadTokens:     r.CacheReadTokens,
 		CacheCreationTokens: r.CacheCreationTokens,
 		Cost:                r.Cost,
+		Billing:             r.Billing,
 		Ms:                  r.Ms,
 		ToolCalls:           r.ToolCalls,
 	})
@@ -85,6 +86,7 @@ type Record struct {
 	CacheReadTokens     int     `json:"cache_read_tokens,omitempty"`
 	CacheCreationTokens int     `json:"cache_creation_tokens,omitempty"`
 	Cost                float64 `json:"cost,omitempty"`
+	Billing             string  `json:"billing,omitempty"` // gateway | subscription | api-metered | local | unknown
 	Ms                  int64   `json:"ms,omitempty"`
 	ToolCalls           int     `json:"tool_calls,omitempty"`
 	Rating              int     `json:"rating,omitempty"` // 1-5, kind=rating
@@ -210,10 +212,14 @@ func readStatsLine(reader *bufio.Reader) ([]byte, error) {
 
 // ModelRow is one line of the dashboard: everything known about one model.
 type ModelRow struct {
-	Model     string
-	Calls     int
-	Tokens    int // prompt + completion
-	Cost      float64
+	Model  string
+	Calls  int
+	Tokens int // prompt + completion
+	Cost   float64
+	// Billing is the one mode every call of this model was billed under, or
+	// "mixed"; empty when no call said. It is what lets an unpriced metered
+	// model be shown as metered rather than free.
+	Billing   string
 	AvgMs     int64
 	Ratings   int
 	AvgRating float64
@@ -248,6 +254,13 @@ func Aggregate(recs []Record) []ModelRow {
 		row.Calls++
 		row.Tokens += r.PromptTokens + r.CompletionTokens
 		row.Cost += r.Cost
+		switch {
+		case r.Billing == "":
+		case row.Billing == "":
+			row.Billing = r.Billing
+		case row.Billing != r.Billing:
+			row.Billing = "mixed"
+		}
 		row.ToolCalls += r.ToolCalls
 		totalMs[r.Model] += r.Ms
 		if r.Mode != "" {

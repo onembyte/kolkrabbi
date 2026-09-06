@@ -10713,10 +10713,28 @@ Subcheckpoints, one at a time:
           the gateway alone again. A backend fake proves the rung reaches `StreamChat`. Not here:
           the billing label, the free-tier notice, the live probe, the row flips. provider, engine
           with `-race`; whole tree; lint; vet; `make check`.
-        - [ ] **V34.4c.1b.ii the rest of the truth** — cost labelled `API metered` from usage, never
+        - [~] **V34.4c.1b.ii the rest of the truth** — cost labelled `API metered` from usage, never
           an estimate as the vendor's; a free Gemini key told before its first turn; xAI `/models`
           probed live before discovery relies on it; the xAI and Google plan rows flipped to keyed
-          rows. Gate: xAI terms confirmed by the owner before the row says shipped.
+          rows. Gate: xAI terms confirmed by the owner before the row says shipped. Split 2026-09-06:
+          - [x] **the billing label** — **Closed 2026-09-06, on main.** Red observed in four
+            packages: `Meta` had no word for how a reply is paid, so a vendor turn with tokens and
+            no price was recorded with `cost 0` and the dash printed it as `$0.00` — a paid key
+            shown as free, plan 24's forbidden estimate inverted. Green: `provider.Billing*`
+            (`gateway`, `subscription`, `api-metered`, `local`, `unknown`) stamped on every reply
+            from the client's origin — the gateway prices, a keyed vendor meters unpriced, the host
+            is local, a compatible endpoint is unknown — and by `agentcli.Collect` for every
+            handover as `subscription`; `CallRecord` and the usage log carry it; `stats.Aggregate`
+            keeps one mode per model or `mixed`; the dash's cost cell prints the figure where there
+            is one and otherwise the mode in words (`metered, unpriced`, `subscription`, `local`),
+            never `$0.00` for a paid or planned turn. Non-goals: no estimate is computed from token
+            prices, anywhere. provider, agentcli, engine with `-race`, dash, stats; whole tree;
+            lint; vet; `make check`.
+          - [ ] **the free-tier notice** — a Google key told before its first turn that the unpaid
+            tier trains on inputs and a paid one does not, once per session, in the terms' words.
+          - [ ] **the live probe and the flip** — xAI `/models` probed live before discovery relies
+            on it; the xAI and Google plan rows flipped from metadata to keyed rows; the status
+            line's cost label learns the modes. Gate: xAI terms confirmed by the owner.
     - [ ] **V34.4c.2 the Copilot CLI handover (GitHub)** — `agentcli` backend on the `-p`/`-s`
       contract with `--allow-tool`/`--deny-tool` as the sandbox seam, `--model` from the vendor's
       `/model` list (verified by turn, as Claude), cancellation, redaction fixtures, the plan rows for

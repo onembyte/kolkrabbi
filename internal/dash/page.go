@@ -79,7 +79,7 @@ func writeLeaderboard(b *strings.Builder, rows []stats.ModelRow) {
 		}
 		fmt.Fprintf(b, `<tr><td>%s</td><td class="n">%d</td><td class="n">%s</td>`+
 			`<td class="n">%s</td><td class="n">%dms</td><td class="n">%s</td></tr>`,
-			html.EscapeString(row.Model), row.Calls, count(row.Tokens), money(row.Cost), row.AvgMs, rating)
+			html.EscapeString(row.Model), row.Calls, count(row.Tokens), costCell(row), row.AvgMs, rating)
 	}
 	b.WriteString(`</tbody></table></section>`)
 }
@@ -300,3 +300,21 @@ func writeSessions(b *strings.Builder, records []stats.Record) {
 // maxSessionRows keeps the page readable. The full list is what
 // `kolk sessions` is for.
 const maxSessionRows = 20
+
+// costCell is the cost column: the figure where one is known, otherwise the
+// billing mode in words — a subscription's turn, a vendor's metered tokens
+// that no reply priced — because "$0.00" beside a paid key is a lie.
+func costCell(row stats.ModelRow) string {
+	if row.Cost > 0 {
+		return money(row.Cost)
+	}
+	switch row.Billing {
+	case "subscription":
+		return `<span class="dim">subscription</span>`
+	case "api-metered":
+		return `<span class="dim">metered, unpriced</span>`
+	case "local":
+		return `<span class="dim">local</span>`
+	}
+	return money(row.Cost)
+}
