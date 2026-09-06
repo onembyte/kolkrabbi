@@ -27,7 +27,7 @@ adapter yet. Most of those models are already reachable through the OpenRouter g
 
 ## What makes it different
 
-- One effort dial — low, medium, high, max — selects *which model* runs the turn and how wide the
+- One effort dial — low, medium, high, max, ultra — selects *which model* runs the turn and how wide the
   agent work goes, rather than only how many thinking tokens are spent.
 - Three modes: chat (no tools), code (the read/write/edit loop), agent (work planned as
   dependency-ordered tasks, each routed to a model slot).

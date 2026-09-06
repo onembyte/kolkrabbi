@@ -449,7 +449,7 @@ things a session cannot do:
 What it can do:
   three modes        /mode chat (no tools) · code (the tool loop) · agent
                      (plans tasks, routes each to a model, runs them, answers once)
-  an effort dial     /effort low|medium|high|max picks the model tier, the tool-round
+  an effort dial     /effort low|medium|high|max|ultra picks the model tier, the tool-round
                      limit, the shell timeout, and how wide an agent run may go
   any provider       OpenRouter, any OpenAI-compatible URL (Ollama, LiteLLM, vLLM),
                      a Claude or Codex subscription through its own CLI, or local Ollama

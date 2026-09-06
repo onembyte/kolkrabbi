@@ -442,7 +442,7 @@ func TestSlashEffortSwitchesAndReportsActiveModel(t *testing.T) {
 	if a.slash(context.Background(), ag, "/effort") {
 		t.Fatal("/effort must not exit REPL")
 	}
-	if !strings.Contains(out.String(), "effort: medium (low|medium|high|max)") {
+	if !strings.Contains(out.String(), "effort: medium (low|medium|high|max|ultra)") {
 		t.Errorf("bare /effort output = %q", out.String())
 	}
 

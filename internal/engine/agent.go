@@ -62,9 +62,13 @@ const (
 	EffortMedium = "medium"
 	EffortHigh   = "high"
 	EffortMax    = "max"
+	// EffortUltra is the fifth rung (V34.4b, owner decision 2026-09-05): above
+	// max on every dimension the dial governs, and the rung through which a
+	// vendor's own `ultra` is reached. It was a legacy spelling of max before.
+	EffortUltra = "ultra"
 )
 
-var CanonicalEfforts = []string{EffortLow, EffortMedium, EffortHigh, EffortMax}
+var CanonicalEfforts = []string{EffortLow, EffortMedium, EffortHigh, EffortMax, EffortUltra}
 
 var Efforts = []string{EffortLow, EffortMedium, EffortHigh, EffortMax, "xhigh", "quick", "standard", "deep", "ultra"}
 
@@ -79,8 +83,10 @@ func NormalizeEffort(s string) (string, bool) {
 		return EffortMedium, true
 	case "high", "h", "3", "deep":
 		return EffortHigh, true
-	case "max", "xhigh", "x", "4", "ultra":
+	case "max", "xhigh", "x", "4":
 		return EffortMax, true
+	case "ultra", "u", "5":
+		return EffortUltra, true
 	default:
 		return "", false
 	}
@@ -101,6 +107,8 @@ func MaxRoundsFor(mode string, effort string) int {
 			return 12
 		case EffortMax:
 			return 20
+		case EffortUltra:
+			return 30
 		default: // EffortMedium
 			return 6
 		}
@@ -113,6 +121,8 @@ func MaxRoundsFor(mode string, effort string) int {
 		return 24
 	case EffortMax:
 		return 50
+	case EffortUltra:
+		return 80
 	default: // EffortMedium
 		return 12
 	}
@@ -131,6 +141,8 @@ func TimeoutForEffort(effort string) time.Duration {
 		return 300 * time.Second
 	case EffortMax:
 		return 600 * time.Second
+	case EffortUltra:
+		return 900 * time.Second
 	default: // EffortMedium
 		return 120 * time.Second
 	}
@@ -555,7 +567,7 @@ func (a *Agent) SetEffort(effort string) error {
 		a.Effort = canonical
 		return nil
 	}
-	return fmt.Errorf("invalid effort %q: expected low (1), medium (2), high (3), or max (4)", effort)
+	return fmt.Errorf("invalid effort %q: expected low (1), medium (2), high (3), max (4), or ultra (5)", effort)
 }
 
 // ModelForEffort resolves the model for an effort level (accepting any canonical,
@@ -576,6 +588,8 @@ func (a *Agent) modelFor(effort string) string {
 		return m
 	}
 	// 2. Legacy tier key fallback if user config used "quick", "standard", etc.
+	// "ultra" is no longer max's legacy spelling: it is the fifth rung's own
+	// tier and was matched above.
 	switch eff {
 	case EffortLow:
 		if m, ok := a.Tiers["quick"]; ok && m != "" {
@@ -587,10 +601,6 @@ func (a *Agent) modelFor(effort string) string {
 		}
 	case EffortHigh:
 		if m, ok := a.Tiers["deep"]; ok && m != "" {
-			return m
-		}
-	case EffortMax:
-		if m, ok := a.Tiers["ultra"]; ok && m != "" {
 			return m
 		}
 	}

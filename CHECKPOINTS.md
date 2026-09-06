@@ -10632,8 +10632,23 @@ Subcheckpoints, one at a time:
     model truly belongs to stays the connector's set — the catalog still carries no tier, and the
     owner chose conservatism over invention. provider, cli, arch; lint linux; vet windows; site
     347/347; `make check`.
-  - [ ] **V34.4b (owner decided 2026-09-05: add a fifth level `ultra`) a vendor `ultra` the four-level dial cannot reach** — accepted by name,
+  - [x] **V34.4b (owner decided 2026-09-05: add a fifth level `ultra`) a vendor `ultra` the four-level dial cannot reach** — accepted by name,
     unreachable through `/effort`; a fifth level or a mapping is a product decision.
+    **Closed 2026-09-05, on main.** Red observed: `NormalizeEffort("ultra")` was `max` and `5` was
+    invalid, so the dial had four rungs and the vendor's `ultra` was reachable only by typing the
+    provider's word; `EffortForPlan("ultra", …)` ranked it below `low`. Green: `EffortUltra` is the
+    fifth canonical rung (`ultra`, `u`, `5`), above `max` on every dimension the dial governs — 80/30
+    tool rounds (code/chat), 8 subagents, 900 s — with its own tier `effort.ultra.model`; `max` no
+    longer reads the `ultra` tier as a legacy spelling, and `xhigh` stays the vendor's word for
+    `max`. The plan ladder gains `ultra`, so a Claude plan that stops at `max` clamps `ultra` to
+    `max` and says so, and a Codex model whose vendor set lists `ultra` reaches the vendor's own
+    rung; one whose set stops at `xhigh` refuses by name, never silently lowered. Every grammar
+    string, `/effort`, `-e`, `/config set-tier`, the effort key parser, the help, says five. The
+    dash shows `ultra` as its own row; a pre-E7.1 record spelled `ultra` now counts as ultra, which
+    the test says aloud. Docs walked: plan 07 is a five-level dial with the retired alias dated,
+    plan 03's two "four-level" sentences carry the count as of today, llms.txt and the Claude Code
+    comparison name five. Seven old tests re-read honestly. Whole tree; lint linux; vet windows;
+    site 347/347; `make check`.
   - [ ] **V34.4c (owner decided 2026-09-05: Google, xAI, Perplexity, GitHub next; the rest deferred) provider-matrix disposition** — choose the next supported provider(s) or
     explicitly defer each remaining matrix row.
 - [ ] **V35 continuity** — plan drafted 2026-09-05 at the owner's direction (`docs/plan/35-continuity.md`):

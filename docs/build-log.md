@@ -6875,3 +6875,17 @@ learned one more step: a discovered name resolves onto the plan the signed-in co
 the vendor's efforts and context, and when nobody is signed in the answer names the connector rather
 than falling through to the keyed gateway. Two tests that had asserted the old listing now assert
 the order the owner wants: verified first, rows after. V34.4b, the fifth effort level, is next.
+
+## The dial grows a fifth rung — V34.4b closed 2026-09-05
+
+Codex lists an `ultra` effort on its top models and kolk's dial stopped at `max`, so the rung was
+reachable only by typing the vendor's word into a place that expected kolk's. The owner chose to
+grow the dial: `ultra` is now the fifth canonical level, `u` or `5`, above `max` on tool rounds,
+orchestration width and timeout, with its own tier. It stopped being a legacy spelling of `max` the
+same day, which the plan records with the date. The ladder every plan is measured on gained the
+rung too, so a Claude plan that stops at `max` clamps `ultra` and says so, while a Codex model
+whose vendor set lists `ultra` reaches it, and one whose set stops at `xhigh` refuses by name. Seven
+tests had pinned the old alias, one of them in the dash, where a record spelled `ultra` now counts
+as ultra rather than max; each was re-read rather than flipped. V34.4c, the next four providers, is
+the last of V34.4's owner decisions and a large one; V35.3 RECOMMEND can now be built on a
+five-rung equivalence.

@@ -40,7 +40,7 @@ var flagTable = []flagDef{
 		set: func(o *options, v string) { o.model = provider.ResolveModelAlias(v) }},
 	{long: "mode", arg: "<chat|code|agent>", summary: "chat = no tools · code = tool loop (default) · agent = orchestrated",
 		set: func(o *options, v string) { o.mode = v }},
-	{long: "effort", short: "e", arg: "<low|medium|high|max>", summary: "select model tier and agent orchestration width",
+	{long: "effort", short: "e", arg: "<low|medium|high|max|ultra>", summary: "select model tier and agent orchestration width",
 		set: func(o *options, v string) { o.effort = v }},
 	{long: "print", short: "p", arg: "<prompt>", summary: "single-shot: run one turn, then exit",
 		set: func(o *options, v string) { o.prompt = v }},

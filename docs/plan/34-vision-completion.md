@@ -228,7 +228,7 @@ and the catalog reflects current, supported vendor capabilities.
   **Built 2026-09-05:** `DerivePlanModels` adds a discovered row to the connector's tiers only when
   its status is `verified`; before that the model is reachable by name on the plan its signed-in
   connector has, never a tier row, never a keyed model. Leaf closed.
-- [~] **V34.4b Codex catalog policy** — part-done 2026-09-02 (F4 of `FABLE_OPTIMIZATION.md`): the
+- [x] **V34.4b Codex catalog policy** — part-done 2026-09-02 (F4 of `FABLE_OPTIMIZATION.md`): the
   Codex catalog is no longer written by kolk. `codex debug models` is the source, verified live
   against 0.149.1; identifiers, efforts, context and order come from the vendor; `gpt-5.6-pro` — a
   kolk seed the vendor does not list — is reported `gone` and refused by name. Remaining: kolk's dial
@@ -236,7 +236,9 @@ and the catalog reflects current, supported vendor capabilities.
   reached through `/effort`. F7.4 (2026-09-02): stays part-done; unchanged by F5–F7, and F7.2's
   `/pmodels` output shows `ultra` still listed for the Codex rungs that carry it. **Owner decision
   2026-09-05:** add a fifth effort level, `ultra`, reachable through `/effort` (Claude Code has
-  `/ultracode`); plan 07's dial grows one rung. Queued as engineering.
+  `/ultracode`); plan 07's dial grows one rung. **Built 2026-09-05:** `EffortUltra` (`ultra`, `u`,
+  `5`) with budgets above `max`, its own tier, the plan ladder's clamp, and the vendor's `ultra`
+  reached where listed. Leaf closed.
 - [ ] **V34.4c provider-matrix disposition** — choose the next supported provider(s), with current
   terms/capabilities/billing/redaction fixtures, or explicitly defer each remaining matrix row.
   **Owner decision 2026-09-05:** Google, xAI, Perplexity and GitHub are the next providers; Mistral,

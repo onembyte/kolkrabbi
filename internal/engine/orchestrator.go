@@ -35,6 +35,8 @@ func maxTasksFor(effort string) int {
 		return 4
 	case EffortMax:
 		return 6
+	case EffortUltra:
+		return 8
 	default: // EffortMedium
 		return 2
 	}

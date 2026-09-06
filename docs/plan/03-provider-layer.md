@@ -771,7 +771,7 @@ const (
 // data shows at least eight distinct vocabularies plus {"type":"toggle"} (1,123
 // models) and {"type":"budget_tokens"} (204) — catwalk hardcodes
 // ["low","medium","high"] for every reasoning model and is wrong for most of
-// them. kolk's four-level dial therefore cannot be sent through verbatim.
+// them. kolk's dial (five rungs since V34.4b) therefore cannot be sent through verbatim.
 type ReasoningSupport struct {
 	Style     ReasoningStyle
 	Efforts   []Effort // DESCENDING; nil with ReasoningEffort means "all accepted"
@@ -2038,7 +2038,7 @@ models.dev adds exactly **two** things no live gateway catalog carries, and they
   277 · `["minimal","low","medium","high"]` 218 · `{"type":"budget_tokens"}` 204 ·
   `["none","low","medium","high","xhigh"]` 169 · `["none","low","medium","high","max"]` 155 ·
   `["none","high"]` 143. **At least eight distinct vocabularies plus toggle and budget** — this is
-  the hard evidence that a four-level dial cannot be sent through verbatim, and why
+  the hard evidence that kolk's dial (four rungs then, five since V34.4b) cannot be sent through verbatim, and why
   `ReasoningSupport.Project` exists and warns.
 - **`interleaved`** (867 rows) — *which JSON field this model's server puts reasoning in*
   (`reasoning` vs `reasoning_content` vs `reasoning_text`). llama.cpp, vLLM and DeepSeek all use

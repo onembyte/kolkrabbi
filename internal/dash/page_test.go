@@ -110,21 +110,24 @@ func TestPageShowsEffortAndMode(t *testing.T) {
 }
 
 func TestEffortBreakdownFoldsLegacyNames(t *testing.T) {
-	// Older records carry the pre-E7.1 spellings. quick/standard/deep/ultra and
-	// low/medium/high/max are the same four levels, and showing both spellings
-	// splits one level's spend across two rows that look like two levels.
+	// Older records carry the pre-E7.1 spellings. quick/standard/deep and
+	// low/medium/high are the same levels, and showing both spellings splits
+	// one level's spend across two rows that look like two levels. Since
+	// V34.4b `ultra` is the fifth rung, its own row: a record spelled `ultra`
+	// counts as ultra, and `xhigh` is the vendor's spelling of max.
 	records := []stats.Record{
 		{Kind: "call", Time: day(1), Turn: "t1", Model: "m", Effort: "standard", Cost: 1},
 		{Kind: "call", Time: day(1), Turn: "t2", Model: "m", Effort: "medium", Cost: 2},
-		{Kind: "call", Time: day(1), Turn: "t3", Model: "m", Effort: "ultra", Cost: 4},
+		{Kind: "call", Time: day(1), Turn: "t3", Model: "m", Effort: "xhigh", Cost: 4},
+		{Kind: "call", Time: day(1), Turn: "t4", Model: "m", Effort: "ultra", Cost: 8},
 	}
 
 	page := Page(records, 0, nil, nil)
 
-	if strings.Contains(page, ">standard<") || strings.Contains(page, ">ultra<") {
+	if strings.Contains(page, ">standard<") || strings.Contains(page, ">xhigh<") {
 		t.Fatalf("legacy effort spellings were shown as separate levels: %q", page)
 	}
-	if !strings.Contains(page, ">medium<") || !strings.Contains(page, ">max<") {
+	if !strings.Contains(page, ">medium<") || !strings.Contains(page, ">max<") || !strings.Contains(page, ">ultra<") {
 		t.Fatalf("canonical levels missing: %q", page)
 	}
 	// The two medium rows are one level and must be added together.

@@ -553,3 +553,19 @@ func TestADiscoveredModelIsListedOnTiersOnlyOnceATurnVerifiedIt(t *testing.T) {
 		t.Fatalf("verified discovered model rows = %+v, want one per tier the connector uses", got)
 	}
 }
+
+// A plan that stops at max clamps kolk's ultra to max and says so; a plan
+// that lists ultra keeps it.
+func TestUltraClampsToWhatThePlanOffers(t *testing.T) {
+	got, clamped := EffortForPlan("ultra", []string{"low", "medium", "high", "max"})
+	if got != "max" || !clamped {
+		t.Fatalf("ultra on a max plan = %q, clamped %v; want max, true", got, clamped)
+	}
+	got, clamped = EffortForPlan("ultra", []string{"low", "medium", "high", "xhigh", "ultra"})
+	if got != "ultra" || clamped {
+		t.Fatalf("ultra on a plan listing it = %q, clamped %v; want ultra, false", got, clamped)
+	}
+	if got, _ := EffortForPlan("max", []string{"low", "high", "xhigh"}); got != "xhigh" {
+		t.Fatalf("max on an xhigh plan = %q, want xhigh", got)
+	}
+}

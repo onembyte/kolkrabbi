@@ -45,7 +45,9 @@ func TestNormalizeEffort(t *testing.T) {
 		{"quick", engine.EffortLow, true},
 		{"standard", engine.EffortMedium, true},
 		{"deep", engine.EffortHigh, true},
-		{"ultra", engine.EffortMax, true},
+		{"ultra", engine.EffortUltra, true},
+		{"u", engine.EffortUltra, true},
+		{"5", engine.EffortUltra, true},
 
 		// Trimming & Case-insensitivity
 		{"  HIGH  ", engine.EffortHigh, true},
@@ -57,7 +59,7 @@ func TestNormalizeEffort(t *testing.T) {
 		{"", "", false},
 		{"   ", "", false},
 		{"0", "", false},
-		{"5", "", false},
+		{"6", "", false},
 		{"unknown", "", false},
 		{"ultradeep", "", false},
 	}
@@ -99,12 +101,12 @@ func TestAgentSetEffort(t *testing.T) {
 		t.Errorf("ag.Effort = %q, want %q", ag.Effort, engine.EffortLow)
 	}
 
-	// Set via legacy alias
+	// The fifth rung (V34.4b): ultra is its own level, not a spelling of max.
 	if err := ag.SetEffort("ultra"); err != nil {
 		t.Fatalf("SetEffort(ultra) unexpected error: %v", err)
 	}
-	if ag.Effort != engine.EffortMax {
-		t.Errorf("ag.Effort = %q, want %q", ag.Effort, engine.EffortMax)
+	if ag.Effort != engine.EffortUltra {
+		t.Errorf("ag.Effort = %q, want %q", ag.Effort, engine.EffortUltra)
 	}
 
 	// Invalid input
@@ -157,7 +159,8 @@ func TestMaxRoundsFor(t *testing.T) {
 		{engine.ModeCode, engine.EffortMax, 50},
 		{engine.ModeCode, "1", 4},
 		{engine.ModeCode, "quick", 4},
-		{engine.ModeCode, "ultra", 50},
+		{engine.ModeCode, "ultra", 80},
+		{engine.ModeChat, engine.EffortUltra, 30},
 
 		{engine.ModeChat, engine.EffortLow, 2},
 		{engine.ModeChat, engine.EffortMedium, 6},
@@ -184,7 +187,7 @@ func TestTimeoutForEffort(t *testing.T) {
 		{engine.EffortMax, 600 * time.Second},
 		{"1", 30 * time.Second},
 		{"quick", 30 * time.Second},
-		{"ultra", 600 * time.Second},
+		{"ultra", 900 * time.Second},
 		{"unknown", 120 * time.Second},
 	}
 	for _, tc := range cases {
@@ -206,7 +209,8 @@ func TestMaxTasksForEffort(t *testing.T) {
 		{"1", 1},
 		{"quick", 1},
 		{"4", 6},
-		{"ultra", 6},
+		{"ultra", 8},
+		{"5", 8},
 		{"unknown", 2},
 	}
 	for _, tc := range cases {

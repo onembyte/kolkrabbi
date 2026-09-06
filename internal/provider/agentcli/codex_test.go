@@ -582,3 +582,16 @@ func TestCodexEffortsFollowTheDiscoveredSet(t *testing.T) {
 		}
 	}
 }
+
+// Kolk's fifth rung reaches the vendor's own `ultra` when the vendor lists it,
+// and is refused by name when the vendor does not — never silently lowered.
+func TestUltraReachesTheVendorsUltraOnlyWhenListed(t *testing.T) {
+	listed := []string{"low", "medium", "high", "xhigh", "ultra"}
+	backend, err := NewCodexBackendFromHandleWithOptions("gpt-5.6-sol", "code", "ultra", "", false, ExecutionOptions{Efforts: listed})
+	if err != nil || backend.Effort != "ultra" {
+		t.Fatalf("ultra with the vendor listing it = %v, effort %q; want the vendor's ultra", err, backend.Effort)
+	}
+	if _, err := NewCodexBackendFromHandleWithOptions("gpt-5.6-luna", "code", "ultra", "", false, ExecutionOptions{Efforts: []string{"low", "medium", "high", "xhigh"}}); err == nil {
+		t.Fatal("ultra was accepted for a model whose vendor set stops at xhigh")
+	}
+}

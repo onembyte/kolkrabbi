@@ -23,7 +23,7 @@ type slashCommand struct {
 var slashCommandTable = []slashCommand{
 	{"key", "[<provider>] | - | <provider> -", "add an API key; it is read hidden, never from the line"},
 	{"mode", "<chat|code|agent>", "switch mode (agent = orchestrated; code is default)"},
-	{"effort", "<low|medium|high|max>", "select model tier and orchestration width"},
+	{"effort", "<low|medium|high|max|ultra>", "select model tier and orchestration width"},
 	{"model", "[id | alias] [effort]", "pick or switch this session's model (bare opens a picker in a terminal)"},
 	{"plans", "[filter] | login <provider> <plan>", "list plans or start provider-owned login"},
 	{"plogin", "[filter]", "search plans and start provider-owned login"},
@@ -236,7 +236,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		}
 	case "/effort":
 		if arg == "" {
-			fmt.Fprintf(a.stdout, "effort: %s (low|medium|high|max)\n", ag.Effort)
+			fmt.Fprintf(a.stdout, "effort: %s (low|medium|high|max|ultra)\n", ag.Effort)
 			break
 		}
 		if err := ag.SetEffort(arg); err != nil {

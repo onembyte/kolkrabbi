@@ -4,9 +4,9 @@ Status: hardened on 2026-08-26 · supersedes: — · PLAN.md item 7
 
 ## Decision (the short version)
 
-**Effort is a first-class, four-level dial — `low`, `medium`, `high`, `max` — that controls how much computational and economic budget Kolkrabbi invests in a turn.** It governs five concrete dimensions: (1) model tier mapping (`effort.<level>.model`), (2) provider reasoning effort (`reasoning.effort` / thinking tokens), (3) max tool rounds per turn, (4) orchestration subagent width (`width`), and (5) verification depth. It operates identically across all modes (`code` and `chat`), is live-switchable inside any session via `/effort <level|number>` with immediate model re-resolution and status line update, and is configurable per-user, per-project, and per-mode.
+**Effort is a first-class, five-level dial — `low`, `medium`, `high`, `max`, `ultra` — that controls how much computational and economic budget Kolkrabbi invests in a turn.** It governs five concrete dimensions: (1) model tier mapping (`effort.<level>.model`), (2) provider reasoning effort (`reasoning.effort` / thinking tokens), (3) max tool rounds per turn, (4) orchestration subagent width (`width`), and (5) verification depth. It operates identically across all modes (`code` and `chat`), is live-switchable inside any session via `/effort <level|number>` with immediate model re-resolution and status line update, and is configurable per-user, per-project, and per-mode.
 
-The vocabulary aligns strictly with user muscle memory (matching Claude Code's `low/medium/high/max`) while accepting single-digit numeric shortcuts (`1`, `2`, `3`, `4`) and preserving seamless backward compatibility with the prototype's legacy names (`quick` → `low`, `standard` → `medium`, `deep` → `high`, `ultra` → `max`). **Zero-config is preserved**: every unset tier inherits the session's base `model`, and fresh installations without tier configuration run on computed defaults without creating a config file.
+The vocabulary aligns strictly with user muscle memory (matching Claude Code's `low/medium/high/max`) while accepting single-digit numeric shortcuts (`1`, `2`, `3`, `4`, `5`) and preserving seamless backward compatibility with the prototype's legacy names (`quick` → `low`, `standard` → `medium`, `deep` → `high`; `ultra` stopped being a spelling of `max` on 2026-09-05 and is the fifth rung, V34.4b). **Zero-config is preserved**: every unset tier inherits the session's base `model`, and fresh installations without tier configuration run on computed defaults without creating a config file.
 
 ---
 
@@ -48,13 +48,14 @@ effort.high.model → anthropic/claude-3-7-sonnet
 ### 1. Vocabulary, aliases & grammar
 
 #### 1.1 Canonical levels
-The effort dial has exactly **four** canonical levels:
+The effort dial has exactly **five** canonical levels (the fifth added 2026-09-05 by owner decision, V34.4b):
 
 ```
 Level 1: low      (quick, bounded, cheap)
 Level 2: medium   (balanced, standard default)
 Level 3: high     (thorough, extended reasoning, test verification)
 Level 4: max      (exhaustive exploration, multi-pass critic, full budget)
+Level 5: ultra    (above max on every dimension; the rung a vendor's own `ultra` is reached through)
 ```
 
 #### 1.2 Alias resolution table
@@ -65,10 +66,11 @@ Any user input or configuration string is resolved through a deterministic mappi
 | `low`, `l`, `1` | `low` | 1 | Lowest latency, minimal reasoning tokens, strict tool budgets. |
 | `medium`, `med`, `m`, `2`, `standard` | `medium` | 2 | Default standard effort. Balanced reasoning and tool rounds. |
 | `high`, `h`, `3`, `deep` | `high` | 3 | High reasoning depth, generous tool rounds, automated build verification. |
-| `max`, `x`, `4`, `ultra` | `max` | 4 | Maximum reasoning depth, critic verification pass, deepest subagent width. |
+| `max`, `x`, `4`, `xhigh` | `max` | 4 | Maximum reasoning depth, critic verification pass, deepest subagent width. |
+| `ultra`, `u`, `5` | `ultra` | 5 | Above max: 80/30 rounds, 8 subagents, 900 s; reaches a vendor `ultra` where listed, clamps to the plan's top rung where not. |
 
 Values outside this table reject with:
-`invalid effort %q: expected low (1), medium (2), high (3), or max (4)`
+`invalid effort %q: expected low (1), medium (2), high (3), max (4), or ultra (5)`
 
 ---
 
@@ -82,6 +84,7 @@ The dial simultaneously governs five knobs across modes:
 | **`medium` (2)** | `medium` | $\le 50\%$ or 4,096 tok | 12 rounds | 6 rounds | 2 subagents | Standard self-check | 120s |
 | **`high` (3)** | `high` | $\le 80\%$ or 16,384 tok | 24 rounds | 12 rounds | 4 subagents | Test / build check after edits | 300s |
 | **`max` (4)** | `xhigh` / `max` | $\le 95\%$ or 32,768 tok | 50 rounds | 20 rounds | 6 subagents | Dual-pass critic verification | 600s |
+| **`ultra` (5)** | `ultra` where the vendor lists it, else the plan's top rung | as max | 80 rounds | 30 rounds | 8 subagents | Dual-pass critic verification | 900s |
 
 #### 2.1 Mode-specific details
 
@@ -179,7 +182,7 @@ kolk-code> /effort
 effort: medium (default)
 model:  anthropic/claude-3-5-sonnet (inherited)
 knobs:  reasoning: medium · max tool rounds: 12 · subagents: 2 · timeout: 120s
-usage:  /effort <low|medium|high|max> or /effort <1|2|3|4>
+usage:  /effort <low|medium|high|max|ultra> or /effort <1|2|3|4|5>
 
 kolk-code> /effort high
 effort: high → anthropic/claude-3-7-sonnet [24 rounds · reasoning: high · verify: on]

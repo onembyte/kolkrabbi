@@ -439,11 +439,11 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 
 	case "set-tier":
 		if len(args) < 3 {
-			return usagef("usage: /config set-tier <low|medium|high|max> <model>")
+			return usagef("usage: /config set-tier <low|medium|high|max|ultra> <model>")
 		}
 		canonical, ok := engine.NormalizeEffort(args[1])
 		if !ok {
-			return usagef("unknown effort %q (low|medium|high|max)", args[1])
+			return usagef("unknown effort %q (low|medium|high|max|ultra)", args[1])
 		}
 		if cfg.Tiers == nil {
 			cfg.Tiers = map[string]string{}
@@ -513,7 +513,7 @@ func parseEffortKey(key string) (string, error) {
 	}
 	canonical, ok := engine.NormalizeEffort(level)
 	if !ok {
-		return "", usagef("unknown effort %q (low|medium|high|max)", level)
+		return "", usagef("unknown effort %q (low|medium|high|max|ultra)", level)
 	}
 	return canonical, nil
 }
