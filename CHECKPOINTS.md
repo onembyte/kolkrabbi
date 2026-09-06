@@ -10893,6 +10893,24 @@ Subcheckpoints, one at a time:
       and cli; lint; `make check`.
   - [x] **V35.2 PAUSE and RESUME** — the default the owner chose: stop when a limit hits, resume by itself
     when it lifts, spending nothing to wait. Subdivided 2026-09-05; all three leaves closed 2026-09-05.
+  - [x] **V35.1e the DETECT card** — closed 2026-09-06: the capabilities card flipped from Designed to
+    Available now with the shipped contract (six kinds told apart, reset when given, cooldown
+    remembered per session and per account, `/doctor`, the status line, one `provider.limit` event),
+    pinned by two `contains` and one `not_contains` on the designed sentence. It had shipped on
+    2026-09-05 and the card had not followed; the owner asked for every planned or designed card to
+    be reviewed against the tree.
+  - [~] **V35.3 RECOMMEND** — plan 35 §2.3, opened 2026-09-06. **Scope:** `Eligible(task)` — the
+    configured connectors and keys that are enabled and verified, not cooling for the scope, tier-
+    eligible and capability-fit; **equivalence** by effort rung (same rung, or one above; never more
+    than one below; free never equivalent to a subscription or paid rung unless on the preferred
+    list), ordered within a rung by the user's own ratings, then the slot ranking, then catalog
+    order; on a limit **one block**: which backend stopped and why, when it resets and that kolk
+    will resume then, the top equivalent with its billing path and tradeoffs, and the command that
+    applies it — nothing applied. **Non-goals:** no switching (V35.4–6), no settings beyond what
+    exists, no dashboard rows (owner answer 9), no spending to rank. **Red:** the message today is
+    the same sentence for every model and every limit — "out of allowance; `/config set … switch`".
+    Leaves: 3a eligibility and equivalence as pure functions over the catalog, connectors, keys,
+    cooldowns and ratings; 3b the recommendation block on the pause path; 3c the capabilities card.
     - [x] **V35.2a the pause** — `Pause` on the session (kind, scope, connector, model, reset, since, the
       pending input verbatim), persisted under the messages lock; a paused session refuses to spend and
       says when it resumes; the turn that paused ends with `turn.finished{paused}` and `provider.limit

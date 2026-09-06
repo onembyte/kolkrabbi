@@ -153,6 +153,10 @@ contains index.html 'Ollama' "the hero does not name a local provider"
 contains index.html 'One static binary under' "the landing page does not state the binary size"
 contains index.html '9&nbsp;MB, milliseconds to start' "the binary claim drifted from what check-budgets.sh measures"
 contains capabilities.html '<link rel="canonical" href="https://kolkrabbi.francomichetti.com/capabilities">' "capabilities.html has no canonical URL"
+# DETECT shipped with V35.1 (2026-09-05): the taxonomy, the cooldown registry, the event, /doctor.
+contains capabilities.html '<span class="status-badge">Available now</span><span>DETECT</span>' "the DETECT card must say it ships"
+not_contains capabilities.html 'refusal remain distinct. Reset times and cooldown scope are preserved when available' "the DETECT card's designed wording must be gone"
+contains capabilities.html 'cooldown is remembered per session and per account' "the DETECT card must name the remembered cooldown"
 # PAUSE shipped with V35.2 (2026-09-05): the card says so, its planned wording is gone, and it names
 # the two facts a reader needs — the resume is automatic and it spends nothing to wait.
 contains capabilities.html '<span class="status-badge">Available now</span><span>PAUSE</span>' "the PAUSE card must say it ships"

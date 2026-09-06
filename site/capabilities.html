@@ -310,11 +310,15 @@
             retried on a bounded schedule, and a free model that is out of capacity rotates to the
             next eligible one. Nothing silently changes the model you are paying for.</p>
         </article>
-        <article class="spec-card" data-status="designed">
-          <div class="spec-meta"><span class="status-badge">Designed</span><span>DETECT</span></div>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>DETECT</span></div>
           <h3>Know which limit stopped work</h3>
-          <p>A subscription limit, account quota, endpoint capacity problem, budget stop, and model
-            refusal remain distinct. Reset times and cooldown scope are preserved when available.</p>
+          <p>A subscription limit, an account quota, endpoint capacity, a budget stop, a model
+            refusal and an unreachable endpoint are told apart, each with the reset time when the
+            provider gives one, and the
+            cooldown is remembered per session and per account so other sessions see it too.
+            <code>/doctor</code> lists what is cooling and when it lifts; the status line says so
+            while it matters; every limit is one <code>provider.limit</code> event on the wire.</p>
         </article>
         <article class="spec-card" data-status="planned">
           <div class="spec-meta"><span class="status-badge">Planned</span><span>RECOMMEND</span></div>
