@@ -448,7 +448,7 @@ func tuiStatus(ag *engine.Agent, lifecycle, folder string) tui.Status {
 	return tui.Status{
 		Model: model, Mode: ag.Mode, Effort: ag.Effort,
 		Session: sessID, SessionName: sessTitle, Folder: folder,
-		Approval: approval, Sandbox: sandboxStatus(ag), Cooling: ag.CoolingNotice(), Lifecycle: lifecycle,
+		Approval: approval, Sandbox: sandboxStatus(ag), Cooling: ag.CoolingNotice(), Paused: pausedNotice(ag), Lifecycle: lifecycle,
 		Context: contextLabel(ag), Cost: sessionCostLabel(ag),
 	}
 }
@@ -728,4 +728,16 @@ func sandboxStatus(ag *engine.Agent) string {
 		return "on, unenforced"
 	}
 	return name
+}
+
+// pausedNotice is the status line's word on the session's own pause: the
+// pause's notice while there is one, empty otherwise.
+func pausedNotice(ag *engine.Agent) string {
+	if ag.Sess == nil {
+		return ""
+	}
+	if p := ag.Sess.Paused(); p != nil {
+		return p.Notice()
+	}
+	return ""
 }

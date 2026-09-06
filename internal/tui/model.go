@@ -30,7 +30,10 @@ type Status struct {
 	Sandbox string
 	// Cooling is the one-line notice while the session's connector or model is
 	// cooling after a limit; empty, and then absent from the line, otherwise.
-	Cooling   string
+	Cooling string
+	// Paused is the one-line notice while the session itself is paused on a
+	// limit and will resume; empty, and then absent, otherwise.
+	Paused    string
 	Lifecycle string
 	// Context and Cost are the two numbers that decide whether to compact or
 	// stop. Empty means not measured yet, which is different from zero.
@@ -761,6 +764,9 @@ func formatStatus(status Status) []string {
 			// A remembered limit, only while there is one: the renderer drops an
 			// empty value, so nothing cooling means no word about it.
 			{label: "cooling", value: status.Cooling},
+			// The session's own pause, only while there is one: why it stopped
+			// and when it comes back, where the eye already looks for state.
+			{label: "paused", value: status.Paused},
 			// Last in this group, so a narrow terminal clips these before the
 			// mode or the tier.
 			{label: "folder", value: status.Folder},

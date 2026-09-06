@@ -10688,8 +10688,8 @@ Subcheckpoints, one at a time:
       label never appears. `Cooldowns.Active` and `Cooldown.Describe` are the shared renderers;
       `Agent.CoolingNotice` composes the line. Two tests, one per surface. `-race` clean on engine, tui
       and cli; lint; `make check`.
-  - [~] **V35.2 PAUSE and RESUME** — the default the owner chose: stop when a limit hits, resume by itself
-    when it lifts, spending nothing to wait. Subdivided 2026-09-05:
+  - [x] **V35.2 PAUSE and RESUME** — the default the owner chose: stop when a limit hits, resume by itself
+    when it lifts, spending nothing to wait. Subdivided 2026-09-05; all three leaves closed 2026-09-05.
     - [x] **V35.2a the pause** — `Pause` on the session (kind, scope, connector, model, reset, since, the
       pending input verbatim), persisted under the messages lock; a paused session refuses to spend and
       says when it resumes; the turn that paused ends with `turn.finished{paused}` and `provider.limit
@@ -10739,8 +10739,21 @@ Subcheckpoints, one at a time:
       Not yet: the surfaces (2c) — the status line still shows nothing for a pause.
 |manual`; `/resume` always works.
       **Red:** nothing brings a paused turn back.
-    - [ ] **V35.2c the surfaces** — status line `paused · <reason> · resumes HH:MM`, `/doctor`, and the
+    - [x] **V35.2c the surfaces** — status line `paused · <reason> · resumes HH:MM`, `/doctor`, and the
       capabilities card PAUSE flipped with inverse pins.
+      **Closed 2026-09-05, on main.** Red observed: `tui.Status` had no word for a pause, `/doctor`'s
+      limits section knew only cooldowns, and four new site pins failed against the Planned card.
+      Green: `continuity.Pause.Notice()` is the one line every surface shows (`paused · <what> ·
+      <kind> · resumes HH:MM`); the TUI status row `paused` sits beside `cooling` and is dropped when
+      empty (render test both ways); `tuiStatus` fills it from the session's pause; `/doctor` lists
+      every session on disk whose pause has not lifted, with its id, the notice and both ways out
+      (by itself, or `/resume` inside it), and still says "nothing is cooling" only when there is also
+      nothing paused. The PAUSE card is `Available now` with the shipped contract — pauses with the
+      reason and reset, keeps the turn, resumes on its own spending no tokens, `/resume` and
+      `continuity.resume manual` — pinned by two `contains` and one `not_contains` on the planned
+      sentence, plus one on the free wait; a pinned phrase had to sit on one source line because the
+      site check greps by line. `-race` clean on tui, cli, continuity; arch; lint linux; vet windows;
+      site 347/347; `make check`.
     - [x] **V34.3e.1 a retried chapter starts from its mark** — a chapter found `executing` on a later
       wake (stopped or crashed mid-work) is rolled back to its persisted mark before the worker runs
       again, so abandoned work is gone before the retry and cannot reach its commit. **Red:** through

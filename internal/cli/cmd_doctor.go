@@ -15,6 +15,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/redact"
+	"github.com/onembyte/kolkrabbi/internal/session"
 	"github.com/onembyte/kolkrabbi/internal/shell"
 	"github.com/onembyte/kolkrabbi/internal/term"
 	"github.com/onembyte/kolkrabbi/internal/tools"
@@ -94,13 +95,34 @@ func (a *app) doctorLimits() {
 		return
 	}
 	active := engine.OpenCooldowns("", d.CooldownsFile()).Active()
-	if len(active) == 0 {
+	paused := pausedSessions(d.Sessions())
+	if len(active) == 0 && len(paused) == 0 {
 		fmt.Fprintln(a.stdout, "  ✓ nothing is cooling; no remembered limit on any plan or account")
 		return
 	}
 	for _, cd := range active {
 		fmt.Fprintf(a.stdout, "  · %s (%s)\n", cd.Describe(), cd.Source)
 	}
+	for _, sess := range paused {
+		fmt.Fprintf(a.stdout, "  · session %s %s; kolk resumes it by itself, or /resume inside it now\n", sess.SessionID(), sess.Paused().Notice())
+	}
+}
+
+// pausedSessions lists the sessions on disk whose pause has not yet lifted.
+// A sessions directory that cannot be read lists nothing; the rest of /doctor
+// still speaks.
+func pausedSessions(dir string) []*session.Session {
+	all, err := session.List(dir)
+	if err != nil {
+		return nil
+	}
+	var paused []*session.Session
+	for _, sess := range all {
+		if p := sess.Paused(); p != nil && p.ResetAt.After(time.Now()) {
+			paused = append(paused, sess)
+		}
+	}
+	return paused
 }
 
 // doctorSandbox reports what would enforce a sandbox here and whether a

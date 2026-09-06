@@ -153,6 +153,12 @@ contains index.html 'Ollama' "the hero does not name a local provider"
 contains index.html 'One static binary under' "the landing page does not state the binary size"
 contains index.html '9&nbsp;MB, milliseconds to start' "the binary claim drifted from what check-budgets.sh measures"
 contains capabilities.html '<link rel="canonical" href="https://kolkrabbi.francomichetti.com/capabilities">' "capabilities.html has no canonical URL"
+# PAUSE shipped with V35.2 (2026-09-05): the card says so, its planned wording is gone, and it names
+# the two facts a reader needs — the resume is automatic and it spends nothing to wait.
+contains capabilities.html '<span class="status-badge">Available now</span><span>PAUSE</span>' "the PAUSE card must say it ships"
+not_contains capabilities.html 'If no eligible backend remains, the session pauses with reset information' "the PAUSE card's planned wording must be gone"
+contains capabilities.html 'resumes on its own when the limit lifts' "the PAUSE card must say the resume is automatic"
+contains capabilities.html 'spending no tokens to wait' "the PAUSE card must say the wait is free"
 contains index.html 'https://kolkrabbi.francomichetti.com/install.sh' "install URL drifted"
 contains index.html '/key &lt;API_KEY&gt;' "API-key command drifted"
 contains index.html '<code class="key-command"><span class="prompt" aria-hidden="true">❯</span> /key &lt;API_KEY&gt;</code>' "API-key command is not in the run step"

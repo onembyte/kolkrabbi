@@ -340,11 +340,15 @@
           <p>An opt-in policy will follow the same visible eligibility and cooldown rules without
             asking at each switch. Silent auto-switching is never the default.</p>
         </article>
-        <article class="spec-card" data-status="planned">
-          <div class="spec-meta"><span class="status-badge">Planned</span><span>PAUSE</span></div>
-          <h3>Stop honestly when all limits are reached</h3>
-          <p>If no eligible backend remains, the session pauses with reset information and a resume
-            path. It does not discard work, loop through capped accounts, or pretend success.</p>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>PAUSE</span></div>
+          <h3>Stop honestly, then continue by itself</h3>
+          <p>When the model behind a session hits its allowance, quota or capacity, the session pauses
+            with the reason and the reset time, keeps the turn that was waiting, and
+            resumes on its own when the limit lifts, spending no tokens to wait: a monitor inside
+            Kolkrabbi confirms the lift through key status, <code>/models</code> or the vendor's
+            sign-in, never a model call. <code>/resume</code> lifts the pause now;
+            <code>continuity.resume manual</code> waits for it.</p>
         </article>
       </div>
     </section>

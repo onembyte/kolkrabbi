@@ -85,3 +85,17 @@ func (p Pause) Limit() provider.Limit {
 		Model: p.Model, Connector: p.Connector, Message: p.Message, ResetAt: p.ResetAt,
 	}
 }
+
+// Notice is the one line a surface shows for a pause: what is paused, why, and
+// when it resumes. The same words on the status line, in /doctor and in the
+// pause message, so a reader meets one vocabulary.
+func (p Pause) Notice() string {
+	what := p.Model
+	if what == "" {
+		what = p.Connector
+	}
+	if what == "" {
+		return "paused · " + p.HumanKind() + " · resumes " + p.Resumes()
+	}
+	return "paused · " + what + " · " + p.HumanKind() + " · resumes " + p.Resumes()
+}

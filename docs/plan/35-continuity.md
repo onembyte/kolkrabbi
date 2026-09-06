@@ -86,6 +86,9 @@ permanent, and never as zero.
 
 ### 2.2 PAUSE and RESUME — the default: stop, then continue by itself, spending nothing to wait
 
+*Shipped 2026-09-05 as V35.2a–c: the pause on the session, the token-free resume monitor with
+`continuity.resume auto|manual` and `/resume`, and the three surfaces. The PAUSE card is flipped.*
+
 Owner decision: **by default kolk stops when a limit hits and resumes automatically when the limit
 resets; the wait costs no tokens.** Switching models is a separate opt-in (§2.4).
 

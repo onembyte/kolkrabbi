@@ -6852,3 +6852,14 @@ lock as a typed prompt, so no two turns ever share the backend. `continuity.resu
 pause for `/resume`, which lifts it whatever the clock says. The agent's `Close` joins the monitor,
 so a session that leaves takes its monitor with it. Next is 2c, where the status line learns to say
 `paused · reason · resumes HH:MM`.
+
+## The pause is visible everywhere it matters — V35.2c closed 2026-09-05
+
+A pause that only the engine knows about is a stall as far as the person reads. The same line now
+appears wherever they look: on the status row, beside the cooldown notice, `paused · model · reason ·
+resumes HH:MM`; in `/doctor`, which lists every session on disk still paused with the two ways out;
+and in the pause message itself. The capabilities card for PAUSE went from Planned to Available now,
+and its old sentence is pinned as a lie the site check will refuse if it ever comes back. That closes
+V35.2: kolk stops when the model behind a session hits a limit, keeps the turn, waits without
+spending, and continues by itself. What follows is V35.3, the recommendation of an equivalent model
+on another subscription, which the owner wants gated by the tier equivalence V34.4a has yet to build.
