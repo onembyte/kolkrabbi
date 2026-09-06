@@ -1,6 +1,6 @@
 # 35. Continuity — when a limit hits, the work stays
 
-Status: draft 2026-09-05 · awaiting owner answers (§9) · supersedes: the "03 / CONTINUITY" cards on
+Status: decided 2026-09-05 (owner answers folded in, §9) · supersedes: the "03 / CONTINUITY" cards on
 `site/capabilities.html` as the only statement of this policy · PLAN.md item 35
 
 ## Decision (the short version)
@@ -81,72 +81,97 @@ permanent, and never as zero.
 - **Red first:** a 429 with `limit_source: "plan"` and a 429 with none are the same error to kolk
   today; a `rate_limit_event{rejected}` writes nothing anywhere.
 
-### 2.2 PAUSE — stop honestly when nothing eligible remains
+### 2.2 PAUSE and RESUME — the default: stop, then continue by itself, spending nothing to wait
 
-Built second, before any switching, because it is the safe floor every other leaf falls back to.
+Owner decision: **by default kolk stops when a limit hits and resumes automatically when the limit
+resets; the wait costs no tokens.** Switching models is a separate opt-in (§2.4).
 
 - Session gains `Paused *Pause {Kind, Scope, Connector, Model, ResetAt, Since, PendingTurn string}`,
   persisted with the session (under the messages lock, V34.2b). The pending user input is kept
   verbatim; it is **not** appended to the transcript as an answered turn.
-- A paused session refuses to spend: `RunTurn` returns a `Pause` error naming the reset time and the
-  resume path; the TUI status line reads `paused · <reason> · resets <time>`; `/doctor` says it.
-- Resume path: `/resume` (or the next prompt — §9 Q6) re-checks the cooldown; if clear, the pending
-  turn runs on the same model; if still cooling, kolk says when, and offers RECOMMEND's next move.
+- A paused session refuses to spend: `RunTurn` returns a `Pause` naming the reset time; the TUI
+  status line reads `paused · <reason> · resumes <time>`; `/doctor` says it.
+- **The resume monitor is code, not a model.** It runs inside kolk, the way Claude Code runs its own
+  monitor scripts: a goroutine per paused session that sleeps until `ResetAt` (or the default cooldown
+  when the vendor gave none, §2.1), then confirms the limit is gone **without spending tokens** — the
+  OpenRouter key-status endpoint for keyed models, the vendor's quota-free auth/status command for a
+  handover (plan 04 `AuthArgv`), a cheap `/models` probe for a compatible endpoint — and only then
+  re-runs the pending turn on the same model. If the probe still says capped, it backs off to the next
+  reset and says so. Cancelling the session cancels the monitor; nothing runs after exit.
+- `continuity.resume = auto (default) | manual`: `manual` keeps the pause and waits for `/resume`.
+  `/resume` always works.
 - Terminal event: the turn that paused ends with `turn.finished` reason `paused`, `raw_reason` the
-  limit — every started turn still has exactly one terminal event (V34.2d).
-- Pinned-model invariant: a pinned model that hits any limit pauses; nothing is substituted.
+  limit; the resumed run is a new turn (V34.2d holds: one terminal event per started turn).
+- Pinned-model invariant: a pinned model pauses and resumes on itself; nothing is substituted.
 - **Red first:** today a run out of allowance under `stop` returns an error and the pending input is
-  gone from the composer with nothing durable saying why.
+  gone with nothing durable saying why, and nothing brings it back.
 
 ### 2.3 RECOMMEND — explain the next move
 
 - `Eligible(task) []Candidate`: configured connectors that are `Enabled` and `Verified` (or a stored
   key), not cooling for this scope, tier-eligible for the signed-in plan (V34.4a's gate), and
   capability-fit for the task (tools needed → `supports_tools`; context need → `context_length`).
-- Ranking: the user's own ratings (`stats.RatingsByModel`, average then count) → the existing slot
-  ranking (`slotrank.go`) → catalog order. Free models rank after paid and subscription unless the
-  session is already on free.
-- On a limit, kolk prints one block: which backend stopped and why (the `Limit`), when it resets, the
-  top recommendation with its billing path and the tradeoffs (tools, context, rating), and the
-  command that applies it. Nothing is applied. Published as `provider.limit{action: recommend}`.
+- **Equivalence (owner: "similar models", "review that equivalency on ratings").** Two models are
+  equivalent when they sit on the **same rung of the effort ladder** in their vendors' rosters — the
+  routing tables already pair rungs to levels per vendor (`ceiling.go`, `level_routing.go`), so
+  `claude-fable` at `max` is equivalent to the Codex `max` rung, not to a free 7B. Within a rung the
+  order is the user's own ratings (`stats.RatingsByModel`, average then count), then kolk's slot
+  ranking, then catalog order. One rung *above* is acceptable; more than one rung *below* is never
+  equivalent, and a free model is never equivalent to a subscription or paid rung unless the user put
+  it on the preferred list (§2.4).
+- On a limit, kolk prints one block: which backend stopped and why (the `Limit`), when it resets and
+  that it will resume then (default), the top equivalent recommendation with its billing path and
+  tradeoffs, and the command that applies it. Nothing is applied unless §2.4 says so.
 - **Red first:** today the message is "out of allowance; `/config set … switch` to continue" — the
   same sentence for every model and every limit.
 
-### 2.4 CHAIN — respect every configured option
+### 2.4 CONTINUITY — switching, an opt-in with three shapes
 
-- `routing.chain`: an ordered list of connector or model names the user may set; the default chain
-  is derived: the current connector's sibling models within the same plan and tier ceiling, then
-  other verified subscription connectors, then metered key models, then free — each filtered by
-  `Eligible`, each skipped while cooling, each tried once per turn (the `tried` set generalised from
-  the free rotation).
-- A hop replays the turn's messages (as the free rotation does) and prints
-  `◆ <connector>/<model> <kind>; continuing on <next> (<billing>)`, publishes `provider.limit{action:
-  rotate|switch}`, and records the switch in the session (`Switches []Switch`) and in stats, so the
-  dashboard can show it.
-- Money boundary: a hop from a subscription or free model **to a metered model** is never automatic
-  under `ask` (§2.5) and requires the explicit opt-in under `auto` (§2.6 and §9 Q3).
+Owner decision, verbatim in structure: `continuity.mode = off (default) | on`. With `on`, a second
+setting opens:
+
+```
+continuity.mode      off | on                      # default off: pause, resume on the same model
+continuity.select    auto | preferred | ask         # only read when mode is on; default auto
+continuity.preferred [models…]                      # subs, paid or free; read by preferred, and it
+                                                    # widens what auto may reach (free only if listed)
+continuity.order     [subs, paid, free]             # default; user-configurable
+continuity.resume    auto | manual                  # §2.2
+```
+
+- **auto:** the chain (§2.5) is walked without asking, **only across equivalent models** (§2.3), in
+  `continuity.order`: every verified subscription first, then paid keys, then free — and free only if
+  the model is on `continuity.preferred`. The effort is carried across: a turn at `max` on fable
+  continues at the `max` rung of the next vendor. If no equivalent eligible model exists, kolk does
+  **not** continue; it pauses and resumes (§2.2) and says why.
+- **preferred:** the chain is exactly `continuity.preferred`, in that order, filtered by eligibility
+  and cooling; equivalence is not enforced, because the user wrote the list.
+- **ask:** the recommendation block (§2.3) becomes a question through `Ask.Choose` — the top
+  equivalent candidate, the next one, "pause and resume later" — asked once per run.
+- Every switch is **printed in the console** (`◆ <connector>/<model> <kind>; continuing on <next> at
+  <effort> (<billing>)`) and published as a `provider.limit{action: switch}` event for the TUI and
+  streams. **Nothing about switches is persisted** (owner: no dashboard rows, no session record).
+
+### 2.5 CHAIN — respect every configured option
+
+- Default chain derivation: for the current effort rung, the equivalent models of every verified
+  subscription connector in the order configured, then metered key models, then free models on the
+  preferred list; each filtered by `Eligible`, each skipped while cooling, each tried once per turn
+  (the `tried` set generalised from the free rotation). A hop replays the turn's messages as the free
+  rotation does today.
+- **Cross-session awareness (owner: "active sessions should be aware of the limits").** A plan- or
+  account-scope limit is written to the connector-level `cooldowns.json`; every running session
+  watches that file (fsnotify-free: a cheap mtime poll on the monitor's tick) and treats a cooling
+  connector as ineligible at its next hop. No session waits on another; each learns.
 - **Red first:** two verified subscription connectors configured; the first hits its allowance; kolk
   offers only the single `MeteredModel` and never the second subscription.
 
-### 2.5 SAFE DEFAULT — ask before free
+### 2.6 What replaces today's two knobs
 
-- When the chain has exhausted subscription and paid candidates, kolk asks — through the existing
-  `Ask.Choose` (TUI question overlay, plain-REPL prompt) — showing the free model, its tools and
-  context, what retained context will be replayed, and the option to pause instead. The question
-  is asked once per run, like `limitDecided` today.
-- Config: the two existing knobs are folded into one `routing.continuation` with values
-  `ask` (default) `| auto | stop`, plus `routing.allow_metered_switch true|false` for the money
-  boundary; the old keys keep working as aliases for one release and are named in the changelog
-  (§9 Q4 decides whether to keep them longer).
-- **Red first:** `routing.on_free_exhausted` defaults to `free`: today the last paid or subscription
-  option failing on an *unpinned* run can land on a free model with no question.
-
-### 2.6 AUTO — automatic switching, opt-in
-
-- `routing.continuation auto`: the chain runs without asking, every hop still printed and published;
-  the pinned invariant still holds; a hop onto metered requires `routing.allow_metered_switch true`,
-  otherwise auto degrades to a question at that one boundary. Never the default, never inferred.
-- **Red first:** there is no such mode; `switch` today is a single move to one model.
+`routing.on_subscription_limit` and `routing.on_free_exhausted` are superseded by `continuity.*`.
+They keep working for one release as aliases (`switch` → `mode on, select auto`; `stop` → `mode
+off`; `on_free_exhausted paid` → `order` with paid before free), are named in the changelog and in
+`/config` output as deprecated, and are removed in the release after.
 
 ### 2.7 Honesty and walk-back
 
@@ -157,18 +182,22 @@ survive. Nothing flips before its leaf's red→green is on main with CI green on
 
 ## 3. Build order and leaves
 
-Order is mandatory, each leaf red first under the checkpoint contract:
+Order is mandatory, each leaf red first under the checkpoint contract. V34.4a's tier gate lands
+before V35.3 because RECOMMEND reads it; the fifth effort level (V34.4b) and the four providers
+(V34.4c) follow this plan.
 
 - **V35.1 DETECT** — `Limit`, `Classify`, fixtures, `Cooldowns` with session and connector
   persistence, `provider.limit` event with schema and changelog, `/doctor limits`, status line.
-- **V35.2 PAUSE** — `Pause` on the session, refusal to spend, `/resume`, `turn.finished{paused}`,
-  pinned invariant test.
-- **V35.3 RECOMMEND** — `Eligible`, ranking over ratings, the explanation block, tier gate from
-  V34.4a wired in.
-- **V35.4 CHAIN** — default chain derivation, `routing.chain`, generalised `tried`, hop record in
-  session and stats, dashboard row.
-- **V35.5 SAFE DEFAULT** — `routing.continuation`, the free question, aliases for the old keys.
-- **V35.6 AUTO** — the opt-in mode and the metered boundary.
+- **V35.2 PAUSE and RESUME** — `Pause` on the session, refusal to spend, the code-only resume monitor
+  with token-free probes, `continuity.resume`, `/resume`, `turn.finished{paused}`, pinned invariant.
+- **V35.3 RECOMMEND** — `Eligible`, rung equivalence across vendors, ranking over ratings, the
+  explanation block, tier gate wired in.
+- **V35.4 CHAIN** — default chain derivation, generalised `tried`, effort carried across, console
+  line and event per hop, cross-session cooldown awareness.
+- **V35.5 CONTINUITY settings** — `continuity.mode/select/preferred/order/resume`, `preferred` and
+  `ask` shapes, aliases for the two old keys, `/config` surface.
+- **V35.6 AUTO** — the `auto` shape end to end: equivalence enforced, free only when preferred, no
+  equivalent → pause, every hop printed.
 
 Each leaf: scope with non-goals; red observed; green; `-race` on engine, session and cli; the spec
 gate for any event change; `make check`; record in `CHECKPOINTS.md` and `docs/build-log.md`; the
@@ -226,28 +255,25 @@ before chain because a chain that cannot explain itself is the silent switching 
 plan 04 §7 and T15–T17; plan 08 §4; plan 24 checklist; `site/capabilities.html` "03 / CONTINUITY";
 `scripts/test-site.sh` continuity pins.
 
-## 9. Questions for the owner — the plan is not complete until these are answered
+## 9. Owner answers — 2026-09-05
 
-1. **Resume:** should a paused session resume by itself on the next prompt once the cooldown has
-   passed, or only on an explicit `/resume`? (Plan proposes: the next prompt resumes if clear, and
-   says when otherwise; `/resume` also exists.)
-2. **Pinned models:** confirm that a pinned model (`-m`, `/model`) pauses on every limit and is never
-   substituted, even under `auto`. Plan 08 §4.2 says so; this plan keeps it.
-3. **Money boundary under `auto`:** may automatic switching ever move from a subscription or free
-   model onto a metered key without a question? Plan proposes: only with
-   `routing.allow_metered_switch true`, otherwise it asks at that one boundary.
-4. **Config shape:** fold `routing.on_subscription_limit` and `routing.on_free_exhausted` into one
-   `routing.continuation ask|auto|stop` with aliases for one release, or keep the two keys?
-5. **Cross-session cooldowns:** a plan-scope limit (your Claude weekly window) is written to the
-   connector so another kolk session sees it. Yes?
-6. **Default cooldowns when the vendor gives no reset time:** capacity 60 s, allowance 15 min,
-   account quota until you act, model refusal until catalog refresh, transport 30 s. Change any?
-7. **Chain order default:** siblings on the same plan → other verified subscriptions → metered →
-   free. Is that the order you want, and should the four new providers (Google, xAI, Perplexity,
-   GitHub) join the chain as they land under plan 24?
-8. **Ranking source:** your own ratings first, then kolk's slot ranking, then catalog order. Yes?
-9. **Dashboard:** should switches and pauses appear as rows in the local dashboard (plan 17), or is
-   the transcript and `/doctor limits` enough for v1?
-10. **Sequencing against V34.4a/b/c:** the three engineering leaves you approved (tier gate, fifth
-    effort level, four providers) — before this plan's leaves, after, or interleaved? The tier gate
-    is an input to RECOMMEND, so the plan assumes it lands first.
+1. **Resume:** by default kolk stops on a limit and resumes by itself when the limit resets, through
+   a monitor that is code and spends no tokens; a config turns automatic resume off. (§2.2)
+2. **Pinned models / switching:** switching is a separate opt-in. `continuity.mode off|on`; with `on`,
+   `continuity.select auto|preferred|ask`. `auto` picks the best *equivalent* model from another
+   subscription first, then paid; it never drops to a far-lower category (fable → a free 7B) unless
+   the user listed that model in `continuity.preferred`. (§2.4)
+3. **Money boundary:** `auto` may move onto paid, but only between similar models; equivalence is
+   reviewed against ratings. Implemented as rung equivalence first, ratings second. (§2.3)
+4. **Config shape:** as in 2; the two old keys become aliases for one release. (§2.6)
+5. **Cross-session:** active sessions must be aware of limits. (§2.5)
+6. **Default cooldowns:** the default is a monitor inside kolk that watches for the reset and probes
+   without spending; the fixed durations of §2.1 apply only when the vendor gave no reset time and no
+   probe exists. (§2.2)
+7. **Chain order:** all subscriptions first, then paid, then free; user-configurable; auto by default.
+8. **Ranking:** owner deferred to the plan; decided: effort-rung equivalence across vendors, then the
+   user's own ratings, then kolk's slot ranking, then catalog order.
+9. **Dashboard:** no.
+10. **Switch visibility:** shown in the console; not persisted. Sequencing (not asked back): the tier
+    gate (V34.4a) lands first because RECOMMEND reads it; the fifth effort level and the four providers
+    follow this plan.

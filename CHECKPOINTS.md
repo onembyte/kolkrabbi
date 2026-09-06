@@ -10624,8 +10624,13 @@ Subcheckpoints, one at a time:
     explicitly defer each remaining matrix row.
 - [ ] **V35 continuity** — plan drafted 2026-09-05 at the owner's direction (`docs/plan/35-continuity.md`):
   six leaves V35.1 DETECT → V35.2 PAUSE → V35.3 RECOMMEND → V35.4 CHAIN → V35.5 SAFE DEFAULT → V35.6
-  AUTO, each flipping one capabilities card with inverse pins. Not opened: ten owner questions in §9
-  gate the first leaf.
+  AUTO, each flipping one capabilities card with inverse pins. Owner answered all ten questions the
+  same day (plan 35 §9): default is pause + code-only auto-resume; switching is `continuity.mode
+  off|on` with `select auto|preferred|ask`, equivalence by effort rung, subs → paid → free, free only
+  when preferred, switches shown in the console and never persisted, no dashboard rows. V35.1 opens.
+  - [~] **V35.1 DETECT** — `Limit` taxonomy and classifier with fixtures; durable `Cooldowns`
+    (session and connector); `provider.limit` event with schema and changelog; `/doctor limits`;
+    status line.
     - [x] **V34.3e.1 a retried chapter starts from its mark** — a chapter found `executing` on a later
       wake (stopped or crashed mid-work) is rolled back to its persisted mark before the worker runs
       again, so abandoned work is gone before the retry and cannot reach its commit. **Red:** through
