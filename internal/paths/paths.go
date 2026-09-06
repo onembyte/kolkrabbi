@@ -93,6 +93,10 @@ func (d Dirs) ConfigFile() string { return filepath.Join(d.Config, "config.json"
 // Sessions holds one JSON file per conversation.
 func (d Dirs) Sessions() string { return filepath.Join(d.Data, "sessions") }
 
+// Worktrees is where a writing subagent gets a tree of its own (plan 36),
+// outside every project so no project ever sees another task's tree.
+func (d Dirs) Worktrees() string { return filepath.Join(d.Data, "worktrees") }
+
 // Session is one conversation's file.
 func (d Dirs) Session(id string) string { return filepath.Join(d.Sessions(), id+".json") }
 

@@ -220,6 +220,9 @@ type Options struct {
 	// progression directive to system construction without putting workflow
 	// instructions into user messages or durable conversation turns.
 	Posture Posture
+	// Isolator gives each writing subagent a tree of its own (plan 36). Nil
+	// keeps every subagent in the shared tree, one writer at a time.
+	Isolator Isolator
 	// MaxConcurrentTasks is how many orchestrated tasks may run at once. Three
 	// is small enough that the output of that many agents can still be read,
 	// and rate limits rather than CPU are the binding constraint. One is
@@ -1143,16 +1146,22 @@ func sanitizeToolText(value string) string {
 
 // executeTool runs one tool for the main session, where a person can answer.
 func (a *Agent) executeTool(ctx context.Context, tc provider.ToolCall) (string, error) {
-	return a.executeToolWith(ctx, tc, a.Out, a.Effort, a.guard, true)
+	return a.executeToolWith(ctx, tc, a.Out, a.Effort, a.guard, true, a.Root)
 }
 
 // executeSubagentTool runs one tool for an orchestrated subagent, where nobody
 // can.
-func (a *Agent) executeSubagentTool(ctx context.Context, tc provider.ToolCall, out io.Writer, effort string) (string, error) {
-	return a.executeToolWith(ctx, tc, out, effort, a.subagentGuard, false)
+// executeSubagentTool runs one tool for a subagent, rooted at the tree the
+// task runs in: its own worktree when it has one, the session's root
+// otherwise. An empty root means the session's.
+func (a *Agent) executeSubagentTool(ctx context.Context, tc provider.ToolCall, out io.Writer, effort, root string) (string, error) {
+	if root == "" {
+		root = a.Root
+	}
+	return a.executeToolWith(ctx, tc, out, effort, a.subagentGuard, false, root)
 }
 
-func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, out io.Writer, effort string, guard func(context.Context, io.Writer) tools.Guard, mayAsk bool) (string, error) {
+func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, out io.Writer, effort string, guard func(context.Context, io.Writer) tools.Guard, mayAsk bool, root string) (string, error) {
 	// Answered before any of the machinery below: a question waits on a person,
 	// so a spinner saying "working" and a confinement guard over a path neither
 	// applies nor makes sense.
@@ -1185,11 +1194,18 @@ func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, out i
 			return secret.Scrub(result), err
 		}
 	}
+	// A write in a task's own tree is not a write in the user's tree: the
+	// landing is what changes that, under its own snapshot, so the file-level
+	// record for /undo is kept only for writes to the session's root.
+	preWrite := a.preWrite
+	if root != a.Root {
+		preWrite = nil
+	}
 	result, err := tools.Execute(toolCtx, tc.Function.Name, tc.Function.Arguments, tools.Options{
-		Root:      a.Root,
+		Root:      root,
 		Sandbox:   a.Sandbox,
 		Guard:     guard(toolCtx, out),
-		PreWrite:  a.preWrite,
+		PreWrite:  preWrite,
 		PostWrite: a.PostWrite,
 	})
 	// One chokepoint for every tool. A result goes into the conversation, the

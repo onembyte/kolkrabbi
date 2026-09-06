@@ -10851,11 +10851,30 @@ Subcheckpoints, one at a time:
       plus the uncommitted diff, landed in finish order under the per-task snapshot, with fallback
       to today's rule wherever git cannot do it. Path-disjoint overlap refused as parallelism by
       hope. PLAN.md item 36 opened.
-    - [ ] **V36.2b the shell owns the git plumbing** — add a detached worktree, binary patch of a
-      tree against HEAD including untracked files, apply, remove; deadlines; real-git tests.
-    - [ ] **V36.2c the engine isolates and lands** — a writer gets a worktree when it can, writers
-      no longer wait for one another when they did, landing under the snapshot, fallback rows,
-      `-race` on the scheduler.
+    - [x] **V36.2b the shell owns the git plumbing** — closed 2026-09-06, in one commit with V36.2c
+      because the dead-export gate refuses plumbing with no live caller and the owner's rule is to
+      wire, not allowlist. `internal/shell/worktree.go`: `TreePatch` (through a throwaway index, so
+      the user's index is never staged), `ApplyPatch` (working tree only, refused whole on a
+      misfit with the file named), `AddWorktree` (detached at HEAD, seeded and the seed committed
+      there so a later patch is the task's work alone), `RemoveWorktree`; two-minute deadline per
+      call. `WorktreeIsolator` over them keeps a refused patch beside the store and names where.
+      Red first against real git in temp repositories: seed carries the uncommitted edit and the
+      untracked file and not the ignored one; work lands without staging and without moving the
+      branch; a conflict is refused and the tree untouched; a plain directory is refused.
+    - [x] **V36.2c the engine isolates and lands** — closed 2026-09-06. `Isolator` port; a writer
+      asks for a tree of its own and gets `Task.Workspace`, which re-roots both the vendor child
+      and kolk's own tools (file-level `/undo` records are kept only for the session root); the
+      scheduler no longer holds writers for one another when an Isolator is set; a writer that
+      could not be isolated runs under the run's tree lock with its row saying `shared tree: why`;
+      landing happens under that lock and the per-task snapshot, in finish order; a landing that
+      does not fit fails only its task with the reason; the tree is released before the task
+      reports, on every path, with a context that survives cancellation. Red first: writers run
+      together (in-flight ≥ 2), fallback serialises (in-flight = 1) and explains, a refused landing
+      fails one task. The race detector caught the release running after the report; fixed by
+      releasing before reporting, as the vendor child already was. Wired in `run.go` with the
+      store at `<data>/worktrees`. Not done: a live orchestrated run on the new binary — the
+      owner's next agent-mode run is the proof, and the status rows will say "preparing a tree of
+      its own" and "landing its changes".
     - [ ] **V36.2d the setting and the surface** — `orchestration.isolation`, the plan print, the
       settings table, docs and the site's claim.
   - [ ] **V36.3 the animated kolk terminal on the site** — an illustration of the terminal from the

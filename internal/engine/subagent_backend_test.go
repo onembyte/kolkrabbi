@@ -93,7 +93,7 @@ func TestCapabilityAwareSubagentBackendReceivesTheDeclaredEnvelope(t *testing.T)
 		},
 	}}
 
-	backend, release, err := agent.openSubagentBackend(context.Background(), "model", EffortMedium, KindEdit)
+	backend, release, err := agent.openSubagentBackend(context.Background(), "model", EffortMedium, KindEdit, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestCapabilityAwareSubagentBackendRejectsAnUnverifiedWorkspace(t *testing.T
 			return notACloser{}, nil
 		},
 	}}
-	if _, release, err := agent.openSubagentBackend(context.Background(), "model", EffortMedium, KindEdit); err == nil {
+	if _, release, err := agent.openSubagentBackend(context.Background(), "model", EffortMedium, KindEdit, ""); err == nil {
 		release()
 		t.Fatal("capability-aware factory ran without a verified workspace")
 	}
@@ -255,7 +255,7 @@ func TestReleasingASubagentProviderIsAlwaysSafe(t *testing.T) {
 	agent := &Agent{}
 
 	// No port at all.
-	backend, release, err := agent.openSubagentBackend(context.Background(), "m", EffortMedium, KindEdit)
+	backend, release, err := agent.openSubagentBackend(context.Background(), "m", EffortMedium, KindEdit, "")
 	if err != nil || backend != nil {
 		t.Fatalf("no port gave backend=%v err=%v, want both nil", backend, err)
 	}
@@ -266,7 +266,7 @@ func TestReleasingASubagentProviderIsAlwaysSafe(t *testing.T) {
 	agent.SubagentBackend = func(context.Context, string, string, string, SubagentCapabilities) (ChatBackend, error) {
 		return notACloser{}, nil
 	}
-	if _, release, err = agent.openSubagentBackend(context.Background(), "m", EffortMedium, KindEdit); err != nil {
+	if _, release, err = agent.openSubagentBackend(context.Background(), "m", EffortMedium, KindEdit, ""); err != nil {
 		t.Fatalf("open: %v", err)
 	}
 	release()
@@ -275,7 +275,7 @@ func TestReleasingASubagentProviderIsAlwaysSafe(t *testing.T) {
 	agent.SubagentBackend = func(context.Context, string, string, string, SubagentCapabilities) (ChatBackend, error) {
 		return nil, errors.New("nope")
 	}
-	if _, release, err = agent.openSubagentBackend(context.Background(), "m", EffortMedium, KindEdit); err == nil {
+	if _, release, err = agent.openSubagentBackend(context.Background(), "m", EffortMedium, KindEdit, ""); err == nil {
 		t.Error("a failed open reported success")
 	}
 	release()
@@ -333,7 +333,7 @@ func TestBackgroundTaskKindsRunWithoutNetwork(t *testing.T) {
 		},
 	}}
 	for _, kind := range []Kind{KindEdit, KindResearch} {
-		_, release, err := agent.openSubagentBackend(context.Background(), "gpt-5.6-luna", EffortMedium, kind)
+		_, release, err := agent.openSubagentBackend(context.Background(), "gpt-5.6-luna", EffortMedium, kind, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -356,11 +356,11 @@ func TestBackgroundTaskKindsRunWithoutNetwork(t *testing.T) {
 // bypass; what it must never do is invent the tier.
 func TestSubagentEnvelopeCarriesTheAgentsPermissionTier(t *testing.T) {
 	agent := &Agent{Options: Options{Root: t.TempDir(), Permission: PermissionFullAuto}}
-	if got := agent.subagentCapabilities(KindEdit, "claude-sonnet").Permission; got != PermissionFullAuto {
+	if got := agent.subagentCapabilities(KindEdit, "claude-sonnet", "").Permission; got != PermissionFullAuto {
 		t.Fatalf("envelope tier = %q, want the agent's %q", got, PermissionFullAuto)
 	}
 	agent.Permission = PermissionAsk
-	if got := agent.subagentCapabilities(KindEdit, "claude-sonnet").Permission; got != PermissionAsk {
+	if got := agent.subagentCapabilities(KindEdit, "claude-sonnet", "").Permission; got != PermissionAsk {
 		t.Fatalf("envelope tier = %q after the tier changed, want %q", got, PermissionAsk)
 	}
 }

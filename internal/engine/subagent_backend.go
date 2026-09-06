@@ -122,8 +122,13 @@ func (a *Agent) subagentNetwork(kind Kind, model string) bool {
 // computed from the task and the model rather than copied from the host's
 // static declaration, so the same call answers the briefing, the status line,
 // and the factory — one source, no drift between what is said and what runs.
-func (a *Agent) subagentCapabilities(kind Kind, model string) SubagentCapabilities {
+//
+// workspace is the task's own tree when it has one; empty means the host's.
+func (a *Agent) subagentCapabilities(kind Kind, model, workspace string) SubagentCapabilities {
 	capabilities := a.SubagentCapabilities
+	if workspace != "" {
+		capabilities.Workspace = workspace
+	}
 	if capabilities.Workspace == "" {
 		capabilities.Workspace = a.Root
 	}
@@ -159,11 +164,11 @@ func (a *Agent) subagentOpeningStep(model string, capabilities SubagentCapabilit
 // The release is always safe to call: a nil port, a backend that is not a
 // Closer, and a failed open all return one that does nothing. That matters
 // because the caller defers it before it can know which case it got.
-func (a *Agent) openSubagentBackend(ctx context.Context, model, effort string, kind Kind) (ChatBackend, func(), error) {
+func (a *Agent) openSubagentBackend(ctx context.Context, model, effort string, kind Kind, workspace string) (ChatBackend, func(), error) {
 	if a.SubagentBackend == nil {
 		return nil, func() {}, nil
 	}
-	capabilities := a.subagentCapabilities(kind, model)
+	capabilities := a.subagentCapabilities(kind, model, workspace)
 	if strings.TrimSpace(capabilities.Workspace) == "" || !filepath.IsAbs(capabilities.Workspace) {
 		return nil, func() {}, fmt.Errorf("subagent workspace is not a verified absolute directory")
 	}

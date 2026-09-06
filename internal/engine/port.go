@@ -144,3 +144,22 @@ type GitCheckpointer interface {
 	// HasChanges reports whether the working tree has uncommitted modifications.
 	HasChanges(repoDir string, mark *ChapterMark) (bool, error)
 }
+
+// Isolator gives a writing subagent a tree of its own (plan 36), so that
+// writers run together instead of one at a time on the shared tree.
+//
+// Isolate makes a tree for one task, seeded with what the user has not
+// committed, and returns where it is. Land brings what happened in that tree
+// back into root, and refuses — with the file named — rather than forces a
+// patch that does not fit. Release removes the tree; it is called on every
+// path out of a task, including a cancelled run, and returns nothing because
+// there is nothing a caller could do about a failure to clean up.
+//
+// An Isolator that cannot isolate a given root says so from Isolate, and the
+// task runs in the shared tree as it always has. A nil Isolator is that
+// answer for every task.
+type Isolator interface {
+	Isolate(ctx context.Context, root, name string) (dir string, err error)
+	Land(ctx context.Context, root, dir string) error
+	Release(ctx context.Context, root, dir string)
+}

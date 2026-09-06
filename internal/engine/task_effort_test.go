@@ -80,7 +80,7 @@ func TestToolExecutionUsesTheExplicitEffortDeadline(t *testing.T) {
 		Arguments: `{"command":"true","description":"deadline probe"}`,
 	}}
 	started := time.Now()
-	_, _ = agent.executeToolWith(context.Background(), call, io.Discard, EffortLow, guard, false)
+	_, _ = agent.executeToolWith(context.Background(), call, io.Discard, EffortLow, guard, false, agent.Root)
 
 	if deadline.IsZero() {
 		t.Fatal("bash guard received a context without a deadline")

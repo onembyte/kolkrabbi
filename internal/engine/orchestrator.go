@@ -8,6 +8,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/xid"
@@ -172,6 +173,11 @@ func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([
 	}
 
 	limit := a.concurrencyLimit()
+	// One lock over the user's tree for the run. A writer that could not be
+	// isolated holds it for its whole run; a landing holds it for the apply.
+	// With no Isolator the scheduler below serialises writers itself and the
+	// lock is never contended.
+	tree := &sync.Mutex{}
 	// Buffered to the number of tasks, so a sender never blocks. runTasks
 	// returns from inside its loop when the user cancels, and with an
 	// unbuffered channel every goroutine that had not yet delivered its result
@@ -197,12 +203,12 @@ func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([
 				resolved[index] = true
 				continue
 			}
-			if writesFiles(tasks[index].Kind) {
+			if a.sharesTree(tasks[index].Kind) {
 				writing = true
 			}
 			running++
 			a.runSpend.start()
-			go a.runOneTask(ctx, finished, userInput, tasks, results, index, childTurns[index])
+			go a.runOneTask(ctx, finished, userInput, tasks, results, index, childTurns[index], tree)
 		}
 
 		if running == 0 {
@@ -227,7 +233,7 @@ func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([
 			}
 			return nil, ctx.Err()
 		}
-		if writesFiles(tasks[done.index].Kind) {
+		if a.sharesTree(tasks[done.index].Kind) {
 			writing = false
 		}
 
@@ -264,7 +270,7 @@ type taskRun struct {
 // terminal is unreadable. What a reader needs from a parallel run is to know
 // what is happening and to get each task's output whole, not to watch tokens
 // arrive from three places at once.
-func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInput string, tasks []Task, results []string, index int, childTurn string) {
+func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInput string, tasks []Task, results []string, index int, childTurn string, tree *sync.Mutex) {
 	out := a.Out
 	var buffered *bytes.Buffer
 	if a.concurrencyLimit() > 1 {
@@ -284,17 +290,52 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	// inside runSubagent: the event is about the task's lifetime, and the task
 	// is what this function owns.
 	a.publishSubagentStarted(tasks, index, childTurn, model, effort)
-	capabilities := a.subagentCapabilities(tasks[index].Kind, model)
+
+	// A writer gets a tree of its own when the Isolator can give it one (plan
+	// 36). When it cannot, the task runs in the shared tree under the run's
+	// lock, one writer at a time as before, and its row says why. The tree is
+	// released on every path out — a cancelled run included, which is why the
+	// release keeps working after the context is done.
+	isolated := ""
+	if a.Isolator != nil && writesFiles(tasks[index].Kind) {
+		a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseCheckpoint, "preparing a tree of its own")
+		dir, err := a.Isolator.Isolate(ctx, a.Root, childTurn)
+		if err != nil {
+			a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseCheckpoint, "shared tree: "+err.Error())
+		} else {
+			isolated = dir
+			tasks[index].Workspace = dir
+		}
+	}
+	// Released before the task reports, like the vendor child below: a result
+	// whose tree is still being removed is not a finished task, and a run
+	// must not return with worktrees still going away under it. The deferred
+	// call covers the early returns; the once makes the second call nothing.
+	var releasedTree sync.Once
+	releaseTree := func() {
+		if isolated == "" {
+			return
+		}
+		releasedTree.Do(func() { a.Isolator.Release(context.WithoutCancel(ctx), a.Root, isolated) })
+	}
+	defer releaseTree()
+	if a.Isolator != nil && writesFiles(tasks[index].Kind) && isolated == "" {
+		tree.Lock()
+		defer tree.Unlock()
+	}
+	capabilities := a.subagentCapabilities(tasks[index].Kind, model, isolated)
 	// A snapshot per writing subagent, so a task that makes a mess is
 	// rewindable on its own rather than by undoing the whole turn (A33.8).
 	// Only writing kinds: research and explain change no files, so a snapshot
 	// for one would record a tree identical to the last.
 	//
-	// Both calls sit inside this function on purpose. The scheduler will not
-	// start another writer until this one returns, which makes the window
+	// Both calls sit inside this function on purpose. No other writer touches
+	// the user's tree while this one runs in it, which makes the window
 	// between them the only moment when "what changed" means this task alone.
+	// A task in its own tree changes the user's tree only when it lands, so
+	// its snapshot brackets the landing instead.
 	snapshot := -1
-	if a.Ckpt != nil && writesFiles(tasks[index].Kind) {
+	if a.Ckpt != nil && writesFiles(tasks[index].Kind) && isolated == "" {
 		a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseCheckpoint, "creating rollback checkpoint")
 		snapshot = a.Ckpt.BeginTask(ctx, tasks[index].Title)
 	}
@@ -304,7 +345,7 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	// on every path out, including the failure below: a provider owns a child
 	// process and nothing else will release it.
 	a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseProvider, a.subagentOpeningStep(model, capabilities))
-	own, release, openErr := a.openSubagentBackend(ctx, model, effort, tasks[index].Kind)
+	own, release, openErr := a.openSubagentBackend(ctx, model, effort, tasks[index].Kind, isolated)
 	defer release()
 
 	// A cheaper rung that will not spawn must not lose the task: the work still
@@ -321,10 +362,10 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 			release()
 			model = ceiling
 			// A different vendor may have a different network answer.
-			capabilities = a.subagentCapabilities(tasks[index].Kind, model)
+			capabilities = a.subagentCapabilities(tasks[index].Kind, model, isolated)
 			a.updateSubagentStatusRoute(index, model, effort)
 			a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseProvider, a.subagentOpeningStep(model, capabilities))
-			own, release, openErr = a.openSubagentBackend(ctx, model, effort, tasks[index].Kind)
+			own, release, openErr = a.openSubagentBackend(ctx, model, effort, tasks[index].Kind, isolated)
 			defer release()
 		}
 	}
@@ -345,6 +386,21 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 		a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseCheckpoint, "recording task changes")
 		a.Ckpt.EndTask(ctx, snapshot)
 	}
+	// What the task did in its own tree lands in the user's, under the run's
+	// lock and its own snapshot. A cancelled run lands nothing: the user
+	// withdrew the question (V34.2e). A task that failed part-way still lands
+	// what it did, as a shared-tree task would have left it, so nothing is
+	// lost; a patch that does not fit fails the task and says so.
+	if isolated != "" && ctx.Err() == nil {
+		a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseCheckpoint, "landing its changes")
+		if landErr := a.landTask(ctx, tree, tasks[index].Title, isolated); landErr != nil {
+			if err == nil {
+				err = landErr
+			} else {
+				err = fmt.Errorf("%w; and %w", err, landErr)
+			}
+		}
+	}
 	if err != nil {
 		a.updateSubagentStatus(index, SubagentFailed, SubagentPhaseComplete, "failed: "+err.Error())
 	}
@@ -361,6 +417,7 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	// is not a finished task. The deferred release above then has nothing left
 	// to do -- it is idempotent -- and stays for the early-return paths.
 	release()
+	releaseTree()
 	finished <- run
 }
 
@@ -435,6 +492,32 @@ func dependenciesResolved(tasks []Task, resolved []bool, index int) bool {
 // Only reading kinds are treated as safe. An unlabelled task might write, and
 // assuming otherwise would make concurrency a hazard that arrives with a weaker
 // planner rather than with a decision anyone made.
+// landTask applies one isolated task's work to the user's tree, under the
+// run's lock and the per-task snapshot.
+func (a *Agent) landTask(ctx context.Context, tree *sync.Mutex, title, dir string) error {
+	tree.Lock()
+	defer tree.Unlock()
+	handle := -1
+	if a.Ckpt != nil {
+		handle = a.Ckpt.BeginTask(ctx, title)
+	}
+	err := a.Isolator.Land(ctx, a.Root, dir)
+	if handle >= 0 {
+		a.Ckpt.EndTask(ctx, handle)
+	}
+	if err != nil {
+		return fmt.Errorf("did not land: %w", err)
+	}
+	return nil
+}
+
+// sharesTree reports whether a task of this kind holds the shared tree for
+// the scheduler's purposes: a writer with no Isolator. A writer with one
+// either gets its own tree or takes the run's lock itself.
+func (a *Agent) sharesTree(kind Kind) bool {
+	return a.Isolator == nil && writesFiles(kind)
+}
+
 func writesFiles(kind Kind) bool {
 	return kind != KindResearch && kind != KindExplain
 }
@@ -546,7 +629,7 @@ func (a *Agent) plan(ctx context.Context, model, userInput string, maxTasks int)
 // runSubagent executes one task in an isolated context: its conversation
 // never enters the main session, only its final summary does.
 func (a *Agent) runSubagent(ctx context.Context, pinned pinnedBackend, out io.Writer, model, effort string, tokensVisible bool, original string, tasks []Task, results []string, idx int) (string, error) {
-	capabilities := a.subagentCapabilities(tasks[idx].Kind, model)
+	capabilities := a.subagentCapabilities(tasks[idx].Kind, model, tasks[idx].Workspace)
 	cwd := capabilities.Workspace
 	if cwd == "" {
 		cwd = workingDir()
@@ -604,7 +687,7 @@ Overall request: %s
 			if result == "" {
 				executed = true
 				a.publishKolkToolStarted(tc, owner)
-				result, err = a.executeSubagentTool(ctx, tc, out, effort)
+				result, err = a.executeSubagentTool(ctx, tc, out, effort, tasks[idx].Workspace)
 				if err != nil {
 					result = "Error: " + err.Error()
 				}

@@ -394,6 +394,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		SubagentNetwork: cfg.SubagentNetwork,
 		Sess:            sess,
 		Ckpt:            ckpt,
+		Isolator:        shell.NewWorktreeIsolator(d.Worktrees()),
 		Cooldowns:       engine.OpenCooldowns(sess.CooldownsFile(), d.CooldownsFile()),
 		In:              a.in,
 		Out:             a.stdout,

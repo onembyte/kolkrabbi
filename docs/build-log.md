@@ -7147,3 +7147,18 @@ a mislabel rather than a second fault: the transport check asks whether an error
 and a plain errno answers yes, so a missing file was announced as an unreachable provider. File
 errors are excluded before that check. Both were red first; what remains unproven is the live
 restart itself, which the next release will exercise on the owner's machine.
+
+## Writers together, one tree each — V36.2b and V36.2c closed 2026-09-06
+
+The owner watched four edits run one at a time and asked why. The answer was a rule, not a
+limit: the scheduler would not start a second writer on the shared tree, and every task kind but
+two writes. The rule stays true for one tree, so the build gives each writer a tree: a detached
+git worktree under the data directory, seeded with the user's uncommitted state and that seed
+committed there so the task's later patch is its own work alone. What the task did comes back as
+one binary patch, applied to the working tree only, under the run's lock and the snapshot that
+`/undo` already keeps per task. A patch that does not fit is refused whole, kept beside the
+store, and the task fails with git's own words. Where git cannot do this the task runs as before
+and its row says why. The two leaves share a commit because the dead-export gate will not accept
+plumbing without a caller, and the answer to that gate is a caller, not an allowlist entry. The
+race detector earned its place: the tree was being removed after the task had reported, which
+the vendor child's own release had long ago been written to avoid.

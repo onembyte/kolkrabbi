@@ -50,6 +50,9 @@ type Task struct {
 	Needs []int
 	// Model is resolved by the router. Empty until then.
 	Model string
+	// Workspace is the tree the task ran in when it had one of its own (plan
+	// 36). Empty means the session's root. Set by the run, not the planner.
+	Workspace string
 }
 
 // annotation is what is shown beside a task in the printed plan. A run that
