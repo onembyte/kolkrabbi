@@ -208,6 +208,7 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 	}
 	ag.Decider = tuiDecider{runtime: screen}
 	ag.Ask = tuiChooser{runtime: screen}
+	a.armAutoResume(ctx, ag, screen.Submit)
 
 	// The login runs here, inside the session, on a terminal of its own. The
 	// runtime parks the frame and forwards the keyboard; shell puts the child

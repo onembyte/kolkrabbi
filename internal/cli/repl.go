@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 
 	"github.com/onembyte/kolkrabbi/internal/engine"
 )
@@ -32,6 +33,16 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 	fmt.Fprintf(a.stdout, "kolk — mode: %s · effort: %s · model: %s%s\nsession: %s%s\n",
 		ag.Mode, ag.Effort, ag.SessionModel(), permissionTag(ag.Permission), sessID, resumedNote)
 	fmt.Fprintln(a.stdout, "Type your request, or /help for commands. Ctrl+C interrupts a turn, /exit quits.")
+	// A turn the resume monitor brings back runs on its goroutine, under the
+	// same lock as a typed one, so the two never share the backend.
+	var turnMu sync.Mutex
+	a.armAutoResume(ctx, ag, func(pending string) {
+		turnMu.Lock()
+		defer turnMu.Unlock()
+		if err := a.runInteractivePrompt(ctx, ag, pending); err != nil {
+			fmt.Fprintf(a.stderr, "\033[31merror:\033[0m %v\n", err)
+		}
+	})
 
 	for {
 		// The same marker the persistent composer draws. Mode moved into the
@@ -76,7 +87,9 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 		//
 		// Per-turn interrupt: Ctrl+C cancels this turn only, not the REPL.
 		tctx, stop := signal.NotifyContext(ctx, os.Interrupt)
+		turnMu.Lock()
 		err = a.runInteractivePrompt(tctx, ag, line)
+		turnMu.Unlock()
 		stop()
 		switch {
 		case errors.Is(err, context.Canceled):

@@ -21,6 +21,7 @@ import (
 	"unicode"
 
 	"github.com/onembyte/kolkrabbi/internal/bus"
+	"github.com/onembyte/kolkrabbi/internal/continuity"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/secret"
 	"github.com/onembyte/kolkrabbi/internal/shell"
@@ -275,10 +276,29 @@ type Options struct {
 	// ConnectorName says which connector a model runs through, for the cooldown
 	// keys; nil means everything is the keyed endpoint.
 	ConnectorName func(model string) string
-	Tiers         map[string]string
-	Bus           *bus.Bus
-	PinnedModel   bool
-	FreeModels    []string
+	// ResumePolicy is auto (default) or manual: whether a paused session comes
+	// back on its own once the monitor sees the limit lifted, or waits for
+	// /resume (plan 35 §2.2). The monitor spends no tokens either way.
+	ResumePolicy string
+	// ProbeLimit confirms a limit has lifted without spending tokens. Nil means
+	// the built-in probe: key status for the keyed gateway, /models for a
+	// compatible endpoint, the sign-in check for a handover.
+	ProbeLimit func(context.Context, continuity.Pause) (bool, error)
+	// ResumeReady hands a resumed turn back to the surface, which runs it on
+	// the same model. Nil means the pause is lifted and the turn is announced
+	// as waiting, never run behind the user's back.
+	ResumeReady func(pending string)
+	// ResumeWait is the cancellable wait the resume monitor uses between the
+	// pause and its probe; separate from RetryWait so the two are never
+	// confused. Nil means a plain timer.
+	ResumeWait func(context.Context, time.Duration) error
+	// HandoverSignedIn says whether a vendor connector is still signed in, the
+	// quota-free check a handover has. Nil trusts the reset clock.
+	HandoverSignedIn func(connector string) bool
+	Tiers            map[string]string
+	Bus              *bus.Bus
+	PinnedModel      bool
+	FreeModels       []string
 	// ContextWindow is the active model's advertised context size, or zero when
 	// it is unknown. Surfaces resolve it from the catalog; the engine never
 	// guesses one, because compaction is destructive and a guessed limit would
@@ -329,6 +349,12 @@ type ChatBackend interface {
 type Agent struct {
 	Options
 	lastTurnID string
+	// resume is the monitor watching this session's pause, nil when nothing is
+	// paused; resumeMu guards its hand-over between the pause path, /resume
+	// and Close.
+	resumeMu   sync.Mutex
+	resume     *resumeMonitor
+	resumeBase context.Context
 	// mainWork serializes the parent turn's durable work ledger. Subagent work
 	// has one sequence per task under subagentMu; the parent has one sequence
 	// per turn and never carries child coordinates.
@@ -387,6 +413,7 @@ type Agent struct {
 // an optional lifecycle.
 func (a *Agent) Close() error {
 	var first error
+	a.stopResumeMonitor()
 	// Routes first: a host server kolk started is the thing most worth
 	// stopping, and it must stop even if the session backend's Close fails.
 	for _, route := range a.Routes {
@@ -440,6 +467,9 @@ func New(o Options) *Agent {
 	}
 	if o.RetryWait == nil {
 		o.RetryWait = waitForRetry
+	}
+	if o.ResumeWait == nil {
+		o.ResumeWait = waitForRetry
 	}
 	if o.Decider == nil && o.In != nil {
 		o.Decider = NewTerminalDecider(o.In, o.Out)

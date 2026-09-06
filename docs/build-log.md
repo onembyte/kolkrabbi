@@ -6832,3 +6832,23 @@ spent on the same agent and reported nothing.
 
 What remains of V34.3 is the owner's: 3f's running progress log in the TUI, and a live
 start/stop/resume/rollback with an independent reviewer. V34.4, provider and local truth, is next.
+
+## A paused turn comes back by itself, spending nothing to wait — V35.2b closed 2026-09-05
+
+The owner's default for a limit is now whole: kolk stops when the model behind the session hits its
+allowance, quota or capacity, and comes back on its own when the limit lifts, without a model in the
+loop. The monitor is one goroutine per paused session. It waits for the reset the provider named, or
+the kind's default when it named none, then asks a question that costs no tokens: the gateway's key
+status for a keyed model, `/models` for a compatible endpoint, the sign-in check for a handover. When
+the answer is yes, the pause is cleared, `provider.limit{resume}` is published, and the exact turn
+that was waiting is handed to the surface to run on the same model. When the answer is no, or cannot
+be had, the pause moves to the next reset and the monitor says when it will look again.
+
+Two things were learned building it. The retry loop and the monitor both wait, and giving them one
+hook made a test that blocked the monitor's wait block the retry's instead; the monitor now has its
+own. And a turn that returns by itself must never run behind the person's back: the TUI enters it as
+if typed, running now or queued behind the active turn, and the plain REPL runs it under the same
+lock as a typed prompt, so no two turns ever share the backend. `continuity.resume manual` keeps the
+pause for `/resume`, which lifts it whatever the clock says. The agent's `Close` joins the monitor,
+so a session that leaves takes its monitor with it. Next is 2c, where the status line learns to say
+`paused · reason · resumes HH:MM`.

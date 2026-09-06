@@ -39,6 +39,7 @@ func (c *Config) settingRows(defaultModel, defaultBaseURL string) []Setting {
 	mode, modeDefault := text(c.Mode, "code")
 	onLimit, onLimitDefault := text(c.Routing.OnSubscriptionLimit, "ask")
 	onFree, onFreeDefault := text(c.Routing.OnFreeExhausted, "free")
+	resume, resumeDefault := text(c.Continuity.Resume, "auto")
 	effort, effortDefault := text(c.Effort, "medium")
 
 	cost, costDefault := "no ceiling", true
@@ -69,6 +70,8 @@ func (c *Config) settingRows(defaultModel, defaultBaseURL string) []Setting {
 			"when a subscription runs out: ask · switch to a metered model · stop"},
 		{"routing.on_free_exhausted", onFree, onFreeDefault,
 			"when no free model can serve: free (stay free) · paid · stop"},
+		{"continuity.resume", resume, resumeDefault,
+			"a session paused on a limit: auto (comes back when the limit lifts, no tokens spent) · manual (waits for /resume)"},
 	}
 }
 

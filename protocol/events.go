@@ -439,7 +439,7 @@ type ProviderLimitData struct {
 
 var providerLimitKinds = map[string]bool{"subscription_allowance": true, "account_quota": true, "endpoint_capacity": true, "budget_stop": true, "model_refusal": true, "transport": true}
 var providerLimitScopes = map[string]bool{"model": true, "account": true, "endpoint": true}
-var providerLimitActions = map[string]bool{"retry": true, "rotate": true, "recommend": true, "ask": true, "switch": true, "pause": true, "stop": true}
+var providerLimitActions = map[string]bool{"retry": true, "rotate": true, "recommend": true, "ask": true, "switch": true, "pause": true, "resume": true, "stop": true}
 
 func validateEventData(event EventType, raw json.RawMessage) error {
 	var text string

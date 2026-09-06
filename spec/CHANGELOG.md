@@ -9,6 +9,9 @@ are allowed during version 0, but every change is recorded here.
   account_quota, endpoint_capacity, budget_stop, model_refusal, transport), `scope` (model, account,
   endpoint) and `action` (retry, rotate, recommend, ask, switch, pause, stop), the reset time when
   known, the provider's Retry-After when given, and a scrubbed message.
+- `provider.limit` `action` gains `resume`: the pause is over, whether the monitor confirmed the limit
+  lifted without spending a token or the person asked with `/resume`; the turn that was waiting is
+  re-sent on the same model.
 - A turn that ends in an ordinary error finishes with `turn.finished` reason `error`, its `raw_reason`
   the scrubbed message, so every started turn has exactly one terminal event (finished, or
   cancelled). The SSE and stdio streams deliver the retained replay before live events; a

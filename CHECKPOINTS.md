@@ -10709,11 +10709,35 @@ Subcheckpoints, one at a time:
       expectations honestly: a 503 and a 30 s Retry-After now pause rather than fail. `LimitBudgetStop`
       left the dead-export allowlist as promised. Not yet: resuming (2b) and the surfaces (2c). `-race`
       clean on engine, session, continuity, cli, arch; lint; `make check`.
-    - [ ] **V35.2b the resume monitor** — a goroutine per paused session that waits for the reset (or the
+    - [x] **V35.2b the resume monitor** — a goroutine per paused session that waits for the reset (or the
       kind's default), confirms the limit lifted without spending tokens (key status for keyed models,
       the vendor's quota-free auth status for a handover, `/models` for a compatible endpoint), and hands
       the pending turn back to the surface to run on the same model; backs off to the next reset when
-      still capped; dies with the session. `continuity.resume auto|manual`; `/resume` always works.
+      still capped; dies with the session. `continuity.resume auto      **Closed 2026-09-05, on main.** Red observed: a session paused on a 429 stayed paused; nothing
+      re-sent the turn, `Resume` did not exist and `continuity.resume` was not a key. Green: one
+      `resumeMonitor` goroutine per paused session, living in the session context the surface hands
+      over once (`WatchPauses`; the arch gate refused an invented `context.Background`), armed when the
+      pause is recorded and again when a paused session is opened; it waits for the reset through its own `ResumeWait` (kept apart from the
+      retry loop's `RetryWait` after a blocking test stub stalled the retry instead of the monitor),
+      then probes without tokens: the gateway's key status (`RemainingUSD <= 0` keeps an account-quota
+      pause), `/models` for a compatible endpoint, the sign-in check for a handover, and the clock alone
+      where nothing can be asked. Lifted: clears the pause under the messages lock, saves, publishes
+      `provider.limit{resume}` (new closed-vocabulary action, changelog bullet), prints one line and
+      hands the verbatim pending turn to the surface. Still capped or unprobeable: moves the pause to
+      the kind's default cooldown (never under 30 s), saves, says when the next check is, waits again.
+      A pause lifted by `/resume` meanwhile is left alone (`Since` identity). `Agent.Close` stops and
+      joins the monitor, so a closed agent never hands a turn to a surface that is gone. `Resume()` is
+      `/resume`: dismisses the monitor, clears the pause whatever the clock says, returns the pending
+      turn; the slash runs it on the caller's turn goroutine in both surfaces. The TUI gets
+      `Runtime.Submit` (runs now when idle, queues behind the active turn through the same path Enter
+      uses when busy); the plain REPL runs the resumed turn on the monitor's goroutine under a turn
+      lock shared with typed prompts. `continuity.resume auto|manual` (config block, settings row,
+      `/config get|set|unset`, `engine.NormalizeResume`); manual arms nothing and `/resume` still
+      works. Four tests: comes back on its own; backs off to the next reset and probes once per wait;
+      manual keeps the pause for `/resume`; the monitor dies with the agent. `-race` clean on engine,
+      session, tui, continuity; cli, config, protocol; lint linux; vet windows; `make check`.
+      Not yet: the surfaces (2c) — the status line still shows nothing for a pause.
+|manual`; `/resume` always works.
       **Red:** nothing brings a paused turn back.
     - [ ] **V35.2c the surfaces** — status line `paused · <reason> · resumes HH:MM`, `/doctor`, and the
       capabilities card PAUSE flipped with inverse pins.

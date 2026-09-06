@@ -76,3 +76,12 @@ func PauseFor(limit provider.Limit, pending string, now time.Time) Pause {
 		Message: secret.Scrub(limit.Message), Since: now, ResetAt: until, PendingTurn: pending,
 	}
 }
+
+// Limit is the limit this pause was made from, for the event that says it is
+// over: same kind, scope, model and connector; the timing is the pause's own.
+func (p Pause) Limit() provider.Limit {
+	return provider.Limit{
+		Kind: provider.LimitKind(p.Kind), Scope: provider.LimitScope(p.Scope),
+		Model: p.Model, Connector: p.Connector, Message: p.Message, ResetAt: p.ResetAt,
+	}
+}

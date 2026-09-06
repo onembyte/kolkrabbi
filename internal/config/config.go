@@ -49,6 +49,9 @@ type Config struct {
 	// Routing decides what happens when the model behind the session stops
 	// being able to answer — today, when a subscription runs out mid-run.
 	Routing RoutingSettings `json:"routing,omitempty"`
+	// Continuity is the plan-35 successor: pause and resume today, switching
+	// and chains as the plan lands.
+	Continuity ContinuitySettings `json:"continuity,omitempty"`
 	// AutoRestartAfterUpdate re-executes kolk into the new version once an
 	// in-session `kolk update` succeeds, resuming the same session. A pointer
 	// so "never set" is distinguishable from "set to off": the default is off,

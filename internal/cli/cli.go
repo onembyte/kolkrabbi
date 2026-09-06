@@ -319,7 +319,7 @@ var retiredVerbs = map[string]string{
 	"key": "/key", "model": "/model", "effort": "/effort", "mode": "/mode",
 	"config": "/config", "models": "/model", "plans": "/plans", "pmodels": "/pmodels",
 	"localia": "/localia", "update": "/update", "stats": "/stats", "dash": "/dash",
-	"devices": "/devices", "version": "/version", "doctor": "/doctor",
+	"devices": "/devices", "version": "/version", "doctor": "/doctor", "resume": "/resume",
 }
 
 // dispatch routes a command line. An unrecognised first word is deliberately

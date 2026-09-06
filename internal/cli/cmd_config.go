@@ -109,6 +109,12 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 			} else {
 				fmt.Fprintf(a.stdout, "(unset — inherits %s)\n", engine.OnLimitAsk)
 			}
+		case key == "continuity.resume":
+			if cfg.Continuity.Resume != "" {
+				fmt.Fprintln(a.stdout, cfg.Continuity.Resume)
+			} else {
+				fmt.Fprintln(a.stdout, "(unset — auto: comes back when the limit lifts)")
+			}
 		case key == "routing.on_free_exhausted":
 			if cfg.Routing.OnFreeExhausted != "" {
 				fmt.Fprintln(a.stdout, cfg.Routing.OnFreeExhausted)
@@ -254,6 +260,16 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintf(a.stdout, "routing.on_subscription_limit → %s\n", policy)
+		case key == "continuity.resume":
+			policy, err := engine.NormalizeResume(val)
+			if err != nil {
+				return usagef("continuity.resume: %v", err)
+			}
+			cfg.Continuity.Resume = policy
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "continuity.resume → %s\n", policy)
 		case key == "routing.on_free_exhausted":
 			policy, err := engine.NormalizeFreeExhausted(val)
 			if err != nil {
@@ -351,6 +367,12 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintln(a.stdout, "removed routing.on_subscription_limit; back to asking")
+		case key == "continuity.resume":
+			cfg.Continuity.Resume = ""
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintln(a.stdout, "removed continuity.resume; back to auto")
 		case key == "routing.on_free_exhausted":
 			cfg.Routing.OnFreeExhausted = ""
 			if err := config.Save(d.ConfigFile(), cfg); err != nil {

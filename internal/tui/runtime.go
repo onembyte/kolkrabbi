@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"sync"
 	"time"
 )
@@ -893,4 +894,24 @@ func (r *Runtime) Secret() *SecretPrompt {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.controller.Secret()
+}
+
+// Submit enters a prompt as if the person had typed it: it runs now when the
+// surface is idle and queues behind the active turn otherwise. The resume
+// monitor uses it to hand a paused turn back (V35.2b); a closing runtime
+// drops it, since the session that owned it is leaving.
+func (r *Runtime) Submit(prompt string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closing || strings.TrimSpace(prompt) == "" {
+		return
+	}
+	if r.activeStop != nil {
+		r.controller.QueueRequest(prompt)
+		r.renderLocked()
+		return
+	}
+	r.controller.BeginTurn()
+	r.startTurnLocked(prompt)
+	r.renderLocked()
 }

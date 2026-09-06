@@ -409,7 +409,12 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		OnSubscriptionLimit: cfg.Routing.OnSubscriptionLimit,
 		// And what to do when no free model will answer (B12.13).
 		OnFreeExhausted: cfg.Routing.OnFreeExhausted,
-		MeteredModel:    func() string { return meteredFallback },
+		// A session paused on a limit comes back on its own unless told to wait
+		// for /resume; the monitor confirms the lift without spending tokens,
+		// and a handover's check is the sign-in it already has (V35.2b).
+		ResumePolicy:     cfg.Continuity.Resume,
+		HandoverSignedIn: a.connectorSignedIn,
+		MeteredModel:     func() string { return meteredFallback },
 		// The catalogue the session already fetched, so an unset slot can be
 		// resolved by what each role needs instead of collapsing to the effort
 		// model (A33.4). Already in memory: this costs nothing to pass.

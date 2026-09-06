@@ -877,3 +877,11 @@ func (c *Controller) secretLines(width int) []string {
 		strings.Repeat("─", max(0, width)),
 	}
 }
+
+// QueueRequest holds a request behind the active turn exactly as Enter does
+// while busy; the runtime uses it for a turn that comes back on its own.
+func (c *Controller) QueueRequest(text string) {
+	c.queued = text
+	c.syncQueued()
+	c.screen.SetActivity(queuedNotice)
+}
