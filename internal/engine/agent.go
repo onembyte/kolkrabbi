@@ -299,6 +299,12 @@ type Options struct {
 	// settings that feed these are V35.5's.
 	Select    string
 	Preferred []string
+	// Order is the billing groups to try in order (plan 35 §2.4); nil is
+	// the owner's default, subscriptions, then paid, then free.
+	Order []string
+	// ContinuityMode is off (default) or on: whether a pause walks the chain
+	// by itself (V35.6).
+	ContinuityMode string
 	// Switch moves the session to a candidate (plan 35 §2.5): the surface owns
 	// the backends, so it performs the switch and returns the label it settled
 	// on. Nil means the chain cannot be walked and /continue says so.

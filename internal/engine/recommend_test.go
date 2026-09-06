@@ -65,3 +65,27 @@ func TestAPauseWithoutCandidatesSaysSo(t *testing.T) {
 		t.Fatalf("block:\n%s", out.String())
 	}
 }
+
+// The owner's order is a setting: with paid before subscriptions, the paid
+// equivalent leads the block.
+func TestTheRecommendationFollowsTheConfiguredOrder(t *testing.T) {
+	srv := enginetest.New(enginetest.Step{StatusCode: http.StatusTooManyRequests, RetryAfter: "1800", ErrorBody: `{"error":{"message":"rate limited"}}`})
+	defer srv.Close()
+	var out bytes.Buffer
+	a := New(Options{
+		Client: provider.NewCompatibleClient(srv.URL), Mode: ModeCode, Model: "claude-fable", PinnedModel: true,
+		Permission: PermissionFullAuto, Out: &out, Sess: enginetest.NewFakeSession("s_test", "claude-fable"),
+		ConnectorName: func(string) string { return "claude" },
+		Order:         []string{"paid", "subscription", "free"},
+		Candidates: func() []continuity.Candidate {
+			return []continuity.Candidate{
+				{Model: "gpt-5.6-sol", Connector: "codex", Plan: "ChatGPT Plus", Billing: "subscription"},
+				{Model: "gemini-2.5-pro", Connector: "google", Billing: "api-metered"},
+			}
+		},
+	})
+	_ = a.RunTurn(context.Background(), "go")
+	if !strings.Contains(out.String(), "Equivalent now: gemini-2.5-pro") {
+		t.Fatalf("paid-first order not honoured:\n%s", out.String())
+	}
+}

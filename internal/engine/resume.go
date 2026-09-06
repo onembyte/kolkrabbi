@@ -196,3 +196,57 @@ func NormalizeResume(value string) (string, error) {
 	}
 	return "", fmt.Errorf("%q is not auto or manual", value)
 }
+
+// NormalizeContinuityMode validates continuity.mode: off (the default) or on.
+func NormalizeContinuityMode(value string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "off":
+		return "off", nil
+	case "on":
+		return "on", nil
+	}
+	return "", fmt.Errorf("%q is not off or on", value)
+}
+
+// NormalizeContinuitySelect validates continuity.select: auto (the default),
+// preferred or ask.
+func NormalizeContinuitySelect(value string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "auto":
+		return "auto", nil
+	case "preferred", "ask":
+		return strings.ToLower(strings.TrimSpace(value)), nil
+	}
+	return "", fmt.Errorf("%q is not auto, preferred or ask", value)
+}
+
+// NormalizeContinuityOrder validates continuity.order: the three groups
+// subscription, paid and free (subs and metered are accepted spellings),
+// each once, in any order.
+func NormalizeContinuityOrder(words []string) ([]string, error) {
+	seen := map[string]bool{}
+	var out []string
+	for _, word := range words {
+		w := strings.ToLower(strings.TrimSpace(word))
+		switch w {
+		case "subs", "subscriptions":
+			w = "subscription"
+		case "metered", "keys", "key":
+			w = "paid"
+		case "subscription", "paid", "free":
+		case "":
+			continue
+		default:
+			return nil, fmt.Errorf("%q is not subscription, paid or free", word)
+		}
+		if seen[w] {
+			return nil, fmt.Errorf("%q is named twice", w)
+		}
+		seen[w] = true
+		out = append(out, w)
+	}
+	if len(out) != 3 {
+		return nil, fmt.Errorf("name all three of subscription, paid and free")
+	}
+	return out, nil
+}

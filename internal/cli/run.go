@@ -416,6 +416,11 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		// for /resume; the monitor confirms the lift without spending tokens,
 		// and a handover's check is the sign-in it already has (V35.2b).
 		ResumePolicy: cfg.Continuity.Resume,
+		// The continuity block, aliases folded in (plan 35 §2.4, §2.6).
+		ContinuityMode: cfg.EffectiveContinuity().Mode,
+		Select:         cfg.EffectiveContinuity().Select,
+		Preferred:      cfg.EffectiveContinuity().Preferred,
+		Order:          cfg.EffectiveContinuity().Order,
 		// What could continue the work when the model stops (plan 35 §2.3).
 		Candidates:       func() []continuity.Candidate { return a.continuityCandidates(ctx) },
 		HandoverSignedIn: a.connectorSignedIn,

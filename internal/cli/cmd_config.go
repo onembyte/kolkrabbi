@@ -104,11 +104,9 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				fmt.Fprintln(a.stdout, "(unset — chosen from the catalogue)")
 			}
 		case key == "routing.on_subscription_limit":
-			if cfg.Routing.OnSubscriptionLimit != "" {
-				fmt.Fprintln(a.stdout, cfg.Routing.OnSubscriptionLimit)
-			} else {
-				fmt.Fprintf(a.stdout, "(unset — inherits %s)\n", engine.OnLimitAsk)
-			}
+			a.printContinuityKey(cfg, key)
+		case key == "continuity.mode" || key == "continuity.select" || key == "continuity.preferred" || key == "continuity.order":
+			a.printContinuityKey(cfg, key)
 		case key == "continuity.resume":
 			if cfg.Continuity.Resume != "" {
 				fmt.Fprintln(a.stdout, cfg.Continuity.Resume)
@@ -116,11 +114,7 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				fmt.Fprintln(a.stdout, "(unset — auto: comes back when the limit lifts)")
 			}
 		case key == "routing.on_free_exhausted":
-			if cfg.Routing.OnFreeExhausted != "" {
-				fmt.Fprintln(a.stdout, cfg.Routing.OnFreeExhausted)
-			} else {
-				fmt.Fprintf(a.stdout, "(unset — inherits %s)\n", engine.OnFreeExhaustedFree)
-			}
+			a.printContinuityKey(cfg, key)
 		case strings.HasPrefix(key, "effort.") || strings.HasPrefix(key, "tier."):
 			canonical, err := parseEffortKey(key)
 			if err != nil {
@@ -260,6 +254,14 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintf(a.stdout, "routing.on_subscription_limit → %s\n", policy)
+		case key == "continuity.mode" || key == "continuity.select" || key == "continuity.preferred" || key == "continuity.order":
+			if err := setContinuityKey(cfg, key, val); err != nil {
+				return usagef("%s: %v", key, err)
+			}
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			a.printContinuityKey(cfg, key)
 		case key == "continuity.resume":
 			policy, err := engine.NormalizeResume(val)
 			if err != nil {
@@ -367,6 +369,21 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintln(a.stdout, "removed routing.on_subscription_limit; back to asking")
+		case key == "continuity.mode" || key == "continuity.select" || key == "continuity.preferred" || key == "continuity.order":
+			switch key {
+			case "continuity.mode":
+				cfg.Continuity.Mode = ""
+			case "continuity.select":
+				cfg.Continuity.Select = ""
+			case "continuity.preferred":
+				cfg.Continuity.Preferred = nil
+			case "continuity.order":
+				cfg.Continuity.Order = nil
+			}
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "removed %s; back to its default\n", key)
 		case key == "continuity.resume":
 			cfg.Continuity.Resume = ""
 			if err := config.Save(d.ConfigFile(), cfg); err != nil {
@@ -564,4 +581,68 @@ func (a *app) printSettings(cfg *config.Config, filter string) bool {
 	}
 	fmt.Fprintf(a.stdout, "\n%d settings · /config <text> to search · /config set <key> <value>\n", len(rows))
 	return true
+}
+
+// printContinuityKey shows one continuity key with its effective value, and
+// for the two deprecated routing knobs, what they alias.
+func (a *app) printContinuityKey(cfg *config.Config, key string) {
+	effective := cfg.EffectiveContinuity()
+	switch key {
+	case "routing.on_subscription_limit":
+		fmt.Fprintf(a.stdout, "%s (deprecated: an alias of continuity.mode; effective mode is %s)\n", orUnset(cfg.Routing.OnSubscriptionLimit, "ask"), effective.Mode)
+	case "routing.on_free_exhausted":
+		fmt.Fprintf(a.stdout, "%s (deprecated: an alias of continuity.order; effective order is %s)\n", orUnset(cfg.Routing.OnFreeExhausted, "free"), strings.Join(effective.Order, ", "))
+	case "continuity.mode":
+		fmt.Fprintf(a.stdout, "%s\n", effective.Mode)
+	case "continuity.select":
+		fmt.Fprintf(a.stdout, "%s\n", effective.Select)
+	case "continuity.preferred":
+		if len(effective.Preferred) == 0 {
+			fmt.Fprintln(a.stdout, "(none — no free model joins a chain until one is listed here)")
+		} else {
+			fmt.Fprintln(a.stdout, strings.Join(effective.Preferred, ", "))
+		}
+	case "continuity.order":
+		fmt.Fprintln(a.stdout, strings.Join(effective.Order, ", "))
+	}
+}
+
+func orUnset(value, inherited string) string {
+	if value == "" {
+		return "(unset — inherits " + inherited + ")"
+	}
+	return value
+}
+
+// setContinuityKey validates and stores one continuity key.
+func setContinuityKey(cfg *config.Config, key, val string) error {
+	switch key {
+	case "continuity.mode":
+		mode, err := engine.NormalizeContinuityMode(val)
+		if err != nil {
+			return err
+		}
+		cfg.Continuity.Mode = mode
+	case "continuity.select":
+		selection, err := engine.NormalizeContinuitySelect(val)
+		if err != nil {
+			return err
+		}
+		cfg.Continuity.Select = selection
+	case "continuity.preferred":
+		var list []string
+		for _, item := range strings.Split(val, ",") {
+			if item = strings.TrimSpace(item); item != "" {
+				list = append(list, item)
+			}
+		}
+		cfg.Continuity.Preferred = list
+	case "continuity.order":
+		order, err := engine.NormalizeContinuityOrder(strings.Split(val, ","))
+		if err != nil {
+			return err
+		}
+		cfg.Continuity.Order = order
+	}
+	return nil
 }

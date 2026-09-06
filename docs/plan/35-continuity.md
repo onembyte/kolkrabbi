@@ -136,6 +136,9 @@ CLI's candidate list, the card. Keyed vendor origins join the list with their li
 
 ### 2.4 CONTINUITY — switching, an opt-in with three shapes
 
+*Settings shipped 2026-09-06 as V35.5 (`continuity.mode|select|preferred|order`, the aliases of
+§2.6, the deprecation lines). `mode on` acting by itself and `select ask` asking are V35.6.*
+
 Owner decision, verbatim in structure: `continuity.mode = off (default) | on`. With `on`, a second
 setting opens:
 

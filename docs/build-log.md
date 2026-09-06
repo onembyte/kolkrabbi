@@ -7030,3 +7030,13 @@ aware of each other, kept without any session waiting on another. Nothing about 
 down. The person's own list, when they choose it, is the chain as written, eligibility applied and
 equivalence not, because they wrote it. What is left is the two opt-ins: the settings that name the
 mode, and the automatic walk under them.
+
+## The continuity knobs, named the owner's way — V35.5 closed 2026-09-06
+
+Four settings now say what a session does when its model hits a limit: whether it walks the chain at
+all, which chain, the person's own list, and the order of the three billing groups. The defaults are
+the owner's answers: off, auto, no list, subscriptions then paid then free. The two knobs kolk had
+before are read as aliases of these for one more release, say so when asked, and an explicit
+continuity key always wins over them. The order already reaches the ranking, so a person who puts
+paid before subscriptions sees the paid equivalent lead the block; the list already reaches the
+chain. What the mode itself does when it is on is the last leaf of the plan.

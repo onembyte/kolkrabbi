@@ -34,7 +34,7 @@ func (a *Agent) recommendation(limit provider.Limit) continuity.Recommendation {
 	for i := range candidates {
 		candidates[i].Preferred = a.isPreferred(candidates[i])
 	}
-	return continuity.Recommend(current, need, candidates, nil, cooling, modelRank)
+	return continuity.Recommend(current, need, candidates, a.Order, cooling, modelRank)
 }
 
 // isPreferred reports whether a candidate is on the person's own list, by

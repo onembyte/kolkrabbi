@@ -10960,6 +10960,24 @@ Subcheckpoints, one at a time:
     turn returned and one switch event; `/continue 2`; an exhausted chain; `PreferredChain` over
     the person's list; `/continue` saying what it cannot do. The CHAIN card is Available now with
     three pins. engine and cli with `-race`; whole tree; lint; vet; site; `make check`.
+  - [x] **V35.5 CONTINUITY settings** — plan 35 §2.4 and §2.6, opened and closed 2026-09-06.
+    **Scope:** `continuity.mode off|on`, `continuity.select auto|preferred|ask`,
+    `continuity.preferred` (a comma-separated list of plan-qualified or bare models),
+    `continuity.order` (subscription, paid, free — each once, any order; subs and metered are
+    accepted spellings) beside `continuity.resume`; `Config.EffectiveContinuity()` fills every
+    default and folds the two old routing knobs in as aliases (`switch` → mode on, select auto;
+    `stop` → mode off; on_free_exhausted `paid` → paid before free), an explicit continuity key
+    winning; `/config get|set|unset` for the four keys with the engine's normalizers refusing a bad
+    word or a group named twice; the settings table names the four with their words and marks the
+    two old knobs deprecated with what they alias and when they go; `/config get` on an old knob
+    says the alias and the effective value while keeping its inherited default in view; the
+    engine carries `ContinuityMode`, `Select`, `Preferred` and `Order`, the order now reaching the
+    ranking (paid-first pinned) and the list reaching the chain. **Non-goals:** `mode on` does not
+    yet act by itself and `select ask` does not yet ask — both are V35.6; nothing is removed
+    (the old knobs keep working this release). **Red observed:** no such keys, the ranking's order
+    fixed. Tests: the defaults and the three aliases with explicit keys winning; the four keys
+    through `/config` with two refusals and the deprecation line; the engine order. cli with
+    `-race`; whole tree; lint; vet; `make check`.
     - [x] **V35.2a the pause** — `Pause` on the session (kind, scope, connector, model, reset, since, the
       pending input verbatim), persisted under the messages lock; a paused session refuses to spend and
       says when it resumes; the turn that paused ends with `turn.finished{paused}` and `provider.limit

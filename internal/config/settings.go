@@ -40,6 +40,14 @@ func (c *Config) settingRows(defaultModel, defaultBaseURL string) []Setting {
 	onLimit, onLimitDefault := text(c.Routing.OnSubscriptionLimit, "ask")
 	onFree, onFreeDefault := text(c.Routing.OnFreeExhausted, "free")
 	resume, resumeDefault := text(c.Continuity.Resume, "auto")
+	effective := c.EffectiveContinuity()
+	continuityMode, continuityModeDefault := text(c.Continuity.Mode, effective.Mode)
+	selection, selectionDefault := text(c.Continuity.Select, "auto")
+	preferred, preferredDefault := strings.Join(c.Continuity.Preferred, ", "), len(c.Continuity.Preferred) == 0
+	if preferredDefault {
+		preferred = "(none)"
+	}
+	order, orderDefault := strings.Join(effective.Order, ", "), len(c.Continuity.Order) == 0
 	effort, effortDefault := text(c.Effort, "medium")
 
 	cost, costDefault := "no ceiling", true
@@ -67,9 +75,17 @@ func (c *Config) settingRows(defaultModel, defaultBaseURL string) []Setting {
 		{"sandbox", sandbox, sandboxDefault,
 			"confine bash commands to the project and temp (OS sandbox): on · off; /sandbox switches it for the session"},
 		{"routing.on_subscription_limit", onLimit, onLimitDefault,
-			"when a subscription runs out: ask · switch to a metered model · stop"},
+			"deprecated, an alias of continuity.mode (switch = on, stop = off); removed in the release after this one"},
 		{"routing.on_free_exhausted", onFree, onFreeDefault,
-			"when no free model can serve: free (stay free) · paid · stop"},
+			"deprecated, an alias of continuity.order (paid = paid before free); removed in the release after this one"},
+		{"continuity.mode", continuityMode, continuityModeDefault,
+			"when the model behind the session hits a limit: off (pause, resume on the same model) · on (walk the chain)"},
+		{"continuity.select", selection, selectionDefault,
+			"which chain, when mode is on: auto (equivalents, in continuity.order) · preferred (your list, as written) · ask (a question, once per run)"},
+		{"continuity.preferred", preferred, preferredDefault,
+			"your own models to continue on, plan-qualified or bare, comma-separated; the only way a free model joins a chain"},
+		{"continuity.order", order, orderDefault,
+			"the groups to try, in order: subscription · paid · free"},
 		{"continuity.resume", resume, resumeDefault,
 			"a session paused on a limit: auto (comes back when the limit lifts, no tokens spent) · manual (waits for /resume)"},
 	}
