@@ -18,6 +18,9 @@ var connectorLoginArgs = map[string][]string{
 	// whole point of a provider-CLI connector is that the provider keeps it.
 	"claude": {"auth", "login"},
 	"codex":  {"login"},
+	// `copilot login` (CLI 1.0.82) opens the browser, waits, prints "Signed
+	// in successfully as <user>" and exits — run by the owner on 2026-09-06.
+	"copilot": {"login"},
 	// `ollama signin` opens a browser, waits for the sign-in and exits. Unlike
 	// `claude`, the bare `ollama` binary prints usage rather than opening an
 	// application, so the fallback would not have been harmful here — the
@@ -52,8 +55,8 @@ var connectorLoginHints = map[string]string{
 	// CLI, or export a fine-grained token with the "Copilot Requests"
 	// permission as COPILOT_GITHUB_TOKEN (GH_TOKEN and GITHUB_TOKEN also
 	// work, in that order of precedence).
-	"copilot": "inside copilot, type /login and follow the browser, then /exit to come back here; " +
-		"or, before starting kolk, export a fine-grained token with the \"Copilot Requests\" permission as COPILOT_GITHUB_TOKEN",
+	"copilot": "copilot login opens the browser and exits when signed in (inside copilot, /login does the same and /exit comes back); " +
+		"headless, export a fine-grained token with the \"Copilot Requests\" permission as COPILOT_GITHUB_TOKEN",
 }
 
 // LoginHint is the sentence for a connector that signs in inside its own

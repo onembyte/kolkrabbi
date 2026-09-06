@@ -31,7 +31,14 @@ var planCatalog = []Plan{
 	{Provider: "mistral", Name: "Le Chat Pro", Connector: "mistral-api", Auth: "API key", Billing: "metered", Sandbox: false},
 	{Provider: "deepseek", Name: "DeepSeek", Connector: "deepseek-api", Auth: "API key", Billing: "metered", Sandbox: false},
 	{Provider: "qwen", Name: "Qwen", Connector: "qwen-api", Auth: "API key", Billing: "metered", Sandbox: false},
+	// Copilot Free verified live on 2026-09-06 (CLI 1.0.82): one premium
+	// request per turn, the model chosen by the vendor (`auto`; naming one is
+	// refused on Free). The paid plans are the vendor's list, not yet seen.
+	{Provider: "github", Name: "Copilot Free", Connector: "copilot", Auth: "provider CLI", Billing: "subscription", Sandbox: true},
 	{Provider: "github", Name: "Copilot Pro", Connector: "copilot", Auth: "provider CLI", Billing: "subscription", Sandbox: true},
+	{Provider: "github", Name: "Copilot Pro+", Connector: "copilot", Auth: "provider CLI", Billing: "subscription", Sandbox: true},
+	{Provider: "github", Name: "Copilot Business", Connector: "copilot", Auth: "provider CLI", Billing: "subscription", Sandbox: true},
+	{Provider: "github", Name: "Copilot Enterprise", Connector: "copilot", Auth: "provider CLI", Billing: "subscription", Sandbox: true},
 	{Provider: "cohere", Name: "Cohere Developer", Connector: "cohere-api", Auth: "API key", Billing: "metered", Sandbox: false},
 	// Ollama's paid ollama.com tier, which is not the same thing as the local
 	// Ollama this machine may already be running — `kolk localia` owns that.

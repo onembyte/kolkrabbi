@@ -254,3 +254,21 @@ func TestAVendorOriginGetsAKeyedVendorClient(t *testing.T) {
 		t.Fatalf("compatible endpoint = %+v, %v; want keyless", plain, err)
 	}
 }
+
+// Found live on 2026-09-06: `kolk -m "Copilot Free/auto"` built the backend
+// for the plan's bare model and then handed the vendor the qualified name,
+// which it refused. Startup now settles on the plan's own model, as /model
+// already did.
+func TestStartupOnAPlanQualifiedModelSettlesOnThePlansBareModel(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	signInAs(t, dirs, "github", "Copilot Free", "copilot")
+	a, _, _ := newTestApp(t, "")
+	a.dirs = dirs
+	ag, err := a.newAgent(context.Background(), &options{model: "Copilot Free/auto", mode: "chat"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ag.Model != "auto" {
+		t.Fatalf("agent model = %q, want the plan's bare model", ag.Model)
+	}
+}

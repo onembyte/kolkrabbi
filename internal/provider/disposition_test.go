@@ -36,10 +36,11 @@ func TestEveryProviderHasADispositionAndOnlyShippedOnesHaveCLIRows(t *testing.T)
 			t.Fatalf("model row %s/%s claims a provider-CLI path but %q is not shipped (%+v)", row.Plan, row.Model, row.Provider, d)
 		}
 	}
-	// The owner's 2026-09-05 choice, recorded as data.
+	// The owner's 2026-09-05 choice, recorded as data; github shipped on
+	// 2026-09-06 after the owner's own login and an answered turn.
 	for provider, want := range map[string]string{
 		"anthropic": dispositionShipped, "openai": dispositionShipped,
-		"google": dispositionChosen, "xai": dispositionChosen, "github": dispositionChosen, "perplexity": dispositionInvestigating,
+		"google": dispositionChosen, "xai": dispositionChosen, "github": dispositionShipped, "perplexity": dispositionInvestigating,
 		"mistral": dispositionDeferred, "deepseek": dispositionDeferred, "qwen": dispositionDeferred, "cohere": dispositionDeferred,
 	} {
 		d, _ := dispositionFor(provider)

@@ -51,7 +51,10 @@ func modelListerFor(connector string, gateway []provider.ModelInfo) provider.Mod
 	case "ollama":
 		return ollamaCloudLister{}
 	case "copilot":
-		return provider.NotListable{Vendor: "copilot", Reason: "the copilot CLI has no catalog command and the gateway carries no github/ prefix"}
+		// Observed 2026-09-06: the CLI names its models only inside a session
+		// (session.auto_mode_resolved) and the Free plan accepts only `auto`;
+		// each answered turn records the model auto chose as auto's exact id.
+		return provider.NotListable{Vendor: "copilot", Reason: "the copilot CLI has no catalog command; it names the model it chose inside each turn, which kolk records under `auto`"}
 	default:
 		return nil
 	}
@@ -320,6 +323,8 @@ func (a *app) vendorKnowsModel(store provider.VendorCatalogs, vendor, model stri
 		return agentcli.ClaudeKnowsModel(model)
 	case "codex":
 		return agentcli.CodexKnowsModel(model)
+	case "copilot":
+		return agentcli.CopilotKnowsModel(model)
 	default:
 		return false
 	}

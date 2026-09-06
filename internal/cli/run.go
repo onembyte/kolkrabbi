@@ -355,7 +355,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		freeModels = provider.RankFreeModels(provider.FallbackCatalogSeed())
 	}
 
-	backend, err := a.planBackend(model, mode, effort, sess.ProviderStateName(), func(state string) {
+	backend, model, err := a.planBackend(model, mode, effort, sess.ProviderStateName(), func(state string) {
 		// The vendor conversation handle is noted the moment the backend owns
 		// one, and the engine's next save writes it to disk; a failed save only
 		// costs the resume, never the turn.
@@ -512,9 +512,16 @@ func (a *app) loadCatalog(ctx context.Context, client *provider.Client, path str
 // model keeps the default provider client, and a plan model the user cannot use
 // yet stops the session with the reason rather than quietly answering from a
 // different provider than the one they asked for.
-func (a *app) planBackend(model, mode, effort, state string, note func(string), permission engine.Permission) (engine.ChatBackend, error) {
-	backend, _, err := a.planBackendFor(model, mode, effort, state, note, permission)
-	return backend, err
+// planBackend is planBackendFor with the model the session should carry:
+// the plan's own model when a plan answered, the reference as typed when
+// none did. A plan-qualified reference must never reach a vendor as a model
+// name — it did once, and the vendor refused it.
+func (a *app) planBackend(model, mode, effort, state string, note func(string), permission engine.Permission) (engine.ChatBackend, string, error) {
+	backend, planModel, err := a.planBackendFor(model, mode, effort, state, note, permission)
+	if err != nil || backend == nil {
+		return backend, model, err
+	}
+	return backend, planModel.Model, nil
 }
 
 // planBackendFor reports the provider that must answer for one model. A nil
@@ -567,14 +574,16 @@ func (a *app) planBackendFor(model, mode, effort, state string, note func(string
 		}
 		return a.verifyingBackend(inner, planModel, mode, resolved, note), planModel, nil
 	case "copilot":
-		// Copilot has no effort dial on the pages read; the rung stays kolk's.
-		// Every tool is allowed only under full-auto (V34.4c.2).
-		inner, err := agentcli.NewCopilotBackendWithOptions(planModel.Model, mode,
-			agentcli.ExecutionOptions{BypassPermissions: permission == engine.PermissionFullAuto})
+		// The vendor keeps the conversation (--resume) the way it keeps the
+		// login; the rung reaches it only on a named model, since `auto`
+		// refuses one; every tool is allowed only under full-auto (V34.4c.2).
+		resolved := a.planEffort(effort, planModel)
+		inner, err := agentcli.NewCopilotBackendWithOptions(planModel.Model, mode, resolved, state,
+			agentcli.ExecutionOptions{BypassPermissions: permission == engine.PermissionFullAuto, Efforts: planModel.Efforts})
 		if err != nil {
 			return nil, provider.PlanModel{}, err
 		}
-		return a.verifyingBackend(inner, planModel, mode, effort, note), planModel, nil
+		return a.verifyingBackend(inner, planModel, mode, resolved, note), planModel, nil
 	default:
 		return nil, provider.PlanModel{}, fmt.Errorf("the %s connector is enabled but Kolkrabbi has no adapter for it yet, so %s cannot run a session",
 			planModel.Connector, planModel.Model)

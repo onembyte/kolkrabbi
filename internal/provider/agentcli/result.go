@@ -22,7 +22,11 @@ func collect(events []Event, elapsed time.Duration) (provider.Message, provider.
 	for _, event := range events {
 		switch event.Kind {
 		case EventInit:
-			meta.Model = event.Model
+			// An init that only carries a session handle (Copilot's terminal
+			// result) must not blank a model an earlier event named.
+			if event.Model != "" {
+				meta.Model = event.Model
+			}
 		case EventTool:
 			// One tool_use is one run; the later tool_result merely completes
 			// the one already counted.

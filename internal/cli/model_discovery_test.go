@@ -354,3 +354,29 @@ func TestAVendorVerifiesOnlyModelsItLists(t *testing.T) {
 		t.Fatalf("the note was said %d times, want once:\n%s", n, errOut.String())
 	}
 }
+
+// Copilot names its model only inside the turn: kolk asks for `auto`, the
+// vendor's own routing word, and the vendor answers on the model it chose.
+// That answer verifies `auto` with the chosen model as its exact id — and is
+// never recorded as a named model, since the Free plan refuses those by
+// name (observed 2026-09-06).
+func TestCopilotsAutoIsVerifiedWithTheModelTheVendorChose(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	a, _, errOut := newTestApp(t, "")
+	a.dirs = dirs
+	a.recordVendorModelOutcome("copilot", "auto", provider.Meta{Model: "gpt-5.6-luna"}, nil)
+	after, err := provider.LoadVendorCatalogs(dirs.VendorCatalogFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, found := after.Vendors["copilot"].Find("auto")
+	if !found || row.Status != provider.StatusVerified || len(row.ExactIDs) != 1 || row.ExactIDs[0] != "gpt-5.6-luna" {
+		t.Fatalf("auto after a turn = found %v %+v; want verified with the chosen model as exact id", found, row)
+	}
+	if _, found := after.Vendors["copilot"].Find("gpt-5.6-luna"); found {
+		t.Fatal("the model auto chose was recorded as a named copilot model, which the Free plan refuses")
+	}
+	if strings.Contains(errOut.String(), "does not list") {
+		t.Fatalf("auto was treated as unknown:\n%s", errOut.String())
+	}
+}

@@ -25,8 +25,13 @@ func TestPlanModelsFilterAndEfforts(t *testing.T) {
 func TestPlanModelsMetadataIsComplete(t *testing.T) {
 	for _, model := range PlanModelsFrom(VendorCatalogs{}, "") {
 		if model.Provider == "" || model.Plan == "" || model.Connector == "" ||
-			model.Model == "" || model.Access == "" || len(model.Efforts) == 0 {
+			model.Model == "" || model.Access == "" {
 			t.Errorf("incomplete plan model metadata: %+v", model)
+		}
+		// A row on the vendor's `auto` has no dial: Copilot refuses an
+		// effort on it (observed 2026-09-06). Every named model carries one.
+		if len(model.Efforts) == 0 && model.Model != "auto" {
+			t.Errorf("model has no effort metadata: %+v", model)
 		}
 	}
 }

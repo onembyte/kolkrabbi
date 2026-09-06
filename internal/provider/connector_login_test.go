@@ -53,14 +53,12 @@ func TestLoginArgsCannotBeMutatedThroughTheAccessor(t *testing.T) {
 	}
 }
 
-// Copilot signs in inside its own CLI (`/login`, read 2026-09-05) or through
-// a fine-grained token in its environment; no login subcommand is documented.
-// By this table's own rule a guessed subcommand is worse than the fallback,
-// so copilot stays absent — and the fallback's message, which would otherwise
-// drop a person inside another agent's whole interface, carries the hint.
-func TestCopilotLoginIsNotGuessedAndCarriesAHint(t *testing.T) {
-	if _, known := LoginArgs("copilot"); known {
-		t.Fatal("copilot has a guessed login subcommand; none is documented")
+// Copilot's `login` subcommand was not on the pages read on 2026-09-05; the
+// installed CLI has it and the owner ran it on 2026-09-06, so it is in the
+// table, and the hint about the token path stays for headless use.
+func TestCopilotLoginIsTheVerifiedSubcommandAndCarriesAHint(t *testing.T) {
+	if args, known := LoginArgs("copilot"); !known || len(args) != 1 || args[0] != "login" {
+		t.Fatalf("LoginArgs(copilot) = %v, %v; want the `login` subcommand run live on 2026-09-06", args, known)
 	}
 	hint := LoginHint("copilot")
 	for _, want := range []string{"/login", "/exit", "COPILOT_GITHUB_TOKEN", "Copilot Requests"} {

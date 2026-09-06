@@ -22,8 +22,9 @@ Source: https://github.com/onembyte/kolkrabbi
 kolk never sees, stores or refreshes a subscription credential. The vendor's own CLI performs the
 login; kolk drives that CLI as a subprocess and records what comes back.
 
-Google, xAI, Perplexity, Mistral, DeepSeek, Qwen, Cohere and GitHub Copilot have no direct
-adapter yet. Most of those models are already reachable through the OpenRouter gateway.
+GitHub Copilot (Free through Enterprise) is a third handover, via the copilot CLI, verified live on
+2026-09-06. Google, xAI, Perplexity, Mistral, DeepSeek, Qwen and Cohere have no direct adapter yet.
+Most of those models are already reachable through the OpenRouter gateway.
 
 ## What makes it different
 

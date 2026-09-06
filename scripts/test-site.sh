@@ -204,7 +204,12 @@ provider_status Mistral planned
 provider_status DeepSeek planned
 provider_status Qwen planned
 provider_status Cohere planned
-provider_status GitHub planned
+# GitHub went live on 2026-09-06: the Copilot CLI handover answered a turn on the Free plan.
+provider_status GitHub live
+not_contains index.html 'Copilot Pro, if its terms permit a handover' "the GitHub row's planned wording must be gone"
+contains index.html 'via the copilot CLI' "the GitHub row must name the copilot CLI handover"
+contains llms.txt 'GitHub Copilot (Free through Enterprise) is a third handover' "llms.txt must name the Copilot handover"
+not_contains llms.txt 'Cohere and GitHub Copilot have no direct' "llms.txt must not still list Copilot among the missing adapters"
 
 # The checks above are written by hand, which means a provider added to the
 # repository could sit there unlisted while every one of them still passed.

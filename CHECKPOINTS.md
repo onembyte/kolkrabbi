@@ -10761,7 +10761,7 @@ Subcheckpoints, one at a time:
             `-race`; whole tree; lint; vet; site; `make check`.
             **Still open, yours:** the live xAI `/models` probe and Google's live keyed lister need a
             real key; the xAI row says shipped only after you confirm its terms.
-    - [~] **V34.4c.2 the Copilot CLI handover (GitHub)** — `agentcli` backend on the `-p`/`-s`
+    - [x] **V34.4c.2 the Copilot CLI handover (GitHub)** — `agentcli` backend on the `-p`/`-s`
       contract with `--allow-tool`/`--deny-tool` as the sandbox seam, `--model` from the vendor's
       `/model` list (verified by turn, as Claude), cancellation, redaction fixtures, the plan rows for
       the Copilot plans a login actually shows. **Red:** `kolk plans login github` does nothing.
@@ -10789,10 +10789,37 @@ Subcheckpoints, one at a time:
         GitHub disposition stays `chosen`, so the model-row gate still refuses a Copilot model row.
         agentcli and cli with `-race`; arch (both exports wired); whole tree; lint; vet; `make
         check`.
-      - [ ] **V34.4c.2b the live verification** — yours: install the CLI, `kolk plans login github
+      - [x] **V34.4c.2b the live verification** — yours: install the CLI, `kolk plans login github
         "Copilot Pro"`, one answered turn; then the observed output shape, exit code and tool gate
         replace the docs' claims, the disposition flips to `shipped`, and the Copilot model rows
         land with the plans a login actually shows. Redaction fixtures from a real transcript.
+        **Closed 2026-09-06, on main.** The owner installed Copilot CLI 1.0.82, ran `copilot login`
+        (a subcommand the pages did not show), and has the Free plan. Observed, in a scratch
+        directory, and everything below is from those runs: `--output-format json` streams JSONL —
+        `assistant.message_delta`/`assistant.message`, `tool.execution_start`/`complete`,
+        `model.model_call_success` with `responseUsage`, `model.turn_started` with the model's
+        capabilities and the plans it is restricted to, and a terminal `result` with `sessionId`
+        and `exitCode`; `--resume <id>` continues a session (it answered "pong" from the earlier
+        turn); `--model` other than `auto` is refused on Free; `--effort` is refused on `auto` and
+        the dial is none…max; **without `--allow-all-tools` a tool is denied — "Permission denied and
+        could not request permission from user" — while the model still says "done" and the exit
+        code is 0**; `auto` chose gpt-5.6-luna and mai-code-1.1-flash; one premium request per turn.
+        Green: `TranslateCopilot` over three scrubbed live fixtures (reply, tool, denied); the
+        backend on the JSON stream with `--resume`, the four privacy flags (no export to github.com,
+        no remote control, no auto-update, no colour), `--effort` only on a named model, and the
+        denial returned as the turn's error (`ErrCopilotToolsDenied`) so a turn that did nothing is
+        never reported as done; `copilot login` in the login table; Copilot Free through Enterprise
+        as plan rows, `auto` as their model (no dial, the metadata gate taught why); the disposition
+        `shipped` with the evidence; Copilot's `auto` verified with the model the vendor chose as its
+        exact id, never as a named row the Free plan would refuse. **Then the real thing through
+        kolk:** `kolk -m "Copilot Free/auto" --mode chat -p …` answered `pong` on gpt-5.6-luna, the
+        connector is `verified`, the usage log carries `subscription` with the call's own token
+        counts — and the first attempt found a startup bug: a plan-qualified `-m` handed the vendor
+        the qualified name, which it refused; startup now settles on the plan's bare model as
+        `/model` did (red, then green). Site: the GitHub row on the provider wall is live with
+        the copilot CLI named, llms.txt names the third handover, both pinned with inverses.
+        agentcli and cli with `-race`; arch; whole tree; lint (one nilerr turned into a validity
+        check); vet; site 351/351; `make check`.
     - [ ] **V34.4c.3 Perplexity** — blocked on an owner decision: confirm the Router API's
       chat-completions base and ship it as a keyed origin (4c.1 shape), or build a Responses
       translator, or defer. Not mine to choose.

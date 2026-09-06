@@ -6982,3 +6982,21 @@ does not run third-party software on this machine unasked. So the output shape, 
 what the CLI does with a tool when nothing is allowed are the documentation's claims until one
 answered turn replaces them. The disposition stays at chosen, and the gate that refuses a model row
 for an unshipped provider keeps refusing.
+
+## Copilot answers through kolk — V34.4c.2b closed 2026-09-06
+
+The owner installed the Copilot CLI, signed in, and said use it. Every claim the pages had made was
+then replaced by an observation: there is a login subcommand; there is a JSONL event stream with the
+reply, each tool's start and result, usage per model call, the model's capabilities and the plans it
+is restricted to, and a terminal record with the session id; a session resumes; the Free plan
+accepts only `auto` as its model and refuses an effort on it. The observation that shaped the code
+most was the gate: without the flag that allows every tool, a non-interactive Copilot denies the
+tool with "could not request permission from user", the model says "done" anyway, and the process
+exits 0. Kolk now reads that denial out of the stream and makes it the turn's error, because a turn
+that did nothing must never be reported as done.
+
+The first real turn through kolk itself failed, and honestly: startup had handed the vendor the
+plan-qualified name typed on the command line, which the vendor refused. The `/model` path already
+settled on the plan's own model; startup now does too. The second turn answered on the model the
+vendor chose, the connector is verified, and the usage log records the turn as the plan's, with its
+own token counts and no invented price. The provider wall says GitHub works today.

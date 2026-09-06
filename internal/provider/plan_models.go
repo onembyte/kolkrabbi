@@ -51,6 +51,16 @@ var planModelCatalog = []PlanModel{
 	{Provider: "openai", Plan: "ChatGPT Pro", Connector: "codex", Model: "gpt-5.6-sol", Efforts: []string{"low", "medium", "high", "xhigh"}, Access: "provider CLI"},
 	{Provider: "openai", Plan: "ChatGPT Pro", Connector: "codex", Model: "gpt-5.6-terra", Efforts: []string{"low", "medium", "high", "xhigh"}, Access: "provider CLI"},
 	{Provider: "openai", Plan: "ChatGPT Pro", Connector: "codex", Model: "gpt-5.6-luna", Efforts: []string{"low", "medium", "high", "xhigh"}, Access: "provider CLI"},
+	// Copilot: the vendor picks the model (`auto`) and, on the Free plan,
+	// refuses a named one — observed live 2026-09-06 (gpt-5.6-luna and
+	// mai-code-1.1-flash were the choices seen). The paid plans carry the same
+	// row as a seed until a login on one of them says more. No effort dial on
+	// `auto`: the vendor refuses one.
+	{Provider: "github", Plan: "Copilot Free", Connector: "copilot", Model: "auto", Access: "provider CLI"},
+	{Provider: "github", Plan: "Copilot Pro", Connector: "copilot", Model: "auto", Access: "provider CLI"},
+	{Provider: "github", Plan: "Copilot Pro+", Connector: "copilot", Model: "auto", Access: "provider CLI"},
+	{Provider: "github", Plan: "Copilot Business", Connector: "copilot", Model: "auto", Access: "provider CLI"},
+	{Provider: "github", Plan: "Copilot Enterprise", Connector: "copilot", Model: "auto", Access: "provider CLI"},
 	{Provider: "google", Plan: "Google AI Pro", Connector: "gemini", Model: "gemini-2.5-pro", Efforts: []string{"low", "medium", "high"}, Access: "unsupported subscription"},
 	{Provider: "google", Plan: "Google AI Pro", Connector: "gemini", Model: "gemini-2.5-flash", Efforts: []string{"low", "medium", "high"}, Access: "unsupported subscription"},
 	{Provider: "google", Plan: "Google AI Ultra", Connector: "gemini", Model: "gemini-2.5-pro", Efforts: []string{"low", "medium", "high", "max"}, Access: "unsupported subscription"},
