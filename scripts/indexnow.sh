@@ -7,7 +7,7 @@ set -euo pipefail
 HOST="kolkrabbi.francomichetti.com"
 KEY="c7bac75b25de520e644e5d92d96e4473"
 SITEMAP="site/sitemap.xml"
-urls=$(grep -o '<loc>[^<]*</loc>' "$SITEMAP" | sed 's/<\/\?loc>//g' | awk '{printf "%s\"%s\"", (NR>1?",":""), $0}')
+urls=$(grep -o '<loc>[^<]*</loc>' "$SITEMAP" | sed -e 's/<loc>//g' -e 's/<\/loc>//g' | awk '{printf "%s\"%s\"", (NR>1?",":""), $0}')
 body=$(printf '{"host":"%s","key":"%s","keyLocation":"https://%s/%s.txt","urlList":[%s]}' "$HOST" "$KEY" "$HOST" "$KEY" "$urls")
 code=$(curl -sS -o /dev/null -w "%{http_code}" -H "Content-Type: application/json; charset=utf-8" -d "$body" "https://api.indexnow.org/IndexNow")
 echo "indexnow: HTTP $code"
