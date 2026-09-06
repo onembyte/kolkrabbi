@@ -145,7 +145,7 @@ var dispositions = []Disposition{
 			"https://docs.github.com/en/site-policy/github-terms/github-terms-of-service §J (effective 2026-04-27)",
 		},
 		Blockers: []string{
-			"a Copilot handover (agentcli) with the -p/-s contract, verified-by-turn model truth, cancellation and redaction — V34.4c.2",
+			"the adapter is built to the docs (V34.4c.2a); a live run — install, login, one answered turn — has not happened, so the output shape, exit code and tool gate are the docs' claims (V34.4c.2b)",
 			"which Copilot plans include the CLI is not enumerated on the pages read; the seed row stays Copilot Pro until a login says otherwise",
 		},
 	},

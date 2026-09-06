@@ -6965,3 +6965,20 @@ key. The gate that every connector must list its models caught the new row at on
 the gateway's preview, marked as such, until a live keyed lister exists. A flaky disk test was
 hardened on the way: two readings a moment apart differed by one block, and the claim was never
 about the instant. What is left in this leaf needs a real key or your reading of xAI's terms.
+
+## A Copilot handover built to the page, not to a run — V34.4c.2a closed 2026-09-06
+
+GitHub's only path is its Copilot CLI, and the CLI documents a programmatic contract: one prompt on
+the command line, only the response printed, a model flag, a switch that allows every tool, a way to
+widen the allowed paths. Kolk now sends exactly that and nothing more, runs one process per turn
+through the same line runner Codex uses, streams each printed line as it arrives, folds them into
+one reply billed as the plan's turn, and ends a cancelled run with the context's error. Login is
+where the page and kolk's own rule met: Copilot signs in inside its interface, and the login table
+forbids guessing a subcommand, so copilot stays out of the table and gets a hint instead — type
+/login inside, /exit to come back, or export a token with the Copilot Requests permission.
+
+What did not happen is said as plainly: no live run. The binary is the owner's to install, and kolk
+does not run third-party software on this machine unasked. So the output shape, the exit code and
+what the CLI does with a tool when nothing is allowed are the documentation's claims until one
+answered turn replaces them. The disposition stays at chosen, and the gate that refuses a model row
+for an unshipped provider keeps refusing.

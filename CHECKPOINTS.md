@@ -10761,10 +10761,38 @@ Subcheckpoints, one at a time:
             `-race`; whole tree; lint; vet; site; `make check`.
             **Still open, yours:** the live xAI `/models` probe and Google's live keyed lister need a
             real key; the xAI row says shipped only after you confirm its terms.
-    - [ ] **V34.4c.2 the Copilot CLI handover (GitHub)** — `agentcli` backend on the `-p`/`-s`
+    - [~] **V34.4c.2 the Copilot CLI handover (GitHub)** — `agentcli` backend on the `-p`/`-s`
       contract with `--allow-tool`/`--deny-tool` as the sandbox seam, `--model` from the vendor's
       `/model` list (verified by turn, as Claude), cancellation, redaction fixtures, the plan rows for
       the Copilot plans a login actually shows. **Red:** `kolk plans login github` does nothing.
+      Split 2026-09-06:
+      - [x] **V34.4c.2a the adapter on the documented contract** — **Closed 2026-09-06, on main.**
+        Red observed: no invocation, no backend, `copilot` unknown to `connectorProvider`, and a
+        `kolk plans login github "Copilot Pro"` that would drop a person inside Copilot's whole
+        interface with "kolk does not know how copilot signs in". Green, built to the pages read on
+        2026-09-05 and to nothing else: `BuildCopilotInvocationWithOptions` sends `-p PROMPT -s`,
+        `--model` when a model is named, `--allow-all-tools` only under full-auto in a tool mode
+        (chat grants nothing; without full-auto the CLI keeps its own gate), `--add-dir` per extra
+        directory, the process in the workspace — pinned exactly. `CopilotBackend` runs one process
+        per turn through the same line runner as Codex: every `-s` line is a delta of one assistant
+        message, streamed as it prints, folded by `Collect` and billed `subscription`; a cancelled
+        run ends with the context's error and nothing invented; no session handle, since the pages
+        document none. Wired into the session switch beside claude and codex under
+        `verifyingBackend`, so the model is verified by its first answered turn, as Claude. Login:
+        by the login table's own rule a guessed subcommand is worse than the fallback, so copilot
+        stays absent and gains `LoginHint` — `/login` inside, `/exit` back, or a fine-grained token
+        with "Copilot Requests" as `COPILOT_GITHUB_TOKEN` — printed where the bare fallback used
+        to shrug. `connectorProvider("copilot")` is github. Non-goals, said plainly: **no live run
+        happened** — the binary is the owner's to install, and kolk's rule is not to run third-party
+        software on this machine unasked — so the `-p` output shape (plain lines), the tool gate
+        without `--allow-all-tools`, and the exit code are the docs' claims, not observed ones; the
+        GitHub disposition stays `chosen`, so the model-row gate still refuses a Copilot model row.
+        agentcli and cli with `-race`; arch (both exports wired); whole tree; lint; vet; `make
+        check`.
+      - [ ] **V34.4c.2b the live verification** — yours: install the CLI, `kolk plans login github
+        "Copilot Pro"`, one answered turn; then the observed output shape, exit code and tool gate
+        replace the docs' claims, the disposition flips to `shipped`, and the Copilot model rows
+        land with the plans a login actually shows. Redaction fixtures from a real transcript.
     - [ ] **V34.4c.3 Perplexity** — blocked on an owner decision: confirm the Router API's
       chat-completions base and ship it as a keyed origin (4c.1 shape), or build a Responses
       translator, or defer. Not mine to choose.

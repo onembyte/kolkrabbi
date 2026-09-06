@@ -173,7 +173,11 @@ func (a *app) runConnectorLoginWith(ctx context.Context, connectorsFile string, 
 	// in ended up inside another agent's full interface instead.
 	loginArgs, known := provider.LoginArgs(selected.Connector)
 	if !known {
-		fmt.Fprintf(a.stdout, "kolk does not know how %s signs in; running it as-is.\n", selected.Connector)
+		if hint := provider.LoginHint(selected.Connector); hint != "" {
+			fmt.Fprintf(a.stdout, "%s signs in inside its own interface: %s\n", selected.Connector, hint)
+		} else {
+			fmt.Fprintf(a.stdout, "kolk does not know how %s signs in; running it as-is.\n", selected.Connector)
+		}
 	}
 	// `ollama signin` talks to a running server — the key that gets signed in
 	// is the server's — so without one the login cannot start, and a

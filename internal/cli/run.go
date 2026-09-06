@@ -566,6 +566,15 @@ func (a *app) planBackendFor(model, mode, effort, state string, note func(string
 			return nil, provider.PlanModel{}, err
 		}
 		return a.verifyingBackend(inner, planModel, mode, resolved, note), planModel, nil
+	case "copilot":
+		// Copilot has no effort dial on the pages read; the rung stays kolk's.
+		// Every tool is allowed only under full-auto (V34.4c.2).
+		inner, err := agentcli.NewCopilotBackendWithOptions(planModel.Model, mode,
+			agentcli.ExecutionOptions{BypassPermissions: permission == engine.PermissionFullAuto})
+		if err != nil {
+			return nil, provider.PlanModel{}, err
+		}
+		return a.verifyingBackend(inner, planModel, mode, effort, note), planModel, nil
 	default:
 		return nil, provider.PlanModel{}, fmt.Errorf("the %s connector is enabled but Kolkrabbi has no adapter for it yet, so %s cannot run a session",
 			planModel.Connector, planModel.Model)

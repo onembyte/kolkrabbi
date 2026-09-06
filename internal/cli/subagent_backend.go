@@ -86,6 +86,8 @@ func connectorProvider(name string) (string, bool) {
 		return "anthropic", true
 	case "codex":
 		return "openai", true
+	case "copilot":
+		return "github", true
 	default:
 		return "", false
 	}

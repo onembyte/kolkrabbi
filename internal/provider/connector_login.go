@@ -43,3 +43,21 @@ func LoginArgs(connector string) ([]string, bool) {
 	copy(out, args)
 	return out, true
 }
+
+// connectorLoginHints are what kolk tells a person before running a connector
+// that has no login subcommand: how to sign in inside it and how to leave.
+// A connector with a subcommand needs none.
+var connectorLoginHints = map[string]string{
+	// Copilot CLI (docs read 2026-09-05): sign in with `/login` inside the
+	// CLI, or export a fine-grained token with the "Copilot Requests"
+	// permission as COPILOT_GITHUB_TOKEN (GH_TOKEN and GITHUB_TOKEN also
+	// work, in that order of precedence).
+	"copilot": "inside copilot, type /login and follow the browser, then /exit to come back here; " +
+		"or, before starting kolk, export a fine-grained token with the \"Copilot Requests\" permission as COPILOT_GITHUB_TOKEN",
+}
+
+// LoginHint is the sentence for a connector that signs in inside its own
+// interface; empty for one that has a login subcommand or is unknown.
+func LoginHint(connector string) string {
+	return connectorLoginHints[connector]
+}

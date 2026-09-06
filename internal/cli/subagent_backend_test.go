@@ -183,3 +183,12 @@ func signInAs(t *testing.T, dirs paths.Dirs, providerName, plan, connector strin
 		t.Fatal(err)
 	}
 }
+
+// The copilot connector belongs to github, the way claude belongs to
+// anthropic (V34.4c.2).
+func TestCopilotConnectorBelongsToGitHub(t *testing.T) {
+	got, ok := connectorProvider("copilot")
+	if !ok || got != "github" {
+		t.Fatalf("connectorProvider(copilot) = %q, %v; want github", got, ok)
+	}
+}

@@ -1,6 +1,9 @@
 package provider
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // The bug this table exists for: `claude` with no arguments opens Claude Code,
 // so asking kolk to sign in put a person inside another agent's whole interface
@@ -47,5 +50,25 @@ func TestLoginArgsCannotBeMutatedThroughTheAccessor(t *testing.T) {
 	again, _ := LoginArgs("claude")
 	if again[0] != "auth" {
 		t.Errorf("the table was mutated through a returned slice: %v", again)
+	}
+}
+
+// Copilot signs in inside its own CLI (`/login`, read 2026-09-05) or through
+// a fine-grained token in its environment; no login subcommand is documented.
+// By this table's own rule a guessed subcommand is worse than the fallback,
+// so copilot stays absent — and the fallback's message, which would otherwise
+// drop a person inside another agent's whole interface, carries the hint.
+func TestCopilotLoginIsNotGuessedAndCarriesAHint(t *testing.T) {
+	if _, known := LoginArgs("copilot"); known {
+		t.Fatal("copilot has a guessed login subcommand; none is documented")
+	}
+	hint := LoginHint("copilot")
+	for _, want := range []string{"/login", "/exit", "COPILOT_GITHUB_TOKEN", "Copilot Requests"} {
+		if !strings.Contains(hint, want) {
+			t.Fatalf("copilot login hint = %q, want it to mention %q", hint, want)
+		}
+	}
+	if LoginHint("claude") != "" {
+		t.Fatal("a connector with a login subcommand got a hint it does not need")
 	}
 }
