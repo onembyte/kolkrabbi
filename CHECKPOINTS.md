@@ -10825,6 +10825,30 @@ Subcheckpoints, one at a time:
       translator, or defer. Not mine to choose.
     - [ ] **V34.4c.4 the surfaces** — plan 24 rows, `/plans`, the capabilities card, pinned; each
       row says its status in the words the disposition uses.
+- [~] **V36 the owner's morning list** — four requests sent 2026-09-06 while an orchestrated run was
+  going, recorded here at the owner's ask ("make a checkpoint to do one request at a time") and taken
+  in this order, one at a time, each with red first, green, verification, record.
+  - [ ] **V36.0 publish the frontier number** — one orchestrated run on Claude Max (authorised), the
+    session's tokens by rung read from the log, one dated sentence on both subscriptions pages.
+  - [x] **V36.1 kolk does not come back after `kolk update`** — closed 2026-09-06. Two faults, both
+    reproduced red first. (1) The restart named the session it was in on the assumption that
+    "sessions save after every step"; a session where `/update` was the first thing typed had no
+    step, so no file, and the new binary was sent to `cannot load session`. The restart now names a
+    session only when its file loads, and otherwise starts fresh carrying the chosen model
+    (`restartArgs(ag, onDisk)`, `sessionOnDisk`). (2) "could not reach the provider" was a mislabel:
+    the transport check accepts any `net.Error`, and `syscall.Errno` carries the Timeout/Temporary
+    pair, so a missing file passed as a network failure; a `*fs.PathError` in the chain is now
+    excluded before that check. Tests: `TestRestartDoesNotResumeASessionThatWasNeverSaved`,
+    `TestAMissingFileIsNotAdvisedAsATransportFailure`. Not done: a live `/update` on the owner's
+    machine — the next release is the proof.
+  - [ ] **V36.2 why agents queue instead of running together** — the screenshots show one working
+    and three waiting, then two working; `max_concurrent_tasks` defaults to three. Find what bounds
+    it in practice (the vendor child, the roster, the planner's dependency order, the setting) and
+    either fix it or say exactly why the bound is right.
+  - [ ] **V36.3 the animated kolk terminal on the site** — an illustration of the terminal from the
+    screenshots: a chat, agent mode, a plan, agents deploying with their logs and status rows, a zoom
+    on the logs and on the agent rows, animated, clean and smooth, no external assets, under the
+    site's CSP and pins.
 - [x] **I27.7 many sessions, one view, for a paired device** — plan 27, opened and closed
   2026-09-06 at the owner's request; I27.1–6 were built and the dash drew the cards on the machine.
   **Scope:** `GET /v1/client/sessions` for any paired device (read or steer), the dash's cards and

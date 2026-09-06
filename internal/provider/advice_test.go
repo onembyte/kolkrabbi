@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"net/http"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -180,5 +182,17 @@ func TestAdviseStaysQuietWhenItHasNothingToAdd(t *testing.T) {
 		if _, ok := Advise(err); ok {
 			t.Errorf("Advise volunteered advice for %v", err)
 		}
+	}
+}
+
+// A missing file is not a network failure. syscall.Errno carries the
+// Timeout/Temporary pair that net.Error asks for, so a "no such file" error
+// satisfied the transport check and was announced as "could not reach the
+// provider" — the second, misleading line the owner saw after a restart named
+// a session that was never written.
+func TestAMissingFileIsNotAdvisedAsATransportFailure(t *testing.T) {
+	err := fmt.Errorf("cannot load session s_1: %w", &fs.PathError{Op: "lstat", Path: "s_1.json", Err: syscall.ENOENT})
+	if advice, ok := Advise(err); ok && strings.Contains(advice.Summary, "could not reach") {
+		t.Fatalf("a missing file was advised as %q", advice.Summary)
 	}
 }

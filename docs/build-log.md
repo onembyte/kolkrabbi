@@ -7135,3 +7135,15 @@ differ, read through git under a deadline so a slow repository cannot hold the p
 does not claim is steering a session other than the one the device paired with; a session is
 steered through its own server, and a broker for the others is a design still to be written. The
 arch gate caught two invented contexts on the way and both now come from the request.
+
+## Coming back after an update — V36.1 closed 2026-09-06
+
+The owner ran `/update` as the first thing in a fresh session and kolk did not come back: the new
+binary said it could not load the session, then that it could not reach the provider. Neither
+line was about the update. The restart named the session it had been in, trusting that sessions
+save after every step, and a session with no step has no file. It now names a session only when
+the file loads, and otherwise starts fresh with the model the user had chosen. The second line was
+a mislabel rather than a second fault: the transport check asks whether an error is a net.Error,
+and a plain errno answers yes, so a missing file was announced as an unreachable provider. File
+errors are excluded before that check. Both were red first; what remains unproven is the live
+restart itself, which the next release will exercise on the owner's machine.

@@ -9,6 +9,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/selfupdate"
+	"github.com/onembyte/kolkrabbi/internal/session"
 )
 
 // A restart is a process replacement, so the conditions under which it happens
@@ -93,3 +94,49 @@ func TestRestartFailureIsReported(t *testing.T) {
 }
 
 func boolPtr(v bool) *bool { return &v }
+
+// A session where `/update` was the first thing typed has no messages and was
+// never written: sessions save after every step, and there was no step. A
+// restart that names that id sends the new binary to a file that does not
+// exist, which is exactly what the owner saw on 2026-09-06. The restart must
+// start fresh instead, keeping the model the user had chosen.
+func TestRestartDoesNotResumeASessionThatWasNeverSaved(t *testing.T) {
+	a, _, _ := newTestApp(t, "")
+	a.restartInto = "1.1.0"
+	a.executablePath = func() (string, error) { return "/usr/local/bin/kolk", nil }
+	var gotArgs []string
+	a.replaceSelf = func(_ string, args []string, _ []string) error {
+		gotArgs = args
+		return nil
+	}
+
+	d, err := a.resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.EnsureData(); err != nil {
+		t.Fatal(err)
+	}
+	unsaved := session.New(d.Sessions(), "openrouter/some-model")
+	agent := &engine.Agent{Options: engine.Options{Sess: unsaved}}
+	agent.Mode = "chat"
+	a.performRestart(agent)
+
+	joined := strings.Join(gotArgs, " ")
+	if strings.Contains(joined, "--session") {
+		t.Fatalf("restart args %q resume a session that was never written", joined)
+	}
+	if !strings.Contains(joined, "--model openrouter/some-model") {
+		t.Fatalf("restart args %q dropped the chosen model", joined)
+	}
+
+	// The same session, once saved, is resumed by id: the conversation is on
+	// disk and the new binary can read it.
+	if err := unsaved.Save(); err != nil {
+		t.Fatal(err)
+	}
+	a.performRestart(agent)
+	if joined := strings.Join(gotArgs, " "); !strings.Contains(joined, "--session "+unsaved.SessionID()) {
+		t.Fatalf("restart args %q do not resume the saved session", joined)
+	}
+}

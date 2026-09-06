@@ -8,6 +8,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/selfupdate"
+	"github.com/onembyte/kolkrabbi/internal/session"
 )
 
 func (a *app) applyUpdate(ctx context.Context, inSession bool) error {
@@ -51,14 +52,22 @@ func (a *app) armRestart(version string) {
 // were: the same session, mode, effort and permission tier. The conversation
 // itself is on disk already — sessions save after every step — so resuming by
 // id restores the history without kolk having to carry it across the exec.
-func restartArgs(ag *engine.Agent) []string {
+//
+// A session with no step yet was never saved, and there is no file to resume:
+// naming it would send the new binary to "cannot load session". That restart
+// starts fresh instead and carries the chosen model, which is the only thing
+// such a session held. onDisk answers whether the id has a file.
+func restartArgs(ag *engine.Agent, onDisk func(id string) bool) []string {
 	args := []string{}
 	if ag == nil {
 		return args
 	}
 	if ag.Sess != nil {
-		if id := ag.Sess.SessionID(); id != "" {
+		switch id := ag.Sess.SessionID(); {
+		case id != "" && onDisk != nil && onDisk(id):
 			args = append(args, "--session", id)
+		case ag.Sess.ModelName() != "":
+			args = append(args, "--model", ag.Sess.ModelName())
 		}
 	}
 	if ag.Mode != "" {
@@ -111,7 +120,7 @@ func (a *app) performRestart(ag *engine.Agent) {
 		fmt.Fprintf(a.stderr, "could not restart into %s: %v\nRun kolk again to use it.\n", a.restartInto, err)
 		return
 	}
-	if err := a.replaceSelf(path, restartArgs(ag), os.Environ()); err != nil {
+	if err := a.replaceSelf(path, restartArgs(ag, a.sessionOnDisk), os.Environ()); err != nil {
 		fmt.Fprintf(a.stderr, "could not restart into %s: %v\nRun kolk again to use it.\n", a.restartInto, err)
 	}
 }
@@ -130,4 +139,16 @@ func (a *app) printUpdateResult(result selfupdate.Result, inSession bool) {
 	if result.Warning != "" {
 		fmt.Fprintf(a.stderr, "warning: %s\n", result.Warning)
 	}
+}
+
+// sessionOnDisk reports whether a session id has a file to resume from. It
+// loads rather than stats so that a file which exists but cannot be read is
+// treated the same way: the restart must not name it.
+func (a *app) sessionOnDisk(id string) bool {
+	d, err := a.resolve()
+	if err != nil {
+		return false
+	}
+	_, err = session.Load(d.Sessions(), id)
+	return err == nil
 }

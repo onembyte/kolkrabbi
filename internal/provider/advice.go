@@ -3,6 +3,7 @@ package provider
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"net/http"
 	"strings"
@@ -151,6 +152,14 @@ func roundedWait(d time.Duration) string {
 }
 
 func adviseTransport(err error) (Advice, bool) {
+	// A file error is never a transport failure, but it looks like one to the
+	// interface check below: syscall.Errno carries the Timeout/Temporary pair
+	// net.Error asks for, so "no such file" would be announced as "could not
+	// reach the provider". It is excluded before the check, not after.
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		return Advice{}, false
+	}
 	var netErr net.Error
 	if errors.As(err, &netErr) {
 		return Advice{
