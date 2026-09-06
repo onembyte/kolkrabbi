@@ -199,6 +199,8 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Before the first turn, what the vendor's terms say about this key.
+	printVendorNotice(a.stderr, client)
 
 	d, err = a.resolve()
 	if err != nil {

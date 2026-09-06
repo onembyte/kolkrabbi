@@ -6944,3 +6944,12 @@ word beside the cost, the aggregate keeps one mode per model or admits it is mix
 prints a figure where there is one and the mode in words where there is not. No estimate is
 computed from token prices anywhere; that stays a rule. Next in this leaf: a Google key told before
 its first turn that the unpaid tier trains on inputs.
+
+## A Google key is told what its terms say — V34.4c.1b.ii, the notice, closed 2026-09-06
+
+Google's Gemini API terms draw a line kolk cannot see from a key: on the unpaid tier what you send
+is used to improve Google's products and may be read by people, and on a paid key it is not. Kolk
+cannot tell which tier a key is on without asking, so it tells every Google key the terms' own
+words, with their date, once at the session's start and before any turn. xAI, whose terms refused
+to be read, gets silence rather than an invented warning. The notice lives with the disposition,
+beside the evidence it came from, so the next reading of the terms updates one place.

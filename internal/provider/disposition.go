@@ -34,6 +34,9 @@ type Disposition struct {
 	Evidence []string
 	// Blockers is what stands between this row and shipped.
 	Blockers []string
+	// Notice is what a key on this vendor is told before its first turn, in
+	// the terms' words; empty where the terms warrant none.
+	Notice string
 }
 
 // Capabilities are the facts a chat backend needs before it can be enabled.
@@ -79,13 +82,13 @@ var dispositions = []Disposition{
 		Capabilities: Capabilities{ChatCompletions: true, Streaming: true, Tools: true, ModelsList: true,
 			ReasoningVocab:  []string{"reasoning_effort → thinking_level / thinking_budget"},
 			ReasoningByRung: map[string]string{"low": "low", "medium": "medium", "high": "high", "max": "high", "ultra": "high"}},
-		Terms: "Gemini API additional terms, effective 2026-03-23: 'for developers building with Google AI models for professional or business purposes, not for consumer use'; unpaid tier: 'Do not submit sensitive, confidential, or personal information'; Google AI Pro/Ultra subscriptions are not said to grant API access",
+		Notice: "Gemini API terms (effective 2026-03-23): on the unpaid tier Google uses what you send to improve its products and human reviewers may read it — \"Do not submit sensitive, confidential, or personal information to the Unpaid Services.\" A paid key's prompts and responses are not used to improve Google's products.",
+		Terms:  "Gemini API additional terms, effective 2026-03-23: 'for developers building with Google AI models for professional or business purposes, not for consumer use'; unpaid tier: 'Do not submit sensitive, confidential, or personal information'; Google AI Pro/Ultra subscriptions are not said to grant API access",
 		Evidence: []string{
 			"https://ai.google.dev/gemini-api/docs/openai (last updated 2026-09-02): Bearer key, /models, streaming, function calling, 'still in beta while we extend feature support'",
 			"https://ai.google.dev/gemini-api/terms (effective 2026-03-23)",
 		},
 		Blockers: []string{
-			"the free tier trains on inputs: kolk must say so before a free Gemini key answers (V34.4c.1b)",
 			"the row flip (V34.4c.1b.ii)",
 			"the consumer-use clause: kolk is a developer tool, and the row must say what the terms say",
 		},
@@ -161,4 +164,14 @@ func dispositionFor(provider string) (Disposition, bool) {
 		}
 	}
 	return Disposition{}, false
+}
+
+// VendorNotice is what a key on this vendor is told before its first turn —
+// the terms' own warning, or nothing.
+func VendorNotice(vendor string) string {
+	d, ok := dispositionFor(vendor)
+	if !ok {
+		return ""
+	}
+	return d.Notice
 }

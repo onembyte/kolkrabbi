@@ -10730,8 +10730,18 @@ Subcheckpoints, one at a time:
             never `$0.00` for a paid or planned turn. Non-goals: no estimate is computed from token
             prices, anywhere. provider, agentcli, engine with `-race`, dash, stats; whole tree;
             lint; vet; `make check`.
-          - [ ] **the free-tier notice** — a Google key told before its first turn that the unpaid
+          - [x] **the free-tier notice** — a Google key told before its first turn that the unpaid
             tier trains on inputs and a paid one does not, once per session, in the terms' words.
+            **Closed 2026-09-06, on main.** Red observed: nothing said a word to a Google key.
+            Green: `Disposition.Notice` carries the terms' own warning with their date for Google
+            (the unpaid tier trains and human reviewers may read; "Do not submit sensitive,
+            confidential, or personal information to the Unpaid Services."; a paid key's prompts are
+            not used) and nothing for xAI, whose terms could not be read — silence, not an invented
+            warning; `provider.VendorNotice` exposes it and `printVendorNotice` prints it to stderr
+            once, right after the session's client is built, before any turn; the gateway and
+            compatible endpoints print nothing. The helper is tested with real vendor clients and
+            no request, because startup makes a bounded catalog fetch that a test must not send to
+            Google. cli, provider, arch; lint; vet; `make check`.
           - [ ] **the live probe and the flip** — xAI `/models` probed live before discovery relies
             on it; the xAI and Google plan rows flipped from metadata to keyed rows; the status
             line's cost label learns the modes. Gate: xAI terms confirmed by the owner.
