@@ -269,10 +269,16 @@ type Options struct {
 	// a limit ends the run. The surface supplies it because only the surface
 	// knows which providers were actually configured.
 	MeteredModel func() string
-	Tiers        map[string]string
-	Bus          *bus.Bus
-	PinnedModel  bool
-	FreeModels   []string
+	// Cooldowns remembers classified limits across calls and sessions (plan 35
+	// §2.1). Nil means no memory: every limit is met as if for the first time.
+	Cooldowns *Cooldowns
+	// ConnectorName says which connector a model runs through, for the cooldown
+	// keys; nil means everything is the keyed endpoint.
+	ConnectorName func(model string) string
+	Tiers         map[string]string
+	Bus           *bus.Bus
+	PinnedModel   bool
+	FreeModels    []string
 	// ContextWindow is the active model's advertised context size, or zero when
 	// it is unknown. Surfaces resolve it from the catalog; the engine never
 	// guesses one, because compaction is destructive and a guessed limit would

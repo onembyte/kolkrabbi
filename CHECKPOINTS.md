@@ -10649,10 +10649,24 @@ Subcheckpoints, one at a time:
       messages scrubbed. `subscriptionLimited` is now a thin wrapper — the retry loop's behaviour is
       unchanged and its tests pass. `LimitBudgetStop` sits on the dead-export allowlist with V35.2 named
       as the consumer that removes it. `-race` clean on provider, engine and arch; lint; `make check`.
-    - [ ] **V35.1b the cooldown registry** — `engine.Cooldowns`: `Mark`, `Cooling`, persisted with the
+    - [x] **V35.1b the cooldown registry** — `engine.Cooldowns`: `Mark`, `Cooling`, persisted with the
       atomic writer at two paths (session-scope keys with the session, plan/account-scope keys at the
       connector level under the data dir); default durations when the vendor gave no reset. **Red:**
       nothing remembers a limit past the retry loop.
+      **Closed 2026-09-05, on main.** Red observed behaviourally on the registry's first reader: with a
+      free model marked cooling, the rotation still asked it (`models asked = [one one]`). Green:
+      `engine.Cooldowns` — `Mark` (reset → Retry-After → the kind's default; a budget stop is never a
+      cooldown), `Cooling`, `Reload`; two files through the atomic writer: model- and endpoint-scope
+      entries beside the session (`<id>.cooldowns.json`, removed with it), account-scope entries at
+      `<data>/cooldowns.json` for every session of the user, merged on write so one session never
+      erases another's limit; expired entries pruned on load and on read; clock injected for tests.
+      Wired: `Options.Cooldowns` (nil = no memory), opened by the CLI per session; the retry loop marks
+      every classified limit at the moment it is met and the free rotation skips a candidate known to
+      be cooling. Vocabulary correction found while wiring: OpenRouter's bare 429 is the *model's*
+      limit (rotation on the same key has always worked), so `ScopeKey` is dropped and plan 35 §2.0
+      says why — a key-wide cooldown would cool every model at once. Tests: cross-session visibility by
+      scope, defaults and expiry, reload seeing another session's mark, the rotation skip. `-race`
+      clean on provider, engine, session, paths and cli; lint; `make check`.
     - [ ] **V35.1c the event** — `provider.limit` with data, validator, schema, golden fixture and
       changelog through the spec gate; published from the retry loop wherever a limit is classified.
     - [ ] **V35.1d the surfaces** — `/doctor limits` and the status line `cooling · … · resets …`.

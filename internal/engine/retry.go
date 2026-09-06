@@ -120,6 +120,16 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 		if httpErr, host := hostRefusal(err); host {
 			return provider.Message{}, meta, explainHostRefusal(model, httpErr, err)
 		}
+		// Every limit is remembered before any policy reads it (V35.1b). The
+		// policies that read it are V35.2 onward; the free rotation below is
+		// the first, skipping a candidate that is known to be cooling.
+		if limit, ok := provider.Classify(err); ok {
+			limit.Model = model
+			if limit.Connector == "" {
+				limit.Connector = a.connectorFor(model)
+			}
+			a.Cooldowns.Mark(limit)
+		}
 
 		// An exhausted allowance is checked before the rate-limit gate below:
 		// waiting never clears it, and two of its shapes — 402, and a vendor
@@ -156,10 +166,14 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 		if !a.PinnedModel && provider.ModelIsFree(provider.ModelInfo{ID: model}) && len(a.FreeModels) > 1 {
 			var nextCandidate string
 			for _, cand := range a.FreeModels {
-				if !tried[cand] {
-					nextCandidate = cand
-					break
+				if tried[cand] {
+					continue
 				}
+				if _, cooling := a.Cooldowns.Cooling(provider.ScopeModel, a.connectorFor(cand), cand); cooling {
+					continue // known to be capped; hitting it again is the loop the registry exists to end
+				}
+				nextCandidate = cand
+				break
 			}
 			if nextCandidate != "" {
 				tried[nextCandidate] = true
@@ -235,4 +249,16 @@ func (a *Agent) meteredFallback(current string) string {
 		return ""
 	}
 	return metered
+}
+
+// connectorFor names the connector a model runs through, for cooldown keys:
+// a handover model belongs to its vendor CLI, everything else to the keyed or
+// compatible endpoint kolk was pointed at.
+func (a *Agent) connectorFor(model string) string {
+	if a.ConnectorName != nil {
+		if name := a.ConnectorName(model); name != "" {
+			return name
+		}
+	}
+	return "openrouter"
 }

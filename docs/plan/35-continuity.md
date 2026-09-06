@@ -51,7 +51,10 @@ LimitKind   = subscription_allowance   // the plan's window: Claude/ChatGPT usag
             | budget_stop              // kolk's own ceilings: MaxRunCostUSD, saga cost/chapter/time
             | model_refusal            // 400/404 for this model: policy, context length, unsupported feature, gone
             | transport                // could not reach the endpoint at all
-LimitScope  = model | key | account | endpoint       // what the cooldown is keyed on
+LimitScope  = model | account | endpoint             // what the cooldown is keyed on; "key" was
+                                                     // dropped in V35.1b: OpenRouter's bare 429 is the
+                                                     // model's (rotation on the same key works), and a
+                                                     // key-wide cooldown would cool every model at once
 Limit       = {Kind, Scope, Model, Connector, ResetAt time.Time (zero = unknown), RetryAfter, Message (scrubbed), Source}
 ```
 

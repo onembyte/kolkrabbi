@@ -22,7 +22,7 @@ func TestClassifyTellsTheLimitsApart(t *testing.T) {
 		{"plan allowance", &HTTPError{StatusCode: http.StatusTooManyRequests, LimitSource: "subscription plan", RetryAfter: 40 * time.Minute}, LimitSubscriptionAllowance, ScopeAccount, 40 * time.Minute},
 		{"quota word", &HTTPError{StatusCode: http.StatusTooManyRequests, LimitSource: "quota"}, LimitSubscriptionAllowance, ScopeAccount, 0},
 		{"credits", &HTTPError{StatusCode: http.StatusPaymentRequired}, LimitAccountQuota, ScopeAccount, 0},
-		{"bare 429 on the keyed origin", &HTTPError{StatusCode: http.StatusTooManyRequests, RetryAfter: 3 * time.Second}, LimitEndpointCapacity, ScopeKey, 3 * time.Second},
+		{"bare 429 on the keyed origin", &HTTPError{StatusCode: http.StatusTooManyRequests, RetryAfter: 3 * time.Second}, LimitEndpointCapacity, ScopeModel, 3 * time.Second},
 		{"bare 429 on a compatible endpoint", &HTTPError{StatusCode: http.StatusTooManyRequests, Origin: CompatibleOrigin}, LimitEndpointCapacity, ScopeEndpoint, 0},
 		{"overloaded 503", &HTTPError{StatusCode: http.StatusServiceUnavailable}, LimitEndpointCapacity, ScopeEndpoint, 0},
 		{"overloaded 529", &HTTPError{StatusCode: 529}, LimitEndpointCapacity, ScopeEndpoint, 0},

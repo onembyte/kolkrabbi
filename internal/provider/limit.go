@@ -30,7 +30,6 @@ type LimitScope string
 
 const (
 	ScopeModel    LimitScope = "model"
-	ScopeKey      LimitScope = "key"
 	ScopeAccount  LimitScope = "account"
 	ScopeEndpoint LimitScope = "endpoint"
 )
@@ -118,10 +117,12 @@ func classifyHTTP(e *HTTPError) (Limit, bool) {
 	case e.StatusCode == http.StatusTooManyRequests && allowancePhrase(limit.Message):
 		limit.Kind, limit.Scope, limit.Source = LimitSubscriptionAllowance, ScopeAccount, "phrase"
 	case e.StatusCode == http.StatusTooManyRequests:
-		// OpenRouter rate-limits per key; a compatible endpoint rate-limits itself.
-		// The cooldown is keyed accordingly, so one key's 429 does not cool a
-		// whole endpoint and an endpoint's 429 is not blamed on a key.
-		limit.Kind, limit.Scope, limit.Source = LimitEndpointCapacity, ScopeKey, "status"
+		// On OpenRouter a bare 429 is met by moving to another model on the same
+		// key -- the free rotation has done exactly that for months -- so it is
+		// the model's limit, not the key's. A compatible endpoint has one model
+		// behind it and rate-limits itself. A key-wide scope would cool every
+		// model at once on one model's 429, which is the wrong side to err on.
+		limit.Kind, limit.Scope, limit.Source = LimitEndpointCapacity, ScopeModel, "status"
 		if e.Origin != "" {
 			limit.Scope = ScopeEndpoint
 		}

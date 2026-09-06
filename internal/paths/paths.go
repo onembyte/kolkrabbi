@@ -119,6 +119,10 @@ func (d Dirs) DevicesFile() string { return filepath.Join(d.Data, "devices.json"
 // ConnectorsFile stores only provider-owned connector metadata, never secrets.
 func (d Dirs) ConnectorsFile() string { return filepath.Join(d.Data, "connectors.json") }
 
+// CooldownsFile holds the user's remembered plan- and account-scope limits, read
+// by every session so a wall one session hit is not hit again by the next.
+func (d Dirs) CooldownsFile() string { return filepath.Join(d.Data, "cooldowns.json") }
+
 // MemoryFile is the user's own standing notes, applied to every project. It
 // lives with configuration because it is a preference, not session state.
 func (d Dirs) MemoryFile() string { return filepath.Join(d.Config, "memory.md") }

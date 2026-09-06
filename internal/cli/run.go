@@ -390,6 +390,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		SubagentNetwork: cfg.SubagentNetwork,
 		Sess:            sess,
 		Ckpt:            ckpt,
+		Cooldowns:       engine.OpenCooldowns(sess.CooldownsFile(), d.CooldownsFile()),
 		In:              a.in,
 		Out:             a.stdout,
 		Recorder:        stats.NewStore(d.Data),

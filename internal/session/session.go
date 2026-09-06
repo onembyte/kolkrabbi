@@ -198,6 +198,15 @@ func (s *Session) path() string {
 	return filepath.Join(s.dir, s.ID+".json")
 }
 
+// CooldownsFile holds this session's own remembered limits (model and endpoint
+// scope); the user-wide ones live with the connectors.
+func (s *Session) CooldownsFile() string {
+	if err := validateSessionID(s.ID); err != nil {
+		panic(err)
+	}
+	return filepath.Join(s.dir, s.ID+".cooldowns.json")
+}
+
 // CkptDir is where this session's file checkpoints are stored.
 func (s *Session) CkptDir() string {
 	if err := validateSessionID(s.ID); err != nil {
@@ -421,6 +430,9 @@ func Delete(dir, id string) error {
 		if err := os.Remove(archive); err != nil {
 			return fmt.Errorf("removing compaction archive %s: %w", archive, err)
 		}
+	}
+	if err := os.Remove(filepath.Join(dir, id+".cooldowns.json")); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("removing remembered limits: %w", err)
 	}
 	// RemoveAll is nil for a path that does not exist, so this only reports a
 	// checkpoint directory that really could not be removed — which matters,
