@@ -721,6 +721,8 @@ func (r *Runtime) Approval() *Approval {
 func (r *Runtime) Controller() *Controller { return r.controller }
 
 func (r *Runtime) startTurnLocked(prompt string) {
+	// A new turn is a new run: the last run's window must not sit over it.
+	r.controller.CloseAgentWindow()
 	// The request joins the transcript before the answer does. Without it the
 	// draft vanished on Enter and the scrollback held only replies, so a
 	// session read as a monologue and there was no record of what was asked.
@@ -765,6 +767,7 @@ func (r *Runtime) startTurnLocked(prompt string) {
 				r.quitOnce.Do(func() { close(r.quit) })
 			}
 			r.controller.FinishTurn(lifecycle)
+			r.armAgentWindowClose()
 			// A request queued while this turn ran starts now, on the same
 			// goroutine's lock, so the queue drains without the user pressing
 			// anything again. Not after an exit, and not after an interrupt:
@@ -914,4 +917,25 @@ func (r *Runtime) Submit(prompt string) {
 	r.controller.BeginTurn()
 	r.startTurnLocked(prompt)
 	r.renderLocked()
+}
+
+// agentWindowLinger is how long the agents' window stays after the turn
+// ends: long enough to read the last rows turn green, short enough that the
+// next thing typed is not under it.
+const agentWindowLinger = 3 * time.Second
+
+// armAgentWindowClose closes the agents' window a moment after the turn
+// that opened it ends. Called with the lock held; the close takes it again.
+func (r *Runtime) armAgentWindowClose() {
+	if !r.controller.HasAgents() {
+		return
+	}
+	timer := r.spinClock.NewTimer(agentWindowLinger)
+	go func() {
+		<-timer.C()
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		r.controller.CloseAgentWindow()
+		r.renderLocked()
+	}()
 }

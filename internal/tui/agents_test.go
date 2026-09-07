@@ -152,10 +152,14 @@ func TestAgentLifecycleRowsRemainThroughSynthesisThenClear(t *testing.T) {
 	if got.AgentStatuses[0].ID != "task-1" || got.AgentStatuses[1].ID != "task-2" {
 		t.Fatalf("agent rows are not stable plan order: %+v", got.AgentStatuses)
 	}
+	// Re-read 2026-09-07 (plan 37): on a wide screen the agents sit in the
+	// window at the top right, one row each with its last step under it,
+	// rather than a full-width row each above the status line.
 	view := c.View(160, 20)
 	for _, want := range []string{
-		"agent [1/2] · gpt-5.6-luna · low · working: Inspect the repository — model is responding",
-		"agent [2/2] · gpt-5.6-sol · max · working: Reason about the concurrency boundary — opening gpt-5.6-sol",
+		"agents 2/2",
+		"1 Inspect the repository · working", "model is responding",
+		"2 Reason about the concurrency boundary · working", "opening gpt-5.6-sol",
 	} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("view is missing %q:\n%s", want, view)
@@ -173,9 +177,15 @@ func TestAgentLifecycleRowsRemainThroughSynthesisThenClear(t *testing.T) {
 		t.Fatalf("failed agent did not leave the running count and remain visible: %+v", got)
 	}
 
+	// The turn's end keeps the rows a moment longer, so the last of them can
+	// be read as it turns green; closing the window is the runtime's call.
 	c.FinishTurn("ready")
+	if got := c.Snapshot(); got.Status.Agents != 0 || len(got.AgentStatuses) != 2 {
+		t.Fatalf("finished turn did not keep the rows for the window to linger: %+v", got)
+	}
+	c.CloseAgentWindow()
 	if got := c.Snapshot(); got.Status.Agents != 0 || len(got.AgentStatuses) != 0 {
-		t.Fatalf("finished turn retained stale agent rows: %+v", got)
+		t.Fatalf("closed window retained stale agent rows: %+v", got)
 	}
 }
 
@@ -213,12 +223,20 @@ func TestAgentStatusRowsUseSemanticStateStyles(t *testing.T) {
 				ID: "task-1", Index: 1, Total: 1, Model: "gpt-5.6-luna", Effort: "medium",
 				Summary: "Review", State: test.state, Step: "current step",
 			}})
+			// Re-read 2026-09-07 (plan 37): the row lives in the window at
+			// the right of the top transcript rows, and carries its style
+			// there; a narrow screen keeps the full-width row.
 			for _, row := range m.viewRows(200, 20, 0) {
-				if strings.HasPrefix(row.text, "agent [1/1]") {
-					if row.style != test.want {
-						t.Fatalf("state %q style = %v, want %v", test.state, row.style, test.want)
+				if strings.HasPrefix(row.right, "│ 1 ") {
+					if row.rightStyle != test.want {
+						t.Fatalf("state %q style = %v, want %v", test.state, row.rightStyle, test.want)
 					}
 					return
+				}
+			}
+			for _, row := range m.viewRows(60, 20, 0) {
+				if strings.HasPrefix(row.text, "agent [1/1]") && row.style != test.want {
+					t.Fatalf("narrow state %q style = %v, want %v", test.state, row.style, test.want)
 				}
 			}
 			t.Fatalf("agent row missing for state %q", test.state)
@@ -238,7 +256,9 @@ func TestAgentStatusRowsRemainMeaningfulWithoutColour(t *testing.T) {
 	if strings.Contains(view, "\x1b[") {
 		t.Fatalf("NO_COLOR agent row contains ANSI: %q", view)
 	}
-	if !strings.Contains(view, "waiting: Review runtime — waiting for task 1") {
+	// Re-read 2026-09-07 (plan 37): the state is on the window's row and the
+	// step under it, in words, with no colour to lean on.
+	if !strings.Contains(view, "1 Review runtime · waiting") || !strings.Contains(view, "waiting for task 1") {
 		t.Fatalf("NO_COLOR agent row lost its state: %q", view)
 	}
 }
@@ -318,8 +338,13 @@ func assertRuntimeAgentResizeFrame(t *testing.T, runtime *Runtime, width int) {
 	if strings.Contains(frame, "\x1b") || strings.ContainsAny(frame, "\r\x07") {
 		t.Fatalf("hostile task text reached resized frame: %q", frame)
 	}
+	// Re-read 2026-09-07 (plan 37): wide enough for two columns, the agents
+	// are the window's rows, in plan order; narrower, the full-width rows.
 	first, second := strings.Index(frame, "agent [1/2] · luna · low · working:"),
 		strings.Index(frame, "agent [2/2] · luna · low · waiting:")
+	if width >= agentWindowMinScreen {
+		first, second = strings.Index(frame, "│ 1 first task"), strings.Index(frame, "│ 2 second task")
+	}
 	if first < 0 || second < 0 || first >= second {
 		t.Fatalf("resized frame lost ordered state rows at width %d:\n%s", width, frame)
 	}

@@ -10836,6 +10836,27 @@ Subcheckpoints, one at a time:
       intent was never "available", kept; its vocabulary was the old one, replaced. Pins: seven
       wall states, three refusals, the lede, the styles. Rendered in headless Chrome and read. Not
       touched: the capabilities cards, which name no vendor beyond Claude, Codex and Copilot.
+- [x] **V37 the agents' window in the TUI** — asked 2026-09-07: "make the kolk TUI similar to
+  what you have created in the webui. when agents are deployed open a window in the top right with
+  the details and logs. then automatically close it. in the main log, just leave a summary".
+  Closed 2026-09-07.
+  - [x] **V37.1 the transcript gets a summary** — with a screen attached (`Agent.Subagents` set,
+    which is how the TUI receives every status), `runTasks` prints `◆ N agents deployed (kinds)`
+    when it starts and `◆ N agents finished: n completed, n failed…` when it ends, and no longer
+    prints the started lines, the completed milestones or the buffered transcripts; failures and
+    incomplete tasks still print their line. Plain output (`-p`, no screen) is untouched, and the
+    flush-order test still passes on it. Red first: `TestALiveSurfaceGetsASummaryNotATranscript`.
+  - [x] **V37.2 the window** — the controller keeps the last four distinct steps of each agent as
+    its log; the model draws, on a screen at least 80 columns wide, a boxed window of up to 14
+    rows as the right-hand segment of the top transcript rows: `agents running/total`, then one
+    row per agent — `n <task> · state`, styled by state as the rows were — with its last two steps
+    under it; the transcript rows under the window keep their own text, clipped so both fit. On a
+    narrower screen the full-width rows stay where they were. The window outlives the turn by
+    three seconds (`agentWindowLinger`, on the spinner clock so it is tested with the fake one),
+    then closes on its own; a new turn closes it at once. Red first: four tests; three older tests
+    that pinned the full-width rows at wide widths were re-read for the window and keep guarding
+    order, state words and hostile text. `-race` on engine and tui, `make check`, cross-platform
+    lint and vet green. Read as a text frame at 120 columns. Not done: the owner's own terminal.
 - [x] **V36 the owner's morning list** — four requests sent 2026-09-06 while an orchestrated run was
   going, recorded here at the owner's ask ("make a checkpoint to do one request at a time") and taken
   in this order, one at a time, each with red first, green, verification, record. Closed 2026-09-06.

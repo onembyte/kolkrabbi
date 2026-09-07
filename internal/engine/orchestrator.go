@@ -192,6 +192,13 @@ func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([
 		}
 	}
 
+	// With a screen attached the agents have a window of their own, and the
+	// transcript gets a summary: one line now, one when they finish. Without
+	// one, the play-by-play below is the only place the run is visible.
+	if a.liveSurface() {
+		fmt.Fprintf(a.Out, "%s◆ %d agents deployed (%s)%s\n", colorMag, len(tasks), kindsOf(tasks), colorReset)
+	}
+
 	limit := a.concurrencyLimit()
 	// One lock over the user's tree for the run. A writer that could not be
 	// isolated holds it for its whole run; a landing holds it for the apply.
@@ -273,7 +280,47 @@ func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([
 			a.flushTaskReport(tasks, reports[index])
 		}
 	}
+	if a.liveSurface() {
+		fmt.Fprintf(a.Out, "%s◆ %d agents finished: %s%s\n", colorMag, len(tasks), tallyOutcomes(outcomes), colorReset)
+	}
 	return outcomes, nil
+}
+
+// liveSurface reports whether a screen is showing each agent's status as it
+// changes, which is when the transcript should carry a summary rather than
+// the play-by-play.
+func (a *Agent) liveSurface() bool { return a.Subagents != nil }
+
+// kindsOf lists the tasks' kinds in plan order, "task" for one the planner
+// did not classify.
+func kindsOf(tasks []Task) string {
+	kinds := make([]string, 0, len(tasks))
+	for _, task := range tasks {
+		kind := string(task.Kind)
+		if kind == "" {
+			kind = "task"
+		}
+		kinds = append(kinds, kind)
+	}
+	return strings.Join(kinds, ", ")
+}
+
+// tallyOutcomes says how the run ended, counts by status, done first.
+func tallyOutcomes(outcomes []outcome) string {
+	counts := map[status]int{}
+	for _, o := range outcomes {
+		counts[o.Status]++
+	}
+	parts := []string{}
+	for _, entry := range []struct {
+		status status
+		word   string
+	}{{statusDone, "completed"}, {statusIncomplete, "incomplete"}, {statusFailed, "failed"}, {statusBlocked, "blocked"}, {statusOverBudget, "over budget"}} {
+		if n := counts[entry.status]; n > 0 {
+			parts = append(parts, fmt.Sprintf("%d %s", n, entry.word))
+		}
+	}
+	return strings.Join(parts, ", ")
 }
 
 // taskRun is one finished subagent, with everything it printed on the way.
@@ -476,7 +523,9 @@ func (a *Agent) nextRunnable(tasks []Task, outcomes []outcome, resolved, started
 			a.updateSubagentStatus(i, SubagentWaiting, SubagentPhaseSchedule, "waiting for the shared-tree writer")
 			continue
 		}
-		fmt.Fprintf(a.Out, "\n%s◆ subagent %d/%d started: %s%s%s\n", colorMag, i+1, len(tasks), tasks[i].Title, tasks[i].annotation(), colorReset)
+		if !a.liveSurface() {
+			fmt.Fprintf(a.Out, "\n%s◆ subagent %d/%d started: %s%s%s\n", colorMag, i+1, len(tasks), tasks[i].Title, tasks[i].annotation(), colorReset)
+		}
 		return i, true, true
 	}
 	return 0, false, false
@@ -552,8 +601,12 @@ func (a *Agent) reportTaskMilestone(tasks []Task, outcomes []outcome, done taskR
 	case statusIncomplete:
 		fmt.Fprintf(a.Out, "%s! %s did not finish; keeping what it reached%s\n", colorDim, tasks[done.index].Title, colorReset)
 	default:
-		fmt.Fprintf(a.Out, "%s◆ subagent %d/%d completed: %s%s\n", colorDim,
-			done.index+1, len(tasks), tasks[done.index].Title, colorReset)
+		// A screen with the agents' window sees this row turn green; the
+		// transcript's one line at the end says how many did.
+		if !a.liveSurface() {
+			fmt.Fprintf(a.Out, "%s◆ subagent %d/%d completed: %s%s\n", colorDim,
+				done.index+1, len(tasks), tasks[done.index].Title, colorReset)
+		}
 	}
 	a.noteRunCost()
 }
@@ -561,7 +614,7 @@ func (a *Agent) reportTaskMilestone(tasks []Task, outcomes []outcome, done taskR
 // flushTaskReport writes only an already-buffered child transcript. It runs
 // after all delegation outcomes are known, in plan order.
 func (a *Agent) flushTaskReport(tasks []Task, done taskRun) {
-	if done.output == "" {
+	if done.output == "" || a.liveSurface() {
 		return
 	}
 	fmt.Fprintf(a.Out, "\n%s◆ subagent %d/%d %s:%s\n", colorMag, done.index+1, len(tasks), tasks[done.index].Title, colorReset)

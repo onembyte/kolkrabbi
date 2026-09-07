@@ -102,7 +102,9 @@ type Controller struct {
 	editor        *Editor
 	status        Status
 	agentStatuses map[string]AgentStatus
-	busy          bool
+
+	agentLogs map[string][]string
+	busy      bool
 	// queued holds a request submitted while a turn was still running. The
 	// engine session is stateful, so two turns cannot run at once; the request
 	// waits here and starts the moment the running one finishes.
@@ -401,7 +403,8 @@ func (c *Controller) syncQueued() {
 }
 
 func (c *Controller) FinishTurn(lifecycle string) {
-	c.clearAgentStatuses()
+	// The agents' window outlives the turn by a moment, so the last rows can
+	// be read as they turn green; the runtime closes it (CloseAgentWindow).
 	c.busy = false
 	c.screen.SetActivity("")
 	c.setLifecycle(lifecycle)
@@ -629,8 +632,44 @@ func (c *Controller) SetAgentStatus(status AgentStatus) {
 		return
 	}
 	c.agentStatuses[key] = status
+	c.noteAgentStep(key, status.Step)
 	c.syncAgentStatuses()
 }
+
+// noteAgentStep keeps the last few distinct steps of one agent: its log, as
+// the window shows it. A repeated step is one line, not two.
+func (c *Controller) noteAgentStep(key, step string) {
+	step = compactAgentField(step, "")
+	if step == "" {
+		return
+	}
+	if c.agentLogs == nil {
+		c.agentLogs = map[string][]string{}
+	}
+	log := c.agentLogs[key]
+	if n := len(log); n > 0 && log[n-1] == step {
+		return
+	}
+	log = append(log, step)
+	if len(log) > agentLogKeep {
+		log = log[len(log)-agentLogKeep:]
+	}
+	c.agentLogs[key] = log
+}
+
+// agentLogKeep is how many steps the window remembers per agent.
+const agentLogKeep = 4
+
+// CloseAgentWindow forgets the run's agents: the window goes, the rows go,
+// the count in the status line goes. The runtime calls it a moment after a
+// turn ends, and again when the next turn starts.
+func (c *Controller) CloseAgentWindow() {
+	c.clearAgentStatuses()
+	c.screen.SetStatus(c.status)
+}
+
+// HasAgents reports whether a run's agents are still on screen.
+func (c *Controller) HasAgents() bool { return len(c.agentStatuses) > 0 }
 
 func (c *Controller) syncAgentStatuses() {
 	statuses := make([]AgentStatus, 0, len(c.agentStatuses))
@@ -645,13 +684,16 @@ func (c *Controller) syncAgentStatuses() {
 	})
 	c.status.Agents = runningAgentStatuses(statuses)
 	c.screen.SetAgentStatuses(statuses)
+	c.screen.SetAgentLogs(c.agentLogs)
 	c.screen.SetStatus(c.status)
 }
 
 func (c *Controller) clearAgentStatuses() {
 	c.agentStatuses = nil
+	c.agentLogs = nil
 	c.status.Agents = 0
 	c.screen.SetAgentStatuses(nil)
+	c.screen.SetAgentLogs(nil)
 }
 
 func (c *Controller) runningAgentCount() int {

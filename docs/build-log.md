@@ -7211,3 +7211,14 @@ carries the four archives, the checksums and their sigstore bundle. The site's i
 and structured data say v1.3.1 and were live before the workflow finished. The Homebrew formula
 for v1.3.1 was generated from the published checksums and left for the owner to read, as the
 tap script asks; the tap still serves v1.3.0 until it lands.
+
+## The agents' window — V37 closed 2026-09-07
+
+The owner wanted the terminal to look like the illustration on the site: a window at the top
+right while agents run, their rows and logs in it, closing by itself, and the transcript left
+with a summary. The engine now says one line when the agents deploy and one when they finish
+whenever a screen is receiving their statuses, and keeps the play-by-play for plain output. The
+TUI keeps each agent's last steps and draws the window as the right-hand segment of the top
+transcript rows, which the renderer already knew how to place; a narrow screen keeps the old
+rows. The window lingers three seconds on the spinner's clock, so the test fires the timer
+itself. Three older tests that pinned the full-width rows were re-read, not deleted.

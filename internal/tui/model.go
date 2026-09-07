@@ -57,6 +57,7 @@ type Snapshot struct {
 	Draft         string
 	Status        Status
 	AgentStatuses []AgentStatus
+	AgentLogs     map[string][]string
 	Suggestions   []CommandSpec
 }
 
@@ -69,6 +70,7 @@ type Model struct {
 	draft            string
 	status           Status
 	agentStatuses    []AgentStatus
+	agentLogs        map[string][]string
 	suggestions      []CommandSpec
 	suggestionTop    int
 	suggestionWindow int
@@ -98,6 +100,15 @@ func (m *Model) SetStatus(status Status) { m.status = status }
 
 // SetAgentStatuses replaces the ephemeral per-task rows without touching the
 // spinner activity or transcript.
+// SetAgentLogs replaces the recent steps of each agent, keyed the way the
+// controller keys its statuses; the window shows the last few under each row.
+func (m *Model) SetAgentLogs(logs map[string][]string) {
+	m.agentLogs = make(map[string][]string, len(logs))
+	for key, lines := range logs {
+		m.agentLogs[key] = append([]string(nil), lines...)
+	}
+}
+
 func (m *Model) SetAgentStatuses(statuses []AgentStatus) {
 	m.agentStatuses = append(m.agentStatuses[:0], statuses...)
 }
@@ -134,6 +145,7 @@ func (m *Model) Snapshot() Snapshot {
 		Draft:         m.draft,
 		Status:        m.status,
 		AgentStatuses: append([]AgentStatus(nil), m.agentStatuses...),
+		AgentLogs:     m.agentLogsCopy(),
 		Suggestions:   append([]CommandSpec(nil), m.suggestions...),
 	}
 }
@@ -370,11 +382,17 @@ func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 			activity = append(activity, viewRow{text: clipLine(line, width), style: stylePurple})
 		}
 	}
+	// The agents' window (plan 37): on a screen wide enough for two columns
+	// the rows and their last steps sit top right over the transcript; on a
+	// narrow one they keep their old place, a full-width row each.
+	window := m.agentWindowLines(width)
 	agentRows := make([]viewRow, 0, len(m.agentStatuses))
-	for _, status := range m.agentStatuses {
-		agentRows = append(agentRows, viewRow{
-			text: clipLine(formatAgentStatusLine(status), width), style: agentStatusStyle(status),
-		})
+	if window == nil {
+		for _, status := range m.agentStatuses {
+			agentRows = append(agentRows, viewRow{
+				text: clipLine(formatAgentStatusLine(status), width), style: agentStatusStyle(status),
+			})
+		}
 	}
 	statusLine := []viewRow{}
 	for _, status := range formatStatus(m.status) {
@@ -489,6 +507,16 @@ func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 			row.style = stylePurple
 		}
 		rows = append(rows, viewRow{text: row.text, style: row.style})
+	}
+	// The window takes the right-hand columns of the top transcript rows;
+	// each row keeps its own text, clipped so both fit side by side.
+	if len(window) > 0 {
+		inner := width - agentWindowWidth(width) - 1
+		for i := 0; i < len(window) && i < len(rows); i++ {
+			rows[i].text = clipLine(rows[i].text, inner)
+			rows[i].right = window[i].text
+			rows[i].rightStyle = window[i].style
+		}
 	}
 	rows = append(rows, activity...)
 	rows = append(rows, agentRows...)
@@ -1046,4 +1074,89 @@ func queuedCount(queued int) string {
 		return ""
 	}
 	return strconv.Itoa(queued)
+}
+
+// The agents' window: the rows and each agent's last steps, top right.
+
+const (
+	agentWindowMinScreen = 80
+	agentWindowMaxRows   = 14
+	agentWindowLogLines  = 2
+)
+
+func agentWindowWidth(width int) int {
+	return min(56, width*45/100)
+}
+
+// agentWindowLines is the window's rows, each already boxed and padded to
+// the window's width so the left border lines up; nil when there is nothing
+// to show or no room for two columns.
+func (m *Model) agentWindowLines(width int) []viewRow {
+	if len(m.agentStatuses) == 0 || width < agentWindowMinScreen {
+		return nil
+	}
+	w := agentWindowWidth(width)
+	inner := w - 2
+	box := func(text string, style rowStyle) viewRow {
+		text = clipLine(text, inner)
+		if pad := inner - cellWidth(text); pad > 0 {
+			text += strings.Repeat(" ", pad)
+		}
+		return viewRow{text: "│ " + text, style: style}
+	}
+	running, total := 0, len(m.agentStatuses)
+	for _, status := range m.agentStatuses {
+		if status.State == "working" {
+			running++
+		}
+		if status.Total > total {
+			total = status.Total
+		}
+	}
+	lines := []viewRow{box(fmt.Sprintf("agents %d/%d", running, total), stylePurple)}
+	for _, status := range m.agentStatuses {
+		// The row is what the agent is doing and how it stands; the lines
+		// under it are its last steps, the newest last. A row with no title
+		// yet shows its model, so it is never blank.
+		state := compactAgentField(status.State, "working")
+		what := compactAgentField(status.Summary, compactAgentField(status.Model, "model unknown"))
+		lines = append(lines, box(fmt.Sprintf("%d %s · %s", status.Index, what, state), agentStatusStyle(status)))
+		logs := m.agentLogs[agentKey(status)]
+		if step := compactAgentField(status.Step, ""); step != "" && step != state && (len(logs) == 0 || logs[len(logs)-1] != step) {
+			logs = append(append([]string(nil), logs...), step)
+		}
+		if len(logs) > agentWindowLogLines {
+			logs = logs[len(logs)-agentWindowLogLines:]
+		}
+		for _, line := range logs {
+			lines = append(lines, box("  "+line, styleMeta))
+		}
+		if len(lines) >= agentWindowMaxRows {
+			break
+		}
+	}
+	if len(lines) > agentWindowMaxRows {
+		lines = lines[:agentWindowMaxRows]
+	}
+	return lines
+}
+
+// agentKey names an agent the way the controller does, so the logs it keeps
+// per key are found here.
+func agentKey(status AgentStatus) string {
+	if status.ID != "" {
+		return status.ID
+	}
+	return fmt.Sprintf("agent-%d", status.Index)
+}
+
+func (m *Model) agentLogsCopy() map[string][]string {
+	if len(m.agentLogs) == 0 {
+		return nil
+	}
+	out := make(map[string][]string, len(m.agentLogs))
+	for key, lines := range m.agentLogs {
+		out[key] = append([]string(nil), lines...)
+	}
+	return out
 }
