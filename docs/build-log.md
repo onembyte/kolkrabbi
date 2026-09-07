@@ -7222,3 +7222,10 @@ TUI keeps each agent's last steps and draws the window as the right-hand segment
 transcript rows, which the renderer already knew how to place; a narrow screen keeps the old
 rows. The window lingers three seconds on the spinner's clock, so the test fires the timer
 itself. Three older tests that pinned the full-width rows were re-read, not deleted.
+
+## v1.3.2 — released 2026-09-07
+
+Tag v1.3.2 on the release commit; verify and publish both succeeded (run 34082395875) and the
+release carries the four archives, the checksums and their sigstore bundle. The agents' window
+is the change. The Homebrew formula for v1.3.2 was generated from the published checksums and
+left for the owner to read; the tap still serves v1.3.0 until one of them lands.
