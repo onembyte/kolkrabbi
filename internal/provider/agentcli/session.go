@@ -211,7 +211,7 @@ func (s *ClaudeSession) TurnObserved(ctx context.Context, messages []provider.Me
 				if line := toolTrail(event, pending); line != "" {
 					onToken(line)
 				}
-			case event.Kind == EventLimit && !event.LimitRejected:
+			case event.Kind == EventLimit && event.LimitWarning:
 				if onToken != nil {
 					onToken(limitTrail(event))
 				}

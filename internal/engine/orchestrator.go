@@ -645,7 +645,9 @@ const DefaultConcurrentTasks = 3
 // whether they should.
 func (a *Agent) noteRunCost() {
 	total := a.runSpend.total()
-	if total <= 0 {
+	// A subscription is not billed by the dollar; its measure is the plan's
+	// windows, which the status meters show.
+	if total <= 0 || a.sessionSpend.billingMode() == provider.BillingSubscription {
 		return
 	}
 	if a.MaxRunCostUSD > 0 {

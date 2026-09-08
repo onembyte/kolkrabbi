@@ -40,6 +40,9 @@ type Status struct {
 	// stop. Empty means not measured yet, which is different from zero.
 	Context string
 	Cost    string
+	// Limits are the plan's windows, drawn as meters on a row of their own
+	// in the status area: used in grey, remaining in purple (V38.2).
+	Limits []PlanMeter
 	// Agents is how many subagents are running right now. Zero shows nothing:
 	// a permanent "agents 0" on every session is the sort of always-there
 	// number people stop reading, and this one is worth reading.
@@ -346,6 +349,9 @@ const resetANSI = "\x1b[0m"
 type viewRow struct {
 	text  string
 	style rowStyle
+	// spans, when set, draw the row as a run of differently styled pieces;
+	// text is then their concatenation, kept for width and diffing.
+	spans []styledSpan
 	// right is drawn flush with the right edge of the row, in its own style.
 	// The activity indicator lives there: it belongs beside the state it
 	// describes, not on a row of its own above the composer, and it must not
@@ -394,7 +400,7 @@ func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 			})
 		}
 	}
-	statusLine := []viewRow{}
+	statusLine := planMetersRow(m.status.Limits, width)
 	for _, status := range formatStatus(m.status) {
 		statusLine = append(statusLine, viewRow{text: clipLine(status, width), style: stylePurpleMuted})
 	}
@@ -645,7 +651,13 @@ func joinViewRowsWidth(rows []viewRow, styled bool, width int) string {
 				row.right = ""
 			}
 		}
-		writeStyled(&output, row.text, row.style, styled)
+		if len(row.spans) > 0 {
+			for _, span := range row.spans {
+				writeStyled(&output, span.text, span.style, styled)
+			}
+		} else {
+			writeStyled(&output, row.text, row.style, styled)
+		}
 		if row.right != "" {
 			output.WriteString(pad)
 			writeStyled(&output, row.right, row.rightStyle, styled)
@@ -1159,4 +1171,58 @@ func (m *Model) agentLogsCopy() map[string][]string {
 		out[key] = append([]string(nil), lines...)
 	}
 	return out
+}
+
+// PlanMeter is one plan window for the status meters: a short label and
+// the share used, 0..1.
+type PlanMeter struct {
+	Label string
+	Used  float64
+}
+
+// styledSpan is one piece of a row drawn in its own style.
+type styledSpan struct {
+	text  string
+	style rowStyle
+}
+
+// planMeterCells is the width of one meter's bar.
+const planMeterCells = 12
+
+// planMetersRow draws every plan window as a meter: label, the used share
+// in grey, what remains in purple, the percent used. Nil without windows.
+func planMetersRow(limits []PlanMeter, width int) []viewRow {
+	if len(limits) == 0 {
+		return nil
+	}
+	spans := []styledSpan{{text: statusIndent, style: stylePurpleMuted}}
+	for i, limit := range limits {
+		if i > 0 {
+			spans = append(spans, styledSpan{text: " · ", style: stylePurpleMuted})
+		}
+		used := min(max(limit.Used, 0), 1)
+		usedCells := int(used*planMeterCells + 0.5)
+		label := sanitizeTerminalLine(limit.Label)
+		// Heavy for what is spent, light for what is left: the bar reads
+		// under NO_COLOR too, where grey and purple are the same ink.
+		spans = append(spans,
+			styledSpan{text: label + " ", style: stylePurpleMuted},
+			styledSpan{text: strings.Repeat("━", usedCells), style: styleMeta},
+			styledSpan{text: strings.Repeat("─", planMeterCells-usedCells), style: stylePurple},
+			styledSpan{text: fmt.Sprintf(" %d%%", int(used*100+0.5)), style: stylePurpleMuted},
+		)
+	}
+	text := ""
+	for _, span := range spans {
+		text += span.text
+	}
+	if cellWidth(text) > width {
+		// Too narrow for the meters: the percents alone, one plain row.
+		parts := make([]string, 0, len(limits))
+		for _, limit := range limits {
+			parts = append(parts, fmt.Sprintf("%s %d%%", sanitizeTerminalLine(limit.Label), int(min(max(limit.Used, 0), 1)*100+0.5)))
+		}
+		return []viewRow{{text: clipLine(statusIndent+strings.Join(parts, " · "), width), style: stylePurpleMuted}}
+	}
+	return []viewRow{{text: text, style: stylePurpleMuted, spans: spans}}
 }

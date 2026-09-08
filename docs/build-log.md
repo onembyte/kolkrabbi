@@ -7229,3 +7229,14 @@ Tag v1.3.2 on the release commit; verify and publish both succeeded (run 3408239
 release carries the four archives, the checksums and their sigstore bundle. The agents' window
 is the change. The Homebrew formula for v1.3.2 was generated from the published checksums and
 left for the owner to read; the tap still serves v1.3.0 until one of them lands.
+
+## What the agent is doing, and where the plan stands — V38.1 and V38.2 closed 2026-09-08
+
+Two of the three things the owner asked for after watching a run. The spinner said "working" and
+nothing more, while the engine already knew which tool was running and what the provider was
+doing; that label now sits beside the spinner and is replaced on every update. And a session on
+a subscription was reporting dollars it does not spend: the vendor's own plan windows, which
+were being discarded unless they warned, are now kept as readings and drawn as meters above the
+status rows, spent heavy and grey, remaining light and purple. The cost cell says "subscription"
+and the run-cost line stays out. Two older tests were re-read rather than deleted: one required
+a plain window reading to be dropped, the other assumed every limit event was news.

@@ -45,6 +45,8 @@ func collect(events []Event, elapsed time.Duration) (provider.Message, provider.
 			if event.Model != "" {
 				meta.Model = event.Model
 			}
+		case EventLimit:
+			meta.Limits = upsertLimit(meta.Limits, provider.PlanLimit{Window: event.LimitWindow, Used: event.LimitUtilization, Resets: event.LimitResets})
 		case EventUsage:
 			if event.Model != "" {
 				meta.Model = event.Model
@@ -65,3 +67,18 @@ func collect(events []Event, elapsed time.Duration) (provider.Message, provider.
 type providerError struct{ message string }
 
 func (e *providerError) Error() string { return e.message }
+
+// upsertLimit keeps the latest reading of each window, in the order the
+// windows were first seen.
+func upsertLimit(limits []provider.PlanLimit, reading provider.PlanLimit) []provider.PlanLimit {
+	if reading.Window == "" {
+		return limits
+	}
+	for i := range limits {
+		if limits[i].Window == reading.Window {
+			limits[i] = reading
+			return limits
+		}
+	}
+	return append(limits, reading)
+}

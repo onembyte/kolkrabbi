@@ -719,9 +719,10 @@ func runningAgentStatuses(statuses []AgentStatus) int {
 // SetUsage updates only the footer's context and cost cells. The CLI could
 // otherwise rebuild the whole status only between turns, so both numbers sat
 // frozen for as long as a turn ran — which is when the context one moves.
-func (c *Controller) SetUsage(context, cost string) {
+func (c *Controller) SetUsage(context, cost string, limits []PlanMeter) {
 	c.status.Context = context
 	c.status.Cost = cost
+	c.status.Limits = append([]PlanMeter(nil), limits...)
 	c.screen.SetStatus(c.status)
 }
 

@@ -84,6 +84,19 @@ type Meta struct {
 	// better than the returned message — a provider-executed tool loop leaves
 	// the message carrying none of its calls.
 	ToolCalls int
+	// Limits are the plan windows the provider reported during this call,
+	// the latest reading per window: where a subscription stands, for a
+	// surface that shows meters rather than dollars.
+	Limits []PlanLimit
+}
+
+// PlanLimit is one reading of one plan window: the vendor's window name,
+// the share used (0..1) and when it resets, as unix seconds (zero when the
+// vendor did not say).
+type PlanLimit struct {
+	Window string
+	Used   float64
+	Resets int64
 }
 
 type chatRequest struct {

@@ -17,7 +17,7 @@ func TestObserveProviderEventKeepsTypedBoundaries(t *testing.T) {
 		{Kind: EventTool, ToolCallID: "call_1", ToolName: "Bash", ToolInput: "pwd"},
 		{Kind: EventTool, ToolCallID: "call_1", ToolOutput: "exit 1", ToolIsError: true},
 		{Kind: EventError, Error: "provider paused"},
-		{Kind: EventLimit, LimitWindow: "seven_day", LimitUtilization: 0.78},
+		{Kind: EventLimit, LimitWindow: "seven_day", LimitUtilization: 0.78, LimitWarning: true},
 	} {
 		observeProviderEvent(observe, event, pending)
 	}

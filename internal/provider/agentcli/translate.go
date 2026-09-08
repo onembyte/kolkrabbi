@@ -44,6 +44,7 @@ type Event struct {
 	// the vendor refused the request outright; the consumer keeps it to
 	// classify the terminal frame that follows.
 	LimitRejected    bool
+	LimitWarning     bool
 	LimitWindow      string
 	LimitUtilization float64
 	LimitResets      int64 // unix seconds
@@ -202,12 +203,13 @@ func Translate(line []byte) ([]Event, error) {
 			utilization = frame.RateLimitInfo.Utilization
 			resets = frame.RateLimitInfo.ResetsAt
 		}
-		if status != "allowed_warning" && status != "rejected" {
+		if status != "allowed" && status != "allowed_warning" && status != "rejected" {
 			return nil, nil
 		}
 		return []Event{{
 			Kind:             EventLimit,
 			LimitRejected:    status == "rejected",
+			LimitWarning:     status == "allowed_warning",
 			LimitWindow:      secret.Scrub(window),
 			LimitUtilization: utilization,
 			LimitResets:      resets,

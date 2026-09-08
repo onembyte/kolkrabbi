@@ -45,6 +45,11 @@ func observeProviderEvent(observe func(provider.ProgressEvent), event Event, pen
 			observe(provider.ProgressEvent{Kind: provider.ProgressError, Detail: oneLine(event.Error, 100), Error: true})
 		}
 	case EventLimit:
+		// A plain reading of a window is not news; a warning and a rejection
+		// are. The reading still rides on Meta for the status meters.
+		if !event.LimitWarning && !event.LimitRejected {
+			return
+		}
 		observe(provider.ProgressEvent{Kind: provider.ProgressLimit, Detail: oneLine(limitTrail(event), 100), Error: event.LimitRejected})
 	}
 }

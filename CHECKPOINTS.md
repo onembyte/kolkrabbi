@@ -10845,11 +10845,21 @@ Subcheckpoints, one at a time:
     port, bus or no bus. Each update replaces the last; the line goes when the work ends; a
     detail with nothing running is dropped. Red first in both packages; the older test that
     forbade the label was re-read to require it while still keeping the lifecycle word out.
-  - [ ] **V38.2 plan meters instead of dollars on a subscription** — the plan-limit windows the
-    Claude handover reports (five-hour, seven-day, per-model) become structured data on the
-    session, drawn as meters in the status area — used in grey, remaining in purple, the percent
-    beside — and the cost cell and the run-cost lines stop showing dollars when the billing is a
-    subscription.
+  - [x] **V38.2 plan meters instead of dollars on a subscription** — closed 2026-09-08. The
+    vendor's `rate_limit_event` was being dropped unless it warned; a plain `allowed` reading is
+    now kept as a reading (`Event.LimitWarning` marks the ones that are news), collected onto
+    `provider.Meta.Limits` as `PlanLimit{Window, Used, Resets}`, and folded by the engine into
+    `Agent.PlanLimits()` — latest reading per window, five-hour first, seven-day next, model
+    windows by name. The status area draws one meter per window above the two status rows:
+    `5h ━━━━━━━━━━── 80%`, the spent part heavy and grey, the remaining light and purple, which
+    reads under `NO_COLOR` too; a narrow screen falls back to the percents alone. `viewRow` grew
+    `spans` for rows drawn in more than one style. On a subscription the cost cell says
+    `subscription` rather than a figure, whatever the vendor's stream priced the turn at, and the
+    orchestrator's "run so far: $x" line stays out. Red first in four packages; two older tests
+    re-read (the translate test that required `allowed` to be dropped, and the progress fixture
+    that assumed every limit event was news). `make check`, cross-platform lint and vet green.
+    Read as a rendered frame. Not done: the owner's own terminal, and no vendor but Claude
+    reports windows yet.
   - [ ] **V38.3 click to place the cursor** — mouse reporting on while the composer owns the
     screen, a left click inside the composer moving the cursor to that cell, the wheel scrolling
     the transcript; off around an attached vendor login; a `mouse` setting to turn it off, because

@@ -197,13 +197,17 @@ func TestTranslateToolResultsNameOnlyTheId(t *testing.T) {
 // carries no news, a warning does, and a rejection is the cause of a failure
 // that arrives one frame later.
 func TestTranslateProjectsRateLimitEvents(t *testing.T) {
-	t.Run("allowed is dropped", func(t *testing.T) {
+	// Re-read 2026-09-08 (V38.2): "allowed" is a reading of the window —
+	// how much of it is used — which the status meters show; it is kept as
+	// an event that warns of nothing and pauses nothing.
+	t.Run("allowed is a reading, not a warning", func(t *testing.T) {
 		events, err := Translate([]byte(`{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","rateLimitType":"seven_day","utilization":0.4,"resetsAt":1788220800}}`))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(events) != 0 {
-			t.Fatalf("allowed events = %+v, want none", events)
+		if len(events) != 1 || events[0].Kind != EventLimit || events[0].LimitWarning || events[0].LimitRejected ||
+			events[0].LimitWindow != "seven_day" || events[0].LimitUtilization != 0.4 {
+			t.Fatalf("allowed event = %+v, want a reading of the seven_day window", events)
 		}
 	})
 	t.Run("warning keeps the window", func(t *testing.T) {
@@ -211,7 +215,7 @@ func TestTranslateProjectsRateLimitEvents(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(events) != 1 || events[0].Kind != EventLimit || events[0].LimitRejected ||
+		if len(events) != 1 || events[0].Kind != EventLimit || events[0].LimitRejected || !events[0].LimitWarning ||
 			events[0].LimitWindow != "seven_day" || events[0].LimitUtilization != 0.78 ||
 			events[0].LimitResets != 1788220800 {
 			t.Fatalf("warning event = %+v", events)

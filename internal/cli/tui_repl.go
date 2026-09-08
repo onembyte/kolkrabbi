@@ -144,7 +144,9 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 		// Read on the spinner's tick: context and cost move during a turn, and a
 		// footer that only updates between turns shows both frozen for exactly
 		// as long as the user is watching them change.
-		Meter: func() (string, string) { return contextLabel(ag), sessionCostLabel(ag) },
+		Meter: func() (string, string, []tui.PlanMeter) {
+			return contextLabel(ag), sessionCostLabel(ag), planMeters(ag)
+		},
 		Turn: func(turnContext context.Context, prompt string) error {
 			trimmedPrompt := strings.TrimSpace(prompt)
 			// Inline SAGA must win over slash dispatch when the marker begins
@@ -455,7 +457,7 @@ func tuiStatus(ag *engine.Agent, lifecycle, folder string) tui.Status {
 		Model: model, Mode: ag.Mode, Effort: ag.Effort,
 		Session: sessID, SessionName: sessTitle, Folder: folder,
 		Approval: approval, Sandbox: sandboxStatus(ag), Cooling: ag.CoolingNotice(), Paused: pausedNotice(ag), Lifecycle: lifecycle,
-		Context: contextLabel(ag), Cost: sessionCostLabel(ag),
+		Context: contextLabel(ag), Cost: sessionCostLabel(ag), Limits: planMeters(ag),
 	}
 }
 
@@ -494,16 +496,48 @@ func sessionCostLabel(ag *engine.Agent) string {
 // says both, since the figure alone would understate it.
 func costLabel(total float64, billing string) string {
 	switch {
+	case billing == provider.BillingSubscription:
+		// Not billed by the dollar, whatever the vendor's stream priced the
+		// turn at; the plan's windows are the measure (V38.2).
+		return "subscription"
 	case total > 0 && billing == "mixed":
 		return fmt.Sprintf("$%.2f · +metered", total)
 	case total > 0:
 		return fmt.Sprintf("$%.2f", total)
 	case billing == provider.BillingAPIMetered:
 		return "metered"
-	case billing == provider.BillingSubscription:
-		return "subscription"
 	}
 	return ""
+}
+
+// planMeters is where the plan stands, labelled for the status meters.
+func planMeters(ag *engine.Agent) []tui.PlanMeter {
+	limits := ag.PlanLimits()
+	if len(limits) == 0 {
+		return nil
+	}
+	meters := make([]tui.PlanMeter, 0, len(limits))
+	for _, limit := range limits {
+		meters = append(meters, tui.PlanMeter{Label: planWindowLabel(limit.Window), Used: limit.Used})
+	}
+	return meters
+}
+
+// planWindowLabel is the vendor's window name as a short label: the two
+// rolling windows by their length, a model's own window by the model.
+func planWindowLabel(window string) string {
+	switch window {
+	case "five_hour":
+		return "5h"
+	case "seven_day":
+		return "7d"
+	}
+	for _, prefix := range []string{"seven_day_", "five_hour_"} {
+		if strings.HasPrefix(window, prefix) && len(window) > len(prefix) {
+			return strings.TrimPrefix(window, prefix)
+		}
+	}
+	return strings.ReplaceAll(window, "_", " ")
 }
 
 func workingFolderLabel() string {

@@ -44,7 +44,7 @@ type RuntimeOptions struct {
 	// spinner's tick while work is running. Without it the CLI could rebuild the
 	// footer only between turns, so both numbers froze for exactly as long as a
 	// turn ran — which is when the context number is the interesting one.
-	Meter func() (context string, cost string)
+	Meter func() (context string, cost string, limits []PlanMeter)
 }
 
 // synchronizedWriter serializes renderer frames with raw bytes from an
@@ -78,7 +78,7 @@ type Runtime struct {
 	spinClock  spinnerClock
 	turn       func(context.Context, string) error
 	cyclePerm  func() string
-	meter      func() (string, string)
+	meter      func() (string, string, []PlanMeter)
 	// Frame pacing. Streaming floods Write with a token apiece; repainting on
 	// every token re-renders the whole transcript per byte and makes the frame
 	// chase the model instead of the reader. Frames coalesce to ~30/s, which no
@@ -483,13 +483,14 @@ func (r *Runtime) animateActivities(done, idle chan struct{}) {
 		// engine, and the engine must be able to need the screen while answering
 		// without the screen waiting on the engine.
 		var contextLabel, costLabel string
+		var limits []PlanMeter
 		if r.meter != nil {
-			contextLabel, costLabel = r.meter()
+			contextLabel, costLabel, limits = r.meter()
 		}
 		r.mu.Lock()
 		r.frame = (r.frame + 1) % len(wheelFrames)
 		if r.meter != nil {
-			r.controller.SetUsage(contextLabel, costLabel)
+			r.controller.SetUsage(contextLabel, costLabel, limits)
 		}
 		r.showActivityLocked()
 		r.mu.Unlock()

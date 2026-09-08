@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -446,6 +447,8 @@ type Agent struct {
 	// "what has this session cost", which is the question that decides whether
 	// to keep going.
 	sessionSpend spend
+	planLimitsMu sync.Mutex
+	planLimits   map[string]provider.PlanLimit
 	// statsWarnOnce keeps the stats warning to one line even when several
 	// subagents hit the same broken recorder at the same moment.
 	statsWarnOnce sync.Once
@@ -830,6 +833,7 @@ func (a *Agent) recordAtEffort(role string, meta provider.Meta, toolCalls int, e
 	a.runSpend.add(meta.Cost)
 	a.sessionSpend.add(meta.Cost)
 	a.sessionSpend.noteBilling(meta.Billing)
+	a.notePlanLimits(meta.Limits)
 
 	if a.Recorder == nil || a.Sess == nil {
 		return
@@ -1268,6 +1272,53 @@ func (a *Agent) SessionCostUSD() float64 { return a.sessionSpend.total() }
 // SessionBilling is how this session's calls have been billed: one of the
 // provider.Billing* modes, "mixed", or empty before any call.
 func (a *Agent) SessionBilling() string { return a.sessionSpend.billingMode() }
+
+// notePlanLimits keeps the latest reading of each plan window a call
+// reported.
+func (a *Agent) notePlanLimits(limits []provider.PlanLimit) {
+	if len(limits) == 0 {
+		return
+	}
+	a.planLimitsMu.Lock()
+	defer a.planLimitsMu.Unlock()
+	if a.planLimits == nil {
+		a.planLimits = map[string]provider.PlanLimit{}
+	}
+	for _, limit := range limits {
+		if limit.Window != "" {
+			a.planLimits[limit.Window] = limit
+		}
+	}
+}
+
+// PlanLimits is where the plan stands, one reading per window the provider
+// has reported this session: the five-hour window first, the seven-day
+// next, then any model-specific window by name. Empty until a provider
+// says.
+func (a *Agent) PlanLimits() []provider.PlanLimit {
+	a.planLimitsMu.Lock()
+	defer a.planLimitsMu.Unlock()
+	out := make([]provider.PlanLimit, 0, len(a.planLimits))
+	for _, limit := range a.planLimits {
+		out = append(out, limit)
+	}
+	rank := func(window string) int {
+		switch window {
+		case "five_hour":
+			return 0
+		case "seven_day":
+			return 1
+		}
+		return 2
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if rank(out[i].Window) != rank(out[j].Window) {
+			return rank(out[i].Window) < rank(out[j].Window)
+		}
+		return out[i].Window < out[j].Window
+	})
+	return out
+}
 
 // Context is how full the window is, measured the same way the turn footer
 // measures it. Exported because the status line is where someone looks before
