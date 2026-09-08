@@ -369,6 +369,13 @@ func (m *Model) viewRows(width, height, cursor int) []viewRow {
 // Both answers come from one pass so that what gets committed to scrollback and
 // what stays on screen can never disagree about where the fold is.
 func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
+	rows, budget, _ := m.layoutWithComposer(width, height, cursor)
+	return rows, budget
+}
+
+// layoutWithComposer is layout, and says which frame row the composer's top
+// rule sits on — what a click has to be measured against.
+func (m *Model) layoutWithComposer(width, height, cursor int) ([]viewRow, int, int) {
 	if width < 4 {
 		width = 4
 	}
@@ -527,9 +534,10 @@ func (m *Model) layout(width, height, cursor int) ([]viewRow, int) {
 	rows = append(rows, activity...)
 	rows = append(rows, agentRows...)
 	rows = append(rows, suggestions...)
+	composerTop := len(rows)
 	rows = append(rows, composer...)
 	rows = append(rows, statusLine...)
-	return rows, budget
+	return rows, budget, composerTop
 }
 
 // agentStatusStyle colours structural state, never model-provided text. The
@@ -1225,4 +1233,67 @@ func planMetersRow(limits []PlanMeter, width int) []viewRow {
 		return []viewRow{{text: clipLine(statusIndent+strings.Join(parts, " · "), width), style: stylePurpleMuted}}
 	}
 	return []viewRow{{text: text, style: stylePurpleMuted, spans: spans}}
+}
+
+// ComposerHit maps a click inside the frame to a rune offset in the draft.
+// col and row are zero-based cells from the frame's top-left corner; ok is
+// false for a click anywhere but the composer's own text rows.
+//
+// The hit is measured against the draft as it wraps without the caret glyph,
+// so a click lands on the character under the pointer; a click past the end
+// of a line goes to the end of that line, which is where a caret is wanted
+// anyway.
+func (m *Model) ComposerHit(width, height, cursor, col, row int) (int, bool) {
+	_, _, composerTop := m.layoutWithComposer(width, height, cursor)
+	// The composer opens with its top rule and closes with another; the text
+	// is what lies between.
+	first := composerTop + 1
+	lines := m.composerRunes(width)
+	if row < first || row >= first+len(lines) {
+		return 0, false
+	}
+	line := lines[row-first]
+	// Every content row is written behind a two-cell prefix: the prompt
+	// marker on the first, blanks on the rest.
+	target := col - 2
+	offset := line.start
+	if target <= 0 {
+		return offset, true
+	}
+	used := 0
+	for _, r := range line.runes {
+		cells := runeCellWidth(r)
+		if used+cells > target {
+			break
+		}
+		used += cells
+		offset++
+	}
+	return offset, true
+}
+
+// composerLine is one wrapped row of the draft with the rune offset it opens
+// at.
+type composerLine struct {
+	start int
+	runes []rune
+}
+
+// composerRunes wraps the draft the way composerLines draws it, without the
+// caret, keeping each row's offset into the draft.
+func (m *Model) composerRunes(width int) []composerLine {
+	contentWidth := max(1, width-2)
+	var lines []composerLine
+	offset := 0
+	for index, paragraph := range strings.Split(sanitizeTerminalText(m.draft), "\n") {
+		if index > 0 {
+			offset++ // the newline itself
+		}
+		for _, wrapped := range wrapLine(paragraph, contentWidth) {
+			runes := []rune(wrapped)
+			lines = append(lines, composerLine{start: offset, runes: runes})
+			offset += len(runes)
+		}
+	}
+	return lines
 }

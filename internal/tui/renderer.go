@@ -13,12 +13,17 @@ const (
 	showCursor        = "\x1b[?25h"
 	eraseBelow        = "\x1b[J"
 	eraseToLineEnd    = "\x1b[K"
+	// Button events in SGR coordinates: presses and releases, no motion
+	// tracking, so the terminal keeps as much of its own behaviour as it can.
+	mouseOn  = "\x1b[?1000h\x1b[?1006h"
+	mouseOff = "\x1b[?1006l\x1b[?1000l"
 )
 
 // Renderer repaints one contiguous terminal region in the normal screen
 // buffer. It neither clears scrollback nor enters the alternate screen.
 type Renderer struct {
 	out     io.Writer
+	mouse   bool
 	rows    int
 	started bool
 	closed  bool
@@ -31,12 +36,29 @@ type Renderer struct {
 // NewRenderer binds a renderer to one terminal writer.
 func NewRenderer(out io.Writer) *Renderer { return &Renderer{out: out} }
 
+// SetMouse asks the terminal for button reports while the frame owns the
+// screen, so a click can place the caret. Set it before Start.
+func (r *Renderer) SetMouse(on bool) { r.mouse = on }
+
+// mouseSequence turns reporting on or off, or says nothing at all when this
+// session never asked for it.
+func (r *Renderer) mouseSequence(on bool) string {
+	switch {
+	case !r.mouse:
+		return ""
+	case on:
+		return mouseOn
+	default:
+		return mouseOff
+	}
+}
+
 // Start enables paste framing and uses a virtual cursor rendered by the model.
 func (r *Renderer) Start() error {
 	if r.started {
 		return nil
 	}
-	if _, err := io.WriteString(r.out, bracketedPasteOn+hideCursor); err != nil {
+	if _, err := io.WriteString(r.out, bracketedPasteOn+hideCursor+r.mouseSequence(true)); err != nil {
 		return err
 	}
 	r.started = true
@@ -155,7 +177,7 @@ func (r *Renderer) Park() {
 	if !r.started || r.closed {
 		return
 	}
-	_, _ = io.WriteString(r.out, "\r"+eraseBelow+showCursor+bracketedPasteOff)
+	_, _ = io.WriteString(r.out, "\r"+eraseBelow+showCursor+bracketedPasteOff+r.mouseSequence(false))
 	r.rows = 0
 	r.lastView = ""
 }
@@ -165,7 +187,7 @@ func (r *Renderer) Resume() {
 	if !r.started || r.closed {
 		return
 	}
-	_, _ = io.WriteString(r.out, bracketedPasteOn+hideCursor)
+	_, _ = io.WriteString(r.out, bracketedPasteOn+hideCursor+r.mouseSequence(true))
 	r.rows = 0
 	r.lastView = ""
 }
@@ -179,7 +201,7 @@ func (r *Renderer) Close() error {
 	if r.rows > 0 {
 		sequence = r.clearSequence()
 	}
-	sequence += showCursor + bracketedPasteOff
+	sequence += showCursor + bracketedPasteOff + r.mouseSequence(false)
 	if _, err := io.WriteString(r.out, sequence); err != nil {
 		return err
 	}

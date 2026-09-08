@@ -45,6 +45,10 @@ type RuntimeOptions struct {
 	// footer only between turns, so both numbers froze for exactly as long as a
 	// turn ran — which is when the context number is the interesting one.
 	Meter func() (context string, cost string, limits []PlanMeter)
+	// Mouse asks the terminal for button reports, so a click places the
+	// caret. It costs the terminal's own drag-select, which is why it is a
+	// setting; shift-drag still selects in every terminal worth the name.
+	Mouse bool
 }
 
 // synchronizedWriter serializes renderer frames with raw bytes from an
@@ -79,6 +83,7 @@ type Runtime struct {
 	turn       func(context.Context, string) error
 	cyclePerm  func() string
 	meter      func() (string, string, []PlanMeter)
+	mouse      bool
 	// Frame pacing. Streaming floods Write with a token apiece; repainting on
 	// every token re-renders the whole transcript per byte and makes the frame
 	// chase the model instead of the reader. Frames coalesce to ~30/s, which no
@@ -161,7 +166,7 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 		renderer: NewRenderer(output), decoder: NewDecoder(),
 		output: output,
 		width:  options.Width, height: options.Height, resize: options.Resize, turn: options.Turn,
-		cyclePerm: options.CyclePermission, meter: options.Meter,
+		cyclePerm: options.CyclePermission, meter: options.Meter, mouse: options.Mouse,
 		spinClock: realSpinnerClock{},
 		quit:      make(chan struct{}),
 	}
@@ -171,6 +176,7 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 func (r *Runtime) Run(ctx context.Context) error {
 	r.mu.Lock()
 	r.baseContext = ctx
+	r.renderer.SetMouse(r.mouse)
 	if err := r.renderer.Start(); err != nil {
 		r.mu.Unlock()
 		return err

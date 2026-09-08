@@ -59,6 +59,7 @@ func (c *Config) settingRows(defaultModel, defaultBaseURL string) []Setting {
 	if c.MaxConcurrentTasks > 0 {
 		tasks, tasksDefault = strconv.Itoa(c.MaxConcurrentTasks), false
 	}
+	mouse, mouseDefault := text(c.Mouse, "on")
 	isolation, isolationDefault := text(c.Isolation, IsolationWorktree)
 	network, networkDefault := text(c.SubagentNetwork, "auto")
 	sandbox, sandboxDefault := text(c.Sandbox, "off")
@@ -72,6 +73,8 @@ func (c *Config) settingRows(defaultModel, defaultBaseURL string) []Setting {
 			"restart into the new version after `/update`, keeping the session"},
 		{"max_run_cost_usd", cost, costDefault, "stop an orchestrated run once it has cost this much"},
 		{"max_concurrent_tasks", tasks, tasksDefault, "how many orchestrated tasks may run at once"},
+		{"mouse", mouse, mouseDefault,
+			"click in the composer to place the cursor: on · off (off gives the terminal its drag-select back; shift-drag selects either way)"},
 		{"isolation", isolation, isolationDefault,
 			"where writing subagents run: worktree (each in its own git worktree, landed when done) · shared (one tree, one writer at a time)"},
 		{"subagent_network", network, networkDefault,

@@ -86,6 +86,12 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 			} else {
 				fmt.Fprintf(a.stdout, "(unset — inherits %d)\n", engine.DefaultConcurrentTasks)
 			}
+		case key == "mouse":
+			if cfg.Mouse != "" {
+				fmt.Fprintln(a.stdout, cfg.Mouse)
+			} else {
+				fmt.Fprintln(a.stdout, "(unset — on: click in the composer to place the cursor)")
+			}
 		case key == "isolation":
 			if cfg.Isolation != "" {
 				fmt.Fprintln(a.stdout, cfg.Isolation)
@@ -212,6 +218,16 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				return err
 			}
 			fmt.Fprintf(a.stdout, "max_concurrent_tasks → %d\n", width)
+		case key == "mouse":
+			state := strings.ToLower(strings.TrimSpace(val))
+			if state != "on" && state != "off" {
+				return usagef("mouse: %q is not on or off", val)
+			}
+			cfg.Mouse = state
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.stdout, "mouse → %s (takes effect in the next session)\n", state)
 		case key == "isolation":
 			where := strings.ToLower(strings.TrimSpace(val))
 			if where != config.IsolationWorktree && where != config.IsolationShared {
@@ -371,6 +387,12 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 			}
 			fmt.Fprintf(a.stdout, "removed max_concurrent_tasks; back to %d at a time\n",
 				engine.DefaultConcurrentTasks)
+		case key == "mouse":
+			cfg.Mouse = ""
+			if err := config.Save(d.ConfigFile(), cfg); err != nil {
+				return err
+			}
+			fmt.Fprintln(a.stdout, "removed mouse; back to on")
 		case key == "isolation":
 			cfg.Isolation = ""
 			if err := config.Save(d.ConfigFile(), cfg); err != nil {

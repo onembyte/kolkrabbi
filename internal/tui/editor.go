@@ -2,6 +2,8 @@ package tui
 
 import (
 	"bytes"
+	"strconv"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -38,12 +40,18 @@ const (
 	KeyKillWord
 	KeyKillToStart
 	KeyKillToEnd
+	// KeyMouse is a left-button press inside the frame, at Col and Row,
+	// both zero-based and measured from the frame's top-left cell.
+	KeyMouse
 )
 
 // Key carries text only for KeyText and KeyPaste.
 type Key struct {
 	Kind KeyKind
 	Text string
+	// Col and Row carry a KeyMouse press's position; zero otherwise.
+	Col int
+	Row int
 }
 
 // EditResult describes an effect the outer terminal loop must handle.
@@ -379,17 +387,17 @@ func (d *Decoder) Feed(chunk []byte) []Key {
 
 		if d.pending[0] == 0x1b {
 			flushText()
-			sequence, kind, complete := decodeEscape(d.pending)
+			sequence, key, complete := decodeEscape(d.pending)
 			if !complete {
 				break
 			}
 			d.pending = d.pending[sequence:]
-			if kind == KeyPaste {
+			if key.Kind == KeyPaste {
 				d.pasting = true
 				continue
 			}
-			if kind != 0 {
-				keys = append(keys, Key{Kind: kind})
+			if key.Kind != 0 {
+				keys = append(keys, key)
 			}
 			continue
 		}
@@ -464,7 +472,13 @@ func (d *Decoder) Feed(chunk []byte) []Key {
 	return keys
 }
 
-func decodeEscape(input []byte) (consumed int, kind KeyKind, complete bool) {
+// decodeEscape reads one escape sequence: how many bytes it took, the key it
+// means (kind zero for a sequence with no meaning here), and whether it was
+// complete — an incomplete one waits in the buffer for the next read.
+func decodeEscape(input []byte) (consumed int, key Key, complete bool) {
+	if consumed, key, complete, handled := decodeMouse(input); handled {
+		return consumed, key, complete
+	}
 	sequences := []struct {
 		bytes []byte
 		kind  KeyKind
@@ -497,15 +511,13 @@ func decodeEscape(input []byte) (consumed int, kind KeyKind, complete bool) {
 		// selection away from the terminal, and losing copy-paste to gain a
 		// scroll is a bad trade. A terminal configured to send these — or one
 		// where the user holds the modifier their emulator uses — is honoured.
-		{[]byte("\x1b[<64;"), KeyPageUp},
-		{[]byte("\x1b[<65;"), KeyPageDown},
 	}
 	for _, sequence := range sequences {
 		if bytes.HasPrefix(input, sequence.bytes) {
-			return len(sequence.bytes), sequence.kind, true
+			return len(sequence.bytes), Key{Kind: sequence.kind}, true
 		}
 		if bytes.HasPrefix(sequence.bytes, input) {
-			return 0, 0, false
+			return 0, Key{}, false
 		}
 	}
 	// Consume one complete unknown CSI/SS3 sequence so an unsupported key
@@ -513,15 +525,15 @@ func decodeEscape(input []byte) (consumed int, kind KeyKind, complete bool) {
 	if len(input) >= 2 && (input[1] == '[' || input[1] == 'O') {
 		for i := 2; i < len(input); i++ {
 			if input[i] >= 0x40 && input[i] <= 0x7e {
-				return i + 1, 0, true
+				return i + 1, Key{}, true
 			}
 		}
-		return 0, 0, false
+		return 0, Key{}, false
 	}
 	if len(input) == 1 {
-		return 0, 0, false
+		return 0, Key{}, false
 	}
-	return 2, 0, true
+	return 2, Key{}, true
 }
 
 func suffixPrefixLen(input, marker []byte) int {
@@ -560,4 +572,62 @@ func sanitizePastedText(text string) string {
 		}
 	}
 	return string(out)
+}
+
+// mousePrefix opens an SGR mouse report: ESC [ < button ; column ; row and a
+// final M for a press or m for a release.
+var mousePrefix = []byte("\x1b[<")
+
+// decodeMouse reads one SGR mouse report whole. Matching only its prefix —
+// which is what the wheel entries in the table above used to do — left the
+// coordinates behind to arrive in the draft as digits, so either the whole
+// report is consumed here or none of it is. handled is false for input that
+// is not a mouse report at all.
+func decodeMouse(input []byte) (consumed int, key Key, complete, handled bool) {
+	if !bytes.HasPrefix(input, mousePrefix) {
+		// A partial prefix is a report in the making; waiting for the rest
+		// beats letting the table read it as something else.
+		if len(input) < len(mousePrefix) && bytes.HasPrefix(mousePrefix, input) {
+			return 0, Key{}, false, true
+		}
+		return 0, Key{}, false, false
+	}
+	for i := len(mousePrefix); i < len(input); i++ {
+		final := input[i]
+		if final != 'M' && final != 'm' {
+			if (final >= '0' && final <= '9') || final == ';' {
+				continue
+			}
+			// Not a mouse report after all; the generic reader can have it.
+			return 0, Key{}, false, false
+		}
+		fields := strings.Split(string(input[len(mousePrefix):i]), ";")
+		if len(fields) != 3 {
+			return i + 1, Key{}, true, true
+		}
+		button, buttonErr := strconv.Atoi(fields[0])
+		column, columnErr := strconv.Atoi(fields[1])
+		row, rowErr := strconv.Atoi(fields[2])
+		if buttonErr != nil || columnErr != nil || rowErr != nil {
+			return i + 1, Key{}, true, true
+		}
+		switch {
+		case button == 64:
+			return i + 1, Key{Kind: KeyPageUp}, true, true
+		case button == 65:
+			return i + 1, Key{Kind: KeyPageDown}, true, true
+		case final == 'M' && button&0b1110_0011 == 0:
+			// A left-button press: not a release, not a drag (bit 32), not
+			// another button (bits 1 and 2), not the wheel or a further
+			// button (bits 64 and 128).
+			return i + 1, Key{Kind: KeyMouse, Col: max(0, column-1), Row: max(0, row-1)}, true, true
+		}
+		return i + 1, Key{}, true, true
+	}
+	return 0, Key{}, false, true
+}
+
+// SetCursor puts the caret at a rune offset in the draft, clamped to it.
+func (e *Editor) SetCursor(offset int) {
+	e.cursor = min(max(offset, 0), len(e.draft))
 }

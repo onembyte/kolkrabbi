@@ -70,6 +70,8 @@ type Approval struct {
 // Controller applies terminal and engine events to one screen and editor.
 type Controller struct {
 	screen *Model
+	width  int
+	height int
 	// question is the open picker, if any. It takes keys ahead of the composer
 	// for the same reason the approval overlay does: what is on screen is a
 	// question, and the next key is its answer.
@@ -171,6 +173,10 @@ func (c *Controller) HandleKey(key Key) Effect {
 	// Tab completes, Shift+Tab never does, so there is nothing to disturb.
 	if key.Kind == KeyShiftTab {
 		return Effect{CyclePermission: true}
+	}
+	if key.Kind == KeyMouse {
+		c.placeCursor(key)
+		return Effect{}
 	}
 	if effect, handled := c.handleSuggestionKey(key); handled {
 		return effect
@@ -445,6 +451,9 @@ func (c *Controller) RenderView(width, height int) string {
 }
 
 func (c *Controller) renderView(width, height int, styled bool) string {
+	// A click is measured against the frame that is actually on screen, so
+	// the size it was drawn at is what answers for it.
+	c.width, c.height = width, height
 	if c.secret != nil {
 		return c.overlayView(c.secretLines(width), width, height, styled)
 	}
@@ -962,3 +971,21 @@ func (c *Controller) draftIsASuggestion() bool {
 	}
 	return false
 }
+
+// placeCursor moves the caret to a clicked cell. A click that lands anywhere
+// but the composer's text does nothing, which is what clicking a transcript
+// should do.
+func (c *Controller) placeCursor(key Key) {
+	if c.width <= 0 || c.height <= 0 {
+		return
+	}
+	offset, ok := c.screen.ComposerHit(c.width, c.height, c.editor.Cursor(), key.Col, key.Row)
+	if !ok {
+		return
+	}
+	c.editor.SetCursor(offset)
+	c.screen.SetDraft(c.editor.Draft())
+}
+
+// Cursor is where the caret sits in the draft.
+func (c *Controller) Cursor() int { return c.editor.Cursor() }

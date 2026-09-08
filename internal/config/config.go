@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/atomicfile"
 )
@@ -36,6 +37,10 @@ type Config struct {
 	// MaxConcurrentTasks is how many orchestrated tasks may run at once.
 	// Zero means the default of three; one makes a run sequential.
 	MaxConcurrentTasks int `json:"max_concurrent_tasks,omitempty"`
+	// Mouse is "on" (the default) or "off": whether the session asks the
+	// terminal for button reports, which lets a click place the caret and
+	// costs the terminal's own drag-select (shift-drag still selects).
+	Mouse string `json:"mouse,omitempty"`
 	// Isolation is where writing subagents run (plan 36): "worktree" — each
 	// in a git worktree of its own, landed when it finishes — or "shared",
 	// one tree with writers one at a time. Empty means worktree.
@@ -127,3 +132,8 @@ func (c *Config) EffectiveIsolation() string {
 	}
 	return IsolationWorktree
 }
+
+// MouseEnabled reports whether the session should ask for mouse reports.
+// Anything but an explicit "off" means on: clicking to place the caret is
+// what a terminal user expects, and the setting exists to give it back.
+func (c *Config) MouseEnabled() bool { return strings.ToLower(strings.TrimSpace(c.Mouse)) != "off" }

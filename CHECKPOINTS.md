@@ -10836,8 +10836,8 @@ Subcheckpoints, one at a time:
       intent was never "available", kept; its vocabulary was the old one, replaced. Pins: seven
       wall states, three refusals, the lede, the styles. Rendered in headless Chrome and read. Not
       touched: the capabilities cards, which name no vendor beyond Claude, Codex and Copilot.
-- [~] **V38 polish the TUI** — asked 2026-09-08 with a screenshot of a live run; three leaves, one
-  at a time.
+- [x] **V38 polish the TUI** — asked 2026-09-08 with a screenshot of a live run; three leaves, one
+  at a time. Closed 2026-09-08.
   - [x] **V38.1 what the agent is doing, in the activity line** — closed 2026-09-08. The work
     port's label, which the runtime had been dropping on purpose, is now the activity line's
     detail (`⠋ working… · Reading file — PLAN.md`), and the engine's main-turn steps ("model is
@@ -10860,10 +10860,19 @@ Subcheckpoints, one at a time:
     that assumed every limit event was news). `make check`, cross-platform lint and vet green.
     Read as a rendered frame. Not done: the owner's own terminal, and no vendor but Claude
     reports windows yet.
-  - [ ] **V38.3 click to place the cursor** — mouse reporting on while the composer owns the
-    screen, a left click inside the composer moving the cursor to that cell, the wheel scrolling
-    the transcript; off around an attached vendor login; a `mouse` setting to turn it off, because
-    reporting takes plain drag-select away (Shift-drag still selects).
+  - [x] **V38.3 click to place the cursor** — closed 2026-09-08. The frame asks for SGR button
+    reports (`?1000h`, `?1006h`) while it owns the screen and gives them back on Park, Resume and
+    Close, so a vendor login and the shell after it get a clean terminal. A left press becomes
+    `KeyMouse{Col,Row}`; the controller maps it through `Model.ComposerHit`, which recomputes the
+    layout, finds the composer's rows and walks the draft's wrap to a rune offset, and moves the
+    caret. Clicks in the transcript and clicks while an overlay is up do nothing. Setting `mouse`,
+    `on` by default, `off` gives the terminal its drag-select back; shift-drag selects either way.
+    Found and fixed on the way: the decoder matched the wheel sequences by prefix only, so the
+    coordinates after `\x1b[<64;` would have been typed into the draft as digits the moment
+    reporting was on — the whole report is now read at once, drags and other buttons dropped,
+    wheel still paging. Red first: seven decoder cases, three hit-test cases, the controller and
+    the terminal modes. `make check`, `-race` on three packages, cross-platform lint and vet
+    green. Not done: the owner's own terminal, and no test drives a real mouse.
 - [x] **V37 the agents' window in the TUI** — asked 2026-09-07: "make the kolk TUI similar to
   what you have created in the webui. when agents are deployed open a window in the top right with
   the details and logs. then automatically close it. in the main log, just leave a summary".

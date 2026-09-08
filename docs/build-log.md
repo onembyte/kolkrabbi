@@ -7240,3 +7240,13 @@ were being discarded unless they warned, are now kept as readings and drawn as m
 status rows, spent heavy and grey, remaining light and purple. The cost cell says "subscription"
 and the run-cost line stays out. Two older tests were re-read rather than deleted: one required
 a plain window reading to be dropped, the other assumed every limit event was news.
+
+## Click to place the caret — V38.3 closed 2026-09-08
+
+The last of the three. The frame now asks the terminal for button reports while it owns the
+screen and hands them back whenever it lets go, a left press is mapped through the composer's
+own wrap to a rune offset, and the caret goes there. The setting exists because reporting costs
+the terminal its drag-select, which not everyone will trade. The work turned up a latent bug
+worth more than the feature: the decoder recognised the wheel by prefix and left the rest of
+the report in the buffer, so switching reporting on would have typed coordinates into the
+draft. Mouse reports are now read whole or not at all.

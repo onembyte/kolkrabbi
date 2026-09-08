@@ -116,6 +116,15 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 		resize = changes
 	}
 	var screen *tui.Runtime
+	// The mouse setting, read once for this session: the frame asks the
+	// terminal for button reports only when the user wants them, because
+	// reporting takes the terminal's own drag-select away.
+	mouseWanted := true
+	if d, err := a.resolve(); err == nil {
+		if cfg, err := config.Load(d.ConfigFile()); err == nil {
+			mouseWanted = cfg.MouseEnabled()
+		}
+	}
 	screen = tui.NewRuntime(tui.RuntimeOptions{
 		Input: a.terminalInput, Output: originalStdout,
 		Width: func() int {
@@ -147,6 +156,7 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 		Meter: func() (string, string, []tui.PlanMeter) {
 			return contextLabel(ag), sessionCostLabel(ag), planMeters(ag)
 		},
+		Mouse: mouseWanted,
 		Turn: func(turnContext context.Context, prompt string) error {
 			trimmedPrompt := strings.TrimSpace(prompt)
 			// Inline SAGA must win over slash dispatch when the marker begins
