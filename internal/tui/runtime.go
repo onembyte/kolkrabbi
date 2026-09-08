@@ -345,8 +345,21 @@ func (r *Runtime) Start(ctx context.Context, phase string) func() {
 // StartWork implements the engine's local-tool activity port. Its argument is
 // the tool's own description, which is too specific for the status row; local
 // work is reported as work.
-func (r *Runtime) StartWork(ctx context.Context, _ string) func() {
-	return r.startActivity(ctx, "working")
+func (r *Runtime) StartWork(ctx context.Context, label string) func() {
+	return r.startActivityDetail(ctx, "working", label)
+}
+
+// WorkDetail replaces what the activity line says the agent is doing, for
+// as long as something is running; with nothing running there is no line
+// to say it on, and the detail is dropped rather than kept for later.
+func (r *Runtime) WorkDetail(step string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.activities) == 0 {
+		return
+	}
+	r.activities[len(r.activities)-1].detail = step
+	r.showActivityLocked()
 }
 
 // KeepActivityDuringOutput tells the engine that streamed tokens are appended
@@ -360,11 +373,16 @@ func (r *Runtime) KeepActivityDuringOutput() bool { return true }
 // the newest finishes the row can fall back to what is still running instead of
 // going blank.
 type activityEntry struct {
-	id    uint64
-	phase string
+	id     uint64
+	phase  string
+	detail string
 }
 
 func (r *Runtime) startActivity(ctx context.Context, phase string) func() {
+	return r.startActivityDetail(ctx, phase, "")
+}
+
+func (r *Runtime) startActivityDetail(ctx context.Context, phase, detail string) func() {
 	activityContext, cancel := context.WithCancel(ctx)
 	r.mu.Lock()
 	if r.spinClock == nil {
@@ -372,7 +390,7 @@ func (r *Runtime) startActivity(ctx context.Context, phase string) func() {
 	}
 	r.activityID++
 	id := r.activityID
-	r.activities = append(r.activities, activityEntry{id: id, phase: phase})
+	r.activities = append(r.activities, activityEntry{id: id, phase: phase, detail: detail})
 	r.showActivityLocked()
 	// One animator serves every activity. Starting it here, under the same lock
 	// that appended, is what makes the handoff safe: the animator only retires
@@ -428,7 +446,8 @@ func (r *Runtime) showActivityLocked() {
 		r.renderLocked()
 		return
 	}
-	r.controller.SetActivity(activityLine(r.frame, r.activities[len(r.activities)-1].phase))
+	last := r.activities[len(r.activities)-1]
+	r.controller.SetActivity(activityLineDetail(r.frame, last.phase, last.detail))
 	r.renderLocked()
 }
 

@@ -19,11 +19,16 @@ func (a *Agent) resetMainWork() {
 // to replace, but its planning/delegation/synthesis decisions must survive in
 // the same durable journal as child work.
 func (a *Agent) publishMainWork(state protocol.WorkState, phase protocol.WorkPhase, step, model, effort string) {
-	if a.Bus == nil || a.lastTurnID == "" {
-		return
-	}
 	step = compactSubagentStep(step)
 	if step == "" {
+		return
+	}
+	// The screen first: its activity line is where a person reads what the
+	// agent is doing, bus or no bus.
+	if detailer, ok := a.Work.(interface{ WorkDetail(string) }); ok {
+		detailer.WorkDetail(step)
+	}
+	if a.Bus == nil || a.lastTurnID == "" {
 		return
 	}
 

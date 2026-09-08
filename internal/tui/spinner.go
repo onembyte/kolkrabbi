@@ -73,3 +73,15 @@ func promptEcho(prompt string) string {
 	}
 	return strings.Join(lines, "\n") + "\n"
 }
+
+// activityLineDetail is the activity line with what the agent is doing
+// beside the phase: the tool it started, or the step the engine last
+// reported. Empty detail is the plain line.
+func activityLineDetail(frame int, phase, detail string) string {
+	line := activityLine(frame, phase)
+	detail = strings.TrimSpace(detail)
+	if detail == "" {
+		return line
+	}
+	return line + " · " + detail
+}

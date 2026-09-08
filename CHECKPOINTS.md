@@ -10836,6 +10836,24 @@ Subcheckpoints, one at a time:
       intent was never "available", kept; its vocabulary was the old one, replaced. Pins: seven
       wall states, three refusals, the lede, the styles. Rendered in headless Chrome and read. Not
       touched: the capabilities cards, which name no vendor beyond Claude, Codex and Copilot.
+- [~] **V38 polish the TUI** — asked 2026-09-08 with a screenshot of a live run; three leaves, one
+  at a time.
+  - [x] **V38.1 what the agent is doing, in the activity line** — closed 2026-09-08. The work
+    port's label, which the runtime had been dropping on purpose, is now the activity line's
+    detail (`⠋ working… · Reading file — PLAN.md`), and the engine's main-turn steps ("model is
+    responding", a tool starting) reach the same line through an optional `WorkDetail` on the
+    port, bus or no bus. Each update replaces the last; the line goes when the work ends; a
+    detail with nothing running is dropped. Red first in both packages; the older test that
+    forbade the label was re-read to require it while still keeping the lifecycle word out.
+  - [ ] **V38.2 plan meters instead of dollars on a subscription** — the plan-limit windows the
+    Claude handover reports (five-hour, seven-day, per-model) become structured data on the
+    session, drawn as meters in the status area — used in grey, remaining in purple, the percent
+    beside — and the cost cell and the run-cost lines stop showing dollars when the billing is a
+    subscription.
+  - [ ] **V38.3 click to place the cursor** — mouse reporting on while the composer owns the
+    screen, a left click inside the composer moving the cursor to that cell, the wheel scrolling
+    the transcript; off around an attached vendor login; a `mouse` setting to turn it off, because
+    reporting takes plain drag-select away (Shift-drag still selects).
 - [x] **V37 the agents' window in the TUI** — asked 2026-09-07: "make the kolk TUI similar to
   what you have created in the webui. when agents are deployed open a window in the top right with
   the details and logs. then automatically close it. in the main log, just leave a summary".

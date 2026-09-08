@@ -211,17 +211,19 @@ func TestRuntimeToolWorkUsesOnlyTheEphemeralActivityRegion(t *testing.T) {
 	runtime.spinClock = clock
 	stop := runtime.StartWork(context.Background(), "Reading file — PLAN.md")
 	got := runtime.Snapshot()
-	if got.Activity != activityLine(0, "working") || got.Transcript != "" || got.Status.Lifecycle != "working" {
+	if got.Activity != activityLineDetail(0, "working", "Reading file — PLAN.md") || got.Transcript != "" || got.Status.Lifecycle != "working" {
 		t.Fatalf("tool activity regions = %#v", got)
 	}
 	// A tool's own description is too specific for the status row, and
 	// "thinking" would claim a model call that is not happening.
-	if strings.Contains(got.Activity, "thinking") || strings.Contains(got.Activity, "Reading file") {
-		t.Fatalf("activity leaked a label it should not carry: %q", got.Activity)
+	// Re-read 2026-09-08 (V38.1): the label is the point — the line says
+	// what the agent is doing — while the old lifecycle word stays out.
+	if strings.Contains(got.Activity, "thinking") || !strings.Contains(got.Activity, "Reading file") {
+		t.Fatalf("activity = %q, want the tool's label and not the lifecycle word", got.Activity)
 	}
 	timer := nextSpinnerTimer(t, clock, spinnerInterval)
 	timer.fire()
-	waitForActivity(t, runtime, activityLine(1, "working"))
+	waitForActivity(t, runtime, activityLineDetail(1, "working", "Reading file — PLAN.md"))
 	stop()
 	if got := runtime.Snapshot(); got.Activity != "" || got.Transcript != "" {
 		t.Fatalf("stopped tool activity leaked into transcript: %#v", got)
