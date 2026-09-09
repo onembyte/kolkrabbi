@@ -8420,3 +8420,141 @@ stood at 02:20.
 `bench/o3-save-after.txt`, `OPTIMIZATION_PLAN.md`, `docs/build-log.md`. Nothing committed.
 `internal/local`, `docs/plan/25-managed-local-models.md` and PLAN.md item 25 are the other model's
 ground and were not opened.
+
+## 2026-09-09 — O5, O6, O8: what a start and a resume actually cost
+
+Three leaves of `OPTIMIZATION_PLAN.md`, all of them on the path between typing `kolk` and seeing a
+prompt: the usage log folded twice at startup (O5), every transcript on the machine decoded to pick
+one to resume (O6), and every signed-in vendor's CLI spawned on every start (O8).
+
+### O5 — one fold, and the fold remembered
+
+`RatingsByModel` was called from `run.go` for the engine's slot selection and again from
+`candidates.go` for the continuity ranking, each one loading and folding the whole of
+`stats.jsonl`. Now the app folds once (`a.ratingsByModel`, dropped by `/rate` through
+`a.forgetRatings`) and the fold itself is cached in `ratings.json` beside the log.
+
+The cache is keyed on the log's `size`, `modtime` and the byte `offset` the fold consumed. An
+unchanged log is answered without opening it; a grown log has only its new bytes scanned; anything
+else — shrunk, edited in place, a cache of another version — is folded again from the start.
+
+**The plan's premise needed one correction.** "Ratings are an associative fold per model, so
+partial re-fold is exact" is false on its own: a rating joins *backwards* to every call of its
+turn, so a call appended for a turn that was already rated moves an average with no new rating line
+anywhere in the appended bytes. So the cache carries the rated turns too, and the forward scan
+gives up — falls back to the whole log — when the new bytes hold a rating **or** a call of a rated
+turn. What is left is the case a session actually produces: calls for turns nobody has rated, which
+contribute nothing to this fold and are skipped without touching a number.
+`TestTheCachedFoldEqualsTheColdFold` folds a 160-record log after every single append and compares
+it, each time, against the same log folded once from cold.
+
+The rated turns sit in the file as `json.RawMessage` and are decoded only when the forward scan
+needs them. They are the only part that grows with the log, and decoding 4,000 turn ids into
+strings on every warm read was 2.4 ms of the first 2.9 ms measurement.
+
+`BenchmarkRatingsByModel/20k`: **101.8 ms → 275 µs** warm; `/1k`: 5.15 ms → 34.6 µs
+(`bench/o5-ratings-after.txt`). A cold re-fold is 51.8 ms, paid after a `/rate`, an edit or a first
+run. Startup did this twice, so a 20k-record log cost ~204 ms before anything was drawn.
+`kolk stats` still reads the whole log: it is a report, not a startup path (O5.3).
+
+### O6 — a header per session
+
+`<id>.meta.json`, written inside `Session.write` after the transcript it describes, carrying `ID`,
+`Title`, `CWD`, `UpdatedAt`, `Model` and `MessageCount` — plus `Effort`, `Connector` and `Pause`,
+because the dashboard's cards show the first two and `kolk doctor` lists every paused session on
+the machine, and a field the header lacks is a field that costs a full decode. `List` returns
+`[]session.Meta`, reading a header where there is one and deriving it with a count-only decode
+(`Messages []struct{}`: walked, never allocated) where there is not. `Load` is called for the one
+session chosen. `Overview` is now `List` plus the liveness probe, which is the one fact no file can
+hold. `cmd_sessions` and `cmd_doctor` were rewritten onto the header (message counts, snapshot
+sizes and the paused list all had `*Session` in hand); `serve_session_pick` and `cmd_dash` needed
+no line changed, because a `Meta` names the fields they already read.
+
+`BenchmarkLatestForDir/200`: **203.8 ms → 4.95 ms** (median of five; 4.74–5.87 across eight runs at
+load average ~6.7). `/10`: 14.8 ms → 1.10 ms. Not flat, and the slope is worth naming: ~21 µs per
+session of header reading remains, against ~1 ms per session before, and a resume is now dominated
+by the single transcript it decodes (~1 ms at 200 KB). Flat would need one index file for all
+sessions, which two kolks in two terminals would have to agree on writing; a header per session has
+no such question.
+
+The plan's step 1 — order by `ReadDir` mtime and stop at the first `CWD` match — was not built.
+It trades `UpdatedAt` for file mtime as the meaning of "latest", so `kolk -r` and `kolk sessions`
+could name different sessions as newest, and it buys ~2.5 ms once step 2 made the scan cheap.
+
+**The header costs 0.3 ms per save, not 4 ms.** It is written atomically — a listing must never
+read half a header — but with neither `fsync`. With the file `fsync` it added 4 ms to every save of
+a 100 KB session, half the save, so `atomicfile.WriteOptions` gained `SkipFileSync` beside O3's
+`SkipDirSync`: still atomic, still safe against a crashed process, giving up only survival of a
+power cut for a file that is rebuilt from one written durably. `BenchmarkSave` at 100 KB is
+6.7–7.5 ms against O3's 6.4–7.2 ms (`bench/o6-sessions-after.txt`).
+
+Drift has an owner: `session.RepairMeta` rewrites a header from its transcript and reports whether
+it had to, and `kolk doctor` runs it over every session in a new `sessions` section — which is also
+where a session directory written by an older kolk gets its headers for the first time. That
+section carries O5's line too: whether the ratings cache was current or rebuilt.
+
+### O8 — ask a vendor when it matters
+
+`vendorCatalogTTL` is six hours. A vendor whose catalog was fetched inside it is not asked and not
+reported, because a catalog that did not change is not news; a vendor that never answered, a login,
+and `kolk models --refresh` are all outside it. A warm start therefore spawns **zero** vendor
+processes and leaves `vendor-models.json`'s mtime untouched.
+
+**The `VendorVersion` escape hatch was deliberately not built.** Reading a vendor's version means
+running `codex --version`, which is a process, and "a warm start spawns zero vendor processes" is
+this leaf's own acceptance test. The two cannot both hold. A vendor that renames a model inside the
+window is seen late by `/models` and immediately by a turn, which still marks the row `gone` on
+contact (F4.3). Rollback for a suspected stale catalog is `vendorCatalogTTL = 0`.
+
+`SaveVendorCatalogs` now compares the bytes it would write against the file and returns without
+writing when they match. The start path is not where that pays: `recordVendorModelOutcome`
+re-verifies the model the turn just ran on, so every turn after the first rewrote a byte-identical
+document with an `fsync`, a rename and a new mtime.
+
+Yielding to the turn needed one flag. `engine.Agent` counts running turns in an `atomic.Int32` and
+answers `TurnActive()` — a counter, because a continuity hop re-enters `RunTurn` and a flag would
+clear on the inner return — and the background refresh takes that method as its `busy` func,
+waiting 250 ms at a time before each vendor and giving up if the run ends. The refresh call moved
+from the middle of `newAgent` to its end, after the agent exists, so the flag can never be read
+before there is one.
+
+### Tests
+
+`internal/stats/ratings_cache_test.go` (9): warm read, forward extension, a rating appended by
+another process, a call appended for an already-rated turn, an edit that keeps the file's length, a
+truncation, `/rate` dropping the cache, three unusable cache files, and the cold-vs-warm
+equivalence fold. `internal/cli/ratings_once_test.go`: the log moves and the answer does not until
+`/rate` says so. `internal/session/meta_test.go` (8): the header a save writes and its size,
+listing from a header while the transcript is unreadable JSON, the migration decode, the pause, the
+delete, `RepairMeta` on a drifted header, a resume that still carries its messages, and three
+headers that must be ignored. `internal/cli/sessions_header_test.go` (3): the listing and the
+search over an unreadable transcript, and doctor writing a missing header back.
+`internal/engine/turn_active_test.go`: the flag observed from inside a turn through the recorder.
+`internal/cli/model_discovery_test.go`: `…OnceUntilStale` (the rename the plan asked for) now
+asserts call counts *and* the file's mtime across a warm start and then past the window, plus a
+login inside the window, an identical catalog that is not rewritten, discovery waiting on a
+streaming turn, and a run that ends while it is waiting.
+
+Three tests that belonged to other people's assertions were adapted, not rewritten:
+`session_id_test.go` (List returns headers, so `coveredConstructors` drops it and the loop checks
+the ids instead — the O15 author's file, left otherwise intact), `cmd_sessions_extra_test.go` (the
+fork is found as a `Meta`), and `first_run_test.go` (counting transcripts, not the header beside
+them).
+
+### Gates
+
+Full `make check` green, twice, including `go test ./... -count=1` (3,633 tests, floor 3,217),
+`golangci-lint` 0 issues, arch, purity, budgets (binary 9.10 MB, cold start p50 7.5 ms), site 465,
+surface 21, installer 72, spec 29, release 24 + 41 + 30, smoke 18, plan 107, workflow pins 46.
+
+**Paths touched.** `internal/stats/{ratings.go,stats.go,ratings_cache_test.go}`,
+`internal/session/{meta.go,meta_test.go,session.go,overview.go,session_id_test.go}`,
+`internal/atomicfile/{atomicfile.go,skipsync_test.go}`,
+`internal/engine/{agent.go,turn_active_test.go}`, `internal/provider/vendor_catalog_store.go`,
+`internal/cli/{run.go,candidates.go,cli.go,slash.go,cmd_sessions.go,cmd_doctor.go,model_discovery.go,cmd_models.go}`
+(`serve_session_pick.go` and `cmd_dash.go` are on the new path without a line changing),
+`internal/cli/{ratings_once_test.go,sessions_header_test.go,model_discovery_test.go,cmd_sessions_extra_test.go,first_run_test.go}`,
+`bench/o5-ratings-after.txt`, `bench/o6-sessions-after.txt`, `OPTIMIZATION_PLAN.md`,
+`docs/build-log.md`. Nothing committed. `internal/local`,
+`docs/plan/25-managed-local-models.md` and PLAN.md item 25 are the other model's ground and were
+not opened.

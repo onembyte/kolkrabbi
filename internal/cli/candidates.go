@@ -7,7 +7,6 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/continuity"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/provider"
-	"github.com/onembyte/kolkrabbi/internal/stats"
 )
 
 // continuityCandidates is what could continue the work when the session's
@@ -26,7 +25,10 @@ func (a *app) continuityCandidates(ctx context.Context) []continuity.Candidate {
 	if err != nil {
 		return nil
 	}
-	ratings, _ := stats.RatingsByModel(dirs.Data)
+	// Folded once per process and shared with the engine's slot selection
+	// (OPTIMIZATION_PLAN.md O5): this used to be startup's second full read of
+	// the usage log.
+	ratings := a.ratingsByModel(dirs.Data)
 	store := a.vendorCatalogs()
 	var out []continuity.Candidate
 	for _, connector := range manifest.Connectors {

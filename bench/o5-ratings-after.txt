@@ -1,0 +1,12 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/onembyte/kolkrabbi/internal/stats
+cpu: Apple M3
+BenchmarkRatingsByModel/1k-8         	    2000	     34586 ns/op	    8688 B/op	      37 allocs/op
+BenchmarkRatingsByModel/1k-8         	    2000	     34729 ns/op	    8688 B/op	      37 allocs/op
+BenchmarkRatingsByModel/1k-8         	    2000	     34500 ns/op	    8688 B/op	      37 allocs/op
+BenchmarkRatingsByModel/20k-8        	    2000	    274936 ns/op	  134256 B/op	     153 allocs/op
+BenchmarkRatingsByModel/20k-8        	    2000	    281111 ns/op	  134257 B/op	     153 allocs/op
+BenchmarkRatingsByModel/20k-8        	    2000	    272764 ns/op	  134256 B/op	     153 allocs/op
+PASS
+ok  	github.com/onembyte/kolkrabbi/internal/stats	6.089s

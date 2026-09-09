@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -112,8 +115,10 @@ func fakeRegistry(calls map[string]*int, catalogs map[string]provider.VendorCata
 }
 
 // Every start maps every signed-in vendor, behind the prompt, and the model
-// commands read the result. A vendor not signed in is not asked.
-func TestStartupDiscoversEveryEnabledConnectorInTheBackground(t *testing.T) {
+// commands read the result. A vendor not signed in is not asked — and neither
+// is one that answered inside the freshness window, which is what makes a warm
+// start spawn no vendor process at all (OPTIMIZATION_PLAN.md O8).
+func TestStartupDiscoversEveryEnabledConnectorOnceUntilStale(t *testing.T) {
 	dirs := isolateConnectorState(t)
 	signInAs(t, dirs, "anthropic", "Claude Max", "claude")
 	signInAs(t, dirs, "openai", "ChatGPT Plus", "codex")
@@ -131,7 +136,7 @@ func TestStartupDiscoversEveryEnabledConnectorInTheBackground(t *testing.T) {
 		"codex":  {Vendor: "codex", Source: "codex debug models", VendorVersion: "0.149.1", Models: []provider.DiscoveredModel{{ID: "gpt-5.6-sol", Rank: 1, Status: provider.StatusListed}}},
 	}, nil)
 
-	a.refreshVendorCatalogsInBackground(context.Background(), nil)
+	a.refreshVendorCatalogsInBackground(context.Background(), nil, nil)
 	a.background.Wait()
 
 	store, err := provider.LoadVendorCatalogs(dirs.VendorCatalogFile())
@@ -149,6 +154,151 @@ func TestStartupDiscoversEveryEnabledConnectorInTheBackground(t *testing.T) {
 	}
 	if *calls["codex"] != 1 || *calls["claude"] != 1 {
 		t.Fatalf("each vendor is asked once per start: %v", calls)
+	}
+
+	// The next start, inside the window: nothing is spawned, and the file is
+	// not even touched.
+	before, err := os.Stat(dirs.VendorCatalogFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.refreshVendorCatalogsInBackground(context.Background(), nil, nil)
+	a.background.Wait()
+	if *calls["codex"] != 1 || *calls["claude"] != 1 {
+		t.Fatalf("a warm start spawned a vendor process: %v", calls)
+	}
+	after, err := os.Stat(dirs.VendorCatalogFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !after.ModTime().Equal(before.ModTime()) {
+		t.Fatalf("vendor-models.json was rewritten by a warm start: %v → %v", before.ModTime(), after.ModTime())
+	}
+
+	// And once the window has passed, every vendor is asked again.
+	a.now = func() time.Time { return time.Now().Add(vendorCatalogTTL + time.Minute) }
+	a.refreshVendorCatalogsInBackground(context.Background(), nil, nil)
+	a.background.Wait()
+	if *calls["codex"] != 2 || *calls["claude"] != 2 {
+		t.Fatalf("a stale catalog was not refreshed: %v", calls)
+	}
+}
+
+// A login, and `kolk models --refresh`, ask whatever the window says: they are
+// a person saying "now".
+func TestALoginAsksTheVendorEvenInsideTheFreshnessWindow(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	signInAs(t, dirs, "openai", "ChatGPT Plus", "codex")
+	a, _, _ := newTestApp(t, "")
+	a.dirs = dirs
+	calls := map[string]*int{}
+	a.modelLister = fakeRegistry(calls, map[string]provider.VendorCatalog{
+		"codex": {Vendor: "codex", Source: "codex debug models", VendorVersion: "0.149.1", Models: []provider.DiscoveredModel{{ID: "gpt-5.6-sol", Rank: 1, Status: provider.StatusListed}}},
+	}, nil)
+
+	a.refreshVendorCatalogsInBackground(context.Background(), nil, nil)
+	a.background.Wait()
+	a.reportVendorDiscovery(context.Background(), "codex")
+
+	if *calls["codex"] != 2 {
+		t.Fatalf("codex was asked %d times; a login must not be skipped by the window", *calls["codex"])
+	}
+}
+
+// A vendor catalog that did not change is not rewritten. Before O8 every turn
+// that re-verified its own model rewrote this file.
+func TestAnUnchangedVendorCatalogIsNotRewritten(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "vendor-models.json")
+	store := provider.VendorCatalogs{Vendors: map[string]provider.VendorCatalog{
+		"codex": {Vendor: "codex", Source: "codex debug models", FetchedAt: time.Now(),
+			Models: []provider.DiscoveredModel{{ID: "gpt-5.6-sol", Status: provider.StatusVerified}}},
+	}}
+	if err := provider.SaveVendorCatalogs(path, store); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := provider.SaveVendorCatalogs(path, store); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !after.ModTime().Equal(before.ModTime()) {
+		t.Fatalf("an identical catalog was rewritten: %v → %v", before.ModTime(), after.ModTime())
+	}
+
+	// A real change still lands.
+	store.Verify("codex", "gpt-5.7", "gpt-5.7-exact", time.Now())
+	if err := provider.SaveVendorCatalogs(path, store); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := provider.LoadVendorCatalogs(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := reloaded.Vendors["codex"].Find("gpt-5.7"); !ok {
+		t.Fatal("a changed catalog was not written")
+	}
+}
+
+// Discovery stands aside while a turn is streaming: the person is waiting on
+// tokens, and a vendor process is felt.
+func TestDiscoveryWaitsWhileATurnIsStreaming(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	signInAs(t, dirs, "openai", "ChatGPT Plus", "codex")
+	a, _, _ := newTestApp(t, "")
+	a.dirs = dirs
+	calls := map[string]*int{}
+	a.modelLister = fakeRegistry(calls, map[string]provider.VendorCatalog{
+		"codex": {Vendor: "codex", Source: "codex debug models", Models: []provider.DiscoveredModel{{ID: "gpt-5.6-sol", Status: provider.StatusListed}}},
+	}, nil)
+
+	var streaming atomic.Bool
+	streaming.Store(true)
+	a.refreshVendorCatalogsInBackground(context.Background(), nil, streaming.Load)
+
+	// While the turn holds the machine, nothing is spawned.
+	time.Sleep(3 * vendorDiscoveryYieldPoll)
+	if calls["codex"] != nil && *calls["codex"] != 0 {
+		t.Fatalf("a vendor was spawned during a turn: %v", calls)
+	}
+	streaming.Store(false)
+	a.background.Wait()
+	if calls["codex"] == nil || *calls["codex"] != 1 {
+		t.Fatalf("discovery never ran after the turn ended: %v", calls)
+	}
+}
+
+// A run that ends while a turn is still streaming abandons the discovery
+// rather than holding exit open for it.
+func TestDiscoveryWaitingOnATurnStopsWhenTheRunEnds(t *testing.T) {
+	dirs := isolateConnectorState(t)
+	signInAs(t, dirs, "openai", "ChatGPT Plus", "codex")
+	a, _, _ := newTestApp(t, "")
+	a.dirs = dirs
+	calls := map[string]*int{}
+	a.modelLister = fakeRegistry(calls, map[string]provider.VendorCatalog{
+		"codex": {Vendor: "codex", Source: "codex debug models", Models: []provider.DiscoveredModel{{ID: "gpt-5.6-sol", Status: provider.StatusListed}}},
+	}, nil)
+
+	a.refreshVendorCatalogsInBackground(context.Background(), nil, func() bool { return true })
+	done := make(chan struct{})
+	go func() {
+		a.joinBackground()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("exit waited on a discovery that was waiting on a turn")
+	}
+	if calls["codex"] != nil && *calls["codex"] != 0 {
+		t.Fatalf("a vendor was spawned after the run ended: %v", calls)
 	}
 }
 

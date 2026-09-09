@@ -49,7 +49,9 @@ func (a *app) runModels(ctx context.Context, args []string) error {
 	// current. Found by running it (F4.7).
 	var discovered []vendorDiscovery
 	if forceRefresh {
-		discovered = a.discoverVendorModels(ctx, provider.CachedCatalog(d.CatalogFile()), "")
+		// --refresh is a person saying "now", so it asks every vendor whatever
+		// the freshness window says (OPTIMIZATION_PLAN.md O8).
+		discovered = a.discoverVendorModels(ctx, provider.CachedCatalog(d.CatalogFile()), discoveryRequest{force: true})
 	}
 	a.printVendorModels(filter)
 	for _, result := range discovered {

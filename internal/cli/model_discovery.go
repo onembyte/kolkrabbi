@@ -141,6 +141,37 @@ func (a *app) recordVendorModelOutcome(vendor, asked string, meta provider.Meta,
 // for a vendor CLI that hangs on a network it cannot reach.
 const vendorDiscoveryTimeout = 15 * time.Second
 
+// vendorCatalogTTL is how long a vendor's answer is taken at its word.
+//
+// Every start used to spawn every signed-in vendor's CLI — `codex --version`,
+// `codex debug models`, and one process per vendor after that — behind the
+// prompt but on the same machine the first turn is running on
+// (OPTIMIZATION_PLAN.md O8). A vendor's catalog changes when the vendor ships,
+// which is not hourly, so a start inside this window uses what the last one
+// learned and spawns nothing at all. A login, `kolk models --refresh`, and a
+// vendor that has never answered are all outside it, and the first turn to
+// meet a model the vendor no longer has still marks it gone on contact (F4.3).
+//
+// Rollback for a suspected stale catalog is one word here: 0.
+const vendorCatalogTTL = 6 * time.Hour
+
+// vendorDiscoveryYieldPoll is how often a background discovery asks whether
+// the turn has finished with the machine.
+const vendorDiscoveryYieldPoll = 250 * time.Millisecond
+
+// discoveryRequest is what one round of discovery may do.
+type discoveryRequest struct {
+	// only names one connector; empty means every enabled one.
+	only string
+	// force asks every named vendor however recently it answered. A login and
+	// `kolk models --refresh` are a person saying "now"; a start is not.
+	force bool
+	// busy reports that a turn is streaming. When it does, discovery waits
+	// rather than competing with the turn for the CPU and the disk. Nil is
+	// "nothing is streaming", which is every foreground caller.
+	busy func() bool
+}
+
 // vendorDiscovery is what one connector's discovery came to.
 type vendorDiscovery struct {
 	Connector string
@@ -170,14 +201,14 @@ func (a *app) lister(connector string, gateway []provider.ModelInfo) provider.Mo
 // unverified again under the new one. A vendor that will not answer keeps
 // its last catalog and is reported, never blanked: yesterday's list with a
 // warning beats no list at all.
-func (a *app) discoverVendorModels(ctx context.Context, gateway []provider.ModelInfo, only string) []vendorDiscovery {
+func (a *app) discoverVendorModels(ctx context.Context, gateway []provider.ModelInfo, req discoveryRequest) []vendorDiscovery {
 	dirs, err := a.resolve()
 	if err != nil {
-		return []vendorDiscovery{{Connector: only, Err: err}}
+		return []vendorDiscovery{{Connector: req.only, Err: err}}
 	}
 	manifest, err := provider.LoadConnectors(dirs.ConnectorsFile())
 	if err != nil {
-		return []vendorDiscovery{{Connector: only, Err: err}}
+		return []vendorDiscovery{{Connector: req.only, Err: err}}
 	}
 	store, err := provider.LoadVendorCatalogs(dirs.VendorCatalogFile())
 	if err != nil {
@@ -191,7 +222,7 @@ func (a *app) discoverVendorModels(ctx context.Context, gateway []provider.Model
 	seen := map[string]bool{}
 	for _, connector := range manifest.Connectors {
 		name := strings.ToLower(strings.TrimSpace(connector.Name))
-		if !connector.Enabled || seen[name] || (only != "" && name != strings.ToLower(strings.TrimSpace(only))) {
+		if !connector.Enabled || seen[name] || (req.only != "" && name != strings.ToLower(strings.TrimSpace(req.only))) {
 			continue
 		}
 		seen[name] = true
@@ -199,9 +230,26 @@ func (a *app) discoverVendorModels(ctx context.Context, gateway []provider.Model
 	}
 	sort.Strings(connectors)
 
+	now := time.Now
+	if a.now != nil {
+		now = a.now
+	}
+
 	results := make([]vendorDiscovery, 0, len(connectors))
 	changed := false
 	for _, name := range connectors {
+		// A vendor that answered recently is not asked again, and asking is
+		// the expensive part: it is a process. Nothing is reported for it
+		// either — a catalog that did not change is not news.
+		if !req.force && catalogIsFresh(store.Vendors[name], now()) {
+			continue
+		}
+		// The turn owns the machine while it is streaming. This is the only
+		// wait in discovery, and a cancelled context ends the round rather
+		// than the vendor.
+		if !awaitQuietTurn(ctx, req.busy) {
+			break
+		}
 		result := vendorDiscovery{Connector: name}
 		lister := a.lister(name, gateway)
 		if lister == nil {
@@ -221,11 +269,19 @@ func (a *app) discoverVendorModels(ctx context.Context, gateway []provider.Model
 			store.Forget(name)
 			result.VersionChanged = true
 		}
+		// A lister that did not say when it fetched is stamped now, so the TTL
+		// above has something to measure from. Never overwritten: a lister
+		// reporting a cached answer's age knows better than this clock does.
+		if catalog.FetchedAt.IsZero() {
+			catalog.FetchedAt = now()
+		}
 		store.Replace(catalog)
 		result.Catalog = catalog
 		results = append(results, result)
 		changed = true
 	}
+	// SaveVendorCatalogs is a no-op when the document is unchanged, so a round
+	// that only re-learned what the file already said leaves its mtime alone.
 	if changed {
 		if err := provider.SaveVendorCatalogs(dirs.VendorCatalogFile(), store); err != nil {
 			results = append(results, vendorDiscovery{Connector: "vendor catalog", Err: err})
@@ -234,12 +290,45 @@ func (a *app) discoverVendorModels(ctx context.Context, gateway []provider.Model
 	return results
 }
 
+// catalogIsFresh reports that this vendor answered recently enough to be taken
+// at its word. A vendor that never answered, or one whose answer carried no
+// timestamp, is not fresh: it has nothing to be fresh from.
+func catalogIsFresh(catalog provider.VendorCatalog, now time.Time) bool {
+	if vendorCatalogTTL <= 0 || catalog.FetchedAt.IsZero() || len(catalog.Models) == 0 {
+		return false
+	}
+	age := now.Sub(catalog.FetchedAt)
+	// A catalog stamped in the future is a clock that moved, not a fresh
+	// answer; asking again is the cheap way to be sure.
+	return age >= 0 && age < vendorCatalogTTL
+}
+
+// awaitQuietTurn waits until no turn is streaming, and reports whether the
+// caller may go on. A cancelled context ends the wait and the round.
+func awaitQuietTurn(ctx context.Context, busy func() bool) bool {
+	if ctx.Err() != nil {
+		return false
+	}
+	for busy != nil && busy() {
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(vendorDiscoveryYieldPoll):
+		}
+	}
+	return ctx.Err() == nil
+}
+
 // refreshVendorCatalogsInBackground is the startup mapping: every enabled
-// connector, behind the prompt, never on the startup path's clock. The
-// gateway catalog it previews from is the one startup already loaded.
-func (a *app) refreshVendorCatalogsInBackground(ctx context.Context, gateway []provider.ModelInfo) {
+// connector that has not answered inside the TTL, behind the prompt, never on
+// the startup path's clock and never while a turn is streaming. The gateway
+// catalog it previews from is the one startup already loaded.
+//
+// A warm start therefore spawns no vendor process at all: the loop above skips
+// every fresh vendor before it reaches a lister.
+func (a *app) refreshVendorCatalogsInBackground(ctx context.Context, gateway []provider.ModelInfo, busy func() bool) {
 	a.startBackground(ctx, func(ctx context.Context) {
-		for _, result := range a.discoverVendorModels(ctx, gateway, "") {
+		for _, result := range a.discoverVendorModels(ctx, gateway, discoveryRequest{busy: busy}) {
 			if result.Err != nil {
 				a.debugLog.Printf("vendor discovery: %v", result.Err)
 			}
@@ -256,7 +345,8 @@ func (a *app) reportVendorDiscovery(ctx context.Context, connector string) {
 	if dirs, err := a.resolve(); err == nil {
 		gateway = provider.CachedCatalog(dirs.CatalogFile())
 	}
-	for _, result := range a.discoverVendorModels(ctx, gateway, connector) {
+	// A login is a person saying "now", so it asks whatever the TTL says.
+	for _, result := range a.discoverVendorModels(ctx, gateway, discoveryRequest{only: connector, force: true}) {
 		fmt.Fprintln(a.stdout, describeVendorDiscovery(result))
 	}
 }

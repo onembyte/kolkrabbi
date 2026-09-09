@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,7 +51,15 @@ func LoadVendorCatalogs(path string) (VendorCatalogs, error) {
 	return store, nil
 }
 
-// SaveVendorCatalogs writes the file atomically.
+// SaveVendorCatalogs writes the file atomically — and not at all when the file
+// already says exactly this.
+//
+// Every turn that answers re-verifies the model it ran on, and almost every
+// one of those is a row that was already verified with the same exact id: the
+// same document, rewritten with an fsync, a rename and a fresh mtime, once per
+// turn (OPTIMIZATION_PLAN.md O8). Comparing first costs one read of a small
+// file, and the map keys encoding/json sorts make the comparison exact rather
+// than a guess about iteration order.
 func SaveVendorCatalogs(path string, store VendorCatalogs) error {
 	store.Version = vendorCatalogVersion
 	if store.Vendors == nil {
@@ -60,13 +69,17 @@ func SaveVendorCatalogs(path string, store VendorCatalogs) error {
 	if err != nil {
 		return fmt.Errorf("vendor catalog: encode: %w", err)
 	}
+	data = append(data, '\n')
+	if stored, err := os.ReadFile(path); err == nil && bytes.Equal(stored, data) {
+		return nil
+	}
 	// The cache directory is created here rather than assumed: the first
 	// thing that writes this file may be a turn on a fresh machine, before
 	// anything else has made the cache.
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("vendor catalog: create cache directory: %w", err)
 	}
-	return atomicfile.Write(path, append(data, '\n'), 0o600)
+	return atomicfile.Write(path, data, 0o600)
 }
 
 // Replace installs a fresh discovery for one vendor, carrying forward what

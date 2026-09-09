@@ -221,10 +221,6 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	// made two catalog requests here, one of them uncached and unbounded, and
 	// the blank screen it produced was timed at ten seconds.
 	catalog := a.loadCatalog(ctx, client, d.CatalogFile())
-	// Every start maps what every signed-in vendor offers, behind the prompt:
-	// the model commands show what the vendor said, not what kolk wrote down.
-	a.refreshVendorCatalogsInBackground(ctx, catalog)
-
 	// Model precedence: -m flag > the resumed session's model > config > the
 	// live zero-cost coding choice. Explicit user choices never cause a catalog
 	// request and a resumed session never changes models behind the user's back.
@@ -346,6 +342,14 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	var eventBus *bus.Bus
 	if b, err := bus.New(sess.ID, bus.Options{
 		SpillPath: filepath.Join(d.Sessions(), sess.ID+".events.ndjson"),
+		// One event per streamed token, and the journal used to fsync every one
+		// of them: a long answer spent seconds on the disk instead of the
+		// screen. The turn boundary and the permission prompts are the places a
+		// reconnecting client must not be asked the same question twice, so
+		// those still reach the platter, and so does Close. Everything the
+		// person actually reads is in the session file either way. Rollback for
+		// a suspected loss of durability is one word here: bus.SyncEvery.
+		SyncPolicy: bus.SyncOnTurnBoundary,
 	}); err == nil {
 		eventBus = b
 	}
@@ -434,11 +438,11 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		// resolved by what each role needs instead of collapsing to the effort
 		// model (A33.4). Already in memory: this costs nothing to pass.
 		Catalog: catalog,
-		// This machine's own opinion of each model, read once per session:
-		// Aggregate decodes the whole usage log, measured at 226 ms on a 5.9 MB
-		// file, so it must never be on a per-plan path. A log that cannot be
-		// read costs the opinion, never the session.
-		ModelRatings:       modelRatings(d.Data),
+		// This machine's own opinion of each model, folded once per process
+		// and shared with the continuity candidates above: Aggregate decodes
+		// the whole usage log, measured at 102 ms on a 20k-record one, so it
+		// must never be on a per-plan path.
+		ModelRatings:       modelRatings(a.ratingsByModel(d.Data)),
 		MaxRunCostUSD:      cfg.MaxRunCostUSD,
 		MaxConcurrentTasks: cfg.MaxConcurrentTasks,
 		Bus:                eventBus,
@@ -492,6 +496,15 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	} else {
 		sess.SetConnector("")
 	}
+
+	// Last, and only once the agent exists: every start maps what every
+	// signed-in vendor offers, so the model commands show what the vendor
+	// said rather than what kolk wrote down. It runs behind the prompt, skips
+	// a vendor that answered inside the freshness window, and stands aside
+	// while a turn is streaming — which is what the agent's flag is for
+	// (OPTIMIZATION_PLAN.md O8). Started here rather than half way up this
+	// function so that flag is never read before it exists.
+	a.refreshVendorCatalogsInBackground(ctx, catalog, ag.TurnActive)
 	return ag, nil
 }
 
@@ -825,14 +838,41 @@ func (a *app) resolveSession(o *options) (*session.Session, error) {
 	return sess, nil
 }
 
-// modelRatings folds this machine's ratings for the engine's slot selection.
+// ratingsByModel is this machine's own opinion of each model, folded once per
+// process.
+//
+// Two startup readers wanted it — the engine's slot selection and the
+// continuity candidates — and each folded the whole usage log for itself
+// (OPTIMIZATION_PLAN.md O5). One fold, held here, is what they share; the log
+// only changes under a running kolk when somebody types /rate, and that drops
+// this so the next reader folds again.
+//
+// A log that cannot be read costs the opinion, never the session.
+func (a *app) ratingsByModel(dataDir string) map[string]stats.ModelRating {
+	if a.ratingsFolded {
+		return a.ratings
+	}
+	folded, err := stats.RatingsByModel(dataDir)
+	if err != nil {
+		folded = nil
+	}
+	a.ratings, a.ratingsFolded = folded, true
+	return folded
+}
+
+// forgetRatings drops the fold after a rating is given, so the next reader
+// sees it. The fold on disk is dropped by the same /rate (stats.Append).
+func (a *app) forgetRatings() {
+	a.ratings, a.ratingsFolded = nil, false
+}
+
+// modelRatings converts a fold for the engine's slot selection.
 //
 // The conversion exists because the engine may not import internal/stats — it
 // sits a layer below the adapters — so the host reads the log and hands over
 // plain values, the same shape as DirtyFiles and the hook runner.
-func modelRatings(dataDir string) map[string]engine.ModelRating {
-	folded, err := stats.RatingsByModel(dataDir)
-	if err != nil || len(folded) == 0 {
+func modelRatings(folded map[string]stats.ModelRating) map[string]engine.ModelRating {
+	if len(folded) == 0 {
 		return nil
 	}
 	ratings := make(map[string]engine.ModelRating, len(folded))

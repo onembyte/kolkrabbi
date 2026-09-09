@@ -57,10 +57,10 @@ Read directly from the tree. Re-verify before building on any row; do not re-lit
 | Startup folds the entire `stats.jsonl` for model ratings (twice: `run.go` and `candidates.go`) | `internal/cli/run.go:830`, `internal/cli/candidates.go:29`, `internal/stats/ratings.go:19` |
 | `kolk -r` loads and unmarshals **every** session file to pick the newest for this directory | `internal/cli/run.go:806` → `session.LatestForDir` → `session.List` → `session.Load` |
 | Every start runs vendor discovery in the background for every enabled connector (spawns `codex --version`, `codex debug models`, …) and rewrites `vendor-models.json` whenever any vendor answered | `internal/cli/run.go:226`, `internal/cli/model_discovery.go:173-248` |
-| `make check` runs the test suite **three** times: `scripts/test.sh` runs each module once for pass/fail and once `-v` for the count; `scripts/check-budgets.sh` runs the root module `-v` again | `scripts/test.sh:17-20`, `scripts/check-budgets.sh:73` |
+| `make check` ran the test suite **three** times: `scripts/test.sh` ran each module once for pass/fail and once `-v` for the count; `scripts/check-budgets.sh` ran the root module `-v` again — **fixed under O9 on 2026-09-09**: one run, shared through `KOLK_TEST_LOG` | `scripts/test.sh`, `scripts/check-budgets.sh` |
 | 37 `time.Sleep` calls in 23 test files; **zero** `t.Parallel()` anywhere | `rg time.Sleep --glob '*_test.go'` |
-| CI runs no `-race` and collects no coverage; golangci-lint is `version: latest` while every action is SHA-pinned | `.github/workflows/ci.yml:125-127` |
-| Binary soft budget (12 MB) is a warning; README claims "~5MB static binary, ~2ms startup" | `scripts/check-budgets.sh:10,30`, `README.md:18` |
+| CI runs no `-race` and collects no coverage (O10, still open); golangci-lint was `version: latest` while every action is SHA-pinned — **pinned to v2.13.2 under O11 on 2026-09-09** | `.github/workflows/ci.yml:125-127` |
+| Binary soft budget (12 MB) is a warning; README claims a "static binary under 9MB" — **measured 9.07 MB on 2026-09-09, so the claim was false**; both fixed under O12 | `scripts/check-budgets.sh:10,30`, `README.md:19` |
 | `cmd/kolkd` and `cmd/kolk-mock` have no tests | `cmd/**/*_test.go` → none |
 | Largest files: `engine/agent.go` 1,654 · `tui/model.go` 1,226 · `tui/controller.go` 964 · `tui/runtime.go` 961 · `cli/run.go` 944 · `protocol/events.go` 936 · `engine/orchestrator.go` 803 · `cli/tui_repl.go` 798 | `wc -l` |
 | Longest functions: `newAgent` (`cli/run.go:164`), `runConfig` (`cli/cmd_config.go:16`), `slash` (`cli/slash.go:183`), `validateEventData` (`protocol/events.go:444`) | **measured in O0 on 2026-09-09: 329 / 553 / 409 / 461 lines** (`func` line to its closing brace at `HEAD`); the 09-08 pass reported 328 / 530 / 408 / 460 |
@@ -83,22 +83,22 @@ against 49 µs in memory; tool-argument `+=` at 200 KB is ~265 ms and 2.43 GB; `
 
 | ID | Sev | Where | Finding | Phase |
 |---|---|---|---|---|
-| O1 | **P0** | `bus/bus.go:232-237`, `engine/agent.go:1519` | `fsync` per streamed token, under the bus mutex, in every session; spill file grows without bound | 1 |
+| O1 | **P0** | `bus/bus.go:232-237`, `engine/agent.go:1519` | `fsync` per streamed token, under the bus mutex, in every session; spill file grows without bound — **both fixed 2026-09-09** | 1 |
 | O2 | P1 | `provider/client.go:518` | Quadratic string `+=` for streamed tool arguments | 1 |
 | O3 | P1 | `session/session.go:228`, `engine/agent.go:1488/1577/1634` | Full-transcript `MarshalIndent` + file `fsync` + dir `fsync` on every save, several saves per turn | 2 |
 | O4 | P1 | `provider/agentcli/backend.go:136` | Whole conversation resent every vendor-CLI turn while also resuming: O(N²) prompt bytes per session | 3 |
-| O5 | P2 | `cli/run.go:830`, `cli/candidates.go:29`, `stats/stats.go:126` | Full `stats.jsonl` parse at startup, twice | 2 |
-| O6 | P2 | `session/session.go:395`, `cli/run.go:806` | `kolk -r` unmarshals every session file to find one | 2 |
+| O5 | P2 | `cli/run.go:830`, `cli/candidates.go:29`, `stats/stats.go:126` | Full `stats.jsonl` parse at startup, twice — **fixed 2026-09-09**: one fold per process, cached in `ratings.json` | 2 |
+| O6 | P2 | `session/session.go:395`, `cli/run.go:806` | `kolk -r` unmarshals every session file to find one — **fixed 2026-09-09**: `<id>.meta.json` headers, one decode for the session chosen | 2 |
 | O7 | P2 | `bus/bus.go:152-180` | Whole spill file replayed and re-encoded on every session resume | 2 |
-| O8 | P2 | `cli/model_discovery.go:240`, `:229` | Vendor CLIs spawned on every start; catalog file rewritten even when unchanged | 2 |
+| O8 | P2 | `cli/model_discovery.go:240`, `:229` | Vendor CLIs spawned on every start; catalog file rewritten even when unchanged — **both fixed 2026-09-09**: 6 h freshness window, and a save that compares first | 2 |
 | O9 | P2 | `scripts/test.sh:17-20`, `scripts/check-budgets.sh:73` | Suite runs three times per `make check` | 1 |
 | O10 | P2 | 23 test files | 37 `time.Sleep`, 0 `t.Parallel`; no `-race` and no coverage in CI | 2 |
 | O11 | P2 | `.github/workflows/ci.yml:127` | golangci-lint unpinned (`latest`) | 1 |
-| O12 | P2 | `check-budgets.sh:30`, `README.md:18` | Size budget only warns; README size/startup claim unmeasured | 1 |
+| O12 | P2 | `check-budgets.sh:30`, `README.md:19` | Size budget only warns; README size claim unmeasured — **and false**: "under 9 MB" against a 9.07 MB build (fixed 2026-09-09) | 1 |
 | O13 | P2 | `cli/run.go:164`, `cli/cmd_config.go:16`, `cli/slash.go:183`, `protocol/events.go:444` | Four functions of 300–530 lines; `newAgent` wires the whole engine inline | 3 |
 | O14 | P3 | `internal/engine` (55 files), `internal/cli` (~90 files) | Flat packages mixing several concerns; `agent.go` 1,654 lines | 3 |
 | O15 | P3 | `session/session.go:198-218` | `path()`, `CooldownsFile()`, `CkptDir()` panic on an invalid ID instead of returning an error | 1 |
-| O16 | P3 | `bus/bus.go:197` | Regex scrub of every payload on the publish path, including per-token deltas | 1 (with O1) |
+| O16 | P3 | `bus/bus.go:197` | Scrub of every payload on the publish path, including per-token deltas — **25.7 µs of a 45.9 µs publish, measured 2026-09-09**. O1.5 refused the "skip deltas" shortcut (deltas reach subscribers and disk first, and one chunk can hold a whole key); the work belongs inside `redact` | 1 (with O1) → open |
 | O17 | P3 | `cmd/kolkd`, `cmd/kolk-mock` | No tests on two of three entry points | 2 |
 | O18 | P3 | `tui/runtime.go` | Repeated cancel-and-dismiss blocks (reported ×5) | 3 |
 
@@ -162,7 +162,7 @@ calls in 23 files and `t.Parallel()` at zero are confirmed.
 
 ## Phase 1 — Quick wins (each under a day, no design decision needed)
 
-### O1 — Stop `fsync`ing every token  ·  P0
+### O1 — Stop `fsync`ing every token  ·  P0  ·  **done 2026-09-09**
 
 **Problem.** `Bus.Publish` writes one NDJSON frame and calls `Sync()` per event, with `b.mu` held
 (`bus.go:232-237`). `RunTurn` publishes one event per streamed token (`agent.go:1519`), and every
@@ -203,11 +203,40 @@ retained window.
 interrupted turn; it already re-reads `message.completed` from the session, so document it in
 `docs/plan/` and `protocol/`. Rollback is `SyncPolicy: SyncEvery` in `run.go`, one line.
 
-- [ ] O1.1 benchmark first (O0.1) · [ ] O1.2 policy + turn-boundary sync · [ ] O1.3 writer
-      goroutine · [ ] O1.4 spill cap · [ ] O1.5 delta scrub decision · [ ] O1.6 `make check` +
-      dossier
+**Result (2026-09-09).** `BenchmarkPublish/spill` **3.28 ms → 51.8 µs** (63×), and the criterion
+this leaf was given — spill within 3× of memory — lands at **1.12×** (memory 45.9 µs, statistically
+unchanged from the 49.0 µs baseline). Evidence in `bench/o1-publish-after.txt`.
 
-### O2 — `strings.Builder` for streamed tool arguments  ·  P1
+The other success line, *a 5,000-delta turn spends < 10 ms total in the bus*, is **not met, and is
+not O1's to meet**: at 45.9 µs a publish, 5,000 deltas cost 230 ms with no spill file at all.
+Splitting one publish says where the time goes on a 1 KB delta — `redact.ScrubJSON` 25.7 µs (56 %),
+`validateEvent` 9.8 µs and `EncodeNDJSON` 9.8 µs (43 %, the same envelope encoded twice, once with
+a dummy sequence to validate and once for real). The disk is now 6 µs of the 52. That line needs
+O16 and the removal of the double encode; the fsync was never the whole of it, and O0 said so.
+
+**O16 decided here (O1.5): every delta keeps its scrub.** The test the plan asked for passes — a
+key torn in half by the tokenizer is whole again in `message.completed` and is redacted there — but
+the fallback is not a licence to drop the first line of defence. Deltas are fanned out live to
+every subscriber and appended to the spill file *before* `message.completed` exists, one provider
+chunk can carry a whole message, and a key that arrives inside one delta is scrubbed in that delta
+today. The prefilter as written in step 5 is also unsound: `sk-ant-api03-…` and every other
+shape-prefixed key contains neither `=` nor `:`, so "no `=`/`:`" would wave exactly the credentials
+the scrubber exists for straight through. O16 stays open as what the measurement actually points
+at — a first-byte gate inside `redact`, where 25.7 µs is spent, not a skip list in the bus.
+
+**Two contract changes, both deliberate.** A spill write that fails is now reported by the *next*
+`Publish` and by `Close`, not by the `Publish` whose frame failed, and it is sticky: once a frame
+is missing the file cannot satisfy replay, and appending over the hole would be worse than failing
+loudly. And a cursor older than what a rewritten file still holds is refused with
+`ErrCursorExpired` instead of being served a replay with a silent gap in it. Documented in
+`docs/plan/02-architecture.md`; the wire contract in `spec/` is unchanged, because none of this is
+visible in a frame.
+
+- [x] O1.1 benchmark first (O0.1) · [x] O1.2 policy + turn-boundary sync · [x] O1.3 writer
+      goroutine · [x] O1.4 spill cap · [x] O1.5 delta scrub decision · [x] O1.6 `make check` +
+      dossier  ·  **done 2026-09-09**
+
+### O2 — `strings.Builder` for streamed tool arguments  ·  P1  ·  **done 2026-09-09**
 
 **Problem.** `existing.Function.Arguments += tc.Function.Arguments` (`client.go:518`) copies the
 whole accumulated string per fragment. Content deltas already use a builder (`:489`). A 200 KB
@@ -225,9 +254,16 @@ whole accumulated string per fragment. Content deltas already use a builder (`:4
 
 **Risk / rollback.** None observable; pure refactor. Revert the commit.
 
-- [ ] O2.1 benchmark (O0.2) · [ ] O2.2 builder · [ ] O2.3 corpus · [ ] O2.4 gates
+**Result (2026-09-09).** `BenchmarkReadStream/toolargs/200KB` 2,434.81 MB/op → **23.01 MB/op**
+(−99.1 %, target was > 90 %) and 265 ms → 27.5 ms. Linear in size confirmed: 4× the input is
+3.97× the bytes and 3.95× the time (50 KB: 5.79 MB, 6.91 ms), against the quadratic 28× bytes
+before. Allocations move only 387 k → 364 k, which is the point — the win was allocation *size*,
+not count; the per-fragment `json.Unmarshal` still dominates the count and is O3's ground.
+Evidence in `bench/o2-toolargs-after.txt`.
 
-### O9 — Run the test suite once per `make check`  ·  P2
+- [x] O2.1 benchmark (O0.2) · [x] O2.2 builder · [x] O2.3 corpus · [x] O2.4 gates  ·  **done 2026-09-09**
+
+### O9 — Run the test suite once per `make check`  ·  P2  ·  **done 2026-09-09**
 
 **Problem.** `scripts/test.sh` runs each module twice (pass/fail, then `-v` for the count), and
 `scripts/check-budgets.sh:73` runs the root module a third time for the test-count floor and the
@@ -252,10 +288,14 @@ enforced; a deliberately failing test in a nested module still fails `make test`
 **Risk / rollback.** `-v` output for a passing run is large; keep it in the temp file only. Revert
 the three scripts.
 
-- [ ] O9.1 single run + PIPESTATUS · [ ] O9.2 shared log · [ ] O9.3 Makefile/CI wiring ·
-      [ ] O9.4 floor ratchet
+- [x] O9.1 single run + PIPESTATUS · [x] O9.2 shared log · [x] O9.3 Makefile/CI wiring ·
+      [x] O9.4 floor ratchet
 
-### O11 — Pin golangci-lint  ·  P2
+**Done 2026-09-09.** Three suite runs per `make check` became one and two per CI became one.
+`TEST_FLOOR` 22 → **3,217** (90 % of the 3,575 `=== RUN` lines the root module runs), a floor that
+can finally trip. Dossier in `docs/build-log.md`.
+
+### O11 — Pin golangci-lint  ·  P2  ·  **done 2026-09-09**
 
 Replace `version: latest` with the exact version that passes today (check `golangci-lint version`
 locally), and add it to `make workflow-pin-check`'s contract so an unpinned tool version fails CI
@@ -264,9 +304,13 @@ the same way an unpinned action does. Also print the pinned version in the `make
 **Files.** `.github/workflows/ci.yml:127`, `scripts/check-workflow-pins.sh` (or whichever script
 `workflow-pin-check` runs), `Makefile:91`.
 
-- [ ] O11.1 pin · [ ] O11.2 guard test
+- [x] O11.1 pin · [x] O11.2 guard test
 
-### O12 — Make the size budget a budget, and the README true  ·  P2
+**Done 2026-09-09.** Pinned to **v2.13.2**, verified `0 issues` against this tree.
+`make workflow-pin-check` now fails on any `version:` that is not an exact `vN.N.N` and on a
+Makefile install hint that names a different one; both mutations trip.
+
+### O12 — Make the size budget a budget, and the README true  ·  P2  ·  **done 2026-09-09**
 
 1. Turn the 12 MB soft limit into a **ratchet**: `BIN_HARD` becomes `max(current release size +
    10 %, …)` recorded in `scripts/check-budgets.sh` and bumped only in a commit that says why.
@@ -279,9 +323,17 @@ the same way an unpinned action does. Also print the pinned version in the `make
 
 **Files.** `scripts/check-budgets.sh`, `README.md`, `site/`, `scripts/test-site.sh`.
 
-- [ ] O12.1 ratchet · [ ] O12.2 measured claims · [ ] O12.3 size map
+- [x] O12.1 ratchet · [x] O12.2 measured claims · [x] O12.3 size map
 
-### O15 — Errors, not panics, for a bad session ID  ·  P3
+**Done 2026-09-09.** The stripped build measures **9,507,938 bytes = 9.07 MB**, so the 12 MB soft
+warning had been hiding 3 MB of growth and "under 9 MB" in `README.md` and six site pages was
+false. `BIN_BASELINE` + 10 % is now the failing gate, 20 MB the absolute ceiling; the claim reads
+"under 10 MB" everywhere and `scripts/test-site.sh` asserts README, every site page and
+`BIN_BASELINE` agree. Cold start p50 **8.7 ms** from `make budgets` here (soft 20 / hard 30). Size map and the
+accepted-cost note in `docs/build-log.md`: kolkrabbi's own code is 11.2 % of the sized symbols,
+`net/http` + crypto + Unicode tables 15.5 %, the rest runtime and reflect metadata.
+
+### O15 — Errors, not panics, for a bad session ID  ·  P3  ·  **done 2026-09-09**
 
 `path()`, `CooldownsFile()`, `CkptDir()` panic on an invalid ID. `Load` validates before
 constructing, so the panic is unreachable from disk today, but any future constructor that forgets
@@ -293,7 +345,18 @@ validates).
 
 **Files.** `internal/session/session.go`, callers in `internal/cli/cmd_sessions.go`.
 
-- [ ] O15.1
+**Resolution (2026-09-09).** Took the second option the section names, because it is the
+smaller diff by a wide margin: `path()`/`CooldownsFile()`/`CkptDir()` keep their `string`
+signatures, so `cli/run.go`, `cli/slash.go`, `cli/cmd_sessions.go` and `engine` are untouched.
+An invalid ID is already an *error* everywhere it can actually arrive — `Load`, `Save`, `Delete`,
+`CompactionArchives` all return one — and what remains is a single `mustValidID` helper whose
+panic now names the fix (`session: unvalidated ID; construct through New or Load`). The claim
+that makes this safe is now enforced rather than remembered: `TestTheListOfConstructorsIsComplete`
+parses the package and fails if any exported function returns a `*Session` without a case in
+`TestEveryConstructorValidatesTheID` (verified by deleting `Latest` from the list and watching it
+fail). `New` validates the ID it mints.
+
+- [x] O15.1  ·  **done 2026-09-09**
 
 **Phase 1 exit.** O1, O2, O9, O11, O12, O15 ticked; `bench/baseline.txt` shows O1 and O2 moved;
 `make check` green and measurably shorter.
@@ -302,7 +365,7 @@ validates).
 
 ## Phase 2 — Medium (one to three days each, a small design decision each)
 
-### O3 — Save the transcript once per boundary, not once per message  ·  P1
+### O3 — Save the transcript once per boundary, not once per message  ·  P1  ·  **done 2026-09-09**
 
 **Problem.** `Session.Save` marshals the whole session with indentation and does temp-write,
 `fsync`, rename, directory `fsync` (`atomicfile.go:47-96`). The engine saves after every model
@@ -344,10 +407,36 @@ true for steps that change files or need a prompt.
 messages. Bound it at 2 s and flush before every user-visible prompt. Rollback: set the interval
 to 0, which restores save-on-every-call.
 
-- [ ] O3.1 bench · [ ] O3.2 dirty/flush table · [ ] O3.3 dir-sync option · [ ] O3.4 kill test ·
-      [ ] O3.5 gates + dossier
+**Result (2026-09-09, option A as recommended).** A 50-round turn went from **102 writes to 2**
+(1 durable + 1 interval), against a target of 10. Measured by
+`TestAFiftyRoundTurnWritesTheSessionAtMostTenTimes`, which counts the port's own calls, and
+reproduced at 102 by flipping the rollback switch (`SaveInterval: -1`) in the same test harness.
+`BenchmarkSave` is unchanged, which is the point: the win is call count, not per-call cost
+(`bench/o3-save-after.txt`).
 
-### O5 — Ratings without reading the whole log  ·  P2
+**The target is met for the loop the plan describes and deliberately not for a turn that writes a
+file every round**, which still costs ~101 writes. Two flushes bracket a file-mutating round — the
+tool call before the tree moves, the result after it — because /undo pairs a checkpoint with a
+transcript position, and coalescing across a file mutation would leave a checkpoint for a turn the
+transcript never mentions. Coalescing buys nothing there and durability costs everything; the
+ordinary turn, where most rounds read, is where the hundred writes were.
+
+**Durability proved, not asserted.** `TestAKilledToolLoopResumesFromTheLastFlushedBoundary` re-execs
+the test binary, lets it write a file, and SIGKILLs it from `PostWrite` — the window between the
+tree changing and the result being recorded — with `SaveInterval: time.Hour`, so nothing on disk can
+be there because an interval elapsed. The parent finds the file written, the transcript holding
+exactly system + user + the assistant's tool call, and `engine.New` repairing the dangling call.
+Removing the one line `a.flush(saveFileWrite)` from `preWrite` makes it fail with *no session file
+at all*, which is the regression this leaf could have shipped.
+
+**Found on the way.** `Session.Save` stamped `UpdatedAt` outside `messagesMu` while marshalling
+inside it. Two concurrent saves raced on that field; one saving goroutine in the old race test hid
+it, and O3's second kind of save exposed it. Fixed by stamping inside the lock.
+
+- [x] O3.1 bench (O0.3) · [x] O3.2 dirty/flush table · [x] O3.3 dir-sync option · [x] O3.4 kill test ·
+      [x] O3.5 gates + dossier  ·  **done 2026-09-09**
+
+### O5 — Ratings without reading the whole log  ·  P2  ·  **done 2026-09-09**
 
 **Problem.** `RatingsByModel` loads every record in `stats.jsonl` (`stats.go:126`) and folds it via
 `Aggregate`; startup calls it from `run.go:830` and again from `candidates.go:29`. The file grows
@@ -369,9 +458,32 @@ by one line per model call forever.
 **Risk / rollback.** A stale cache after a hand-edited log; the `modtime+size` check covers
 edits; `kolk doctor` gets a "ratings cache rebuilt" line. Rollback: delete `ratings.json`.
 
-- [ ] O5.1 · [ ] O5.2 · [ ] O5.3
+**Result (2026-09-09).** One fold per process, and the fold itself cached in `ratings.json`.
+`BenchmarkRatingsByModel/20k` went from **101.8 ms to 275 µs** warm (370×, `bench/o5-ratings-after.txt`),
+`/1k` from 5.15 ms to 34.6 µs; startup did it twice, so a 20k-record log cost ~204 ms before
+drawing anything and now costs one `stat`, one small read and no parse of the log at all. A cold
+re-fold is 51.8 ms and happens after a `/rate`, an edit, or a first run.
 
-### O6 — `kolk -r` without unmarshalling every session  ·  P2
+**One correction to the plan.** "Ratings are an associative fold per model, so partial re-fold is
+exact" is not true on its own: a rating joins *backwards* to every call of its turn, so a call
+appended for a turn already rated changes an average with no new rating line in sight. The cache
+therefore carries the rated turns as well as the averages, and the forward scan of the appended
+bytes falls back to a whole-log fold when it meets a rating **or** a call of a rated turn.
+Everything else — a call for an unrated turn, which is what a running session appends all day —
+contributes nothing to this fold and is skipped without touching the numbers. `/rate` deletes the
+cache on its way past (in `Append`, the one door every writer of a rating goes through), and the
+`size + modtime + offset` check catches a rating another kolk appended.
+
+**Kept honest by** `TestTheCachedFoldEqualsTheColdFold`, which folds a 160-record log after every
+single append with the cache in place and compares it to the same log folded once from cold.
+
+The rated turns are stored as `json.RawMessage` and decoded only when the forward scan needs them:
+they are the only part of the file that grows with the log, and decoding 4,000 turn ids into
+strings on every warm read cost 2.4 ms of the first 2.9 ms measurement.
+
+- [x] O5.1 · [x] O5.2 · [x] O5.3  ·  **done 2026-09-09**
+
+### O6 — `kolk -r` without unmarshalling every session  ·  P2  ·  **done 2026-09-09**
 
 **Problem.** `LatestForDir` → `List` → `Load` reads and decodes every `<id>.json` (`session.go:395`).
 With a few hundred sessions of a few hundred KB each that is tens of MB of JSON per resume, and
@@ -395,7 +507,41 @@ With a few hundred sessions of a few hundred KB each that is tens of MB of JSON 
 **Risk / rollback.** Meta drift from the session file: `Save` writes both, `doctor` verifies and
 repairs. Rollback: ignore metas (`List` still works from full decode).
 
-- [ ] O6.1 · [ ] O6.2 · [ ] O6.3
+**Result (2026-09-09, step 2 as recommended).** Each save writes `<id>.meta.json` beside the
+transcript; `List` returns `[]session.Meta` read from those headers, deriving one by a
+count-only decode for a session written before they existed, and `Load` is called for the single
+session actually chosen. `BenchmarkLatestForDir/200` went from **203.8 ms to 4.95 ms** (median of
+five, range 4.74–5.87 across eight runs at load average ~6.7; `bench/o6-sessions-after.txt`), and
+`/10` from 14.8 ms to 1.10 ms.
+
+**Flat, with the slope named.** Resume is now dominated by the one transcript it decodes (~1 ms at
+200 KB); what remains per session is ~21 µs of header reading, against ~1 ms per session before.
+Truly flat would need a single index file across sessions, which two kolks in two terminals would
+have to agree on writing; a header per session has no such question and is the plan's step 2.
+
+**Step 1 was not built, and step 2 is why.** Ordering by `ReadDir` modtime to stop at the first
+`CWD` match trades `UpdatedAt` for file mtime as the meaning of "latest", so `kolk -r` and `kolk
+sessions` could disagree about which session is newest — for ~2.5 ms, once the headers made the
+scan cheap.
+
+**Three fields beyond the six named.** The header also carries `Effort`, `Connector` and `Pause`,
+because the dashboard's cards show the first two and `kolk doctor` lists every paused session on
+the machine — and a field the header lacks is a field that costs a full decode, which is the whole
+point. It is still a few hundred bytes, and the test holds it under 2 KB.
+
+**The header costs 0.3 ms per save, not 4 ms.** Written atomically but with neither `fsync`: it is
+derived from a transcript that was written durably, so a power cut costs a stale line in a listing
+and nothing else. With the file `fsync` it cost 4 ms on every save of a 100 KB session — half the
+save — which is why `atomicfile.WriteOptions` gained `SkipFileSync` beside O3's `SkipDirSync`.
+`BenchmarkSave` is otherwise unchanged (100 KB: 6.7–7.5 ms against O3's 6.4–7.2 ms).
+
+**Drift has an owner.** `session.RepairMeta` rewrites a header from its transcript and says whether
+it had to; `kolk doctor` runs it over every session in a new `sessions` section, which is also
+where an older session directory gets its headers written for the first time.
+
+`sessions search` asks the header first and decodes only the candidates whose title did not match.
+
+- [x] O6.1 · [x] O6.2 · [x] O6.3  ·  **done 2026-09-09**
 
 ### O7 — Bounded spill replay on resume  ·  P2
 
@@ -408,7 +554,7 @@ chunk, drop the partial first line, decode the rest.
 
 - [ ] O7.1
 
-### O8 — Discover vendors when it matters, not on every start  ·  P2
+### O8 — Discover vendors when it matters, not on every start  ·  P2  ·  **done 2026-09-09**
 
 **Problem.** `refreshVendorCatalogsInBackground` runs on every `newAgent` (`run.go:226`) and spawns
 each enabled vendor CLI (`codex --version`, `codex debug models`, …) with a 15 s bound each; it
@@ -435,7 +581,32 @@ becomes "…OnceUntilStale"; `vendor-models.json` mtime unchanged across warm st
 **Risk / rollback.** A vendor that renames a model inside the TTL is seen up to 6 h late; the
 first turn's `unrecognized_model` path (F4.3) already marks it `gone` on contact. Rollback: TTL 0.
 
-- [ ] O8.1 TTL · [ ] O8.2 no-op save · [ ] O8.3 yield to the turn
+**Result (2026-09-09).** A warm start spawns **zero** vendor processes and leaves
+`vendor-models.json`'s mtime alone, held by
+`TestStartupDiscoversEveryEnabledConnectorOnceUntilStale` — the rename the plan asked for — which
+maps two vendors, starts again inside the window and asserts both the call counts and the mtime,
+then moves the clock past `vendorCatalogTTL` and watches both vendors be asked again.
+
+**The version-mismatch escape hatch was deliberately not built.** Reading a vendor's version means
+running `codex --version`, which is a process — and "a warm start spawns zero vendor processes" is
+this leaf's own acceptance. A vendor that renames a model inside the six hours is seen late by
+`/models` and immediately by a turn, which still marks the row `gone` on contact (F4.3). A login and
+`kolk models --refresh` bypass the window entirely, which is what a person saying "now" should do.
+
+**The no-op save pays off per turn, not per start.** `recordVendorModelOutcome` re-verifies the
+model the turn just ran on, which for every turn after the first is the same document — rewritten
+with an `fsync`, a rename and a fresh mtime, once per turn. `SaveVendorCatalogs` now compares the
+bytes it would write against the file and returns without writing when they match, which covers
+that path and every other caller at the cost of one read of a small file.
+
+**Yielding needed one flag and no new plumbing.** `engine.Agent` counts its running turns in an
+`atomic.Int32` and answers `TurnActive()`; the background refresh takes that method as its `busy`
+func and waits 250 ms at a time before each vendor, giving up if the run ends. A counter rather
+than a flag because a continuity hop re-enters `RunTurn` and a flag would clear on the inner
+return. The refresh itself moved from the middle of `newAgent` to its end, after the agent exists,
+so the flag can never be read before there is one.
+
+- [x] O8.1 TTL · [x] O8.2 no-op save · [x] O8.3 yield to the turn  ·  **done 2026-09-09**
 
 ### O10 — A faster, parallel, race-checked suite  ·  P2
 
@@ -556,7 +727,7 @@ count with `rg` first (reported ×5). Also fold the reported duplicate helpers (
 
 | Metric | Where measured | Baseline (O0) | Target |
 |---|---|---|---|
-| Bus publish, spill vs memory | `BenchmarkPublish` | reported ~1,000× | ≤ 3× |
+| Bus publish, spill vs memory | `BenchmarkPublish` | measured 67× (3.28 ms vs 49.0 µs) | ≤ 3× — **met 2026-09-09: 1.12×** |
 | Tool-args stream, 200 KB | `BenchmarkReadStream/toolargs` | reported 82 ms / 1.05 GB | < 5 ms / < 5 MB |
 | Session saves per 50-round turn | counter in `engine` test | ~100 | ≤ 10 |
 | Startup with 20k stats records | `BenchmarkRatingsByModel` + `check-budgets` cold start | reported 57 ms | < 1 ms warm |
@@ -580,7 +751,8 @@ writing, before it merges.
 
 - O0 first; nothing else merges without its baseline.
 - O1 outranks everything: it is the only P0 and it is on every session's hot path.
-- O3 needs a decision (A recommended) but not an owner; O4 needs the owner (cost vs. certainty).
+- O3's decision was taken on 2026-09-09: option A, coalesce and keep the format. O4 needs the
+  owner (cost vs. certainty).
 - O13.1 (`newAgent`) may be pulled forward if O5/O6/O8 start fighting over `run.go`.
 - Any new P0/P1 found on the way goes into the ledger and the earliest phase that owns its file.
 - Stop a leaf and record `[!]` when its benchmark does not move or a gate goes red for a reason the
