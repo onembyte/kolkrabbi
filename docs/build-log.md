@@ -7250,3 +7250,128 @@ the terminal its drag-select, which not everyone will trade. The work turned up 
 worth more than the feature: the decoder recognised the wheel by prefix and left the rest of
 the report in the buffer, so switching reporting on would have typed coordinates into the
 draft. Mouse reports are now read whole or not at all.
+
+## The optimization baseline — O0 closed 2026-09-09
+
+`OPTIMIZATION_PLAN.md` opens with a rule: measure before touching anything, and revert any leaf
+whose benchmark does not move. O0 is the measurement. Five benchmark sets now live in the suite —
+`BenchmarkPublish` in `internal/bus`, `BenchmarkReadStream` in `internal/provider`, `BenchmarkSave`
+and `BenchmarkLatestForDir` in `internal/session`, `BenchmarkRatingsByModel` in `internal/stats` —
+and `scripts/bench.sh` (`make bench`) runs them with `-count=3 -benchmem`. The first run writes
+`bench/baseline.txt` and stops; a later run writes `bench/current.txt` and prints a `benchstat`
+delta if benchstat happens to be installed. It is not a dependency and nothing here added one:
+stdlib only, still two direct modules.
+
+The baseline, median of three (Apple M3, go1.26.4, darwin/arm64):
+
+| benchmark | median | best observed | B/op | allocs/op |
+|---|---|---|---|---|
+| `Publish/memory` | 49.0 µs | 48.4 µs | 11.9 KB | 28 |
+| `Publish/spill` | 3.28 ms | 2.85 ms | 11.7 KB | 28 (1,192 spill bytes/event) |
+| `ReadStream/content/50KB` | 5.35 ms | 5.33 ms | 4.73 MB | 95,155 |
+| `ReadStream/content/200KB` | 21.5 ms | 21.5 ms | 18.76 MB | 380,418 |
+| `ReadStream/toolargs/50KB` | 20.4 ms | 20.0 ms | 163.75 MB | 96,844 |
+| `ReadStream/toolargs/200KB` | 265 ms | 174 ms | **2,434.81 MB** | 387,076 |
+| `Save/100KB` | 7.53 ms | 7.08 ms | 0.35 MB | 24 |
+| `Save/1MB` | 12.3 ms | 12.2 ms | 5.43 MB | 45 |
+| `Save/5MB` | 40.2 ms | 39.9 ms | 28.14 MB | 42 |
+| `LatestForDir/10` | 14.9 ms | 10.2 ms | 4.56 MB | 2,330 |
+| `LatestForDir/200` | 204 ms | 181 ms | 91.25 MB | 46,228 |
+| `RatingsByModel/1k` | 5.15 ms | 2.09 ms | 1.57 MB | 12,246 |
+| `RatingsByModel/20k` | 102 ms | 43.7 ms | 34.24 MB | 244,092 |
+
+Four things the numbers changed about the plan's own hypotheses, which were carried over from a
+review pass whose artefacts were lost and were explicitly flagged as unverified:
+
+- The spill `fsync` is real and is the P0 it was called: **3.28 ms per publish against 49 µs
+  without**, a factor of 67. The plan guessed 2.8 ms and 3 µs. The `fsync` half was right; the
+  in-memory half was not, because a 1 KB delta also pays a regex scrub, an envelope encode and two
+  clones — 28 allocations before the file is touched. So O1's "within 3× of memory" target is
+  reachable, but O16 (skip the scrub on deltas) is where a further order of magnitude sits, not O1.
+- The quadratic `+=` for tool arguments is **worse** than reported: 2.43 GB allocated for a 200 KB
+  argument, not 1.05 GB. The comparison that matters is against the content path at the same size,
+  which uses a builder and allocates 18.8 MB — **130× less memory for the same bytes**. That
+  ratio, not the wall clock, is what O2 must move; the wall clock on this machine is too noisy to
+  hold a leaf to.
+- `Save` at 5 MB is 40 ms, against the reported 23 ms at 4.8 MB. `Agent.save()` runs at least
+  three times a turn, so a 5 MB transcript spends about **120 ms a turn** writing itself out.
+- `LatestForDir` over 200 sessions of 200 KB costs **204 ms and 91 MB** before `kolk -r` prints
+  anything, and `RatingsByModel` over 20,000 records costs 44–102 ms *twice* (`run.go:830` and
+  `candidates.go:29`). Both are startup, and neither is in `make budgets`, which measures
+  `kolk help`.
+
+**On trusting these numbers.** The machine carried a desktop load and a second agent building in
+parallel throughout (load average ~11), and the wall-clock spread within a single `-count=3` run
+reached 3× on the longest benchmarks. `B/op` and `allocs/op` did not: they repeat to better than
+0.1 % across every run, so they are the durable half of this baseline. A later leaf should re-run
+`BENCH_BASELINE=1 scripts/bench.sh` on the machine it is being judged on rather than compare
+against a number recorded in a different session.
+
+`BenchmarkPublish` measures one publish, not a turn: O1's acceptance is a per-publish ratio, and a
+fixed 10,000-publish batch would take half a minute per iteration against a spill file.
+`BenchmarkPublishTurn` is that batch, kept beside it for the human-scale figure and left out of the
+baseline's `-bench` regex on purpose. `internal/provider`'s fragmenter is a copy of
+`internal/enginetest`'s rather than an import, with the same 7- and 9-rune chunking: enginetest
+imports `internal/provider`, and `readStream` is unexported, so neither an import nor an external
+test package is available. The copy is commented to say so.
+
+**O0.7, the O10 target list.** `go test ./... -count=1 -json`: 3,569 `=== RUN` lines (2,200
+top-level tests, 1,369 subtests) across 38 packages, 23.9 s wall with a warm cache and 90.1 s of
+summed per-package time. `internal/cli` (22.8 s) and `internal/shell` (18.2 s) are 46 % of it, not
+the 63 % reported. The twenty slowest top-level tests, which is what O10 should attack first:
+
+```
+6.76  projectfiles  TestListStopsAtTheWalkBudgetInsteadOfTraversingAHomeDirectory
+6.40  shell         TestEscape8_GoTestInsideRootPasses
+4.00  local         TestIdentifyKeepsItsDeadline
+3.45  cli           TestModeAgentFlagRunsTheOrchestratedPipeline
+3.35  shell         TestLoginWindowNeverInheritsASentinelSecret
+3.20  keystore      TestConcurrentStoresLoseNoCredentials
+2.00  local         TestDiscoverHostIsBounded
+1.60  atomicfile    TestReadersNeverSeeAHalfWrittenFile
+1.49  checkpoint    TestRewindTaskKeepsAPathALaterTaskAlsoChanged
+1.31  shell         TestCloseReturnsWithinItsBoundWhenAGrandchildHoldsThePipes
+0.94  checkpoint    TestRewindTaskTakesBackOneSubagentAndLeavesTheRest
+0.84  engine        TestAChapterCommitHoldsOnlyTheChaptersOwnChanges
+0.83  cli           TestOllamaLoginVerifiesThroughTheServerNotATurn
+0.82  cli           TestNewAgentDiscoversOnlyWhenNoUserOrSessionModelExists
+0.82  checkpoint    TestARewoundTaskSnapshotIsConsumedAndStaysConsumedOnReopen
+0.80  shell         TestRunLinesRejectsAnUnboundedProviderLine
+0.79  engine        TestAPersistenceFailureAfterCommitOverADirtyTreeDoesNotRevertTheChapter
+0.77  engine        TestAPersistenceFailureAfterCommitDoesNotUndoTheCommittedChapterOnRestart
+0.76  checkpoint    TestShadowNeverTouchesTheUsersOwnGitState
+0.75  cli           TestNewAgentNeverWaitsOnTheNetworkWhenACatalogCacheExists
+```
+
+`time.Sleep` re-counts at 38 calls in 23 test files and `t.Parallel()` at zero, which is the plan's
+finding confirmed. The two `local` entries belong to the managed-local-models work in flight
+(PLAN item 25) and are listed as measured, not claimed.
+
+**O0.8, the four long functions**, counted from the `func` line to its closing brace at `HEAD`
+(v1.3.2, the tree the plan reviewed), each boundary checked to be a lone `}`:
+
+| function | reported 09-08 | measured | file |
+|---|---|---|---|
+| `newAgent` | 328 | **329** (164→492) | `internal/cli/run.go` |
+| `runConfig` | 530 | **553** (16→568) | `internal/cli/cmd_config.go` |
+| `slash` | 408 | **409** (183→591) | `internal/cli/slash.go` |
+| `validateEventData` | 460 | **461** (444→904) | `protocol/events.go` |
+
+Three of the four were off by one — an inclusive-count difference — and `runConfig` is 23 lines
+longer than reported, so O13's largest target is larger than it was written to be. The working tree
+during this pass had `newAgent` at 333 lines, four longer than `HEAD`, because the parallel
+local-models work was editing `run.go` while this was measured; `HEAD` is the number O13 should be
+judged against.
+
+## Local models anywhere — V39.1 to V39.3 closed 2026-09-09
+
+kolk could talk to one Ollama, on one address, written into the startup path. The address was
+the only thing missing: the host backend already took any address and the router already keyed
+on a name. So the build is a local endpoint — a name, an address, and whatever answers there —
+and the three reaches the owner asked for stop being three features. The probe asks rather than
+assumes, which is what lets Docker Model Runner, llama.cpp and LM Studio work without a line of
+code each. The router was re-read so that any attached route owns its prefix, instead of the two
+names in a table, and that one change is what makes a model on another machine reachable by id.
+`direct` takes the owner's own runner command, runs it, and then asks the runners which of them
+serves what it started. Nothing sends a key to a local endpoint, and adding an address that is
+not this machine says so once, plainly, before it is saved.

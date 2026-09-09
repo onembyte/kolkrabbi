@@ -34,7 +34,7 @@ var slashCommandTable = []slashCommand{
 	{"plans", "[filter] | login <provider> <plan>", "list plans or start provider-owned login", words("login")},
 	{"plogin", "[filter]", "search plans and start provider-owned login", nil},
 	{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors", nil},
-	{"localia", "[models [filter] | plan <model> | pull [--yes] <model>]", "local hardware, model catalog, fit plans, and pulls", []tui.Choice{{Words: []string{"models", "plan", "pull"}}, {After: []string{"pull"}, Words: []string{"--yes"}}}},
+	{"localia", "[models [filter] | plan <model> | pull [--yes] <model> | add <name> <host:port> | rm <name> | list | use <name> [model] | direct [--yes] <command…>]", "local models: this machine's hardware and pulls, and endpoints on the LAN or at one address", []tui.Choice{{Words: []string{"models", "plan", "pull", "add", "rm", "list", "use", "direct"}}, {After: []string{"pull"}, Words: []string{"--yes"}}, {After: []string{"direct"}, Words: []string{"--yes"}}}},
 	{"compact", "[undo]", "shrink the conversation now, or put back the last one", words("undo")},
 	{"remember", "[--project] <note>", "add one line of standing guidance", words("--project")},
 	{"config", "[get <k> | set <k> <v> | unset <k> | show]", "read and write saved settings", words("get", "set", "unset", "show")},
@@ -527,7 +527,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		fmt.Fprintf(a.stdout, "compacted %d messages (%s), freeing about %d tokens · undo with /compact undo\n",
 			result.Replaced, result.Stage, result.FreedTokens)
 	case "/localia":
-		if err := a.runLocalia(ctx, strings.Fields(arg)); err != nil {
+		if err := a.runLocaliaWith(ctx, ag, strings.Fields(arg)); err != nil {
 			fmt.Fprintf(a.stderr, "localia error: %v\n", err)
 		}
 	case "/pmodels":

@@ -81,3 +81,6 @@ Thumbs.db
 .claude/*.local.json
 .cursor/
 .aider*
+
+# the O0 benchmark comparison run; bench/baseline.txt is committed, this is not
+/bench/current.txt

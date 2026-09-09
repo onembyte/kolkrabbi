@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/config"
+	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/local"
 )
 
@@ -18,8 +19,34 @@ import (
 // currently storing for it. It reads only: nothing here downloads, starts, or
 // configures anything, because every pull is an explicit user action.
 func (a *app) runLocalia(ctx context.Context, args []string) error {
+	return a.runLocaliaWith(ctx, nil, args)
+}
+
+// runLocaliaWith is runLocalia with the running session, when there is one:
+// `use` switches the model in place rather than telling the user to.
+func (a *app) runLocaliaWith(ctx context.Context, ag *engine.Agent, args []string) error {
 	if len(args) > 0 {
 		switch args[0] {
+		case "add":
+			if len(args) < 3 {
+				return usagef("usage: /localia add <name> <host:port>")
+			}
+			return a.addEndpoint(ctx, args[1], args[2])
+		case "rm":
+			if len(args) < 2 {
+				return usagef("usage: /localia rm <name>")
+			}
+			return a.removeEndpoint(args[1])
+		case "list":
+			return a.listEndpoints()
+		case "direct":
+			rest, approved := stripYesFlag(args[1:])
+			return a.directRun(ctx, ag, rest, approved)
+		case "use":
+			if len(args) < 2 {
+				return usagef("usage: /localia use <name> [model]")
+			}
+			return a.useEndpoint(ctx, ag, args[1], strings.Join(args[2:], " "))
 		case "models":
 			return a.printLocalCatalog(strings.Join(args[1:], " "))
 		case "plan":

@@ -116,6 +116,12 @@ type app struct {
 	// discoverHost finds the user's own Ollama. Injected so a test never
 	// probes the real loopback port, which on the owner's machine has one.
 	discoverHost func(context.Context) local.Host
+	// identify probes a local endpoint's address, injected so the endpoint
+	// commands can be tested without a network.
+	identify func(context.Context, string) (local.Runtime, error)
+	// runRunner runs a model-runner command for `/localia direct`, injected
+	// for the same reason.
+	runRunner func(context.Context, io.Writer, []string) error
 	// listHostModels reads what that Ollama serves; injected for the same
 	// reason.
 	listHostModels func(ctx context.Context, addr, cacheFile string) ([]local.HostModel, error)
@@ -185,6 +191,7 @@ func newApp() *app {
 	a.update = selfupdate.Update
 	a.currentVersion = func() string { return buildinfo.Get().Version }
 	a.canAnimate = term.CanAnimate
+	a.identify = local.Identify
 	a.discoverHost = func(ctx context.Context) local.Host {
 		return local.DiscoverHost(ctx, local.HostDiscovery{Addr: local.DefaultHostAddr, LookPath: shell.LookPath})
 	}

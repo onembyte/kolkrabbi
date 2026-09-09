@@ -37,6 +37,10 @@ install: ## install kolk into $$GOBIN
 test: ## run the tests of every module in the repo
 	./scripts/test.sh
 
+.PHONY: bench
+bench: ## the OPTIMIZATION_PLAN.md O0 baseline (bench/baseline.txt)
+	./scripts/bench.sh
+
 .PHONY: vet
 vet: ## go vet, every module
 	@for d in $(GOMODS); do echo "── $$d ──"; (cd "$$d" && $(GO) vet ./...) || exit 1; done

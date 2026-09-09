@@ -31,12 +31,15 @@ func (a *Agent) backendFor(model string) (ChatBackend, string, error) {
 	if !found {
 		return a.sessionBackend(), model, nil
 	}
+	// Any attached route owns its prefix: a local endpoint's name is the
+	// prefix, and the names are the user's (plan 37). The table below is
+	// only for the ones kolk can explain when nothing is attached.
+	if backend := a.Routes[prefix]; backend != nil {
+		return backend, rest, nil
+	}
 	what, owned := ownedPrefixes[prefix]
 	if !owned {
 		return a.sessionBackend(), model, nil
-	}
-	if backend := a.Routes[prefix]; backend != nil {
-		return backend, rest, nil
 	}
 	return nil, "", fmt.Errorf("%s needs %s and this session has none attached; `/model` lists what can answer", model, what)
 }

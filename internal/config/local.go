@@ -14,12 +14,24 @@ import (
 // The numbers are pointers because their zero values are meaningful: GPU 0 is a
 // real card, and reserving zero headroom is a deliberate choice distinct from
 // never having chosen.
+// Endpoint is one local model endpoint: a name, an address, and what the
+// probe found there (plan 37). The name is the model-id prefix.
+type Endpoint struct {
+	Name string `json:"name"`
+	Addr string `json:"addr"`
+	Kind string `json:"kind"`
+	Base string `json:"base"`
+}
+
 type LocalSettings struct {
-	GPUMode              string   `json:"gpu_mode,omitempty"`
-	GPUIndex             *int     `json:"gpu_index,omitempty"`
-	Quantization         string   `json:"quantization,omitempty"`
-	ReservedVRAMFraction *float64 `json:"reserved_vram_fraction,omitempty"`
-	ReservedRAMBytes     *uint64  `json:"reserved_ram_bytes,omitempty"`
+	// Endpoints are the local model endpoints this machine knows about,
+	// beyond its own Ollama, which needs no record.
+	Endpoints            []Endpoint `json:"endpoints,omitempty"`
+	GPUMode              string     `json:"gpu_mode,omitempty"`
+	GPUIndex             *int       `json:"gpu_index,omitempty"`
+	Quantization         string     `json:"quantization,omitempty"`
+	ReservedVRAMFraction *float64   `json:"reserved_vram_fraction,omitempty"`
+	ReservedRAMBytes     *uint64    `json:"reserved_ram_bytes,omitempty"`
 }
 
 // LocalKeys are the dotted config keys this section accepts, in display order.
@@ -173,4 +185,36 @@ func (l LocalSettings) settings() []Setting {
 		add("local.reserved_ram_bytes", strconv.FormatUint(*l.ReservedRAMBytes, 10))
 	}
 	return rows
+}
+
+// FindEndpoint returns the endpoint with this name.
+func (c *Config) FindEndpoint(name string) (Endpoint, bool) {
+	for _, endpoint := range c.Local.Endpoints {
+		if endpoint.Name == name {
+			return endpoint, true
+		}
+	}
+	return Endpoint{}, false
+}
+
+// PutEndpoint adds an endpoint or replaces the one with its name.
+func (c *Config) PutEndpoint(endpoint Endpoint) {
+	for i := range c.Local.Endpoints {
+		if c.Local.Endpoints[i].Name == endpoint.Name {
+			c.Local.Endpoints[i] = endpoint
+			return
+		}
+	}
+	c.Local.Endpoints = append(c.Local.Endpoints, endpoint)
+}
+
+// RemoveEndpoint forgets one, reporting whether there was one to forget.
+func (c *Config) RemoveEndpoint(name string) bool {
+	for i, endpoint := range c.Local.Endpoints {
+		if endpoint.Name == name {
+			c.Local.Endpoints = append(c.Local.Endpoints[:i], c.Local.Endpoints[i+1:]...)
+			return true
+		}
+	}
+	return false
 }

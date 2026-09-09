@@ -63,7 +63,7 @@ Read directly from the tree. Re-verify before building on any row; do not re-lit
 | Binary soft budget (12 MB) is a warning; README claims "~5MB static binary, ~2ms startup" | `scripts/check-budgets.sh:10,30`, `README.md:18` |
 | `cmd/kolkd` and `cmd/kolk-mock` have no tests | `cmd/**/*_test.go` → none |
 | Largest files: `engine/agent.go` 1,654 · `tui/model.go` 1,226 · `tui/controller.go` 964 · `tui/runtime.go` 961 · `cli/run.go` 944 · `protocol/events.go` 936 · `engine/orchestrator.go` 803 · `cli/tui_repl.go` 798 | `wc -l` |
-| Longest functions: `newAgent` (`cli/run.go:164`), `runConfig` (`cli/cmd_config.go:16`), `slash` (`cli/slash.go:183`), `validateEventData` (`protocol/events.go:444`) | reported 328 / 530 / 408 / 460 lines in the 09-08 pass; re-measure in O0 |
+| Longest functions: `newAgent` (`cli/run.go:164`), `runConfig` (`cli/cmd_config.go:16`), `slash` (`cli/slash.go:183`), `validateEventData` (`protocol/events.go:444`) | **measured in O0 on 2026-09-09: 329 / 553 / 409 / 461 lines** (`func` line to its closing brace at `HEAD`); the 09-08 pass reported 328 / 530 / 408 / 460 |
 | `go build ./...` clean; two direct deps (`x/sys`, `x/term`); Go 1.25 | `go.mod` |
 
 **Reported but not re-verified here** (from the 2026-09-08 review pass whose artefacts were lost;
@@ -71,6 +71,11 @@ treat as hypotheses until O0 re-measures them): release binary 9.4 MB, cold star
 suite 57.5 s wall / 3,533 tests with `cli` + `shell` at 63 % of the time, spill `fsync` ≈ 2.8 ms per
 publish vs 3 µs without, tool-argument `+=` at 200 KB ≈ 82 ms and 1.05 GB allocated, `Save` at
 4.8 MB ≈ 23 ms.
+
+**O0 has now measured all but the first two** (2026-09-09, see the table under O0): the suite is
+23.9 s wall / 3,569 `=== RUN` lines with `cli` + `shell` at 46 %; the spill `fsync` is 3.28 ms
+against 49 µs in memory; tool-argument `+=` at 200 KB is ~265 ms and 2.43 GB; `Save` at 5 MB is
+40 ms. Release binary size and cold start remain unmeasured hypotheses and belong to O12.
 
 ---
 
@@ -99,27 +104,59 @@ publish vs 3 µs without, tool-argument `+=` at 200 KB ≈ 82 ms and 1.05 GB all
 
 ---
 
-## O0 — Baseline: measure before touching anything
+## O0 — Baseline: measure before touching anything  ·  **done 2026-09-09**
 
 **Observable:** a `bench/` target and a set of `Benchmark*` functions that print the numbers the
 rest of this file quotes, kept in the suite, run by `make bench`.
 
-- [ ] **O0.1** `internal/bus`: `BenchmarkPublish/{memory,spill}` — 1 KB delta payload, 10,000
+- [x] **O0.1** `internal/bus`: `BenchmarkPublish/{memory,spill}` — 1 KB delta payload, 10,000
       publishes, report ns/op, allocs/op, and bytes written.
-- [ ] **O0.2** `internal/provider`: `BenchmarkReadStream/{content,toolargs}` at 50 KB and 200 KB
+- [x] **O0.2** `internal/provider`: `BenchmarkReadStream/{content,toolargs}` at 50 KB and 200 KB
       of fragmented SSE using the `enginetest` fragmenter.
-- [ ] **O0.3** `internal/session`: `BenchmarkSave/{100KB,1MB,5MB}` into a `t.TempDir()`.
-- [ ] **O0.4** `internal/stats`: `BenchmarkRatingsByModel/{1k,20k}` records.
-- [ ] **O0.5** `internal/session`: `BenchmarkLatestForDir/{10,200}` sessions of 200 KB each.
-- [ ] **O0.6** A `scripts/bench.sh` that runs the five with `-count=3 -benchmem`, writes
+- [x] **O0.3** `internal/session`: `BenchmarkSave/{100KB,1MB,5MB}` into a `t.TempDir()`.
+- [x] **O0.4** `internal/stats`: `BenchmarkRatingsByModel/{1k,20k}` records.
+- [x] **O0.5** `internal/session`: `BenchmarkLatestForDir/{10,200}` sessions of 200 KB each.
+- [x] **O0.6** A `scripts/bench.sh` that runs the five with `-count=3 -benchmem`, writes
       `bench/baseline.txt` once, and diffs later runs against it with `benchstat` **if installed**
       (not a dependency). Record the baseline numbers in `docs/build-log.md`.
-- [ ] **O0.7** `go test ./... -count=1 -json | jq` (or `-v` + a tiny awk) to list the twenty
+- [x] **O0.7** `go test ./... -count=1 -json | jq` (or `-v` + a tiny awk) to list the twenty
       slowest tests; record them in the build log as the O10 target list.
-- [ ] **O0.8** Measure the four long functions with `gocyclo`-free arithmetic (start line → closing
+- [x] **O0.8** Measure the four long functions with `gocyclo`-free arithmetic (start line → closing
       brace) and record the real lengths beside O13.
 
 **Exit:** baseline file committed; every later leaf quotes a before/after pair from it.
+
+**Measured 2026-09-09** — `bench/baseline.txt`, `make bench`, dossier in `docs/build-log.md`.
+Median of three on an Apple M3 (go1.26.4, darwin/arm64) under desktop load; `B/op` and
+`allocs/op` repeat to better than 0.1 % and are the durable half, wall clock spread reached 3×
+on the longest rows. Re-run `BENCH_BASELINE=1 scripts/bench.sh` on the machine a leaf is judged
+on rather than comparing across sessions.
+
+| benchmark | median | B/op | allocs/op |
+|---|---|---|---|
+| `Publish/memory` | 49.0 µs | 11.9 KB | 28 |
+| `Publish/spill` | 3.28 ms | 11.7 KB | 28 (1,192 spill bytes/event) |
+| `ReadStream/content/50KB` | 5.35 ms | 4.73 MB | 95,155 |
+| `ReadStream/content/200KB` | 21.5 ms | 18.76 MB | 380,418 |
+| `ReadStream/toolargs/50KB` | 20.4 ms | 163.75 MB | 96,844 |
+| `ReadStream/toolargs/200KB` | 265 ms | 2,434.81 MB | 387,076 |
+| `Save/100KB` | 7.53 ms | 0.35 MB | 24 |
+| `Save/1MB` | 12.3 ms | 5.43 MB | 45 |
+| `Save/5MB` | 40.2 ms | 28.14 MB | 42 |
+| `LatestForDir/10` | 14.9 ms | 4.56 MB | 2,330 |
+| `LatestForDir/200` | 204 ms | 91.25 MB | 46,228 |
+| `RatingsByModel/1k` | 5.15 ms | 1.57 MB | 12,246 |
+| `RatingsByModel/20k` | 102 ms | 34.24 MB | 244,092 |
+
+What this corrects above: the spill `fsync` is 67× the in-memory publish, not the ~1,000×
+reported — the `fsync` guess (2.8 ms) was right, the in-memory guess (3 µs) was not, because a
+1 KB delta pays a scrub, an encode and two clones for 28 allocations before the file is touched.
+Tool-argument `+=` allocates 2.43 GB at 200 KB, not 1.05 GB, against 18.8 MB for the content
+path at the same size: **130×**, and that ratio is O2's acceptance, not the wall clock. `Save`
+at 5 MB is 40 ms, not 23 ms at 4.8 MB, so a 5 MB transcript costs ~120 ms a turn across three
+saves. The suite is 3,569 `=== RUN` lines (2,200 top-level) across 38 packages, 23.9 s wall with
+a warm cache and 90.1 s summed; `cli` + `shell` are 46 % of it, not 63 %. `time.Sleep` at 38
+calls in 23 files and `t.Parallel()` at zero are confirmed.
 
 ---
 

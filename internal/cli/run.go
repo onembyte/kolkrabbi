@@ -459,18 +459,22 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	// No discovery seam means no discovery, never a panic: an app built
 	// without one simply has no host route.
 	{
+		// Every configured local endpoint answers for its own name, which is
+		// the model-id prefix (plan 37); this machine's Ollama keeps the name
+		// it has always had.
+		ag.Routes = endpointRoutes(cfg)
 		switch host.State {
 		case local.HostRunning:
-			ag.Routes = map[string]engine.ChatBackend{local.SidecarName: local.NewHostBackend(host.Addr)}
+			ag.Routes[local.SidecarName] = local.NewHostBackend(host.Addr)
 		case local.HostInstalled:
 			// Installed and idle: kolk starts one of its own on a port it
 			// chooses, lazily — when a host model is first chosen or first
 			// asked for a turn (E3b, E8) — measured
 			// at 300–440 ms to ready, which is a cost to pay once when asked
 			// for and never at every startup — and stops it at exit.
-			ag.Routes = map[string]engine.ChatBackend{local.SidecarName: local.NewLazyHostBackend(&local.HostStarter{
+			ag.Routes[local.SidecarName] = local.NewLazyHostBackend(&local.HostStarter{
 				Binary: host.Binary, Environ: os.Environ(), Out: a.stdout,
-			})}
+			})
 		}
 	}
 	// Rules the user already wrote down apply from the first turn. A stored

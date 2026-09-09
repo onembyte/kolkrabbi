@@ -10840,14 +10840,35 @@ Subcheckpoints, one at a time:
   on a LAN server, or at one exact address such as a Tailscale host, configured in-session with a
   command and a few steps, including a `direct` verb that takes the user's own runner command.
   Design in `docs/plan/37-local-models-anywhere.md`, PLAN item 37.
-  - [ ] **V39.1 what is at this address** — `local.Identify` tells an Ollama from anything
-    OpenAI-compatible under a deadline, trying the bare address, `/v1` and `/engines/v1`; the
-    endpoint record it fills in.
-  - [ ] **V39.2 endpoints, and using one** — the records in config, `/localia add|rm|use|list`,
-    the model-id prefix routing to the endpoint, the session switch, and the sentence about what
-    leaves the machine when the address is not loopback.
-  - [ ] **V39.3 `/localia direct <command…>`** — the user's own runner command, run under the
-    permission tier, then the model it named.
+  - [x] **V39.1 what is at this address** — closed 2026-09-09. `local.Identify` asks two
+    questions any model server answers for anyone, under a four-second budget: an Ollama by its
+    `"Ollama is running"` + `/api/version` handshake (models from `/api/tags`, chat at `/v1`), and
+    anything else by an OpenAI-compatible `GET <base>/models` tried at the address as written,
+    then `/v1`, then `/engines/v1` where Docker's model runner puts it. A 401 or 403 is refused
+    with the reason — kolk sends no key to a local endpoint — and an address that answers nothing
+    is refused naming what was tried. Addresses may be written bare, with a scheme, or with the
+    base path. `ValidEndpointName` keeps a name to one word, because the name is the model-id
+    prefix, and reserves `ollama` and `here`. Red first: six cases against httptest fixtures for
+    each runtime shape.
+  - [x] **V39.2 endpoints, and using one** — closed 2026-09-09 in one commit with V39.1, the
+    dead-export gate wanting a caller. `config.Endpoint{Name,Addr,Kind,Base}` in `local.endpoints`
+    with find/put/remove; `/localia add|rm|list|use`; `endpointRoutes` attaches one backend per
+    endpoint at session start, keyed by name, beside this machine's Ollama, which keeps the name
+    it has always had. `backendFor` was re-read so that any attached route owns its prefix rather
+    than only the two names in a hardcoded table — that is what makes `shop/qwen3` reach the shop
+    box. An Ollama endpoint reuses the host backend, which learns each model's window; anything
+    else gets a backend over `provider.NewCompatibleClient`, no key, billing `local`. Adding a
+    non-loopback address prints one sentence about what leaves this machine, and a second about
+    plain HTTP where the base is not TLS. `use <name> <model>` switches the running session in
+    place, proven end to end against the session fixture. Red first: six tests.
+  - [x] **V39.3 `/localia direct <command…>`** — closed 2026-09-09. The user's own runner command,
+    shown and confirmed (or `--yes`), run on this machine with its output streamed and its stdin
+    closed so an interactive runner finishes; then the runners kolk knows (`127.0.0.1:12434`, then
+    `11434`) are asked which now serves the model, which is the command's last argument, matched
+    allowing for a runner that spells the id shorter. Ollama keeps its own name; anything else is
+    saved as the `direct` endpoint so the next session reaches it without running the command
+    again. A command that fails, or a model no runner lists, switches nothing and says so. Red
+    first: five tests behind an injected runner seam, no Docker needed.
   - [ ] **V39.4 the surfaces** — doctor, README, the site's local page and the provider wall.
 - [x] **V38 polish the TUI** — asked 2026-09-08 with a screenshot of a live run; three leaves, one
   at a time. Closed 2026-09-08.
