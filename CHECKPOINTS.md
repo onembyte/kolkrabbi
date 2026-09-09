@@ -10852,8 +10852,17 @@ Subcheckpoints, one at a time:
     rendering a frame rather than trusting the tests: a blank line inside the request ended the
     block early (the prefix is now tested on the raw row, not the trimmed one), and the layout
     still forced the old purple on the marker row, which was removed.
-  - [ ] **V40.3 the agents table says more** — models and effort per row, every agent shown (six
-    deployed but five listed), the logs of each step under each row, and edits named explicitly.
+  - [x] **V40.3 the agents table says more** — closed 2026-09-09. The "six deployed, five listed"
+    the owner read off his screen was a real bug in the window: it filled a fixed fourteen-row
+    budget with the first agents' logs and then stopped, so the last agents had no row at all
+    while the transcript underneath said how many there were. Every agent now keeps its row
+    whatever else goes; only if the rows alone will not fit is the tail folded into "+N more".
+    The row carries the model and the effort — `2 Write README.md · working · fable·medium` —
+    with the task the thing that gives way when the window is narrow, so the model survives.
+    Whatever room is left goes to the logs: one line each while there is room, then the rest to
+    the agents that are working, since theirs is the line about to change. The budget follows the
+    screen rather than a constant. Red first: three tests at four heights. One older expectation
+    re-read, a long task now being clipped for the model. Read as a rendered frame at 132 by 24.
   - [ ] **V40.4 the table floats and expands** — ephemeral while agents work, details expanded,
     logs kept so they can be read after the run.
   - [ ] **V40.5 the full view** — the left arrow opens a navigable table of every agent with its

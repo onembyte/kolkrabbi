@@ -402,7 +402,7 @@ func (m *Model) layoutWithComposer(width, height, cursor int) ([]viewRow, int, i
 	// The agents' window (plan 37): on a screen wide enough for two columns
 	// the rows and their last steps sit top right over the transcript; on a
 	// narrow one they keep their old place, a full-width row each.
-	window := m.agentWindowLines(width)
+	window := m.agentWindowLines(width, height)
 	agentRows := make([]viewRow, 0, len(m.agentStatuses))
 	if window == nil {
 		for _, status := range m.agentStatuses {
@@ -1101,8 +1101,8 @@ func queuedCount(queued int) string {
 
 const (
 	agentWindowMinScreen = 80
-	agentWindowMaxRows   = 14
-	agentWindowLogLines  = 2
+	agentWindowMaxRows   = 24
+	agentWindowLogLines  = 3
 )
 
 func agentWindowWidth(width int) int {
@@ -1112,7 +1112,7 @@ func agentWindowWidth(width int) int {
 // agentWindowLines is the window's rows, each already boxed and padded to
 // the window's width so the left border lines up; nil when there is nothing
 // to show or no room for two columns.
-func (m *Model) agentWindowLines(width int) []viewRow {
+func (m *Model) agentWindowLines(width, height int) []viewRow {
 	if len(m.agentStatuses) == 0 || width < agentWindowMinScreen {
 		return nil
 	}
@@ -1134,32 +1134,139 @@ func (m *Model) agentWindowLines(width int) []viewRow {
 			total = status.Total
 		}
 	}
+
+	// Every agent deployed gets a row, whatever else has to go. The window
+	// once spent its budget on the first agents' logs and simply stopped,
+	// so a run of six showed five while the transcript said six.
+	budget := agentWindowBudget(height)
+	agents := m.agentStatuses
+	overflow := 0
+	if needed := 1 + len(agents); needed > budget {
+		keep := max(1, budget-2)
+		overflow = len(agents) - keep
+		agents = agents[:keep]
+	}
+	logRoom := max(0, budget-1-len(agents))
+	if overflow > 0 {
+		logRoom = 0
+	}
+
+	logs := m.shareLogRoom(agents, logRoom)
 	lines := []viewRow{box(fmt.Sprintf("agents %d/%d", running, total), stylePurple)}
-	for _, status := range m.agentStatuses {
-		// The row is what the agent is doing and how it stands; the lines
-		// under it are its last steps, the newest last. A row with no title
-		// yet shows its model, so it is never blank.
-		state := compactAgentField(status.State, "working")
-		what := compactAgentField(status.Summary, compactAgentField(status.Model, "model unknown"))
-		lines = append(lines, box(fmt.Sprintf("%d %s · %s", status.Index, what, state), agentStatusStyle(status)))
+	for index, status := range agents {
+		lines = append(lines, box(agentWindowRow(status, inner), agentStatusStyle(status)))
+		for _, line := range logs[index] {
+			lines = append(lines, box("  "+line, styleMeta))
+		}
+	}
+	if overflow > 0 {
+		lines = append(lines, box(fmt.Sprintf("+%d more — ← for all of them", overflow), stylePurpleMuted))
+	}
+	return lines
+}
+
+// agentWindowBudget is how many rows the window may take of the screen: enough
+// to be worth reading, never so many that the transcript disappears.
+func agentWindowBudget(height int) int {
+	if height <= 0 {
+		return agentWindowMaxRows
+	}
+	return min(agentWindowMaxRows, max(3, height-5))
+}
+
+// agentWindowRow is one agent: what it is doing, how it stands, and on which
+// model at what effort — the question a run at mixed efforts raises. The task
+// is what gets clipped, so the model and effort survive a narrow window.
+func agentWindowRow(status AgentStatus, inner int) string {
+	state := compactAgentField(status.State, "working")
+	tail := " · " + state
+	if model := shortModelName(status.Model); model != "" {
+		tail += " · " + model
+		if effort := compactAgentField(status.Effort, ""); effort != "" {
+			tail += "·" + effort
+		}
+	}
+	head := fmt.Sprintf("%d ", status.Index)
+	what := compactAgentField(status.Summary, "task")
+	if room := inner - cellWidth(head) - cellWidth(tail); room > 0 {
+		what = clipLine(what, room)
+	}
+	return head + what + tail
+}
+
+// shareLogRoom decides how many steps to show under each agent. Every agent
+// with something to say gets one line while there is room, and what is left
+// over goes to the ones still working: theirs is the line that is about to
+// change.
+func (m *Model) shareLogRoom(agents []AgentStatus, room int) [][]string {
+	available := make([][]string, len(agents))
+	for index, status := range agents {
 		logs := m.agentLogs[agentKey(status)]
+		state := compactAgentField(status.State, "working")
 		if step := compactAgentField(status.Step, ""); step != "" && step != state && (len(logs) == 0 || logs[len(logs)-1] != step) {
 			logs = append(append([]string(nil), logs...), step)
 		}
-		if len(logs) > agentWindowLogLines {
-			logs = logs[len(logs)-agentWindowLogLines:]
-		}
-		for _, line := range logs {
-			lines = append(lines, box("  "+line, styleMeta))
-		}
-		if len(lines) >= agentWindowMaxRows {
-			break
+		available[index] = logs
+	}
+	shown := make([]int, len(agents))
+	// One pass to give everyone a line, then passes that favour the working
+	// agents, until the room or the logs run out.
+	for round := 0; round < agentWindowLogLines && room > 0; round++ {
+		for index, logs := range available {
+			if room == 0 {
+				break
+			}
+			if round > 0 && agents[index].State != "working" {
+				continue
+			}
+			if shown[index] >= len(logs) || shown[index] >= agentWindowLogLines {
+				continue
+			}
+			shown[index]++
+			room--
 		}
 	}
-	if len(lines) > agentWindowMaxRows {
-		lines = lines[:agentWindowMaxRows]
+	out := make([][]string, len(agents))
+	for index, logs := range available {
+		if shown[index] > 0 {
+			out[index] = logs[len(logs)-shown[index]:]
+		}
 	}
-	return lines
+	return out
+}
+
+// shortModelName is the model as a person says it: the part that tells one
+// model from another, without the vendor and the route it came by.
+func shortModelName(model string) string {
+	model = compactAgentField(model, "")
+	if model == "" {
+		return ""
+	}
+	if cut := strings.LastIndex(model, "/"); cut >= 0 {
+		model = model[cut+1:]
+	}
+	// The last part names the model where it is a word — haiku, fable, luna —
+	// and where it is a version or a size the vendor prefix goes instead, so
+	// claude-fable-5-1 stays fable-5-1 rather than becoming "1".
+	if cut := strings.LastIndex(model, "-"); cut >= 0 && isLetters(model[cut+1:]) {
+		return model[cut+1:]
+	}
+	if cut := strings.Index(model, "-"); cut > 0 && cut+1 < len(model) {
+		model = model[cut+1:]
+	}
+	return model
+}
+
+func isLetters(text string) bool {
+	if text == "" {
+		return false
+	}
+	for _, r := range text {
+		if !unicode.IsLetter(r) {
+			return false
+		}
+	}
+	return true
 }
 
 // agentKey names an agent the way the controller does, so the logs it keeps

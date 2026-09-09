@@ -123,3 +123,76 @@ func TestAgentsWindowLingersThenClosesAfterTheTurn(t *testing.T) {
 	}
 	_ = keys.Close()
 }
+
+func sixAgents() []AgentStatus {
+	states := []string{"done", "working", "working", "working", "queued", "queued"}
+	models := []string{"claude-haiku", "claude-fable", "claude-fable", "claude-fable", "shop/qwen3", "claude-opus"}
+	efforts := []string{"low", "medium", "medium", "high", "medium", "max"}
+	out := make([]AgentStatus, 0, 6)
+	for i := 0; i < 6; i++ {
+		out = append(out, AgentStatus{
+			ID: fmt.Sprintf("a%d", i+1), Index: i + 1, Total: 6,
+			Model: models[i], Effort: efforts[i], Summary: fmt.Sprintf("task number %d", i+1),
+			State: states[i], Step: "step " + states[i], Sequence: 1,
+		})
+	}
+	return out
+}
+
+// Every agent deployed has a row. The window used to stop once its fixed
+// budget filled with logs, so a run of six showed five and the transcript
+// underneath said six — which is what the owner read off his own screen.
+func TestEveryAgentKeepsItsRowHoweverManyThereAre(t *testing.T) {
+	for _, height := range []int{40, 24, 16, 12} {
+		m := New(Status{Mode: "agent", Lifecycle: "working"})
+		m.SetAgentStatuses(sixAgents())
+		m.SetAgentLogs(map[string][]string{
+			"a1": {"preparing a tree of its own", "opening claude-haiku", "· Write: LICENSE → ok"},
+			"a2": {"opening claude-fable", "· Bash: cat mathkit.go → ok"},
+			"a3": {"· Write: stats.go → ok"},
+		})
+		view := m.View(120, height)
+		for i := 1; i <= 6; i++ {
+			if !strings.Contains(view, fmt.Sprintf("%d task number %d", i, i)) {
+				t.Fatalf("height %d: agent %d has no row:\n%s", height, i, view)
+			}
+		}
+		if !strings.Contains(view, "agents 3/6") {
+			t.Errorf("height %d: the count does not say three of six", height)
+		}
+	}
+}
+
+// A row says which model is doing the work and at what effort, because that
+// is the question a run at mixed efforts raises.
+func TestAgentRowsCarryTheirModelAndEffort(t *testing.T) {
+	m := New(Status{Mode: "agent", Lifecycle: "working"})
+	m.SetAgentStatuses(sixAgents())
+	view := m.View(140, 40)
+	for _, want := range []string{"haiku·low", "fable·medium", "fable·high", "qwen3·medium", "opus·max"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("no row carries %q:\n%s", want, view)
+		}
+	}
+}
+
+// What room is left after every agent has a row goes to their logs, and the
+// agents that are working get it first.
+func TestLogsFillWhatIsLeftAfterTheRows(t *testing.T) {
+	m := New(Status{Mode: "agent", Lifecycle: "working"})
+	m.SetAgentStatuses(sixAgents())
+	m.SetAgentLogs(map[string][]string{
+		"a2": {"opening claude-fable", "· Bash: cat mathkit.go → ok", "· Write: README.md → ok"},
+		"a5": {"queued behind task 2"},
+	})
+	tall := m.View(120, 40)
+	if !strings.Contains(tall, "· Write: README.md → ok") {
+		t.Fatalf("a tall screen shows no logs:\n%s", tall)
+	}
+	short := m.View(120, 12)
+	for i := 1; i <= 6; i++ {
+		if !strings.Contains(short, fmt.Sprintf("%d task number %d", i, i)) {
+			t.Fatalf("a short screen dropped agent %d rather than its logs:\n%s", i, short)
+		}
+	}
+}

@@ -7385,6 +7385,574 @@ no longer kept is worse than no refusal, so it was rewritten to the thing that i
 still worth promising — kolk probes loopback by itself and any other address only because
 someone typed it; there is no scan and no discovery of machines nobody named.
 
+## The build gates — O9, O11, O12 closed 2026-09-09
+
+`OPTIMIZATION_PLAN.md` Phase 1's three CI leaves, taken together because they are one thing: a
+gate that cannot trip is not a gate. All three were exactly that.
+
+**O9 — the suite ran three times per `make check`.** `scripts/test.sh` ran each module twice, once
+for pass/fail and once with `-v` to count `=== RUN`, and `scripts/check-budgets.sh` ran the root
+module a third time for the test-count floor and the sandbox-overhead line. It now runs once:
+verbose, `-count=1`, tee'd to a log, the count grepped out of that log, and the module's real exit
+status recovered through `${PIPESTATUS[0]}` rather than `tee`'s zero. A failing module prints its
+`--- FAIL` lines from the log instead of megabytes of `-v` output. The root module's log goes to
+`${KOLK_TEST_LOG:-<temp>}`; `check-budgets.sh` reuses it when the variable is set, the file is
+non-empty and it is newer than `go.sum`, and otherwise takes its own run, so `make budgets` alone
+still works. `make check` exports the variable for its prerequisites (target-specific `export`,
+verified on the GNU Make 3.81 that ships with macOS) and CI's budgets job sets it across a
+`make test` + `make budgets` pair. Three runs → one on the `check` path, two → one in CI.
+
+**The floor could not trip.** `TEST_FLOOR` was 22 against a root module that runs 3,575 `=== RUN`
+lines: deleting 99.4 % of the suite would have passed. It is now 3,217, 90 % of the measured count,
+and ratchets with each release.
+
+**O11 — golangci-lint was `latest`.** Every action in every workflow is SHA-pinned, and the
+linter — the one tool that decides whether the tree is acceptable — was a moving pointer, so a
+green `main` could turn red with no commit. Pinned to **v2.13.2**, verified clean against this tree
+(`0 issues`). `make workflow-pin-check` now owns the tool version as well as the action digests: it
+fails if `golangci-lint-action`'s `version:` is anything but an exact `vN.N.N`, and fails again if
+the Makefile's install hint names a different one. Both mutations were run and both trip.
+
+**O12 — the size budget only warned, and the README was wrong.** The 12 MB line was a
+`::warning::`, so the binary had grown from 6.19 MB (step 3) to **9,507,938 bytes = 9.07 MB**
+with nothing to say so, and README plus six site pages all promised "under 9 MB" — a claim that
+had quietly become false. The soft line is now a ratchet: `BIN_BASELINE` is the measured stripped
+size, the gate is baseline + 10 %, and 20 MB stays as an absolute ceiling. Raising the baseline is
+allowed only in a commit that says what the bytes bought. The claim is now "under 10 MB" in all
+seven places, and `scripts/test-site.sh` reads the figure out of `README.md`, asserts every site
+page quotes the same one, and asserts `BIN_BASELINE` is actually below it — so the number cannot go
+stale again without a gate going red. Cold start measured **p50 8.7 ms** from `make budgets`
+(darwin/arm64 M3, 20 runs of `kolk help`, soft 20 / hard 30 ms) and 15.6 ms from the same
+measurement taken while six agents were building — which is why the README says "milliseconds to
+start" and quotes no figure: the number moves with the machine, the budget does not.
+
+**O12.3, where the bytes are** — `go tool nm -size -sort size` on an unstripped `-trimpath` build,
+2026-09-09. Sized `T`/`D`/`R` symbols total 10,272,503 bytes (the on-disk half; the stripped
+binary is 9.07 MB after `-s -w` drops the symbol table).
+
+| symbol | bytes | note |
+|---|---|---|
+| `crypto/internal/fips140/drbg.memory` | 33,554,432 | `B` — zero-filled BSS, costs no bytes on disk |
+| `runtime.pclntab` | 2,688,528 | the price of Go stack traces; not removable |
+| `typerel.*` / `_type:*` | 945,232 each | reflect type metadata |
+| `go:func.*` | 636,096 | |
+| `runtime.rodata` / `go:string.*` | 264,688 each | |
+| `internal/cli.(*app).runConfig` | 22,832 | the largest single function in the binary — O13's target |
+| `protocol.validateEventData` | 21,248 | second largest — also O13 |
+| `internal/cli.(*app).slash` | 11,984 | third — also O13 |
+| `x/text/unicode/norm` + `x/net/idna` tables | ~99,000 | Unicode data behind `net/http` |
+
+By package, the top of the sized total: `runtime` 3.64 MB, reflect metadata ~2.5 MB,
+`net/http` 379,691, `internal/cli` 263,464, `crypto/tls` 210,021, `internal/engine` 196,128,
+`internal/tui` 124,960. Kolkrabbi's own code is **1,152,596 bytes, 11.2 %** of the sized total;
+`net/http` + `crypto` + the `x/text`/`x/net` tables it drags in are **1,588,242, 15.5 %**. The rest
+is the Go runtime and reflect metadata. **That is the accepted cost**: the HTTP + TLS stack is what
+talking to a provider is, and the runtime is what a single static binary with no runtime to install
+is. There is no 3 MB to find here — the only compressible thing in the list is the three O13
+functions, and they are 56 KB between them. If the ratchet ever trips, the answer is a new
+dependency or a new stdlib subtree, not drift.
+
+**Verified:** `make budgets` (9.07 MB under the 10.4 MB ratchet, cold start p50 8.7 ms, 3,575
+tests over the 3,217 floor, 2 modules), `make site` (465 checks), `make workflow-pin-check`
+(46 checks), `golangci-lint v2.13.2 run ./...` (0 issues), and the four mutations above.
+
+## 2026-09-09 — O2 (builder for streamed tool arguments) and O15 (bad session ID)
+
+Both leaves of `OPTIMIZATION_PLAN.md` closed in one pass, on top of the O0 baseline recorded
+above. `internal/local` and PLAN.md item 25 were not touched: another model is building those in
+parallel and its files never entered this working set.
+
+### O2 — `strings.Builder` per tool-call slot
+
+`readStream` accumulated the name and argument text of a streamed tool call with `+=` on the
+struct field, so each of the hundreds of fragments in a 200 KB `write_file` argument copied
+everything received so far. Two `map[int]*strings.Builder` now sit beside `toolCalls`, keyed by
+the same slot (including the synthetic slot used when a new call collides with an occupied index),
+and are materialised once where `msg.ToolCalls` is assembled. The first fragment is written to the
+builder and cleared off the copied struct, which is the one place this could have silently doubled
+a fragment; `TestReadStreamAssemblesLargeFragmentedToolArgs` unmarshals the reassembled arguments
+and would catch it.
+
+| `BenchmarkReadStream/toolargs` | before | after | |
+|---|---|---|---|
+| 200 KB B/op | 2,434.81 MB | **23.01 MB** | −99.1 % (plan asked > 90 %) |
+| 200 KB ns/op | 265 ms | **27.5 ms** | 9.6× |
+| 50 KB B/op | 163.75 MB | **5.79 MB** | −96.5 % |
+| 50 KB ns/op | 20.4 ms | **6.91 ms** | 3.0× |
+
+Linearity, which is the durable claim rather than the wall clock: 4× the input is now 3.97× the
+bytes and 3.95× the time, against 14.9× the bytes before. Allocation *count* barely moves
+(387,076 → 364,240) and that is expected — the win is allocation size; the per-fragment
+`json.Unmarshal` still owns the count and is O3's ground, not this leaf's.
+
+Three honest limits. (a) The before-numbers are the O0 baseline rows from `bench/baseline.txt`,
+measured in an earlier session on a loaded machine; the after-numbers are `bench/o2-toolargs-after.txt`
+(`-count=3`, spread under 1.6 %). The B/op comparison is sound across sessions, the ns/op one is
+indicative — as O0 already warned in this log. (b) The `content` path was already a builder and is
+unchanged; toolargs at 200 KB now sits at 27.5 ms against content's 21.5 ms, i.e. the 130× gap O0
+flagged is closed to 1.28×, which is the acceptance that does not depend on machine state.
+(c) `-benchtime` was left at the default, so the 200 KB row is 43 iterations.
+
+**Corpus.** `fragmentedToolArgs(200 << 10)` is now a seed of `FuzzReadStream`, so the shape runs on
+every `go test` and not only under `-bench`. It cuts every 97 bytes and JSON-encodes each fragment
+*after* the cut: encoding before would let a cut land inside a `\"` escape, and the reader would
+rightly skip that delta, so the fixture would quietly test a fragmentation that never happens.
+
+### O15 — the smallest correct diff
+
+Took the option the plan itself calls likeliest. `path()`, `CooldownsFile()` and `CkptDir()` keep
+their `string` signatures, so nothing in `internal/cli` or `internal/engine` changed — turning them
+into `(string, error)` would have edited `run.go:309/399`, `slash.go:315` and `cmd_sessions.go:313`,
+files the other model is working near. An invalid ID was already an error on every path where one
+can actually arrive (`Load`, `Save`, `Delete`, `CompactionArchives`); the three panics were
+reachable only from a `Session` assembled by hand. They now go through one `mustValidID` helper
+that panics with `session: unvalidated ID; construct through New or Load`, and `New` validates the
+ID it mints instead of relying on a reader's memory of what `xid.New` returns.
+
+What makes that safe is now checked rather than asserted. `session_id_test.go` holds two tests:
+`TestEveryConstructorValidatesTheID` exercises `New`, `Load`, `List`, `Latest` and `LatestForDir`
+against a directory containing both a good session and a file whose stored ID is `"../escape"`,
+requiring a validated ID and three in-directory paths from each, and requiring `Load` to error
+rather than panic on the corrupt one; `TestTheListOfConstructorsIsComplete` parses the package's
+non-test files and fails if any exported function returning a `*Session` (or `[]*Session`) is
+missing from that list. Verified negatively: deleting `Latest` from the covered set makes it fail
+with the message that names the consequence. It also fails if it finds zero constructors, so it
+cannot pass vacuously. `parser.ParseFile` over `os.ReadDir`, not `parser.ParseDir` — the latter is
+deprecated as of Go 1.25 and `golangci-lint` (SA1019) rejected the first draft.
+
+**Gates.** `make check` green end to end (exit 0): fmt, vet, the suite once, arch, purity,
+platforms, lint (0 issues), budgets (9.07 MB under the 10.4 MB ratchet, cold start p50 8.7 ms,
+2 modules), site (465), surface (21), installer (72), spec (29), release (24), release workflow
+(41), release verifier (30), plan (107), workflow pins (46).
+
+**Paths touched.** `internal/provider/client.go`, `internal/provider/client_test.go`,
+`internal/provider/stream_fuzz_test.go`, `internal/session/session.go`,
+`internal/session/session_id_test.go`, `bench/o2-toolargs-after.txt`, `OPTIMIZATION_PLAN.md`,
+`docs/build-log.md`. Nothing committed.
+
+## 2026-09-09 — O1: the event journal stops fsyncing every token
+
+The only P0 in `OPTIMIZATION_PLAN.md`, and the one on every session's hot path. `Bus.Publish` wrote
+one NDJSON frame and called `Sync()` for it, with `b.mu` held, and `RunTurn` publishes one event per
+streamed token. A 2,000-token answer therefore spent seconds inside the journal, serialised against
+every subscriber, for a durability nobody had asked for: the text a person reads is in the session
+file, and replay promises the retained window, not the last delta before a power cut.
+
+### What moved
+
+**A policy, not a constant.** `Options.SyncPolicy` is `SyncOnTurnBoundary` (the zero value, so the
+default arrives by saying nothing), `SyncNever`, or `SyncEvery`. The default flushes on
+`turn.finished`, `turn.cancelled`, any `permission.*`, and `Close` — a turn boundary is where a
+client stops and takes stock, and a permission prompt is the one thing it must never be asked
+twice. `SyncEvery` is the pre-O1 behaviour, kept because the plan's rollback is one word in
+`run.go`. `TestSyncPolicyPicksExactlyTheEventsAClientMustNotSeeTwice` walks
+`protocol.KnownEventTypes()` under all three policies, so the decision table is pinned against the
+whole vocabulary rather than against three examples.
+
+**The write left the critical section.** Encoding, sequencing and retention still happen under
+`b.mu`; the frame then goes to one writer goroutine through a 1,024-deep channel. Fan-out to
+subscribers is unchanged and still synchronous, so no ordering guarantee moved. A full queue blocks
+the publisher, which is the old behaviour exactly — nothing is ever dropped.
+
+**The file is bounded.** Past `Options.MaxSpillBytes` (64 MB) it is rebuilt from the retained
+window into a temporary file and renamed into place, and the writer adopts that handle rather than
+reopening by path.
+
+### Three decisions inside that, each of which could have gone wrong
+
+*Rotation is decided by the publisher, never by the writer.* The rewrite needs the retained window,
+which lives under `b.mu`. If the writer reached for that lock, a publisher blocked on a full queue
+while holding it would deadlock the process — a hang under load, the worst possible failure for
+this change. So the publisher, already holding the lock, snapshots the window and hands it over.
+The snapshot is a slice copy; payload bytes are shared and never mutated after `Publish` clones
+them, and `trim` only zeroes the bus's own slice element, not the copy.
+
+Rewriting is skipped unless it would actually shrink the file. That is what bounds the file at
+`max(MaxSpillBytes, MaxBytes)` plus one frame *however small the cap is set*, instead of letting a
+tiny cap rewrite the whole window on every publish.
+
+*A spill error is sticky, and belongs to the next Publish.* An asynchronous write cannot fail the
+`Publish` whose frame it was. The first error is remembered and returned by every later `Publish`
+and by `Close`, checked before any state changes so that call still honours "an error leaves the
+sequence, replay window and subscribers unchanged". Sticky rather than transient on purpose: once
+one frame is missing the file no longer satisfies replay, and appending over the hole would be
+worse than failing loudly.
+
+*A cursor the file can no longer serve is refused.* This is the bug the leaf could most easily have
+shipped. Before O1 the file held every event of the session, so `readSpillAfter` always covered any
+cursor. A rewritten file starts at the retained window, and a `Last-Event-ID` client asking for
+something older would have been handed a replay that silently skipped the missing events — the one
+failure such a client cannot detect. `readSpillAfter` now returns `ErrCursorExpired` when the
+oldest frame on disk is newer than `afterSeq+1`. It also flushes the writer queue before reading,
+because the tail of the journal can legitimately still be in flight; without that, replay would
+stop short and leave a gap before the first live event.
+
+### Numbers
+
+`bench/o1-publish-after.txt`, `-count=3 -benchmem`, M3, go1.26.4, against the O0 rows in
+`bench/baseline.txt`.
+
+| `BenchmarkPublish` | before | after | |
+|---|---|---|---|
+| `spill` ns/op | 3.28 ms | **51.8 µs** | 63× |
+| `memory` ns/op | 49.0 µs | 45.9 µs | unchanged (same machine class, different session) |
+| spill ÷ memory | 67× | **1.12×** | plan asked ≤ 3× |
+| B/op, allocs/op | 11.9 KB / 28 | 11.9 KB / 28 | untouched; this leaf moved syscalls, not allocations |
+
+The plan's other success line — *a 5,000-delta turn spends < 10 ms total in the bus* — is **not met,
+and is not this leaf's to meet.** At 45.9 µs a publish, 5,000 deltas cost 230 ms with no spill file
+at all. Splitting one publish on a 1 KB delta says where it goes: `redact.ScrubJSON` **25.7 µs**
+(56 %), `validateEvent` **9.8 µs** and `EncodeNDJSON` **9.8 µs** (43 %, and that is the same
+envelope encoded twice — once with a dummy sequence to validate before consuming one, once for
+real). Sum 45.3 µs against a measured 45.9: the accounting closes. The disk is now 6 µs of the 52.
+Reaching 10 ms needs O16 and the removal of the double encode, and O0 already said the remaining
+order of magnitude was in the scrub.
+
+### O16, decided (O1.5)
+
+The plan asked whether `message.delta` could skip the scrubber, since `message.completed` carries
+the same text and is scrubbed. The test it asked for
+(`TestASecretSplitAcrossTwoDeltasIsScrubbedInTheCompletedMessage`) passes: a key split at 23 bytes
+— the head below the shape's 16-character minimum suffix, the tail with no prefix at all — goes out
+in two unredacted fragments and is whole and redacted in `message.completed`.
+
+The shortcut is still refused, and the test says why in its third assertion. Deltas are fanned out
+to live subscribers and appended to the spill file *before* `message.completed` exists; one
+provider chunk can carry a whole message (`readStream` calls `onToken(delta.Content)` with whatever
+the vendor sent); and a key that arrives inside one delta is redacted in that delta today. The
+prefilter as written in the plan — *under 64 bytes and no `=`/`:`* — is unsound besides:
+`sk-ant-api03-…`, `ghp_…`, `AKIA…` contain neither character, so the filter would wave exactly the
+credentials the scrubber exists for straight through. `message.completed` is the second line of
+defence, not the only one. O16 stays open pointed where the measurement points: a first-byte gate
+inside `redact`, where the 25.7 µs actually is.
+
+### Honest limits
+
+The `spill` benchmark publishes only `message.delta`, so it crosses no turn boundary and performs
+**zero** fsyncs — which is precisely the case under test, the streaming interior of a turn, but it
+means the number is not "the cost of a turn". A turn adds one fsync at its boundary, single-digit
+milliseconds once, where it used to be that per token. The 22,825 iterations wrote ~27 MB, under
+the 64 MB cap, so the rotation path is not in the benchmark; it is in the tests. The machine
+carried the parallel agent's work throughout, so the ns/op figures are indicative and the ratio is
+the durable claim, as O0 warned.
+
+### Tests
+
+Five new, one amended. `TestSpillFileIsRewrittenFromTheRetainedWindowWhenItPassesItsCap` publishes
+400 events into a 4 KB cap with a 4-event window and requires: the file no longer starts at event 1;
+its sequences are contiguous to the last; the whole retained window survives on disk; the size is
+within the cap plus one frame; a cursor the file can serve replays whole; one older is
+`ErrCursorExpired`; no `.rewrite` file is left behind; and a bus reopened on the rewritten file
+resumes at sequence 401. `TestCloseFlushesEveryFrameStillQueued` proves Close is now the durability
+point (500 frames, `SyncNever`, and Close is idempotent).
+`TestReplayFromDiskWaitsForFramesStillInTheWriterQueue` publishes 500 with a 1-event window and
+requires the disk replay to be contiguous to the last event — it fails without the flush.
+`TestImpossibleSyncPolicyAndSpillCapAreRefused` covers the new option validation. The amended one is
+`TestSpillAppendsExactNDJSONFramesToDisk`, which reads the file behind `Publish`'s back and now
+calls `flushSpill` first; it passed without the change, which is worse than failing — it was
+racing on a fast writer. Nothing in the replay path needs that call: `Subscribe` and `Close` flush
+on their own.
+
+### Gates
+
+`make check` exit 0: fmt, vet, suite once (3,592 tests, floor 3,217), arch, purity, buildtags,
+platforms, lint 0 issues, budgets (9.08 MB against the 10.46 MB ratchet, cold start p50 7.1 ms,
+sandbox overhead 8.1 ms, 2 third-party modules), site 465, surface 21, installer 72, spec 29,
+release 24, release workflow 41, release verifier 30, smoke workflow 18, plan 107, workflow pins 46.
+`-race -count=1` green on `internal/bus` (1.5 s), `internal/engine` (6.3 s) and `internal/cli`
+(16.1 s).
+
+**Paths touched.** `internal/bus/bus.go`, `internal/bus/bus_test.go`, `internal/bus/spill_test.go`,
+`internal/cli/run.go`, `internal/cli/cmd_serve.go`, `docs/plan/02-architecture.md`,
+`bench/o1-publish-after.txt`, `OPTIMIZATION_PLAN.md`, `CHECKPOINTS.md`, `docs/build-log.md`.
+Nothing committed. `internal/local`, `docs/plan/25-managed-local-models.md` and PLAN.md item 25 are
+the other model's ground and were not opened; `cmd_serve.go` states the policy explicitly but has
+no `SpillPath`, so nothing there changes behaviour today.
+
+## 2026-09-09 — O3: the transcript is saved at boundaries, not at every message
+
+`Agent.save()` was one verb at sixteen call sites. Every one of them rewrote the whole session —
+`json.MarshalIndent` of the entire transcript, temp file, `fsync`, rename, directory `fsync` — and a
+50-round tool turn hit them about a hundred times. Measured, before this leaf: **102 writes for a
+50-round turn**. After it: **2** (one interval save, one at the turn boundary), against the plan's
+target of ten.
+
+Option A from the plan, as recommended: coalesce, keep the on-disk format. No journal, no second
+file, no migration, and `sessions export|fork|search|doctor` learn nothing new.
+
+### The table is the design
+
+`internal/engine/save.go` replaces the one verb with two — `markDirty()`, which touches no disk, and
+`flush(reason)`, which writes now and durably — plus `saveFor(reason)`, which is what the sixteen
+call sites became. Which of the two a site gets is a table, not a judgement made sixteen times:
+
+    saveRules[saveTurnEnd]          = {durable: true}
+    saveRules[saveFileWrite]        = {durable: true}
+    saveRules[savePermissionPrompt] = {durable: true}
+    saveRules[savePause]            = {durable: true}   // and resume, undo, compact,
+    saveRules[saveToolRound]        = {interval: true}  // continuity switch, system prompt
+    saveRules[saveUserMessage]      = {}                // and assistant message, auto title,
+                                                        // orchestration step
+
+Each row answers one question: *if the machine died immediately after this, would the user have to
+be told?* The durable rows are where the answer is yes — a state the person asked for (`/undo`,
+`/compact`, `/resume`), or one they must be able to reason about after a crash (a pause that stops
+spending, a prompt they are about to answer, a tool about to change their files). The rest is the
+transcript growing, and the turn's own end makes it durable.
+
+Only one row is on the interval, and it is the one a 50-round turn walks fifty times.
+
+### Three boundaries that are not call sites
+
+- **The turn.** `defer a.flush(saveTurnEnd)` at the top of `RunTurn`, so the paused return, the
+  continuity hop and the error paths all reach it. It writes only when something is pending, so a
+  nested `RunTurn` (the auto-continue path) costs one write, not two.
+- **The prompt.** In `Agent.confirm`, not in the permission guard: `confirm` is the one function
+  every asker goes through — the guard, the doom-loop question, and whatever asks next. A person
+  answering is the longest pause in a turn and so the likeliest moment to be killed or closed.
+- **The tool that writes.** In `preWrite`, the hook `tools.Execute` already calls before a
+  file-modifying tool touches anything. This is the flush that matters most, and it is why
+  `noteFileWrite` also promotes that round's own save from the interval to a durable one: the
+  transcript is written before the tree moves and again after the result, so it is never staler
+  than the files it describes.
+
+### `WriteOptions{SkipDirSync}`
+
+`atomicfile.Write` keeps its three-argument signature — `internal/selfupdate` and the saga executor
+hold it as a `func(string, []byte, os.FileMode) error`, and a seam a fake can stand in for is worth
+more than one spelling — and delegates to a new `WriteWith(path, data, perm, WriteOptions)`. The one
+option skips the directory `fsync` after the rename. The bytes are still `fsync`ed and the rename is
+still atomic, so no reader sees a torn file and no crashed *process* loses anything; what is given
+up is a power cut in the window before the OS flushes the directory, where the previous transcript
+comes back instead of this one. `session.SaveInterim` is its only caller, and the engine's interval
+save is `SaveInterim`'s only caller. Every boundary above goes through plain `Save`.
+
+`SessionPort` grew `SaveInterim() error` to carry that distinction from the engine to the adapter;
+an implementation with nothing cheaper to offer may just call `Save`, and both fakes do.
+
+### Proving it, rather than asserting it
+
+`TestAKilledToolLoopResumesFromTheLastFlushedBoundary` re-execs the test binary through `TestMain`,
+gives the child `SaveInterval: time.Hour` — so nothing on disk can be there because an interval
+elapsed — and kills it from `PostWrite`, the window between the file changing and the engine
+recording what it did. `Process.Kill` is SIGKILL on unix: no handler, no defer, no atexit hook. The
+parent then requires all three of: the tool's file on disk (so this is the awkward case and not a
+turn that never started); the transcript holding exactly system + user + the assistant's tool call
+and *not* the result; and `engine.New` appending the synthetic tool result that keeps the next
+provider request valid.
+
+Deleting the single line `a.flush(saveFileWrite)` from `preWrite` makes that test fail with **no
+session file at all** — which is the regression this leaf could have shipped, and the reason the
+test is written against a killed process rather than a cancelled context.
+
+### Numbers
+
+| turn | writes | note |
+|---|---|---|
+| 50 rounds, read-only tools | **2** | 1 durable + 1 interval; target was ≤ 10 |
+| 50 rounds, `SaveInterval: -1` | 102 | the rollback switch, i.e. the old behaviour |
+| 50 rounds, every round writes a file | 101 | by design; see below |
+
+`BenchmarkSave` is unchanged (`bench/o3-save-after.txt`), which is the point — O3 changes call
+count, not per-call cost. Its wall clock reads faster than `bench/baseline.txt` only because this
+machine is less loaded than it was during O0; per O0's own caveat, that is not a cross-session
+comparison and no claim rests on it.
+
+### Where the target is deliberately not met
+
+A turn that writes a file every round still costs ~101 writes. Two flushes bracket a file-mutating
+round on purpose: `/undo` pairs a checkpoint with a position in the transcript, and coalescing
+across a file mutation leaves a checkpoint for a turn the transcript never mentions. Durability
+costs everything there and coalescing buys nothing a person would notice, because the round is
+already dominated by the tool. The hundred writes O3 was aimed at were in the ordinary turn, where
+most rounds read.
+
+### Found on the way
+
+`Session.Save` stamped `UpdatedAt` outside `messagesMu` and marshalled inside it. Two concurrent
+saves therefore raced on that field while a third read it — a pre-existing bug that one saving
+goroutine in `save_race_test.go` had hidden. O3's second kind of save gave the test a second saver
+and `-race` found it in the first run. Fixed by stamping inside the lock, where the comment already
+said the snapshot was taken.
+
+### Tests
+
+Fifteen new, and one `TestMain` that exists to be killed. `TestAFiftyRoundTurnWritesTheSessionAtMostTenTimes` is the headline and counts the
+port's own calls; `TestANonPositiveSaveIntervalWritesOnEveryCall` reproduces 102 through the
+rollback switch in the same harness, so the before and after are one measurement;
+`TestARoundThatWritesAFileSavesDurablyTwice` pins the bracketing;
+`TestThePromptIsAskedOnlyAfterTheTranscriptIsOnDisk` records what was on disk from inside the
+`Decider`, at the moment it was asked. `save_race_test.go` (engine, new) hammers `markDirty`,
+`saveFor`, `noteFileWrite` and `flush` from twelve goroutines and requires nothing pending after the
+last boundary; `save_race_test.go` (session, extended) races `Save` against `SaveInterim` against
+`AppendMessage`, which is the test that found the `UpdatedAt` race.
+`TestWriteWithSkipDirSyncStillReplacesAtomically` requires the skipped `fsync` not to mean a skipped
+cleanup — one entry in the directory, right mode, new contents.
+
+One more race the leaf created and closed in the same hour: the once-per-session save warning was a
+plain `bool` on the Agent, which nothing concurrent had ever reached. Making `preWrite` a flush
+point put it behind eight goroutines the moment a disk goes read-only, so the flag moved under the
+same mutex as the rest of the bookkeeping and
+`TestTheFailedSaveWarningIsPrintedOnceUnderConcurrency` holds it there.
+
+### Gates
+
+`gofmt -l` clean; `go vet ./...`; `go build ./...`; `go test ./... -count=1` green;
+`go test -race -count=1` green on `internal/engine` (5.9 s) and `internal/session` (2.1 s);
+`check-arch.sh`, `check-purity.sh`, `check-buildtags.sh`, `check-platforms.sh`, `test-plan.sh`
+(107), `test-v01-surface.sh` (21), `test-site.sh` (465) all pass. Full `make check` was not run:
+it runs the suite three times and `internal/cli` is being edited in parallel, so a failure there
+would not have been mine to read. The whole suite passing once, above, covers `internal/cli` as it
+stood at 02:20.
+
+**Paths touched.** `internal/engine/save.go` (new), `internal/engine/save_coalesce_test.go` (new),
+`internal/engine/save_kill_test.go` (new), `internal/engine/save_race_test.go` (new),
+`internal/engine/agent.go`, `internal/engine/{chain,compact,orchestrator,pause,resume,undo}.go`,
+`internal/engine/port.go`, `internal/engine/warn_test.go`, `internal/session/session.go`,
+`internal/session/{save_race,session}_test.go`, `internal/atomicfile/atomicfile.go`,
+`internal/atomicfile/atomicfile_test.go`, `internal/enginetest/fakes.go`, `README.md`,
+`bench/o3-save-after.txt`, `OPTIMIZATION_PLAN.md`, `docs/build-log.md`. Nothing committed.
+`internal/local`, `docs/plan/25-managed-local-models.md` and PLAN.md item 25 are the other model's
+ground and were not opened.
+
+## 2026-09-09 — O5, O6, O8: what a start and a resume actually cost
+
+Three leaves of `OPTIMIZATION_PLAN.md`, all of them on the path between typing `kolk` and seeing a
+prompt: the usage log folded twice at startup (O5), every transcript on the machine decoded to pick
+one to resume (O6), and every signed-in vendor's CLI spawned on every start (O8).
+
+### O5 — one fold, and the fold remembered
+
+`RatingsByModel` was called from `run.go` for the engine's slot selection and again from
+`candidates.go` for the continuity ranking, each one loading and folding the whole of
+`stats.jsonl`. Now the app folds once (`a.ratingsByModel`, dropped by `/rate` through
+`a.forgetRatings`) and the fold itself is cached in `ratings.json` beside the log.
+
+The cache is keyed on the log's `size`, `modtime` and the byte `offset` the fold consumed. An
+unchanged log is answered without opening it; a grown log has only its new bytes scanned; anything
+else — shrunk, edited in place, a cache of another version — is folded again from the start.
+
+**The plan's premise needed one correction.** "Ratings are an associative fold per model, so
+partial re-fold is exact" is false on its own: a rating joins *backwards* to every call of its
+turn, so a call appended for a turn that was already rated moves an average with no new rating line
+anywhere in the appended bytes. So the cache carries the rated turns too, and the forward scan
+gives up — falls back to the whole log — when the new bytes hold a rating **or** a call of a rated
+turn. What is left is the case a session actually produces: calls for turns nobody has rated, which
+contribute nothing to this fold and are skipped without touching a number.
+`TestTheCachedFoldEqualsTheColdFold` folds a 160-record log after every single append and compares
+it, each time, against the same log folded once from cold.
+
+The rated turns sit in the file as `json.RawMessage` and are decoded only when the forward scan
+needs them. They are the only part that grows with the log, and decoding 4,000 turn ids into
+strings on every warm read was 2.4 ms of the first 2.9 ms measurement.
+
+`BenchmarkRatingsByModel/20k`: **101.8 ms → 275 µs** warm; `/1k`: 5.15 ms → 34.6 µs
+(`bench/o5-ratings-after.txt`). A cold re-fold is 51.8 ms, paid after a `/rate`, an edit or a first
+run. Startup did this twice, so a 20k-record log cost ~204 ms before anything was drawn.
+`kolk stats` still reads the whole log: it is a report, not a startup path (O5.3).
+
+### O6 — a header per session
+
+`<id>.meta.json`, written inside `Session.write` after the transcript it describes, carrying `ID`,
+`Title`, `CWD`, `UpdatedAt`, `Model` and `MessageCount` — plus `Effort`, `Connector` and `Pause`,
+because the dashboard's cards show the first two and `kolk doctor` lists every paused session on
+the machine, and a field the header lacks is a field that costs a full decode. `List` returns
+`[]session.Meta`, reading a header where there is one and deriving it with a count-only decode
+(`Messages []struct{}`: walked, never allocated) where there is not. `Load` is called for the one
+session chosen. `Overview` is now `List` plus the liveness probe, which is the one fact no file can
+hold. `cmd_sessions` and `cmd_doctor` were rewritten onto the header (message counts, snapshot
+sizes and the paused list all had `*Session` in hand); `serve_session_pick` and `cmd_dash` needed
+no line changed, because a `Meta` names the fields they already read.
+
+`BenchmarkLatestForDir/200`: **203.8 ms → 4.95 ms** (median of five; 4.74–5.87 across eight runs at
+load average ~6.7). `/10`: 14.8 ms → 1.10 ms. Not flat, and the slope is worth naming: ~21 µs per
+session of header reading remains, against ~1 ms per session before, and a resume is now dominated
+by the single transcript it decodes (~1 ms at 200 KB). Flat would need one index file for all
+sessions, which two kolks in two terminals would have to agree on writing; a header per session has
+no such question.
+
+The plan's step 1 — order by `ReadDir` mtime and stop at the first `CWD` match — was not built.
+It trades `UpdatedAt` for file mtime as the meaning of "latest", so `kolk -r` and `kolk sessions`
+could name different sessions as newest, and it buys ~2.5 ms once step 2 made the scan cheap.
+
+**The header costs 0.3 ms per save, not 4 ms.** It is written atomically — a listing must never
+read half a header — but with neither `fsync`. With the file `fsync` it added 4 ms to every save of
+a 100 KB session, half the save, so `atomicfile.WriteOptions` gained `SkipFileSync` beside O3's
+`SkipDirSync`: still atomic, still safe against a crashed process, giving up only survival of a
+power cut for a file that is rebuilt from one written durably. `BenchmarkSave` at 100 KB is
+6.7–7.5 ms against O3's 6.4–7.2 ms (`bench/o6-sessions-after.txt`).
+
+Drift has an owner: `session.RepairMeta` rewrites a header from its transcript and reports whether
+it had to, and `kolk doctor` runs it over every session in a new `sessions` section — which is also
+where a session directory written by an older kolk gets its headers for the first time. That
+section carries O5's line too: whether the ratings cache was current or rebuilt.
+
+### O8 — ask a vendor when it matters
+
+`vendorCatalogTTL` is six hours. A vendor whose catalog was fetched inside it is not asked and not
+reported, because a catalog that did not change is not news; a vendor that never answered, a login,
+and `kolk models --refresh` are all outside it. A warm start therefore spawns **zero** vendor
+processes and leaves `vendor-models.json`'s mtime untouched.
+
+**The `VendorVersion` escape hatch was deliberately not built.** Reading a vendor's version means
+running `codex --version`, which is a process, and "a warm start spawns zero vendor processes" is
+this leaf's own acceptance test. The two cannot both hold. A vendor that renames a model inside the
+window is seen late by `/models` and immediately by a turn, which still marks the row `gone` on
+contact (F4.3). Rollback for a suspected stale catalog is `vendorCatalogTTL = 0`.
+
+`SaveVendorCatalogs` now compares the bytes it would write against the file and returns without
+writing when they match. The start path is not where that pays: `recordVendorModelOutcome`
+re-verifies the model the turn just ran on, so every turn after the first rewrote a byte-identical
+document with an `fsync`, a rename and a new mtime.
+
+Yielding to the turn needed one flag. `engine.Agent` counts running turns in an `atomic.Int32` and
+answers `TurnActive()` — a counter, because a continuity hop re-enters `RunTurn` and a flag would
+clear on the inner return — and the background refresh takes that method as its `busy` func,
+waiting 250 ms at a time before each vendor and giving up if the run ends. The refresh call moved
+from the middle of `newAgent` to its end, after the agent exists, so the flag can never be read
+before there is one.
+
+### Tests
+
+`internal/stats/ratings_cache_test.go` (9): warm read, forward extension, a rating appended by
+another process, a call appended for an already-rated turn, an edit that keeps the file's length, a
+truncation, `/rate` dropping the cache, three unusable cache files, and the cold-vs-warm
+equivalence fold. `internal/cli/ratings_once_test.go`: the log moves and the answer does not until
+`/rate` says so. `internal/session/meta_test.go` (8): the header a save writes and its size,
+listing from a header while the transcript is unreadable JSON, the migration decode, the pause, the
+delete, `RepairMeta` on a drifted header, a resume that still carries its messages, and three
+headers that must be ignored. `internal/cli/sessions_header_test.go` (3): the listing and the
+search over an unreadable transcript, and doctor writing a missing header back.
+`internal/engine/turn_active_test.go`: the flag observed from inside a turn through the recorder.
+`internal/cli/model_discovery_test.go`: `…OnceUntilStale` (the rename the plan asked for) now
+asserts call counts *and* the file's mtime across a warm start and then past the window, plus a
+login inside the window, an identical catalog that is not rewritten, discovery waiting on a
+streaming turn, and a run that ends while it is waiting.
+
+Three tests that belonged to other people's assertions were adapted, not rewritten:
+`session_id_test.go` (List returns headers, so `coveredConstructors` drops it and the loop checks
+the ids instead — the O15 author's file, left otherwise intact), `cmd_sessions_extra_test.go` (the
+fork is found as a `Meta`), and `first_run_test.go` (counting transcripts, not the header beside
+them).
+
+### Gates
+
+Full `make check` green, twice, including `go test ./... -count=1` (3,633 tests, floor 3,217),
+`golangci-lint` 0 issues, arch, purity, budgets (binary 9.10 MB, cold start p50 7.5 ms), site 465,
+surface 21, installer 72, spec 29, release 24 + 41 + 30, smoke 18, plan 107, workflow pins 46.
+
+**Paths touched.** `internal/stats/{ratings.go,stats.go,ratings_cache_test.go}`,
+`internal/session/{meta.go,meta_test.go,session.go,overview.go,session_id_test.go}`,
+`internal/atomicfile/{atomicfile.go,skipsync_test.go}`,
+`internal/engine/{agent.go,turn_active_test.go}`, `internal/provider/vendor_catalog_store.go`,
+`internal/cli/{run.go,candidates.go,cli.go,slash.go,cmd_sessions.go,cmd_doctor.go,model_discovery.go,cmd_models.go}`
+(`serve_session_pick.go` and `cmd_dash.go` are on the new path without a line changing),
+`internal/cli/{ratings_once_test.go,sessions_header_test.go,model_discovery_test.go,cmd_sessions_extra_test.go,first_run_test.go}`,
+`bench/o5-ratings-after.txt`, `bench/o6-sessions-after.txt`, `OPTIMIZATION_PLAN.md`,
+`docs/build-log.md`. Nothing committed. `internal/local`,
+`docs/plan/25-managed-local-models.md` and PLAN.md item 25 are the other model's ground and were
+not opened.
+
 ## Two faults read off a screenshot — V40.1 and V40.2 closed 2026-09-09
 
 The owner sent a frame of a real run. In it, a request that began with a screenshot's path had
@@ -7395,3 +7963,12 @@ row carried the prompt marker, which only the first one can. A command is now re
 first word being a plain word, and the request is styled as a block before it is wrapped.
 Rendering the frame afterwards was worth more than the tests: it showed a blank line inside the
 message cutting the block in two, and the old per-row rule still overriding the new style.
+
+## Every agent keeps its row — V40.3 closed 2026-09-09
+
+The owner's screenshot said six agents deployed and listed five. That was not a miscount in the
+transcript: the window spent a fixed budget on the first agents' logs and stopped, so the last
+agents were never drawn. Rows are now guaranteed and logs take what is left, one line each and
+then the remainder to whoever is still working. The row also answers the question a mixed-effort
+run raises — which model, at what effort — and the task is what gets clipped to make room for
+it, because the task is the part already written in the plan above.

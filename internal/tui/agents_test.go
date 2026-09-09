@@ -156,10 +156,14 @@ func TestAgentLifecycleRowsRemainThroughSynthesisThenClear(t *testing.T) {
 	// window at the top right, one row each with its last step under it,
 	// rather than a full-width row each above the status line.
 	view := c.View(160, 20)
+	// Re-read 2026-09-09 (V40.3): the row carries the model and the effort
+	// as well, which the owner asked for, and the task is what gives way
+	// when the window is narrower than all of it — so a long task is
+	// checked by its opening rather than in full.
 	for _, want := range []string{
 		"agents 2/2",
-		"1 Inspect the repository · working", "model is responding",
-		"2 Reason about the concurrency boundary · working", "opening gpt-5.6-sol",
+		"1 Inspect the repository · working", "luna·low", "model is responding",
+		"2 Reason about the concurrency", "sol·max", "opening gpt-5.6-sol",
 	} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("view is missing %q:\n%s", want, view)
