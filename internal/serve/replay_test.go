@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -157,3 +158,41 @@ func (l *lockedBuffer) Write(p []byte) (int, error) {
 func (l *lockedBuffer) String() string { l.mu.Lock(); defer l.mu.Unlock(); return l.buf.String() }
 
 func fmtSscan(s string, seq *uint64) (int, error) { return fmt.Sscan(s, seq) }
+
+// A cursor older than the rewritten journal is not a server error. Since O1
+// bounds the spill file, a reconnecting device can name an event the file
+// no longer holds; it needs to be told, in a status it can act on, to start
+// again from what is retained — not handed a 500 it cannot tell from a
+// crash, and never a replay with a silent gap.
+func TestAStaleCursorIsToldToReconnectWithoutOne(t *testing.T) {
+	b, err := bus.New(xid.New(xid.Session), bus.Options{
+		MaxEvents: 4, SpillPath: t.TempDir() + "/events.ndjson", MaxSpillBytes: 4096,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	publishN(t, b, 400)
+
+	handler, err := Mux(Options{Bus: b, Token: "test-token", Addr: "127.0.0.1:8080", PingInterval: time.Hour})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(handler)
+	defer server.Close()
+	req, _ := http.NewRequest(http.MethodGet, server.URL+"/v1/events", nil)
+	req.Header.Set("Authorization", "Bearer test-token")
+	req.Header.Set("Last-Event-ID", "1")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusGone {
+		t.Fatalf("status = %d %q, want 410 Gone", resp.StatusCode, body)
+	}
+	if !strings.Contains(string(body), "Last-Event-ID") {
+		t.Fatalf("the refusal does not say what to do: %q", body)
+	}
+}

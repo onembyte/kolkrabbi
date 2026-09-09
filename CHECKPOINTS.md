@@ -10871,6 +10871,13 @@ Subcheckpoints, one at a time:
     twice, because my V40 commits had staged the working-tree file after I restored their
     paragraphs into it and the index appends here added them again; the working-tree copy holds
     each once and is what this docs commit lands.
+  - [x] **V41.7 a stale cursor is told what to do** — closed 2026-09-09, the one finding from the
+    review that touches a client contract. With the journal bounded by O1, a device reconnecting
+    after a rewrite could name an event the file no longer held, and the SSE endpoint answered a
+    bare 500 "subscribe error: … cursor expired: cursor 1, oldest on disk 379" — indistinguishable
+    from a crash, and the one state a client can act on. It is 410 Gone now, with the sentence
+    "reconnect without Last-Event-ID to start from what is retained". Red first against a bus
+    shrunk to a 4 KB spill and a four-event window, 400 events in; race-clean.
   - [ ] **V41.6 green, and a release** — CI green on main, v1.3.4.
 - [x] **V40 the TUI, read from a live screenshot** — closed 2026-09-09. — the owner sent a frame of a real agent run on
   2026-09-09 with three faults and a list of wants.

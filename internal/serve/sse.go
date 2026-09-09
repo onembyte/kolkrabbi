@@ -2,6 +2,7 @@ package serve
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -36,6 +37,14 @@ func sseHandler(b *bus.Bus, pingInterval time.Duration) http.HandlerFunc {
 		}
 
 		sub, err := b.Subscribe(afterSeq)
+		if errors.Is(err, bus.ErrCursorExpired) {
+			// The journal is bounded (plan O1): a device that was away long
+			// enough can name an event the file no longer holds. That is a
+			// state it can act on, not a fault in the server, and the one
+			// thing it must not get is a replay with a silent gap.
+			http.Error(w, "cursor expired: the journal no longer holds events that old; reconnect without Last-Event-ID to start from what is retained", http.StatusGone)
+			return
+		}
 		if err != nil {
 			http.Error(w, fmt.Sprintf("subscribe error: %v", err), http.StatusInternalServerError)
 			return
