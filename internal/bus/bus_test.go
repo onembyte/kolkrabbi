@@ -405,3 +405,118 @@ func TestPublishRejectsInvalidOrNonObjectData(t *testing.T) {
 		t.Fatal("subscriber should have received 0 events")
 	}
 }
+
+// TestSyncPolicyPicksExactlyTheEventsAClientMustNotSeeTwice pins the O1
+// decision table. Which events reach the platter is a policy, not an
+// implementation detail: a fsync per streamed token is what made a 2,000-token
+// answer spend seconds in the bus, and a turn boundary or a permission prompt
+// is where a reconnecting client would otherwise be asked the same question a
+// second time.
+func TestSyncPolicyPicksExactlyTheEventsAClientMustNotSeeTwice(t *testing.T) {
+	boundaries := map[protocol.EventType]bool{
+		protocol.EventTurnFinished:        true,
+		protocol.EventTurnCancelled:       true,
+		protocol.EventPermissionRequested: true,
+		protocol.EventPermissionResolved:  true,
+	}
+
+	for _, tc := range []struct {
+		name   string
+		policy SyncPolicy
+		want   func(protocol.EventType) bool
+	}{
+		{"turn-boundary", SyncOnTurnBoundary, func(e protocol.EventType) bool { return boundaries[e] }},
+		{"never", SyncNever, func(protocol.EventType) bool { return false }},
+		{"every", SyncEvery, func(protocol.EventType) bool { return true }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b := mustBus(t, Options{SyncPolicy: tc.policy, Clock: fixedClock()})
+			for _, eventType := range protocol.KnownEventTypes() {
+				if got := b.syncsOn(eventType); got != tc.want(eventType) {
+					t.Errorf("syncsOn(%s) under %s = %v, want %v", eventType, tc.policy, got, !got)
+				}
+			}
+		})
+	}
+
+	// The default is the zero value, so a caller that says nothing gets the
+	// turn-boundary policy rather than an unflushed journal.
+	if got := mustBus(t, Options{Clock: fixedClock()}).syncPolicy; got != SyncOnTurnBoundary {
+		t.Fatalf("default policy = %s, want turn-boundary", got)
+	}
+}
+
+func TestImpossibleSyncPolicyAndSpillCapAreRefused(t *testing.T) {
+	for _, options := range []Options{
+		{SyncPolicy: SyncPolicy(-1)},
+		{SyncPolicy: SyncEvery + 1},
+		{MaxSpillBytes: -1},
+	} {
+		if _, err := New(testSession, options); !errors.Is(err, ErrInvalidOptions) {
+			t.Errorf("New(%+v) error = %v, want ErrInvalidOptions", options, err)
+		}
+	}
+}
+
+// TestASecretSplitAcrossTwoDeltasIsScrubbedInTheCompletedMessage settles the
+// O16 question of OPTIMIZATION_PLAN.md: could message.delta skip the scrubber,
+// given that message.completed carries the same text and is scrubbed?
+//
+// The fallback holds — a key torn in half by the tokenizer is whole again in
+// message.completed, and is redacted there. The shortcut is still refused, and
+// the third assertion is why: a key that arrives inside one delta is scrubbed
+// in that delta today, and every delta is fanned out live to subscribers and
+// appended to the spill file on disk. One provider chunk can carry a whole
+// message, so "deltas are too small to hold a secret" is not a fact anyone can
+// rely on. message.completed is the second line of defence, not the only one.
+func TestASecretSplitAcrossTwoDeltasIsScrubbedInTheCompletedMessage(t *testing.T) {
+	apiKey := "sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789"
+	head, tail := apiKey[:23], apiKey[23:]
+
+	b := mustBus(t, Options{Clock: fixedClock()})
+	sub := mustSubscribe(t, b, 0)
+
+	firstDelta := publishText(t, b, head)
+	secondDelta := publishText(t, b, tail)
+
+	// Neither fragment is a credential on its own: the head is short of the
+	// shape's minimum suffix and the tail has no prefix at all. The scrubber
+	// does not pretend otherwise, which is exactly why the whole text has to be
+	// scrubbed again once it exists.
+	if !strings.Contains(string(firstDelta.Data), head) || !strings.Contains(string(secondDelta.Data), tail) {
+		t.Fatalf("a fragment was redacted, so this test no longer proves the split case: %s / %s",
+			firstDelta.Data, secondDelta.Data)
+	}
+
+	completedData, err := json.Marshal(protocol.MessageCompletedData{Text: head + tail})
+	if err != nil {
+		t.Fatalf("marshal completed payload: %v", err)
+	}
+	completed, err := b.Publish(Event{Turn: testTurn, Type: protocol.EventMessageCompleted, Data: completedData})
+	if err != nil {
+		t.Fatalf("Publish(message.completed): %v", err)
+	}
+	if strings.Contains(string(completed.Data), apiKey) {
+		t.Fatalf("the rejoined key survived message.completed: %s", completed.Data)
+	}
+	if !strings.Contains(string(completed.Data), "[redacted ") {
+		t.Fatalf("message.completed carries no redaction sentinel: %s", completed.Data)
+	}
+
+	// And the reason deltas keep their scrub: a whole key inside one delta is
+	// redacted in the delta, before any subscriber or the spill file sees it.
+	whole := publishText(t, b, "here it is: "+apiKey)
+	if strings.Contains(string(whole.Data), apiKey) {
+		t.Fatalf("a whole key inside one delta leaked: %s", whole.Data)
+	}
+
+	for i, want := range []uint64{1, 2, 3, 4} {
+		live := <-sub.Events()
+		if live.Seq != want {
+			t.Fatalf("live event %d has sequence %d, want %d", i, live.Seq, want)
+		}
+		if strings.Contains(string(live.Data), apiKey) {
+			t.Fatalf("live subscriber saw the whole key: %s", live.Data)
+		}
+	}
+}

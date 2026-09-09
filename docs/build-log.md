@@ -8061,3 +8061,142 @@ dependency or a new stdlib subtree, not drift.
 **Verified:** `make budgets` (9.07 MB under the 10.4 MB ratchet, cold start p50 8.7 ms, 3,575
 tests over the 3,217 floor, 2 modules), `make site` (465 checks), `make workflow-pin-check`
 (46 checks), `golangci-lint v2.13.2 run ./...` (0 issues), and the four mutations above.
+
+## 2026-09-09 — O1: the event journal stops fsyncing every token
+
+The only P0 in `OPTIMIZATION_PLAN.md`, and the one on every session's hot path. `Bus.Publish` wrote
+one NDJSON frame and called `Sync()` for it, with `b.mu` held, and `RunTurn` publishes one event per
+streamed token. A 2,000-token answer therefore spent seconds inside the journal, serialised against
+every subscriber, for a durability nobody had asked for: the text a person reads is in the session
+file, and replay promises the retained window, not the last delta before a power cut.
+
+### What moved
+
+**A policy, not a constant.** `Options.SyncPolicy` is `SyncOnTurnBoundary` (the zero value, so the
+default arrives by saying nothing), `SyncNever`, or `SyncEvery`. The default flushes on
+`turn.finished`, `turn.cancelled`, any `permission.*`, and `Close` — a turn boundary is where a
+client stops and takes stock, and a permission prompt is the one thing it must never be asked
+twice. `SyncEvery` is the pre-O1 behaviour, kept because the plan's rollback is one word in
+`run.go`. `TestSyncPolicyPicksExactlyTheEventsAClientMustNotSeeTwice` walks
+`protocol.KnownEventTypes()` under all three policies, so the decision table is pinned against the
+whole vocabulary rather than against three examples.
+
+**The write left the critical section.** Encoding, sequencing and retention still happen under
+`b.mu`; the frame then goes to one writer goroutine through a 1,024-deep channel. Fan-out to
+subscribers is unchanged and still synchronous, so no ordering guarantee moved. A full queue blocks
+the publisher, which is the old behaviour exactly — nothing is ever dropped.
+
+**The file is bounded.** Past `Options.MaxSpillBytes` (64 MB) it is rebuilt from the retained
+window into a temporary file and renamed into place, and the writer adopts that handle rather than
+reopening by path.
+
+### Three decisions inside that, each of which could have gone wrong
+
+*Rotation is decided by the publisher, never by the writer.* The rewrite needs the retained window,
+which lives under `b.mu`. If the writer reached for that lock, a publisher blocked on a full queue
+while holding it would deadlock the process — a hang under load, the worst possible failure for
+this change. So the publisher, already holding the lock, snapshots the window and hands it over.
+The snapshot is a slice copy; payload bytes are shared and never mutated after `Publish` clones
+them, and `trim` only zeroes the bus's own slice element, not the copy.
+
+Rewriting is skipped unless it would actually shrink the file. That is what bounds the file at
+`max(MaxSpillBytes, MaxBytes)` plus one frame *however small the cap is set*, instead of letting a
+tiny cap rewrite the whole window on every publish.
+
+*A spill error is sticky, and belongs to the next Publish.* An asynchronous write cannot fail the
+`Publish` whose frame it was. The first error is remembered and returned by every later `Publish`
+and by `Close`, checked before any state changes so that call still honours "an error leaves the
+sequence, replay window and subscribers unchanged". Sticky rather than transient on purpose: once
+one frame is missing the file no longer satisfies replay, and appending over the hole would be
+worse than failing loudly.
+
+*A cursor the file can no longer serve is refused.* This is the bug the leaf could most easily have
+shipped. Before O1 the file held every event of the session, so `readSpillAfter` always covered any
+cursor. A rewritten file starts at the retained window, and a `Last-Event-ID` client asking for
+something older would have been handed a replay that silently skipped the missing events — the one
+failure such a client cannot detect. `readSpillAfter` now returns `ErrCursorExpired` when the
+oldest frame on disk is newer than `afterSeq+1`. It also flushes the writer queue before reading,
+because the tail of the journal can legitimately still be in flight; without that, replay would
+stop short and leave a gap before the first live event.
+
+### Numbers
+
+`bench/o1-publish-after.txt`, `-count=3 -benchmem`, M3, go1.26.4, against the O0 rows in
+`bench/baseline.txt`.
+
+| `BenchmarkPublish` | before | after | |
+|---|---|---|---|
+| `spill` ns/op | 3.28 ms | **51.8 µs** | 63× |
+| `memory` ns/op | 49.0 µs | 45.9 µs | unchanged (same machine class, different session) |
+| spill ÷ memory | 67× | **1.12×** | plan asked ≤ 3× |
+| B/op, allocs/op | 11.9 KB / 28 | 11.9 KB / 28 | untouched; this leaf moved syscalls, not allocations |
+
+The plan's other success line — *a 5,000-delta turn spends < 10 ms total in the bus* — is **not met,
+and is not this leaf's to meet.** At 45.9 µs a publish, 5,000 deltas cost 230 ms with no spill file
+at all. Splitting one publish on a 1 KB delta says where it goes: `redact.ScrubJSON` **25.7 µs**
+(56 %), `validateEvent` **9.8 µs** and `EncodeNDJSON` **9.8 µs** (43 %, and that is the same
+envelope encoded twice — once with a dummy sequence to validate before consuming one, once for
+real). Sum 45.3 µs against a measured 45.9: the accounting closes. The disk is now 6 µs of the 52.
+Reaching 10 ms needs O16 and the removal of the double encode, and O0 already said the remaining
+order of magnitude was in the scrub.
+
+### O16, decided (O1.5)
+
+The plan asked whether `message.delta` could skip the scrubber, since `message.completed` carries
+the same text and is scrubbed. The test it asked for
+(`TestASecretSplitAcrossTwoDeltasIsScrubbedInTheCompletedMessage`) passes: a key split at 23 bytes
+— the head below the shape's 16-character minimum suffix, the tail with no prefix at all — goes out
+in two unredacted fragments and is whole and redacted in `message.completed`.
+
+The shortcut is still refused, and the test says why in its third assertion. Deltas are fanned out
+to live subscribers and appended to the spill file *before* `message.completed` exists; one
+provider chunk can carry a whole message (`readStream` calls `onToken(delta.Content)` with whatever
+the vendor sent); and a key that arrives inside one delta is redacted in that delta today. The
+prefilter as written in the plan — *under 64 bytes and no `=`/`:`* — is unsound besides:
+`sk-ant-api03-…`, `ghp_…`, `AKIA…` contain neither character, so the filter would wave exactly the
+credentials the scrubber exists for straight through. `message.completed` is the second line of
+defence, not the only one. O16 stays open pointed where the measurement points: a first-byte gate
+inside `redact`, where the 25.7 µs actually is.
+
+### Honest limits
+
+The `spill` benchmark publishes only `message.delta`, so it crosses no turn boundary and performs
+**zero** fsyncs — which is precisely the case under test, the streaming interior of a turn, but it
+means the number is not "the cost of a turn". A turn adds one fsync at its boundary, single-digit
+milliseconds once, where it used to be that per token. The 22,825 iterations wrote ~27 MB, under
+the 64 MB cap, so the rotation path is not in the benchmark; it is in the tests. The machine
+carried the parallel agent's work throughout, so the ns/op figures are indicative and the ratio is
+the durable claim, as O0 warned.
+
+### Tests
+
+Five new, one amended. `TestSpillFileIsRewrittenFromTheRetainedWindowWhenItPassesItsCap` publishes
+400 events into a 4 KB cap with a 4-event window and requires: the file no longer starts at event 1;
+its sequences are contiguous to the last; the whole retained window survives on disk; the size is
+within the cap plus one frame; a cursor the file can serve replays whole; one older is
+`ErrCursorExpired`; no `.rewrite` file is left behind; and a bus reopened on the rewritten file
+resumes at sequence 401. `TestCloseFlushesEveryFrameStillQueued` proves Close is now the durability
+point (500 frames, `SyncNever`, and Close is idempotent).
+`TestReplayFromDiskWaitsForFramesStillInTheWriterQueue` publishes 500 with a 1-event window and
+requires the disk replay to be contiguous to the last event — it fails without the flush.
+`TestImpossibleSyncPolicyAndSpillCapAreRefused` covers the new option validation. The amended one is
+`TestSpillAppendsExactNDJSONFramesToDisk`, which reads the file behind `Publish`'s back and now
+calls `flushSpill` first; it passed without the change, which is worse than failing — it was
+racing on a fast writer. Nothing in the replay path needs that call: `Subscribe` and `Close` flush
+on their own.
+
+### Gates
+
+`make check` exit 0: fmt, vet, suite once (3,592 tests, floor 3,217), arch, purity, buildtags,
+platforms, lint 0 issues, budgets (9.08 MB against the 10.46 MB ratchet, cold start p50 7.1 ms,
+sandbox overhead 8.1 ms, 2 third-party modules), site 465, surface 21, installer 72, spec 29,
+release 24, release workflow 41, release verifier 30, smoke workflow 18, plan 107, workflow pins 46.
+`-race -count=1` green on `internal/bus` (1.5 s), `internal/engine` (6.3 s) and `internal/cli`
+(16.1 s).
+
+**Paths touched.** `internal/bus/bus.go`, `internal/bus/bus_test.go`, `internal/bus/spill_test.go`,
+`internal/cli/run.go`, `internal/cli/cmd_serve.go`, `docs/plan/02-architecture.md`,
+`bench/o1-publish-after.txt`, `OPTIMIZATION_PLAN.md`, `CHECKPOINTS.md`, `docs/build-log.md`.
+Nothing committed. `internal/local`, `docs/plan/25-managed-local-models.md` and PLAN.md item 25 are
+the other model's ground and were not opened; `cmd_serve.go` states the policy explicitly but has
+no `SpillPath`, so nothing there changes behaviour today.

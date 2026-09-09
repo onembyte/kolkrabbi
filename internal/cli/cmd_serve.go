@@ -51,7 +51,10 @@ func (a *app) runServe(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	b, err := bus.New(sessionID, bus.Options{})
+	// A served session keeps its journal in memory: no SpillPath here, so the
+	// policy has nothing to flush and is stated only so a spill file added later
+	// inherits the deliberate choice rather than a per-token fsync.
+	b, err := bus.New(sessionID, bus.Options{SyncPolicy: bus.SyncOnTurnBoundary})
 	if err != nil {
 		return fmt.Errorf("initializing event bus: %w", err)
 	}

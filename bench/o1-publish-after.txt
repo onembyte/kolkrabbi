@@ -1,0 +1,17 @@
+# kolkrabbi O1 after — 2026-09-09T04:55:11Z
+# commit: 8aba4f43df79-dirty
+# go: go version go1.26.4 darwin/arm64
+# cmd: go test ./internal/bus/ -run '^$' -bench '^BenchmarkPublish$' -benchmem -count=3
+
+goos: darwin
+goarch: arm64
+pkg: github.com/onembyte/kolkrabbi/internal/bus
+cpu: Apple M3
+BenchmarkPublish/memory-8         	   25755	     45904 ns/op	         0 spill-bytes/op	   11881 B/op	      28 allocs/op
+BenchmarkPublish/memory-8         	   26145	     46006 ns/op	         0 spill-bytes/op	   11873 B/op	      28 allocs/op
+BenchmarkPublish/memory-8         	   26300	     46517 ns/op	         0 spill-bytes/op	   11870 B/op	      28 allocs/op
+BenchmarkPublish/spill-8          	   22825	     51803 ns/op	      1193 spill-bytes/op	   11862 B/op	      28 allocs/op
+BenchmarkPublish/spill-8          	   23506	     52628 ns/op	      1193 spill-bytes/op	   11847 B/op	      28 allocs/op
+BenchmarkPublish/spill-8          	   23101	     51254 ns/op	      1193 spill-bytes/op	   11855 B/op	      28 allocs/op
+PASS
+ok  	github.com/onembyte/kolkrabbi/internal/bus	11.119s

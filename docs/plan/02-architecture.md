@@ -930,6 +930,17 @@ frames: a per-session ring of 10,000 events / 8 MB in memory, spilling to
 attaches live — one code path, which is exactly why `Last-Event-ID` and `?from=` and
 `--output stream-json --resume` behave identically.
 
+**The spill file is bounded too, and is not a durability promise** (`OPTIMIZATION_PLAN.md` O1).
+It is written by the journal's own writer goroutine and flushed at turn boundaries, around
+permission events, and on `Close` — not once per streamed token, which used to cost an `fsync` per
+token with the journal's lock held. Past `MaxSpillBytes` (64 MB) the file is rebuilt from the
+retained window and renamed into place. Two consequences a client has to know about. A process
+killed mid-turn can lose the last deltas of that turn: the authoritative text is
+`message.completed`, and the transcript in the session file, both of which survive. And a cursor
+older than what the rewritten file still holds is refused with `ErrCursorExpired` rather than
+served a replay with a hole in it — replay promises the retained window, and says so when it
+cannot keep the promise.
+
 **Permission prompts under parallelism.** All `Decider` calls funnel through a single serialized
 queue, so two subagents can never fight over the TTY. In `serve` mode they are independent protocol
 round-trips keyed by request id. Inside subagents the default is **auto-deny with a reason**

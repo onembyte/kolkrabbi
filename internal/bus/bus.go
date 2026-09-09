@@ -5,6 +5,7 @@
 package bus
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -31,7 +32,47 @@ const (
 	DefaultMaxBytes = 8 << 20
 	// DefaultSubscriberBuffer bounds each live subscriber independently.
 	DefaultSubscriberBuffer = 256
+	// DefaultMaxSpillBytes bounds the spill file. Past it the file is rewritten
+	// from the retained window, which is the whole of what replay promises.
+	DefaultMaxSpillBytes = 64 << 20
+	// spillQueueDepth bounds the frames a publisher may run ahead of the disk.
+	// A full queue blocks the publisher, which is the old behaviour and never
+	// silently drops a frame; at one kilobyte a frame this is a megabyte.
+	spillQueueDepth = 1024
 )
+
+// SyncPolicy says when the spill file is flushed to the platter. Publishing one
+// event per streamed token made a per-event fsync the dominant cost of a turn,
+// and nothing a person can observe depends on it: the transcript is in the
+// session file, and replay promises the retained window, not the last delta
+// before a power cut.
+type SyncPolicy int
+
+const (
+	// SyncOnTurnBoundary is the default and the zero value: fsync at the end of
+	// a turn and around every permission event, the two places a client must
+	// not have to see an event twice.
+	SyncOnTurnBoundary SyncPolicy = iota
+	// SyncNever leaves durability entirely to the operating system. The file is
+	// still flushed by Close.
+	SyncNever
+	// SyncEvery is the pre-O1 behaviour, kept as the one-line rollback.
+	SyncEvery
+)
+
+// String names the policy for error messages and dossiers.
+func (p SyncPolicy) String() string {
+	switch p {
+	case SyncOnTurnBoundary:
+		return "turn-boundary"
+	case SyncNever:
+		return "never"
+	case SyncEvery:
+		return "every"
+	default:
+		return fmt.Sprintf("SyncPolicy(%d)", int(p))
+	}
+}
 
 var (
 	// ErrInvalidSession reports a bus constructed for a non-canonical session.
@@ -57,13 +98,16 @@ var (
 
 // Options configures one session journal. Zero limits select the
 // documented defaults; negative limits are invalid. Clock defaults to time.Now.
-// SpillPath enables persistent append-only NDJSON disk logging when non-empty.
+// SpillPath enables persistent NDJSON disk logging when non-empty; MaxSpillBytes
+// bounds that file and SyncPolicy says when it reaches the platter.
 type Options struct {
 	MaxEvents        int
 	MaxBytes         int
 	SubscriberBuffer int
 	Clock            func() time.Time
 	SpillPath        string
+	SyncPolicy       SyncPolicy
+	MaxSpillBytes    int64
 }
 
 // Event is the unsequenced input to Publish. The bus supplies the session,
@@ -80,8 +124,9 @@ type retainedEvent struct {
 }
 
 // Bus is one per-session ordered journal. Publish and Subscribe are safe for
-// concurrent use. It owns no goroutine: live fan-out happens non-blockingly on
-// the publisher's goroutine.
+// concurrent use. Live fan-out happens non-blockingly on the publisher's
+// goroutine; a configured spill file adds exactly one goroutine, the writer,
+// which Close drains and stops.
 type Bus struct {
 	mu sync.Mutex
 
@@ -91,7 +136,10 @@ type Bus struct {
 	subscriberBuffer int
 	clock            func() time.Time
 	spillPath        string
-	spillFile        *os.File
+	syncPolicy       SyncPolicy
+	maxSpillBytes    int64
+	spillBytes       int64
+	spill            *spillWriter
 
 	latest       uint64
 	lastTime     time.Time
@@ -118,8 +166,11 @@ func New(session string, options Options) (*Bus, error) {
 	if !canonicalSessionID(session) {
 		return nil, fmt.Errorf("%w: %q", ErrInvalidSession, session)
 	}
-	if options.MaxEvents < 0 || options.MaxBytes < 0 || options.SubscriberBuffer < 0 {
+	if options.MaxEvents < 0 || options.MaxBytes < 0 || options.SubscriberBuffer < 0 || options.MaxSpillBytes < 0 {
 		return nil, ErrInvalidOptions
+	}
+	if options.SyncPolicy < SyncOnTurnBoundary || options.SyncPolicy > SyncEvery {
+		return nil, fmt.Errorf("%w: sync policy %d", ErrInvalidOptions, int(options.SyncPolicy))
 	}
 	if options.MaxEvents == 0 {
 		options.MaxEvents = DefaultMaxEvents
@@ -129,6 +180,9 @@ func New(session string, options Options) (*Bus, error) {
 	}
 	if options.SubscriberBuffer == 0 {
 		options.SubscriberBuffer = DefaultSubscriberBuffer
+	}
+	if options.MaxSpillBytes == 0 {
+		options.MaxSpillBytes = DefaultMaxSpillBytes
 	}
 	if options.Clock == nil {
 		options.Clock = time.Now
@@ -140,6 +194,8 @@ func New(session string, options Options) (*Bus, error) {
 		maxBytes:         options.MaxBytes,
 		subscriberBuffer: options.SubscriberBuffer,
 		clock:            options.Clock,
+		syncPolicy:       options.SyncPolicy,
+		maxSpillBytes:    options.MaxSpillBytes,
 		subscribers:      make(map[*Subscription]struct{}),
 	}
 
@@ -183,8 +239,20 @@ func New(session string, options Options) (*Bus, error) {
 		if err != nil {
 			return nil, err
 		}
+		info, err := sf.Stat()
+		if err != nil {
+			_ = sf.Close()
+			return nil, err
+		}
 		b.spillPath = spillPath
-		b.spillFile = sf
+		b.spillBytes = info.Size()
+		b.spill = &spillWriter{
+			path: spillPath,
+			file: sf,
+			ops:  make(chan spillOp, spillQueueDepth),
+			done: make(chan struct{}),
+		}
+		go b.spill.run()
 	}
 
 	return b, nil
@@ -193,6 +261,12 @@ func New(session string, options Options) (*Bus, error) {
 // Publish validates, sequences, retains, and fans out one event atomically.
 // Any returned error leaves the sequence, replay window, and subscribers
 // unchanged.
+//
+// The spill file is written by a separate goroutine, so a disk error is not the
+// error of the Publish whose frame failed: the first one is remembered and
+// returned by every later Publish and by Close. It is deliberately sticky —
+// once one frame is missing, the file no longer satisfies the replay contract,
+// and appending over the hole would be worse than failing loudly.
 func (b *Bus) Publish(event Event) (protocol.Envelope, error) {
 	scrubbed, err := redact.ScrubJSON(event.Data)
 	if err != nil {
@@ -206,6 +280,11 @@ func (b *Bus) Publish(event Event) (protocol.Envelope, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
+	if b.spill != nil {
+		if err := b.spill.failure(); err != nil {
+			return protocol.Envelope{}, err
+		}
+	}
 	if b.latest == math.MaxUint64 {
 		return protocol.Envelope{}, ErrSequenceExhausted
 	}
@@ -229,13 +308,6 @@ func (b *Bus) Publish(event Event) (protocol.Envelope, error) {
 		return protocol.Envelope{}, fmt.Errorf("%w: %d bytes", ErrEventTooLarge, len(frame))
 	}
 
-	if b.spillFile != nil {
-		if _, err := b.spillFile.Write(frame); err != nil {
-			return protocol.Envelope{}, fmt.Errorf("bus: write spill: %w", err)
-		}
-		_ = b.spillFile.Sync()
-	}
-
 	b.latest = envelope.Seq
 	b.lastTime = now
 	b.retained = append(b.retained, retainedEvent{
@@ -244,6 +316,10 @@ func (b *Bus) Publish(event Event) (protocol.Envelope, error) {
 	})
 	b.retainedSize += len(frame)
 	b.trim()
+
+	if b.spill != nil {
+		b.enqueueSpill(frame, envelope.Type)
+	}
 
 	for subscriber := range b.subscribers {
 		select {
@@ -254,6 +330,62 @@ func (b *Bus) Publish(event Event) (protocol.Envelope, error) {
 		}
 	}
 	return cloneEnvelope(envelope), nil
+}
+
+// enqueueSpill hands one frame to the writer goroutine, deciding here — under
+// b.mu, never in the writer — whether the file has grown past its cap and must
+// be rebuilt from the retained window instead. The writer must not reach for
+// b.mu: a publisher blocked on a full queue holds it, and a writer waiting for
+// it would deadlock the process.
+//
+// Rewriting is skipped unless it would actually shrink the file, which is what
+// bounds the file at max(MaxSpillBytes, MaxBytes) plus one frame however small
+// the cap is set, and stops a tiny cap from rewriting on every publish.
+//
+// The window handed over shares its payload bytes with the retained events. No
+// code path mutates a payload after Publish clones it, and trim only zeroes the
+// bus's own slice element, not this copy of it.
+func (b *Bus) enqueueSpill(frame []byte, eventType protocol.EventType) {
+	op := spillOp{frame: frame, sync: b.syncsOn(eventType)}
+	if b.spillBytes+int64(len(frame)) > b.maxSpillBytes && int64(b.retainedSize) < b.spillBytes+int64(len(frame)) {
+		op.frame = nil
+		op.rewrite = append([]retainedEvent(nil), b.retained...)
+		b.spillBytes = int64(b.retainedSize)
+	} else {
+		b.spillBytes += int64(len(frame))
+	}
+	b.spill.ops <- op
+}
+
+// syncsOn answers the one question the policy exists to answer.
+func (b *Bus) syncsOn(eventType protocol.EventType) bool {
+	switch b.syncPolicy {
+	case SyncEvery:
+		return true
+	case SyncNever:
+		return false
+	default:
+		// A turn boundary is where a client stops and takes stock, and a
+		// permission event is the one thing it must never be asked twice.
+		return eventType == protocol.EventTurnFinished ||
+			eventType == protocol.EventTurnCancelled ||
+			strings.HasPrefix(string(eventType), "permission.")
+	}
+}
+
+// flushSpill waits for every frame already queued to reach the file. Reading the
+// file back for a replay needs it, because after O1 the tail of the journal can
+// still be in the writer's queue. Subscribe reaches it holding b.mu, which is
+// safe in the one way that matters: the writer never takes that lock, so this
+// waits on the disk and on nothing that could be waiting on the caller.
+func (b *Bus) flushSpill() error {
+	if b.spill == nil {
+		return nil
+	}
+	done := make(chan struct{})
+	b.spill.ops <- spillOp{done: done}
+	<-done
+	return b.spill.failure()
 }
 
 // Subscribe atomically snapshots retained events strictly after afterSeq and
@@ -310,6 +442,9 @@ func (b *Bus) Subscribe(afterSeq uint64) (*Subscription, error) {
 }
 
 func (b *Bus) readSpillAfter(afterSeq uint64) ([]protocol.Envelope, error) {
+	if err := b.flushSpill(); err != nil {
+		return nil, err
+	}
 	f, err := os.Open(b.spillPath)
 	if err != nil {
 		return nil, err
@@ -326,10 +461,21 @@ func (b *Bus) readSpillAfter(afterSeq uint64) ([]protocol.Envelope, error) {
 	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
+	// A rewritten file starts at the oldest event of the retained window, not at
+	// the first event of the session. A cursor older than that cannot be served
+	// from anywhere, and saying so is the contract: handing back a replay that
+	// silently skips the missing events would be the one failure a Last-Event-ID
+	// client cannot detect.
+	if len(envelopes) > 0 && envelopes[0].Seq > afterSeq+1 {
+		return nil, fmt.Errorf("%w: cursor %d, oldest on disk %d", ErrCursorExpired, afterSeq, envelopes[0].Seq)
+	}
 	return envelopes, nil
 }
 
-// Close closes the journal, all active subscriptions, and the spill file if open.
+// Close closes the journal and all active subscriptions, then drains every
+// frame still queued for the spill file, flushes it whatever the sync policy
+// says, and closes it. It is safe to call more than once. The error is the
+// first the writer met, including one from a Publish that had already returned.
 func (b *Bus) Close() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -337,12 +483,14 @@ func (b *Bus) Close() error {
 		delete(b.subscribers, sub)
 		sub.finish(nil)
 	}
-	if b.spillFile != nil {
-		err := b.spillFile.Close()
-		b.spillFile = nil
-		return err
+	if b.spill == nil {
+		return nil
 	}
-	return nil
+	spill := b.spill
+	b.spill = nil
+	close(spill.ops)
+	<-spill.done
+	return spill.failure()
 }
 
 // Replay returns a defensive copy of the retained snapshot captured by
@@ -385,6 +533,124 @@ func (s *Subscription) finish(err error) {
 	s.closed = true
 	s.err = err
 	close(s.events)
+}
+
+// spillOp is one unit of work for the spill writer. A frame is appended, a
+// rewrite replaces the file with the retained window, a sync flushes what has
+// been written, and done is the barrier a reader waits on. An op may carry any
+// combination, and the empty op with only done set is the barrier alone.
+type spillOp struct {
+	frame   []byte
+	rewrite []retainedEvent
+	sync    bool
+	done    chan struct{}
+}
+
+// spillWriter owns the spill file. Exactly one goroutine runs it, so the handle
+// needs no lock; only the error it has to hand back to publishers does.
+type spillWriter struct {
+	path string
+	file *os.File
+	ops  chan spillOp
+	done chan struct{}
+
+	mu  sync.Mutex
+	err error
+}
+
+func (w *spillWriter) run() {
+	defer close(w.done)
+	dirty := false
+	for op := range w.ops {
+		if op.rewrite != nil {
+			if err := w.rewriteFrom(op.rewrite); err != nil {
+				w.fail(fmt.Errorf("bus: rewrite spill: %w", err))
+			} else {
+				// rewriteFrom flushes the file it renames into place.
+				dirty = false
+			}
+		}
+		if len(op.frame) > 0 {
+			if _, err := w.file.Write(op.frame); err != nil {
+				w.fail(fmt.Errorf("bus: write spill: %w", err))
+			} else {
+				dirty = true
+			}
+		}
+		if op.sync && dirty {
+			if err := w.file.Sync(); err != nil {
+				w.fail(fmt.Errorf("bus: sync spill: %w", err))
+			}
+			dirty = false
+		}
+		if op.done != nil {
+			close(op.done)
+		}
+	}
+	// The channel is closed by Close, which is the last durability point there
+	// is: whatever the policy, the journal is on the platter when Close returns.
+	if dirty {
+		if err := w.file.Sync(); err != nil {
+			w.fail(fmt.Errorf("bus: sync spill: %w", err))
+		}
+	}
+	if err := w.file.Close(); err != nil {
+		w.fail(fmt.Errorf("bus: close spill: %w", err))
+	}
+}
+
+// rewriteFrom rebuilds the file from the retained window and swaps it in with a
+// rename, so a reader either sees the whole old file or the whole new one. The
+// temporary file becomes the spill file, so its handle becomes the writer's.
+func (w *spillWriter) rewriteFrom(window []retainedEvent) error {
+	temp := w.path + ".rewrite"
+	f, err := os.OpenFile(temp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY|os.O_APPEND, 0600)
+	if err != nil {
+		return err
+	}
+	abandon := func(err error) error {
+		_ = f.Close()
+		_ = os.Remove(temp)
+		return err
+	}
+
+	buffered := bufio.NewWriter(f)
+	for _, retained := range window {
+		frame, err := protocol.EncodeNDJSON(retained.envelope)
+		if err != nil {
+			return abandon(err)
+		}
+		if _, err := buffered.Write(frame); err != nil {
+			return abandon(err)
+		}
+	}
+	if err := buffered.Flush(); err != nil {
+		return abandon(err)
+	}
+	if err := f.Sync(); err != nil {
+		return abandon(err)
+	}
+	if err := os.Rename(temp, w.path); err != nil {
+		return abandon(err)
+	}
+	_ = w.file.Close()
+	w.file = f
+	return nil
+}
+
+// fail remembers the first error only. The ones after it are consequences.
+func (w *spillWriter) fail(err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.err == nil {
+		w.err = err
+	}
+}
+
+func (w *spillWriter) failure() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.err
 }
 
 func (b *Bus) validateEvent(event Event) error {
