@@ -110,6 +110,9 @@ type Controller struct {
 	// what the agents did can still be read (V40.4).
 	lastRun     []AgentStatus
 	lastRunLogs map[string][]string
+	// agentsView is the full view of the run, opened with the left arrow.
+	agentsView  bool
+	agentsIndex int
 	busy        bool
 	// queued holds a request submitted while a turn was still running. The
 	// engine session is stateful, so two turns cannot run at once; the request
@@ -165,6 +168,12 @@ func (c *Controller) HandleKey(key Key) Effect {
 	}
 	if c.question != nil {
 		return c.handleQuestionKey(key)
+	}
+	if c.agentsView {
+		return c.handleAgentsViewKey(key)
+	}
+	if c.agentsViewOpensOn(key) {
+		return c.openAgentsView()
 	}
 	if key.Kind == KeyInterrupt {
 		return c.handleInterrupt()
@@ -466,6 +475,9 @@ func (c *Controller) renderView(width, height int, styled bool) string {
 	}
 	if c.configPicker != nil {
 		return c.overlayView(c.configPickerLines(width), width, height, styled)
+	}
+	if c.agentsView {
+		return c.overlayView(c.agentsViewLines(width), width, height, styled)
 	}
 	if c.question != nil {
 		return c.overlayView(c.questionLines(width), width, height, styled)

@@ -7980,3 +7980,13 @@ and the logs together, so a finished run left nothing to read. The run is now ke
 closes and `/agents` prints it: every agent in plan order, its model and effort, the task it was
 given and each step it took. A new run replaces the old record, because that is the run the
 question is about.
+
+## The run in full, on the left arrow — V40.5 closed 2026-09-09
+
+The window over the transcript is a glance; this is the whole run. The left arrow opens it from
+an empty composer, where the arrow has nothing else to do, and it lists every agent with its
+goal, model, effort and state, expanding the one being read into all of its steps. It reads the
+live run while one is going and the record of the last one after it has gone, which is what
+keeping that record was for. Writing the tests was not enough: two of my own assertions keyed on
+the agents' names, which the ordinary window shows as well, so they passed for the wrong reason
+until a rendered frame showed the view and the window drawn at once.

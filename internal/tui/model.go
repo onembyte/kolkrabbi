@@ -68,17 +68,18 @@ type Snapshot struct {
 // Model, so synchronization belongs at that boundary rather than inside every
 // field mutation.
 type Model struct {
-	transcript       []byte
-	activity         string
-	draft            string
-	status           Status
-	agentStatuses    []AgentStatus
-	agentLogs        map[string][]string
-	suggestions      []CommandSpec
-	suggestionTop    int
-	suggestionWindow int
-	suggestionTotal  int
-	selected         int
+	transcript        []byte
+	activity          string
+	draft             string
+	status            Status
+	agentStatuses     []AgentStatus
+	agentLogs         map[string][]string
+	agentWindowHidden bool
+	suggestions       []CommandSpec
+	suggestionTop     int
+	suggestionWindow  int
+	suggestionTotal   int
+	selected          int
 }
 
 // New returns an empty screen with the supplied session state.
@@ -105,6 +106,10 @@ func (m *Model) SetStatus(status Status) { m.status = status }
 // spinner activity or transcript.
 // SetAgentLogs replaces the recent steps of each agent, keyed the way the
 // controller keys its statuses; the window shows the last few under each row.
+// HideAgentWindow suppresses the compact window over the transcript while
+// the full view of the run is open, where it would only repeat it.
+func (m *Model) HideAgentWindow(hidden bool) { m.agentWindowHidden = hidden }
+
 func (m *Model) SetAgentLogs(logs map[string][]string) {
 	m.agentLogs = make(map[string][]string, len(logs))
 	for key, lines := range logs {
@@ -1113,7 +1118,7 @@ func agentWindowWidth(width int) int {
 // the window's width so the left border lines up; nil when there is nothing
 // to show or no room for two columns.
 func (m *Model) agentWindowLines(width, height int) []viewRow {
-	if len(m.agentStatuses) == 0 || width < agentWindowMinScreen {
+	if len(m.agentStatuses) == 0 || width < agentWindowMinScreen || m.agentWindowHidden {
 		return nil
 	}
 	w := agentWindowWidth(width)

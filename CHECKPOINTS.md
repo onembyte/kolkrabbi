@@ -10836,7 +10836,7 @@ Subcheckpoints, one at a time:
       intent was never "available", kept; its vocabulary was the old one, replaced. Pins: seven
       wall states, three refusals, the lede, the styles. Rendered in headless Chrome and read. Not
       touched: the capabilities cards, which name no vendor beyond Claude, Codex and Copilot.
-- [~] **V40 the TUI, read from a live screenshot** — the owner sent a frame of a real agent run on
+- [x] **V40 the TUI, read from a live screenshot** — closed 2026-09-09. — the owner sent a frame of a real agent run on
   2026-09-09 with three faults and a list of wants.
   - [x] **V40.1 a pasted path is not a command** — closed 2026-09-09. Dispatch asked only whether
     the line began with a slash, so a request that opened with `/var/folders/…/Screenshot.png`
@@ -10871,8 +10871,16 @@ Subcheckpoints, one at a time:
     the question is about the run in front of you. `/agents` prints it, and says where the record
     lives when run outside a session. Red first: three tests, two in the TUI and one on the
     command.
-  - [ ] **V40.5 the full view** — the left arrow opens a navigable table of every agent with its
-    goal, effort, model, the task it is on, and its detail.
+  - [x] **V40.5 the full view** — closed 2026-09-09. The left arrow, from an empty composer where
+    it has nothing else to do, opens the run in full: every agent with its goal, model, effort and
+    state, and the one being read expanded into every step it took. Up and down walk it, page and
+    home and end jump, Escape or the left arrow again gives the composer back; with anything typed
+    the arrow is still the arrow, and with no run to show nothing opens. It reads the live run
+    while one is going and the last one after, which is what V40.4 kept the record for. The
+    compact window is suppressed while the view is open rather than repeating it. Red first:
+    three tests; two of my own assertions were wrong and keyed on the agent names, which the
+    ordinary window shows too, so they now key on the view's own chrome. A field I wrote and never
+    read was removed rather than left. Read as a rendered frame.
 - [x] **V39 local models anywhere** — closed 2026-09-09; asked 2026-09-09: use a local model easily, on this machine,
   on a LAN server, or at one exact address such as a Tailscale host, configured in-session with a
   command and a few steps, including a `direct` verb that takes the user's own runner command.
