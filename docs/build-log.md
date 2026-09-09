@@ -7990,3 +7990,16 @@ live run while one is going and the record of the last one after it has gone, wh
 keeping that record was for. Writing the tests was not enough: two of my own assertions keyed on
 the agents' names, which the ordinary window shows as well, so they passed for the wrong reason
 until a rendered frame showed the view and the window drawn at once.
+
+## v1.3.4 — released 2026-09-09, and how main got green again
+
+CI had been red for five commits, and both causes were this session's: one `git add -A` that took
+another session's claim without the pin that checks it, and one whole-file stage that took a call
+without its definition. The repair reverted only what had been swept in, so HEAD built alone, and
+the other session's five leaves then landed one commit each in the order that let every commit
+compile — verified in a detached worktree at each commit, because a gate run in the working tree
+passes against files the commit does not hold. The review moved one test to the leaf it was
+written for, caught one adaptation filed under the wrong leaf, and found one contract gap worth
+closing before the release: a stale cursor answered with a bare 500, now 410 with an instruction.
+The release commit's own CI run failed once on a 150 ms grace in a signal-ladder test and passed
+on rerun; that test now holds escalation off for two seconds, which it never waits out.

@@ -98,8 +98,22 @@ func TestCancelSendsInterruptFirst(t *testing.T) {
 // the vendor continue that turn. Only the wait status can tell these apart, and
 // only if the child was genuinely signalled rather than choosing its own exit
 // code — which is why KilledByTerminate exists.
+// patientLadder keeps the ladder's order and gives the first rung room: the
+// assertion below is that SIGINT alone ends the child, and on a loaded CI
+// runner a child can take longer than 150 ms to exit after the signal — which
+// is not an escalation, and failed the Ubuntu job on 2026-09-09 once in two
+// runs of the same commit. The child exits at once on SIGINT, so the test
+// does not wait out the grace; the grace is only how long escalation is
+// held off.
+func patientLadder(t *testing.T) {
+	t.Helper()
+	previousInterrupt, previousTerminate := sigintGrace, sigtermGrace
+	sigintGrace, sigtermGrace = 2*time.Second, 100*time.Millisecond
+	t.Cleanup(func() { sigintGrace, sigtermGrace = previousInterrupt, previousTerminate })
+}
+
 func TestACleanExitAfterInterruptIsNotAHardExit(t *testing.T) {
-	shortLadder(t)
+	patientLadder(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	process, _ := startMock(t, ctx, mockagent.ExitsOnInterrupt)
 	defer func() { _ = process.Close() }()

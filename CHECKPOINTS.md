@@ -10836,7 +10836,7 @@ Subcheckpoints, one at a time:
       intent was never "available", kept; its vocabulary was the old one, replaced. Pins: seven
       wall states, three refusals, the lede, the styles. Rendered in headless Chrome and read. Not
       touched: the capabilities cards, which name no vendor beyond Claude, Codex and Copilot.
-- [~] **V41 CI red, and the other session's work landed leaf by leaf** — opened 2026-09-09. Two
+- [x] **V41 CI red, and the other session's work landed leaf by leaf** — opened and closed 2026-09-09. Two
   faults, both mine: `8aba4f4` used `git add -A` and swept the other session's "under 10 MB"
   claim from README and the site without the test pin that checks it, and `f1e4b66` staged
   `slash.go` whole, taking a call to `forgetRatings` whose definition is still in the uncommitted
@@ -10878,7 +10878,15 @@ Subcheckpoints, one at a time:
     from a crash, and the one state a client can act on. It is 410 Gone now, with the sentence
     "reconnect without Last-Event-ID to start from what is retained". Red first against a bus
     shrunk to a 4 KB spill and a four-event window, 400 events in; race-clean.
-  - [ ] **V41.6 green, and a release** — CI green on main, v1.3.4.
+  - [x] **V41.6 green, and a release** — closed 2026-09-09. Every leaf commit green on CI; tag
+    v1.3.4 on `3f06d74`, verify and publish both `success`, six assets, the Homebrew formula
+    generated for the owner's read. CI on the release commit itself failed once, on Ubuntu only,
+    in `TestACleanExitAfterInterruptIsNotAHardExit`, a package no commit since `1548ceb` touched;
+    macOS and the release workflow's own verify passed on the same commit, and a rerun of the same
+    job passed. The test's SIGINT grace was 150 ms and its assertion is about the ladder's order,
+    not its speed, so that one test now holds escalation off for two seconds — it does not wait
+    them out, since the child exits at once — and five runs pass in three seconds. The other
+    ladder tests keep their short rungs.
 - [x] **V40 the TUI, read from a live screenshot** — closed 2026-09-09. — the owner sent a frame of a real agent run on
   2026-09-09 with three faults and a list of wants.
   - [x] **V40.1 a pasted path is not a command** — closed 2026-09-09. Dispatch asked only whether
