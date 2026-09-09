@@ -10836,7 +10836,7 @@ Subcheckpoints, one at a time:
       intent was never "available", kept; its vocabulary was the old one, replaced. Pins: seven
       wall states, three refusals, the lede, the styles. Rendered in headless Chrome and read. Not
       touched: the capabilities cards, which name no vendor beyond Claude, Codex and Copilot.
-- [~] **V39 local models anywhere** — asked 2026-09-09: use a local model easily, on this machine,
+- [x] **V39 local models anywhere** — closed 2026-09-09; asked 2026-09-09: use a local model easily, on this machine,
   on a LAN server, or at one exact address such as a Tailscale host, configured in-session with a
   command and a few steps, including a `direct` verb that takes the user's own runner command.
   Design in `docs/plan/37-local-models-anywhere.md`, PLAN item 37.
@@ -10869,7 +10869,18 @@ Subcheckpoints, one at a time:
     saved as the `direct` endpoint so the next session reaches it without running the command
     again. A command that fails, or a model no runner lists, switches nothing and says so. Red
     first: five tests behind an injected runner seam, no Docker needed.
-  - [ ] **V39.4 the surfaces** — doctor, README, the site's local page and the provider wall.
+  - [x] **V39.4 the surfaces** — closed 2026-09-09. `/doctor` now lists every endpoint added and
+    whether it answers now, which is the question someone asks doctor exactly when a machine that
+    used to be there has gone. The README gains the three reaches. The local guide gains a fifth
+    route, "A machine that is not this one", and three rows in its command table. One public claim
+    was false as of this build and was rewritten rather than left standing: the guide's refusal
+    card said "It only ever probes 127.0.0.1:11434", which stopped being true the moment
+    `/localia add` existed; it now says "It never goes looking on your network" and explains that
+    kolk probes loopback by itself and any other address only because the user typed it, with no
+    scan, broadcast or discovery. Four site pins, one of them a `not_contains` on the old
+    sentence. Seen once and not reproduced: `TestNewAgentNeverWaitsOnTheNetworkWhenACatalogCacheExists`
+    failed under the full gate's parallel load and passed alone and on the next two full runs —
+    its budget is 700 ms and nothing in this change touches that path; left as it is, noted here.
 - [x] **V38 polish the TUI** — asked 2026-09-08 with a screenshot of a live run; three leaves, one
   at a time. Closed 2026-09-08.
   - [x] **V38.1 what the agent is doing, in the activity line** — closed 2026-09-08. The work

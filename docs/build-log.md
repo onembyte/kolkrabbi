@@ -7375,3 +7375,12 @@ names in a table, and that one change is what makes a model on another machine r
 `direct` takes the owner's own runner command, runs it, and then asks the runners which of them
 serves what it started. Nothing sends a key to a local endpoint, and adding an address that is
 not this machine says so once, plainly, before it is saved.
+
+## The surfaces, and one claim that had stopped being true — V39.4 closed 2026-09-09
+
+Doctor lists the endpoints and says which answer. The README and the local guide describe the
+three reaches. The part worth naming: the guide carried a refusal card promising kolk "only ever
+probes 127.0.0.1:11434", and the feature the owner asked for made that false. A refusal that is
+no longer kept is worse than no refusal, so it was rewritten to the thing that is still true and
+still worth promising — kolk probes loopback by itself and any other address only because
+someone typed it; there is no scan and no discovery of machines nobody named.

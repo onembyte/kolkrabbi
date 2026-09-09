@@ -89,6 +89,11 @@ workflow-pin-check: ## every GitHub Actions uses entry is pinned to a commit SHA
 release-verifier-check: ## signed public assets, exact manifest, archives and host identity
 	./scripts/test-release-verifier.sh
 
+# The version CI pins in .github/workflows/ci.yml. Keep the two in step:
+# scripts/test-workflow-pins.sh fails if the workflow stops naming an exact
+# version, and the install hint below should not send anyone to a different one.
+GOLANGCI_LINT_VERSION := v2.13.2
+
 .PHONY: lint
 lint: ## golangci-lint, if it is installed
 	@if command -v golangci-lint >/dev/null 2>&1; then \
@@ -97,8 +102,16 @@ lint: ## golangci-lint, if it is installed
 	  "$$(go env GOPATH)/bin/golangci-lint" run ./...; \
 	else \
 	  echo "golangci-lint not installed — skipping (CI runs it)"; \
-	  echo "  go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest"; \
+	  echo "  go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)"; \
 	fi
+
+# One suite run for `make check`, not two: scripts/test.sh tees its verbose log
+# here and scripts/check-budgets.sh reads the test-count floor and the
+# sandbox-overhead line out of it instead of running the suite again
+# (OPTIMIZATION_PLAN.md O9). Outside `check` the variable is empty, so
+# `make budgets` on its own still takes its own run.
+check: KOLK_TEST_LOG := $(CURDIR)/.kolk-test.log
+export KOLK_TEST_LOG
 
 .PHONY: check
 check: fmt-check vet test arch purity buildtags platforms lint budgets site surface installer spec release-check release-workflow-check release-verifier-check smoke-workflow-check plan-check workflow-pin-check ## everything CI runs
@@ -113,5 +126,5 @@ mock: ## run the scripted OpenRouter mock (no network, no key, no cost)
 
 .PHONY: clean
 clean: ## remove build output
-	rm -f $(BIN) kolkd kolk-mock
+	rm -f $(BIN) kolkd kolk-mock .kolk-test.log
 	rm -rf $(DIST)

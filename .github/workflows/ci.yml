@@ -122,9 +122,13 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      # Pinned, not `latest`: a linter that changes under you turns a green
+      # main red with no commit, and `latest` is the same moving-pointer
+      # decision `make workflow-pin-check` forbids for actions. Verified clean
+      # against this tree on 2026-09-09 (0 issues). Bump deliberately.
       - uses: golangci/golangci-lint-action@4afd733a84b1f43292c63897423277bb7f4313a9 # v8
         with:
-          version: latest
+          version: v2.13.2
 
   budgets:
     name: budgets
@@ -136,7 +140,18 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # scripts/test.sh writes its verbose log here and check-budgets.sh reads
+      # the test-count floor and the sandbox-overhead line out of it, so the
+      # suite runs exactly once on this runner instead of once for each
+      # (OPTIMIZATION_PLAN.md O9).
+      - name: test (every module, log shared with the budgets)
+        env:
+          KOLK_TEST_LOG: ${{ runner.temp }}/kolk-tests.log
+        run: make test
+
       # Binary size, cold start, the test-count floor and the dependency count.
       # These fail, never warn (docs/plan/02-architecture.md §11).
       - name: budgets
+        env:
+          KOLK_TEST_LOG: ${{ runner.temp }}/kolk-tests.log
         run: make budgets

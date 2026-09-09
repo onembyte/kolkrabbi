@@ -16,7 +16,7 @@ Think Claude Code, but: separate chat, code, and agent modes, an effort dial tha
 selects *which model* and agent task width instead of just thinking tokens, and
 every call tracked locally so you learn which models actually earn their cost.
 
-Go, two dependencies, a single static binary under 9MB, milliseconds to start.
+Go, two dependencies, a single static binary under 10MB, milliseconds to start.
 
 ```bash
 curl -fsSL https://kolkrabbi.francomichetti.com/install.sh | sh   # macOS and Linux
@@ -325,6 +325,11 @@ The reasoning for each, and the condition that would change it, is in
   a dedicated critic are not built yet.
 - A session still expects a gateway key even when a subscription plan will
   answer the turns.
+- Local models can be on this machine, on a box on the LAN, or at one exact
+  address such as a Tailscale host: `/localia add rig 100.64.0.7:11434` probes
+  it, says what runs there, and its models become `rig/<model>`. kolk tells an
+  Ollama from anything OpenAI-compatible by asking, so Docker Model Runner and
+  llama.cpp need no setting of their own, and it sends no key to any of them.
 - Local models use the Ollama you already have; kolk never installs one. A
   pulled model shows in `/model` even while Ollama is idle, and picking it
   starts the server for the session.

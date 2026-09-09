@@ -2,7 +2,7 @@
 
 > Kolkrabbi (binary: kolk) is an open-source, model-agnostic AI coding agent for the terminal —
 > an alternative to Claude Code and Codex CLI. Apache-2.0, macOS and Linux. Written in Go: one
-> static binary under 9 MB, milliseconds to start, two dependencies.
+> static binary under 10 MB, milliseconds to start, two dependencies.
 
 Install: curl -fsSL https://kolkrabbi.francomichetti.com/install.sh | sh
 Or: brew install onembyte/tap/kolk  (macOS and Linux; `kolkrabbi` is an alias for `kolk`,

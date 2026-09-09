@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/buildinfo"
+	"github.com/onembyte/kolkrabbi/internal/config"
 	"github.com/onembyte/kolkrabbi/internal/engine"
 	"github.com/onembyte/kolkrabbi/internal/keystore"
 	"github.com/onembyte/kolkrabbi/internal/local"
@@ -172,6 +173,30 @@ func (a *app) doctorLocalModels(ctx context.Context) {
 	case local.HostAbsent:
 		fmt.Fprintln(a.stdout, "  ✗ ollama is not installed")
 		fmt.Fprintf(a.stdout, "  · install it with: %s\n", host.InstallHint())
+	}
+	a.doctorEndpoints(ctx)
+}
+
+// doctorEndpoints reports every local endpoint the user has added and
+// whether it answers now — the question someone asks doctor precisely when
+// a machine that used to be there has gone.
+func (a *app) doctorEndpoints(ctx context.Context) {
+	dirs, err := a.resolve()
+	if err != nil {
+		return
+	}
+	cfg, err := config.Load(dirs.ConfigFile())
+	if err != nil || len(cfg.Local.Endpoints) == 0 {
+		return
+	}
+	for _, endpoint := range cfg.Local.Endpoints {
+		runtime, err := a.identifyEndpoint(ctx, endpoint.Addr)
+		if err != nil {
+			fmt.Fprintf(a.stdout, "  ✗ %s at %s does not answer: %v\n", endpoint.Name, endpoint.Addr, err)
+			continue
+		}
+		fmt.Fprintf(a.stdout, "  ✓ %s at %s (%s, %d model(s)) — models are %s/<model>\n",
+			endpoint.Name, endpoint.Addr, runtime.Kind, len(runtime.Models), endpoint.Name)
 	}
 }
 

@@ -6,11 +6,26 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-BIN_HARD=$((20 * 1024 * 1024)) # 20 MB
-BIN_SOFT=$((12 * 1024 * 1024)) # 12 MB — warn only
+# Binary size is a RATCHET, not a soft line (OPTIMIZATION_PLAN.md O12). The
+# 12 MB "soft budget" only ever warned, so 9 MB of growth would have been
+# invisible. BIN_BASELINE is the measured stripped `make build` size; the gate
+# is baseline + 10 %, so ordinary drift passes and a step change fails. Raising
+# BIN_BASELINE is allowed, in a commit whose message says what the bytes bought
+# and with docs/build-log.md's size map re-run. BIN_CEILING is absolute: no
+# commit message buys past it.
+#
+# Measured 2026-09-09 on darwin/arm64, go1.26.4:
+#   CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o kolk ./cmd/kolk
+#   9,507,938 bytes = 9.07 MB
+BIN_BASELINE=9507938             # 9.07 MB, measured 2026-09-09
+BIN_HARD=$(( BIN_BASELINE * 110 / 100 ))
+BIN_CEILING=$((20 * 1024 * 1024)) # 20 MB — the absolute ceiling
 START_HARD_MS=30
 START_SOFT_MS=20
-TEST_FLOOR=22
+# 90 % of the 3,575 `=== RUN` lines the root module ran on 2026-09-09. The old
+# floor of 22 could not trip: it would have taken deleting 99 % of the suite.
+# Bump it with each release, the same way BIN_BASELINE ratchets.
+TEST_FLOOR=3217
 
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT
@@ -24,10 +39,11 @@ echo "── binary size ──"
 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o "$out/kolk" ./cmd/kolk
 size="$(filesize "$out/kolk")"
 printf 'kolk: %s bytes (%.2f MB)\n' "$size" "$(echo "$size" | awk '{print $1/1048576}')"
-if [ "$size" -gt "$BIN_HARD" ]; then
-  echo "::error::kolk exceeds the 20 MB hard budget"; status=1
-elif [ "$size" -gt "$BIN_SOFT" ]; then
-  echo "::warning::kolk is over the 12 MB soft budget"
+printf 'ratchet: %s bytes (baseline %s + 10%%), ceiling %s bytes\n' "$BIN_HARD" "$BIN_BASELINE" "$BIN_CEILING"
+if [ "$size" -gt "$BIN_CEILING" ]; then
+  echo "::error::kolk exceeds the 20 MB absolute ceiling"; status=1
+elif [ "$size" -gt "$BIN_HARD" ]; then
+  echo "::error::kolk is $size bytes, past the ratchet of $BIN_HARD (baseline $BIN_BASELINE + 10%). Either give the bytes back, or raise BIN_BASELINE in a commit that says what they bought."; status=1
 fi
 
 echo "── cold start ──"
@@ -70,7 +86,18 @@ echo "── test-count floor ──"
 # One verbose run serves two budgets: the count below, and the sandbox
 # wrapper's per-command overhead, which the shell package measures against the
 # same 20/30 ms lines as cold start and prints as a single greppable line.
-go test ./... -count=1 -v >"$out/tests.log" 2>/dev/null || true
+#
+# `make check` and CI's budgets job hand us the log scripts/test.sh already
+# wrote (KOLK_TEST_LOG), so the suite runs once per runner instead of twice
+# here and twice there. The log has to be newer than go.sum, or it describes a
+# tree that no longer exists; `make budgets` on its own has no log and takes
+# the run itself.
+if [ -n "${KOLK_TEST_LOG:-}" ] && [ -s "$KOLK_TEST_LOG" ] && [ "$KOLK_TEST_LOG" -nt go.sum ]; then
+  echo "reusing $KOLK_TEST_LOG from scripts/test.sh"
+  cp "$KOLK_TEST_LOG" "$out/tests.log"
+else
+  go test ./... -count=1 -v >"$out/tests.log" 2>/dev/null || true
+fi
 count="$(grep -c '^=== RUN' "$out/tests.log" || true)"
 echo "root module: $count tests (floor $TEST_FLOOR)"
 if [ "$count" -lt "$TEST_FLOOR" ]; then

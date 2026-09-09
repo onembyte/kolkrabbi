@@ -74,7 +74,7 @@
       <div class="catalog-heading">
         <p class="section-number">01 / FOUR WAYS IN</p>
         <div>
-          <h2 id="routes-title">Four ways to a local model.</h2>
+          <h2 id="routes-title">Five ways to a local model.</h2>
           <p>One of them needs no configuration at all. The other three are a single flag.</p>
         </div>
       </div>
@@ -99,6 +99,11 @@
           <h3>Anything that speaks OpenAI</h3>
           <p><code>--base-url</code> takes any OpenAI-compatible endpoint. If it answers at <code>/v1</code>, Kolkrabbi will use it.</p>
         </article>
+        <article class="spec-card" data-status="available">
+          <div class="spec-meta"><span class="status-badge">Available now</span><span>ELSEWHERE</span></div>
+          <h3>A machine that is not this one</h3>
+          <p>The desktop in the next room, or a GPU box you reach over Tailscale: <code>/localia add rig 100.64.0.7:11434</code> probes that address, says what runs there, and remembers it. Its models are then <code>rig/&lt;model&gt;</code>, which <code>/model</code> and the effort dial treat like any other. Kolkrabbi tells an Ollama from anything OpenAI-compatible by asking, so Docker Model Runner, llama.cpp and LM Studio need no setting of their own. An address that is not this machine says so before it is saved: your prompts and file contents go there.</p>
+        </article>
       </div>
     </section>
 
@@ -120,6 +125,9 @@
             <tr><th scope="row">List local models, with what fits</th><td><code>/localia models</code></td></tr>
             <tr><th scope="row">Check a model against your hardware</th><td><code>/localia plan &lt;model&gt;</code></td></tr>
             <tr><th scope="row">Pull one, explicitly</th><td><code>/localia pull &lt;model&gt;</code></td></tr>
+            <tr><th scope="row">Add a machine on the LAN, or one address</th><td><code>/localia add &lt;name&gt; &lt;host:port&gt;</code></td></tr>
+            <tr><th scope="row">Use a model on one of them</th><td><code>/localia use &lt;name&gt; &lt;model&gt;</code></td></tr>
+            <tr><th scope="row">Run your own model runner, then use it</th><td><code>/localia direct docker model run &lt;model&gt;</code></td></tr>
             <tr><th scope="row">Switch model mid-session</th><td><code>/model</code></td></tr>
             <tr><th scope="row">See what it cost and how good it was</th><td><code>/stats</code></td></tr>
             <tr><th scope="row">Check keys, directories, terminal, network</th><td><code>/doctor</code></td></tr>
@@ -149,8 +157,8 @@
         </article>
         <article class="spec-card" data-status="planned">
           <div class="spec-meta"><span class="status-badge">Refused</span><span>HOST</span></div>
-          <h3>It only ever probes 127.0.0.1:11434</h3>
-          <p>Never <code>OLLAMA_HOST</code>, which may point at another machine or at ollama.com. If you want a different address, you pass it yourself with <code>--base-url</code>.</p>
+          <h3>It never goes looking on your network</h3>
+          <p>By itself Kolkrabbi probes one address, <code>127.0.0.1:11434</code>, and never <code>OLLAMA_HOST</code>, which may point at another machine or at ollama.com. Any other address is probed because you typed it into <code>/localia add</code>. There is no scan, no broadcast and no discovery of machines you did not name.</p>
         </article>
         <article class="spec-card" data-status="planned">
           <div class="spec-meta"><span class="status-badge">Refused</span><span>PULLS</span></div>

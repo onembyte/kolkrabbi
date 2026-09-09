@@ -41,6 +41,31 @@ for workflow in "${workflows[@]}"; do
   done < <(grep -E '^\s*(-\s*)?uses:' "$workflow")
 done
 
+# A tool a workflow downloads is the same decision as an action it runs. The
+# golangci-lint action's `version:` input is not a `uses:` line, so the loop
+# above never saw it, and `version: latest` meant a linter that could change
+# under a tree nobody touched — a green main going red with no commit
+# (OPTIMIZATION_PLAN.md O11). It must name an exact vN.N.N, and the Makefile's
+# install hint must send a developer to that same one.
+lint_versions="$(grep -A3 -E 'uses:\s*golangci/golangci-lint-action@' "$ROOT"/.github/workflows/*.yml |
+  grep -E '^\S*[-:]?\s*version:' | sed -E 's/.*version:[[:space:]]*//' | tr -d '"'"'"'\r' | sort -u)"
+if [ -z "$lint_versions" ]; then
+  fail "no golangci-lint-action version input found — the pin check has nothing to check"
+else
+  pass
+  while IFS= read -r v; do
+    [ -n "$v" ] || continue
+    if [[ "$v" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then pass; else
+      fail "golangci-lint-action is set to '$v', which is a moving version rather than an exact vN.N.N"
+      continue
+    fi
+    hint="$(sed -n 's/^GOLANGCI_LINT_VERSION[[:space:]]*:=[[:space:]]*//p' "$ROOT/Makefile" | tr -d ' \r')"
+    if [ "$hint" = "$v" ]; then pass; else
+      fail "the Makefile installs golangci-lint $hint while CI pins $v"
+    fi
+  done <<< "$lint_versions"
+fi
+
 if [ "$failures" -eq 0 ]; then
   printf 'workflow pins: %d checks passed\n' "$checks"
 else
