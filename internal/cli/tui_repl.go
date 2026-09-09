@@ -164,7 +164,7 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 			// the Runtime owns the cancellable turn context and final lifecycle.
 			goal, markedSaga := inlineSagaPrompt(trimmedPrompt)
 			sagaRequest := markedSaga && goal != ""
-			if strings.HasPrefix(trimmedPrompt, "/") && !sagaRequest {
+			if looksLikeSlashCommand(trimmedPrompt) && !sagaRequest {
 				prompt = trimmedPrompt
 				// `/model` with no argument is the picker, not a catalog dump: the
 				// screen can offer every model with an effort dial alongside, so

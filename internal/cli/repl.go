@@ -69,7 +69,7 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 		// would be treated as an unknown command instead of a normal goal.
 		goal, markedSaga := inlineSagaPrompt(line)
 		sagaRequest := markedSaga && goal != ""
-		if strings.HasPrefix(line, "/") && !sagaRequest {
+		if looksLikeSlashCommand(line) && !sagaRequest {
 			tctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 			shouldExit := a.slash(tctx, ag, line)
 			stop()

@@ -99,6 +99,30 @@ func renderMarkdownStyledBlocks(text string, width int) ([]styledRow, []blockBou
 			}
 			continue
 		}
+		// The request the user sent is one block: the marker row and the
+		// rows indented under it, styled together and before wrapping, so a
+		// long line stays theirs all the way across. The block ends at the
+		// first row that is neither — a following request opens its own.
+		// An indented line of kolk's own output written straight after a
+		// request, with no blank row between, would be taken for part of it;
+		// nothing prints that today and the cost of being wrong is a shaded
+		// line.
+		if strings.HasPrefix(line, promptMarker+" ") {
+			for start := index; index < len(logical); index++ {
+				// The prefix is tested on the raw row, not the trimmed one:
+				// a blank line inside the request is written as its own
+				// indent, and trimming first made it look like the end of
+				// the block — which cut the owner's own message in two.
+				if index > start && !strings.HasPrefix(logical[index], "  ") {
+					break
+				}
+				for _, wrapped := range wrapLine(strings.TrimRight(logical[index], " \t"), width) {
+					rows = append(rows, styledRow{text: wrapped, style: styleUser})
+				}
+			}
+			boundaries = append(boundaries, blockBoundary{source: index, rendered: len(rows)})
+			continue
+		}
 		if heading, ok := trimHeading(line); ok {
 			for _, wrapped := range wrapLine(heading, width) {
 				rows = append(rows, styledRow{text: wrapped, style: styleHeading})

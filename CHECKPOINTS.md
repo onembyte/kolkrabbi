@@ -10836,6 +10836,28 @@ Subcheckpoints, one at a time:
       intent was never "available", kept; its vocabulary was the old one, replaced. Pins: seven
       wall states, three refusals, the lede, the styles. Rendered in headless Chrome and read. Not
       touched: the capabilities cards, which name no vendor beyond Claude, Codex and Copilot.
+- [~] **V40 the TUI, read from a live screenshot** — the owner sent a frame of a real agent run on
+  2026-09-09 with three faults and a list of wants.
+  - [x] **V40.1 a pasted path is not a command** — closed 2026-09-09. Dispatch asked only whether
+    the line began with a slash, so a request that opened with `/var/folders/…/Screenshot.png`
+    became "unknown command, /help for a list" and the whole message was thrown away.
+    `looksLikeSlashCommand` now asks whether the first word looks like a command — a plain word,
+    no path separators, no dots — and refuses anything spanning lines, because no command does.
+    A genuine typo like `/mdoel` still says unknown. Red first: twelve cases, both dispatch sites.
+  - [x] **V40.2 the whole request is shown as the user's** — closed 2026-09-09. Only the first
+    line was coloured, because the style was decided per rendered row by looking for the prompt
+    marker, which only the first row carries. The transcript renderer now takes the request as one
+    block — marker row plus the rows indented under it — and styles it before wrapping, so a long
+    line stays theirs all the way across, on a grey ground in light purple. Two faults found by
+    rendering a frame rather than trusting the tests: a blank line inside the request ended the
+    block early (the prefix is now tested on the raw row, not the trimmed one), and the layout
+    still forced the old purple on the marker row, which was removed.
+  - [ ] **V40.3 the agents table says more** — models and effort per row, every agent shown (six
+    deployed but five listed), the logs of each step under each row, and edits named explicitly.
+  - [ ] **V40.4 the table floats and expands** — ephemeral while agents work, details expanded,
+    logs kept so they can be read after the run.
+  - [ ] **V40.5 the full view** — the left arrow opens a navigable table of every agent with its
+    goal, effort, model, the task it is on, and its detail.
 - [x] **V39 local models anywhere** — closed 2026-09-09; asked 2026-09-09: use a local model easily, on this machine,
   on a LAN server, or at one exact address such as a Tailscale host, configured in-session with a
   command and a few steps, including a `direct` verb that takes the user's own runner command.
@@ -14291,3 +14313,32 @@ checkpoint is expanded. Status here mirrors [`PLAN.md`](PLAN.md); PLAN remains a
   its release never published, so the version line skips it. Findings recorded above: S10.4 was
   closable and is now closed; P11/B12/L13 had shipped with no ledger entry and are now recorded;
   the binary grew from 6.27 MB (v1.1.5) to 7.91 MB, still inside budget but worth watching.
+
+- 2026-09-09 01:46–02:05 — **O1 closed** (`OPTIMIZATION_PLAN.md`, the plan's only P0), by the
+  Claude Code session working in parallel with the model on PLAN.md item 25. The event journal no
+  longer `fsync`s every streamed token with `b.mu` held. Four parts: `Options.SyncPolicy`
+  (`SyncOnTurnBoundary` as the zero value, plus `SyncNever` and `SyncEvery` as the one-word
+  rollback), flushing on `turn.finished` / `turn.cancelled` / `permission.*` / `Close`; the spill
+  `Write` moved out of the critical section onto one bounded writer goroutine that `Close` drains;
+  `Options.MaxSpillBytes` (64 MB) rewriting the file from the retained window through a temp file
+  and a rename; and the O16 delta-scrub question decided. **Numbers:**
+  `BenchmarkPublish/spill` 3.28 ms → **51.8 µs** (63×), ratio to the memory path **1.12×** against
+  the ≤ 3× the plan asked for; `bench/o1-publish-after.txt`. The plan's second criterion
+  (< 10 ms for a 5,000-delta turn) is **not met and not this leaf's to meet** — a publish is
+  45.9 µs with no spill file at all, of which `redact.ScrubJSON` is 25.7 µs and two JSON encodes of
+  the same envelope are 19.6 µs; recorded rather than quietly dropped. **O16 decided: deltas keep
+  their scrub.** The test the plan asked for passes (a key split across two deltas is whole and
+  redacted in `message.completed`), but deltas reach subscribers and the disk first, one provider
+  chunk can carry a whole message, and the proposed "no `=`/`:`" prefilter would pass every
+  prefix-shaped key (`sk-ant-…`, `ghp_…`, `AKIA…`) untouched; O16 stays open aimed inside `redact`.
+  **Two deliberate contract changes**, both documented in `docs/plan/02-architecture.md`: a spill
+  write error is now sticky and surfaces on the next `Publish` or on `Close`, and a cursor older
+  than a rewritten file is refused with `ErrCursorExpired` rather than served a replay with a
+  silent gap. **Gates:** `make check` exit 0 (3,592 tests, floor 3,217; lint 0; 9.08 MB against the
+  10.46 MB ratchet; site 465 / surface 21 / installer 72 / spec 29 / release 24 / workflow 41 /
+  verifier 30 / smoke 18 / plan 107 / pins 46) and `-race -count=1` green on `internal/bus`,
+  `internal/engine` and `internal/cli`. Five tests added and one amended
+  (`TestSpillAppendsExactNDJSONFramesToDisk` read the file behind `Publish`'s back and was passing
+  on a race; it now flushes). Full dossier in `docs/build-log.md`. **Coordination:** the other
+  model's `internal/local`, `docs/plan/25-managed-local-models.md` and PLAN.md item 25 were not
+  opened; mtimes re-checked before every edit; nothing committed.

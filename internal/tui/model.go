@@ -187,6 +187,9 @@ const (
 	styleAdd
 	styleDel
 	styleWarn
+	// styleUser is the request the user sent: their own words, on their own
+	// ground, so a long one can be found in a transcript at a glance.
+	styleUser
 )
 
 const (
@@ -211,6 +214,7 @@ var palette256 = palette{
 	styleAdd:         "\x1b[38;5;114m",
 	styleDel:         "\x1b[38;5;174m",
 	styleWarn:        "\x1b[38;5;221m",
+	styleUser:        "\x1b[48;5;236;38;5;147m",
 }
 
 var palette16 = palette{
@@ -512,13 +516,10 @@ func (m *Model) layoutWithComposer(width, height, cursor int) ([]viewRow, int, i
 
 	rows := make([]viewRow, 0, len(transcriptRows)+len(activity)+len(agentRows)+len(statusLine)+len(suggestions)+len(composer))
 	for _, row := range transcriptRows {
-		// A request the user sent is theirs, and reads as theirs: the same
-		// purple the composer uses, so the eye can find "what did I ask" in a
-		// long transcript without reading it. The renderer's own styles stand
-		// for everything that was not typed by the user.
-		if transcriptStyle(row.text) == stylePurple {
-			row.style = stylePurple
-		}
+		// The request the user sent is styled where it is rendered, as one
+		// block including its wrapped and blank rows (V40.2). This used to
+		// re-style the marker row here, which could only ever reach the
+		// first line of a request.
 		rows = append(rows, viewRow{text: row.text, style: row.style})
 	}
 	// The window takes the right-hand columns of the top transcript rows;

@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -308,6 +309,9 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		if err := ag.RateLast(n); err != nil {
 			fmt.Fprintln(a.stdout, err)
 		} else {
+			// The one moment this machine's opinion of a model changes, so the
+			// one moment the fold held for this process is wrong (O5).
+			a.forgetRatings()
 			fmt.Fprintf(a.stdout, "rated %d★ — see `/stats`\n", n)
 		}
 	case "/new", "/clear":
@@ -667,4 +671,31 @@ func (a *app) setPermission(ag *engine.Agent, name string) {
 		}
 	}
 	fmt.Fprintln(a.stdout, "this process only; start another with `kolk --permission "+string(tier)+"`")
+}
+
+// commandWord is what a slash command's name looks like: a plain word, no
+// path separators and no dots.
+var commandWord = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-]*$`)
+
+// looksLikeSlashCommand reports whether a line should be dispatched as a
+// command rather than sent as a request.
+//
+// The rule used to be "it begins with a slash", which threw away every
+// request that began with an absolute path: the owner pasted a screenshot's
+// path on 2026-09-09 and the whole message became "unknown command". A
+// command's first word is a plain word, and no command spans lines, so a
+// path and a multi-line paste are requests — which is what they were.
+func looksLikeSlashCommand(input string) bool {
+	if strings.ContainsAny(input, "\n\r") {
+		return false
+	}
+	trimmed := strings.TrimSpace(input)
+	if !strings.HasPrefix(trimmed, "/") {
+		return false
+	}
+	fields := strings.Fields(trimmed)
+	if len(fields) == 0 {
+		return false
+	}
+	return commandWord.MatchString(strings.TrimPrefix(fields[0], "/"))
 }

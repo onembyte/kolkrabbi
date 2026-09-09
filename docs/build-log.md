@@ -7384,3 +7384,14 @@ probes 127.0.0.1:11434", and the feature the owner asked for made that false. A 
 no longer kept is worse than no refusal, so it was rewritten to the thing that is still true and
 still worth promising — kolk probes loopback by itself and any other address only because
 someone typed it; there is no scan and no discovery of machines nobody named.
+
+## Two faults read off a screenshot — V40.1 and V40.2 closed 2026-09-09
+
+The owner sent a frame of a real run. In it, a request that began with a screenshot's path had
+been eaten as a command and answered with "unknown command", and the request that survived was
+purple on its first line and plain on every line after. Both were one-line rules doing too much:
+dispatch asked only whether a line began with a slash, and the transcript styled a row if that
+row carried the prompt marker, which only the first one can. A command is now recognised by its
+first word being a plain word, and the request is styled as a block before it is wrapped.
+Rendering the frame afterwards was worth more than the tests: it showed a blank line inside the
+message cutting the block in two, and the old per-row rule still overriding the new style.
