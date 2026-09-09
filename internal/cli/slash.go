@@ -310,9 +310,6 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		if err := ag.RateLast(n); err != nil {
 			fmt.Fprintln(a.stdout, err)
 		} else {
-			// The one moment this machine's opinion of a model changes, so the
-			// one moment the fold held for this process is wrong (O5).
-			a.forgetRatings()
 			fmt.Fprintf(a.stdout, "rated %d★ — see `/stats`\n", n)
 		}
 	case "/new", "/clear":

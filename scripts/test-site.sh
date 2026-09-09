@@ -151,7 +151,46 @@ contains index.html 'Claude Code &amp; Codex CLI alternative</title>' "the title
 contains index.html 'AI coding agent for the terminal' "the meta description does not say what kolk is"
 contains index.html 'Ollama' "the hero does not name a local provider"
 contains index.html 'One static binary under' "the landing page does not state the binary size"
-contains index.html '9&nbsp;MB, milliseconds to start' "the binary claim drifted from what check-budgets.sh measures"
+contains index.html '10&nbsp;MB, milliseconds to start' "the binary claim drifted from what check-budgets.sh measures"
+
+# The size claim is made in seven places -- README.md and six site pages -- and
+# before 2026-09-09 they all said "under 9 MB" about a binary that had grown to
+# 9.07 MB. One number, checked in one place: README.md is the source, every
+# site page must quote the same figure, and scripts/check-budgets.sh's measured
+# baseline must actually be under it, so the claim cannot go stale without a
+# gate going red (OPTIMIZATION_PLAN.md O12).
+size_claims_agree() {
+  local readme="$ROOT/README.md" mb budget_bytes claim_bytes page found
+  mb="$(grep -oE 'static binary under [0-9]+ ?(MB|&nbsp;MB)' "$readme" | head -1 |
+    grep -oE '[0-9]+' | head -1)"
+  if [ -n "$mb" ]; then pass; else
+    fail "README.md no longer states a binary size the site can be checked against"
+    return
+  fi
+
+  found=0
+  while IFS= read -r page; do
+    while IFS= read -r claim; do
+      found=1
+      if [ "$claim" = "$mb" ]; then pass; else
+        fail "${page#"$SITE"/} says the binary is under $claim MB while README.md says $mb MB"
+      fi
+    done < <(grep -oE '[Uu]nder [0-9]+(&nbsp;| )MB' "$page" | grep -oE '[0-9]+')
+  done < <(find "$SITE" -name '*.html' -o -name '*.txt' | sort)
+  if [ "$found" = 1 ]; then pass; else
+    fail "no site page states the binary size, so README.md's $mb MB is unchecked"
+  fi
+
+  # The claim has to be true of the binary the budgets actually measure.
+  budget_bytes="$(sed -n 's/^BIN_BASELINE=\([0-9]*\).*/\1/p' "$ROOT/scripts/check-budgets.sh" | head -1)"
+  claim_bytes=$(( mb * 1024 * 1024 ))
+  if [ -z "$budget_bytes" ]; then
+    fail "scripts/check-budgets.sh has no BIN_BASELINE for the README claim to be checked against"
+  elif [ "$budget_bytes" -lt "$claim_bytes" ]; then pass; else
+    fail "README.md claims under $mb MB while check-budgets.sh measured $budget_bytes bytes"
+  fi
+}
+size_claims_agree
 contains capabilities.html '<link rel="canonical" href="https://kolkrabbi.francomichetti.com/capabilities">' "capabilities.html has no canonical URL"
 # MANY shipped 2026-09-06 (I27.7): the sessions view for a paired device, with git state.
 contains capabilities.html '<span class="status-badge">Available now</span><span>MANY</span>' "the MANY card must say it ships"

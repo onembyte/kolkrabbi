@@ -10836,6 +10836,22 @@ Subcheckpoints, one at a time:
       intent was never "available", kept; its vocabulary was the old one, replaced. Pins: seven
       wall states, three refusals, the lede, the styles. Rendered in headless Chrome and read. Not
       touched: the capabilities cards, which name no vendor beyond Claude, Codex and Copilot.
+- [~] **V41 CI red, and the other session's work landed leaf by leaf** — opened 2026-09-09. Two
+  faults, both mine: `8aba4f4` used `git add -A` and swept the other session's "under 10 MB"
+  claim from README and the site without the test pin that checks it, and `f1e4b66` staged
+  `slash.go` whole, taking a call to `forgetRatings` whose definition is still in the uncommitted
+  `run.go`. CI has been red since. The other session (OPTIMIZATION_PLAN.md O1–O15, finished at
+  02:54, no process) left 39 modified and 17 new files across five leaves of its own record.
+  Order chosen so that every commit compiles: the repair first, then each leaf as its record
+  names it, `run.go` last because it reaches into four of them.
+  - [ ] **V41.1 the repair, and the build gates (O9/O11/O12)** — revert the one `slash.go` hunk I
+    swept in so HEAD compiles alone; land `scripts/test-site.sh`'s size-claim gate and the plan.
+  - [ ] **V41.2 O2 and O15** — the builder for streamed tool arguments; a bad session id refused.
+  - [ ] **V41.3 O1** — the event journal stops fsyncing every token.
+  - [ ] **V41.4 O3 with O6** — the transcript saved at boundaries; the session meta header.
+  - [ ] **V41.5 O5 and O8, and `run.go`** — ratings folded once; vendor catalogs refreshed only
+    when stale and never mid-turn; the `slash.go` hunk back with its definition.
+  - [ ] **V41.6 green, and a release** — CI green on main, v1.3.4.
 - [x] **V40 the TUI, read from a live screenshot** — closed 2026-09-09. — the owner sent a frame of a real agent run on
   2026-09-09 with three faults and a list of wants.
   - [x] **V40.1 a pasted path is not a command** — closed 2026-09-09. Dispatch asked only whether
