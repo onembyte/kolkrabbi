@@ -10844,13 +10844,33 @@ Subcheckpoints, one at a time:
   02:54, no process) left 39 modified and 17 new files across five leaves of its own record.
   Order chosen so that every commit compiles: the repair first, then each leaf as its record
   names it, `run.go` last because it reaches into four of them.
-  - [ ] **V41.1 the repair, and the build gates (O9/O11/O12)** — revert the one `slash.go` hunk I
-    swept in so HEAD compiles alone; land `scripts/test-site.sh`'s size-claim gate and the plan.
-  - [ ] **V41.2 O2 and O15** — the builder for streamed tool arguments; a bad session id refused.
-  - [ ] **V41.3 O1** — the event journal stops fsyncing every token.
-  - [ ] **V41.4 O3 with O6** — the transcript saved at boundaries; the session meta header.
-  - [ ] **V41.5 O5 and O8, and `run.go`** — ratings folded once; vendor catalogs refreshed only
-    when stale and never mid-turn; the `slash.go` hunk back with its definition.
+  - [x] **V41.1 the repair** — closed 2026-09-09. Reverted the `slash.go` hunk and the two `cli.go`
+    fields I had swept in, so HEAD built alone; landed the O12 size-claim gate from
+    `scripts/test-site.sh`. Verified by `make check` in a detached worktree at the commit, which is
+    what CI sees — the first run in the working tree passed and proved nothing, since the tree
+    still held the other session's files. CI green: `cfcaed6`.
+  - [x] **V41.2 O2** — closed 2026-09-09. The builder per streamed tool call, 2,434 MB/op to 23 MB,
+    linear in the input, fragmented shape as a fuzz seed. O15 was first cut in with it and taken
+    back out: its completeness test names `List` as uncovered because the test was written for
+    O6's package, where `List` returns headers. CI green: `1c02939`.
+  - [x] **V41.3 O1** — closed 2026-09-09. Sync policy, writer goroutine, bounded spill, sticky
+    spill error, `ErrCursorExpired`; race-clean. **Finding, not fixed inside their leaf:** the
+    streaming server turns any subscribe error into a bare 500 "subscribe error", so a paired
+    device reconnecting with a cursor older than a rewritten journal gets no signal to start over.
+    A follow-up: map `bus.ErrCursorExpired` to 410 with that sentence. CI green: `53ac953`.
+  - [x] **V41.4 O3, O6, O15** — closed 2026-09-09. Saves at boundaries with coalescing between,
+    the kill-and-resume test, the meta header per session with doctor's repair, the ID rule with
+    its parsing test; the stats fold came forward because doctor reads it. One of their test
+    adaptations, counting transcripts rather than headers, had been deferred with O8 and belonged
+    here; found by the isolated gate and folded in. Commit `b5fe54a`.
+  - [x] **V41.5 O5, O8, and `run.go`** — closed 2026-09-09. One ratings fold per process, cached
+    beside the log; vendors asked only when their catalog is older than six hours or a command
+    forces it, never under a running turn, the catalog file written only when its bytes differ.
+    The set-aside call and fields returned with their definitions. Commit `25a0871`.
+    **Found afterwards, mine:** the build-log carried each of the other session's five sections
+    twice, because my V40 commits had staged the working-tree file after I restored their
+    paragraphs into it and the index appends here added them again; the working-tree copy holds
+    each once and is what this docs commit lands.
   - [ ] **V41.6 green, and a release** — CI green on main, v1.3.4.
 - [x] **V40 the TUI, read from a live screenshot** — closed 2026-09-09. — the owner sent a frame of a real agent run on
   2026-09-09 with three faults and a list of wants.
