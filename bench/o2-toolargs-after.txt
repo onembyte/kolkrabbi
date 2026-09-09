@@ -1,0 +1,12 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/onembyte/kolkrabbi/internal/provider
+cpu: Apple M3
+BenchmarkReadStream/toolargs/50KB-8    	     171	   6950840 ns/op	  79.48 MB/s	 5790801 B/op	   91164 allocs/op
+BenchmarkReadStream/toolargs/50KB-8    	     172	   6907454 ns/op	  79.98 MB/s	 5790770 B/op	   91164 allocs/op
+BenchmarkReadStream/toolargs/50KB-8    	     170	   6907350 ns/op	  79.98 MB/s	 5790771 B/op	   91164 allocs/op
+BenchmarkReadStream/toolargs/200KB-8   	      43	  27425501 ns/op	  80.51 MB/s	23008020 B/op	  364240 allocs/op
+BenchmarkReadStream/toolargs/200KB-8   	      42	  27534247 ns/op	  80.19 MB/s	23008025 B/op	  364240 allocs/op
+BenchmarkReadStream/toolargs/200KB-8   	      43	  27467680 ns/op	  80.38 MB/s	23008034 B/op	  364240 allocs/op
+PASS
+ok  	github.com/onembyte/kolkrabbi/internal/provider	9.506s

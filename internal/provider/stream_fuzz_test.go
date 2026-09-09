@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -36,6 +37,11 @@ func FuzzReadStream(f *testing.F) {
 	f.Add("data: {\"choices\":[{\"delta\":{\"content\":\"trunc")
 	f.Add("data: \n\ndata:[DONE]\n\n\n")
 	f.Add("data: {\"error\":{\"message\":\"boom\"}}\n")
+	// A 200 KB write_file argument, fragmented the way a real one arrives.
+	// This is the shape O2 made linear: as a seed it runs on every `go test`,
+	// so a future reader that reintroduces `+=` is caught by the corpus and
+	// not only by the benchmark.
+	f.Add(fragmentedToolArgs(200 << 10))
 
 	f.Fuzz(func(t *testing.T, body string) {
 		var tokens []string
@@ -120,4 +126,42 @@ func itoa(n int) string {
 		return "-" + string(digits)
 	}
 	return string(digits)
+}
+
+// fragmentedToolArgs builds an SSE body carrying one tool call whose JSON
+// argument object is about size bytes, split across many deltas.
+//
+// The fragment length is deliberately not a divisor of anything: real servers
+// cut mid-token, and a split that always lands on a JSON boundary would test a
+// fragmentation that does not happen. Each fragment is JSON-encoded after the
+// cut, not before, so a cut never lands inside an escape sequence and turns
+// the delta itself into garbage the reader would rightly skip.
+func fragmentedToolArgs(size int) string {
+	var payload strings.Builder
+	payload.WriteString(`{"path":"big.txt","content":"`)
+	for payload.Len() < size {
+		payload.WriteString("abcdefghijklmnopqrstuvwxyz0123456789")
+	}
+	payload.WriteString(`"}`)
+	args := payload.String()
+
+	var body strings.Builder
+	body.WriteString(`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","type":"function","function":{"name":"write_"}}]}}]}` + "\n")
+	body.WriteString(`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"file"}}]}}]}` + "\n")
+	const fragment = 97
+	for i := 0; i < len(args); i += fragment {
+		end := i + fragment
+		if end > len(args) {
+			end = len(args)
+		}
+		encoded, err := json.Marshal(args[i:end])
+		if err != nil {
+			panic(err) // a string always marshals
+		}
+		body.WriteString(`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":`)
+		body.Write(encoded)
+		body.WriteString(`}}]}}]}` + "\n")
+	}
+	body.WriteString("data: [DONE]\n")
+	return body.String()
 }

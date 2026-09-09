@@ -786,3 +786,39 @@ func (t *recordingTransport) RoundTrip(req *http.Request) (*http.Response, error
 		Request:    req,
 	}, nil
 }
+
+// TestReadStreamAssemblesLargeFragmentedToolArgs pins the fidelity of the
+// 200 KB seed O2 added to the fuzz corpus: the fixture is only worth running
+// if what comes out the other side is byte-for-byte the argument that went in,
+// with the name assembled from its two fragments.
+func TestReadStreamAssemblesLargeFragmentedToolArgs(t *testing.T) {
+	body := fragmentedToolArgs(200 << 10)
+	var meta Meta
+	msg, err := readStream(strings.NewReader(body), &meta, nil)
+	if err != nil {
+		t.Fatalf("readStream: %v", err)
+	}
+	if len(msg.ToolCalls) != 1 {
+		t.Fatalf("got %d tool calls, want 1", len(msg.ToolCalls))
+	}
+	tc := msg.ToolCalls[0]
+	if tc.Function.Name != "write_file" {
+		t.Errorf("name = %q, want write_file (assembled from two fragments)", tc.Function.Name)
+	}
+	if got := len(tc.Function.Arguments); got < 200<<10 {
+		t.Errorf("arguments are %d bytes, want at least %d: fragments were dropped", got, 200<<10)
+	}
+	var args struct {
+		Path    string `json:"path"`
+		Content string `json:"content"`
+	}
+	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+		t.Fatalf("the reassembled arguments are not the JSON that was sent: %v", err)
+	}
+	if args.Path != "big.txt" {
+		t.Errorf("path = %q, want big.txt", args.Path)
+	}
+	if strings.Trim(args.Content, "abcdefghijklmnopqrstuvwxyz0123456789") != "" {
+		t.Error("the reassembled content contains bytes the fixture never sent")
+	}
+}

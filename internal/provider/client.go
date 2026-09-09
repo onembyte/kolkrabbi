@@ -447,6 +447,13 @@ func (c *Client) StreamChat(ctx context.Context, model string, messages []Messag
 func readStream(body io.Reader, meta *Meta, onToken func(string)) (Message, error) {
 	var contentBuilder strings.Builder
 	toolCalls := map[int]*ToolCall{}
+	// The name and argument text of a tool call arrive as many small
+	// fragments, so they accumulate in a builder per slot rather than by
+	// `+=` on the string: appending to a string copies everything received
+	// so far, which makes a 200 KB argument quadratic in its fragment count.
+	// The builders are materialised once, where msg.ToolCalls is assembled.
+	toolNames := map[int]*strings.Builder{}
+	toolArgs := map[int]*strings.Builder{}
 	var toolCallOrder []int
 
 	scanner := bufio.NewScanner(body)
@@ -505,17 +512,22 @@ func readStream(body io.Reader, meta *Meta, onToken func(string)) (Message, erro
 			}
 			if !ok {
 				cp := tc
+				// The text lives in the builders from here on; leaving a copy
+				// on the struct would double the first fragment.
+				cp.Function.Name, cp.Function.Arguments = "", ""
 				toolCalls[slot] = &cp
+				toolNames[slot] = &strings.Builder{}
+				toolArgs[slot] = &strings.Builder{}
+				toolNames[slot].WriteString(tc.Function.Name)
+				toolArgs[slot].WriteString(tc.Function.Arguments)
 				toolCallOrder = append(toolCallOrder, slot)
 				continue
 			}
 			if tc.ID != "" {
 				existing.ID = tc.ID
 			}
-			if tc.Function.Name != "" {
-				existing.Function.Name += tc.Function.Name
-			}
-			existing.Function.Arguments += tc.Function.Arguments
+			toolNames[slot].WriteString(tc.Function.Name)
+			toolArgs[slot].WriteString(tc.Function.Arguments)
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -528,6 +540,8 @@ func readStream(body io.Reader, meta *Meta, onToken func(string)) (Message, erro
 		for _, i := range toolCallOrder {
 			tc := *toolCalls[i]
 			tc.Index = 0
+			tc.Function.Name = toolNames[i].String()
+			tc.Function.Arguments = toolArgs[i].String()
 			if tc.Type == "" {
 				tc.Type = "function"
 			}

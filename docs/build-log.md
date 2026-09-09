@@ -7990,3 +7990,74 @@ live run while one is going and the record of the last one after it has gone, wh
 keeping that record was for. Writing the tests was not enough: two of my own assertions keyed on
 the agents' names, which the ordinary window shows as well, so they passed for the wrong reason
 until a rendered frame showed the view and the window drawn at once.
+
+## The build gates — O9, O11, O12 closed 2026-09-09
+
+`OPTIMIZATION_PLAN.md` Phase 1's three CI leaves, taken together because they are one thing: a
+gate that cannot trip is not a gate. All three were exactly that.
+
+**O9 — the suite ran three times per `make check`.** `scripts/test.sh` ran each module twice, once
+for pass/fail and once with `-v` to count `=== RUN`, and `scripts/check-budgets.sh` ran the root
+module a third time for the test-count floor and the sandbox-overhead line. It now runs once:
+verbose, `-count=1`, tee'd to a log, the count grepped out of that log, and the module's real exit
+status recovered through `${PIPESTATUS[0]}` rather than `tee`'s zero. A failing module prints its
+`--- FAIL` lines from the log instead of megabytes of `-v` output. The root module's log goes to
+`${KOLK_TEST_LOG:-<temp>}`; `check-budgets.sh` reuses it when the variable is set, the file is
+non-empty and it is newer than `go.sum`, and otherwise takes its own run, so `make budgets` alone
+still works. `make check` exports the variable for its prerequisites (target-specific `export`,
+verified on the GNU Make 3.81 that ships with macOS) and CI's budgets job sets it across a
+`make test` + `make budgets` pair. Three runs → one on the `check` path, two → one in CI.
+
+**The floor could not trip.** `TEST_FLOOR` was 22 against a root module that runs 3,575 `=== RUN`
+lines: deleting 99.4 % of the suite would have passed. It is now 3,217, 90 % of the measured count,
+and ratchets with each release.
+
+**O11 — golangci-lint was `latest`.** Every action in every workflow is SHA-pinned, and the
+linter — the one tool that decides whether the tree is acceptable — was a moving pointer, so a
+green `main` could turn red with no commit. Pinned to **v2.13.2**, verified clean against this tree
+(`0 issues`). `make workflow-pin-check` now owns the tool version as well as the action digests: it
+fails if `golangci-lint-action`'s `version:` is anything but an exact `vN.N.N`, and fails again if
+the Makefile's install hint names a different one. Both mutations were run and both trip.
+
+**O12 — the size budget only warned, and the README was wrong.** The 12 MB line was a
+`::warning::`, so the binary had grown from 6.19 MB (step 3) to **9,507,938 bytes = 9.07 MB**
+with nothing to say so, and README plus six site pages all promised "under 9 MB" — a claim that
+had quietly become false. The soft line is now a ratchet: `BIN_BASELINE` is the measured stripped
+size, the gate is baseline + 10 %, and 20 MB stays as an absolute ceiling. Raising the baseline is
+allowed only in a commit that says what the bytes bought. The claim is now "under 10 MB" in all
+seven places, and `scripts/test-site.sh` reads the figure out of `README.md`, asserts every site
+page quotes the same one, and asserts `BIN_BASELINE` is actually below it — so the number cannot go
+stale again without a gate going red. Cold start measured **p50 8.7 ms** from `make budgets`
+(darwin/arm64 M3, 20 runs of `kolk help`, soft 20 / hard 30 ms) and 15.6 ms from the same
+measurement taken while six agents were building — which is why the README says "milliseconds to
+start" and quotes no figure: the number moves with the machine, the budget does not.
+
+**O12.3, where the bytes are** — `go tool nm -size -sort size` on an unstripped `-trimpath` build,
+2026-09-09. Sized `T`/`D`/`R` symbols total 10,272,503 bytes (the on-disk half; the stripped
+binary is 9.07 MB after `-s -w` drops the symbol table).
+
+| symbol | bytes | note |
+|---|---|---|
+| `crypto/internal/fips140/drbg.memory` | 33,554,432 | `B` — zero-filled BSS, costs no bytes on disk |
+| `runtime.pclntab` | 2,688,528 | the price of Go stack traces; not removable |
+| `typerel.*` / `_type:*` | 945,232 each | reflect type metadata |
+| `go:func.*` | 636,096 | |
+| `runtime.rodata` / `go:string.*` | 264,688 each | |
+| `internal/cli.(*app).runConfig` | 22,832 | the largest single function in the binary — O13's target |
+| `protocol.validateEventData` | 21,248 | second largest — also O13 |
+| `internal/cli.(*app).slash` | 11,984 | third — also O13 |
+| `x/text/unicode/norm` + `x/net/idna` tables | ~99,000 | Unicode data behind `net/http` |
+
+By package, the top of the sized total: `runtime` 3.64 MB, reflect metadata ~2.5 MB,
+`net/http` 379,691, `internal/cli` 263,464, `crypto/tls` 210,021, `internal/engine` 196,128,
+`internal/tui` 124,960. Kolkrabbi's own code is **1,152,596 bytes, 11.2 %** of the sized total;
+`net/http` + `crypto` + the `x/text`/`x/net` tables it drags in are **1,588,242, 15.5 %**. The rest
+is the Go runtime and reflect metadata. **That is the accepted cost**: the HTTP + TLS stack is what
+talking to a provider is, and the runtime is what a single static binary with no runtime to install
+is. There is no 3 MB to find here — the only compressible thing in the list is the three O13
+functions, and they are 56 KB between them. If the ratchet ever trips, the answer is a new
+dependency or a new stdlib subtree, not drift.
+
+**Verified:** `make budgets` (9.07 MB under the 10.4 MB ratchet, cold start p50 8.7 ms, 3,575
+tests over the 3,217 floor, 2 modules), `make site` (465 checks), `make workflow-pin-check`
+(46 checks), `golangci-lint v2.13.2 run ./...` (0 issues), and the four mutations above.
