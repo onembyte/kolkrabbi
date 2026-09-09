@@ -261,6 +261,15 @@ contains index.html 'class="nav-button" href="/capabilities"' "landing page has 
 excludes index.html 'href="/capabilities\.html"' "internal links must use the canonical URL, not the one that 308s"
 contains index.html 'id="install-command"' "install command has no copy target"
 contains index.html 'class="copy-button" type="button" data-copy-target="install-command"' "install command has no copy button"
+# Homebrew is a first-class way in, and a first-class way to update, with its
+# own copy buttons: not a footnote under the curl line.
+contains index.html 'id="brew-install-command">brew install onembyte/tap/kolk' "the Homebrew install command is not a copyable step"
+contains index.html 'data-copy-target="brew-install-command"' "the Homebrew install command has no copy button"
+contains index.html 'id="brew-upgrade-command">brew upgrade kolk' "the Homebrew upgrade command is not a copyable step"
+contains index.html 'data-copy-target="brew-upgrade-command"' "the Homebrew upgrade command has no copy button"
+contains index.html '<span class="step-label">Update</span>' "the install steps have no update step"
+contains index.html '/update' "the update step does not name the in-session command"
+contains app.js 'querySelectorAll("[data-copy-target]")' "the copy controller serves only the first button"
 contains index.html 'class="copy-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"' "copy button has no decorative copy icon"
 contains index.html 'id="copy-status" role="status" aria-live="polite"' "copy result is not announced accessibly"
 contains index.html '<script src="app.js" defer></script>' "landing page does not load the local copy controller"
@@ -469,7 +478,7 @@ excludes styles.css "@import|url\\([\"']?https?://" "CSS loads an external depen
 
 contains app.js 'navigator.clipboard.writeText' "copy controller does not use the Clipboard API"
 contains app.js 'document.execCommand("copy")' "copy controller has no compatibility fallback"
-contains app.js 'Install command copied to clipboard.' "copy controller has no accessible success message"
+contains app.js 'Command copied to clipboard.' "copy controller has no accessible success message"
 excludes app.js 'https?://|eval\(|innerHTML' "copy controller uses an unsafe or external primitive"
 
 contains logo.svg 'role="img"' "logo needs an image role"

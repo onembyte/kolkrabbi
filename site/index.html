@@ -130,6 +130,18 @@
               </button>
               <span class="copy-status" id="copy-status" role="status" aria-live="polite"></span>
             </div>
+            <p class="step-or">or, with Homebrew on macOS or Linux</p>
+            <div class="command-row">
+              <code><span class="prompt" aria-hidden="true">$</span> <span id="brew-install-command">brew install onembyte/tap/kolk</span></code>
+              <button class="copy-button" type="button" data-copy-target="brew-install-command" aria-describedby="brew-copy-status">
+                <svg class="copy-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                  <rect x="2.5" y="2.5" width="8" height="8" rx="1"></rect>
+                  <rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect>
+                </svg>
+                <span class="copy-button-label">Copy</span>
+              </button>
+              <span class="copy-status" id="brew-copy-status" role="status" aria-live="polite"></span>
+            </div>
           </li>
           <li>
             <span class="step-label">Run</span>
@@ -142,6 +154,23 @@
             <code class="use-command"><span class="prompt" aria-hidden="true">$</span> kolk</code>
           </li>
           <li>
+            <span class="step-label">Update</span>
+            <code class="key-command"><span class="prompt" aria-hidden="true">❯</span> /update</code>
+            <samp>Inside a session: fetches the latest verified release, checks its checksum, and restarts into it if you have asked for that.</samp>
+            <p class="step-or">or, if you installed with Homebrew</p>
+            <div class="command-row">
+              <code><span class="prompt" aria-hidden="true">$</span> <span id="brew-upgrade-command">brew upgrade kolk</span></code>
+              <button class="copy-button" type="button" data-copy-target="brew-upgrade-command" aria-describedby="brew-upgrade-copy-status">
+                <svg class="copy-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                  <rect x="2.5" y="2.5" width="8" height="8" rx="1"></rect>
+                  <rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect>
+                </svg>
+                <span class="copy-button-label">Copy</span>
+              </button>
+              <span class="copy-status" id="brew-upgrade-copy-status" role="status" aria-live="polite"></span>
+            </div>
+          </li>
+          <li>
             <span class="step-label">Remove it</span>
             <code class="use-command"><span class="prompt" aria-hidden="true">$</span> kolk uninstall</code>
             <samp>Lists every file it will delete, with what each one holds, and asks once.<br>Keep your key and sessions for later: &nbsp;kolk uninstall --keep-data</samp>
@@ -149,7 +178,7 @@
         </ol>
       </div>
       <p class="release-note"><strong>Verified release.</strong> The installer accepts only published Kolkrabbi release assets and verifies their checksum before installing.</p>
-      <p class="release-note"><strong>Prefer Homebrew?</strong> <code>brew install onembyte/tap/kolk</code> — macOS and Linux, and the formula is generated from the release&rsquo;s own signed checksums, so <code>brew</code> verifies the same bytes. To type the short name instead, trust the tap once with <code>brew tap onembyte/tap &amp;&amp; brew trust onembyte/tap</code>, then <code>brew install kolkrabbi</code>.</p>
+      <p class="release-note"><strong>The tap is the same bytes.</strong> Its formula is generated from the release&rsquo;s own signed checksums, so <code>brew</code> verifies exactly what the installer does. To type the short name, trust the tap once with <code>brew tap onembyte/tap &amp;&amp; brew trust onembyte/tap</code>, then <code>brew install kolkrabbi</code>.</p>
     </section>
 
     <section class="showcase" id="agents" aria-labelledby="showcase-title">

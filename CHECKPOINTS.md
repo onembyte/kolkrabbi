@@ -10836,6 +10836,15 @@ Subcheckpoints, one at a time:
       intent was never "available", kept; its vocabulary was the old one, replaced. Pins: seven
       wall states, three refusals, the lede, the styles. Rendered in headless Chrome and read. Not
       touched: the capabilities cards, which name no vendor beyond Claude, Codex and Copilot.
+- [x] **V42 Homebrew as a first-class way in, and a way to update, on the site** — asked and closed
+  2026-09-09, after the tap was brought to v1.3.4 on the owner's word. The install steps now carry
+  `brew install onembyte/tap/kolk` as a second copyable command beside the curl line, and a new
+  Update step names `/update` for a session and `brew upgrade kolk` for a Homebrew install, each
+  with its own copy button. The copy controller served only the first button on the page; it now
+  serves every one, each reporting into its own status element so the announcement lands beside
+  the button pressed. The "Prefer Homebrew?" footnote became a line about the tap being the same
+  signed bytes. Seven pins; one older pin re-read, since "install command copied" is wrong for two
+  of the three buttons. Read as a rendered frame.
 - [x] **V41 CI red, and the other session's work landed leaf by leaf** — opened and closed 2026-09-09. Two
   faults, both mine: `8aba4f4` used `git add -A` and swept the other session's "under 10 MB"
   claim from README and the site without the test pin that checks it, and `f1e4b66` staged

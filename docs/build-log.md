@@ -8003,3 +8003,10 @@ written for, caught one adaptation filed under the wrong leaf, and found one con
 closing before the release: a stale cursor answered with a bare 500, now 410 with an instruction.
 The release commit's own CI run failed once on a 150 ms grace in a signal-ladder test and passed
 on rerun; that test now holds escalation off for two seconds, which it never waits out.
+
+## Homebrew on the site, as a step and not a footnote — V42 closed 2026-09-09
+
+With the tap at the current release for the first time in three releases, the site could say so
+without lying. The install steps carry the Homebrew command beside the curl line, and an Update
+step names the in-session `/update` and `brew upgrade kolk`, each with a copy button. The copy
+controller had only ever served the first button on the page; it serves all of them now.

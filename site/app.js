@@ -1,16 +1,11 @@
 "use strict";
 
 (() => {
-  const button = document.querySelector("[data-copy-target]");
-
-  if (!button) {
-    return;
-  }
-
-  const label = button.querySelector(".copy-button-label");
-  const status = document.getElementById("copy-status");
-  const originalLabel = label.textContent;
-  let resetTimer;
+  // Every command with a copy button, not only the first: the curl line,
+  // the Homebrew install and the Homebrew upgrade each have one, and each
+  // reports into its own status element so the announcement lands beside
+  // the button that was pressed.
+  const buttons = document.querySelectorAll("[data-copy-target]");
 
   const copyWithFallback = (text) => {
     const source = document.createElement("textarea");
@@ -42,34 +37,47 @@
     copyWithFallback(text);
   };
 
-  const resetButton = () => {
-    label.textContent = originalLabel;
-    button.removeAttribute("data-state");
-    status.textContent = "";
-  };
+  buttons.forEach((button) => {
+    const label = button.querySelector(".copy-button-label");
+    const status = document.getElementById(button.getAttribute("aria-describedby"));
+    const originalLabel = label.textContent;
+    let resetTimer;
 
-  button.addEventListener("click", async () => {
-    const target = document.getElementById(button.dataset.copyTarget);
-    if (!target) {
-      return;
-    }
+    const resetButton = () => {
+      label.textContent = originalLabel;
+      button.removeAttribute("data-state");
+      if (status) {
+        status.textContent = "";
+      }
+    };
 
-    window.clearTimeout(resetTimer);
-    button.disabled = true;
+    button.addEventListener("click", async () => {
+      const target = document.getElementById(button.dataset.copyTarget);
+      if (!target) {
+        return;
+      }
 
-    try {
-      await writeClipboard(target.textContent.trim());
-      label.textContent = "Copied";
-      button.dataset.state = "copied";
-      status.textContent = "Install command copied to clipboard.";
-      resetTimer = window.setTimeout(resetButton, 2200);
-    } catch (_error) {
-      label.textContent = "Try again";
-      status.textContent = "Copy failed. Select and copy the install command manually.";
-      resetTimer = window.setTimeout(resetButton, 3200);
-    } finally {
-      button.disabled = false;
-    }
+      window.clearTimeout(resetTimer);
+      button.disabled = true;
+
+      try {
+        await writeClipboard(target.textContent.trim());
+        label.textContent = "Copied";
+        button.dataset.state = "copied";
+        if (status) {
+          status.textContent = "Command copied to clipboard.";
+        }
+        resetTimer = window.setTimeout(resetButton, 2200);
+      } catch (_error) {
+        label.textContent = "Try again";
+        if (status) {
+          status.textContent = "Copy failed. Select and copy the command manually.";
+        }
+        resetTimer = window.setTimeout(resetButton, 3200);
+      } finally {
+        button.disabled = false;
+      }
+    });
   });
 })();
 

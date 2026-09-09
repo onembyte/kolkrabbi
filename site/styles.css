@@ -420,6 +420,12 @@ samp {
   min-width: 0;
 }
 
+.step-or {
+  margin: 0.55rem 0 0.3rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .copy-button {
   display: inline-flex;
   min-width: 5.4rem;
