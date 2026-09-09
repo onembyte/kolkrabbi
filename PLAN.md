@@ -834,6 +834,15 @@ path, a ranked recommendation, a chain over every configured option, ask-before-
 opt-in automatic switching only between equivalent models. Owner answered §9 on 2026-09-05; V35.1
 is open.
 
+### [ ] 37. Local models anywhere — this machine, the LAN, or one exact address
+**Drafted 2026-09-09** ([`docs/plan/37-local-models-anywhere.md`](docs/plan/37-local-models-anywhere.md)):
+kolk finds one Ollama on one hardcoded loopback address, so a model on the LAN or on a box reached
+over Tailscale cannot be used at all. One idea covers all three reaches: the local endpoint, a name
+and an address with whatever answers there, probed rather than assumed — an Ollama by its own
+handshake, anything else by an OpenAI-compatible model list, which is what makes Docker Model
+Runner and llama.cpp work without a line of code each. The endpoint name is the model-id prefix,
+which the route map already keys on. Checkpoints V39.1–V39.4.
+
 ### [ ] 36. Parallel writers — one tree each, landed in order
 **Drafted 2026-09-06** ([`docs/plan/36-parallel-writers.md`](docs/plan/36-parallel-writers.md)): agent
 mode queues because the scheduler starts one file-writing task at a time on the shared tree, and

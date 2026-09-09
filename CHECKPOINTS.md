@@ -10836,6 +10836,19 @@ Subcheckpoints, one at a time:
       intent was never "available", kept; its vocabulary was the old one, replaced. Pins: seven
       wall states, three refusals, the lede, the styles. Rendered in headless Chrome and read. Not
       touched: the capabilities cards, which name no vendor beyond Claude, Codex and Copilot.
+- [~] **V39 local models anywhere** — asked 2026-09-09: use a local model easily, on this machine,
+  on a LAN server, or at one exact address such as a Tailscale host, configured in-session with a
+  command and a few steps, including a `direct` verb that takes the user's own runner command.
+  Design in `docs/plan/37-local-models-anywhere.md`, PLAN item 37.
+  - [ ] **V39.1 what is at this address** — `local.Identify` tells an Ollama from anything
+    OpenAI-compatible under a deadline, trying the bare address, `/v1` and `/engines/v1`; the
+    endpoint record it fills in.
+  - [ ] **V39.2 endpoints, and using one** — the records in config, `/localia add|rm|use|list`,
+    the model-id prefix routing to the endpoint, the session switch, and the sentence about what
+    leaves the machine when the address is not loopback.
+  - [ ] **V39.3 `/localia direct <command…>`** — the user's own runner command, run under the
+    permission tier, then the model it named.
+  - [ ] **V39.4 the surfaces** — doctor, README, the site's local page and the provider wall.
 - [x] **V38 polish the TUI** — asked 2026-09-08 with a screenshot of a live run; three leaves, one
   at a time. Closed 2026-09-08.
   - [x] **V38.1 what the agent is doing, in the activity line** — closed 2026-09-08. The work
