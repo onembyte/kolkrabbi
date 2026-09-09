@@ -35,6 +35,7 @@ var slashCommandTable = []slashCommand{
 	{"plans", "[filter] | login <provider> <plan>", "list plans or start provider-owned login", words("login")},
 	{"plogin", "[filter]", "search plans and start provider-owned login", nil},
 	{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors", nil},
+	{"agents", "", "what the agents of this run, or the last one, did — model, effort, task and every step", nil},
 	{"localia", "[models [filter] | plan <model> | pull [--yes] <model> | add <name> <host:port> | rm <name> | list | use <name> [model] | direct [--yes] <command…>]", "local models: this machine's hardware and pulls, and endpoints on the LAN or at one address", []tui.Choice{{Words: []string{"models", "plan", "pull", "add", "rm", "list", "use", "direct"}}, {After: []string{"pull"}, Words: []string{"--yes"}}, {After: []string{"direct"}, Words: []string{"--yes"}}}},
 	{"compact", "[undo]", "shrink the conversation now, or put back the last one", words("undo")},
 	{"remember", "[--project] <note>", "add one line of standing guidance", words("--project")},
@@ -530,6 +531,12 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		}
 		fmt.Fprintf(a.stdout, "compacted %d messages (%s), freeing about %d tokens · undo with /compact undo\n",
 			result.Replaced, result.Stage, result.FreedTokens)
+	case "/agents":
+		if a.agentReport == nil {
+			fmt.Fprintln(a.stdout, "the agent record lives on the session screen; run this inside a session")
+			break
+		}
+		fmt.Fprintln(a.stdout, a.agentReport())
 	case "/localia":
 		if err := a.runLocaliaWith(ctx, ag, strings.Fields(arg)); err != nil {
 			fmt.Fprintf(a.stderr, "localia error: %v\n", err)

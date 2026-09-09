@@ -7972,3 +7972,11 @@ agents were never drawn. Rows are now guaranteed and logs take what is left, one
 then the remainder to whoever is still working. The row also answers the question a mixed-effort
 run raises — which model, at what effort — and the task is what gets clipped to make room for
 it, because the task is the part already written in the plan above.
+
+## The record outlives the window — V40.4 closed 2026-09-09
+
+The agents' window is meant to go; what the agents did is not. Closing it cleared the statuses
+and the logs together, so a finished run left nothing to read. The run is now kept as the window
+closes and `/agents` prints it: every agent in plan order, its model and effort, the task it was
+given and each step it took. A new run replaces the old record, because that is the run the
+question is about.

@@ -184,3 +184,22 @@ func TestLocaliaUseSwitchesTheRunningSession(t *testing.T) {
 		t.Fatalf("use did not say what it switched to:\n%s", out.String())
 	}
 }
+
+// `/agents` reads the screen's record of the run; outside a session it says
+// where the record lives rather than printing nothing.
+func TestAgentsCommandReadsTheScreensRecord(t *testing.T) {
+	a, ag, out := replFixture(t, "")
+	a.agentReport = func() string { return "6 agents\n\n1 the first task\n  claude-fable · medium · done\n" }
+	if exit := a.slash(context.Background(), ag, "/agents"); exit {
+		t.Fatal("/agents ended the session")
+	}
+	if got := out.String(); !strings.Contains(got, "1 the first task") || !strings.Contains(got, "claude-fable") {
+		t.Fatalf("/agents printed %q", got)
+	}
+	out.Reset()
+	a.agentReport = nil
+	_ = a.slash(context.Background(), ag, "/agents")
+	if !strings.Contains(out.String(), "inside a session") {
+		t.Fatalf("without a screen /agents said %q", out.String())
+	}
+}

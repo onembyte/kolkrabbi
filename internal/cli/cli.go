@@ -29,6 +29,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/selfupdate"
 	"github.com/onembyte/kolkrabbi/internal/shell"
+	"github.com/onembyte/kolkrabbi/internal/stats"
 	"github.com/onembyte/kolkrabbi/internal/term"
 )
 
@@ -122,6 +123,9 @@ type app struct {
 	// runRunner runs a model-runner command for `/localia direct`, injected
 	// for the same reason.
 	runRunner func(context.Context, io.Writer, []string) error
+	// agentReport is the running screen's record of the last orchestrated
+	// run, for `/agents`. Nil outside a session, where there is no screen.
+	agentReport func() string
 	// listHostModels reads what that Ollama serves; injected for the same
 	// reason.
 	listHostModels func(ctx context.Context, addr, cacheFile string) ([]local.HostModel, error)
@@ -148,9 +152,16 @@ type app struct {
 	terminalOwned func() bool
 	// readHidden reads a credential through the TUI's masked overlay while the
 	// TUI owns the terminal; nil everywhere else.
-	readHidden     func(ctx context.Context, prompt string) (string, bool)
-	probeHardware  func(context.Context, string) local.Hardware
-	catalog        []provider.ModelInfo
+	readHidden    func(ctx context.Context, prompt string) (string, bool)
+	probeHardware func(context.Context, string) local.Hardware
+	catalog       []provider.ModelInfo
+	// ratings is this machine's own 1–5 ratings per model, folded once per
+	// process. Startup folded the whole usage log twice — once for the
+	// engine's slot selection and once for the continuity candidates
+	// (OPTIMIZATION_PLAN.md O5) — and the fold only changes when somebody
+	// types /rate, which is where it is dropped.
+	ratings        map[string]stats.ModelRating
+	ratingsFolded  bool
 	dashURL        string
 	terminalSize   func(*os.File) (int, int)
 	resizeNotifier func(*os.File) (<-chan struct{}, func())

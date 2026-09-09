@@ -106,7 +106,11 @@ type Controller struct {
 	agentStatuses map[string]AgentStatus
 
 	agentLogs map[string][]string
-	busy      bool
+	// lastRun and lastRunLogs are the run whose window has closed, kept so
+	// what the agents did can still be read (V40.4).
+	lastRun     []AgentStatus
+	lastRunLogs map[string][]string
+	busy        bool
 	// queued holds a request submitted while a turn was still running. The
 	// engine session is stateful, so two turns cannot run at once; the request
 	// waits here and starts the moment the running one finishes.
@@ -640,6 +644,10 @@ func (c *Controller) SetAgentStatus(status AgentStatus) {
 	if current, found := c.agentStatuses[key]; found && status.Sequence != 0 && status.Sequence <= current.Sequence {
 		return
 	}
+	if len(c.agentStatuses) == 0 {
+		// A new run answers the question now; the one before it is over.
+		c.lastRun, c.lastRunLogs = nil, nil
+	}
 	c.agentStatuses[key] = status
 	c.noteAgentStep(key, status.Step)
 	c.syncAgentStatuses()
@@ -673,6 +681,7 @@ const agentLogKeep = 4
 // the count in the status line goes. The runtime calls it a moment after a
 // turn ends, and again when the next turn starts.
 func (c *Controller) CloseAgentWindow() {
+	c.rememberRun()
 	c.clearAgentStatuses()
 	c.screen.SetStatus(c.status)
 }

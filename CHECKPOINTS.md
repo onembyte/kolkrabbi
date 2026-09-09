@@ -10863,8 +10863,14 @@ Subcheckpoints, one at a time:
     the agents that are working, since theirs is the line about to change. The budget follows the
     screen rather than a constant. Red first: three tests at four heights. One older expectation
     re-read, a long task now being clipped for the model. Read as a rendered frame at 132 by 24.
-  - [ ] **V40.4 the table floats and expands** — ephemeral while agents work, details expanded,
-    logs kept so they can be read after the run.
+  - [x] **V40.4 the run's record outlives its window** — closed 2026-09-09. The window is
+    ephemeral on purpose and the linger was already built (V37), but what the agents did died
+    with it: closing the window cleared the statuses and their logs, so a run could not be
+    inspected once it was over. The controller now keeps the run as it closes — every agent in
+    plan order with its model, effort, task, state and steps — and a new run replaces it, because
+    the question is about the run in front of you. `/agents` prints it, and says where the record
+    lives when run outside a session. Red first: three tests, two in the TUI and one on the
+    command.
   - [ ] **V40.5 the full view** — the left arrow opens a navigable table of every agent with its
     goal, effort, model, the task it is on, and its detail.
 - [x] **V39 local models anywhere** — closed 2026-09-09; asked 2026-09-09: use a local model easily, on this machine,

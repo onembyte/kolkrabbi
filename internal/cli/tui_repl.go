@@ -210,6 +210,10 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 	a.readHidden = func(ctx context.Context, prompt string) (string, bool) { return screen.ReadSecret(ctx, prompt) }
 	defer func() { a.readHidden = nil }()
 	a.stdout, a.stderr = screen, screen
+	// `/agents` reads the screen's own record of the run (V40.4).
+	previousReport := a.agentReport
+	a.agentReport = screen.AgentReport
+	defer func() { a.agentReport = previousReport }()
 	ag.Out = screen
 	ag.Activity = screen
 	ag.Work = screen

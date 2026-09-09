@@ -965,3 +965,10 @@ func (r *Runtime) armAgentWindowClose() {
 		r.renderLocked()
 	}()
 }
+
+// AgentReport is what the agents of this run, or the last one, did.
+func (r *Runtime) AgentReport() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.controller.AgentReport()
+}
