@@ -22,6 +22,8 @@ type FakeSession struct {
 	providerState string
 	messages      []provider.Message
 	paused        *continuity.Pause
+	saves         int
+	interimSaves  int
 }
 
 // NewFakeSession creates an in-memory session.
@@ -148,7 +150,30 @@ func (s *FakeSession) AppendMessage(m provider.Message) {
 }
 
 func (s *FakeSession) Save() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.saves++
 	return nil
+}
+
+// SaveInterim is the engine's between-boundaries save. In memory there is
+// nothing cheaper to do than Save, so this counts separately and does the same
+// thing: what the tests care about is how many writes a turn asked for and
+// which kind, not what a filesystem would have done with them.
+func (s *FakeSession) SaveInterim() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.interimSaves++
+	return nil
+}
+
+// SaveCounts reports durable saves and interval saves separately, which is how
+// OPTIMIZATION_PLAN.md O3's "at most ten writes per fifty-round turn" is
+// measured.
+func (s *FakeSession) SaveCounts() (durable, interim int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.saves, s.interimSaves
 }
 
 // FakeCheckpointer is an in-memory checkpointer.

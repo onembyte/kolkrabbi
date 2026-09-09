@@ -37,6 +37,8 @@ func (s *failingSaveSession) Save() error {
 	return errors.New("disk is read-only")
 }
 
+func (s *failingSaveSession) SaveInterim() error { return s.Save() }
+
 // The engine writes everything through Options.Out: in a session that is the
 // terminal renderer, which owns the screen. A warning printed straight to
 // os.Stderr lands outside the renderer's rows and scribbles over the composer.
@@ -44,7 +46,7 @@ func TestSaveWarningGoesThroughTheConfiguredWriter(t *testing.T) {
 	var out strings.Builder
 	agent := &Agent{Options: Options{Out: &out, Sess: &failingSaveSession{}}}
 
-	agent.save()
+	agent.saveFor(saveTurnEnd)
 
 	if !strings.Contains(out.String(), "could not save session") {
 		t.Fatalf("out = %q, want the warning where every other engine message goes", out.String())
@@ -57,7 +59,7 @@ func TestSaveWarningIsPrintedOnlyOnce(t *testing.T) {
 	agent := &Agent{Options: Options{Out: &out, Sess: session}}
 
 	for range 4 {
-		agent.save()
+		agent.saveFor(saveTurnEnd)
 	}
 
 	// A failing disk must not fill the transcript with the same line.

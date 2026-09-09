@@ -92,7 +92,7 @@ func (a *Agent) Resume() (string, bool) {
 		return "", false
 	}
 	a.Sess.SetPaused(nil)
-	a.save()
+	a.saveFor(saveResume)
 	a.publishLimit(pause.Limit(), "resume")
 	return pause.PendingTurn, true
 }
@@ -121,7 +121,7 @@ func (a *Agent) watchPause(ctx context.Context, pause continuity.Pause) {
 				return
 			}
 			a.Sess.SetPaused(nil)
-			a.save()
+			a.saveFor(saveResume)
 			a.publishLimit(pause.Limit(), "resume")
 			what := pause.Model
 			if what == "" {
@@ -144,7 +144,7 @@ func (a *Agent) watchPause(ctx context.Context, pause continuity.Pause) {
 			return
 		}
 		a.Sess.SetPaused(&pause)
-		a.save()
+		a.saveFor(savePause)
 		reason := "still capped"
 		if err != nil {
 			reason = "could not be checked (" + err.Error() + ")"

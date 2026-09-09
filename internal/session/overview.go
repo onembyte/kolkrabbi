@@ -1,10 +1,6 @@
 package session
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 )
@@ -37,75 +33,31 @@ func (c Card) Name() string {
 	return c.ID
 }
 
-// cardFile is the subset of a session file a card needs.
-//
-// Messages is absent on purpose: encoding/json skips a field it has nowhere to
-// put, so a transcript is walked but never allocated. That is the whole reason
-// this type exists next to Session rather than reusing it.
-type cardFile struct {
-	ID        string    `json:"id"`
-	Model     string    `json:"model"`
-	Effort    string    `json:"effort,omitempty"`
-	Connector string    `json:"connector,omitempty"`
-	Title     string    `json:"title"`
-	CWD       string    `json:"cwd,omitempty"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
 // Overview lists every session in dir, newest first, with whether each one is
 // being run right now.
+//
+// The reading is List's: a header per session, and a full decode only for a
+// session written before headers existed (OPTIMIZATION_PLAN.md O6). Liveness
+// is the one thing no header can hold — it is a fact about a running process,
+// not about a file — so it is asked per card, which is a lock probe and not a
+// read.
 func Overview(dir string) ([]Card, error) {
-	entries, err := os.ReadDir(dir)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
+	metas, err := List(dir)
 	if err != nil {
 		return nil, err
 	}
-
-	cards := make([]Card, 0, len(entries))
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".json") {
-			continue
-		}
-		filenameID := strings.TrimSuffix(name, ".json")
-		if err := validateSessionID(filenameID); err != nil {
-			continue
-		}
-		path := filepath.Join(dir, name)
-		info, err := os.Lstat(path)
-		if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-			continue
-		}
-		body, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		var file cardFile
-		if err := json.Unmarshal(body, &file); err != nil {
-			// One unreadable file must not cost the whole list. A session
-			// mid-write looks exactly like a corrupt one for a few
-			// milliseconds, and a dashboard that blanks when that happens is
-			// worse than one that shows a session late.
-			continue
-		}
-		if err := validateSessionID(file.ID); err != nil || file.ID != filenameID {
-			continue
-		}
-		id := file.ID
+	cards := make([]Card, 0, len(metas))
+	for _, m := range metas {
 		cards = append(cards, Card{
-			ID:        id,
-			Title:     file.Title,
-			Model:     file.Model,
-			Effort:    file.Effort,
-			Connector: file.Connector,
-			CWD:       file.CWD,
-			Updated:   file.UpdatedAt,
-			State:     Live(dir, id),
+			ID:        m.ID,
+			Title:     m.Title,
+			Model:     m.Model,
+			Effort:    m.Effort,
+			Connector: m.Connector,
+			CWD:       m.CWD,
+			Updated:   m.UpdatedAt,
+			State:     Live(dir, m.ID),
 		})
 	}
-
-	sort.Slice(cards, func(i, j int) bool { return cards[i].Updated.After(cards[j].Updated) })
 	return cards, nil
 }

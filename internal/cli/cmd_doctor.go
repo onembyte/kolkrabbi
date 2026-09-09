@@ -20,6 +20,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/redact"
 	"github.com/onembyte/kolkrabbi/internal/session"
 	"github.com/onembyte/kolkrabbi/internal/shell"
+	"github.com/onembyte/kolkrabbi/internal/stats"
 	"github.com/onembyte/kolkrabbi/internal/term"
 	"github.com/onembyte/kolkrabbi/internal/tools"
 )
@@ -84,7 +85,54 @@ func (a *app) runDoctor(ctx context.Context, args []string) error {
 	fmt.Fprintln(a.stdout, "\nlimits")
 	a.doctorLimits()
 
+	fmt.Fprintln(a.stdout, "\nsessions")
+	a.doctorSessions()
+
 	return nil
+}
+
+// doctorSessions checks the derived state beside the transcripts: the header
+// every listing reads instead of decoding a session (OPTIMIZATION_PLAN.md O6),
+// and the folded ratings startup reads instead of the whole usage log (O5).
+//
+// Both are caches — the transcript and the usage log are the truth — which is
+// exactly why something has to prove they still agree. Doctor is that
+// something, and it repairs rather than reports: a header that drifted is put
+// back from the transcript it belongs to, which is also the one place an older
+// session directory gets its headers written for the first time.
+func (a *app) doctorSessions() {
+	d, err := a.resolve()
+	if err != nil {
+		fmt.Fprintf(a.stdout, "  ✗ could not locate the session directory: %v\n", err)
+		return
+	}
+	all, err := session.List(d.Sessions())
+	if err != nil {
+		fmt.Fprintf(a.stdout, "  ✗ sessions could not be listed: %v\n", err)
+		return
+	}
+	repaired := 0
+	for _, m := range all {
+		if rewritten, err := session.RepairMeta(d.Sessions(), m.ID); err == nil && rewritten {
+			repaired++
+		}
+	}
+	switch {
+	case len(all) == 0:
+		fmt.Fprintln(a.stdout, "  · no sessions on this machine yet")
+	case repaired == 0:
+		fmt.Fprintf(a.stdout, "  ✓ %d sessions, every header matching its transcript\n", len(all))
+	default:
+		fmt.Fprintf(a.stdout, "  ✓ %d sessions; %d header(s) rebuilt from their transcript\n", len(all), repaired)
+	}
+	switch _, fold, err := stats.RatingsByModelFold(d.Data); {
+	case err != nil:
+		fmt.Fprintf(a.stdout, "  ✗ ratings could not be folded: %v\n", err)
+	case fold == stats.FoldRebuilt:
+		fmt.Fprintln(a.stdout, "  · ratings cache rebuilt from the usage log")
+	default:
+		fmt.Fprintln(a.stdout, "  ✓ ratings cache current")
+	}
 }
 
 // doctorLimits lists the limits kolk remembers for this user -- a plan's window,
@@ -107,21 +155,24 @@ func (a *app) doctorLimits() {
 		fmt.Fprintf(a.stdout, "  · %s (%s)\n", cd.Describe(), cd.Source)
 	}
 	for _, sess := range paused {
-		fmt.Fprintf(a.stdout, "  · session %s %s; kolk resumes it by itself, or /resume inside it now\n", sess.SessionID(), sess.Paused().Notice())
+		fmt.Fprintf(a.stdout, "  · session %s %s; kolk resumes it by itself, or /resume inside it now\n", sess.ID, sess.Pause.Notice())
 	}
 }
 
 // pausedSessions lists the sessions on disk whose pause has not yet lifted.
 // A sessions directory that cannot be read lists nothing; the rest of /doctor
 // still speaks.
-func pausedSessions(dir string) []*session.Session {
+//
+// Read from the session headers, so a machine with hundreds of transcripts
+// answers this without decoding one of them (OPTIMIZATION_PLAN.md O6).
+func pausedSessions(dir string) []session.Meta {
 	all, err := session.List(dir)
 	if err != nil {
 		return nil
 	}
-	var paused []*session.Session
+	var paused []session.Meta
 	for _, sess := range all {
-		if p := sess.Paused(); p != nil && p.ResetAt.After(time.Now()) {
+		if p := sess.Pause; p != nil && p.ResetAt.After(time.Now()) {
 			paused = append(paused, sess)
 		}
 	}

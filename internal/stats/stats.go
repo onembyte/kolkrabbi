@@ -119,6 +119,13 @@ func Append(dir string, r Record) error {
 	if werr != nil {
 		return werr
 	}
+	// A rating is the only record that can change the folded ratings of a turn
+	// already on disk, so it is the one record that drops the cache beside the
+	// log (OPTIMIZATION_PLAN.md O5). Here rather than in RecordRating, because
+	// this is the one door every writer of a rating goes through.
+	if cerr == nil && r.Kind == "rating" {
+		invalidateRatingsCache(dir)
+	}
 	return cerr
 }
 
@@ -154,7 +161,7 @@ func LoadCounted(dir string) ([]Record, int, error) {
 	skipped := 0
 	reader := bufio.NewReaderSize(f, 64*1024)
 	for {
-		line, err := readStatsLine(reader)
+		line, _, err := readStatsLine(reader)
 		if len(line) > 0 || err == nil {
 			switch {
 			case len(bytes.TrimSpace(line)) == 0:
@@ -185,28 +192,35 @@ var errLineTooLong = errors.New("stats line exceeds the maximum record size")
 
 // readStatsLine returns one line, discarding the remainder of any line too long
 // to be a record so that reading can continue with the next one.
-func readStatsLine(reader *bufio.Reader) ([]byte, error) {
-	var line []byte
+//
+// raw is how many bytes of the file the line occupied, terminator included.
+// The ratings cache folds forward from a byte offset (OPTIMIZATION_PLAN.md
+// O5), so it needs to count what it consumed, and counting the trimmed line
+// would drift by one byte per record.
+func readStatsLine(reader *bufio.Reader) (line []byte, raw int, err error) {
 	for {
-		chunk, err := reader.ReadSlice('\n')
+		chunk, cerr := reader.ReadSlice('\n')
+		raw += len(chunk)
 		if len(line)+len(chunk) > maxStatsLine {
 			// Drain to the end of this line, then report it as one skip.
-			for errors.Is(err, bufio.ErrBufferFull) {
-				_, err = reader.ReadSlice('\n')
+			for errors.Is(cerr, bufio.ErrBufferFull) {
+				var rest []byte
+				rest, cerr = reader.ReadSlice('\n')
+				raw += len(rest)
 			}
-			if errors.Is(err, io.EOF) {
-				return nil, io.EOF
+			if errors.Is(cerr, io.EOF) {
+				return nil, raw, io.EOF
 			}
-			return nil, errLineTooLong
+			return nil, raw, errLineTooLong
 		}
 		line = append(line, chunk...)
-		if err == nil {
-			return bytes.TrimRight(line, "\r\n"), nil
+		if cerr == nil {
+			return bytes.TrimRight(line, "\r\n"), raw, nil
 		}
-		if errors.Is(err, bufio.ErrBufferFull) {
+		if errors.Is(cerr, bufio.ErrBufferFull) {
 			continue
 		}
-		return bytes.TrimRight(line, "\r\n"), err
+		return bytes.TrimRight(line, "\r\n"), raw, cerr
 	}
 }
 

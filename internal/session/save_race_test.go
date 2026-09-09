@@ -33,3 +33,38 @@ func TestSaveAndAppendShareOneSynchronization(t *testing.T) {
 	}()
 	wg.Wait()
 }
+
+// SaveInterim takes the same snapshot under the same lock as Save; only the
+// directory fsync differs. The engine calls it from the tool loop while a turn
+// appends, so the two meet exactly as Save and AppendMessage do, and the same
+// assertion applies (OPTIMIZATION_PLAN.md O3).
+func TestSaveInterimSharesTheSameSynchronizationAsSave(t *testing.T) {
+	s := New(t.TempDir(), "model")
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 200; i++ {
+			s.AppendMessage(provider.Message{Role: "user", Content: fmt.Sprintf("message %d", i)})
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 50; i++ {
+			if err := s.SaveInterim(); err != nil {
+				t.Error(err)
+				return
+			}
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 25; i++ {
+			if err := s.Save(); err != nil {
+				t.Error(err)
+				return
+			}
+		}
+	}()
+	wg.Wait()
+}

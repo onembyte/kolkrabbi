@@ -65,6 +65,6 @@ func (a *Agent) trimLastTurn() int {
 	kept := make([]provider.Message, start)
 	copy(kept, messages[:start])
 	a.Sess.SetMessages(kept)
-	a.save()
+	a.saveFor(saveUndo)
 	return len(messages) - start
 }

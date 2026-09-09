@@ -243,7 +243,9 @@ func TestStoredCredentialCompletesOfflineDefaultTurn(t *testing.T) {
 	}
 	var sessionFiles []string
 	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
+		// The header a save writes beside each transcript is not a second
+		// session (OPTIMIZATION_PLAN.md O6); this counts transcripts.
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") && !strings.HasSuffix(entry.Name(), ".meta.json") {
 			sessionFiles = append(sessionFiles, entry.Name())
 		}
 	}

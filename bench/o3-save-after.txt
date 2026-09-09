@@ -1,0 +1,15 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/onembyte/kolkrabbi/internal/session
+cpu: Apple M3
+BenchmarkSave/100KB-8         	     158	   6529629 ns/op	  16.33 MB/s	  343993 B/op	      23 allocs/op
+BenchmarkSave/100KB-8         	     166	   7222105 ns/op	  14.77 MB/s	  342907 B/op	      23 allocs/op
+BenchmarkSave/100KB-8         	     181	   6418185 ns/op	  16.62 MB/s	  358685 B/op	      24 allocs/op
+BenchmarkSave/1MB-8           	      92	  11021877 ns/op	  98.85 MB/s	 5215174 B/op	      43 allocs/op
+BenchmarkSave/1MB-8           	     100	  10470043 ns/op	 104.06 MB/s	 5323951 B/op	      44 allocs/op
+BenchmarkSave/1MB-8           	      99	  10989650 ns/op	  99.14 MB/s	 5264239 B/op	      43 allocs/op
+BenchmarkSave/5MB-8           	      39	  28206121 ns/op	 193.10 MB/s	19458228 B/op	      29 allocs/op
+BenchmarkSave/5MB-8           	      40	  28724245 ns/op	 189.62 MB/s	20954539 B/op	      31 allocs/op
+BenchmarkSave/5MB-8           	      40	  29399969 ns/op	 185.26 MB/s	24634162 B/op	      38 allocs/op
+PASS
+ok  	github.com/onembyte/kolkrabbi/internal/session	12.838s

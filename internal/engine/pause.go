@@ -49,7 +49,7 @@ func (a *Agent) pauseIfWaitingHelps(ctx context.Context, err error, pending stri
 		a.Sess.SetMessages(msgs[:len(msgs)-1])
 	}
 	a.Sess.SetPaused(&pause)
-	a.save()
+	a.saveFor(savePause)
 	a.publishLimit(limit, "pause")
 	if a.Bus != nil {
 		data, _ := json.Marshal(protocol.TurnFinishedData{Reason: "paused", RawReason: pause.HumanKind() + " until " + pause.ResetAt.UTC().Format(time.RFC3339)})
@@ -74,7 +74,7 @@ func (a *Agent) stillPaused() *PausedError {
 	}
 	if !p.ResetAt.After(time.Now()) {
 		a.Sess.SetPaused(nil)
-		a.save()
+		a.saveFor(saveResume)
 		if p.PendingTurn != "" {
 			fmt.Fprintf(a.Out, "◆ the pause has lifted; the turn that was waiting (%q) was not re-sent\n", compactToolText(p.PendingTurn))
 		}

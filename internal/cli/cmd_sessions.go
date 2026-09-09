@@ -105,8 +105,8 @@ func (a *app) runSessions(_ context.Context, args []string) error {
 	}
 	for _, s := range all {
 		fmt.Fprintf(a.stdout, "%-22s %s  %-32s msgs:%-4d %s%s%s\n",
-			s.ID, s.UpdatedAt.Format("2006-01-02 15:04"), s.Model, len(s.Messages),
-			sessionCost(costs, s.ID), snapshotSize(s), s.Title)
+			s.ID, s.UpdatedAt.Format("2006-01-02 15:04"), s.Model, s.MessageCount,
+			sessionCost(costs, s.ID), snapshotSize(sdir, s.ID), s.Title)
 	}
 	a.reportBlockedSessions(sdir)
 	a.warnAboutSharedCheckouts(sdir)
@@ -126,7 +126,7 @@ func (a *app) runSessions(_ context.Context, args []string) error {
 // A session written before Session.CWD existed has no directory and cannot be
 // attributed to one. Those are counted rather than shown, and named in a line
 // that says how to see them: hiding them silently would lose them.
-func scopeSessionsToFolder(all []*session.Session, everywhere bool) (kept []*session.Session, elsewhere int) {
+func scopeSessionsToFolder(all []session.Meta, everywhere bool) (kept []session.Meta, elsewhere int) {
 	if everywhere {
 		return all, 0
 	}
@@ -190,13 +190,13 @@ func (a *app) searchSessions(dir, phrase string, everywhere bool) error {
 	needle := strings.ToLower(strings.TrimSpace(phrase))
 	matched := 0
 	for _, candidate := range all {
-		if !sessionMatches(candidate, needle) {
+		if !sessionMatches(dir, candidate, needle) {
 			continue
 		}
 		matched++
 		fmt.Fprintf(a.stdout, "%-22s %s  %-32s msgs:%-4d %s\n",
 			candidate.ID, candidate.UpdatedAt.Format("2006-01-02 15:04"),
-			candidate.Model, len(candidate.Messages), candidate.Title)
+			candidate.Model, candidate.MessageCount, candidate.Title)
 	}
 	if matched == 0 {
 		fmt.Fprintf(a.stdout, "no session matches %q\n", phrase)
@@ -205,11 +205,24 @@ func (a *app) searchSessions(dir, phrase string, everywhere bool) error {
 	return nil
 }
 
-func sessionMatches(s *session.Session, needle string) bool {
-	if strings.Contains(strings.ToLower(s.Title), needle) {
+// sessionMatches asks the header first and the transcript only if it must.
+//
+// A title is what a session is usually remembered by, and it is already in
+// hand; decoding a megabyte of messages for a session whose title already
+// matched is work nobody asked for (OPTIMIZATION_PLAN.md O6). A session that
+// cannot be decoded simply does not match on its text.
+func sessionMatches(dir string, m session.Meta, needle string) bool {
+	if strings.Contains(strings.ToLower(m.Title), needle) {
 		return true
 	}
-	for _, message := range s.Messages {
+	if m.MessageCount == 0 {
+		return false
+	}
+	loaded, err := session.Load(dir, m.ID)
+	if err != nil {
+		return false
+	}
+	for _, message := range loaded.Messages {
 		if strings.Contains(strings.ToLower(message.Content), needle) {
 			return true
 		}
@@ -309,8 +322,8 @@ func loadSession(dir, id string) (*session.Session, error) {
 // One stat decides that, before any walking. Most sessions have no store, and a
 // listing that walked a directory per session would be the second time a
 // convenience made this command slow.
-func snapshotSize(s *session.Session) string {
-	store := filepath.Join(s.CkptDir(), "shadow.git")
+func snapshotSize(dir, id string) string {
+	store := filepath.Join(dir, id+".ckpt", "shadow.git")
 	if info, err := os.Stat(store); err != nil || !info.IsDir() {
 		return ""
 	}

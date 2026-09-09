@@ -50,7 +50,7 @@ func (a *Agent) ContinueOn(ctx context.Context, from int) (string, continuity.Ca
 		}
 		a.stopResumeMonitor()
 		a.Sess.SetPaused(nil)
-		a.save()
+		a.saveFor(saveChainSwitch)
 		fmt.Fprintf(a.Out, "◆ %s/%s %s; continuing on %s at %s (%s)\n",
 			limit.Connector, limit.Model, pause.HumanKind(), label, a.Effort, billingWordFor(candidate))
 		a.publishLimit(provider.Limit{Kind: limit.Kind, Scope: limit.Scope, Model: candidate.Model, Connector: candidate.Connector, Source: "chain"}, "switch")

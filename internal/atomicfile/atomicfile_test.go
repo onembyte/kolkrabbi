@@ -180,3 +180,52 @@ func TestWriteReportsAMissingDirectory(t *testing.T) {
 		t.Errorf("err = %v, should say where it got stuck", err)
 	}
 }
+
+// SkipDirSync gives up one fsync and nothing else: the replacement is still
+// atomic, the bytes are still the new ones, and the temp file is still gone.
+func TestWriteWithSkipDirSyncStillReplacesAtomically(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "session.json")
+
+	if err := Write(p, []byte("boundary"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteWith(p, []byte("interval"), 0o600, WriteOptions{SkipDirSync: true}); err != nil {
+		t.Fatalf("interval write: %v", err)
+	}
+
+	if b, _ := os.ReadFile(p); string(b) != "interval" {
+		t.Errorf("got %q, want the interval write's contents", b)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		// A skipped directory sync must not mean a skipped cleanup: debris
+		// beside a session directory is how a sessions listing fills with junk.
+		t.Errorf("directory holds %d entries, want only the target", len(entries))
+	}
+	info, err := os.Stat(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("mode = %v, want 0600", perm)
+	}
+}
+
+// The zero value is the durable one, so a caller who never heard of options
+// keeps the guarantee this package exists for.
+func TestWriteDefaultsToSyncingTheDirectory(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "x")
+	if err := WriteWith(p, []byte("durable"), 0o600, WriteOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(p); string(b) != "durable" {
+		t.Errorf("got %q, want durable", b)
+	}
+	if (WriteOptions{}).SkipDirSync {
+		t.Error("the zero WriteOptions skips the directory sync; the default must be the safe one")
+	}
+}

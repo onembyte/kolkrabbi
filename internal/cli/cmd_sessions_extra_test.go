@@ -110,17 +110,17 @@ func TestSessionsForkLeavesTheOriginalUntouched(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var fork *session.Session
+	var fork session.Meta
 	for _, candidate := range all {
 		if candidate.ID != first.ID && strings.Contains(candidate.Title, "fork") {
 			fork = candidate
 		}
 	}
-	if fork == nil {
+	if fork.ID == "" {
 		t.Fatalf("no fork was created among %d sessions", len(all))
 	}
-	if len(fork.Messages) != 2 {
-		t.Fatalf("fork carries %d messages, want the original's history", len(fork.Messages))
+	if fork.MessageCount != 2 {
+		t.Fatalf("fork carries %d messages, want the original's history", fork.MessageCount)
 	}
 	if !strings.Contains(out.String(), fork.ID) {
 		t.Fatalf("output = %q, want the new id so it can be resumed", out.String())

@@ -246,6 +246,12 @@ type Options struct {
 	Out      io.Writer     // defaults to os.Stdout
 	Recorder Recorder      // records stats/ratings; nil disables stats
 	Clock    Clock         // nil defaults to time.Now
+	// SaveInterval bounds how often the tool loop writes the transcript when a
+	// round changed nothing on disk. Zero selects defaultSaveInterval (2s); a
+	// negative interval turns coalescing off, so every save reaches disk —
+	// the rollback switch named in OPTIMIZATION_PLAN.md O3. Boundaries ignore
+	// it either way.
+	SaveInterval time.Duration
 	// RetryWait is the cancellable wait used between bounded provider retries.
 	// Nil selects the real timer; tests inject it to keep retry gates instant.
 	RetryWait func(context.Context, time.Duration) error
@@ -391,6 +397,15 @@ type ChatBackend interface {
 type Agent struct {
 	Options
 	lastTurnID string
+	// turnDepth is how many turns are running on this agent right now, which
+	// for everything outside is the single question "is it streaming?".
+	//
+	// A counter rather than a flag because a turn can continue into another
+	// one — a continuity hop re-enters RunTurn — and a flag would clear on the
+	// inner one's return. Atomic because the only readers are elsewhere: the
+	// surface's background vendor discovery stands aside while a turn has the
+	// CPU and the disk (OPTIMIZATION_PLAN.md O8.3).
+	turnDepth atomic.Int32
 	// loadExtraOnce starts the extra tool servers on the first tool listing.
 	loadExtraOnce sync.Once
 	// hopsThisRun bounds the automatic chain per run, and askedThisRun keeps
@@ -456,13 +471,20 @@ type Agent struct {
 	// tool calls may still be reading it, and phase F runs several at once.
 	rulesMu     sync.RWMutex
 	lastArchive string
-	saveWarned  bool
+	// saveState coalesces transcript writes, and owns the once-per-session
+	// save warning; see save.go for the table that decides which moments write
+	// and which only mark.
+	saveState saveState
 }
 
 // Close releases resources owned by the configured backend, when it exposes
 // an optional lifecycle.
 func (a *Agent) Close() error {
 	var first error
+	// Whatever the tool loop was still holding: this is the last boundary a
+	// session has, and after O3 it is the one that carries the interval's
+	// worth of coalesced messages.
+	a.flush(saveTurnEnd)
 	a.stopResumeMonitor()
 	// Routes first: a host server kolk started is the thing most worth
 	// stopping, and it must stop even if the session backend's Close fails.
@@ -596,7 +618,7 @@ func (a *Agent) refreshSystemPrompt() {
 	}
 	msgs[0] = provider.Message{Role: "system", Content: a.systemPrompt(a.Mode)}
 	a.Sess.SetMessages(msgs)
-	a.save()
+	a.saveFor(saveSystemPrompt)
 }
 
 // SetEffort validates, normalizes and sets the effort level.
@@ -744,7 +766,7 @@ func (a *Agent) SetExtraSystem(extra string) {
 	}
 	msgs[0] = provider.Message{Role: "system", Content: a.systemPrompt(a.Mode)}
 	a.Sess.SetMessages(msgs)
-	a.save()
+	a.saveFor(saveSystemPrompt)
 }
 
 // readMemory loads one memory file, capped at a line boundary.
@@ -807,19 +829,6 @@ func (a *Agent) repairDanglingToolCalls() {
 	a.Sess.SetMessages(msgs)
 }
 
-func (a *Agent) save() {
-	if a.Sess == nil {
-		return
-	}
-	// Through Out, not os.Stderr: in a session Out is the terminal renderer,
-	// which owns the screen, and anything printed around it lands outside the
-	// rows it manages and scribbles over the composer.
-	if err := a.Sess.Save(); err != nil && !a.saveWarned {
-		fmt.Fprintf(a.Out, "\nwarning: could not save session: %v\n", err)
-		a.saveWarned = true
-	}
-}
-
 // record appends a stats line; never fatal, warn once.
 func (a *Agent) record(role string, meta provider.Meta, toolCalls int) {
 	a.recordAtEffort(role, meta, toolCalls, a.Effort)
@@ -862,6 +871,13 @@ func (a *Agent) recordAtEffort(role string, meta provider.Meta, toolCalls int, e
 }
 
 // RateLast attaches a 1–5 rating to the most recent turn.
+// TurnActive reports whether this agent is running a turn right now.
+//
+// For work that is not the turn: the person is waiting on tokens, and anything
+// else touching the same disk and CPU is felt. Never a lock — the answer is a
+// hint that is allowed to be one scheduling moment out of date.
+func (a *Agent) TurnActive() bool { return a.turnDepth.Load() > 0 }
+
 func (a *Agent) RateLast(rating int) error {
 	if rating < 1 || rating > 5 {
 		return fmt.Errorf("rating must be 1-5")
@@ -879,6 +895,12 @@ func (a *Agent) confirm(ctx context.Context, confirmation Confirmation) (bool, p
 	if a.Decider == nil {
 		return false, protocol.PermissionDecisionDeny
 	}
+	// Every prompt is a boundary, and this is the one function all of them go
+	// through — the permission guard, the doom-loop question, and whatever
+	// asks next. A person answering is the longest pause in a turn and so the
+	// likeliest moment to be killed, closed or unplugged; everything said up
+	// to the question is on disk before it is asked.
+	a.flush(savePermissionPrompt)
 
 	action, detail := confirmation.Action, confirmation.Detail
 	permID := xid.New(xid.Call)
@@ -1052,8 +1074,18 @@ func actionLabel(r tools.Request) string {
 	}
 }
 
-// preWrite is the checkpoint hook handed to tools.Execute.
+// preWrite is the checkpoint hook handed to tools.Execute, and the one
+// boundary the coalescing in save.go must never cross without writing.
+//
+// The transcript is flushed before the tool touches the tree, so a machine that
+// dies with the file already changed still has the call that changed it on
+// disk: /undo pairs a checkpoint with a turn the transcript mentions, and the
+// repair on the next start has a dangling tool call to answer rather than a
+// silent gap. noteFileWrite then promotes this round's own save from the
+// interval to a durable one, so the *result* is no staler than the files.
 func (a *Agent) preWrite(tool, path string) error {
+	a.flush(saveFileWrite)
+	a.noteFileWrite()
 	if a.Ckpt == nil {
 		return nil
 	}
@@ -1363,6 +1395,8 @@ func (a *Agent) window() int {
 
 // RunTurn dispatches a user message according to the current mode.
 func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
+	a.turnDepth.Add(1)
+	defer a.turnDepth.Add(-1)
 	// A paused session spends nothing until its limit lifts (plan 35 §2.2).
 	if paused := a.stillPaused(); paused != nil {
 		return paused
@@ -1370,6 +1404,10 @@ func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 	// The rung travels with the turn so a keyed vendor client can say it in
 	// the vendor's word; the gateway and compatible endpoints ignore it.
 	ctx = provider.WithEffort(ctx, a.Effort)
+	// The turn's own boundary, deferred so the paused return, the continuity
+	// hop and the error paths all reach it. It writes only when something is
+	// still pending, so a nested RunTurn costs one write, not two.
+	defer a.flush(saveTurnEnd)
 	pending := userInput
 	a.lastTurnID = xid.New(xid.Turn)
 	a.resetMainWork()
@@ -1485,7 +1523,7 @@ func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 	if a.Sess != nil {
 		a.Sess.AppendMessage(provider.Message{Role: "user", Content: userInput})
-		a.save()
+		a.saveFor(saveUserMessage)
 	}
 
 	model := a.modelFor(a.Effort)
@@ -1574,7 +1612,7 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 
 		if a.Sess != nil {
 			a.Sess.AppendMessage(msg)
-			a.save()
+			a.saveFor(saveAssistantMessage)
 		}
 
 		if len(msg.ToolCalls) == 0 {
@@ -1631,7 +1669,7 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 			}
 		}
 		if a.Sess != nil {
-			a.save()
+			a.saveFor(saveToolRound)
 			requestMessages = a.Sess.GetMessages()
 		}
 		// loop: send tool results back to the model for its next step

@@ -252,3 +252,28 @@ func TestModeRoundtrips(t *testing.T) {
 		t.Fatalf("mode = %q / %q, want agent", got.Mode, got.SessionMode())
 	}
 }
+
+// An interval save is a real save: the file it leaves behind is the whole
+// session, loadable, with nothing half-written in it. What it gives up is the
+// directory fsync, which no reader can observe (OPTIMIZATION_PLAN.md O3).
+func TestSaveInterimWritesALoadableSession(t *testing.T) {
+	dir := t.TempDir()
+	s := New(dir, "vendor/model")
+	s.AppendMessage(provider.Message{Role: "user", Content: "coalesced"})
+
+	if err := s.SaveInterim(); err != nil {
+		t.Fatalf("SaveInterim: %v", err)
+	}
+
+	loaded, err := Load(dir, s.ID)
+	if err != nil {
+		t.Fatalf("loading what the interval save wrote: %v", err)
+	}
+	messages := loaded.GetMessages()
+	if len(messages) != 1 || messages[0].Content != "coalesced" {
+		t.Fatalf("loaded %d messages (%+v), want the one that was appended", len(messages), messages)
+	}
+	if loaded.Model != "vendor/model" {
+		t.Errorf("model = %q, want the whole session written, not a fragment", loaded.Model)
+	}
+}

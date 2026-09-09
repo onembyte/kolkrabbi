@@ -203,8 +203,12 @@ aborts that run.
 
 ## Sessions, checkpoints, project memory
 
-- **Sessions** auto-save after every step (atomic writes) to
-  `~/.config/kolk/sessions/`; resume with `-r`/`-s <id>`. `-r` resumes the work
+- **Sessions** auto-save at every step that matters (atomic writes) to
+  `~/.config/kolk/sessions/`: the end of a turn, either side of a tool that
+  changes your files, before a permission prompt, and on pause, `/undo` and
+  `/compact`. Chat between those is coalesced and written at most every two
+  seconds, so a long tool run costs a handful of writes rather than one per
+  message. Resume with `-r`/`-s <id>`. `-r` resumes the work
   done in *this* directory, and says so when it reaches into another project.
   Interrupted tool calls are repaired on resume so the history stays API-valid.
   `kolk sessions search|rename|fork|export` covers the rest.

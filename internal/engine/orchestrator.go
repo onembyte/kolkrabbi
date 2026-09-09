@@ -49,7 +49,7 @@ func maxTasksFor(effort string) int {
 // so its history stays small and valid.
 func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 	a.Sess.AppendMessage(provider.Message{Role: "user", Content: userInput})
-	a.save()
+	a.saveFor(saveUserMessage)
 
 	model := a.orchestrationModel()
 	maxTasks := maxTasksFor(a.Effort)
@@ -77,7 +77,7 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 		if len(msgs) > 0 {
 			a.Sess.SetMessages(msgs[:len(msgs)-1])
 		}
-		a.save()
+		a.saveFor(saveOrchestratorStep)
 		return a.runLoop(ctx, userInput)
 	}
 
@@ -129,7 +129,7 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 
 	// the main session only records the final answer: valid, compact history
 	a.Sess.AppendMessage(provider.Message{Role: "assistant", Content: msg.Content})
-	a.save()
+	a.saveFor(saveAssistantMessage)
 	a.footer(meta)
 	// The footer reports the synthesis call. What the user actually spent is
 	// the whole run, and that number exists nowhere else.

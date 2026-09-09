@@ -39,12 +39,49 @@ func (e *DurabilityError) Error() string {
 
 func (e *DurabilityError) Unwrap() error { return e.Err }
 
+// WriteOptions tunes one replacement. Its zero value is what every caller had
+// before options existed, so a caller that does not care keeps the strongest
+// guarantee by default.
+type WriteOptions struct {
+	// SkipDirSync leaves the directory entry unsynced after the rename.
+	//
+	// The file's own bytes are still fsynced and the rename is still atomic,
+	// so no reader ever sees a torn or empty file and no crashed process loses
+	// anything: what is given up is survival of a power cut in the window
+	// before the OS flushes the directory, where the *previous* contents come
+	// back instead of the new ones. Only a write that will be repeated shortly
+	// may ask for this — the engine's interval save between two turn
+	// boundaries (OPTIMIZATION_PLAN.md O3), never a boundary itself.
+	SkipDirSync bool
+	// SkipFileSync leaves the new contents in the page cache rather than
+	// fsyncing them before the rename.
+	//
+	// The replacement is still atomic — a reader sees the old file or the new
+	// one, never a mixture — and a crashed process still loses nothing,
+	// because the page cache outlives it. What is given up is survival of a
+	// power cut, which is only acceptable for a file that can be rebuilt from
+	// one that was written durably: the session header beside a transcript
+	// (OPTIMIZATION_PLAN.md O6). Never for anything a person could not
+	// reconstruct.
+	SkipFileSync bool
+}
+
 // Write replaces path with data, atomically.
 //
 // A reader either sees the previous contents or the new ones, never a mixture
 // and never an empty file. On success the data is on disk, not merely in the
 // page cache.
+//
+// The signature stays three arguments rather than growing a variadic option:
+// internal/selfupdate and the saga executor hold Write as a
+// func(string, []byte, os.FileMode) error, and a seam that a fake can stand in
+// for is worth more than one spelling for two callers.
 func Write(path string, data []byte, perm os.FileMode) error {
+	return WriteWith(path, data, perm, WriteOptions{})
+}
+
+// WriteWith is Write with the durability of the rename made explicit.
+func WriteWith(path string, data []byte, perm os.FileMode, opts WriteOptions) error {
 	dir := filepath.Dir(path)
 
 	// The temp file must be in the same directory as the target: rename cannot
@@ -72,8 +109,10 @@ func Write(path string, data []byte, perm os.FileMode) error {
 	if _, err := tmp.Write(data); err != nil {
 		return cleanup(fmt.Errorf("writing %s: %w", tmpName, err))
 	}
-	if err := tmp.Sync(); err != nil {
-		return cleanup(fmt.Errorf("flushing %s to disk: %w", tmpName, err))
+	if !opts.SkipFileSync {
+		if err := tmp.Sync(); err != nil {
+			return cleanup(fmt.Errorf("flushing %s to disk: %w", tmpName, err))
+		}
 	}
 	if err := tmp.Close(); err != nil {
 		_ = os.Remove(tmpName)
@@ -89,6 +128,9 @@ func Write(path string, data []byte, perm os.FileMode) error {
 	// is not worth failing the write over — the data is committed and visible;
 	// only its survival of an immediate power loss is in question — so it is
 	// returned and callers may choose to ignore it.
+	if opts.SkipDirSync {
+		return nil
+	}
 	if err := syncDir(dir); err != nil {
 		return &DurabilityError{Path: path, Err: err}
 	}

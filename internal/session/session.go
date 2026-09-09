@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -141,8 +140,15 @@ func New(dir, model string) *Session {
 	// working directory leaves it empty, which simply means "no project",
 	// rather than tying the session to the wrong one.
 	cwd, _ := os.Getwd()
+	// xid.New(xid.Session) is valid by construction; the check is here so
+	// that "every constructor validates" is a property of the code and not of
+	// a reader's memory of what xid.New returns.
+	id := xid.New(xid.Session)
+	if err := validateSessionID(id); err != nil {
+		panic(fmt.Sprintf("session: xid.New produced an invalid session id: %v", err))
+	}
 	return &Session{
-		ID:        xid.New(xid.Session),
+		ID:        id,
 		Model:     model,
 		CreatedAt: now,
 		CWD:       cwd,
@@ -166,14 +172,19 @@ func LatestForDir(dir, cwd string) (*Session, error) {
 	if len(all) == 0 {
 		return nil, nil
 	}
+	// Headers decide which one; only that one is decoded. Resuming used to
+	// unmarshal every transcript in the directory to read one field from each
+	// (OPTIMIZATION_PLAN.md O6).
+	chosen := all[0]
 	if cwd != "" {
 		for _, candidate := range all {
 			if candidate.CWD != "" && sameDir(candidate.CWD, cwd) {
-				return candidate, nil
+				chosen = candidate
+				break
 			}
 		}
 	}
-	return all[0], nil
+	return Load(dir, chosen.ID)
 }
 
 // sameDir compares directories through symlinks, so /tmp and /private/tmp are
@@ -194,27 +205,36 @@ func validateSessionID(id string) error {
 	return nil
 }
 
-func (s *Session) path() string {
+// mustValidID guards the three path derivations below.
+//
+// Reaching it is a programming error, not a bad input: an ID that came from
+// disk or from a user is rejected as an error by Load, Delete and the rest
+// before any path is derived from it, and New generates one. What is left is a
+// Session assembled by hand -- a zero value, or a struct literal in a future
+// caller -- and for that a crash naming the cause beats silently writing to
+// ".json" in the session directory. TestEveryConstructorValidatesTheID keeps
+// this unreachable as constructors are added.
+func (s *Session) mustValidID() {
 	if err := validateSessionID(s.ID); err != nil {
-		panic(err)
+		panic(fmt.Sprintf("session: unvalidated ID; construct through New or Load (%v)", err))
 	}
+}
+
+func (s *Session) path() string {
+	s.mustValidID()
 	return filepath.Join(s.dir, s.ID+".json")
 }
 
 // CooldownsFile holds this session's own remembered limits (model and endpoint
 // scope); the user-wide ones live with the connectors.
 func (s *Session) CooldownsFile() string {
-	if err := validateSessionID(s.ID); err != nil {
-		panic(err)
-	}
+	s.mustValidID()
 	return filepath.Join(s.dir, s.ID+".cooldowns.json")
 }
 
 // CkptDir is where this session's file checkpoints are stored.
 func (s *Session) CkptDir() string {
-	if err := validateSessionID(s.ID); err != nil {
-		panic(err)
-	}
+	s.mustValidID()
 	return filepath.Join(s.dir, s.ID+".ckpt")
 }
 
@@ -226,24 +246,56 @@ func (s *Session) CkptDir() string {
 // power loss) and a unique temp name (a REPL in one terminal and `kolk -p` in
 // another used to write the same "x.json.tmp" and shred each other).
 func (s *Session) Save() error {
+	return s.write(atomicfile.WriteOptions{})
+}
+
+// SaveInterim is Save between two boundaries rather than at one.
+//
+// It writes and fsyncs the same bytes; what it skips is the fsync of the
+// directory entry the rename created. A crashed kolk still finds this
+// transcript, because the page cache outlives the process; a power cut in the
+// window before the OS flushes that directory finds the previous transcript
+// instead of this one. That is the trade the engine makes for its interval
+// save (OPTIMIZATION_PLAN.md O3) and only for that save — every boundary a
+// person can notice (turn end, pause, /undo, /compact, a permission prompt, a
+// tool about to change a file) goes through Save.
+func (s *Session) SaveInterim() error {
+	return s.write(atomicfile.WriteOptions{SkipDirSync: true})
+}
+
+func (s *Session) write(opts atomicfile.WriteOptions) error {
 	if err := validateSessionID(s.ID); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
 		return err
 	}
-	s.UpdatedAt = time.Now()
 	// The snapshot is taken under the same lock the mutations hold, so what
 	// reaches disk is a state the session was actually in -- never a slice
 	// half-appended by the turn that is running while the autosave fires
 	// (V34.2b). The write itself happens outside the lock.
+	//
+	// UpdatedAt is stamped inside that lock, not before it. Outside, two saves
+	// racing wrote the same field while a third marshalled it -- found by the
+	// race detector on 2026-09-09 when O3 gave the tool loop a second kind of
+	// save and the test grew a second saving goroutine. It was never a
+	// coalescing bug; one saver simply hid it.
 	s.messagesMu.Lock()
+	s.UpdatedAt = time.Now()
 	b, err := json.MarshalIndent(s, "", " ")
+	header := s.meta()
 	s.messagesMu.Unlock()
 	if err != nil {
 		return err
 	}
-	return atomicfile.Write(s.path(), b, 0o600)
+	if err := atomicfile.WriteWith(s.path(), b, 0o600, opts); err != nil {
+		return err
+	}
+	// The header last, and only once the transcript it describes is on disk:
+	// a listing may be one save behind, and must never be one save ahead of
+	// what the transcript says (OPTIMIZATION_PLAN.md O6).
+	writeMeta(s.dir, header)
+	return nil
 }
 
 // SetTitleFromInput sets a human-readable title from the first user message.
@@ -391,31 +443,6 @@ func Load(dir, id string) (*Session, error) {
 	return &s, nil
 }
 
-// List returns all sessions in dir, newest first.
-func List(dir string) ([]*Session, error) {
-	entries, err := os.ReadDir(dir)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var out []*Session
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".json") {
-			continue
-		}
-		s, err := Load(dir, strings.TrimSuffix(name, ".json"))
-		if err != nil {
-			continue // skip corrupt files rather than failing the whole list
-		}
-		out = append(out, s)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].UpdatedAt.After(out[j].UpdatedAt) })
-	return out, nil
-}
-
 // Latest returns the most recently updated session, or nil if none exist.
 func Latest(dir string) (*Session, error) {
 	all, err := List(dir)
@@ -425,7 +452,7 @@ func Latest(dir string) (*Session, error) {
 	if len(all) == 0 {
 		return nil, nil
 	}
-	return all[0], nil
+	return Load(dir, all[0].ID)
 }
 
 // CompactionArchives are the pre-compaction conversations kept for one session.
@@ -459,6 +486,11 @@ func Delete(dir, id string) error {
 	}
 	if err := os.Remove(filepath.Join(dir, id+".cooldowns.json")); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("removing remembered limits: %w", err)
+	}
+	// The header goes with the transcript it describes; a header left behind
+	// is a session that still appears in every listing.
+	if err := os.Remove(metaPath(dir, id)); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("removing session header: %w", err)
 	}
 	// RemoveAll is nil for a path that does not exist, so this only reports a
 	// checkpoint directory that really could not be removed — which matters,

@@ -312,7 +312,7 @@ func (a *Agent) titleSessionIfNeeded(ctx context.Context) {
 		return
 	}
 	if a.Sess.SetAutoTitle(strings.TrimSpace(title)) {
-		a.save()
+		a.saveFor(saveAutoTitle)
 	}
 }
 

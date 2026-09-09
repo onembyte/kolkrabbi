@@ -42,6 +42,11 @@ type SessionPort interface {
 	SetMessages([]provider.Message)
 	AppendMessage(provider.Message)
 	Save() error
+	// SaveInterim writes the transcript between two boundaries: same bytes,
+	// same atomic rename, without the directory fsync a boundary earns. The
+	// engine's interval save is its only caller (OPTIMIZATION_PLAN.md O3); an
+	// implementation with nothing cheaper to offer may just call Save.
+	SaveInterim() error
 	// Paused is the limit the session is stopped on, or nil; SetPaused records or
 	// clears it. Persisted with the session (plan 35 §2.2).
 	Paused() *continuity.Pause

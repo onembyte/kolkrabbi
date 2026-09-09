@@ -1,0 +1,21 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/onembyte/kolkrabbi/internal/session
+cpu: Apple M3
+BenchmarkSave/100KB-8     	      20	   6713790 ns/op	  15.89 MB/s	  358708 B/op	      40 allocs/op
+BenchmarkSave/100KB-8     	      20	   7445152 ns/op	  14.33 MB/s	  358979 B/op	      40 allocs/op
+BenchmarkSave/100KB-8     	      20	   7535858 ns/op	  14.15 MB/s	  358708 B/op	      40 allocs/op
+BenchmarkSave/1MB-8       	      20	  10906379 ns/op	  99.90 MB/s	 5112778 B/op	      60 allocs/op
+BenchmarkSave/1MB-8       	      20	  11997740 ns/op	  90.81 MB/s	 5112770 B/op	      59 allocs/op
+BenchmarkSave/1MB-8       	      20	  12945981 ns/op	  84.16 MB/s	 5112807 B/op	      59 allocs/op
+BenchmarkSave/5MB-8       	      20	  28595900 ns/op	 190.47 MB/s	24636094 B/op	      54 allocs/op
+BenchmarkSave/5MB-8       	      20	  28254633 ns/op	 192.77 MB/s	26738814 B/op	      57 allocs/op
+BenchmarkSave/5MB-8       	      20	  29261662 ns/op	 186.14 MB/s	28841882 B/op	      62 allocs/op
+BenchmarkLatestForDir/10-8         	      20	   1092317 ns/op	  482941 B/op	     507 allocs/op
+BenchmarkLatestForDir/10-8         	      20	   1101040 ns/op	  483005 B/op	     508 allocs/op
+BenchmarkLatestForDir/10-8         	      20	   1108273 ns/op	  483000 B/op	     508 allocs/op
+BenchmarkLatestForDir/200-8        	      20	   5639006 ns/op	  960150 B/op	    5452 allocs/op
+BenchmarkLatestForDir/200-8        	      20	   5863562 ns/op	  960191 B/op	    5452 allocs/op
+BenchmarkLatestForDir/200-8        	      20	   4774969 ns/op	  960120 B/op	    5452 allocs/op
+PASS
+ok  	github.com/onembyte/kolkrabbi/internal/session	14.560s
