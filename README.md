@@ -45,14 +45,16 @@ benefits from decomposition and isolated working contexts.
 ## The effort dial
 
 ```
-/effort low | medium | high | max
+/effort low | medium | high | max | ultra
 ```
 
 `ultrathink` scales thinking on one vendor's model. Kolkrabbi's effort scales
 across providers: each level maps to a model tier you choose, and it also sets
 the tool-round limit per turn, the shell timeout, and how many tasks an
-orchestrated run may open (low 1, medium 2, high 4, max 6). The older
-`quick/standard/deep/ultra` words and the numbers `1..4` are still accepted.
+orchestrated run may open (low 1, medium 2, high 4, max 6, ultra 8). `ultra`
+is the fifth rung, above `max` on each of those; it is also how a vendor's own
+`ultra` is reached. The older `quick/standard/deep` words and the numbers
+`1..5` are still accepted.
 
 ```
 /config set-tier low    google/gemini-2.5-flash   # pennies
