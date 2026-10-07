@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// The wheel is the whole indicator now, so it has to actually turn.
+// The icon stays emoji-sized while the wheel beside it turns.
 func TestActivityLineTurnsOnlyTheWheel(t *testing.T) {
 	first := activityLine(0, "thinking")
 	second := activityLine(1, "thinking")
@@ -13,12 +13,11 @@ func TestActivityLineTurnsOnlyTheWheel(t *testing.T) {
 		t.Fatalf("wheel did not advance between frames: %q", first)
 	}
 	for _, line := range []string{first, second} {
-		if !strings.HasSuffix(line, " thinking…") {
+		if strings.Contains(line, "\n") || !strings.Contains(line, " thinking…") {
 			t.Fatalf("activity row lost its phase: %q", line)
 		}
-		// Nothing precedes the wheel: the row opens with the spinner itself.
-		if !strings.HasPrefix(line, wheelFrames[0]) && !strings.HasPrefix(line, wheelFrames[1]) {
-			t.Fatalf("activity row does not start with the wheel: %q", line)
+		if !strings.HasPrefix(line, "🐙 ") || cellWidth(octopusMark) != 2 {
+			t.Fatalf("activity lost its two-cell octopus: %q", line)
 		}
 	}
 }
@@ -26,10 +25,10 @@ func TestActivityLineTurnsOnlyTheWheel(t *testing.T) {
 // The controller reads the phase back out of this line to set the lifecycle, so
 // a word it does not know would silently become "working" anyway. Say so here.
 func TestActivityLineRejectsAnUnknownPhase(t *testing.T) {
-	if got := activityLine(0, "Reading file — PLAN.md"); !strings.HasSuffix(got, " working…") {
+	if got := activityLine(0, "Reading file — PLAN.md"); !strings.Contains(got, " working…") {
 		t.Fatalf("unknown phase leaked into the status row: %q", got)
 	}
-	if got := activityLine(0, "  PLANNING  "); !strings.HasSuffix(got, " planning…") {
+	if got := activityLine(0, "  PLANNING  "); !strings.Contains(got, " planning…") {
 		t.Fatalf("phase was not normalised: %q", got)
 	}
 }

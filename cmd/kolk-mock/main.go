@@ -1,13 +1,13 @@
-// mockserver is a standalone scripted fake of the OpenRouter API for
+// kolk-mock is a standalone scripted fake of the OpenRouter API for
 // sandboxed manual testing of kolk — no network, no API key, no cost.
 //
-//	go run ./cmd/mockserver      # prints its URL
+//	go run ./cmd/kolk-mock      # prints its URL
 //	kolk --base-url <url> --permission full-auto "create the hello file"
 //
 // The script below covers a full demo session: one code-mode turn, then one
 // orchestrated agent-mode turn (plan → two subagents → synthesis). Edit the
 // steps to rehearse other flows; the same mock powers the automated e2e
-// tests (internal/mockrouter).
+// tests (internal/enginetest).
 package main
 
 import (

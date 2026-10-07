@@ -2,6 +2,11 @@
 
 Status: hardened on 2026-08-26 · supersedes: — · PLAN.md item 7
 
+**V43.2 amendment (2026-09-15):** effort no longer caps task count. All necessary tasks stay
+in the queue; `max_concurrent_tasks` bounds simultaneous execution separately. The historical
+width column below is superseded. Each task resolves its own model and offered effort before
+launch; the same effort reaches requests, status and usage records.
+
 ## Decision (the short version)
 
 **Effort is a first-class, five-level dial — `low`, `medium`, `high`, `max`, `ultra` — that controls how much computational and economic budget Kolkrabbi invests in a turn.** It governs five concrete dimensions: (1) model tier mapping (`effort.<level>.model`), (2) provider reasoning effort (`reasoning.effort` / thinking tokens — built 2026-09-05 for the keyed vendor origins only, as `reasoning_effort` projected per vendor from `internal/provider/disposition.go`; the gateway and compatible endpoints still receive no reasoning field, plan 03 §reasoning says why), (3) max tool rounds per turn, (4) orchestration subagent width (`width`), and (5) verification depth. It operates identically across all modes (`code` and `chat`), is live-switchable inside any session via `/effort <level|number>` with immediate model re-resolution and status line update, and is configurable per-user, per-project, and per-mode.

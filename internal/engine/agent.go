@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -257,7 +258,10 @@ type Options struct {
 	RetryWait func(context.Context, time.Duration) error
 	Activity  ActivityIndicator
 	Work      WorkIndicator
-	Decider   Decider
+	// WorkLog receives complete observed tool outcomes. Surfaces serialize
+	// concurrent callbacks and keep them separate from model message text.
+	WorkLog func(WorkRecord)
+	Decider Decider
 	// SubagentBackend opens a provider for one orchestrated task, inside the
 	// declared envelope, so each subagent gets its own vendor process instead
 	// of sharing the session's. Nil means they share, which is what happens
@@ -276,6 +280,10 @@ type Options struct {
 	// models on this machine. Nil means none can, so a run stays on the
 	// session's own model — which is what happens today.
 	RungAvailable RungAvailable
+	// AgentRoster reads the current discovered models and signed-in routes.
+	// When supplied it replaces the legacy family ladder. The returned menu
+	// starts with the selected model and contains only allowed lower models.
+	AgentRoster func(ceiling, connector string) Roster
 	// Ask puts a fixed-option question to the person running the session. Nil
 	// means nobody can be asked, and the model is told to decide and say what
 	// it assumed rather than to wait for an answer that cannot come.
@@ -333,12 +341,15 @@ type Options struct {
 	// compatible endpoint, the sign-in check for a handover.
 	ProbeLimit func(context.Context, continuity.Pause) (bool, error)
 	// ResumeReady hands a resumed turn back to the surface, which runs it on
-	// the same model. Nil means the pause is lifted and the turn is announced
-	// as waiting, never run behind the user's back.
-	ResumeReady func(pending string)
+	// the same model and serializes it with typed turns. The context is owned
+	// by the session and is cancelled on Close; callbacks must honor it.
+	// Nil retains the pause for explicit resume. A callback may resume or
+	// switch again; its watcher has already retired before delivery starts.
+	// Return true once the turn is accepted; false restores an unclaimed pause.
+	ResumeReady func(ctx context.Context, pending string) bool
 	// ResumeWait is the cancellable wait the resume monitor uses between the
 	// pause and its probe; separate from RetryWait so the two are never
-	// confused. Nil means a plain timer.
+	// confused. Nil means a wait that follows the wall clock.
 	ResumeWait func(context.Context, time.Duration) error
 	// HandoverSignedIn says whether a vendor connector is still signed in, the
 	// quota-free check a handover has. Nil trusts the reset clock.
@@ -382,8 +393,8 @@ type Options struct {
 	// project. Empty means none; surfaces resolve the path.
 	UserMemoryFile string
 	// ArchiveCompaction stores the conversation a compaction replaced and
-	// reports where. Surfaces own the filesystem; nil simply means undo lives
-	// only as long as the process.
+	// reports where. Nil uses the session's durable archive. Overrides are
+	// serialized so concurrently compacting children cannot overwrite a record.
 	ArchiveCompaction func([]provider.Message) (string, error)
 }
 
@@ -396,6 +407,7 @@ type ChatBackend interface {
 
 type Agent struct {
 	Options
+	archiveMu  sync.Mutex
 	lastTurnID string
 	// turnDepth is how many turns are running on this agent right now, which
 	// for everything outside is the single question "is it streaming?".
@@ -415,9 +427,21 @@ type Agent struct {
 	// resume is the monitor watching this session's pause, nil when nothing is
 	// paused; resumeMu guards its hand-over between the pause path, /resume
 	// and Close.
-	resumeMu   sync.Mutex
-	resume     *resumeMonitor
-	resumeBase context.Context
+	resumeMu         sync.Mutex
+	resume           *resumeMonitor
+	resumeBase       context.Context
+	resumeStop       context.CancelFunc
+	resumeClosed     bool
+	resumeClaim      string // accepted journal ID; a second /resume cannot claim it again
+	resumeClaims     uint64 // claims made so far; a turn releases only the claim it was given
+	resumeDelivering map[*resumeMonitor]context.CancelFunc
+	resumeDeliveries sync.WaitGroup
+	// resumeParent is the surface's context WatchPauses was given, from which
+	// resumeBase is derived again after QuiesceResume ends a generation.
+	// resumeRunning counts every monitor goroutine for its whole life, the
+	// read after a delivery included, which is what a session swap must join.
+	resumeParent  context.Context
+	resumeRunning sync.WaitGroup
 	// mainWork serializes the parent turn's durable work ledger. Subagent work
 	// has one sequence per task under subagentMu; the parent has one sequence
 	// per turn and never carries child coordinates.
@@ -434,6 +458,10 @@ type Agent struct {
 	// goroutine per task and read by whatever is drawing the screen.
 	subagentMu      sync.Mutex
 	subagentRunning int
+	// pausedChildren and pausedTasks are held at a pause and announced once
+	// it is durable (announcePausedChildren); under subagentMu.
+	pausedChildren []pausedChild
+	pausedTasks    []int
 	// slotChoice remembers the model picked for each slot, so a plan ranks the
 	// catalogue once per slot rather than once per task.
 	slotMu     sync.Mutex
@@ -452,8 +480,9 @@ type Agent struct {
 	lastPromptTokens atomic.Int64
 	// modelMu guards Model and Backend, the only two Options fields that change
 	// after construction. See session_model.go for why they need it.
-	modelMu    sync.RWMutex
-	preCompact []provider.Message
+	modelMu     sync.RWMutex
+	preCompact  []provider.Message
+	postCompact []provider.Message
 	// runSpend accumulates the cost of the orchestrated run in progress, and
 	// is nil the rest of the time.
 	runSpend *spend
@@ -475,17 +504,37 @@ type Agent struct {
 	// save warning; see save.go for the table that decides which moments write
 	// and which only mark.
 	saveState saveState
+	// execution is live task state. Worker updates are isolated under this
+	// lock; session snapshots never alias a running child's private messages.
+	executionMu sync.Mutex
+	execution   *continuity.Run
+	// partialMain and partialTask hold the text each provider call of this
+	// process has streamed and not yet committed, appended in amortized
+	// constant time under executionMu. The journal's PartialOutput is filled
+	// from them whenever the run is stored or read; a call that never began
+	// in this process leaves the saved partial it was restored with.
+	partialMain *strings.Builder
+	partialTask map[int]*strings.Builder
+	// attemptBefore keeps, per task (-1 for main), what the journal knew of its
+	// vendor turn when the current provider attempt began, so an attempt that
+	// never reached the vendor leaves the journal as it found it. executionMu.
+	attemptBefore map[int]attemptFacts
+	// sessMu guards Sess against ReplaceSession for the readers that are not
+	// on the turn's goroutine: the status line's context meter and the host's
+	// ConnectorName, through Session(). The turn's goroutine is where the
+	// swap itself runs, so its own reads of a.Sess need no lock.
+	sessMu sync.RWMutex
 }
 
 // Close releases resources owned by the configured backend, when it exposes
 // an optional lifecycle.
 func (a *Agent) Close() error {
 	var first error
+	a.closeResume()
 	// Whatever the tool loop was still holding: this is the last boundary a
 	// session has, and after O3 it is the one that carries the interval's
 	// worth of coalesced messages.
 	a.flush(saveTurnEnd)
-	a.stopResumeMonitor()
 	// Routes first: a host server kolk started is the thing most worth
 	// stopping, and it must stop even if the session backend's Close fails.
 	for _, route := range a.Routes {
@@ -541,28 +590,34 @@ func New(o Options) *Agent {
 		o.RetryWait = waitForRetry
 	}
 	if o.ResumeWait == nil {
-		o.ResumeWait = waitForRetry
+		o.ResumeWait = waitWallClock
 	}
 	if o.Decider == nil && o.In != nil {
 		o.Decider = NewTerminalDecider(o.In, o.Out)
 	}
 	a := &Agent{Options: o}
-
-	if o.Sess != nil {
-		sys := provider.Message{Role: "system", Content: a.systemPrompt(o.Mode)}
-		msgs := o.Sess.GetMessages()
-		if len(msgs) == 0 {
-			o.Sess.AppendMessage(sys)
-		} else {
-			msgs[0] = sys
-			o.Sess.SetMessages(msgs)
-		}
-		a.repairDanglingToolCalls()
-		if o.Sess.ModelName() == "" {
-			o.Sess.SetModelName(o.Model)
-		}
-	}
+	a.adoptSession()
 	return a
+}
+
+// adoptSession readies a.Sess for this agent: its system prompt, a transcript
+// with no tool call left unanswered, and a model name.
+func (a *Agent) adoptSession() {
+	if a.Sess == nil {
+		return
+	}
+	sys := provider.Message{Role: "system", Content: a.systemPrompt(a.Mode)}
+	msgs := a.Sess.GetMessages()
+	if len(msgs) == 0 {
+		a.Sess.AppendMessage(sys)
+	} else {
+		msgs[0] = sys
+		a.Sess.SetMessages(msgs)
+	}
+	a.repairDanglingToolCalls()
+	if a.Sess.ModelName() == "" {
+		a.Sess.SetModelName(a.SessionModel())
+	}
 }
 
 // SetMode switches mode and refreshes the system prompt accordingly.
@@ -800,6 +855,11 @@ func (a *Agent) repairDanglingToolCalls() {
 	if a.Sess == nil {
 		return
 	}
+	if run := a.Sess.RunState(); run != nil && run.Phase != "done" && run.Phase != "stopped" && (run.Recovery != "" || run.LastPause != nil) {
+		// A verified boundary's missing results are pending actions, not
+		// fabricated outcomes. The resume validator decides whether to run them.
+		return
+	}
 	msgs := a.Sess.GetMessages()
 	last := -1
 	for i, m := range msgs {
@@ -822,7 +882,7 @@ func (a *Agent) repairDanglingToolCalls() {
 			msgs = append(msgs, provider.Message{
 				Role:       "tool",
 				ToolCallID: tc.ID,
-				Content:    "Interrupted before this tool ran. Re-issue the call if it is still needed.",
+				Content:    "Interrupted before a result was saved. The tool may have run; inspect its effects before retrying.",
 			})
 		}
 	}
@@ -1197,7 +1257,18 @@ func (a *Agent) executeSubagentTool(ctx context.Context, tc provider.ToolCall, o
 	return a.executeToolWith(ctx, tc, out, effort, a.subagentGuard, false, root)
 }
 
-func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, out io.Writer, effort string, guard func(context.Context, io.Writer) tools.Guard, mayAsk bool, root string) (string, error) {
+func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, out io.Writer, effort string, guard func(context.Context, io.Writer) tools.Guard, mayAsk bool, root string) (result string, err error) {
+	work := WorkRecord{Agent: workAgent(ctx), Name: tc.Function.Name, Arguments: tc.Function.Arguments}
+	if a.WorkLog != nil {
+		defer func() {
+			work.Output = result
+			if err != nil {
+				work.Error = err.Error()
+				work.Failed = true
+			}
+			a.emitWorkRecord(work)
+		}()
+	}
 	// Answered before any of the machinery below: a question waits on a person,
 	// so a spinner saying "working" and a confinement guard over a path neither
 	// applies nor makes sense.
@@ -1205,7 +1276,9 @@ func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, out i
 		return a.askUser(ctx, tc.Function.Arguments, out, mayAsk)
 	}
 	description := describeToolCall(tc)
-	fmt.Fprintf(out, "%s  → %s%s\n", colorDim, description, colorReset)
+	if a.WorkLog == nil {
+		fmt.Fprintf(out, "%s  → %s%s\n", colorDim, description, colorReset)
+	}
 	stopWork := func() {}
 	if a.Work != nil {
 		if stop := a.Work.StartWork(ctx, description); stop != nil {
@@ -1237,12 +1310,21 @@ func (a *Agent) executeToolWith(ctx context.Context, tc provider.ToolCall, out i
 	if root != a.Root {
 		preWrite = nil
 	}
-	result, err := tools.Execute(toolCtx, tc.Function.Name, tc.Function.Arguments, tools.Options{
+	var report func(tools.ExecutionReport)
+	if a.WorkLog != nil {
+		report = func(report tools.ExecutionReport) {
+			work.Path, work.Diff = report.Path, report.Diff
+			work.Added, work.Removed = report.Added, report.Removed
+			work.Changed, work.Created, work.Failed = report.Changed, report.Created, report.Failed
+		}
+	}
+	result, err = tools.Execute(toolCtx, tc.Function.Name, tc.Function.Arguments, tools.Options{
 		Root:      root,
 		Sandbox:   a.Sandbox,
 		Guard:     guard(toolCtx, out),
 		PreWrite:  preWrite,
 		PostWrite: a.PostWrite,
+		Report:    report,
 	})
 	// One chokepoint for every tool. A result goes into the conversation, the
 	// session file on disk and every later request to the provider, so a
@@ -1362,8 +1444,8 @@ func (a *Agent) Context() ContextUsage { return a.contextUsage(int(a.lastPromptT
 // last reported reading.
 func (a *Agent) contextUsage(lastPromptTokens int) ContextUsage {
 	var messages []provider.Message
-	if a.Sess != nil && lastPromptTokens <= 0 {
-		messages = a.Sess.GetMessages()
+	if sess := a.Session(); sess != nil && lastPromptTokens <= 0 {
+		messages = sess.GetMessages()
 	}
 	return MeasureContext(a.window(), lastPromptTokens, messages)
 }
@@ -1394,7 +1476,19 @@ func (a *Agent) window() int {
 }
 
 // RunTurn dispatches a user message according to the current mode.
-func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
+func (a *Agent) RunTurn(ctx context.Context, userInput string) (turnErr error) {
+	if err := ctx.Err(); err != nil {
+		a.retainUnstartedResume(userInput)
+		return err
+	}
+	// A delivered turn runs only while its claim is still its own: a turn
+	// that ran while the delivery waited for the surface may already have
+	// continued the run, and a second run would send the request again.
+	if a.deliveryStale(ctx) {
+		fmt.Fprintln(a.Out, "◆ the saved request was already resumed; nothing more to send")
+		return nil
+	}
+	ctx = context.WithValue(ctx, deliveryTicketKey{}, nil)
 	a.turnDepth.Add(1)
 	defer a.turnDepth.Add(-1)
 	// A paused session spends nothing until its limit lifts (plan 35 §2.2).
@@ -1407,11 +1501,58 @@ func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 	// The turn's own boundary, deferred so the paused return, the continuity
 	// hop and the error paths all reach it. It writes only when something is
 	// still pending, so a nested RunTurn costs one write, not two.
-	defer a.flush(saveTurnEnd)
+	defer func() {
+		a.flush(saveTurnEnd)
+		// A failed recovery write held ordinary writes back through the
+		// unwinding above; the next save after this turn may write again.
+		a.saveState.endRecoveryHold()
+		// Delivery starts after this attempt has finished its state updates,
+		// including any explicitly configured continuity switch.
+		a.armResume()
+	}()
 	pending := userInput
+	resumed, err := a.restoreExecution(ctx, pending)
+	if err != nil {
+		// A refused resume gives its claim back so /resume can try again. A
+		// different request, refused because a run is saved, says nothing
+		// about that run and leaves its claim to whoever holds it.
+		a.resumeMu.Lock()
+		if run := a.Sess.RunState(); run == nil || run.Input == pending {
+			a.resumeClaim = ""
+		}
+		a.resumeMu.Unlock()
+		return err
+	}
+	if run := a.executionSnapshot(); resumed && run != nil {
+		// The claim keeps a run from being delivered to two turns at once.
+		// Once this turn has ended and stored where it stopped, a run it left
+		// unfinished at a new boundary is /resume's again. Only the claim this
+		// turn was given is released: a delivery armed inside the turn may
+		// have claimed the run again, and that claim is still pending.
+		a.resumeMu.Lock()
+		claimed, claims := run.ID, a.resumeClaims
+		a.resumeMu.Unlock()
+		defer func() {
+			a.resumeMu.Lock()
+			if a.resumeClaim == claimed && a.resumeClaims == claims {
+				a.resumeClaim = ""
+			}
+			a.resumeMu.Unlock()
+		}()
+	}
+	defer func() { a.finishExecution(turnErr) }()
+	if !resumed {
+		a.repairDanglingToolCalls()
+	}
+	if resumed {
+		// Its claim goes back through the release above.
+		if err := a.retireRecovery(ctx); err != nil {
+			return err
+		}
+	}
 	a.lastTurnID = xid.New(xid.Turn)
 	a.resetMainWork()
-	if a.Ckpt != nil {
+	if a.Ckpt != nil && !resumed {
 		a.Ckpt.BeginTurn(ctx)
 	}
 	if a.Sess != nil {
@@ -1419,10 +1560,17 @@ func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 	}
 	// Beside the turn rather than in the system prompt: dirty state changes
 	// every turn, and the system prompt is the one thing that must not.
-	if preamble := a.dirtyTreePreamble(ctx); preamble != "" {
-		userInput = preamble + "\n\n" + userInput
+	if resumed {
+		userInput = a.executionSnapshot().Prompt
+	} else {
+		if preamble := a.dirtyTreePreamble(ctx); preamble != "" {
+			userInput = preamble + "\n\n" + userInput
+		}
 	}
 	a.compactIfNeeded(ctx)
+	if !resumed {
+		a.beginExecution(pending, userInput)
+	}
 
 	if a.Bus != nil {
 		startedData, _ := json.Marshal(protocol.TurnStartedData{
@@ -1438,7 +1586,6 @@ func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 		})
 	}
 
-	var err error
 	if a.Mode == ModeAgent {
 		err = a.runOrchestrated(ctx, userInput)
 	} else {
@@ -1457,19 +1604,53 @@ func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 		a.hopsThisRun, a.askedThisRun = 0, false
 	}
 	if err != nil {
-		if paused, ok := a.pauseIfWaitingHelps(ctx, err, pending); ok {
-			// With continuity on, the chain is walked by itself (V35.6): the
-			// session moves to the next equivalent and the waiting turn runs
-			// there, in this same turn, so the person sees the answer.
-			if next, ok := a.autoContinue(ctx, paused.Pause); ok {
-				return a.RunTurn(ctx, next)
+		// What the turn itself failed with, kept apart from any recovery
+		// write that joins it below. A failed recovery write is the disk's
+		// failure: it never becomes a pause and never a provider limit.
+		turnErr := err
+		var boundaryLost *RecoverySaveError
+		lost := errors.As(err, &boundaryLost)
+		captured := false
+		if lost {
+			captured = true
+		} else if paused, saveErr, ok := a.pauseIfWaitingHelps(ctx, err, pending); ok {
+			captured = true
+			if saveErr != nil {
+				err = errors.Join(err, saveErr)
+			} else {
+				// With continuity on, the chain is walked by itself (V35.6): the
+				// session moves to the next equivalent and the waiting turn runs
+				// there, in this same turn, so the person sees the answer.
+				if next, ok := a.autoContinue(ctx, paused.Pause); ok {
+					// The journal, not this stack frame, owns the next attempt.
+					// A refused restore must not let the outer defer mark it stopped.
+					a.executionMu.Lock()
+					a.execution = nil
+					a.executionMu.Unlock()
+					return a.RunTurn(ctx, next)
+				}
+				return &paused
 			}
-			return &paused
 		}
-		if limit, ok := provider.Classify(err); ok && ctx.Err() == nil {
+		if !captured && ctx.Err() == nil {
+			a.markExecutionWaiting()
+			reason := "error"
+			if _, ok := provider.Classify(turnErr); ok {
+				reason = "limit"
+			}
+			if saveErr := a.saveRecovery(reason); saveErr != nil {
+				err = errors.Join(err, saveErr)
+			}
+		}
+		if limit, ok := provider.Classify(turnErr); ok && !lost && ctx.Err() == nil {
 			a.publishLimit(limit, "stop")
 			a.printRecommendation(limit)
 		}
+		// Anything still held at a pause that was never saved says so.
+		a.announcePausedChildren(false)
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil && err != nil && !errors.Is(err, ctxErr) {
+		err = errors.Join(err, ctxErr)
 	}
 	if a.Mode == ModeAgent {
 		state := protocol.WorkStateDone
@@ -1517,14 +1698,24 @@ func (a *Agent) RunTurn(ctx context.Context, userInput string) error {
 	return err
 }
 
+// continuationMessage continues a main vendor call that stopped after the
+// vendor took it, as a new message on the conversation that saw it. The
+// stopped request is never sent again: the vendor may already have acted on it.
+func continuationMessage() provider.Message {
+	return provider.Message{Role: "user", Content: "The previous attempt stopped before this request finished. Continue this unfinished request from the current state of the saved conversation. Do not repeat completed actions."}
+}
+
 // runLoop is the chat/code path: stream the reply, execute any tool calls,
 // loop until the model returns a plain answer. The session is saved as it
 // goes.
 func (a *Agent) runLoop(ctx context.Context, userInput string) error {
-	if a.Sess != nil {
+	ctx, vendorToolFailure := watchProviderToolFailures(ctx)
+	saved := a.executionSnapshot()
+	if a.Sess != nil && (saved == nil || saved.Phase == "new") {
 		a.Sess.AppendMessage(provider.Message{Role: "user", Content: userInput})
 		a.saveFor(saveUserMessage)
 	}
+	a.setExecutionPhase("direct")
 
 	model := a.modelFor(a.Effort)
 	toolset := a.toolsFor(ctx, a.Mode)
@@ -1543,89 +1734,155 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 	var loop doomLoop
 	overflowRecovered := false
 	toolRounds := 0
+	if saved != nil {
+		toolRounds, loop = saved.Main.Rounds, restoredLoop(saved.Main.Loop)
+		// Only a vendor call this request already made, and that stopped,
+		// is continued. Every request journals the session's conversation,
+		// so the handle alone does not make a fresh request a continuation.
+		if saved.Main.ProviderState != "" && saved.Main.ProviderInFlight {
+			requestMessages = appendMessage(requestMessages, continuationMessage())
+			// On the model that answered the stopped call: its backend is the
+			// one checked to drive the saved conversation. Routing chosen
+			// since (tiers, slots) never moves a continuation elsewhere.
+			model = a.savedMainModel(saved)
+		}
+	}
+	defer func() { a.saveMainProgress(toolRounds, loop) }()
 	maxRounds := MaxRoundsFor(a.Mode, a.Effort)
-	var observeProvider func(provider.ProgressEvent)
+	// A vendor-run main turn's own tool boundaries are journaled in every
+	// mode; agent mode also publishes them as parent work.
+	observeProvider := func(event provider.ProgressEvent) { a.journalVendorTool(-1, event) }
 	if a.Mode == ModeAgent {
 		observeProvider = a.mainProviderProgress(model, a.Effort)
 	}
 
+	if a.showCommittedReply(saved) {
+		return nil
+	}
 	for {
-		fmt.Fprintf(a.Out, "%s%s%s ", colorCyan, a.responseLabel(), colorReset)
-		msg, meta, err := a.streamChatObserved(ctx, activityThinking, model, requestMessages, toolset, func(tok string) {
-			if a.Bus != nil {
-				deltaData, _ := json.Marshal(protocol.MessageDeltaData{Text: tok})
-				_, _ = a.Bus.Publish(bus.Event{
-					Turn: a.lastTurnID,
-					Type: protocol.EventMessageDelta,
-					Data: deltaData,
-				})
-			}
-			fmt.Fprint(a.Out, tok)
-		}, observeProvider)
-		if err != nil {
-			fmt.Fprintln(a.Out)
-			// A refusal for length is recoverable exactly once: compact what the
-			// session is carrying and ask again, rather than losing the turn.
-			if a.Sess != nil && !overflowRecovered && provider.IsContextOverflow(err) {
-				overflowRecovered = true
-				if a.recoverFromOverflow(ctx) {
-					requestMessages = a.Sess.GetMessages()
-					continue
-				}
-			}
+		if err := a.retireRecovery(ctx); err != nil {
 			return err
 		}
-		fmt.Fprintln(a.Out)
-		if a.Bus != nil && msg.Content != "" {
-			completedData, _ := json.Marshal(protocol.MessageCompletedData{Text: msg.Content})
-			_, _ = a.Bus.Publish(bus.Event{
-				Turn: a.lastTurnID,
-				Type: protocol.EventMessageCompleted,
-				Data: completedData,
-			})
-		}
-		a.lastPromptTokens.Store(int64(meta.PromptTokens))
-		// A provider that runs its own tool loop returns a message with none of
-		// the calls in it — the backend's meta is the only count there is.
-		toolRuns := len(msg.ToolCalls)
-		if meta.ToolCalls > toolRuns {
-			toolRuns = meta.ToolCalls
-		}
-		a.record("main", meta, toolRuns)
-		if strings.TrimSpace(msg.Content) == "" && len(msg.ToolCalls) == 0 {
-			emptyCompletions++
-			if emptyCompletions >= 2 {
-				return fmt.Errorf("model returned two empty responses; try `/model` to select another model")
+		calls := pendingToolCalls(requestMessages)
+		if len(calls) == 0 {
+			// The label opens the model's own words, so it waits for them: a
+			// round that answers only with tool calls leaves no bare label row.
+			// Whitespace before the words is dropped, but a newline in it still
+			// ends the label line, so a reply that opens with a heading, a fence
+			// or a list keeps that block on a line of its own.
+			spoke, openedOnNewline := false, false
+			msg, meta, err := a.streamChatObserved(a.mainProviderCall(ctx), activityThinking, model, requestMessages, toolset, func(tok string) {
+				a.appendMainPartial(tok)
+				if a.Bus != nil {
+					deltaData, _ := json.Marshal(protocol.MessageDeltaData{Text: tok})
+					_, _ = a.Bus.Publish(bus.Event{
+						Turn: a.lastTurnID,
+						Type: protocol.EventMessageDelta,
+						Data: deltaData,
+					})
+				}
+				if !spoke {
+					words := strings.TrimLeft(tok, " \t\r\n")
+					openedOnNewline = openedOnNewline || strings.ContainsAny(tok[:len(tok)-len(words)], "\r\n")
+					if words == "" {
+						return
+					}
+					spoke = true
+					fmt.Fprintf(a.Out, "%s%s%s ", colorCyan, a.responseLabel(), colorReset)
+					if openedOnNewline {
+						fmt.Fprintln(a.Out)
+					}
+					tok = words
+				}
+				fmt.Fprint(a.Out, tok)
+			}, observeProvider)
+			if err != nil {
+				if spoke {
+					fmt.Fprintln(a.Out)
+				}
+				a.recordFailedWork("main", meta, a.Effort)
+				// A refusal for length is recoverable exactly once: compact what the
+				// session is carrying and ask again, rather than losing the turn.
+				if a.Sess != nil && !overflowRecovered && provider.IsContextOverflow(err) {
+					overflowRecovered = true
+					if a.recoverFromOverflow(ctx) {
+						requestMessages = a.Sess.GetMessages()
+						continue
+					}
+				}
+				return err
 			}
-			fmt.Fprintln(a.Out, colorDim+"  (empty model response; retrying once)"+colorReset)
+			if spoke {
+				fmt.Fprintln(a.Out)
+			}
+			if a.Bus != nil && msg.Content != "" {
+				completedData, _ := json.Marshal(protocol.MessageCompletedData{Text: msg.Content})
+				_, _ = a.Bus.Publish(bus.Event{
+					Turn: a.lastTurnID,
+					Type: protocol.EventMessageCompleted,
+					Data: completedData,
+				})
+			}
+			overflowRecovered = false // Progress permits a later request its own bounded recovery.
+			a.lastPromptTokens.Store(int64(meta.PromptTokens))
+			// A provider that runs its own tool loop returns a message with none of
+			// the calls in it — the backend's meta is the only count there is.
+			toolRuns := len(msg.ToolCalls)
+			if meta.ToolCalls > toolRuns {
+				toolRuns = meta.ToolCalls
+			}
+			a.record("main", meta, toolRuns)
+			if strings.TrimSpace(msg.Content) == "" && len(msg.ToolCalls) == 0 {
+				emptyCompletions++
+				if emptyCompletions >= 2 {
+					return fmt.Errorf("model returned two empty responses; try `/model` to select another model")
+				}
+				fmt.Fprintln(a.Out, colorDim+"  (empty model response; retrying once)"+colorReset)
+				if a.Sess != nil {
+					requestMessages = appendMessage(a.Sess.GetMessages(), provider.Message{
+						Role: "user", Content: emptyCompletionRecovery,
+					})
+				} else {
+					requestMessages = appendMessage(requestMessages, provider.Message{
+						Role: "user", Content: emptyCompletionRecovery,
+					})
+				}
+				continue
+			}
+
 			if a.Sess != nil {
-				requestMessages = appendMessage(a.Sess.GetMessages(), provider.Message{
-					Role: "user", Content: emptyCompletionRecovery,
-				})
-			} else {
-				requestMessages = appendMessage(requestMessages, provider.Message{
-					Role: "user", Content: emptyCompletionRecovery,
-				})
+				a.Sess.AppendMessage(msg)
 			}
-			continue
-		}
+			a.completeMainProviderCall()
+			if a.Sess != nil {
+				a.saveFor(saveAssistantMessage)
+			}
 
-		if a.Sess != nil {
-			a.Sess.AppendMessage(msg)
-			a.saveFor(saveAssistantMessage)
-		}
+			if vendorToolFailure.Load() {
+				a.saveMainProgress(toolRounds, loop)
+				if err := a.saveProviderToolFailure(ctx, vendorToolFailure); err != nil {
+					return err
+				}
+			}
+			if len(msg.ToolCalls) == 0 {
+				a.footer(meta)
+				return nil // final answer for this turn
+			}
+			emptyCompletions = 0
+			toolRounds++
+			if toolRounds > maxRounds {
+				return fmt.Errorf("exceeded maximum tool rounds (%d) for %s effort", maxRounds, a.Effort)
+			}
 
-		if len(msg.ToolCalls) == 0 {
-			a.footer(meta)
-			return nil // final answer for this turn
+			calls = msg.ToolCalls
 		}
-		emptyCompletions = 0
-		toolRounds++
 		if toolRounds > maxRounds {
 			return fmt.Errorf("exceeded maximum tool rounds (%d) for %s effort", maxRounds, a.Effort)
 		}
-
-		for _, tc := range msg.ToolCalls {
+		for _, tc := range calls {
+			if err := a.retireRecovery(ctx); err != nil {
+				return err
+			}
 			owner := a.mainToolWork(model, a.Effort)
 			a.publishKolkToolRequested(tc, owner)
 			// Checked before the call runs, because a call that has proved
@@ -1667,9 +1924,21 @@ func (a *Agent) runLoop(ctx context.Context, userInput string) error {
 					Content:    result,
 				})
 			}
+			if err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				a.markMainToolBoundary()
+				a.saveMainProgress(toolRounds, loop)
+				if saveErr := a.saveRecovery("error"); saveErr != nil {
+					return saveErr
+				}
+			}
 		}
+		a.markMainToolBoundary()
 		if a.Sess != nil {
 			a.saveFor(saveToolRound)
+			a.compactIfNeeded(ctx)
 			requestMessages = a.Sess.GetMessages()
 		}
 		// loop: send tool results back to the model for its next step

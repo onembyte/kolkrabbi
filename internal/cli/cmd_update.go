@@ -120,9 +120,51 @@ func (a *app) performRestart(ag *engine.Agent) {
 		fmt.Fprintf(a.stderr, "could not restart into %s: %v\nRun kolk again to use it.\n", a.restartInto, err)
 		return
 	}
+	// exec replaces this process, so nothing the run defers happens after it.
+	// A runtime this session started, and any host server or vendor process
+	// behind the backends, would run on with no owner. Release them first.
+	backendErr, runtimeErr := a.releaseRun(ag)
+	for _, closeErr := range []error{backendErr, runtimeErr} {
+		if closeErr != nil {
+			fmt.Fprintf(a.stderr, "warning: %v\n", closeErr)
+		}
+	}
 	if err := a.replaceSelf(path, restartArgs(ag, a.sessionOnDisk), os.Environ()); err != nil {
 		fmt.Fprintf(a.stderr, "could not restart into %s: %v\nRun kolk again to use it.\n", a.restartInto, err)
 	}
+}
+
+// releaseRun frees what a run holds, once: at the end of run, or before a
+// restart replaces the process. It returns the backend's and the local
+// runtime's close errors for the caller to report.
+func (a *app) releaseRun(ag *engine.Agent) (backendErr, runtimeErr error) {
+	if a.runReleased {
+		return nil, nil
+	}
+	a.runReleased = true
+	// Every goroutine this run started is joined before it returns; a
+	// background refresh is cancelled rather than waited for.
+	a.joinBackground()
+	// Named last, after everything else has had its say, so the line a
+	// person needs to attach to a bug report is the final thing on screen.
+	if path := a.debugLog.Path(); path != "" {
+		_ = a.debugLog.Close()
+		fmt.Fprintf(a.stderr, "debug log: %s\n", path)
+	}
+	// Released before the backend so a crash in Close still frees the
+	// session for the next process.
+	if a.sessionHold != nil {
+		_ = a.sessionHold.Close()
+		a.sessionHold = nil
+	}
+	backendErr = ag.Close()
+	// Ollama may have appeared after startup, when there was no local route
+	// to close. The session still owns a runtime started by a pull. Close is
+	// idempotent when the route already released it.
+	if a.localRuntime != nil {
+		runtimeErr = a.localRuntime.Close()
+	}
+	return backendErr, runtimeErr
 }
 
 func (a *app) printUpdateResult(result selfupdate.Result, inSession bool) {

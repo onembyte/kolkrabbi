@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/onembyte/kolkrabbi/internal/keystore"
 	"github.com/onembyte/kolkrabbi/internal/local"
@@ -42,17 +43,51 @@ func newTestApp(t *testing.T, stdin string) (*app, *bytes.Buffer, *bytes.Buffer)
 	// Never the real loopback port: the owner's machine has an Ollama on it,
 	// and a test that found it would pass here and fail everywhere else.
 	a.discoverHost = func(context.Context) local.Host { return local.Host{State: local.HostAbsent} }
+	a.installLocalRuntime = func(context.Context, string, func(local.RuntimeProgress)) (local.Host, error) {
+		return local.Host{}, errors.New("native runtime setup is disabled in this fixture")
+	}
 	a.listHostModels = func(context.Context, string, string) ([]local.HostModel, error) { return nil, nil }
 	a.listCloudCatalog = nil
 	a.listCloudModels = nil
 	a.signIn = func(context.Context, string) local.SignInState { return local.SignInState{} }
 	a.probeHardware = func(context.Context, string) local.Hardware { return local.Hardware{} }
 	a.pulledNames = func() map[string]bool { return map[string]bool{} }
+	// No accelerator: a test run on a machine with a GPU must not see it.
+	a.localHardware = fstest.MapFS{}
+	// A sign-in maps the vendor's models; for ollama that is ollama.com's
+	// public catalog. Offline here, like the loopback server and installer.
+	// A test that needs a catalog sets its own modelLister.
+	a.modelLister = func(connector string, gateway []provider.ModelInfo) provider.ModelLister {
+		if strings.EqualFold(strings.TrimSpace(connector), local.SidecarName) {
+			return ollamaCloudLister{list: func(context.Context) ([]local.CloudCatalogModel, error) {
+				return nil, errors.New("the ollama.com catalog is offline in tests")
+			}}
+		}
+		return modelListerFor(connector, gateway)
+	}
 	// Start-time discovery runs in the background and writes into the app's
 	// dirs; a test that returns while it is still writing leaves TempDir with
 	// "directory not empty" — seen on CI for the v1.2.33 commit.
 	t.Cleanup(a.joinBackground)
 	return a, &out, &errOut
+}
+
+// A sign-in maps the vendor's models at once, and for ollama that is the
+// public ollama.com catalog. The fixture keeps that offline, as it keeps the
+// loopback Ollama and the installer, so login tests never reach the internet.
+func TestTestAppNeverAsksOllamaCom(t *testing.T) {
+	a, _, _ := newTestApp(t, "")
+	lister := a.lister("ollama", nil)
+	if lister == nil {
+		t.Fatal("the fixture has no ollama lister, so discovery would report nothing")
+	}
+	_, err := lister.Discover(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "offline in tests") {
+		t.Fatalf("ollama discovery in the fixture = %v; it must fail offline, not ask ollama.com", err)
+	}
+	if other := a.lister("gemini", nil); other == nil {
+		t.Fatal("the fixture dropped the registry for other connectors")
+	}
 }
 
 // blockProviderAccess points any provider call that has not been aimed
@@ -320,9 +355,10 @@ func TestFirstRunWithoutAKeyIsExactAndReadOnly(t *testing.T) {
 	if code != ExitUsage {
 		t.Errorf("exit = %d, want %d", code, ExitUsage)
 	}
-	const want = "kolk needs an API key before it can use models.\n" +
+	const want = "kolk needs an API key to use OpenRouter models.\n" +
 		"Add one:  /key   (it asks for the key, hidden)\n" +
-		"Then run: kolk\n"
+		"Then run: kolk\n" +
+		"Or start locally, without a key: kolk -m ollama/qwen2.5-coder:7b\n"
 	if got := errOut.String(); got != want {
 		t.Errorf("first-run guidance:\n%s\nwant exactly:\n%s", got, want)
 	}

@@ -102,11 +102,17 @@ func LoginWindow(ctx context.Context, executable string, args []string) error {
 	}
 	argv := append([]string{term}, prefix...)
 	argv = append(argv, flags...)
-	argv = append(argv, "sh", "-c", loginScript(executable, args))
+	script := loginScript(executable, args)
+	if addr, ok := ctx.Value(loginEndpointKey{}).(string); ok {
+		// Some emulators delegate to an existing daemon and ignore their own
+		// environment. Bind the child command as well as the launcher.
+		script = "OLLAMA_HOST=" + Quote(addr) + " " + script
+	}
+	argv = append(argv, "sh", "-c", script)
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	// The emulator inherits this environment and hands it to the login
 	// unchanged, so the denylist is applied here, one process early.
-	cmd.Env = inheritedEnv(nil)
+	cmd.Env = loginEnvironment(ctx)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("%s login window exited unsuccessfully: %w", executable, err)
 	}

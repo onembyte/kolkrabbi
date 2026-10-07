@@ -32,9 +32,6 @@ func TestUltraIsTheFifthRungOfTheDial(t *testing.T) {
 	if TimeoutForEffort(EffortUltra) <= TimeoutForEffort(EffortMax) {
 		t.Fatal("ultra's timeout is not above max's")
 	}
-	if maxTasksFor(EffortUltra) <= maxTasksFor(EffortMax) {
-		t.Fatal("ultra's orchestration width is not above max's")
-	}
 
 	a := New(Options{Model: "base/model", Tiers: map[string]string{"ultra": "big/model"}})
 	if err := a.SetEffort("5"); err != nil || a.Effort != EffortUltra {

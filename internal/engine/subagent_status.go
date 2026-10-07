@@ -110,7 +110,7 @@ func validSubagentTransition(from, to SubagentState) bool {
 	case SubagentWaiting:
 		return to == SubagentWaiting || to == SubagentWorking || to == SubagentFailed || to == SubagentBlocked
 	case SubagentWorking:
-		return to == SubagentWorking || to == SubagentDone || to == SubagentFailed
+		return to == SubagentWorking || to == SubagentWaiting || to == SubagentDone || to == SubagentFailed
 	default:
 		return false // terminal states never reopen
 	}

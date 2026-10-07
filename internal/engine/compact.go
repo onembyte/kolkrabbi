@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
@@ -33,9 +34,8 @@ type Summarizer func(messages []provider.Message) (string, error)
 // CompactMessages shrinks a conversation toward targetTokens, sacrificing the
 // least meaningful content first and stopping as soon as it fits.
 //
-// The system prompt and the most recent keepTurns turns are never touched: the
-// recent turns are what the model needs most, and re-deriving the system prompt
-// from a summary would change the agent's own instructions.
+// System instructions and the original goal survive. Recent turns are preferred
+// verbatim; when they alone are too large, completed tool traffic may be shortened.
 //
 // Every stage leaves a conversation a provider will accept. Tool results are
 // emptied rather than removed, because a tool message carries the id that
@@ -47,12 +47,15 @@ func CompactMessages(messages []provider.Message, keepTurns, targetTokens int, s
 	if original <= targetTokens {
 		return result, nil
 	}
+	for i, message := range messages {
+		if len(message.ToolCalls) > 0 && completeToolRound(messages, i) == i {
+			return result, nil
+		}
+	}
 
 	head, tail := splitAtRecentTurns(messages, keepTurns)
 	if len(head) == 0 {
-		// Everything is recent. There is nothing this transform may touch, and
-		// pretending otherwise would break the one guarantee it makes.
-		return result, nil
+		return compactToolRounds(messages, targetTokens), nil
 	}
 
 	working := append([]provider.Message(nil), head...)
@@ -76,7 +79,7 @@ func CompactMessages(messages []provider.Message, keepTurns, targetTokens int, s
 
 	// 2. The calls themselves, collapsed with their results into one line that
 	// still records what ran.
-	collapsed, collapsedCount := collapseToolTraffic(working)
+	collapsed, collapsedCount := collapseToolTraffic(head)
 	if collapsedCount > 0 {
 		replaced += collapsedCount
 		working = collapsed
@@ -85,34 +88,64 @@ func CompactMessages(messages []provider.Message, keepTurns, targetTokens int, s
 		return finish(working, tail, StageToolCalls, replaced, original), nil
 	}
 
-	// 3. Everything older becomes one summary.
-	if summarize == nil {
-		// Without a summarizer this is as small as it gets. Report honestly
-		// rather than claiming a stage that did not run.
-		stage := StageToolCalls
-		if collapsedCount == 0 {
-			stage = StageToolResults
-		}
-		return finish(working, tail, stage, replaced, original), nil
+	stage := StageToolCalls
+	if collapsedCount == 0 {
+		stage = StageToolResults
 	}
-	summary, err := summarize(working)
+	local := compactRecent(finish(working, tail, stage, replaced, original), targetTokens)
+	if estimateTokens(local.Messages) <= targetTokens || len(head) == 1 && head[0].Role == "system" {
+		return local, nil
+	}
+	// 3. Everything older becomes one summary. Try local shrinking first so a
+	// summary provider is never required merely to shorten recent tool output.
+	if summarize == nil {
+		return local, nil
+	}
+	// The summary must see the facts that cheaper stages proposed removing.
+	summary, err := summarize(head)
 	if err != nil {
-		return Compaction{}, fmt.Errorf("summarising the older conversation: %w", err)
+		return local, fmt.Errorf("summarising the older conversation: %w", err)
+	}
+	if strings.TrimSpace(summary) == "" {
+		return local, nil
 	}
 	kept := []provider.Message{}
-	if len(working) > 0 && working[0].Role == "system" {
-		kept = append(kept, working[0])
+	goalKept := false
+	for _, message := range head {
+		if message.Role == "system" || message.Role == "user" && !goalKept {
+			kept = append(kept, message)
+			goalKept = goalKept || message.Role == "user"
+		}
 	}
 	kept = append(kept, provider.Message{
 		Role:    "assistant",
 		Content: "[earlier conversation, summarised]\n" + summary,
 	})
-	replaced = len(working) - len(kept)
-	return finish(kept, tail, StageSummary, replaced, original), nil
+	replaced = len(head)
+	return compactRecent(finish(kept, tail, StageSummary, replaced, original), targetTokens), nil
+}
+
+func compactRecent(result Compaction, target int) Compaction {
+	if estimateTokens(result.Messages) <= target {
+		return result
+	}
+	recent := compactToolRounds(result.Messages, target)
+	if recent.FreedTokens > 0 {
+		if result.Stage != StageNone {
+			recent.Stage = result.Stage
+		}
+		recent.Replaced += result.Replaced
+		recent.FreedTokens += result.FreedTokens
+		return recent
+	}
+	return result
 }
 
 func finish(head, tail []provider.Message, stage string, replaced, original int) Compaction {
 	messages := append(append([]provider.Message(nil), head...), tail...)
+	if estimateTokens(messages) >= original {
+		stage, replaced = StageNone, 0
+	}
 	return Compaction{
 		Messages:    messages,
 		Stage:       stage,
@@ -156,31 +189,14 @@ func collapseToolTraffic(messages []provider.Message) ([]provider.Message, int) 
 	collapsed := 0
 	for i := 0; i < len(messages); i++ {
 		message := messages[i]
-		if len(message.ToolCalls) == 0 {
+		end := completeToolRound(messages, i)
+		if end == i {
 			out = append(out, message)
 			continue
 		}
-		names := make([]string, 0, len(message.ToolCalls))
-		for _, call := range message.ToolCalls {
-			names = append(names, call.Function.Name)
-		}
-		answered := map[string]bool{}
-		for _, call := range message.ToolCalls {
-			answered[call.ID] = true
-		}
-		skipped := 0
-		for j := i + 1; j < len(messages); j++ {
-			if messages[j].Role != "tool" || !answered[messages[j].ToolCallID] {
-				break
-			}
-			skipped++
-		}
-		out = append(out, provider.Message{
-			Role:    "assistant",
-			Content: fmt.Sprintf("[ran: %s]", strings.Join(names, ", ")),
-		})
-		collapsed += 1 + skipped
-		i += skipped
+		out = append(out, toolRoundDigest(messages, i, end))
+		collapsed += end - i
+		i = end - 1
 	}
 	return out, collapsed
 }
@@ -188,7 +204,7 @@ func collapseToolTraffic(messages []provider.Message) ([]provider.Message, int) 
 func estimateTokens(messages []provider.Message) int {
 	characters := 0
 	for _, message := range messages {
-		characters += len(message.Content)
+		characters += len(message.Content) + len(message.Reasoning)
 		for _, call := range message.ToolCalls {
 			characters += len(call.Function.Name) + len(call.Function.Arguments)
 		}
@@ -211,10 +227,8 @@ Preserve, in this order: the user's goal, decisions taken, files created or modi
 results still matter, and work left open. Drop conversational texture entirely. Be specific about
 names and paths. Write at most 200 words of plain prose, no preamble.`
 
-// compactIfNeeded shrinks the session at a turn boundary when the window is
-// filling. It is deliberately called before a turn begins and never during one:
-// compacting between a tool call and its result would orphan the call, which is
-// the exact damage the session repair exists to undo.
+// compactIfNeeded runs before a turn or after a complete tool round. The
+// transform refuses partially answered transactions.
 //
 // Failure here is never fatal. A session that cannot be compacted should still
 // try its turn and let the provider answer or refuse.
@@ -222,23 +236,17 @@ func (a *Agent) compactIfNeeded(ctx context.Context) {
 	if a.Sess == nil {
 		return
 	}
-	usage := a.contextUsage(int(a.lastPromptTokens.Load()))
+	before := a.Sess.GetMessages()
+	usage := MeasureContext(a.window(), 0, before)
+	usage.Used = max(usage.Used, int(a.lastPromptTokens.Load()))
 	if !usage.ShouldCompact() {
 		return
 	}
-	before := a.Sess.GetMessages()
 	target := int(float64(usage.Window) * compactToFraction)
-	result, err := CompactMessages(before, keepRecentTurns, target, a.summarizeSpan(ctx))
-	if err != nil {
-		fmt.Fprintf(a.Out, "could not compact the session: %v\n", err)
+	result, changed := a.CompactNow(ctx, target)
+	if !changed {
 		return
 	}
-	if result.Stage == StageNone || result.Replaced == 0 {
-		return
-	}
-	// Kept so the step can be undone within this session. Compaction is the one
-	// operation that makes the model forget, so it must be reversible.
-	a.applyCompaction(before, result)
 	// Said out loud, always. A user who cannot see this happen cannot explain
 	// why the model suddenly forgot something.
 	fmt.Fprintf(a.Out, "compacted %d messages (%s), freeing about %d tokens\n",
@@ -251,24 +259,35 @@ func (a *Agent) compactIfNeeded(ctx context.Context) {
 // applyCompaction swaps in the smaller conversation, keeping what it replaced
 // both in memory for this session and on disk for after it.
 //
-// Neither failure stops the compaction. The session had to fit, and losing the
-// archive costs reversibility beyond this process rather than the ability to
-// keep working.
-func (a *Agent) applyCompaction(before []provider.Message, result Compaction) {
-	a.preCompact = before
-	a.lastArchive = ""
-	if a.ArchiveCompaction != nil {
-		path, err := a.ArchiveCompaction(before)
-		if err != nil {
-			fmt.Fprintf(a.Out, "warning: could not archive the replaced conversation: %v\n", err)
-		} else {
-			a.lastArchive = path
-		}
+// Archival must succeed before the complete working transcript is replaced.
+func (a *Agent) applyCompaction(before []provider.Message, result Compaction) bool {
+	path, err := a.archiveMessages(before)
+	if err != nil {
+		fmt.Fprintf(a.Out, "could not compact: full history could not be archived: %v\n", err)
+		return false
 	}
 	a.Sess.SetMessages(result.Messages)
 	if err := a.Sess.Save(); err != nil {
-		fmt.Fprintf(a.Out, "warning: compacted session could not be saved: %v\n", err)
+		a.Sess.SetMessages(before)
+		fmt.Fprintf(a.Out, "could not compact: session could not be saved: %v\n", err)
+		return false
 	}
+	a.preCompact, a.lastArchive = before, path
+	a.postCompact = result.Messages
+	a.lastPromptTokens.Store(0) // The last request measured a different transcript.
+	return true
+}
+
+func (a *Agent) archiveMessages(messages []provider.Message) (string, error) {
+	a.archiveMu.Lock()
+	defer a.archiveMu.Unlock()
+	if a.ArchiveCompaction != nil {
+		return a.ArchiveCompaction(messages)
+	}
+	if a.Sess == nil {
+		return "", fmt.Errorf("no session to retain the conversation")
+	}
+	return a.Sess.ArchiveMessages(messages)
 }
 
 const titleSystemPrompt = `You name a coding session in at most six words.
@@ -345,22 +364,20 @@ func (a *Agent) CompactNow(ctx context.Context, target int) (Compaction, bool) {
 	}
 	result, err := CompactMessages(before, keepRecentTurns, target, a.summarizeSpan(ctx))
 	if err != nil {
-		fmt.Fprintf(a.Out, "could not compact the session: %v\n", err)
-		return Compaction{}, false
+		fmt.Fprintf(a.Out, "could not summarize older history: %v\n", err)
 	}
-	if result.Stage == StageNone || result.Replaced == 0 {
+	if result.Stage == StageNone || result.Replaced == 0 || result.FreedTokens <= 0 {
 		return result, false
 	}
-	a.applyCompaction(before, result)
-	return result, true
+	return result, a.applyCompaction(before, result)
 }
 
 // recoverFromOverflow compacts after a provider has refused an over-long
 // request, so the turn can be retried instead of simply lost. It is allowed
-// once per turn: a second refusal after compacting means the request cannot be
+// once per refused request: a second refusal without progress means it cannot be
 // made to fit, and retrying again would only spend money to fail again.
 func (a *Agent) recoverFromOverflow(ctx context.Context) bool {
-	target := int(float64(a.window()) * compactToFraction)
+	target := overflowTarget(a.window(), a.Sess.GetMessages())
 	result, changed := a.CompactNow(ctx, target)
 	if !changed {
 		return false
@@ -375,13 +392,22 @@ func (a *Agent) RestoreCompaction() bool {
 	if a.Sess == nil || a.preCompact == nil {
 		return false
 	}
-	a.Sess.SetMessages(a.preCompact)
-	a.preCompact = nil
-	// Reporting the conversation as restored while it is not on disk is a quiet
-	// half-success: the next session would silently be the compacted one.
-	if err := a.Sess.Save(); err != nil {
-		fmt.Fprintf(a.Out, "warning: could not save the restored conversation: %v\n", err)
+	current := a.Sess.GetMessages()
+	if len(current) < len(a.postCompact) || !reflect.DeepEqual(current[:len(a.postCompact)], a.postCompact) {
+		fmt.Fprintln(a.Out, "cannot undo compaction because earlier messages changed; the full history remains archived")
+		return false
 	}
+	// Later turns belong to the user too. Restore the replaced prefix and retain
+	// everything appended since, instead of rolling the whole session backward.
+	restored := append(append([]provider.Message(nil), a.preCompact...), current[len(a.postCompact):]...)
+	a.Sess.SetMessages(restored)
+	if err := a.Sess.Save(); err != nil {
+		a.Sess.SetMessages(current)
+		fmt.Fprintf(a.Out, "warning: could not save the restored conversation: %v\n", err)
+		return false
+	}
+	a.preCompact, a.postCompact = nil, nil
+	a.lastPromptTokens.Store(0)
 	return true
 }
 
@@ -394,13 +420,13 @@ func (a *Agent) summarizeSpan(ctx context.Context) Summarizer {
 	return func(span []provider.Message) (string, error) {
 		var transcript strings.Builder
 		for _, message := range span {
-			if message.Content == "" {
-				continue
-			}
 			transcript.WriteString(message.Role)
 			transcript.WriteString(": ")
 			transcript.WriteString(message.Content)
 			transcript.WriteString("\n")
+			for _, call := range message.ToolCalls {
+				fmt.Fprintf(&transcript, "tool call %s: %s\n", call.Function.Name, call.Function.Arguments)
+			}
 		}
 		return a.FastLaneChat(ctx, summarySystemPrompt, transcript.String())
 	}

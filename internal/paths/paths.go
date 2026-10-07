@@ -134,6 +134,9 @@ func (d Dirs) MemoryFile() string { return filepath.Join(d.Config, "memory.md") 
 // LocalModelsDir stores models and managed local-runtime state.
 func (d Dirs) LocalModelsDir() string { return filepath.Join(d.Data, "local-models") }
 
+// LocalRuntimeDir holds managed native runtime installations and project records.
+func (d Dirs) LocalRuntimeDir() string { return filepath.Join(d.Data, "local-runtime") }
+
 // CatalogFile is the cached model catalog: rebuildable, so it lives in Cache.
 func (d Dirs) CatalogFile() string { return filepath.Join(d.Cache, "models.json") }
 

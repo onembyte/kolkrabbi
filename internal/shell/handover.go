@@ -8,8 +8,8 @@ import (
 )
 
 // Handover runs a provider-owned interactive login with the user's terminal
-// attached directly. Kolkrabbi supplies no prompt, pipe, environment override,
-// or credential input; the provider owns the complete authentication flow.
+// attached directly. The provider owns prompts and credentials; Kolkrabbi
+// scrubs inherited secrets and may bind Ollama to the server being verified.
 func Handover(ctx context.Context, executable string, args []string, dir string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -25,7 +25,7 @@ func Handover(ctx context.Context, executable string, args []string, dir string)
 	// user in through its own login; the parent's keys are not its business,
 	// and "Kolkrabbi will not see credentials" was printed a moment ago -- the
 	// line has to hold in both directions.
-	cmd.Env = inheritedEnv(nil)
+	cmd.Env = loginEnvironment(ctx)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

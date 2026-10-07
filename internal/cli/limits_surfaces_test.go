@@ -71,7 +71,7 @@ func TestStatusLineSaysWhenTheSessionIsPaused(t *testing.T) {
 		Model: ag.SessionModel(), Since: time.Now(), ResetAt: time.Now().Add(40 * time.Minute), PendingTurn: "go on",
 	})
 	got := tuiStatus(ag, "ready", "~").Paused
-	if !strings.HasPrefix(got, "paused · ") || !strings.Contains(got, "subscription allowance") || !strings.Contains(got, "resumes") {
+	if !strings.HasPrefix(got, "paused · ") || !strings.Contains(got, "subscription allowance") || !strings.Contains(got, "reset at") {
 		t.Fatalf("Paused = %q, want the reason and when it resumes", got)
 	}
 }
@@ -93,10 +93,31 @@ func TestDoctorNamesPausedSessions(t *testing.T) {
 		t.Fatal(err)
 	}
 	section := stdout.String()[strings.Index(stdout.String(), "\nlimits\n"):]
-	for _, want := range []string{"paused", sess.SessionID(), "account quota", "resumes", "/resume"} {
+	for _, want := range []string{"paused", sess.SessionID(), "account quota", "reset at", "/resume"} {
 		if !strings.Contains(section, want) {
 			t.Fatalf("limits section omits %q:\n%s", want, section)
 		}
+	}
+}
+
+func TestDoctorKeepsExpiredPausesVisible(t *testing.T) {
+	d := isolateHome(t)
+	sess := session.New(d.Sessions(), "vendor/pinned")
+	sess.SetPaused(&continuity.Pause{Kind: string(provider.LimitAccountQuota), Model: "vendor/pinned",
+		Since: time.Now().Add(-2 * time.Hour), ResetAt: time.Now().Add(-time.Hour), PendingTurn: "finish the report"})
+	if err := sess.Save(); err != nil {
+		t.Fatal(err)
+	}
+	a, stdout, _ := newTestApp(t, "")
+	a.doctorLimits()
+	out := stdout.String()
+	for _, want := range []string{sess.SessionID(), "ready to retry", "kolk -s", "/resume"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("doctor omitted %q: %s", want, out)
+		}
+	}
+	if strings.Contains(out, "nothing is cooling") || strings.Contains(out, "by itself") {
+		t.Fatalf("doctor misrepresented a retained pause: %s", out)
 	}
 }
 

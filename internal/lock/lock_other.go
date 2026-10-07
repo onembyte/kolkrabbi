@@ -7,3 +7,5 @@ import "os"
 // Add an OS-backed implementation before claiming support on another target.
 func tryLock(*os.File) (bool, error) { return false, ErrUnsupported }
 func unlock(*os.File) error          { return ErrUnsupported }
+
+func openLockFile(string) (*os.File, error) { return nil, ErrUnsupported }

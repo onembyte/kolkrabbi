@@ -353,6 +353,17 @@ func (c *Controller) CommitOverflow(width, height int) []string {
 	return strings.Split(joinViewRowsWidth(rows, true, width), "\n")
 }
 
+// Remaining renders the rest of the transcript for the terminal's scrollback,
+// as CommitOverflow does for what has left the frame. It is only for exit:
+// printed while the frame is still repainted, it would show twice.
+func (c *Controller) Remaining(width int) []string {
+	rows := c.screen.Remaining(width)
+	if len(rows) == 0 {
+		return nil
+	}
+	return strings.Split(joinViewRowsWidth(rows, true, width), "\n")
+}
+
 // SetActivity updates only the ephemeral working row and its lifecycle label.
 func (c *Controller) SetActivity(activity string) {
 	c.screen.SetActivity(activity)
@@ -367,6 +378,14 @@ func (c *Controller) SetActivity(activity string) {
 // rebuilds its Status from the engine and cannot know about the queue, so it
 // is re-derived here rather than read out of the fresh value.
 func (c *Controller) SetStatus(status Status) {
+	if status.RecoveryWarning == "" {
+		status.RecoveryWarning = c.status.RecoveryWarning
+	}
+	if status.LocalWarningAcknowledged {
+		status.LocalWarning = ""
+	} else if status.LocalWarning == "" {
+		status.LocalWarning = c.status.LocalWarning
+	}
 	status.Queued = 0
 	if strings.TrimSpace(c.queued) != "" {
 		status.Queued = 1
@@ -374,6 +393,16 @@ func (c *Controller) SetStatus(status Status) {
 	status.Agents = c.runningAgentCount()
 	c.status = status
 	c.screen.SetStatus(status)
+}
+
+// SetLocalWarning keeps a local child's placement warning on the parent
+// footer even when the parent itself uses a remote model.
+func (c *Controller) SetLocalWarning(warning string) {
+	if warning == "" || c.status.LocalWarningAcknowledged {
+		return
+	}
+	c.status.LocalWarning = warning
+	c.screen.SetStatus(c.status)
 }
 
 // FinishTurn makes the editor ready without altering a type-ahead draft.
@@ -646,15 +675,15 @@ func (c *Controller) SetAgents(running int) {
 // correlation key; rows are sorted by plan ordinal so concurrent starts never
 // make the display jump into goroutine completion order.
 func (c *Controller) SetAgentStatus(status AgentStatus) {
+	if !c.acceptsAgentStatus(status) {
+		return
+	}
 	key := status.ID
 	if key == "" {
 		key = fmt.Sprintf("agent-%d", status.Index)
 	}
 	if c.agentStatuses == nil {
 		c.agentStatuses = map[string]AgentStatus{}
-	}
-	if current, found := c.agentStatuses[key]; found && status.Sequence != 0 && status.Sequence <= current.Sequence {
-		return
 	}
 	if len(c.agentStatuses) == 0 {
 		// A new run answers the question now; the one before it is over.
@@ -663,6 +692,29 @@ func (c *Controller) SetAgentStatus(status AgentStatus) {
 	c.agentStatuses[key] = status
 	c.noteAgentStep(key, status.Step)
 	c.syncAgentStatuses()
+}
+
+func (c *Controller) acceptsAgentStatus(status AgentStatus) bool {
+	key := status.ID
+	if key == "" {
+		key = fmt.Sprintf("agent-%d", status.Index)
+	}
+	current, found := c.agentStatuses[key]
+	return !found || status.Sequence == 0 || status.Sequence > current.Sequence
+}
+
+func (c *Controller) hasObservedModel(model string) bool {
+	for _, status := range c.agentStatuses {
+		if status.Model == model {
+			return true
+		}
+	}
+	for _, status := range c.lastRun {
+		if status.Model == model {
+			return true
+		}
+	}
+	return false
 }
 
 // noteAgentStep keeps the last few distinct steps of one agent: its log, as

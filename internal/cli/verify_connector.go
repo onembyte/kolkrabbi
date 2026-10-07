@@ -87,22 +87,49 @@ func (a *app) verifyingBackend(inner engine.ChatBackend, plan provider.PlanModel
 
 func (b *verifyingBackend) StreamChat(ctx context.Context, model string, messages []provider.Message, tools []provider.Tool, onToken func(string)) (provider.Message, provider.Meta, error) {
 	message, meta, err := b.inner.StreamChat(ctx, model, messages, tools, onToken)
+	return b.settle(ctx, model, message, meta, err)
+}
+
+// StreamChatObserved passes the vendor's own reports through: which tools it
+// started and finished. Without it every tool a vendor runs in the main
+// session is invisible to the run journal, and a turn that acted could pass
+// for one that never started.
+func (b *verifyingBackend) StreamChatObserved(ctx context.Context, model string, messages []provider.Message, tools []provider.Tool, onToken func(string), observe func(provider.ProgressEvent)) (provider.Message, provider.Meta, error) {
+	observed, ok := b.inner.(provider.ObservedChatBackend)
+	if !ok {
+		return b.StreamChat(ctx, model, messages, tools, onToken)
+	}
+	message, meta, err := observed.StreamChatObserved(ctx, model, messages, tools, onToken, observe)
+	return b.settle(ctx, model, message, meta, err)
+}
+
+// settle is what the decorator adds to every turn: the outcome recorded, a
+// failure explained once, the first success confirmed, the handle noted.
+func (b *verifyingBackend) settle(ctx context.Context, model string, message provider.Message, meta provider.Meta, err error) (provider.Message, provider.Meta, error) {
 	if b.observe != nil {
 		b.observe(model, meta, err)
+	}
+	// The handle exists before the first turn (kolk mints it), so a turn that
+	// succeeded notes it whether or not the vendor has confirmed it yet: a
+	// backend switched to mid-session resumes the same conversation it left.
+	// A failed turn notes it only once the vendor confirmed it, so a restart
+	// recovering that turn reaches the same conversation, while a handle only
+	// minted by a turn that died is never trusted. A retired one reads empty,
+	// and the session file forgets it too, so no later kolk process resumes a
+	// conversation whose turn was left unfinished.
+	if handleBackend, ok := b.inner.(providerHandleBackend); ok {
+		switch handle := handleBackend.ProviderHandle(); {
+		case handle != "" && (err == nil || b.ProviderHandleConfirmed()):
+			b.note(handle)
+		case handle == "" && b.ProviderHandleRetired():
+			b.note("")
+		}
 	}
 	if err != nil {
 		b.explained.Do(func() { b.explain(err) })
 		return message, meta, err
 	}
 	b.confirmed.Do(func() { b.confirm(ctx) })
-	// The handle exists before the first turn (kolk mints it), so it is noted
-	// whether or not the vendor has confirmed it yet: a backend switched to
-	// mid-session resumes the same conversation it left.
-	if handleBackend, ok := b.inner.(providerHandleBackend); ok {
-		if handle := handleBackend.ProviderHandle(); handle != "" {
-			b.note(handle)
-		}
-	}
 	return message, meta, nil
 }
 
@@ -113,6 +140,42 @@ func (b *verifyingBackend) ProviderHandle() string {
 		return handleBackend.ProviderHandle()
 	}
 	return ""
+}
+
+func (b *verifyingBackend) ProviderHandleConfirmed() bool {
+	if confirmed, ok := b.inner.(interface{ ProviderHandleConfirmed() bool }); ok {
+		return confirmed.ProviderHandleConfirmed()
+	}
+	return false
+}
+
+// ProviderHandleRetired and ForgetConversation forward to the wrapped adapter.
+func (b *verifyingBackend) ProviderHandleRetired() bool {
+	retired, ok := b.inner.(interface{ ProviderHandleRetired() bool })
+	return ok && retired.ProviderHandleRetired()
+}
+
+func (b *verifyingBackend) ForgetConversation() {
+	if forget, ok := b.inner.(interface{ ForgetConversation() }); ok {
+		forget.ForgetConversation()
+	}
+}
+
+// TurnNeverStarted, TurnClosed and ResumesConversation forward the wrapped
+// adapter's own proofs; the decorator proves nothing itself.
+func (b *verifyingBackend) TurnNeverStarted() bool {
+	proof, ok := b.inner.(interface{ TurnNeverStarted() bool })
+	return ok && proof.TurnNeverStarted()
+}
+
+func (b *verifyingBackend) TurnClosed() bool {
+	proof, ok := b.inner.(interface{ TurnClosed() bool })
+	return ok && proof.TurnClosed()
+}
+
+func (b *verifyingBackend) ResumesConversation() bool {
+	resumable, ok := b.inner.(interface{ ResumesConversation() bool })
+	return ok && resumable.ResumesConversation()
 }
 
 // Close releases the provider this decorator wraps.

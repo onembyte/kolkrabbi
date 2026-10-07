@@ -46,6 +46,7 @@ func RunInSession(ctx context.Context, executable string, args []string, in io.R
 	defer func() { _ = pty.Close() }()
 
 	cmd := commandOnPTY(ctx, path, args, pty.Slave)
+	cmd.Env = loginEnvironment(ctx)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("%s login did not start: %w", executable, err)
 	}

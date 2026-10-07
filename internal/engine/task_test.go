@@ -1,8 +1,15 @@
 package engine
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/onembyte/kolkrabbi/internal/enginetest"
 )
 
 func TestAPlainStringListStillWorks(t *testing.T) {
@@ -116,5 +123,87 @@ func TestATaskWithNoDependenciesGetsNoResults(t *testing.T) {
 	tasks := []Task{{Title: "a"}, {Title: "b"}}
 	if briefing := dependencyBriefing(tasks, []string{"result of a", ""}, 1); briefing != "" {
 		t.Fatalf("briefing = %q, want nothing", briefing)
+	}
+}
+
+// A reply with no readable plan still runs the request directly, so no work
+// is lost, but it is not called a single-step task: a plan cut off at the
+// planner's output limit would otherwise vanish without a word. A genuine
+// one-task plan keeps its own line.
+func TestAnUnreadablePlanIsNotCalledASingleStep(t *testing.T) {
+	var planned []string
+	for i := range 40 {
+		planned = append(planned, fmt.Sprintf(`{"title":"task %d","kind":"research","level":"routine","needs":[%d]}`, i+1, i))
+	}
+	full := "[" + strings.Join(planned, ",") + "]"
+	for _, c := range []struct {
+		name, reply, want string
+	}{
+		{"cut off", full[:len(full)*2/3], "it may have been cut off"},
+		{"prose", "Sure, I would start by reading the config.", "the planner answered without a plan"},
+		{"empty", "", "the planner's reply was empty"},
+		{"empty plan", "[]", "the planner's plan had no tasks"},
+		{"wrong types", `[{"title":"a","needs":["1"]},{"title":"b"}]`, "the planner's plan could not be read; running the request directly"},
+		{"one of two usable", `[{"task":"untitled"},{"title":"b"}]`, "only 1 of the planner's 2 tasks could be read"},
+		{"no title", `[{}]`, "the planner's one task could not be read; running the request directly"},
+		{"null task", `[null]`, "the planner's one task could not be read; running the request directly"},
+		{"none usable", `[{},{"task":"untitled"}]`, "none of the planner's 2 tasks could be read; running the request directly"},
+		{"one task", `[{"title":"fix the typo"}]`, "single-step task"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			srv := enginetest.New(enginetest.Step{Text: c.reply}, enginetest.Step{Text: "did it directly"})
+			defer srv.Close()
+			a, out, _, _ := newTestAgentInternal(t, srv, ModeAgent)
+			work := &detailWork{}
+			a.Work = work
+			if err := a.RunTurn(context.Background(), "a request"); err != nil {
+				t.Fatal(err)
+			}
+			// The screen's activity line says the same as the transcript.
+			published := "running the request directly: no readable plan"
+			if c.name == "one task" {
+				published = "running a single task directly"
+			}
+			if !slices.Contains(work.steps, published) {
+				t.Errorf("published work = %q; want %q", work.steps, published)
+			}
+			text := out.String()
+			if !strings.Contains(text, c.want) || !strings.Contains(text, "did it directly") {
+				t.Fatalf("output lacks %q or the direct answer:\n%s", c.want, text)
+			}
+			if c.name != "one task" && strings.Contains(text, "single-step task") {
+				t.Fatalf("a reply with no readable plan was called a single step:\n%s", text)
+			}
+		})
+	}
+}
+
+// Adopted from the V43.5 verification (V2): a run that fell back to a direct
+// run and then paused is resumed as what it is, not re-announced as a
+// single-step task the planner never chose.
+func TestAResumedDirectRunIsNotCalledASingleStep(t *testing.T) {
+	limit := enginetest.Step{StatusCode: http.StatusTooManyRequests, RetryAfter: "1800",
+		ErrorBody: `{"error":{"message":"You have reached your usage limit"}}`}
+	srv := enginetest.New(
+		enginetest.Step{Text: `[{"title":"a","needs":[]},{"title":"b","needs":[1]},{"title":"c","ne`},
+		limit,
+		enginetest.Step{Text: "done after resume"},
+	)
+	defer srv.Close()
+	a, out, _, _ := newTestAgentInternal(t, srv, ModeAgent)
+	var paused *PausedError
+	if err := a.RunTurn(context.Background(), "big request"); !errors.As(err, &paused) {
+		t.Fatalf("want a pause: %v\n%s", err, out.String())
+	}
+	out.Reset()
+	pending, ok := a.Resume()
+	if !ok {
+		t.Fatal("no claim to resume")
+	}
+	if err := a.RunTurn(context.Background(), pending); err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	if text := out.String(); strings.Contains(text, "single-step task") || !strings.Contains(text, "resuming the request directly") {
+		t.Fatalf("the resumed direct run was announced as:\n%s", text)
 	}
 }

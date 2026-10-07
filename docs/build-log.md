@@ -8,6 +8,30 @@ One line per step. Verification is a command someone else can re-run.
 
 ---
 
+## 2026-10-07 — interrupted V43 closeout and optimization audit
+
+Preserved the prior V43 working tree and ordered its remaining recovery,
+surface, optimization, walk-back and distribution leaves. Untouched baseline
+`make check` passed 5,119 tests. October tests exposed unsafe vendor fallback,
+lost TUI resume claims and missing saved main-state validation; fixes and
+independent real-runtime/durable-restart evidence are recorded in CHECKPOINTS.
+O10.3–5/O17 add SHA-pinned CI race/coverage and real executable smoke tests.
+Full race+coverage passed (83.6%); the instrumented run also found and fixed a
+file-size-limit test-helper leak without weakening its EFBIG assertion.
+
+Final `make check` passed 5,158 tests, lint 0, five platform compiles and every
+contract: site 474/surface 21/installer 72/spec 29/release 24/workflow 41/
+verifier 30/smoke 18/plan 110/pins 57. Stripped darwin/arm64 size 10,428,370
+bytes (9.95 MiB), cold p50 6.3 ms, sandbox overhead p50 7.4 ms; binary ratchet
+unchanged, test floor raised to 4,642. GoReleaser 2.17.1 snapshot passed 21
+checks across four archives and host identity. Independent final delta CLEAN.
+
+Release target v1.3.5. Publication/tap verification is recorded only after it
+happens. Remaining optimization work is ordered in
+`docs/optimization-resume-audit.md`; physical/vendor/GPU trials remain open.
+
+---
+
 ## Step 3 — split `cmd/kolk/main.go` into `internal/cli/*`
 
 **Status:** done, 2026-08-22 · **Tests:** 22 → 44 · **Binary:** 5.82 MB · `go vet` clean
@@ -8010,3 +8034,297 @@ With the tap at the current release for the first time in three releases, the si
 without lying. The install steps carry the Homebrew command beside the curl line, and an Update
 step names the in-session `/update` and `brew upgrade kolk`, each with a copy button. The copy
 controller had only ever served the first button on the page; it serves all of them now.
+
+## Terminal identity and model controls — V43.1 closed 2026-09-14
+
+Model and effort now keep their space ahead of descriptions and session names in the picker,
+footer and worker rows. Picker data is sanitized and copied. Pause and account-cooldown notices
+remain distinct; short screens prioritize the actionable pause. Regressions reproduced each
+clipping/control/index failure before its fix.
+
+The owner's final supplied purple octopus is a transparent 35×32 PNG, 2,308 bytes, embedded and
+displayed in two columns by one row. Known Kitty/Ghostty and iTerm/WezTerm terminals use inline
+images; unknown terminals, multiplexers and colourless output use 🐙. Kitty uploads once and
+reuses placements. Park and Close erase owned images and restore the terminal. Image tests first
+reproduced per-frame upload and incomplete Park erasure. Physical terminal visual rehearsal is
+not claimed; protocol output, cursor accounting, sanitization and cleanup have deterministic tests.
+
+`make check` passes: 3,661 tests, zero lint issues, cold-start p50 7.5ms. Independent Claude review
+ran focused TUI/term/CLI race tests plus external overlay probes. After its findings were fixed,
+final `go test -race ./internal/tui ./internal/term -count=1` passed (1.795s / 1.356s); reviewer
+reported CLEAN, including notice compression, cached image reuse after plain frames and full
+Park erasure. Reports are in `/tmp/kolk-v43-review2.json` and `/tmp/kolk-v43-review3.json`.
+V43.1 supersedes the persistent TUI's historical wheel-only and block-icon geometry decisions.
+
+## Readable work and separated prompts — V43.1b closed 2026-09-15
+
+Native and delegated work now enters the transcript as grouped actions with agent identity,
+bounded output, public explanations and actual edit counts. Prompts occupy their own shaded
+multiline block, including blank rows and committed scrollback. Added/removed rows have subtle
+green/red backgrounds, signed counts and line numbers; truecolour terminals use RGB shades,
+with indexed and colourless fallbacks. No extra diff work runs without the work-log callback.
+
+Independent review found that unpaired warnings disappeared, long previews were truncated
+twice, and elided diffs could invent line numbers. The fixes retain warnings and unfinished
+records, preserve preview tails and supply accurate hunk coordinates. Independent end-to-end
+overlay probes covered single, mixed and multiple hunks; final review is CLEAN in
+`/tmp/kolk-v43-worklog-fixes.jsonl`. Provider diffs are displayed only when actually reported.
+
+`go test -race ./internal/tui ./internal/tools ./internal/provider/agentcli ./internal/engine
+./internal/cli -run 'WorkLog|WorkDiff|WorkReport|ElidedDiff|Prompt|Progress|ObservedStreamKeeps|UnpairedVendorWarning'
+-count=1` passes. Final `make check`: 3,674 tests, zero lint issues, cold-start p50 8.6ms.
+The actual renderer was also inspected through an ANSI-to-image sample at
+`/tmp/kolk-work-preview-rgb.png`; sample entries are not live execution evidence.
+The old persistent TUI's one-line provider trails are superseded; plain output stays supported.
+
+## Models and effort follow the task — V43.2 closed 2026-09-15
+
+The selected model now bounds an authoritative menu of discovered ranks on the signed-in
+provider. The provider identity travels with the task into launch. Hard/unstated work keeps
+the selection, routine work uses the nearest lower model, and mechanical work the lowest.
+Explicit slots also stay inside that menu. Effort is resolved once against the chosen model's
+advertised levels, then carried to backend setup, request context, status and usage records.
+Codex preserves an exact discovered max instead of always rewriting it to xhigh.
+
+Red tests reproduced effort leakage and a low-effort plan losing 11 of 12 tasks. The full plan
+now survives, with two simultaneous calls in the twelve-task regression. The owner's request
+for arbitrary necessary agent count leaves total queue length uncapped; the existing optional
+max_run_cost_usd controls total spend and the concurrency setting controls simultaneous calls.
+Independent probes also ran a 120-task plan. Before discovery returns, the menu is conservatively
+the selection alone; later plans use the refreshed catalog. Login guidance names only discovered
+lower models and is never a runnable route by itself.
+
+`make check`: 3,685 tests, zero lint issues, cold-start p50 5.9ms. Independent review is CLEAN in
+`/tmp/kolk-v43-routing-followup.jsonl`; full engine/CLI/agentcli/arch race tests and separate
+overlay probes passed. They verified provider binding through fallback, all effort consumers,
+malformed menus, fresh catalog/connector state, queue concurrency and production lane text.
+The old task-width table and routine-at-ceiling policy are superseded in the plan and ledger.
+
+## Pause ownership and repeated resume — V43.3a closed 2026-09-15
+
+Elapsed reset times no longer consume pending input. A missing callback retains the pause;
+watchers retire before handing work back, and separately tracked delivery is canceled and joined
+when the surface exits. Repeated limits get a new watcher. A declined handoff retains its input
+and retries after 30 seconds; a newer pause is never overwritten. Empty input lifts without a
+provider turn. The TUI arms only after startup can accept turns and protects an existing queued
+prompt. Plain-REPL mutations serialize with automatic work while its input reader remains live
+for EOF and /exit. /continue claims the pause before a potentially slow provider switch.
+
+Independent red probes found startup acceptance before a runnable context and root's EOF test
+found a watcher outliving the plain REPL. Both are fixed. Doctor now lists past-reset pauses and
+offers explicit session/resume commands; notices say reset at a future time or ready to retry,
+without promising that a manual or closed session will run itself.
+
+Final `make check`: 3,706 tests, zero lint issues, cold-start p50 6.3ms. Independent review is
+CLEAN in `/tmp/kolk-v43-pause-followup.jsonl` and `/tmp/kolk-v43-pause-surface-review.jsonl`.
+The verifier ran focused engine/TUI/CLI race tests three times, continuity/CLI/engine twice, and
+external overlays: 400 resume-vs-delivery races, 54 re-paused turns under Close, lifecycle hammer
+tests, no lingering goroutines, stale probes, startup/queue acceptance and clock boundaries.
+V35.2b's watcher lifetime and clock clearing are superseded. Accepted-queue persistence and
+task/child continuation are still V43.3b; this closure does not claim them.
+
+## Durable agent continuation — V43.3b closed 2026-09-16
+
+Allowance pauses now retain an execution journal: the original goal, accepted plan, completed
+results, child conversations, remaining tool calls, rounds, repetition guards, actual spend,
+provider handles and worktree identities. Resumption continues the saved phase without replanning
+or repeating completed work. A shared pause barrier drains work already in flight and prevents
+new calls. Worktrees survive the pause and are verified before reuse; TUI automatic delivery
+claims only an idle surface. Native conversation and provider-owned handles remain separate.
+
+Red tests reproduced synthesis replaying completed children and one capped child allowing the
+scheduler to continue. Real-session restart fixtures preserve a completed write and a partially
+completed tool batch. Independent review also found historical journals growing routine saves,
+cancellation racing a limit, missing discard recovery, and ignored lower resumed budgets. Fixes
+archive old journals, preserve stop/pause distinctions, add `/resume discard`, and keep the tighter
+budget. A resume canceled before startup returns ownership to its saved pause.
+
+Final `make check`: 3,727 tests, zero lint issues, cold-start p50 6.1ms
+(`/tmp/kolk-v43-continuation-check4.log`). Focused engine/session/CLI race tests pass
+(`/tmp/kolk-v43-continuation-race5.log`). Independent Claude review is CLEAN in
+`/tmp/kolk-v43-continuation-fix-review.jsonl` and `/tmp/kolk-v43-continuation-final-review.jsonl`,
+including focused race tests repeated twice and three times respectively.
+
+V35's pending-prompt removal and V36.2c's unconditional worktree release are superseded. Older
+execution histories remain included in session JSON exports. Arbitrary process death during a
+tool action is retained as uncertain and requires discard; it is not automatically replayed.
+Context pressure is the next leaf, V43.3c; managed Localia remains V43.4.
+
+## 2026-09-22 — context pressure and complete history (V43.3c)
+
+Complete native conversations are archived before compaction; failed archive/session writes
+preserve the working conversation. Completed tool rounds can shrink within a long turn without
+losing the original goal or orphaning pending calls. Child and orchestration budgets follow the
+actual model/backend window. Summaries receive original facts; dependency and synthesis previews
+retain full results in the execution journal. Overflow retries require real shrinkage and are
+bounded. Undo retains subsequent work. JSON export/fork retain main and child archives.
+
+Red regressions reproduced single-turn failure, archive loss, stale-window refusal, summary fact
+loss, routed-window mistakes and undo dropping progress. A real-session restart fixture reads,
+compacts, pauses, reloads and resumes a child without repeating its completed read.
+
+Verification: `make check` passes (3,745 tests, zero lint issues, cold-start p50 6.9ms;
+`/tmp/kolk-v43-context-check3.log`). Independent review is CLEAN: scoped engine/session/CLI
+compaction/context/export race tests pass twice, as do five independent routed-window and failed
+save probes. Earlier C12.2a–c/C12.6 promises are marked superseded. Kolk compacts transcripts it
+owns; vendor-private context remains vendor-owned. No billed provider rehearsal is claimed.
+Continuing with Localia's project lifetime, then managed native installation.
+
+## 2026-09-24 — project runtime lifetime (V43.4a)
+
+`/config set local.ephemeral on|off` now stores a canonical project preference in user config.
+Default on keeps a session's runtime across pulls and follow-up tasks, then closes it. Off uses
+real process detachment plus an atomic per-project endpoint record and an interprocess startup
+lock. Reuse checks the loopback endpoint, project, process identity and Ollama readiness. Failed
+publication stops only the new process; registry PIDs are never signalled. Existing servers and
+cached weights remain user-owned. Model listing and chat share the pull's runtime.
+
+Independent review found stale follower addresses after another session replaced a runtime,
+signin targeting a different server than verification, and missing cleanup when a runtime appeared
+after startup. Regressions reproduced each; fixes refresh the follower/client, bind the login's
+endpoint per child, and close the app-owned runtime after background/agent shutdown. The detached
+process test uses a release-file handshake after its launcher actually exits, including under race.
+
+Final `make check` passes: 3,764 tests, zero lint issues, sandbox overhead p50 6.7ms
+(`/tmp/kolk-v43-local-lifetime-check5.log`). Independent review is CLEAN; focused lifecycle/login/
+cleanup race tests passed twice, plus a window-daemon environment override probe. E3b/E10 and plan
+25's superseded lifetime/ownership wording are marked; the claims guard preserves host reuse.
+Windows persistence is unavailable until its existing file-lock implementation lands. No physical
+Linux/Windows/GPU runtime trial is claimed. Native setup is the next active leaf, V43.4b.
+
+## 2026-09-24 — managed native Localia setup (V43.4b)
+
+Explicit setup, approved model pulls and local selection now provision a missing native runtime
+in private user storage. The installer discovers the stable official release, verifies origins,
+size and SHA-256, extracts bounded gzip/Zstandard archives and publishes durable immutable trees.
+Library links, companion binaries and licenses survive extraction. Concurrent projects serialize
+setup; platform pointers and orphan recovery preserve complete installs. The Go 1.26.4 Zstandard
+decoder is copied with original source hashes and its BSD license; no module dependency was added.
+
+Local sessions start/resume without a remote key. Status and pickers remain read-only; exact
+cached tags and custom namespaces appear even when remote discovery fails. Unknown cached model
+execution stays unknown. Switching remote retains the explicit startup endpoint. Setup progress
+uses grouped stages and measured runtime bytes; malformed names cannot start a download.
+
+Independent archive/installer/CLI review is CLEAN after reproducing and fixing normalized link
+targets, nested fsync, architecture-pointer collision, unsafe lock aliases, keyless catalog paths,
+endpoint loss, cloud-stub labels, hidden local rows on remote outages and incomplete local IDs.
+Four independent `/tmp/kolk-v43-*-audit-overlay.json` fixtures record repeated race verification.
+Final `make check`: 4,419 tests, zero lint issues, 9.56 MB binary, cold start p50 6.0ms, sandbox
+overhead p50 6.5ms (`/tmp/kolk-v43-native-check3.log`). Plans/README and `docs/localia.md` reflect
+the final scope. After an initial DNS failure, the independent real macOS archive trial succeeded:
+Ollama v0.34.4, 160,042,307 bytes, SHA-256 verified, complete bundle extracted, offline reuse and
+temporary-tree cleanup passed under race (38.702s; `/tmp/kolk-v43-real-artifact-audit.log`). No
+downloaded vendor executable ran. Linux archives and physical GPU behavior remain unperformed.
+The next leaf reviews integrated Localia behavior and additional Linux GPU bundles.
+
+
+## V43 §8 item 6 Capture — independent closeout, 2026-09-30
+
+Reviewed Claude's eleven Capture fixes and preserved them. Six additional findings were
+proved red and fixed: native and vendor-owned tool errors masked by later successful answers,
+wrong main backend handles, absent actual model/vendor/effort binding, admission during failed
+child cleanup, and budget stops missing recovery. Failed native results save before the next
+main action; children close new-task admission immediately and drain before saving; vendor
+failures save after the committed response; budget-skipped tasks save together before synthesis.
+Failed saves block further work. Cancellation creates no recovery point.
+
+Verification: `go test -race -count=1 -timeout 300s ./internal/engine ./internal/continuity
+./internal/session ./internal/provider/... ./internal/cli` passed; 24/24 valid author overlay
+mutants killed; `make check` passed 4,905 tests, zero lint issues, all gates (9.87 MB, p50 6.1 ms).
+Logs: `/tmp/kolk-capture-followup-final2-race.log`,
+`/tmp/kolk-capture-followup-mutants/summary.json`, `/tmp/kolk-capture-followup-check-final.log`.
+Fresh non-author `verify_capture_final` returned CLEAN after read-only review, six independent
+probes repeated five times under race and three omission mutants killed, with explicit timeouts
+and unchanged production hashes (`/tmp/kolk-capture-final-verifier/`). Complete red/fix evidence
+is in CHECKPOINTS.md. Capture is closed; Resume, Surfaces and Walk-back remain open. Release
+is still gated. This iteration neither stages nor commits other agents' uncommitted work.
+
+
+## V43 §8 Capture follow-up — Claude F1/F2 verified, 2026-09-30
+
+The previous closeout did not cover Claude's subsequent failed-write hold and cancellation
+regressions. Reviewed that delta before starting Resume and preserved its source unchanged.
+An overlay removing the hold reproduced trailing JSON writes on five exceptional paths;
+all six valid omission mutants were killed (`/tmp/kolk-capture-hold-mutants/`). Focused race
+passed with `go test -race -count=1 -timeout 300s ./internal/engine ./internal/continuity
+./internal/session ./internal/provider/... ./internal/cli`; `make check` passed 4,917 tests,
+zero lint issues and all gates (`/tmp/kolk-capture-hold-{race,check}.log`).
+
+Fresh non-author `verify_capture_hold` returned CLEAN after four independent probes repeated
+five times under race, six valid mutants killed, explicit timeouts throughout and unchanged
+hashes across 181 files. Probes cover ordinary save reasons/intervals, durable mirror warnings,
+synthesis failure and nested continuation. Evidence: `/tmp/kolk-verify-capture-hold/REPORT.md`
+and adjacent logs/manifests; full commands/results in CHECKPOINTS.md. Capture is closed
+including F1/F2. Resume, Surfaces, Walk-back and release remain open; this iteration stops.
+
+
+## V43 §8 Resume / Native recovery — 2026-09-30
+
+Reviewed Claude's previously verified Capture F1/F2 changes and preserved them. Added
+explicit durable recovery provenance, manual native error/limit claims, pending-call and
+committed-answer continuation, and durable retirement before further actions. Failed saves
+cannot grant recovery provenance; failed retirement blocks work while preserving the saved
+boundary. Settled child results survive and empty vendor handles retain their ownership.
+Resume now has separate native, vendor-proof and full restart-validation leaves.
+
+Red: `/tmp/kolk-native-resume-red.log`. Thirteen real-storage public-API regressions pass;
+16/16 valid author overlay mutants killed (`python3 /tmp/kolk-native-mutants.py`, tests
+`-count=1 -timeout=30s`). Final engine/continuity/session/provider/CLI race passed with
+`-timeout=300s`; `make check` passed 4,936 tests, zero lint issues, p50 7.4 ms, all gates.
+Evidence: `/tmp/kolk-native-resume-mutants/summary.txt`,
+`/tmp/kolk-native-resume-final-race.log`, `/tmp/kolk-native-resume-check.log`.
+
+Fresh non-author `verify_native_resume` returned CLEAN and reaffirmed final tests against
+unchanged production hashes: three independent real-disk overlay probes, three mutants,
+and independent engine/session/continuity race, all with explicit timeouts. Report:
+`/tmp/kolk-native-verify.8O9tOl/REPORT.md`. CHECKPOINTS.md records detailed acceptance.
+Native recovery is closed; vendor continuation proof (including legacy LastPause behavior),
+full restart validation, Surfaces and Walk-back remain open. Release remains gated; stop
+this iteration without staging, committing or overwriting another agent's work.
+
+
+## V43 §8 Vendor recovery — independent review NOT CLEAN, 2026-09-30
+
+Reviewed the Native closeout and Claude's intervening Vendor implementation without
+rewriting its uncommitted source. Later proof revisions are newer than the recorded
+4,954-test author gate: current make check and focused race fail to compile obsolete
+engine/CLI proof references. Provider adapter race passes alone.
+
+Three root overlay fault-injection probes fail under race: delivered requests with lost
+output are falsely proven unstarted by Claude and Codex, Claude resends one twice, and
+Claude's drain consumes acceptance/tool/completion without retaining that evidence.
+Fresh non-author verify_vendor_recovery also reproduced admission of accepted unfinished
+work, legacy unknown work, and a mismatched current vendor handle. All probe tests use
+explicit timeouts; engine review discloses its test-only compile shim. No live vendors
+were called and no repository production/tests were edited.
+
+Evidence: /tmp/kolk-vendor-review/REPORT.md, /tmp/kolk-vendor-independent/REPORT.md,
+/tmp/kolk-vendor-review-{check,race}.log; full findings and required author repairs in
+CHECKPOINTS.md and docs/v43-5-codex-review.md. Vendor recovery remains open pending
+repair and fresh CLEAN; later checkpoints and release remain gated. This review stops.
+
+
+## V43 §8 Surfaces — implemented, scoped CLEAN; shared gate pending, 2026-09-30
+
+Following the owner's direction and Claude's explicit disjoint-file task split,
+implemented Surfaces while Claude retains Vendor recovery. Every failed exceptional
+save emits typed recovery.failed with reason, scrubbed message and durability fact,
+including missing storage, failed retirement and durable sidecar/mirror warnings.
+The TUI keeps a typed footer notice through status refreshes; startup diagnostics go
+to stderr before stream-json reserves stdout. A slow subscriber resumes from its last
+written sequence and final events are drained. Missing/expired journals and failed or
+short stdout writes fail visibly; output failure cancels provider work.
+
+Red evidence: /tmp/kolk-surfaces-red.log, red-engine-cli.log, slow-red.log (all prefixed
+kolk-surfaces-). Thirteen valid author mutants killed; focused engine/CLI/TUI/protocol
+race passes with a disclosed missing-import overlay. Fresh non-author verifier returned
+CLEAN for Surfaces with six independent tests/seven cases and seven valid mutants:
+/tmp/kolk-surfaces-final-verifier/REPORT.md. Full commands/results in CHECKPOINTS.md.
+
+Shared make check still fails formatting in Claude's session.go and CLI compilation
+needs errors imported in his backend.go. Both files are preserved. Proposed build-only
+patch: /tmp/kolk-surfaces-peer-build.patch, backed by source hashes. An isolated full
+copy with those corrections is at /tmp/kolk-surfaces-gate; its result does not certify
+the shared tree. Surfaces stays unchecked pending the shared full gate. No commit,
+push, release, or takeover of Vendor recovery in this iteration.

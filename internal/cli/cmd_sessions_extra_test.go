@@ -2,11 +2,13 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/onembyte/kolkrabbi/internal/continuity"
 	"github.com/onembyte/kolkrabbi/internal/paths"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/session"
@@ -154,6 +156,74 @@ func TestSessionsExportJSONIsTheStoredRecord(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), `"messages"`) {
 		t.Fatalf("export = %q", out.String())
+	}
+}
+
+func TestSessionsJSONExportIncludesArchivedAgentHistory(t *testing.T) {
+	_, first := seedSessions(t)
+	first.SetRunState(&continuity.Run{ID: "earlier", Phase: "done", Tasks: []continuity.Task{{Result: "saved child result"}}})
+	first.SetRunState(&continuity.Run{ID: "latest", Phase: "done"})
+	if err := first.Save(); err != nil {
+		t.Fatal(err)
+	}
+	a, out, _ := newTestApp(t, "")
+	if code := a.main(context.Background(), []string{"sessions", "export", first.ID, "--json"}); code != ExitOK {
+		t.Fatal("export failed")
+	}
+	var exported struct {
+		Executions []continuity.Run `json:"executions"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &exported); err != nil {
+		t.Fatal(err)
+	}
+	if len(exported.Executions) != 2 || exported.Executions[0].Tasks[0].Result != "saved child result" {
+		t.Fatalf("export lost archived child history: %+v", exported)
+	}
+}
+
+func TestSessionsForkAndExportRetainMainAndChildCompactions(t *testing.T) {
+	dirs, source := seedSessions(t)
+	mainPath, err := source.ArchiveMessages([]provider.Message{{Role: "user", Content: "original main goal"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	childPath, err := source.ArchiveMessages([]provider.Message{{Role: "tool", Content: "full child evidence"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	source.SetRunState(&continuity.Run{ID: "request", Phase: "tasks", Tasks: []continuity.Task{{Title: "child", Archives: []string{childPath}}}})
+	if err := source.Save(); err != nil {
+		t.Fatal(err)
+	}
+	a, out, _ := newTestApp(t, "")
+	if err := a.forkSession(dirs.Sessions(), source.ID); err != nil {
+		t.Fatal(err)
+	}
+	all, _ := session.List(dirs.Sessions())
+	var forkID string
+	for _, item := range all {
+		if strings.Contains(item.Title, "(fork)") {
+			forkID = item.ID
+		}
+	}
+	if forkID == "" {
+		t.Fatal("fork missing")
+	}
+	// Deleting the source must not remove the fork's historical evidence.
+	if err := session.Delete(dirs.Sessions(), source.ID); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	if err := a.exportSession(dirs.Sessions(), forkID, true); err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{"original main goal", "full child evidence", `"phase": "stopped"`} {
+		if !strings.Contains(out.String(), expected) {
+			t.Fatalf("fork export lost %q", expected)
+		}
+	}
+	if strings.Contains(out.String(), childPath) || strings.Contains(out.String(), mainPath) {
+		t.Fatal("fork retains archive ownership in deleted source")
 	}
 }
 

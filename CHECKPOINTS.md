@@ -40,6 +40,5450 @@ no longer exist in the tree flags exactly the entries that *do* record a removal
 Distinguishing "promises this exists" from "records this was removed" is semantic, not textual. So
 this stays a step a person takes, and is written into the contract rather than left to memory.
 
+## Active group — V43 product polish (2026-09-14)
+
+Owner: **Codex**. Independent verification: a separate review agent, per AGENTS.md.
+2026-10-07 continuation: the owner requested completion of the interrupted
+optimization/polish work and a verified Homebrew release. Codex owns the
+remaining V43 closeout. The September split and missing-import/format blockers
+are historical: the untouched baseline passed `make check` (5,119 tests).
+Capture and Native recovery remain closed. Current vendor recovery, TUI
+delivery, restart validation and in-turn fallback fixes have a non-author
+CLEAN review. Their final shared gate passed (5,158 tests); Surfaces and
+documentation walk-back are closed. Commit/push, green CI, signed release and
+Homebrew verification are next. Ordered execution is in
+`docs/october-release-checklist.md`; larger unfinished optimizations are
+explicitly retained in `docs/optimization-resume-audit.md`.
+The owner's six priorities authorize this forward queue; historical partial V34 leaves remain
+open and are not release claims. Design: `docs/plan/38-product-polish.md`.
+Detailed review checklist: `docs/v43-checklist.md` (resumed 2026-09-21 at V43.3c).
+
+### October recovery closeout evidence — 2026-10-07
+
+- Vendor/TUI delivery: a scheduling-barrier test drives the real vendor
+  adapter, verifying decorator, resume monitor and asynchronous Runtime.
+  With the old value-dropping submission it makes three requests/effects;
+  retaining the private delivery claim makes only original + continuation.
+  The independent probe passed five race runs. Adopted as
+  `internal/cli/vendor_tui_delivery_test.go`. Separate TUI tests pin claim
+  values, session-owned cancellation and refusal of cancelled deliveries.
+- In-turn fallback: new tests were RED for eight unsafe ask/switch cases and
+  free rotation. The engine now observes tool reports even without a UI
+  observer and refuses replay unless delivery never began or the vendor closed
+  without a tool report. Metadata-only reports also forbid switching. The
+  coordinated-child test pins the shared pause gate before any fallback.
+- Restart: real compressed SaveRecovery/load regressions were RED for unknown
+  main state, incorrectly cased state and negative rounds. Main state/rounds
+  validation now refuses before work. The 16-case permanent refusal matrix
+  retains the durable journal; the independent 15-case matrix passed twice
+  under race. A mixed settled/interrupted/queued background restart test
+  preserves a completed-write sentinel and dependency results, never reopens
+  the settled child, and synthesizes once. Independent probe passed three
+  race runs; adopted as `internal/engine/restart_background_test.go`.
+- Focused command: `go test -race ./internal/cli ./internal/tui ./internal/engine
+  -run 'TestIndependentTUIRuntime|TestAutomaticContinuation|TestCancelledContinuation|TestVendorFailureCannot|TestVendorRateLimit|TestVendorFallback|TestCoordinatedChildLimit'
+  -count=3 -timeout=120s` passed. Restart refusal matrix passed three race runs.
+  Independent reviewer returned scoped CLEAN for all four safety boundaries.
+- O10 instrumentation: the full race+coverage command uncovered a helper's
+  RLIMIT_FSIZE leaking into report generation. Restoring the limit in cleanup
+  preserves the EFBIG test and passes three focused instrumented runs. Full
+  race+coverage then passed (83.6%). New CI contract was RED for five missing
+  items; workflow pin contract now passes 57 checks.
+- Final shared gate and signed/Homebrew release results are recorded below
+  only when completed; no physical/provider/GPU trial is claimed here.
+- Final shared gate: `GOCACHE=/private/tmp/kolk-oct07-go-cache
+  GOLANGCI_LINT_CACHE=/private/tmp/kolk-oct07-lint-cache make check` exit 0.
+  5,158 tests, lint 0, five platform compiles; size 10,428,370 bytes (9.95 MiB),
+  cold p50 6.3 ms, sandbox overhead 7.4 ms. Site 474, surface 21, installer 72,
+  spec 29, release 24/workflow 41/verifier 30, smoke 18, plan 110, pins 57.
+  Test floor now 4,642; binary budget was not raised. GoReleaser 2.17.1 snapshot
+  built all four archives, checksum/host identity checks passed 21.
+- Non-author final delta review CLEAN: executable smoke, revised context
+  carrier, background restart, documentation/distribution contracts. Walk-back
+  corrected stale Homebrew refusal, effort task-count truncation, hidden key
+  guidance and full-replay-on-doubt; native Bash sandbox remains correctly
+  described as opt-in, not universal vendor/Windows confinement.
+
+- [x] **V43.1 readable terminal identity and model controls** — keep model/effort visible in the
+  footer, picker and worker rows; restore a small pixel octopus beside activity. Verify narrow
+  terminals, control-text sanitization, streamed output and colourless rendering.
+- [x] **V43.1b readable work logs** — owner-requested grouped command, exploration and edit
+  records, with bounded output, signed diffs and agent attribution. Explanations describe observed
+  work; no inferred success or hidden reasoning. Preserve readable colourless and narrow layouts.
+- [x] **V43.2 routing ceiling and task allocation audit** — validate model/effort selection,
+  capability limits, discovered models and bounded parallel execution; fix demonstrated gaps.
+- [x] **V43.3a pause ownership and repeated resumption** — retain pending input until explicit
+  resume or delivery; rearm after repeated limits; avoid callback self-joins and join shutdown.
+- [x] **V43.3b durable continuation of agent work** — preserve the plan, completed results and
+  unfinished child conversations across allowance pauses; resume without replaying completed work.
+- [x] **V43.3c context pressure and retained history** — compact working context while retaining
+  the full stored conversation and child history; recover context overflow without losing the goal.
+- [x] **V43.4 managed Localia and project lifetime** — provision a native runtime on request;
+  project setting chooses whether the runtime stops with the session or persists. Reuse existing
+  servers and cached weights; require neither Docker nor handwritten configuration.
+  Closed 2026-09-25 with its three independently verified leaves (V43.4a, V43.4b, V43.4c).
+  Physical trials (real AMD, Jetson, firewall and macOS < 14 machines) are recorded as needs,
+  not claimed; the list is under V43.4c.3.
+- [~] **V43.5 final integrated review** — `docs/v43-checklist.md` §7, after the implementation
+  leaves. Review the six priorities against behaviour and plan wording, and exercise them
+  together in fixture runs. Any defect found is fixed test-first under this leaf. Run the final
+  gates once and record the remaining physical trials. Continued by the Claude Code session at
+  the owner's request (2026-09-25), one §7 item per iteration, each checked by a non-author before
+  its [x]. The release-time landing-page item is left for the release that ships V43.
+
+  The six priorities, as PLAN.md counts them (plan 38's five numbered items, with the work logs
+  split out): (1) model/effort legibility, (2) readable work logs and prompt history, (3) the
+  pixel octopus, (4) ceiling routing, (5) continuity, (6) managed native Localia.
+  - §7 item 1, terminal side (priorities 1–3): independent reviewer (non-author), 2026-09-25.
+    Read-only, with overlay probes. Scratchpad: `v43-5-review-terminal/`.
+    - HOLDS:
+      - footer order, with model and effort ahead of session and folder;
+      - the picker's effort reserve and sanitising;
+      - agent-window rows at 80+ columns;
+      - colour as decoration: the same text colourless at 44/60/100 columns, 3 themes and
+        16/256/truecolor;
+      - command outcomes;
+      - exploration grouping for dedicated read and list tools;
+      - native edit logs, with ± counts, signed excerpts, full-row shading and line numbers;
+      - stable agent labels;
+      - explanations and counts taken only from observed results;
+      - bounded output and empty or failure states;
+      - a brief footer;
+      - prompt shading for normal prompts;
+      - octopus artwork, size, placement and the tmux/screen/unknown/colourless fallback.
+    - DIVERGES, to be fixed test-first under this leaf, most severe first:
+      - T1 (medium): the footer cuts the effort by one cell once the model ID is clipped
+        (`model.go` reserve vs the outer `clipLine`). Example at 44 columns:
+        `model anthropic/claude-sonn… · effort hig…`. The existing test uses an 11-character
+        model name.
+      - T2 (medium): full-width worker rows below 80 columns (`agents.go`) and the ← full
+        view (`agents_view.go`) reserve nothing for state and effort; realistic IDs lose the
+        state, then the effort, below about 62 columns. `agentWindowRow` already has the fix.
+      - T3 (low-medium): a wrapped work heading can split the `agent N` label, and wrapped
+        `└`/`↳` rows lose their indent (`markdown.go` `wrapWords`).
+      - T4 (low-medium): searches group as exploration only through dedicated tools;
+        shell `rg`/`grep`/`cat`/`sed -n` show as separate `• Ran` rows, and Claude `LS`
+        as `• Used LS`.
+      - T5 (low-medium): a multiline prompt whose first line is blank or whitespace-only
+        loses its whole shaded block (`❯ ` trimmed to `❯`).
+      - T6 (low): supporting and failure text in the work log is not coloured (`└`, `↳`,
+        `× failed`, the per-turn usage line, `◆ agents deployed`). Nothing is lost colourless.
+      - T7 (low): Zellij is not treated as a multiplexer (only `TMUX`/`STY` are checked), so
+        inline images may leave blank cells instead of 🐙.
+      - T8 (low): a tool-only round prints an empty `kolk-code` label row.
+    - STALE WORDING:
+      - TW1: "edits show file names, added/removed counts and signed excerpts". Delegated
+        provider edits show paths, with counts only when the provider reports them; this was
+        recorded as a V43.1b limit.
+      - TW2, only if T4 is accepted rather than fixed: "exploration groups reads/searches".
+    - Physical trials:
+      - real Kitty, Ghostty, iTerm2 and WezTerm icon rendering, flicker and cleanup;
+      - Zellij and tmux passthrough;
+      - cell widths in Apple Terminal and VS Code;
+      - shading legibility against the owner's screenshot.
+    - Gates:
+      - `go test -race ./internal/tui ./internal/term` ok;
+      - the V43.1b focused race command ok in 5 packages;
+      - the cli TUI subset ok;
+      - `go vet` ok.
+      - `make check` was left for §7 item 6.
+  - §7 item 1, engine side (priorities 4–6): independent reviewer (non-author), 2026-09-25.
+    Read-only, with overlay probes, and no network or billed calls. Scratchpad:
+    `v43-5-review-engine/`.
+    - HOLDS, including all three priorities together:
+      - An integrated probe ran a routed 4-task plan, then a child usage limit mid-run, a
+        restart from disk, a gone rung falling back to the ceiling, and a child compacting
+        after resume. The same with a Localia Ollama Cloud ceiling. Both pass 3/3 under race.
+      - A 75-task plan runs with at most 3 in flight.
+      - Ceiling, level and effort routing hold, with exact effort spellings.
+      - Every durable field survives a restart, and completed tasks are not repeated.
+      - Compaction keeps the stored transcript, and an overflow never pauses.
+      - Delivery acknowledgement holds, and a paused writer keeps its tree.
+      - Localia promises hold (checked lightly).
+      - Mutants killed by committed tests:
+        - no gate before a child's next tool call;
+        - launching continues after a limit;
+        - trivial work goes to the next-lower rung;
+        - an overflow becomes a pause.
+    - DIVERGES, to be fixed test-first under this leaf, most severe first:
+      - E1 (medium-low): a failed save goes silent after the first warning, including a
+        failed pause save. `save.go` sets `warned` once and never clears it. Repro: saves
+        fail, recover, then fail again at a 429; the user sees "◆ paused …" with no warning,
+        and the pause lives only in memory.
+      - E2 (low-medium): an unreadable or truncated plan collapses silently into one direct
+        run (`task.go` returns nil; `orchestrator.go` says "single-step task, running
+        directly"). A 40-task plan cut at 2/3 makes 2 requests, and its tasks vanish without
+        a word.
+      - E3 (low, a routing decision): a slot naming a model outside the menu sends mechanical
+        and routine work to the ceiling, not the level's rung (`level_routing.go` →
+        `roster.go`). It is announced and never above the ceiling;
+        `discovered_routing_test.go` pins it, but no recorded decision explains it.
+    - Observations:
+      - EO1 (low): a 429 "Request too large … tokens per min" is classified as a capacity
+        pause, though waiting cannot help. Confirm the real provider shape before changing
+        anything; recorded as a trial need.
+      - EO2 (low, messaging): an Ollama Cloud usage-limit pause shows the default 15-minute
+        "reset at", while the host's own advice says 5 hours or 7 days.
+    - STALE WORDING in plan 38, with the reviewer's suggested text in the scratchpad report:
+      - EW1: routing covers unstated work, level efforts, and single-model endpoints.
+      - EW2: vendor-private context is compacted by the vendor.
+      - EW3: `local.ephemeral` on releases only what that session started; a kept runtime is
+        reused and left running.
+      - EW4: platform scope for managed setup.
+    - Test gaps (the behaviour is right but not pinned):
+      - EG1: removing the working-directory binding check (`execution.go`) survives every
+        committed suite; the reviewer's probe kills it.
+      - EG2: the integrated routed pause → restart → gone rung → fallback → compaction path
+        has no committed test.
+    - Trials: real discovery and spawned rungs, and real effort spellings sent; a real
+      mid-plan limit and handle resume; the real Ollama Cloud 429; a real disk-full
+      recover-and-recur; a kill mid-tool; physical TUI auto-resume; the OpenAI TPM 429 shape.
+    - Gates:
+      - `go vet ./...` ok;
+      - `go test -race` ok on engine, continuity, session, local, config, provider and cli;
+      - focused race runs ok for routing (96), continuity (158), cli (110) and local (61).
+  - Triage, one per iteration, test-first. Each is checked by a non-author before §7 item 1
+    gets its [x]:
+    - E1, then T1 and T2.
+    - Then T9 (found while fixing T2), then E2, T3, T5 and T4.
+    - Then E3: the fix, or a recorded decision.
+    - Then T6, T7, T8 and EO2.
+    - Then one wording pass (TW1, EW1–EW4), then the test gaps EG1 and EG2.
+    - EO1 and every physical trial are recorded as needs, not claims.
+  - E1 fixed (Claude Code session, 2026-09-25; a failed pause save went silent).
+    - `engine.writeSession` set `warned` on the first failure and never cleared it. A disk
+      that failed, recovered, then failed again at a usage-limit pause showed "◆ paused …"
+      with no warning, while the pause lived only in memory.
+    - Now:
+      - A successful write clears `warned`, so each failing streak is reported once. A disk
+        that stays broken still prints one line; the 8×50 concurrency test is unchanged.
+      - A failed pause save is reported every time, even mid-streak, followed by "the paused
+        turn is kept only until this session exits", since the pause's own message promises
+        a later /resume.
+    - Red tests:
+      - `TestSaveWarningReturnsAfterTheDiskRecovers` (unit);
+      - `TestAFailedPauseSaveIsAlwaysReported` (unit);
+      - `TestAPauseThatCouldNotBeSavedSaysSo`: the reviewer's end-to-end repro through
+        `RunTurn` and a real 429, adopted.
+    - Mutants via `go test -overlay`, all 4 killed under `-race`:
+      - no reset on success (only the unit test pins it, since the pause is now always
+        reported);
+      - the pause not special;
+      - no consequence line;
+      - a warning on every failure (the existing once-only and concurrency tests).
+    - `go test -race ./internal/engine ./internal/session ./internal/cli -count=1` passes;
+      `make check` exits 0 (4600 tests, lint 0 issues).
+  - T1 fixed (Claude Code session, 2026-09-25; the footer cut the effort).
+    - Cause: `formatStatus` reserved room for the effort after the model, but not for the
+      "…" that the row's own `clipLine` adds when a later field (context, cost, session,
+      folder) overflows. The effort's last letter became the ellipsis: `effort hig…`.
+    - Fix: when any non-empty field follows the effort in its row, the reserve is one cell
+      larger. The row now reads `model anthropic/claude-son… · effort high…`.
+    - With nothing after the effort, nothing changes: a model that exactly fits is shown
+      whole.
+    - Red: `TestFooterNeverClipsTheEffortOfARealisticModel`.
+      - It covers 4 realistic IDs (vendor-prefixed, dated) × 4 efforts × widths 30–140.
+      - It also checks the exact-fit case with nothing following.
+      - The older test passed only because it used an 11-character "claude-opus".
+    - Mutants via `go test -overlay`, both killed: no extra reserve; always reserve (the
+      exact-fit check).
+    - `go test -race ./internal/tui ./internal/cli -count=1` passes; `make check` exits 0
+      (4601 tests, lint 0 issues).
+  - T2 fixed (Claude Code session, 2026-09-25; narrow worker rows lost state and effort).
+    - Cause: below 80 columns, the full-width worker rows (`formatAgentStatusLine`, then
+      `clipLine`) and the ← view's identity row (`agents_view.go`) clipped the whole line.
+      With realistic model IDs the state went first, then the effort.
+    - Fix:
+      - `formatAgentStatusLine` is split into `agentStatusParts` (label, model, identity,
+        rest).
+      - New `formatAgentStatusRow(status, width)`: when the full row does not fit, the
+        summary and step yield first, then the model, with one cell kept for the trailing
+        "…". The label, effort and state stay whole.
+      - Shared `fitAgentModel`: the full ID if it fits, else its short name (as the agents'
+        window shows it), then clipped.
+      - The ← view uses the same fitting for its identity row.
+      - Result at 40 columns: `agent [1/3] · opus-4-2… · max · working…` and
+        `    opus-4-20250514 · max · working`.
+    - Red: `TestNarrowWorkerRowsAndTheFullViewKeepEffortAndState`.
+      - It covers 4 realistic IDs × widths 40–79, the worker row through `viewRows`, and the
+        ← view's own identity row through `agentsViewLines`.
+      - The first version checked `c.View`, which also draws the worker rows beneath, so the
+        view check was vacuous. The s3 mutant exposed it, and the test now checks the view's
+        own row.
+    - Mutants via `go test -overlay`, all 4 killed:
+      - s1: no cell kept for the "…";
+      - s2: no short-name step;
+      - s3: the view's row unreserved;
+      - s4: the old clipped row in `model.go`.
+    - `go test -race ./internal/tui ./internal/cli -count=1` passes; `make check` exits 0
+      (4602 tests, lint 0 issues).
+    - New finding while testing, T9 (low-medium, legibility; predates V43.4c): `shortModelName`
+      takes a trailing all-letter word as the model's name, so `openai/gpt-5.1-codex-max`
+      becomes `max`.
+      - The verified agents' window already reads `max·max` (model·effort) for it, and
+        narrow T2 rows now show `· max · max ·`. `…-pro` and `…-mini` IDs read the same way.
+      - `ollama/qwen2.5-coder:7b` becomes `coder:7b`, losing the family.
+      - To fix next, test-first, before E2.
+  - T9 fixed (Claude Code session, 2026-09-25; short model names that said nothing).
+    - `shortModelName` now works on the ID's dash parts:
+      - A last word names the model only if it is not a variant qualifier (`variantWords`:
+        max, mini, nano, pro, lite, plus, turbo, ultra, latest, preview, instruct, chat,
+        cloud, exp, beta, thinking, fast).
+      - A qualifier stays with what it qualifies: `codex-max`, `flash-lite`,
+        `sonnet-latest`, `oss:120b-cloud`.
+      - After a version, the family itself, or a family that carries its version, the whole
+        ID stays: `gemini-2.5-pro`, `gpt-4o-mini`, `o4-mini`, `qwen3-coder:480b-cloud`.
+      - The family is dropped only when it has no digit and what follows is not a version:
+        `fable-5-1`, but `gpt-5.1` and `qwen2.5-coder:7b` stay whole.
+    - Every name pinned by existing tests is unchanged: haiku, fable, opus, qwen3, luna,
+      sol, fable-5-1, opus-4-20250514.
+    - Red: `TestShortModelNamesSayWhichModelIsWorking`.
+      - 21 IDs; 12 failed before the fix, `gpt-5.1` → `5.1` among them.
+      - Plus the agents' window row, now `codex-max·max` instead of `max·max`.
+      - The T2 narrow rows use the same short names.
+    - Mutants via `go test -overlay`, all 6 killed, one per condition:
+      - no variant list;
+      - a variant after a version;
+      - a variant in a versioned family;
+      - dropping the family down to a version;
+      - dropping a versioned family;
+      - `v3.1` not treated as a version.
+    - A redundant `last-1 > 0` guard was removed before mutating (an equivalent mutant).
+    - `go test -race ./internal/tui ./internal/cli -count=1` passes; `make check` exits 0
+      (4603 tests, lint 0 issues).
+  - E2 fixed (Claude Code session, 2026-09-25; an unreadable plan was called a single step).
+    - Before: a planner reply with no readable task was announced as "◆ single-step task,
+      running directly" — for example a large plan cut off at the planner's output limit,
+      prose, an empty reply or `[]`. The planned tasks vanished without a word.
+    - What stays: the direct run (the whole request still runs, so no work is lost) and the
+      parser's tolerance, including `TestGarbageIsNoPlan`, which keeps a truncated `["a"`
+      as no plan.
+    - Salvaging the leading tasks was rejected: it would run a partial plan whose synthesis
+      could claim completeness. Re-planning was also rejected: it is another billed call
+      that may truncate again.
+    - Now:
+      - `plan()` returns why no task could be read (`planProblem`): the reply was empty;
+        the planner answered without a plan; the plan could not be read and may have been
+        cut off; or the plan had no tasks.
+      - The provider gives no finish reason, so a cut-off plan is recognised by its shape:
+        an array that starts and never parses.
+      - The orchestrator prints that reason, then "; running the request directly", and
+        publishes "running the request directly: no readable plan".
+      - A genuine one-task plan keeps "single-step task".
+    - `plan()` gained a return value; the two test call sites (`retry_test.go`,
+      `context_briefing_test.go`) got one more `_`, a mechanical change. A redundant
+      `len(tasks) == 0` guard was removed before mutating.
+    - Red: `TestAnUnreadablePlanIsNotCalledASingleStep`, through `RunTurn` in agent mode.
+      - Cases: the reviewer's 40-task plan cut at 2/3, prose, an empty reply and `[]`, each
+        running directly.
+      - Control: a one-task plan.
+    - Mutants via `go test -overlay`, all 5 killed:
+      - no cut-off branch;
+      - the orchestrator ignoring the reason;
+      - `plan()` returning no reason;
+      - the prose guard removed (killed by a panic in the fallthrough);
+      - prose given the cut-off wording (killed by the prose case itself).
+    - `go test -race ./internal/engine ./internal/cli -count=1` passes; `make check` exits 0
+      (4609 tests, lint 0 issues).
+  - T10 found and fixed while probing T3 (Claude Code session, 2026-09-25; medium: every
+    wrapped paragraph ended on a lone word).
+    - `wrapWords` renders all transcript prose: assistant replies, list items, work
+      headings and result rows. It had two greedy-wrapping bugs:
+      - Its "fits whole" check ran only on the whole input. Once a line wrapped, the
+        remainder was split at its own last space even when it fit, so every wrapped
+        paragraph ended with one word alone on a row: `the effort beside long` /
+        `models`.
+      - A space just past the edge was not a break point, so a word that exactly filled the
+        row went to the next one: `over the` at 8 columns.
+    - Fixes: a remainder that fits is the last row; a space just past the edge ends the row
+      there (the space is never drawn).
+    - Red: `TestWrapWordsKeepsARemainderThatFits`.
+      - The exact example above.
+      - A greedy property over 3 texts at every width from 8 to 79: no row could have taken
+        the next row's first word, and no row is wider than the row.
+    - No existing test depended on the old wraps.
+    - Mutants via `go test -overlay`, all 3 killed:
+      - no fit check;
+      - no edge space;
+      - breaking at any rune past the edge (hangs, killed by the 200 s timeout).
+    - `go test -race ./internal/tui ./internal/cli -count=1` passes; `make check` exits 0
+      (4610 tests, lint 0 issues).
+    - T3 (the owner label split and the result-row hanging indent) is next.
+  - T3 fixed (Claude Code session, 2026-09-25; wrapped work rows lost their shape).
+    - Headings (`• …`):
+      - The closing ` · <owner>` (`kolk` or `agent N` only) is bound with no-break spaces
+        before wrapping (`keepWorkOwner`) and restored after, so the label moves whole with
+        its separator.
+      - Continuation rows hang 2 spaces, under the text.
+    - Result, purpose and output rows: `splitHangingIndent` learns `  └ ` (hang 4),
+      `    ↳ ` (hang 6), and plain 4-space lines (output excerpts' later lines and indented
+      prose; hang 4). `wrapMarkdownLine` now honours an indent with no marker.
+    - At 50 columns the block reads `• Edited …layout.go` / `  (+3 -1) · agent 12` /
+      `  └ Read` / `    /Users/…` / `    ↳ checking …` / `      the effort …`.
+    - Red tests:
+      - `TestWrappedWorkRowsHangUnderTheirText`: the four row shapes at every width from 30
+        to 99, checking the hang, the row width, and the label kept whole.
+      - `TestOnlyTheOwnerLabelIsBoundTogether`: a ` · ` inside what ran stays breakable.
+    - Mutants via `go test -overlay`, all 7 killed:
+      - no binding;
+      - no heading hang;
+      - no `└` hang;
+      - no `↳` hang;
+      - no output hang;
+      - no-break spaces not restored;
+      - binding any trailing ` · ` tail.
+    - `go test -race ./internal/tui ./internal/cli -count=1` passes; `make check` exits 0
+      (4612 tests, lint 0 issues).
+  - T5 fixed (Claude Code session, 2026-09-25; a prompt opening with a blank line lost its
+    shading).
+    - Cause: `promptEcho` writes `❯ ` for a blank or whitespace-only first line, as after a
+      pasted leading newline or Shift+Enter first. `renderMarkdownStyledBlocks` tested the
+      marker on the trimmed row, `❯`, so the whole request rendered unshaded.
+    - Fix: the marker row is tested raw, as its continuation rows already were (the block
+      loop's own comment gives the reason).
+    - Red: `TestAPromptOpeningWithABlankLineStaysOneBlock`, covering a leading blank line, a
+      whitespace-only first line and two blank lines. Every non-empty row is shaded as the
+      user's, with the marker row kept.
+    - Mutant via `go test -overlay`: the trimmed check, killed.
+    - `go test -race ./internal/tui ./internal/cli -count=1` passes; `make check` exits 0
+      (4613 tests, lint 0 issues).
+  - T4 fixed (Claude Code session, 2026-09-25; shell reads and searches were not grouped).
+    - Codex reads and searches through its shell, and the work log classified by tool name
+      only. Every `rg`, `grep`, `cat` or `sed -n` was its own `• Ran` row, and Claude's `LS`
+      showed as `• Used LS`.
+    - Now `shellExploration` recognises a command that only reads and turns it into an
+      `Explored` record. It joins its owner's group and drops its output, like a dedicated
+      read.
+      - Allowed: a search (`rg`, `grep`/`egrep`/`fgrep`, `git grep`), a read (`cat`,
+        `head`, `tail`, `wc`, `nl`, `sort` without `-o`, `sed -n` with an `N,Mp` script
+        and no `-i`), or a listing (`ls`, `tree`, `find` with no action, `fd` with no
+        `-x`, `git ls-files`). Each may stand alone or be piped only into other readers.
+      - Conservative: any redirect, `<`, `;`, `&`, backtick, newline or `$(`, and anything
+        unknown, stays a command. That includes `bash -lc …` and `rg a|b`, whose quoted
+        pipe splits into an unknown stage.
+      - Detail: plain reads and listings name their operands (`Read go.mod`,
+        `Read main.go` for `sed -n '1,80p' main.go`, `Listed .`). Searches, `find`/`fd`
+        and pipelines show the command (`Searched rg -n TODO internal/`).
+      - `LS` joins the listing case.
+    - An untestable `filter` guard (readers as later pipe stages are harmless) was removed
+      rather than left as an equivalent mutant. Head and tail's count skip applies only to
+      them, so `cat -n main.go` reads `main.go`.
+    - Red: `TestShellReadsAndSearchesGroupAsExploration`.
+      - 11 read and search commands grouped, with their details.
+      - 15 commands that can change or run things stay `• Ran`, among them `sed -i`,
+        `sed -i -n`, `sed -n 'w out'`, `find -delete`/`-exec`, `> b`, `&& rm`, `$(…)`,
+        `tee`, `sort -o`, `fd -x`, `bash -lc`, `| xargs rm` and `<(ls)`.
+      - `LS`, and one heading for consecutive reads.
+    - Mutants via `go test -overlay`, all 10 killed:
+      - redirects allowed;
+      - `$(` allowed;
+      - sed in-place;
+      - any sed script;
+      - find actions;
+      - fd exec;
+      - sort -o;
+      - unknown commands accepted;
+      - classification off;
+      - `LS` dropped.
+    - TW2 (reword "exploration groups reads/searches") is no longer needed.
+    - `go test -race ./internal/tui ./internal/cli ./internal/engine -count=1` passes;
+      `make check` exits 0 (4614 tests, lint 0 issues).
+  - E3 decided and fixed (Claude Code session, 2026-09-25). The owner was asked and did
+    not object to the recommendation. The decision is recorded here and reversible.
+    - Before: with a discovered menu, a slot naming a model outside it (e.g.
+      `slots.fast = ollama/qwen3:8b`) sent trivial and routine work to the ceiling.
+      `roster.clamp` returns the ceiling for anything unvouched, so a cheap slot bought the
+      most expensive model.
+    - Decision: a slot outside a discovered menu names nothing this run can vouch for, so
+      the task's level routes it:
+      - trivial → the cheapest rung;
+      - routine → the nearest lower rung;
+      - hard or unstated → the ceiling.
+      It is still never above the ceiling and still announced ("… outside the selected
+      model's ranked menu; using <rung>").
+    - Unchanged:
+      - an in-menu slot still beats the level (it is the user's own decision), matched
+        case-insensitively;
+      - the undiscovered legacy clamp;
+      - the orchestrator slot, which stays on the ceiling.
+    - Code: new `Roster.slot(model) (string, bool)`, used by `modelForTask`.
+    - Deliberate contract change: `TestDiscoveredCeilingBoundsSlotsAndPlanner` (Codex) now
+      expects the trivial task on `new-small` rather than the ceiling, with a re-read note.
+      Its bounds check (never above the ceiling) and its orchestrator assertion are kept.
+    - Red: `TestAnOutOfMenuSlotFallsBackToTheLevelsRung`.
+      - Covers `slots.fast` and `slots.explore` outside the menu: trivial → small,
+        routine → mid, hard → sel, with the announcement naming the rung used.
+      - Covers an in-menu `fast` slot (`MID`) keeping a trivial task on `mid`.
+    - Mutants via `go test -overlay`, all 3 killed:
+      - the old clamp;
+      - the legacy path ignored;
+      - the in-menu slot ignored. This one first survived, a pre-existing coverage gap,
+        and was killed after the in-menu case was added.
+    - `go test -race ./internal/engine ./internal/cli -count=1` passes; `make check` exits
+      0 (4615 tests, lint 0 issues).
+    - Wording: the EW1 pass must now say "an explicit slot outside that menu is replaced by
+      the rung for the task's level", not "by the selected model".
+  - T6 fixed (Claude Code session, 2026-09-25; the work log's supporting rows had no colour).
+    - Plan 38 promises muted supporting text, red failure and purple activity. Only the
+      bullets, counts and diffs were styled: every `└`, `↳`, output row, `× command
+      failed`, `◆ …` line and per-turn usage line rendered in default ink.
+    - `renderMarkdownStyledBlocks` now tracks a work record, from its `• ` heading until a
+      blank line or a line not indented under it. `transcriptRowStyle` then styles:
+      - inside a record, `  └ × …` red (`styleDel`) and every other row muted
+        (`stylePurpleMuted`, the footer's supporting colour);
+      - outside one, `◆ …` purple (`stylePurple`) and the usage line `[mode · model · … ·
+        Nms]` muted.
+    - Indented prose outside a record keeps the plain style. Rows with inline spans keep
+      theirs. The text never changes, so colourless output is identical.
+    - Red: `TestWorkLogSupportingRowsCarryTheirColour`, one row of each kind plus the
+      indented prose that must stay plain. The usage line is placed after a blank line, as
+      the engine prints it; the first version had it inside the record, where the
+      record's own rule styled it.
+    - Mutants via `go test -overlay`, all 5 killed:
+      - the record never started;
+      - the record never ended;
+      - failure not red;
+      - `◆` plain;
+      - the usage line plain.
+    - `go test -race ./internal/tui ./internal/cli -count=1` passes; `make check` exits 0
+      (4616 tests, lint 0 issues).
+  - T7 fixed (Claude Code session, 2026-09-25; Zellij was not a multiplexer).
+    - `inlineImagesFor` left the text fallback only for `TMUX` and `STY`. Inside Zellij it
+      still chose Kitty or iTerm image escapes, which leave blank cells where 🐙 belongs.
+    - Fix: `ZELLIJ`, which Zellij sets to `"0"` and so is non-empty, is a multiplexer too.
+      The doc comment names all three.
+    - Red: `TestZellijUsesTheTextFallback`, Kitty, Ghostty, iTerm and WezTerm inside Zellij.
+      Codex's existing table test is untouched; the red run is the only meaningful mutant.
+    - `go test -race ./internal/term ./internal/tui -count=1` passes; `make check` exits 0
+      (4617 tests, lint 0 issues).
+    - Still a physical trial: a real Zellij (and tmux with passthrough) showing 🐙.
+  - T8 fixed (Claude Code session, 2026-09-25; a tool-only round left a bare label row).
+    - `runLoop` printed `kolk-code ` before every round. A round that answered only with
+      tool calls, or only with whitespace before them, left the label alone on a row, then
+      a newline.
+    - Fix: the label waits for the model's first non-blank token. Leading whitespace before
+      any words is dropped. The round's closing newline, on success or error, is printed
+      only if something was said. The synthesis label is unchanged, since synthesis always
+      answers in text.
+    - Deliberate contract change: Codex's V35.2a `TestActivityStopsBeforeToolHandlingAnd
+      Errors/provider_error` anchored on that trailing newline. It is re-read, with a note,
+      to assert the same guarantee directly: one start and stop, the stop before any write,
+      and the pause notice as the first write.
+    - Red: `TestAToolOnlyRoundLeavesNoBareLabel`. A round of only whitespace plus a tool
+      call, then an answer: no bare `kolk-code` row, no empty row where it was, and the
+      answer line still opens with the label.
+    - Mutants via `go test -overlay`, all 3 killed:
+      - c1: the eager label (by both tests);
+      - c2: whitespace printing the label;
+      - c3: the newline always printed. This one first survived; the empty-row assertion
+        kills it.
+    - `go test -race ./internal/engine ./internal/cli ./internal/tui -count=1` passes;
+      `make check` exits 0 (4618 tests, lint 0 issues).
+  - EO2 fixed (Claude Code session, 2026-09-25; an assumed reset read as the vendor's).
+    - An Ollama Cloud usage-limit 429 gives no reset time, so the pause took the kind's
+      default cooldown (15 minutes for a subscription allowance) and said "reset at 15:41".
+      Ollama's own advice says limits reset on a 5 h / 7 d schedule.
+    - "Now + 5 h" was rejected: the session window resets 5 h after it started, not after
+      the hit, so it would overshoot and stall auto-resume.
+    - The fix is wording, with the timing unchanged:
+      - `Pause.Estimated` (`omitempty`, so older saves read as before) marks a time kolk
+        assumed; `PauseFor` sets it on the default-cooldown branch.
+      - `RetryStatus` says "retry at HH:MM" for an estimate and "reset at HH:MM" for a time
+        the vendor gave (a reset time or Retry-After). The pause error, notice, status line
+        and `/doctor` all go through it.
+      - The resume monitor's two re-arms are kolk's own schedule and are now marked
+        estimated too: the 30 s backoff after a declined delivery, and the default cooldown
+        after a probe finds the cap still on.
+    - Red tests:
+      - `TestAnAssumedResetIsNotPresentedAsTheVendors` (continuity): assumed → retry;
+        reset or Retry-After → reset; the JSON round trip; an older save.
+      - `TestARearmedPauseSaysRetryNotReset/{still capped, declined delivery}` (engine),
+        with blocking waits so the checks are deterministic. It passed 20/20 under `-race`.
+    - Mutants via `go test -overlay`, all 4 killed:
+      - never estimated;
+      - wording ignores the flag;
+      - still-capped re-arm not estimated;
+      - declined backoff not estimated.
+    - `go test -race ./internal/continuity ./internal/engine ./internal/session
+      ./internal/cli ./internal/tui -count=1` passes; `make check` exits 0 (4622 tests,
+      lint 0 issues).
+  - Plan 38 wording reconciled (Claude Code session, 2026-09-25). Five sentences now match
+    verified behaviour, and the status line notes the reconciliation.
+    - TW1: native edits show names, ± counts and signed excerpts; delegated provider edits
+      show the reported paths, with counts only when the provider reports them. Exploration
+      now names read-only shell commands too (T4).
+    - EW1:
+      - Difficult and unstated work get the ceiling; on signed-in adapters with discovered
+        ranks, routine work goes to the nearest lower rung and mechanical work to the lowest.
+      - The effort mapping was checked against `effortForTask`: hard max, routine medium,
+        mechanical low, unstated keeps the session's, each resolved to an offered level.
+      - The reviewer suggested that without a ladder every task runs on the selected model.
+        That was corrected against `routeKind`: tasks keep the per-kind routing (configured
+        slots, fast lane, catalogue) held under the ceiling.
+      - E3's rule is added: a slot outside the menu is replaced by the rung for the task's
+        level.
+    - EW2: Kolk compacts the context it owns; a vendor CLI's private conversation is
+      compacted by that vendor.
+    - EW3: on releases, at session exit, only what that session started; a runtime an
+      earlier `off` left running is reused and left running.
+    - EW4: managed setup covers macOS 14+ and Linux amd64/arm64. Windows managed setup and
+      persistent runtimes are not implemented, and existing runtimes are still adopted.
+    - `make plan-check` 110 checks pass; `make check` exits 0.
+  - Engine test gaps adopted (Claude Code session, 2026-09-25; test-only, no production
+    change). Both are the reviewer's probes, which used no source seams, renamed and
+    re-headed as committed tests.
+    - EG1: `TestAResumeIsBoundToTheProjectThatStartedIt` (`resume_binding_test.go`).
+      - A paused plan reloaded in another project root is refused, naming the owning root.
+      - The refused resume keeps its claim.
+      - The owning project then resumes without repeating the completed write, checked with
+        a sentinel file, and the phase reaches `done`.
+      - The m4 mutant (the root check in `execution.go` disabled) is killed by this test
+        alone. It survives the whole engine suite without it, so this was a real gap.
+    - EG2: `TestARoutedPlanPausesRestartsResumesAndCompacts` (`routed_continuity_test.go`).
+      - Covers a routed 4-task plan on a discovered menu: a usage limit mid-run, a restart
+        from disk, a refreshed menu missing a rung, and a resumed child compacting after an
+        overflow, asserted on the durable session.
+      - Passed 3/3 under `-race`.
+      - It pins the combination. The fallback mutant tried (effort not moved to the ceiling)
+        is also killed by an existing test.
+    - Informational, a pre-existing gap: on a gone-rung fallback, the capability envelope
+      dropping the task's vendor survives every suite. The backend itself still opens with
+      the task's vendor, so only the envelope's network policy would differ.
+    - `go test -race ./internal/engine ./internal/cli ./internal/session -count=1` passes;
+      `make check` exits 0 (4624 tests, lint 0 issues).
+    - All §7 item 1 findings are now fixed, decided or recorded. Next: an independent
+      verification of the whole §7 item 1 delta by a non-author, before its [x].
+  - §7 item 1 verification, engine side (the engine reviewer, a non-author of the fixes,
+    2026-09-25). Scratchpad: `v43-5-verify-engine/`.
+    - Its probes re-ran 3× under race, all passing:
+      - E1, E2 (the cut-off case), E3 and EO2 fixed;
+      - EG1/EG2 confirmed as verbatim copies of its probes;
+      - P456-local, host, large-plan and overflow unchanged.
+    - Attacks that held:
+      - E1: two pause failures in one streak; 16×60 flapping concurrent saves are
+        race-free.
+      - E3: `" MID "`; an in-menu slot above the level kept; worker and orchestrator slots;
+        nothing above the ceiling.
+      - EO2: persistence and the older-save format.
+    - Gates:
+      - `go test -race ./internal/engine ./internal/continuity ./internal/session
+        ./internal/cli` all ok;
+      - `make check` exit 0 (4624 tests, lint 0).
+    - V1 (medium; the blocker): my EW1 correction was false, and the reviewer's original
+      text was accurate.
+      - `app.agentRoster` gives every CLI surface a discovered menu. On gateway,
+        compatible-endpoint and local sessions it holds one rung, so every task runs on the
+        selected model, and a configured slot is announced and replaced by it.
+      - `modelForKind` (per-kind routing: slots, fast lane, catalogue) is unreachable,
+        because `bindLevel` always binds: every roster has the ceiling rung. A mutant
+        panicking there survives. `TestAGatewaySessionRoutesExactlyAsItDidBefore` is
+        vacuous, since a free session model makes both paths equal.
+      - To reword plan 38 to the true behaviour. The dead path and the vacuous test are
+        recorded as informational.
+    - V2 (low): resuming a run in the `direct` phase that came from an unreadable plan
+      prints "single-step task" again (`problem` is computed only in the `plan` phase).
+    - V3 (low), `planProblem` shapes:
+      - a well-formed array that fails the typed decode (`"needs":["1"]`, a numeric
+        `level`) says "had no tasks";
+      - an element without a title is dropped silently;
+      - bracketed prose around a valid plan says "may have been cut off" (pre-existing
+        parser brittleness; informational).
+    - V4 (low, machine surfaces): the bus still presents kolk's estimate as a reset.
+      `provider.limit{resume}.reset_at` comes via `Pause.Limit()`, and the paused
+      `turn.finished.raw_reason` says "… until <estimate>". The protocol says `reset_at` is
+      absent when unknown. All terminal surfaces are right.
+    - V5 (cosmetic): one note per out-of-menu slot names only the first task's rung.
+    - Test gaps, surviving mutants:
+      - `e2work`: the published work text for an unreadable plan reverted;
+      - `e3fold`: a case-sensitive note check would falsely announce an in-menu `MID` slot.
+    - Order: V1 (the wording) first, then V2+V3, V4, and V5 with the two test gaps. The
+      terminal half is still being verified.
+  - V1 fixed (Claude Code session, 2026-09-25): plan 38's routing sentence now matches
+    `app.agentRoster`.
+    - Checked in the code this time: every CLI roster is `Discovered` with the selected
+      model as rung 0, and only a signed-in Claude or Codex adapter with a ranked selection
+      adds lower rungs.
+    - New text: "Where the menu holds only the selected model (gateway, compatible
+      endpoints, local runtimes, or no ranked lower model signed in), every task runs on
+      the selected model, and a configured slot outside the menu is announced and replaced
+      by it."
+    - The unreachable `modelForKind` path and the vacuous
+      `TestAGatewaySessionRoutesExactlyAsItDidBefore` are left for Codex's V43.2 owner to
+      remove or revive. Informational.
+    - `make plan-check` 110 pass.
+  - §7 item 1 verification, terminal side (the terminal reviewer, a non-author of the fixes,
+    2026-09-25). Scratchpad: `v43-5-verify-terminal/`.
+    - All of F1–F8 (T1–T8) re-run as fixed; T9 and T10 hold.
+    - T10 fuzz: 4,000 random ASCII, CJK, emoji and combining texts at widths 1–40 showed no
+      overflow, loss, reordering or empty rows.
+    - No-break spaces: 600 records × 13 widths through every renderer showed zero leaked.
+    - Gates: `go test -race` tui, term, engine and cli ok; `make check` exit 0.
+    - N1 (medium; a regression from T4): 16 write or execute commands are grouped as reads
+      with their output hidden. `has()` matches only whole-argument prefixes, and each
+      tool's other writing options were unchecked. Examples:
+      - `sed -ni`, `sed -e … -e 'w …'`, `-e '1e …'` and `-f` (only the first script was
+        checked);
+      - `sort -uo out` (confirmed to write) and `--compress-program`;
+      - `tree -o`, `fd -Hx`/`-uX`;
+      - `rg --pre sh` (confirmed to execute) and `git grep -O`.
+      This is display only (the permission guard is unaffected), but the log can call a
+      truncation a read.
+    - N3 (low-medium; a regression from T8): stripping leading `\r\n` glues a reply's first
+      block onto the label line. `"\n\n## Plan"` renders `kolk-code ## Plan` (the heading
+      is lost), and a leading fence opens a spurious code box. The recorded test missed it:
+      mutants keeping or skipping the trim survive.
+    - N2 (low-medium): T4 never applies to real Codex output. The repo's Codex fixture wraps
+      every command as `/usr/bin/bash -lc '…'`, which stays `• Ran`, so the "Codex reads
+      through its shell … now grouped" claim is unmet.
+    - Low, recorded:
+      - N4: more non-name short words (`gemma-3-27b-it` → `it`, `mistral-large` →
+        `large`, `devstral-small` → `small`, `qwen3-coder` → `coder`).
+      - N5: T4 operand extraction names option values (`tree -L 2` → `Listed 2`).
+      - N6: T6 muting reaches assistant lines starting `• `, and tool output starting
+        `× command failed` is red.
+      - N7: a wrapped heading splits the `(+12 -3)` counts and loses their colour.
+      - N8: the `effort default` placeholder crowds the state at 40–44 columns with a
+        two-digit index.
+    - Surviving mutants: `fd -X` unchecked; T8's trim kept or removed (N3); cosmetic
+      over-reserves in T1 and T2; `agent <non-digits>` bound; `└ ×` red outside a record;
+      a usage line without `·`.
+    - Order: N1, N3 and N2 (the T4/T8 regressions) come first. Then V2+V3, V4, and V5 with
+      the engine test gaps. Then N4–N8.
+  - N1 fixed (Claude Code session, 2026-09-25; T4 read writers and executors as
+    exploration).
+    - The T4 guard rejected known-dangerous options, and was bypassed 16 ways. It is now an
+      allow-list: `readerSpecs` gives each tool its verb, the flags it may take, the flags
+      that take a value, the letters allowed in a short cluster, and whether a bare count is
+      allowed. `readerStage` rejects any other option.
+      - A cluster must consist only of allowed letters: `-ni`, `-uo`, `-fo`, `-Hx`, `-uX` and
+        `-Ovim` all fail.
+      - An unknown long option fails: `--pre`, `--compress-program`, `--in-place`,
+        `--open-files-in-pager`, `--exec-batch`, `-execdir`, `-fprintf`, `-okdir`.
+      - `sed` must be exactly `-n`, one `N,Mp` script, then files.
+      - `git` must be followed directly by its subcommand, so `git -c core.pager=…` fails.
+      - `rg -z` (runs decompressors) is not allowed.
+    - As a side effect, N5 is fixed: a value flag consumes its value, so operands name only
+      what was read (`tree -L 2` → `Listed .`, `sort -t , -k 2 data.csv` → `Read data.csv`,
+      `nl -w 3`, `ls -I`, `git ls-files src`).
+    - Red: `TestWritingOrExecutingCommandsNeverReadAsExploration`.
+      - The verifier's attack table, 33 commands, must stay `• Ran` with their output shown.
+      - The 5 N5 operand cases.
+      - The earlier positive and negative tests still pass.
+    - Mutants via `go test -overlay`, all 5 killed:
+      - unknown long options accepted;
+      - cluster letters unchecked;
+      - sed extra flags allowed;
+      - a value flag not consuming its value;
+      - git options before the subcommand.
+      The verifier's surviving `fd -X` mutant is now covered.
+    - `go test -race ./internal/tui ./internal/cli -count=1` passes; `make check` exits 0
+      (4625 tests, lint 0 issues).
+  - N3 fixed (Claude Code session, 2026-09-25; a T8 regression glued a reply's first block
+    onto the label).
+    - T8 dropped all whitespace before the model's first words, newlines included. So
+      `"\n\n## Plan"` rendered `kolk-code ## Plan` (no longer a heading), and a leading
+      fence opened a spurious code box.
+    - Fix: `runLoop` records whether the dropped leading whitespace held a newline, whether
+      it arrived in whitespace-only fragments or at the head of the first word's fragment
+      (text streams in 7-character fragments). If so, it ends the label line once before
+      the first block. A reply that starts on the label's line is unchanged.
+    - Red: `TestAReplyOpeningWithANewlineKeepsItsFirstBlock`.
+      - Cases: a heading, a fence after 7 newlines (whitespace-only fragments first) and a
+        list.
+      - The label must be bare and followed directly by the block: not glued, and not
+        replaying the whitespace as blank rows.
+    - Mutants via `go test -overlay`, all 3 killed:
+      - g1: the newline never recorded;
+      - g2: recorded only in the fragment with words;
+      - g3: no trim at all (the verifier's surviving m8b; killed once the exact shape was
+        pinned).
+    - `go test -race ./internal/engine ./internal/tui ./internal/cli -count=1` passes;
+      `make check` exits 0 (4626 tests, lint 0 issues).
+  - N2 fixed (Claude Code session, 2026-09-25; T4 never reached real Codex output).
+    - The repo's Codex fixture shows every command as `/usr/bin/bash -lc '…'`, and the
+      adapter emits it as tool `shell` with the raw command as its input. The wrapper
+      stayed `• Ran`, so the T4 claim that Codex reads group was unmet.
+    - Fix: `unwrapShell` unwraps exactly a shell (`bash`, `sh`, `zsh`), then `-c` or
+      `-lc`, then one single-quoted script that is the whole remainder with no quote inside
+      it. The script is then held to the same N1 allow-list. Anything else is not unwrapped
+      and stays a command: trailing args, `; rm` outside the quotes, `'\''` quoting, `-x`
+      or `-s`, a non-shell such as `python3 -c 'ls'`, and an inner chain or `sed -i`.
+    - My earlier T4 negative `bash -lc 'rg foo'` is now a positive by this decision. It was
+      replaced by `bash -lc 'rg foo' | tee out`, which must stay a command.
+    - Red: `TestCodexShellWrappedReadsGroupAsExploration`.
+      - bash, zsh and sh wrappers group, with the inner command as their detail.
+      - The exact adapter shape (tool `shell`, raw input) groups.
+      - 10 wrappers that must stay commands, including the fixture's own `od … && wc -c
+        < …`.
+    - Mutants via `go test -overlay`, all 4 killed:
+      - no unwrap;
+      - any program accepted as the shell (killed by `python3 -c 'ls'`);
+      - any flag (`bash -s 'cat a'`);
+      - inner quotes allowed.
+    - `go test -race ./internal/tui ./internal/cli ./internal/provider/... -count=1`
+      passes; `make check` exits 0 (4627 tests, lint 0 issues).
+  - V2 and V3 fixed (Claude Code session, 2026-09-25; E2 follow-ups from the engine
+    verification).
+    - V2: a run saved in its `direct` phase (an unreadable plan, then a pause) re-announced
+      itself as "single-step task" on resume. `runOrchestrated` now notes the phase on
+      entry, and a resumed direct run says and publishes "resuming the request directly".
+    - V3: `planProblem(reply, usable)` now also names two more shapes:
+      - A well-formed array that fails the typed decode (`"needs":["1"]`, a numeric level)
+        says "the planner's plan could not be read", without the "cut off" guess.
+      - A one-task result from a plan of several elements, the others dropped for lack of
+        a title, says "only 1 of the planner's N tasks could be read".
+      `plan()` reports a problem for any result of at most one task, and a genuine one-task
+      plan still returns "" and says "single-step task".
+    - The third V3 shape (bracketed prose around a valid plan) remains recorded, as
+      pre-existing parser brittleness.
+    - Red tests:
+      - `TestAResumedDirectRunIsNotCalledASingleStep`: the verifier's resume repro, adopted.
+      - Two new rows in `TestAnUnreadablePlanIsNotCalledASingleStep`: wrong types, and one
+        of two usable.
+    - Mutants via `go test -overlay`, all 4 killed:
+      - no typed check;
+      - no partial count;
+      - resume not marked;
+      - only an empty result reported.
+    - `go test -race ./internal/engine ./internal/cli -count=1` passes; `make check` exits
+      0 (4630 tests, lint 0 issues).
+  - V4 fixed (Claude Code session, 2026-09-25; the bus presented kolk's estimate as a
+    vendor reset).
+    - EO2 fixed the terminal surfaces, but machine surfaces still carried the estimate:
+      - `provider.limit{action:resume}.reset_at`, via `Pause.Limit()`, while the protocol
+        says `reset_at` is absent when unknown;
+      - the paused `turn.finished.raw_reason` said "… until <estimate>".
+    - Fix:
+      - `Pause.Limit()` leaves `ResetAt` out when `Estimated`. Its other callers are safe:
+        the chain builder does not read it, and `Cooldowns.Mark` only ever receives the
+        classified provider limit, never `Pause.Limit()`.
+      - The paused `raw_reason` for an estimate says "…; next check <time>". A
+        vendor-given time still reads "… until <time>" and is still published.
+    - Red: `TestTheBusNeverPresentsAnEstimateAsAReset`, the verifier's probe adopted with
+      assertions, covering an assumed pause and a Retry-After control, through the real
+      bus replay.
+    - Mutants via `go test -overlay`, all 4 killed:
+      - estimate published;
+      - vendor reset dropped;
+      - always "until";
+      - always "next check".
+    - `go test -race ./internal/continuity ./internal/engine ./internal/session
+      ./internal/cli ./protocol -count=1` passes; `make check` exits 0 (4633 tests, lint
+      0 issues).
+  - V5 fixed and the engine test gaps closed (Claude Code session, 2026-09-25).
+    - V5: since E3, one out-of-menu slot's tasks can land on several rungs, but the note
+      named only the first task's. `assignModels` now collects every distinct model per
+      slot and prints one note per slot after the loop: "… outside the selected model's
+      ranked menu; using mid, sel".
+    - e2work: `TestAnUnreadablePlanIsNotCalledASingleStep` now also checks the screen's
+      activity step, through the existing `detailWork` recorder. It must be "running the
+      request directly: no readable plan", or "running a single task directly" for a
+      genuine one-task plan.
+    - e3fold: the in-menu `MID` case now requires no "outside" note, so matching stays
+      case-insensitive.
+    - Mutants via `go test -overlay`, all 4 killed:
+      - p1: first model only;
+      - p2: duplicates listed (it survived a substring check; killed once the note was
+        matched to the end of the line, with a second routine task on the same rung);
+      - p3: case-sensitive note check (the verifier's `e3fold`);
+      - p4: the published text reverted (the verifier's `e2work`).
+    - `go test -race ./internal/engine ./internal/cli -count=1` passes.
+    - `make check` first failed in `internal/diskspace`
+      (`TestFreeMeasuresTheFilesystemAPathWillLiveOn`: "nested path measured 12926136320,
+      its existing ancestor 12927283200"). That package is untouched, and the test compares
+      two free-space readings that other tests' disk writes can move apart on a 93%-full
+      disk. It passed 10/10 on its own, and `make check` then exited 0 (4633 tests, lint 0).
+      Recorded as a flaky, pre-existing test.
+    - All engine-side verification findings (V1–V5, e2work, e3fold) are now addressed.
+      N4–N8 remain, low.
+  - N4 fixed (Claude Code session, 2026-09-25; more short names that named no model, the T9
+    class).
+    - Size and tuning words are variants too: it, large, small, medium, tiny, base, coder.
+    - The variant branch walks back over a run of trailing variants to the part they
+      qualify, so `mistral-large-latest` stays whole.
+    - The family is kept when the part after it is a variant: `deepseek-chat-v3.1`,
+      `deepseek-coder-v2:16b`.
+    - Now: `gemma-3-27b-it`, `mistral-large`, `yi-large`, `devstral-small` and
+      `qwen3-coder` stay whole instead of `it`, `large`, `small` and `coder`.
+    - Every name T9 pinned is unchanged (haiku, fable, opus, qwen3, luna, sol, fable-5-1,
+      opus-4-20250514, codex-max, sonnet-latest, flash-lite, oss:120b-cloud,
+      gemini-2.5-pro, …), and the T2 narrow-row test passes.
+    - Red: 8 new rows in `TestShortModelNamesSayWhichModelIsWorking`.
+    - Mutants via `go test -overlay`, all 3 killed:
+      - no walk back;
+      - family dropped after a variant;
+      - the new words removed.
+    - `go test -race ./internal/tui ./internal/cli -count=1` passes; `make check` exits 0
+      (4633 tests, lint 0 issues).
+  - N6 fixed, with one part accepted (Claude Code session, 2026-09-25; T6 muting reached
+    text that was not a work record).
+    - A work block now starts only at a heading that ends with kolk's owner label
+      (` · kolk` / ` · agent N`, via the shared `workOwner`, which `keepWorkOwner` now
+      uses too). It continues only through record row shapes: `  └ …` and 4-space rows
+      (`↳` and later output lines).
+    - Result: an assistant `• ` bullet mutes nothing under it, and 2-space prose after a
+      record (such as a child's unlabelled output with one task at a time) ends the record
+      and stays plain.
+    - Accepted: a tool's output whose first line is literally `× command failed` renders as
+      `  └ × command failed` in red, like kolk's own mark. The words are identical and
+      nothing reads as success; only the colour matches. Prose indented 4 spaces directly
+      under a record is still muted.
+    - Red: `TestOnlyWorkRecordsAreMuted` (an assistant bullet with a work-row-shaped line;
+      prose after a record). T6's positive test still passes.
+    - Mutants via `go test -overlay`, all 3 killed:
+      - r1: any bullet starts a record. It survived until the work-row-shaped line came
+        directly under the bullet, because the 2-space line had ended the block first.
+      - r2: any 2-space line continues the record.
+      - r3: only `└` rows continue it.
+    - `go test -race ./internal/tui ./internal/cli -count=1` passes; `make check` exits 0
+      (4634 tests, lint 0 issues).
+  - N7 fixed (Claude Code session, 2026-09-25; a wrapped heading split its counts).
+    - `writeWorkHeading` colours counts only when `(+` and `)` sit on one row. A wrap at 47
+      columns left `…layout.go (+12` / `-3) · agent 3`, both halves plain.
+    - Fix: `keepWorkCounts` binds the first `(+N -M)`, the span `writeWorkHeading`
+      colours, with a no-break space before wrapping, as `keepWorkOwner` does for the label.
+      It is restored after wrapping.
+    - Red: `TestWrappedHeadingsKeepTheirCountsWhole`, widths 30–99.
+    - Mutants: s1 (no binding) killed. s2 (no number check) survives and is harmless: it
+      would join only the first two words of a non-count `(+a -b …)`. The check is kept
+      to mirror `writeWorkHeading`'s numeric-only colouring.
+    - `go test -race ./internal/tui ./internal/cli -count=1` passes; `make check` exits 0
+      (4635 tests, lint 0 issues).
+  - N8 fixed (Claude Code session, 2026-09-25; an unresolved effort's placeholder crowded
+    narrow rows).
+    - With no resolved effort and a two-digit index, the 14-cell `effort default`
+      placeholder left `agent [7/12] · … · effort default · blo…` at 40 columns: no
+      model, and the state clipped.
+    - Fix: `narrowIdentity` drops the placeholder, and only the placeholder, when a row
+      does not fit. It is used by T2's `formatAgentStatusRow` and by the ← view's row. A
+      resolved effort always stays, and a row with room keeps "effort default".
+    - Red: `TestTheEffortPlaceholderGivesWayOnNarrowRows`.
+      - Worker rows at 40–79 columns keep the state and the model.
+      - The ← view keeps them from 30 columns, since it carries no label.
+      - At 140 columns both keep the placeholder.
+    - Mutants via `go test -overlay`, all 4 killed:
+      - t1: the placeholder kept;
+      - t2: a resolved effort dropped (killed by T2's tests);
+      - t3: the view never narrows. It survived until the view range was extended to 30
+        columns, where the narrowing matters;
+      - t4: the view always narrows.
+    - `go test -race ./internal/tui ./internal/cli -count=1` passes; `make check` exits 0
+      (4636 tests, lint 0 issues).
+    - Every finding from both §7 item 1 verifications is now fixed, decided or accepted:
+      N1–N8 and V1–V5. Next: a delta re-check by the two verifiers, then §7 item 1's [x].
+  - Delta re-check, engine side (the engine verifier, a non-author, 2026-09-25): the engine
+    half of §7 item 1 is VERIFIED. Scratchpad: `v43-5-verify-engine-2/`.
+    - V1–V5, e2work and e3fold are fixed, and the probes and mutants re-ran.
+      - V1: re-read against `model_roster.go`; lower rungs are added in one place only.
+      - V2: a run paused during planning re-plans and is never mislabelled "resuming".
+      - V3 edge shapes (`[]`, nested arrays, `[1,2,3]`, 5001 elements) behave.
+      - V4: the other `Pause.Limit()` users never read `ResetAt`, and re-arm, vendor and
+        older-save cases behave.
+      - V5: the note order is stable over 20 runs.
+    - Gates:
+      - `go test -race` on engine, continuity, session, cli and protocol ok;
+      - `make check` exit 0, 4636 tests, lint 0. The diskspace flake did not recur.
+    - Not blocking:
+      - Gap 1: the zero-usable case (`[{}]`, `[null]`) is unpinned; mutant `v3zero` would
+        bring back "single-step task" for it.
+      - Gap 2: the monitor's auto-delivery resume publish (`resume.go:115`) is unpinned;
+        mutant `v4deliver` survives. The explicit path is pinned.
+      - Cosmetic: "only 0 of the planner's 1 tasks".
+      - Cosmetic: case variants of one slot value give two notes.
+    - Gap 1 and the zero wording are to be closed next. The terminal half's re-check is
+      pending.
+  - Gap 1 and the zero wording closed (Claude Code session, 2026-09-25).
+    - `planProblem` now names a plan with no readable task:
+      - one element: "the planner's one task could not be read";
+      - N elements: "none of the planner's N tasks could be read";
+      - "only K of N" is kept for K ≥ 1.
+    - Red: three new rows in `TestAnUnreadablePlanIsNotCalledASingleStep`:
+      - `[{}]` (this was "only 0 of the planner's 1 tasks" before the fix);
+      - `[null]`;
+      - `[{},{"task":"untitled"}]`.
+      The test's existing assertions also pin that none of them is called a single-step
+      task, which closes the `v3zero` survivor.
+    - Mutants via `go test -overlay`, all 4 killed:
+      - the singular case removed;
+      - the none case removed;
+      - `usable <= 1`;
+      - the singular wording used for any count.
+    - `go test -race ./internal/engine ./internal/cli -count=1` passes; `make check` exits 0
+      (4641 tests, lint 0 issues). The `[null]` row was added afterwards; the engine race
+      suite passes again with it.
+    - Gap 2 (the monitor's auto-delivery resume publish at `resume.go:115`) is still unpinned
+      and remains optional. It is next, before the final re-check.
+  - Gap 2 closed (Claude Code session, 2026-09-25; a missing test, not a defect).
+    - `TestAPausedTurnComesBackOnItsOwnWhenTheLimitLifts` already counted one resume event
+      on the monitor's own delivery. What was unpinned is V4 on that path: the resume must
+      not present an assumed reset time as the vendor's. The verifier's `v4deliver` mutant
+      (republishing `ready.ResetAt` whatever `Estimated` says) survived.
+    - New: `TestTheMonitorsResumeNeverPresentsAnEstimateAsAReset`, the monitor-path twin of
+      `TestTheBusNeverPresentsAnEstimateAsAReset`.
+      - An assumed reset (no `Retry-After`) publishes no `reset_at`.
+      - The vendor's `Retry-After` (1800) does publish one.
+      - Exactly one resume event each time.
+    - Mutants via `go test -overlay`, all 3 killed:
+      - `v4deliver` rebuilt on today's `resume.go`; only the new test catches it;
+      - the publish removed;
+      - `ResetAt` never published.
+    - `go test -race` on the new test and its sibling: 20 runs, all pass.
+    - `go test -race ./internal/engine ./internal/continuity ./internal/cli -count=1`
+      passes; `make check` exits 0 (4645 tests, lint 0 issues).
+    - With this, every item from both delta re-checks is closed. §7 item 1 now waits only
+      on a final re-check by both verifiers.
+  - Final re-check started 18:15. Both verifiers are non-authors and were resumed with the
+    same hard rules.
+    - Terminal verifier: Q1–Q4 adversarially, the T/N regressions, tui/cli/term race tests,
+      then `make check` once. Scratchpad: `v43-5-verify-terminal-3/`.
+    - Engine verifier: gap 1, gap 2, the zero wording, E/V regressions, and race tests on
+      engine, continuity, session, cli and protocol. No `make check`, to avoid colliding
+      with the terminal verifier. Scratchpad: `v43-5-verify-engine-3/`.
+  - Final re-check, engine side (the engine verifier, a non-author, 2026-09-25): CLEAN.
+    - Mutants rebuilt on today's tree, all killed:
+      - `v3zero` and `v3old` (the old "only 0 of N"): by the `no title`, `null task` and
+        `none usable` rows;
+      - `v4deliver`: only by the new monitor test's `assumed` subtest;
+      - `v4mute` (no publish on the monitor path): by both subtests and by
+        `TestAPausedTurnComesBackOnItsOwnWhenTheLimitLifts`.
+    - Vacuity check:
+      - the new test runs the monitor's automatic delivery (`WatchPauses`, probe,
+        `ResumeReady`), never `Resume()`;
+      - the `assumed` pause is asserted Estimated;
+      - reading the bus after delivery is deterministic, because the publish precedes
+        `ResumeReady`.
+    - Informational: a vendor pause that is re-armed and then delivered by the monitor is
+      covered by the `Limit()` rule. The verifier's own probe shows no `reset_at` on that
+      resume.
+    - Wording on edge shapes: `[{}]`/`[null]` → one task; `[{},{…}]` → none of 2;
+      1 usable of 5001 → only 1 of 5001; nested or `[1,2,3]` → could not be read;
+      `[]` → no tasks; a real one-task plan → single-step.
+    - Regressions: only task.go, task_test.go and resume_test.go changed since delta
+      re-check 2. 39 engine probes (E1–E3, V1–V5, EO2, EG1–2 and earlier) passed 2× under
+      `-race`.
+    - Gate: `go test -race` on engine, continuity, session, cli and protocol, all ok.
+  - Final re-check, terminal side (the terminal verifier, a non-author, 2026-09-25): not
+    CLEAN. Q1–Q4 hold, with no regressions; two new findings. Scratchpad:
+    `v43-5-verify-terminal-3/`.
+    - R1 (low-medium; the N1/Q1 class): tree doesn't use getopt.
+      - tree.c walks a cluster one letter at a time, and `-L`, `-I`, `-P` and `-o` each
+        take the next word. The reader's short-cluster rule (`-L` plus an attached value)
+        therefore misreads `tree -Lo 2 out.txt` as `Listed 2, out.txt` and hides its
+        output.
+      - The same happens for `tree -L2o out2.txt`, `tree -Io x out.txt`, `tree -Po x
+        out.txt`, and through the wrapper.
+      - Confirmed with tree 2.3.2 built from upstream source: both forms wrote the file.
+      - The other readers with value letters (GNU sort/head/tail/grep, rg, fd, git) parse
+        attached values as getopt does, so they are consistent.
+    - R2 (low, colour; the Q4 class): a blank first output row is `  └ `, which trims to
+      `  └` and ends the record. So npm output that starts with a blank line is left
+      unmuted. The `└` prefix needs the raw row too.
+    - Attacks that held:
+      - spliced quotes, unterminated quotes, pipes at the edges, `env`/`command`/`xargs`,
+        `git -C`, git abbreviations, nested wrappers;
+      - the V7 table of 27 forms;
+      - positive controls, Q2/Q3, and Q4 (a truly blank line still ends a record);
+      - P1/P5/V1–V6 regressions.
+    - Gates: `go test -race` on tui, cli and term ok; `make check` exit 0, 4645 tests,
+      lint 0.
+    - Order: R1, then R2, then this verifier re-checks both.
+  - R1 fixed (Claude Code session, 2026-09-25; tree reads a cluster letter by letter).
+    - A new `readerSpec.letterwise` marks a tool that doesn't use getopt; only tree is
+      marked. For such a tool, a value flag is accepted only as its own word (`-L 2`, `-I
+      vendor`), or as `-L` with attached digits (`-L2`). Any other cluster that starts
+      with a value letter, and the `-L=2` form, stays a command.
+    - Getopt readers keep attached values (`head -n5`).
+    - Red: `TestTreeReadsAClusterLetterByLetter`.
+      - 7 negatives: `tree -Lo 2 out.txt`, `-L2o out2.txt`, `-Io x out.txt`, `-Po x
+        out.txt`, `-L=2 .`, `-I2 x`, and the Codex-wrapper form. The first six grouped
+        before the fix. `-I2` was added afterwards to pin that only `-L` reads digits.
+      - 4 positives: `tree -L 2`, `tree -L2 internal`, `tree -a -L 3 -I vendor x`,
+        `head -n5 main.go`.
+    - Mutants via `go test -overlay`, all 6 killed:
+      - tree not letterwise;
+      - `-L=2` accepted;
+      - digits allowed on any value flag;
+      - any attached value allowed on `-L`;
+      - the check removed;
+      - every attached value rejected.
+    - `go test -race ./internal/tui ./internal/cli -count=1` passes; `make check` exits 0
+      (4646 tests, lint 0 issues).
+  - R2 fixed (Claude Code session, 2026-09-25; a blank first output row ended the record).
+    - A blank first line of output is written as the result branch alone (`  └ `), which
+      trimmed to `  └` and ended the record. The continuation check in
+      `renderMarkdownStyledBlocks` now tests both shapes (`  └ ` and the 4-space indent)
+      on the raw row. The raw test accepts everything the trimmed one did.
+    - Red: `TestABlankFirstOutputRowDoesNotEndTheRecord`, end to end from
+      `workRecordText`. The verifier's npm output (`\n> app@1.0.0 build\n> tsc\n\nerror
+      TS2322`) left its three rows plain before the fix. The test also pins that a
+      lookalike row (`  └prose…`, with no space after the branch) does not continue a
+      record.
+    - Mutants via `go test -overlay`, all 4 killed:
+      - the branch tested trimmed again;
+      - the indent tested trimmed again;
+      - a bare `  └` prefix (this one survived until the lookalike row was added);
+      - any 2-space indent continuing the record.
+    - `go test -race ./internal/tui ./internal/cli -count=1` passes; `make check` exits 0
+      (4647 tests, lint 0 issues).
+    - Next: the terminal verifier re-checks R1 and R2 (sent 18:37). Scratchpad:
+      `v43-5-verify-terminal-4/`. It will run tree 2.3.2's accepted forms from source,
+      attack the letterwise rule (other value-taking tree options), and run the tui, cli
+      and term race tests plus `make check`.
+  - R1/R2 re-check (the terminal verifier, a non-author, 2026-09-25): CLEAN. Scratchpad:
+    `v43-5-verify-terminal-4/`.
+    - R1:
+      - the earlier repros and 25 new forms stay `Ran`, among them `-I2`, `-L=2`,
+        `-L02o`, `-Ho`, `-To`, `-X`, `-J`, `--fromfile`, `--charset=x` and `-o`;
+      - the accepted forms group with the right detail.
+      - tree.c audit (v2.3.2): the value-taking short letters are exactly P, I, H, T, L
+        and o. H and T are outside the allowed letters, and every long option rejects.
+      - Real trial with tree 2.3.2 built from source: every accepted form left the
+        directory unchanged (an md5 of its listing).
+    - R2: every record row stays muted (a blank first row, a blank middle row, output of
+      only blank rows). Nothing outside a record is muted, including lookalikes, prose
+      after a truly blank line, and assistant bullets.
+    - Regressions: T1–T8 (P1, P4, P5), N1–N8 and Q1–Q3 (V1–V9) all hold.
+    - Gates: `go test -race` on tui, cli and term ok; `make check` exit 0, 4647 tests,
+      lint 0, plan 110 checks.
+      - Cold start p50 was 23.7 ms, over the 20 ms soft limit but under the 30 ms hard
+        limit. The load average was 12–33 from other work; every earlier run measured
+        6.2–6.3 ms.
+  - **§7 item 1 closed 2026-09-25.** The terminal half (T1–T8, N1–N8, Q1–Q4, R1–R2) and
+    the engine half (E1–E3, V1–V5, EO2, gaps 1–2) are each verified CLEAN by a non-author.
+    Checklist item 1 is marked [x].
+    - Still open for the owner: F2 (should an ephemeral session ever stop a kept runtime)
+      and ROCm auto-download versus opt-in.
+    - Carried as information: the unreachable `modelForKind` path and the vacuous gateway
+      test (Codex's V43.2); EO1 needs a real provider.
+    - Next: §7 item 2, exercising narrow/colourless output, prompt separation and work logs
+      together.
+  - §7 item 2 exercise (Claude Code session, 2026-09-25): narrow and colourless output,
+    prompt separation and work logs, together, through the real `tuiRepl`.
+    - Probe: `s7i2/zz_s7i2_test.go`, an overlay into `internal/cli`.
+      - It runs `app.tuiRepl` headlessly: pipe input, injected terminal size, fixture model.
+      - Input: a pasted multiline prompt with a blank line inside, then a second prompt,
+        then `/exit`.
+      - The fixture reads a file, lists the folder, searches with `grep` and reads with
+        `cat` through bash. It then runs a failing command whose output has a blank first
+        line and a blank middle line, prints 40 lines, and edits the file.
+      - The renderer's stream is replayed onto a grid (CR, LF, cursor up, erase), with the
+        style tracked per row.
+      - Runs: widths 30, 44, 60 and 100, each with NO_COLOR and with truecolor.
+    - HOLDS:
+      - colourless: the whole stream carries no SGR sequence at all, only terminal modes;
+      - colour is decoration: at every width, the colourless and truecolor screens have
+        identical text (the only difference was a test temp-dir number);
+      - no row is wider than its terminal and no no-break space leaks, at all 4 widths;
+      - prompt separation: the pasted prompt, including its blank line, is one shaded
+        block, and each prompt has a blank row on both sides;
+      - work logs:
+        - one `Explored · kolk` groups read_file, list_dir, `grep -rn` and `cat`;
+        - the failed command has a red heading, `× command failed`, and
+          `[exit error: exit status 2]`;
+        - its blank-first and blank-middle output rows stay muted (Q4 and R2 hold end to
+          end);
+        - long output is bounded (`… 32 more lines`);
+        - the edit heading keeps `(+2 -1)` and `· kolk` whole;
+        - purpose rows (`↳`) and the per-turn usage line are muted.
+    - X1 (medium; priority 2, and the exit side of §7 item 4): `/exit` erases the last
+      screenful of the conversation.
+      - The renderer commits rows to scrollback only when they scroll off the top of the
+        frame. On exit, `Runtime.Run` paints the last frame and then `renderer.Close()`
+        erases the whole region (`ESC[23A ESC[J` at 24 rows).
+      - Every transcript row still in the frame therefore vanishes from the terminal: the
+        final answer, the latest diff and the latest prompts. A short session that fits on
+        screen loses everything.
+      - A code or diff block that straddles the fold is held back whole, by design (not
+        split), and is lost with it.
+      - `TestRuntimeCoalescesAStreamFloodIntoAFewRepaints` says the last token "must still
+        be visible after the flush on exit", but it only checks the bytes, not what
+        survives the erase.
+      - Fix planned test-first: on exit, commit the rest of the transcript whole, then
+        erase only the chrome (composer and footer).
+  - X1 fixed (Claude Code session, 2026-09-26).
+    - On exit, `Runtime.Run` now paints the last frame and then calls `commitRestLocked`.
+      That writes the rest of the transcript (`Controller.Remaining`, rendered exactly as
+      `CommitOverflow` renders what it commits) above the frame. In the same write it
+      erases the rest, as a paint does for overflow. `Close` then has no rows left to
+      erase.
+    - A block held back whole goes out whole. The transcript itself is left in place, so
+      the runtime's state after exit still shows the session (an existing test reads it).
+    - Red: `TestExitLeavesTheTranscriptInTheTerminal`. It replays the renderer's stream
+      onto a grid the way a terminal keeps it.
+      - A short session that fits lost everything; a 20-line prose run followed by a
+        10-line block lost the block and the answer after it.
+      - Both now keep every row, in order, with block rows exactly once. The composer
+        and footer are gone.
+      - An unknown width falls back to the default, as a paint does.
+      - An empty session leaves no stray row.
+    - End to end: the item 2 probe through the real `tuiRepl` now keeps the whole
+      conversation after `/exit` at 30, 44, 60 and 100 columns, colourless and truecolor.
+      That is the diff box, both answers, both prompts and `❯ /exit`, each once, with no
+      chrome.
+    - Mutants via `go test -overlay`, 6 killed:
+      - no commit on exit;
+      - `Remaining` returns nothing;
+      - `Remaining` returns only the tail;
+      - the render-error guard inverted;
+      - no default width;
+      - the empty-rows guard removed.
+      One equivalent survivor: painting the frame's view instead of nothing, because
+      `Close` then erases that view, so the screen ends the same.
+    - `go test -race ./internal/tui ./internal/cli ./internal/term -count=1` passes;
+      `make check` exits 0 (4651 tests, lint 0 issues, cold start p50 6.5 ms).
+    - Next: an independent re-check of X1 and of the item 2 exercise by the terminal
+      verifier, before item 2's [x].
+      - Sent 00:03 on 2026-09-26. Scratchpad: `v43-5-verify-terminal-5/`.
+      - It builds its own integrated exercise, including agent mode with parallel workers.
+      - It attacks the exit path: every exit route, mid-stream, open overlays, resize, the
+        kitty image, long transcripts, and Park/Resume.
+      - It then runs the tui/cli/term race tests and `make check`.
+  - Item 2 and X1 verification (the terminal verifier, a non-author, 2026-09-26): not CLEAN,
+    one low finding. X1 holds and the item 2 properties hold. Scratchpad:
+    `v43-5-verify-terminal-5/`.
+    - Its own integrated exercise, independent of mine:
+      - the real `tuiRepl`, in code mode and in agent mode with 3 parallel workers, at 30,
+        44, 60 and 100 columns, colourless and truecolor;
+      - replayed on its own bounded VT model (24 rows, scrollback, pending-wrap, wide
+        cells, kitty actions), cross-checked against xterm.js headless 5.5.0.
+      - Confirmed: no SGR when colourless; the same text in both modes; no wrapped rows
+        and no no-break space; prompt shading and blank rows on both sides; `· agent N`
+        labels; failure words; Q4/R2 rows muted; bounded output; counts and labels never
+        split; worker rows keep effort and state at 44+ columns; `finishSession` output
+        lands below the kept transcript.
+    - X1 attacks, all passing, each kept row compared strictly with the full rendering:
+      - exit by `/exit`, Ctrl+D, Ctrl+C twice, and a cancelled turn;
+      - Ctrl+D or context cancel while streaming; input EOF;
+      - no trailing newline; 1,500 lines plus a 40-row block;
+      - the kitty octopus on screen (deleted, text intact);
+      - Park/Resume around a child that draws;
+      - exit with each overlay open (question, approval, model and config pickers,
+        secret, agents view and window).
+      - The terminal modes are restored exactly once, and nothing is written after Run
+        returns. Its harness kills "no commit on exit" on 20 of 22 routes.
+    - Y1 (low, colour only): a work record cut by the fold loses its styling below the
+      cut.
+      - `renderMarkdownStyledBlocks` makes every record line a block boundary, and `work`
+        restarts false on every render. So `CommitOverflow` can cut between a heading and
+        its rows.
+      - The retained `  └ …` / `    …` rows then render unstyled: in the live frame, in
+        later commits, and in what exit keeps (X1 now keeps them, which makes this
+        visible).
+      - Seen end to end: a kept `└ Searched grep …` row is unstyled at 44 columns in agent
+        mode.
+      - Suggested fix: no boundary inside a work record, so a record commits whole as
+        prompts and fences do.
+    - Test-helper note: `replayInline` (scrollback_test.go) treats ESC 7/8 as string
+      sequences and swallows rows on kitty streams (9 rows versus 22). Its current test
+      uses no graphics, so the verdicts stand, but it will be fixed alongside Y1.
+      `s7Replay` matched xterm.js on all 36 streams.
+    - Not X1 (recorded for the physical trials):
+      - narrowing the window before exit leaves a stale partial frame in scrollback. A
+        reflowing terminal pushes the old frame's top up, and an inline renderer cannot
+        erase it. It predates X1; this belongs to the §1 resize trial;
+      - full-width rows followed by EL may lose their last cell on xterm-derived
+        terminals (pending wrap). Add this to the physical rehearsal.
+    - Spot-checks T/N/Q/R hold. `go test -race` on tui, cli and term ok; `make check` exit
+      0, 4651 tests, lint 0.
+    - Next: Y1 test-first, together with the `replayInline` ESC 7/8 handling. Then this
+      verifier re-checks, before item 2's [x].
+  - Y1 fixed (Claude Code session, 2026-09-26; a record cut by the fold lost its colour).
+    - `renderMarkdownStyledBlocks` no longer offers a boundary while the next row continues
+      a work record, so a record commits whole, as prompts and fences already do. The
+      shape test is one helper, `continuesWork` (the raw `  └ ` or 4-space row). Both the
+      record's styling and the boundary rule use it, so they cannot drift apart.
+    - Red:
+      - `TestCuttingAtABoundaryChangesNeitherHalf` strengthens the boundary contract to
+        what `renderMarkdownBlocks` documents. At every boundary, the prefix and the
+        suffix, each rendered alone, equal the whole in text and style. Samples: prose,
+        a heading, a fence, lists, a prompt with a blank line, a failed record with a
+        real blank output row (the indent alone), an agent record, an assistant bullet,
+        and a record still streaming (no trailing newline). Before the fix, a cut after
+        the heading made `└ × command failed` plain instead of red.
+      - `TestCommittedAndRemainingRowsRenderAsTheWhole`: the verifier's repro shape. For
+        0 to 11 prose lines before a record, `CommitOverflow(40, 12)` + `Remaining(40)`
+        equal the whole rendering, colour included. Indented prose outside a record
+        still commits line by line.
+    - `replayInline` now models ESC 7/8 as cursor save and restore, and skips only OSC,
+      APC and DCS as strings. Pinned by `TestReplayInlineModelsCursorSaveAndStringSequences`.
+    - Mutants via `go test -overlay`, all 4 killed:
+      - the pre-fix code (records cut): both new tests;
+      - no `work` condition (indented prose held whole);
+      - no bound (a panic on a record still streaming);
+      - the row trimmed (a real blank output row lets a cut in). This one survived until
+        the samples used the real blank-row shape.
+    - End to end, the item 2 probe's kept text is still identical colourless and
+      truecolor. The only differences are temp-dir digits and elapsed milliseconds.
+    - `go test -race ./internal/tui ./internal/cli ./internal/term -count=1` passes;
+      `make check` exits 0 (4654 tests, lint 0 issues, cold start p50 6.2 ms). The first
+      run failed lint (QF1001 in the new helper), which was fixed by writing that loop
+      plainly.
+    - Next: the terminal verifier re-checks Y1 and the helper, before item 2's [x].
+      Sent 00:33. Scratchpad: `v43-5-verify-terminal-6/`. It covers: records taller than
+      the screen, back-to-back records, a record followed by a diff fence, 4-space prose
+      in a record, and streaming across the fold. It also replays the kitty streams
+      through the fixed helper against xterm.js.
+  - Y1 re-check (the terminal verifier, a non-author, 2026-09-26): Y1 and the helper
+    hold; one residual, Y3. Scratchpad: `v43-5-verify-terminal-6/`.
+    - Holds:
+      - its y1 test and its agent-mode exercise: zero unstyled record rows in all 8
+        truecolor runs;
+      - the fixed `replayInline` matches xterm.js on all 72 streams, kitty included;
+      - attacks, with scrollback checked as an exact prefix after every paint: a record
+        taller than the screen (held like a fence, then committed whole), back-to-back
+        records, a record plus a 12-line diff, 4-space prose in a record, and a record
+        streamed row by row across the fold;
+      - X1 on all routes and overlays, and the T/N/Q/R spot-checks.
+      - Gates: race tests on tui, cli and term ok; `make check` exit 0, 4654 tests,
+        lint 0.
+    - Y3 (low, colour only; the Y1 class): with no room for transcript (budget 0),
+      `CommitOverflow` cuts at the transcript's end boundary. That boundary was always
+      added after a record's last row, although a grouped record is still open:
+      `LogWork` appends `  └ Read b.go` to it later, without a heading. Those rows
+      render plain.
+      - Realistic repro: 60×24 with 20 planned tasks, whose worker rows fill the frame;
+        agent 1's `└ Read b.go` and `└ Read c.go` are kept unstyled. Also at height 4.
+      - Nothing is lost or duplicated.
+      - Fix: an open record at the end of the transcript is not a boundary, like an
+        unclosed fence.
+  - Y3 fixed (Claude Code session, 2026-09-26).
+    - `renderMarkdownStyledBlocks` now also offers no boundary after a record's row when
+      the transcript ends there (`index == len(logical)`). An open record is held like an
+      unclosed fence and is committed whole once something follows it. Finished prose
+      still commits at once.
+    - Red:
+      - `TestAnOpenRecordIsNotABoundary`: a record at the end, with or without a trailing
+        newline, offered a boundary at its end. A closed record still offers the ones
+        after it.
+      - `TestAGrowingRecordCommittedWithNoRoomKeepsItsColour`: the verifier's case at
+        height 4 (budget 0). The heading and `└ Read a.go` are committed, then `└ Read
+        b.go` and `└ Read c.go` are appended, then prose. Committed plus remaining now
+        equal the whole, colour included. It also pins that a finished prose line with
+        no room still goes to scrollback at once.
+    - Mutants via `go test -overlay`, all 4 killed:
+      - the Y1-only code;
+      - end-only;
+      - no end boundary even outside a record (this survived until the prose pin);
+      - never.
+    - `go test -race ./internal/tui ./internal/cli ./internal/term -count=1` passes;
+      `make check` exits 0 (4656 tests, lint 0 issues, cold start p50 6.2 ms).
+    - Next: the terminal verifier re-checks Y3 (its `TestY2NoRoomUnderWorkerRows` and
+      the no-room cases), before item 2's [x].
+  - Y3 re-check (the terminal verifier, a non-author, 2026-09-26): CLEAN. Scratchpad:
+    `v43-5-verify-terminal-7/`.
+    - Re-runs pass: `TestY2NoRoomUnderWorkerRows` (60×24, 20 tasks), where `└ Read a/b/c.go`
+      are all muted; the height-4 no-room cases; and every earlier y2 attack.
+    - New attacks at 44×4, 60×12 and 100×12, with scrollback an exact prefix at every
+      paint and what exit keeps equal to the whole rendering, colour included:
+      - 30 mixed records;
+      - a turn ending on an open group, then idle, then Ctrl+D;
+      - an open record followed by a prompt, a fence plus prose, or the usage line plus
+        EOF;
+      - an Edited record at the very end;
+      - a turn cancelled mid-record, then another turn.
+    - Visibility: with room, the newest row is always visible. With no room, an open
+      record reaches scrollback when something follows it, as an unclosed fence does. In
+      real turns the usage line, `· interrupted`, or the next record or prompt always
+      follows it.
+    - Spot-checks: its integrated exercise shows zero unstyled record rows in all 8
+      truecolor runs; X1 holds on every route and overlay; Y1 passes.
+    - Gates: race tests on tui, cli and term ok; `make check` exit 0, 4656 tests, lint 0,
+      cold start p50 5.9 ms.
+  - **§7 item 2 closed 2026-09-26.** The exercise (mine, plus the verifier's own in code
+    and agent mode) holds. X1, Y1 and Y3 were found, fixed test-first, and each verified
+    CLEAN by a non-author. Checklist item 2 is marked [x].
+    - Recorded for the physical trials: narrowing before exit leaves a stale partial frame
+      in scrollback (pre-existing, §1 resize trial); full-width rows followed by EL may
+      lose their last cell on xterm-derived terminals.
+    - Next: §7 item 3, mixed models and efforts, pause, resume and compaction in one
+      fixture run.
+  - C1 and C2 (found by Codex's V43.5 review; adopted and fixed by the Claude Code session,
+    2026-09-26).
+    - Codex wrote red regressions at 14:09 on 2026-09-25 in
+      `/tmp/kolk-v43-5-extra-worklog_test.go` but did not post them to
+      `docs/v43-5-codex-review.md`. They were found there at the start of item 3, and both
+      still reproduced on the current tree. They are defects against priority 2: counts
+      and success must come from observed results, and failure and empty states must stay
+      clear.
+    - C1 (low-medium; reachable): a delegated provider tool that failed, never finished,
+      or only warned, and had no output, rendered "(completed; no output reported)". A
+      failure therefore read "× command failed" and then "(completed; …)". Now only a
+      provider tool that settled normally says "completed"; the others say "(no output
+      reported)". Native commands keep "(no output)".
+    - C2 (low; latent): an edit with reported counts but no excerpt rendered "(+4 -2)" and
+      then "no text changes". No producer makes that record today: native counts come
+      from the same patch as the preview, and provider records never set Changed. It now
+      reads "(no excerpt reported)" whenever counts were reported. "no text changes"
+      stays for a real no-op.
+    - Red: `TestUnsettledOrUnexcerptedWorkClaimsNothingItDidNotSee`.
+      - Codex's four cases: unfinished, failed and warning provider tools, and counts
+        without an excerpt. All were red before the fix.
+      - Controls: a completed provider tool, a native command, removals only, and a real
+        no-change edit.
+      - Codex's own overlay test also passes on the fix.
+    - Mutants via `go test -overlay`, all 6 killed:
+      - failed counted as completed;
+      - pending counted as completed;
+      - warning counted as completed;
+      - the "reported" wording removed;
+      - counts ignored;
+      - added-only counts.
+    - `go test -race ./internal/tui ./internal/cli ./internal/engine -count=1` passes;
+      `make check` exits 0 (4657 tests, lint 0 issues, cold start p50 6.0 ms).
+    - Items 1 and 2 stay [x] on their verified scope; these two Codex findings are closed
+      under V43.5. A non-author re-check of C1 and C2 goes with the next terminal
+      verification.
+  - C1/C2 re-check (the terminal verifier, a non-author, 2026-09-26): C1 and C2 hold end to
+    end (provider events → `providerWorkLog` → `LogWork`), but two more findings.
+    Scratchpad: `v43-5-verify-terminal-8/`.
+    - Holds: failed or completed with no output, never finished, a warning, output with
+      and without Failed, and Error versus Failed are all consistent. Codex's original
+      test and mine pass; the tui and engine race tests pass.
+    - C3 (low-medium; the C1 class, at the adapter): the Codex adapter ignored the item's
+      `status`. It derived failure only from `exit_code`, and never for `file_change`.
+      Codex's own schema (codex-rs `exec_events.rs`) has command status `completed`,
+      `failed` and `declined` with an optional exit code, and patch status `completed`
+      and `failed`. So a declined `rm -rf build` (no exit code) read as `• Ran …
+      (completed; …)`, and a failed patch as `• Edited …`.
+    - C5 (low, wording): a failed Read or Edit said `× command failed`.
+  - C3 and C5 fixed (Claude Code session, 2026-09-26).
+    - C3 (`internal/provider/agentcli/codex.go`):
+      - `codexItemFailed(status)` treats `failed` and `declined` as errors for both
+        item types; a non-zero exit code still counts;
+      - a declined command with no output says `declined`;
+      - output it did produce is kept.
+    - C5 (`internal/tui/work_record.go`): `× command failed` only for commands;
+      another failed tool says `× failed`.
+    - Red:
+      - `TestTranslateCodexReadsHowAnItemEnded`: declined and failed commands with
+        no exit code, and a failed patch, were not errors before the fix. Controls: a
+        failed command with an exit code, completed ones, an exit code with no status
+        (older streams), and a declined command with output.
+      - `TestAFailedToolThatIsNotACommandIsNotCalledOne`: Read and Edit said
+        `command failed` before the fix. Control: a command keeps it.
+    - Mutants via `go test -overlay`, all 9 killed:
+      - status ignored;
+      - `declined` not an error;
+      - `failed` not an error;
+      - a patch never failing;
+      - a declined command left silent;
+      - the exit code ignored;
+      - a declined command's output overwritten;
+      - every failure called a command;
+      - none called a command.
+    - `go test -race` on agentcli, tui, engine and cli passes; `make check` exits 0 (4659
+      tests, lint 0 issues, cold start p50 6.1 ms).
+    - `codex.go` (Codex's uncommitted file from 09-15, untouched since) got an additive
+      fix and is claimed in the joint doc.
+    - Next: a non-author re-check of C3 and C5, then §7 item 3.
+  - C3/C5 re-check (the terminal verifier, a non-author, 2026-09-26): CLEAN on their scope.
+    Scratchpad: `v43-5-verify-terminal-9/`.
+    - End to end (real-shaped Codex JSONL → `TranslateCodex` → `providerWorkLog` →
+      `LogWork`):
+      - a declined `rm -rf build` → `• Failed …` / `× command failed` / `declined`;
+      - a failed command with no exit code, and a failed patch (`× failed`), render as
+        Failed;
+      - the controls are unchanged, and C5 holds for Read and Edit.
+    - In-progress: `item.updated` is dropped, and a stream ending mid-item reads
+      `Unfinished` / `No completion reported`, so nothing over-claims.
+    - Race tests on agentcli, tui and engine ok.
+    - Latent, recorded and not fixed (no vendor shape produces them today):
+      - an unknown future Codex status on `item.completed` (such as `cancelled`) would
+        read as completed; an allow-list (`completed` or empty is success) would close
+        it;
+      - a Claude `tool_use_result.interrupted:true` with `is_error:false` would read as
+        completed; this needs a vendor fixture (a Bash timeout) first;
+      - Copilot `tool.execution_complete` with `success:true` and no `result` object is
+        reported as a failure, the inverse over-claim (`copilot_translate.go:115`).
+  - §7 item 3 exercise (Claude Code session, 2026-09-26): mixed models and efforts, pause,
+    resume and compaction in one fixture run.
+    - The durable half is already a committed test: EG2's
+      `TestARoutedPlanPausesRestartsResumesAndCompacts` (`routed_continuity_test.go`),
+      verified by the engine verifier in item 1. It covers:
+      - four tasks routed on a discovered menu to small@low, mid@medium, sel@xhigh and
+        sel@high;
+      - a usage limit mid-run, with the pause before the next tool call;
+      - a restart from disk, with a rung gone and a fallback to the ceiling;
+      - a child compaction after a context overflow, with its archive and stored
+        history;
+      - no completed work repeated, and run accounting continued.
+    - What it did not check was what a person sees. Probe `s7i3/zz_s7i3_test.go` reuses
+      that fixture and wires both processes to a `tui.Runtime` exactly as `tui_repl.go`
+      does. It renders each phase colourless at 44 and 100 columns.
+    - HOLDS:
+      - the plan shows each task's route (`small · low`, `mid · medium`, `sel · xhigh`,
+        `sel · high`);
+      - worker rows keep model and effort at 44 columns, and so does the 100-column
+        agents window (`sel·medium`, `small·low`);
+      - the pause names the model, the reset time and `/resume`;
+      - the fallback is announced (`T2 routine could not start on mid; falling back to
+        sel`);
+      - the resumed write shows once as `Created t1.txt (+1 -0)`;
+      - run cost shows against its $5 ceiling;
+      - the CLI's `/resume` and auto-resume announce the continuation ("pause lifted;
+        continuing the saved work", "… is back; continuing …").
+    - Z1 (medium-low; priority 4, "failed persistence is visible"): on a live surface, a
+      subagent's compaction is invisible.
+      - `compactChild` and `retainChildCompaction` write their notices to the child's
+        writer: "compacted agent N context …", "request was too long; retrying once …",
+        and the failure notices "could not compact agent N: full history could not be
+        archived" and "… session could not be saved".
+      - With more than one task at a time, that writer is a buffer. `flushTaskReport`
+        drops it on a live surface (`liveSurface()`, meaning `Subagents != nil`: the TUI).
+        No status update carries it either.
+      - So in the TUI, a child's compaction, and even its failed archive or save, never
+        reaches the transcript or the agents window.
+    - Z2 (low, cosmetic; priority 1): wrapped numbered items and kolk's `◆` notices hang
+      at column 0. `splitHangingIndent` knows `· ` items, `└`, `↳` and 4-space rows, but
+      not `  N. ` or `◆ `. At 44 columns, a plan task's route (`small · low]`), the
+      fallback notice and the pause notice continue at column 0, detached from their
+      line.
+    - Observations, not findings:
+      - "mid sits on no rung kolk knows" comes from the continuity recommender's rank
+        table, which does not know the fixture's model names (real ids do);
+      - on resume, the plan is re-announced ("4 agents deployed"), after the CLI's resume
+        line;
+      - the fixture's main backend does not stream, so its final answer is not shown.
+    - Next: Z1 test-first, then Z2, then a non-author verification of item 3.
+  - Z1 fixed (Claude Code session, 2026-09-26; a child's compaction was invisible on a live
+    surface).
+    - `runSubagent` (orchestrator.go) now has a `notices` writer: the surface itself
+      (`a.Out`) when it is live, and otherwise the child's own writer. It is used for the
+      proactive `compactChild`, the overflow `compactChild`, the dependency-briefing
+      `retainChildCompaction`, and the retry line, which now carries its label (`agent
+      N: request was too long; retrying once with the smaller context`).
+    - `compact_child.go` (Codex's untracked V43.3c file) is unchanged: its notices are
+      simply given a writer a person can see. Writing per-child notices to `a.Out` from a
+      task goroutine follows the existing fallback notice.
+    - Red: `child_compaction_visible_test.go`.
+      - `TestAChildsCompactionIsSeenOnALiveSurface`: a live surface with 2 concurrent
+        tasks. After an overflow, "compacted agent 1 context" and the labelled retry line
+        must show. With `ArchiveCompaction` failing, "could not compact agent 1: full
+        history could not be archived: disk full" must show. All three were missing
+        before the fix.
+      - `TestAChildsProactiveCompactionIsSeenWhereItsReportIs`: a scripted child with a
+        3000-token window compacts before its next request. Live, the notice shows. Not
+        live, it stays inside the child's flushed report, after its `◆ subagent 1/2`
+        header.
+      - `TestAChildsBriefingCompactionIsSeenOnALiveSurface`: a dependent task whose
+        briefing of a large earlier result overflows shows "compacted agent 2 context".
+    - Mutants via `go test -overlay`, all 6 killed:
+      - never redirected;
+      - always the surface (it broke the no-live report);
+      - the proactive call buffered;
+      - the overflow call buffered;
+      - the briefing retain buffered (this survived until the briefing test);
+      - the retry line buffered.
+    - `go test -race ./internal/engine ./internal/cli ./internal/tui -count=1` passes;
+      `make check` exits 0 (4664 tests, lint 0 issues, cold start p50 6.4 ms).
+  - Z2 fixed (Claude Code session, 2026-09-26; numbered items and ◆ notices wrapped to
+    column 0).
+    - `splitHangingIndent` now hangs numbered items and kolk's notices under their text:
+      - `  N. ` (`numberedMarker`): the shape `markdownLine` gives an answer's `1. item`
+        and the shape kolk writes its plan in;
+      - `◆ ` and `  ◆ `.
+      Before this, every numbered list in an answer wrapped to column 0 at narrow widths,
+      not only the plan.
+    - Red: `TestNumberedItemsAndNoticesHangUnderTheirText` at 30 columns.
+      - A plan line; an answer's `1.` and `12.` items; a `◆` pause notice; a `  ◆`
+        fallback notice. All five continued at column 0 before the fix.
+      - Controls: `  3.14 …` and `  . …` are not items and do not hang.
+    - Mutants via `go test -overlay`, all 7 killed:
+      - no numbered case;
+      - a one-digit marker;
+      - no indented notice;
+      - no notice;
+      - the notice's indent lost;
+      - a decimal taken for an item;
+      - no digits required (this survived until the bare-dot control).
+    - The item 3 probe now shows `  1. T1 mechanical  [boilerplate · trivial ·` /
+      `     small · low]` at 44 columns, and notices hang at 2.
+    - `go test -race ./internal/tui ./internal/cli ./internal/engine -count=1` passes;
+      `make check` exits 0 (4665 tests, lint 0 issues, cold start p50 6.3 ms).
+    - Next: non-author verification of item 3. The engine verifier takes the exercise
+      and Z1; the terminal verifier takes the terminal view and Z2.
+  - Item 3 engine verification (the engine verifier, a non-author, 2026-09-26): CLEAN, with
+    two low findings. Scratchpad: `v43-5-verify-engine-4/`.
+    - Its own story, `TestS7I3StoryTwoPausesTwoRestartsTwoCompactionsLive` (5/5 under
+      `-race`): one routed 4-task plan across three processes and two restarts, on a live
+      surface at concurrency 2.
+      - A: routes small@low, mid@medium, sel@xhigh and sel@high; a vendor Retry-After
+        limit pauses the run ("reset at").
+      - B: `mid` is gone; T1's pending write runs once; T2 falls back to sel@medium,
+        overflows and compacts; a second limit with no Retry-After pauses the run ("retry
+        at").
+      - C: T2 retries on its compacted context with no second compaction; T3 overflows
+        and compacts; T4's briefing holds T1–T3; the run is done.
+      - Durable: both markers exist only in archives; call counts are exact; spend goes
+        0.03 → 0.05 → 0.09; the request appears once. Each compaction notice is shown
+        once, whole, in its own process.
+    - Z1 attacks (three children compacting at once behind a barrier, 3× under `-race`):
+      - concurrency 1, live or not: no doubled lines;
+      - not live, concurrency 3: notices inside their own reports, in plan order;
+      - live, concurrency 3: each notice is one whole write, and failures show once.
+      - Surfaces: only the TUI is live, and its `Out` is mutex-guarded. The plain REPL
+        writer is locked. `serve` runs no engine. stream-json is `io.Discard` and not
+        live.
+      - Mutants `z1conc` and `z1label` are killed by the committed suite.
+    - F1 (low; pre-existing, adjacent to E1 and Z1): with stream-json (`kolk -p …
+      --output-format stream-json`), failed persistence is invisible. "could not save
+      session at the pause", "the paused turn is kept only until this session exits"
+      and failed child compactions go to `Out = io.Discard` (`run.go:134`). No `log` or
+      `error` event carries them, so a one-shot process's pause is lost silently.
+      Verifier repro: `TestZ1StreamJSONSeesFailedPersistence`.
+    - F2 (low; test gap): mutant `z1dup` (notices written to both the buffer and `a.Out`
+      when live) survives the committed suite. At live concurrency 1, `out == a.Out`, so
+      each notice would print twice. Pin: a live concurrency-1 row counting the notice
+      once.
+    - Gates: race tests on engine, continuity, session, cli and protocol ok; `make check`
+      exit 0, 4665 tests, lint 0, cold start p50 6.4 ms.
+  - F2 fixed (Claude Code session, 2026-09-26): `TestAChildsCompactionIsSeenOnALiveSurface`
+    now runs at concurrency 1 and 2, and each notice must show exactly once. The verifier's
+    `z1dup` mutant (`io.MultiWriter(out, a.Out)` when live) is now killed at concurrency 1,
+    in both the compaction and the failed-archive cases. The engine race suite passes.
+  - F1 is an open owner question, not fixed under V43.5.
+    - A fix needs a new code (for example `persistence_failed`) in the closed `LogCode`
+      vocabulary of the public wire protocol, with the spec changelog. The existing
+      `history_lost` means something else.
+    - The alternative is to accept that stream-json one-shots report failed saves only
+      through their exit.
+    - The finding is pre-existing and low. It is listed with the other owner questions
+      (F2 ephemeral runtimes, ROCm).
+  - Item 3 terminal verification (the terminal verifier, a non-author, 2026-09-26): the view
+    holds and Z2 works, but not CLEAN. Scratchpad: `v43-5-verify-terminal-10/`.
+    - Its view (the p45 fixture wired to a running `tui.Runtime`, on its bounded VT model,
+      at 30, 44, 60 and 100 columns, colourless and truecolor) holds:
+      - plan routes and their hangs;
+      - the pause, fallback and Z1 compaction notices hang under their text;
+      - worker rows keep model and effort at 44+ columns;
+      - `Created t1.txt` appears once; no row over the width; no chrome after exit; no SGR
+        when colourless; the same text in both modes.
+    - Z2 attacks hold:
+      - 3-digit items; items inside work records and quotes;
+      - assistant `◆` lines; `◆` in prompts untouched; decimals and a bare dot not
+        items;
+      - the boundary contract at 8–80 columns on a mixed sample.
+    - Spot-checks X1, Y1–Y4, Q/R/T/N and C1–C5 all pass; race tests on tui, cli and term
+      ok.
+    - S1 (medium, liveness): on a live surface, a child's activity stop can wait for other
+      agents.
+      - The stop function from `startActivityDetail` (`runtime.go` ~445–460) checks
+        whether the list is empty and then waits `<-animDone` for the animator to retire.
+      - Another agent's activity started in between joins the still-running animator,
+        which then keeps running. The first stop blocks until that other activity ends.
+      - The engine calls this stop from `streamChatOnObserved` (retry.go:60, deferred) on
+        the child's own goroutine, so the child cannot run its tools or next round.
+      - Deterministic repro (`stall2_test.go`): a Meter that blocks once widens the
+        window; A's stop is still blocked 1 s later and returns only after B's stop.
+      - End to end: the item 3 run with a 40 ms open delay per child hung until the test
+        timeout, with T2 blocked at `<-animDone`.
+      - In production, parallel runs partly serialize. It is a deadlock when one call
+        waits on another agent.
+    - Z3 (low; the Z2 class): when indent plus marker reaches the width,
+      `wrapMarkdownLine` clips every row to `…`. The text is gone and the row count
+      explodes (one line becomes 38 rows of `…`). Seen for numbered items at 4–12 columns
+      with long numbers, `◆` notices at 4, and already for `· ` bullets at 4 and `↳` rows
+      at 4–6. Expected: drop the hang when it leaves too little room.
+    - Cosmetic: the plan footer `  one tree, writers one at a time` still wraps to column
+      0 at 30 columns.
+    - Order: S1 test-first, then Z3, then a re-check.
+  - S1 fixed (Claude Code session, 2026-09-26; a child's activity stop waited for other
+    agents).
+    - `internal/tui/runtime.go`: a stop that was the last activity takes
+      `r.animRejoined` under the lock and waits for either the animator to retire or
+      that channel. Any activity that starts closes it, because the row now belongs to
+      the newcomer, and the stop's promise (no frame of its own row after it returns)
+      already holds: its entry is gone.
+    - Guards `!spawn` and "the list was empty" were tried and found redundant (a waiting
+      stop implies an empty list, and a spawned replacement means the old animator has
+      already retired under the lock and draws no more). They were removed rather than
+      left as surviving mutants.
+    - Red: `TestAnActivityStopDoesNotWaitForAnotherAgentsActivity`, adopted from the
+      verifier's deterministic `stall2_test.go`. A Meter that blocks once holds the
+      animator in the gap; before the fix A's stop was still blocked 2 s later. It also
+      checks that B's row stays shown.
+    - Mutants via `go test -overlay`, all 3 killed:
+      - never released;
+      - the stop ignores the release;
+      - the stop never waits (killed by the existing
+        `TestActivitiesChurnWithoutLosingTheAnimator`, so the no-stale-frame promise is
+        still pinned).
+    - The activity tests pass 10× under `-race`. `go test -race ./internal/tui
+      ./internal/cli ./internal/engine -count=1` passes; `make check` exits 0 (4668
+      tests, lint 0 issues, cold start p50 6.2 ms).
+  - Z3 fixed (Claude Code session, 2026-09-26; a hang wider than the row left only "…").
+    - `wrapMarkdownLine` wraps a line as prose, with its marker and indent kept but not
+      hung, when the hang would leave less than `minHangText` (8) cells for the text. This
+      is the same idea as diff line numbers giving way below 20 columns. At ordinary
+      widths nothing changes.
+    - Red: `TestAHangWiderThanTheRowGivesWayToTheText` at widths 4–12.
+      - Shapes: a long-numbered item, a short one, both `◆` notices, a bullet, and a `↳`
+        purpose row.
+      - No row may be only `…` or overflow; rows are at most half the line's cells (a
+        column one character wide is as unreadable); the marker must survive.
+      - 16 failures before the fix.
+    - Mutants via `go test -overlay`, all 4 killed:
+      - no threshold;
+      - a threshold of 1 (killed once the row bound was tightened);
+      - a threshold of 60 (killed by the Z2 and T3 hang tests);
+      - the fallback wrapping only the body, which drops the marker (killed once the
+        marker check was added).
+    - `go test -race ./internal/tui ./internal/cli ./internal/term -count=1` passes;
+      `make check` exits 0 (4669 tests, lint 0 issues, cold start p50 6.3 ms).
+    - Next: the terminal verifier re-checks S1 and Z3, before item 3's [x]. Sent 01:48.
+      Scratchpad: `v43-5-verify-terminal-11/`. It covers:
+      - the S1 probes, and the item 3 run with activity wiring on and the 40 ms delay
+        that hung before;
+      - attacks on the release: stale frames, two animators, waiting forever, shutdown,
+        churn;
+      - Z3 at widths 1–12 for every hanging shape, CJK, and the boundary contract;
+      - spot-checks, the race tests, and `make check`.
+  - S1/Z3 re-check (the terminal verifier, a non-author, 2026-09-26): CLEAN. Scratchpad:
+    `v43-5-verify-terminal-11/`.
+    - Re-runs: its stall probes 5× under `-race`, now "no stall", and 0 of 400 random
+      stalls per run. Its item 3 run with activity wiring on and the 40 ms delay that hung
+      before (8 fixture runs each, 5×): 0 timeouts, 0 races, every view check passes.
+    - S1 attacks, all passing:
+      - no frame of A's row after its stop returns, on both the rejoined and the retired
+        path;
+      - churn of 8 agents × 120 cycles: the slowest stop took 1.7 ms, and there were
+        never two animators at once;
+      - a lone stop never waits forever (300 trials);
+      - quit while a stop waits;
+      - a stale `animRejoined` over 200 cycles.
+      It agrees that the dropped guards are redundant: a start in the retire window
+      spawns a fresh animator and releases the waiter slightly early, which is harmless.
+    - Z3 attacks: every hanging shape at widths 1–12 and 30, including CJK, keeps its text
+      exactly, and no row is only `…`. Work records at 4–12 columns keep their colour,
+      hold the boundary contract, and are never cut.
+    - Spot-checks X1, Y1–Y4, V, C1–C5, Z1 and Z2 pass. Race tests on tui, cli and term ok;
+      `make check` exit 0, 4669 tests, lint 0, cold start p50 6.2 ms.
+  - **§7 item 3 closed 2026-09-26.**
+    - The durable story is pinned by EG2's committed test.
+    - Both verifiers, non-authors, independently ran the whole story across processes
+      (two pauses, two restarts, two compactions) and its terminal view: CLEAN.
+    - Found and fixed on the way, test-first, each verified: C1–C5 (work-log honesty,
+      and the Codex adapter's item status); Z1 (child compaction invisible on a live
+      surface); Z2 and Z3 (hanging indents); F2 (a test gap); S1 (an agent's stop waited
+      on another agent).
+    - F1 (stream-json cannot report failed persistence without a protocol code) is an
+      open owner question.
+    - Checklist item 3 is marked [x].
+    - Next: §7 item 4, clean session exit, image cleanup and Localia ownership together.
+  - §7 item 4 review (Claude Code session, 2026-09-26): clean session exit, image cleanup and
+    Localia ownership together.
+    - Already covered on the way here:
+      - the terminal side of exit (the X1 attacks: modes restored exactly once, no chrome
+        left, nothing written after Run returns);
+      - the kitty octopus deleted at exit with the text intact;
+      - Localia's normal-exit ownership (V43.4c's tests). `run`'s deferred release stops
+        only a runtime this session started (`HostStarter.Close` skips `Persistent`, and
+        `kept` is never owned).
+    - W1 (medium; priorities 4 and 6 together): a restart leaves the session's runtime
+      running with no owner.
+      - `/update` and a mid-session sign-in restart with `performRestart` →
+        `replaceSelf`, an exec, from `finishSession`, before `run`'s deferred release.
+      - Nothing deferred runs after an exec. An ephemeral runtime this session started (a
+        plain child in its own process group) therefore keeps running: macOS has no
+        parent-death signal, and on Linux it depends on which thread forked it. Any route
+        host server and the session backend's processes are left too.
+      - The restarted process does not own the old runtime, so nothing ever stops it.
+    - W1 fixed.
+      - The release `run` defers is now `app.releaseRun(ag)` (`cmd_update.go`), guarded by
+        `runReleased` so it runs once. `run.go`'s deferred block calls it and reports
+        errors exactly as before.
+      - `performRestart` calls it before `replaceSelf`. If the exec fails, run's deferred
+        release frees nothing twice.
+      - A finished turn already saves, so the session on disk is complete either way; the
+        exercise found no coalesced-save loss.
+      - `run.go` and `cli.go` (V43.4's uncommitted files, untouched for more than a day)
+        changed only there.
+    - Red: `restart_releases_test.go`.
+      - `TestARestartReleasesTheRuntimeThisSessionStarted`: an ephemeral owned runtime
+        was still running at the exec before the fix. Control: a persistent one is left
+        running.
+      - `TestARestartReleasesTheRunFirstAndOnlyOnce`: a counting route is closed before
+        the exec, the last turn is on disk, and after a failed exec the runtime and route
+        are each closed exactly once.
+    - Mutants via `go test -overlay`, all 4 killed:
+      - no release before exec;
+      - no run-once guard;
+      - the runtime not released;
+      - the backend not closed.
+      The last two survived until the counting route was added.
+    - `go test -race ./internal/cli ./internal/local ./internal/engine ./internal/tui
+      -count=1` passes; `make check` exits 0 (4671 tests, lint 0 issues, cold start p50
+      6.1 ms).
+    - Next: a non-author verification of item 4, including an integrated exit exercise
+      (the TUI with the kitty image and an owned or kept runtime, through `/exit` and
+      through a restart).
+  - Item 4 verification (the terminal verifier, a non-author, 2026-09-26): CLEAN. Scratchpad:
+    `v43-5-verify-terminal-12/`.
+    - Integrated exit exercise (`w1_integrated_test.go`):
+      - the real `app.tuiRepl` on a real pty (`script`), with `TERM=xterm-kitty` so the
+        kitty octopus is genuinely chosen, replayed on its bounded VT;
+      - 5 exit routes (`/exit`, Ctrl+D mid-turn with the octopus showing, restart
+        succeeding, restart failing, restart after Ctrl+D mid-turn) × 3 runtimes (owned
+        ephemeral, persistent, found running): all 15 pass.
+      - At the exec and after exit: one show-cursor and one paste-off after the final
+        erase; the kitty image deleted; the transcript kept once; no chrome left.
+      - The owned runtime is stopped exactly once, already by the exec. Persistent and
+        found-running runtimes are never stopped, and a found-running one is never
+        started.
+      - The session is on disk with the last answer, and the restart args name it. A
+        failed restart prints below the transcript and releases nothing twice.
+    - W1 attacks:
+      - nothing else is skipped at the exec (debug log, session hold, pause watcher and
+        `closeResume` are all covered);
+      - the plain REPL restart path is covered the same way
+        (`TestW1PlainReplRestartReleasesFirst`);
+      - a "this session" restart after the early close is still correct (the flush
+        precedes the closes; `--session <id>` is emitted; the hold is released for the
+        new process);
+      - close errors after a failed exec print as warnings rather than becoming the exit
+        error, but only when both the exec and a close fail.
+    - Pre-existing observations, identical at a normal exit and at an exec, so not W1:
+      - `mcp.Pool.Close` is never called on either path; its stdio servers rely on stdin
+        EOF when kolk's descriptors close;
+      - the interactive path never closes the event bus; its spill queue syncs at turn
+        boundaries, so nothing is pending.
+    - Spot-checks X1, Y1/Y2, S1, Z2/Z3, V and C1–C5: 26 tests pass under `-race`.
+      Race tests on cli, local and tui ok; `make check` exit 0, 4671 tests, lint 0.
+  - **§7 item 4 closed 2026-09-26.**
+    - Clean exit, image cleanup and Localia ownership hold together on every exit route.
+    - W1 was found by review, fixed test-first, and verified CLEAN by a non-author.
+    - Checklist item 4 is marked [x].
+    - Next: §7 item 5, reviewing error messages, slash help, configuration and export
+      discoverability.
+  - §7 item 5 review, part 1: slash help (Claude Code session, 2026-09-26).
+    - The slash registry `slashCommandTable` drives both `/help` and the composer's
+      completion, so they cannot disagree. A mechanical check of the dispatcher's
+      `case "/…"` handlers against the table finds every command documented; the one
+      exception is `/permission`, an unlisted alias of `/permissions`, while `/clear` and
+      `/quit` are listed as aliases. `/effort`'s words match `NormalizeEffort` (`xhigh`
+      is accepted as `max`, the vendor spelling routing shows).
+    - H1 (medium; discoverability, a V43.4 regression): `kolk help` aligned every slash
+      summary to the widest usage with a tabwriter. V43.4 grew `/localia`'s grammar to
+      about 170 columns, so all 45 summaries started at column 169, off the edge of an
+      ordinary terminal. The same function's own comment already warned about this for the
+      outside-command table. `/help` (fixed at 42) had the same problem for `/localia`
+      alone.
+    - H1 fixed: one `writeSlashTable` (`slash.go`) serves both surfaces. Summaries start at
+      `slashColumn` (42); a usage too long for it takes a row of its own, with the summary
+      at the column on the next. The tabwriter for the slash table in `cli.go` is gone.
+      `slash.go` is Codex's uncommitted V43.4 file (idle since 09-24), changed only there.
+    - Red: `TestEverySlashSummaryStartsWithinReach`: on both surfaces every summary starts
+      within 45 columns, and a usage that fits keeps its summary on its row. 46 failures
+      before the fix.
+    - Mutants via `go test -overlay`, all 4 killed:
+      - always the same row;
+      - always a row of its own (killed once the same-row check was added);
+      - column 60;
+      - `kolk help` aligned to the widest usage again.
+    - `go test -race ./internal/cli -count=1` passes; `make check` exits 0 (4672 tests,
+      lint 0 issues, mode surface 21 checks).
+    - Next in item 5: configuration discoverability, export discoverability, and the V43
+      error messages.
+  - §7 item 5 review, part 2: configuration (Claude Code session, 2026-09-26).
+    - Drove the real `runConfig` (probe `s7i5/zz_cfg_test.go`). Bare `/config` lists all
+      20 settings with values in effect and honest summaries, every V43 key included
+      (`max_run_cost_usd`, `max_concurrent_tasks`, `isolation`, `subagent_network`, the
+      `continuity.*` keys, `continuity.resume`, `theme`, `mouse`, `local.ephemeral`).
+    - Errors are good: each names the key, the bad value and the valid set ("theme: no
+      theme "neon"; the themes are kolkrabbi, nord, quiet", "max_concurrent_tasks: 0 would
+      run nothing; one is the minimum", "continuity.resume: "sometimes" is not auto or
+      manual"). `kolk config` outside a session redirects to `/config`.
+    - CF1 (low-medium; discoverability): `/help` offers `/config … show`, but `show`
+      prints the pre-table view, only model, base_url and tiers. It omits 17 of the 20
+      settings, every V43 one included, so someone following the help never sees them.
+      Its tiers hint names `/config set-tier`, which `/help`'s grammar does not list.
+    - CF2 (low; discoverability): Localia's tuning keys (`local.gpu_mode`,
+      `local.gpu_index`, `local.quantization`, `local.reserved_vram_fraction`,
+      `local.reserved_ram_bytes`) appear in the table only once set. `get` knows them
+      ("unset — Kolkrabbi computes it"), but nothing lists them.
+    - Fix planned test-first: `show` prints the full table (plus the tiers hint when none
+      are set), and the table lists every `LocalKeys` key, unset ones marked as computed.
+      `cmd_config.go`, `config/local.go` and `config/settings.go` are Codex's uncommitted
+      files (idle since 09-22 and 09-23).
+    - Still to review in item 5: export discoverability and the V43 error messages.
+  - CF1 and CF2 fixed (Claude Code session, 2026-09-26).
+    - CF1 (`cmd_config.go`): `show` prints the same full table as bare `/config`, followed
+      when no tier is set by "no effort tiers: … /config set effort.<level> <model> adds
+      one". The hint uses the grammar the table shows (`effort.<level>` keys) instead of
+      the legacy `set-tier`.
+    - CF2 (`config/local.go`): the table lists every `LocalKeys` key. An unset one reads
+      `computed (default)`, as `get` says, and each has its own summary instead of the
+      generic "local model runtime".
+    - Removing the old `show` view left `engine.CanonicalEfforts` reachable only from tests.
+      The architecture gate caught it, and it is now wired where it belongs: the `set-tier`
+      usage and both "unknown effort" errors take their word list from it (`effortWords`),
+      so they cannot drift from the ladder the engine accepts. The text is unchanged.
+    - Red: `config_discover_test.go`.
+      - `TestEveryConfigViewListsEverySetting`: `show` and bare `/config` each list every
+        registry key and every `LocalKeys` key, and keep a saved tier. `show` missed 17
+        and bare `/config` missed 5 before the fix.
+      - `TestConfigShowSaysHowToAddAnEffortTier`: without a tier, `show` gives the hint,
+        and following it adds a tier that `show` then lists.
+    - Mutants via `go test -overlay`, all 3 killed:
+      - `show` without the table;
+      - local keys listed only once set;
+      - no tier hint.
+    - `go test -race ./internal/cli ./internal/config ./internal/tui -count=1` passes;
+      `make check` exits 0 (4674 tests, lint 0 issues, cold start p50 5.6 ms). The first
+      run failed only the dead-export gate described above.
+    - Codex's uncommitted `cmd_config.go` and `config/local.go` are changed only there,
+      and claimed in the joint doc.
+  - §7 item 5 review, part 3: export (Claude Code session, 2026-09-26).
+    - Outside a session, export is discoverable: `kolk help` names it, `kolk help sessions`
+      gives `export <id> [--json]`, and a bare `kolk sessions export` shows its usage.
+      `--json` is the full record, with execution history and `compactions` (V43.3c).
+    - EX1 (low): inside a session nothing named export. `/help` has no export entry, and
+      `/session` showed the id and file without saying what can be done with them.
+    - EX2 (low; priority 4's "shrinking must not erase what explains the goal"): the
+      Markdown export prints the conversation as it stands. After a compaction that is the
+      shortened conversation, and the export gave no hint that earlier messages exist only
+      in `--json`.
+    - Fixed:
+      - `/session` adds `export: kolk sessions export <id>  (--json for the full record,
+        compactions included)`;
+      - the Markdown export adds, under its header, "Compaction shortened this session N
+        time(s); `kolk sessions export <id> --json` includes every earlier message", or
+        says the archives could not be read.
+      - `cmd_sessions.go` is Codex's uncommitted file (idle since 09-22), changed only
+        there.
+    - Red: `export_discover_test.go`.
+      - `TestAMarkdownExportSaysWhatCompactionShortened`: no note without compaction;
+        the note with a compaction; an unreadable archive is said.
+      - `TestSlashSessionSaysHowToExportIt`.
+      - Both were red before the fix.
+    - Mutants via `go test -overlay`, all 4 killed:
+      - no note;
+      - a note always;
+      - a read error left silent (killed once the corrupt-archive case was added);
+      - no `/session` export line.
+    - `go test -race ./internal/cli -count=1` passes; `make check` exits 0 (4676 tests,
+      lint 0 issues).
+    - Still to review in item 5: the V43 error messages.
+  - §7 item 5 review, part 4: V43 error messages (Claude Code session, 2026-09-26).
+    - Drove 24 V43-era commands through the real `slash` dispatcher with bad input or in
+      the wrong state (probe `s7i5/zz_err_test.go`).
+      - Clear and actionable: `/resume` and `/resume discard` with nothing paused; bad
+        `/resume` and `/continue` arguments; `/effort turbo` (lists the ladder with its
+        numbers); `/mode fast`; `/theme neon`; `/rate 9`; an unknown command (points to
+        `/help`); `/permissions` with a bad tier (explains every tier and the floor).
+      - Every `/localia` misuse names the next command (`/localia models`, `/localia
+        list`, `/localia add`, or an example for `direct`).
+      - `/undo task` without checkpoints and `/compact undo` with nothing to undo say why.
+      - `/model` lists every reachable model, how to sign in, and the Localia setup hint.
+    - E5-1 (low-medium; priority 4): with nothing paused, `/continue` said "nothing
+      configured can continue this on an equal rung; the pause stands and kolk resumes at
+      the reset". That describes a pause and a reset that did not exist. `/resume` says
+      "nothing is paused".
+    - E5-1 fixed (`engine/chain.go`, Codex's uncommitted file, idle since 09-16): a separate
+      `ErrNothingPaused` ("nothing is paused; /continue switches a turn that a limit
+      stopped") for no pause and no session. `ErrNothingToContinue` keeps its words for a
+      real pause with no equivalent, and the existing test of that case is unchanged.
+    - Red: `error_messages_test.go`. `TestContinueWithNothingPausedSaysSo` covers
+      `/continue` and `/continue 2`; `TestContinueWithoutASessionSaysNothingIsPaused`.
+    - Mutants, both killed: the no-pause path returning the old error; the no-session
+      path returning it.
+    - `go test -race ./internal/cli ./internal/engine -count=1` passes; `make check` exits 0
+      (4678 tests, lint 0 issues). The first run failed errorlint on the new test (`!=`
+      rather than `errors.Is`), which was fixed.
+    - Note, not changed: in the plain line REPL, `/agents` says "run this inside a
+      session", although that REPL is a session without the full-screen record.
+    - Item 5's own review is complete: H1, CF1, CF2, EX1, EX2 and E5-1 are fixed. Next: a
+      non-author verification of item 5.
+  - Item 5 verification (the terminal verifier, a non-author, 2026-09-26): the six fixes hold,
+    but its own sweep found four more (named I5-1…I5-4 here). Scratchpad:
+    `v43-5-verify-terminal-13/`.
+    - Holds:
+      - H1 at every width, and when piped;
+      - CF1 and CF2: 25 rows, filters, project-scoped `local.ephemeral`, and a tier hint
+        that works;
+      - EX1;
+      - EX2 on a main compaction and a fork;
+      - E5-1, with the auto-policy wording right even while the watcher holds the pause;
+      - other error messages clear.
+      Race tests on cli, config and engine ok; `make check` exit 0, 4678 tests, lint 0.
+    - I5-1 (low-medium; a dead end created by EX2): an unreadable archive makes the
+      Markdown note say "`--json` tries again", but `--json` fails with the same
+      checksum error (exit 1). The full record is unavailable while any one archive is
+      bad. Expected: `--json` includes the readable archives and names the unreadable
+      ones.
+    - I5-2 (low-medium; the E5-1 class): under `continuity.resume = manual`, `/continue`
+      with no equivalent says "kolk resumes at the reset", but the watcher is never armed
+      and the pause holds until `/resume`. Expected: the wording follows the policy.
+    - I5-3 (low; EX2 wording): the note counts every archive, including child ones. With
+      only a child compacted, a complete main conversation reads "Compaction shortened
+      this session". Expected: count main-conversation archives, or say "agent context
+      archives".
+    - I5-4 (low; discoverability): `kolk help config`, `kolk help /config`, `kolk help
+      model` and `kolk help export` say "no such command" (exit 2), although `kolk help`
+      lists `/config` and `/model`. Expected: fall back to the slash table and the retired
+      verbs, and for `export` point to `kolk sessions export`.
+    - Nits:
+      - `/help` never says "export", and `/session`'s summary does not mention it;
+      - `/config <text>` matches hidden summaries without showing why a row matched;
+      - "unknown config key" has no next step;
+      - user Markdown commands in `/help` use a fixed `%-42s`.
+    - Order: I5-1, I5-2, I5-3, I5-4 (with the cheap nits), then a re-check, before item
+      5's [x].
+  - I5-1 and I5-3 fixed (Claude Code session, 2026-09-26; the same function).
+    - `session/compaction.go` (Codex's untracked file, idle since 09-22): the loader is
+      split into `compactionHistory` and `readArchive`.
+      - `CompactionHistory` stays all-or-nothing and returns the same first error; the
+        existing `TestCompactionHistoryIncludesLegacyAndRejectsCorruption` still pins
+        that.
+      - The new `CompactionHistoryReadable` returns every readable archive, with an error
+        for each unreadable one.
+    - `--json` export (`cmd_sessions.go`): it carries every readable archive, lists the
+      rest under `unreadable_compactions`, and warns on stderr. One damaged record no
+      longer withholds the whole full record (it used to exit 1).
+    - Markdown note (`noteCompactions`): an agent's archive is one a task journal names
+      (from `ExecutionHistory`).
+      - Main archives: "Compaction shortened this conversation N time(s)".
+      - Agent archives: "Agents in this session compacted their context N time(s)".
+      - Unreadable archives: "N compaction archive(s) could not be read (…); `--json`
+        names them and includes the rest". The false "tries again" promise is gone.
+    - Red:
+      - `TestAFullExportKeepsWhatItCanReadAndNamesTheRest`: one good archive and one
+        damaged. The full export exited 1 before the fix; now it holds the readable one,
+        names the damaged one, and warns. The Markdown note is honest.
+      - `TestAnAgentsCompactionIsNotCalledTheConversations`: a child-only archive read as
+        the conversation's before the fix.
+    - Mutants via `go test -overlay`, all 6 killed:
+      - `--json` strict again;
+      - unreadable archives unnamed;
+      - no warning;
+      - agent archives counted as main;
+      - no unreadable note;
+      - strict history made tolerant (killed by the existing session test).
+    - `go test -race ./internal/cli ./internal/session -count=1` passes; `make check` exits
+      0 (4680 tests, lint 0 issues).
+  - I5-2 fixed (Claude Code session, 2026-09-26; `/continue`'s promise follows the resume
+    policy).
+    - `engine/chain.go`: `ContinueOn`'s no-equivalent error comes from `a.nothingToContinue()`.
+      - Under `ResumeManual` it is `nothingToContinueManual`: "…the pause stands until
+        /resume, which works once the limit resets…".
+      - It is `ErrNothingToContinue` to `errors.Is`, so callers are unaffected.
+      - The automatic policy keeps the old words, which are true there: both REPLs arm the
+        watcher, so the only way nothing resumes by itself is the manual policy.
+    - The two return sites (an empty chain, and every candidate failing to switch) are
+      merged into one, using `chain[min(from, len(chain)):]`, so the wording cannot differ
+      between them.
+    - Red: `TestContinueUnderManualResumeNamesResume` (the verifier's repro: a real
+      allowance pause, manual policy, no equivalent; plus the `errors.Is` check). The auto
+      control is `TestContinueUnderAutomaticResumeSaysItResumes`, which also covers `/continue
+      3` past the chain's end.
+    - Mutants, all 3 killed: the policy ignored; always manual (killed by the auto
+      control); `Is` false.
+    - `go test -race ./internal/cli ./internal/engine -count=1` passes; `make check` exits 0
+      (4682 tests, lint 0 issues).
+  - I5-4 and the cheap nits fixed (Claude Code session, 2026-09-26).
+    - I5-4 (`cli.go` `runHelp`): after the four outside verbs, `kolk help <name>` falls back
+      to the slash table. The name may have its `/` or be a retired verb (`models` →
+      `/model`). It prints the usage and "a session command: open a session with `kolk`,
+      then run it there". A `kolk sessions` verb (`export`, `fork`, `search`, `rename`,
+      `rm`, `clear`) prints `kolk sessions`' usage. A truly unknown name still errors,
+      with "run `kolk help` for usage".
+    - Nits:
+      - every "unknown config key" (4 sites in `cmd_config.go`, 2 in `config/local.go`)
+        adds "; /config lists every setting";
+      - `/session`'s summary in `/help` now says "and how to export it", so `/help`
+        mentions export.
+    - Red:
+      - `TestHelpFindsSessionCommandsAndSessionsVerbs`: `config`, `/config`, `model`,
+        `models`, `resume`, `export` and `fork` all said "no such command" before the
+        fix; `nosuch` still errors.
+      - `TestUnknownConfigKeysAndExportPointSomewhere`: plain and `local.` unknown keys,
+        and `/help`'s export mention.
+    - Mutants via `go test -overlay`, all 7 killed:
+      - no slash fallback;
+      - no retired-verb map;
+      - no `/` trim;
+      - no sessions verbs;
+      - the old `/session` summary;
+      - the cli hint gone;
+      - the config package hint gone.
+    - `go test -race ./internal/cli ./internal/config -count=1` passes; `make check` exits
+      0 (4684 tests, lint 0 issues).
+    - Deferred nits, recorded: `/config <text>` search shows no summary for why a row
+      matched; user Markdown commands in `/help` keep the fixed `%-42s`.
+    - Next: the terminal verifier re-checks I5-1…I5-4 and the nits, before item 5's [x].
+      Sent 03:13. Scratchpad: `v43-5-verify-terminal-14/`.
+  - Item 5 follow-up re-check (the terminal verifier, a non-author, 2026-09-26): I5-1…I5-4 and
+    the nits hold on their scope (every archive unreadable, legacy snapshots, strict fork
+    still refusing, past-run agent archives, manual policy with 0 or 2 candidates, help
+    names), and the full sweep passes. Three small residuals:
+    - J1 (low-medium; the I5-1 class): one corrupt execution journal still withholds the
+      whole `--json` export. `ExecutionHistory` is all-or-nothing, and its error names no
+      path (`invalid character 'j'…`, exit 1).
+    - J2 (low; the I5-3 class): when the journals cannot be read, `noteCompactions` treats
+      every archive as main ("shortened this conversation 3 time(s)" for 1 main + 2
+      agent), and says nothing about the unreadable journal.
+    - J3 (low; I5-4 collisions): `kolk help /help` prints `usage: kolk help`, the outside
+      verb's usage; `kolk help clear` shows only `/clear`, never `kolk sessions clear`,
+      which deletes this folder's sessions.
+    - Gates: race tests on cli, config, engine and session ok; `make check` exit 0, 4684
+      tests, lint 0.
+  - J1, J2 and J3 fixed (Claude Code session, 2026-09-26).
+    - J1 (`session/execution.go`, Codex's untracked file, idle since 09-16): split into
+      `executionHistory` and `readExecution`, whose errors name the journal's path.
+      - `ExecutionHistory` stays all-or-nothing for fork.
+      - The new `ExecutionHistoryReadable` keeps every readable run.
+      - The `--json` export uses it, lists `unreadable_executions`, and warns "N task
+        journal(s) could not be read".
+    - J2 (`noteCompactions`): with a journal unreadable it does not classify. It says "N
+      compaction archive(s); the task journals could not be read, so which were this
+      conversation's and which an agent's is unknown".
+    - J3 (`runHelp`): a slash command's usage is built from the slash registry, so `kolk
+      help /help` reads `usage: /help`. A name that is both a session command and a
+      sessions verb shows both: `/clear` starts a new session; `kolk sessions clear`
+      deletes this folder's sessions.
+    - Red:
+      - `TestADamagedJournalWithholdsNothingElse` (cli): the full export exited 1 before
+        the fix, and the note counted the agent's archive as the conversation's;
+      - `TestHelpSaysWhichOfTwoSameNamedCommandsItMeans`;
+      - `TestADamagedJournalIsRefusedStrictlyAndNamedReadably` (session): the strict
+        loader refuses and names the path; the readable one keeps the good run.
+    - Mutants via `go test -overlay`, all 7 killed:
+      - `--json` strict;
+      - journals unnamed;
+      - no journal warning;
+      - the note classifying anyway;
+      - the strict loader made tolerant (killed once the session test was added);
+      - help using `usageLine`;
+      - `clear` answering for only one command.
+    - `go test -race ./internal/cli ./internal/session -count=1` passes; `make check` exits 0
+      (4687 tests, lint 0 issues).
+    - Next: a final re-check of J1–J3 by the terminal verifier, before item 5's [x].
+  - J1–J3 re-check (the terminal verifier, a non-author, 2026-09-26): CLEAN as scoped.
+    Scratchpad: `v43-5-verify-terminal-15/`.
+    - Every journal unreadable plus an archive unreadable: `--json` exits 0 and names all
+      of them, with both warnings; the Markdown note does not classify.
+    - Fork of a damaged session is still refused, and now names the journal's path.
+    - `kolk help` for every slash command (with and without `/`), sessions verb, retired
+      verb and outside verb exits 0, and no slash entry is paired with an outside usage.
+    - Earlier item 5 fixes re-run clean. Race tests on cli and session ok; `make check`
+      exit 0, 4687 tests, lint 0.
+    - K1 (low; the J1 class at store level; the verifier says not to hold item 5 for it):
+      if `<id>.executions/` or `<id>.compactions/` is a file rather than a directory, the
+      `ReadDir` error still aborts the whole `--json` export, and the Markdown note's
+      "`--json` includes them" is then a dead end for the executions store. Recorded as a
+      V43.5 follow-up, to be fixed test-first and verified separately.
+  - **§7 item 5 closed 2026-09-26.**
+    - Found and fixed test-first, each verified by a non-author: H1 (slash help off the
+      right edge), CF1/CF2 (config show and local keys), EX1/EX2 (export discoverability),
+      E5-1 (`/continue` with nothing paused), I5-1…I5-4 (the export's damaged archives,
+      manual-resume wording, agent-archive wording, `kolk help` for session commands),
+      and J1–J3 (damaged journals, unclassifiable notes, help collisions).
+    - K1 is an open follow-up.
+    - Checklist item 5 is marked [x].
+    - Next: K1, then §7 item 6 (the final repository gates, once, after all material
+      changes settle).
+  - K1 fixed (Claude Code session, 2026-09-26; an unlistable store withheld the full
+    export).
+    - `session/compaction.go` and `session/execution.go`: a store that cannot be listed is
+      now an unreadable entry, like a damaged file, instead of an abort. That covers a
+      `.compactions` path that is not a directory, `ReadDir` failing on either store, and
+      the legacy snapshot listing.
+      - `CompactionHistoryReadable` and `ExecutionHistoryReadable` now return two values
+        (what was read, and what could not be).
+      - The strict forms return the first unreadable entry, which is the store error, as
+        before, so fork is unchanged.
+      - `noteCompactions` and the `--json` export are simplified to match. The Markdown
+        note's "`--json` includes them" is now true for a broken executions store too.
+    - Red:
+      - `TestAnUnlistableStoreWithholdsNothingElse`: `.executions` or `.compactions`
+        replaced by a file. Both exited 1 before the fix; now they export the messages,
+        name the store, and warn.
+      - `TestAnUnreadableStoreDirectoryWithholdsNothingElse`: a `.compactions` directory
+        with mode 0 (skipped as root).
+    - Mutants via `go test -overlay`, all 3 killed:
+      - the executions store error dropped;
+      - the compactions store check dropped;
+      - the compactions `ReadDir` error dropped (killed once the mode-0 case was added).
+      The legacy-listing error is equivalent in practice: `CompactionArchives` fails only
+      on an invalid id or a bad glob, which a loaded session cannot produce.
+    - `go test -race ./internal/cli ./internal/session -count=1` passes; `make check` exits
+      0 (4689 tests, lint 0 issues).
+    - K1 goes to the verifier together with item 6's final gates.
+  - §7 item 6, the final repository gates (Claude Code session, 2026-09-26, 03:35), run once
+    after the last material change (K1). Codex had made no edit since 14:09 on 09-25.
+    - Tree: HEAD 921c46f plus 219 uncommitted entries (135 modified, 84 new), go1.26.4
+      darwin/arm64.
+    - `gofmt -l` over every tracked and new `.go` file: clean. `go vet ./...`: clean.
+    - `go test -race ./... -count=1`: all 39 packages ok.
+    - `make check`: exit 0.
+      - 4689 tests across all modules; root module 4572 (floor 3217).
+      - arch, purity; platforms darwin/amd64, darwin/arm64, linux/amd64, linux/arm64,
+        windows/amd64.
+      - lint: 0 issues.
+      - Budgets: binary 9.69 MB (ratchet 10.46 MB, ceiling 20.97 MB); cold start p50
+        5.7 ms (soft 20, hard 30); sandbox overhead p50 6.3 ms; 2 third-party modules in
+        the root graph, unchanged.
+      - Script suites: site 472, mode surface 21, installer 72, spec guard 29, release 24,
+        release workflow 41, release verifier 30, smoke workflow 18, plan 110, workflow
+        pins 46 checks passed.
+    - Next: an independent run of the same gates by a non-author, with K1's
+      verification, before item 6's [x].
+  - Item 6 and K1 verification (the engine verifier, a non-author, 2026-09-26): the gates are
+    green and K1 holds; one finding about the gates. Scratchpad: `v43-5-verify-engine-5/`.
+    - Its own run: gofmt clean over 872 `.go` files; vet clean; `go test -race ./...` 39
+      packages ok; `make check` exit 0 with 4689 tests, lint 0, 5 platforms, the same
+      budgets (cold start 5.6 ms) and the same script suite counts. No flakes (diskspace
+      passed).
+    - K1 holds:
+      - both stores as files at once: `--json` exits 0, names both, and keeps messages
+        and the live run;
+      - a legacy `.pre-compact-1.json` that is a directory is named;
+      - fork refuses each broken store, names the path, and leaves no half-made fork;
+      - the strict loaders return the first unreadable error;
+      - concurrent exports and readers beside writers are race-free.
+      - Test gaps: `k1last` (strict returns the last error, not the first) and
+        `k1legacyskip` (wording only).
+    - The tree has settled: nothing modified after 03:31 except `CHECKPOINTS.md` and
+      `.kolk-test.log`; no Codex activity; HEAD unchanged.
+    - G1 (medium-low; gate hermeticity; a pre-existing test): every test run writes into
+      the real repository's `.git`.
+      - `TestModeAgentFlagRunsTheOrchestratedPipeline` (`internal/cli/first_run_test.go`)
+        runs `kolk --mode agent -p` from inside ~/kolkrabbi. Its untyped plan tasks count
+        as writers, so under the default worktree isolation each child runs `git worktree
+        add` of the real repository, seeded with the developer's uncommitted tree.
+      - Result: 785 new object files (snapshot commits, trees, blobs) on every `make
+        check` or `go test ./...`. Refs, index and working tree are untouched, and the
+        worktrees are removed.
+      - Risks: the uncommitted work is copied into unreachable objects on each run; a
+        crash mid-test would leave a registered worktree; and a future fixture whose child
+        writes a file would land it in the real tree.
+      - Expected: the test runs in a temporary repository or directory.
+    - Next: G1 test-first, then the gates once more, before item 6's [x].
+  - G1 fixed (Claude Code session, 2026-09-26).
+    - `TestModeAgentFlagRunsTheOrchestratedPipeline` (`internal/cli/first_run_test.go`,
+      committed and untouched since 09-09) runs from its own `t.Chdir(t.TempDir())`. It
+      still exercises the whole orchestrated pipeline (plan, both subagents, synthesis,
+      tool schemas), just away from the real repository.
+    - Measured, because a meaningful in-test assertion would race other packages:
+      - `.git/objects` for that one test: +3 files before the fix, +0 after;
+      - for the whole `go test -race ./...`: +0;
+      - for `make check`: +0;
+      - `git worktree list`: still only main.
+    - The verifier's `k1last` gap is closed as well:
+      `TestStrictHistoryReportsTheFirstUnreadableArchive` (two damaged archives; the strict
+      error is the first in listing order, as its readable twin reports). The `k1last`
+      mutant now fails.
+  - §7 item 6, the final gates rerun after G1 (Claude Code session, 2026-09-26, ~03:45):
+    - gofmt clean; vet clean;
+    - `go test -race ./... -count=1`: 39 packages ok;
+    - `make check` exit 0: 4690 tests, lint 0, cold start p50 5.2 ms;
+    - hermetic: +0 `.git` objects for both runs.
+    - Next: the engine verifier confirms G1 with its own measurement, before item 6's [x].
+  - G1 re-check (the engine verifier, a non-author, 2026-09-26): CLEAN. Scratchpad:
+    `v43-5-verify-engine-6/`.
+    - Measured `.git/objects`, refs, packed-refs, worktrees and the admin dir, the index
+      mtime, HEAD, a status hash and `kolk-*` temp entries before and after `go test ./...`
+      and after `make check`: identical every time.
+    - Every other test that runs git uses a temp dir. `make check`: exit 0, 4690 tests,
+      lint 0, and the same budgets and suites.
+    - Informational: in a plain temp dir the G1 test took the shared-tree fallback, so no
+      cli test drove the real `WorktreeIsolator` end to end any more. Its temp-repo probe
+      showed the worktree path hermetic.
+  - That coverage is restored (Claude Code session, 2026-09-26). The G1 test now builds its
+    own repository: `git init`, a commit, and an uncommitted file.
+    - It asserts that the worktree path really ran: a snapshot commit left unreachable in
+      the project (`git fsck --unreachable`), since the plan announcement appears on both
+      paths.
+    - It asserts that no worktree is left behind.
+    - Without the repository the test cannot pass, so it discriminates.
+    - Still hermetic: +0 `.git` objects in ~/kolkrabbi.
+  - §7 item 6, the final gates on the settled tree (Claude Code session, 2026-09-26, ~03:50; an
+    earlier draft said ~04:20, an estimate the verifier found to be in the future):
+    - gofmt clean; vet clean;
+    - `go test -race ./... -count=1`: 39 packages ok;
+    - `make check` exit 0: 4690 tests, lint 0, cold start p50 5.8 ms;
+    - hermetic: `.git/objects` 5850 → 5850 across both runs, one worktree.
+    - Next: one last independent `make check` by the engine verifier on this exact tree,
+      then item 6's [x].
+  - Final gate verification (the engine verifier, a non-author, 2026-09-26): CLEAN on the exact
+    final tree. Scratchpad: `v43-5-verify-engine-7/`.
+    - `make check` exit 0: 4690 tests, lint 0, binary 9.69 MB, cold start p50 5.6 ms, and
+      all 10 script suites. Its repository snapshot before and after is identical
+      (objects, refs, worktrees, index, HEAD, status, temp entries).
+    - The G1 test passes 3×, leaves ~/kolkrabbi unchanged, and discriminates. It fails
+      under each of these mutants:
+      - no repository;
+      - `isolatorFor` always shared ("no snapshot commit");
+      - `RemoveWorktree` a no-op ("worktrees left behind: 2").
+    - The tree has settled: only `first_run_test.go` (the coverage restore),
+      `CHECKPOINTS.md` and `.kolk-test.log` changed since the previous run; no Codex
+      activity.
+  - **§7 item 6 closed 2026-09-26.**
+    - The final repository gates were run on the settled tree, green by the author and
+      independently by a non-author, with hermeticity measured.
+    - G1 (the gates wrote into the developer's `.git`) was found and fixed, and the
+      worktree coverage it cost was restored hermetically.
+    - Checklist item 6 is marked [x].
+    - Next: §7 item 7, recording the remaining external and physical trial needs without
+      calling them verified.
+  - §7 item 7, recorded (Claude Code session, 2026-09-26): one consolidated list, "Trials still
+    needed — recorded 2026-09-26, none verified", in `docs/v43-checklist.md` §7.
+    - It is gathered from every place this ledger recorded a need:
+      - the item 1 terminal and engine reviews;
+      - EO1;
+      - the V43.1, V43.2, V43.3 and V43.4 limits;
+      - the V43.4c.3 twelve-step machine list;
+      - this review's own additions: Zellij and tmux, pending-wrap, the narrowing resize
+        frame, and the latent Claude, Codex and Copilot event shapes from C3 and C5;
+      - W1 on a real restart.
+    - Grouped by priority, each line says what to try and what to see:
+      - terminal: 8 trials;
+      - routing: 3;
+      - continuity: 5;
+      - Localia: 9.
+      Every line is unchecked, under a header that says nothing in it is verified.
+    - The owner decisions (F1, F2, ROCm) are listed separately as decisions, not trials.
+    - `make check` exit 0 after the docs change (4690 tests, lint 0).
+    - Next: a non-author checks the list against the ledger for anything missed or anything
+      worded as verified, before item 7's [x].
+  - Item 7 review (the engine verifier, a non-author, 2026-09-26): not CLEAN. Scratchpad:
+    `v43-5-verify-engine-8/`.
+    - A1 (medium, the one thing item 7 forbids): the header claimed the homelab GTX 1660
+      SUPER was used for Localia fit. No ledger entry records that.
+    - B1: JetPack 5 is L4T R35, not R32. R32 is JetPack 4, the unsupported path.
+    - Missed:
+      - C1: §1's resize and §2's simultaneous agents;
+      - C2: a real vendor child's work log (the V43.1b limit);
+      - C3: the signed-out Cloud 401 (the V43.4c.1 limit);
+      - C4: a planner's cut-off plan, a Localia runtime dying mid-plan, an expired vendor
+        handle;
+      - C5: `nvidia-smi` without the driver; AMD plus NVIDIA.
+    - Vague: D1 (kill mid-tool), D2 (mixed vendors), D3 (the vendor shapes need today's
+      rendering and the right one), D4 (billed runs), plus Windows, narrowing and
+      pending-wrap specifics.
+  - Item 7 list rewritten (Claude Code session, 2026-09-26) with every point folded in.
+    - The header now names only the real artefacts used: one macOS archive downloaded and
+      checksummed but never executed, and the real `bash` and `tree` runs behind Q1 and R1.
+      No other claim is made.
+    - A GTX 1660 SUPER fit trial is added; Jetson reads R36/R35 with R32 as unsupported.
+    - C1–C5 are added as trials, D1–D4 and the minor entries say what to try and what to
+      observe, and the header says the list includes §1's and §2's rehearsals.
+    - The `modelForKind` and gateway-test note is added for Codex's V43.2 owner.
+    - 32 unchecked trials plus 4 owner items. `make check` exit 0 after the change.
+    - Next: the engine verifier re-reviews, before item 7's [x].
+  - Item 7 re-review (the engine verifier, a non-author, 2026-09-26): nearly CLEAN. Every
+    earlier point is folded in correctly, and nothing else from the record is missing.
+    - R1 (low, worded as verified): the header said real `bash` and `tree` runs "confirmed two
+      exploration-grouping fixes". The `bash` runs confirmed the Q1 bypass before its fix; only
+      the `tree` 2.3.2 run confirmed a fix. The header also left out the xterm.js 5.5.0
+      cross-checks.
+    - R2 (low): three entries did not say what to observe: the mid-plan limit, the Ollama
+      Cloud and Anthropic 429 sub-bullets, and detach and interrupted downloads.
+  - R1 and R2 applied (Claude Code session, 2026-09-26), using the verifier's wording.
+    - The header lists four real artefacts: the macOS archive (never executed), the `bash`
+      runs behind Q1 (before its fix), the `tree` 2.3.2 run behind R1, and the xterm.js 5.5.0
+      cross-checks.
+    - Mid-plan limit: the plan pauses before its next call, queued tasks do not start,
+      completed tasks are not re-run, and each child resumes its own vendor conversation.
+    - 429s: Ollama Cloud says "retry at" (an estimate), and auto-resume re-checks without a
+      paid fallback. Anthropic pauses at the vendor's reset time and says "reset at".
+    - Localia's combined entry becomes three entries.
+      - Detach and reuse: `/localia` says it was kept (`cmd_localia.go:128`).
+      - A blocked network or firewall gets the network advice, not the disk advice
+        (`RuntimeSetupError.Error`, `hoststart.go`).
+      - Interrupted downloads: a cancelled or dropped download removes its `.install-*`
+        staging (deferred `RemoveAll`, `runtime_install.go:230`); a crash during publication
+        of `current.json` recovers the tree (`runtime_install.go:197`).
+    - New observation, from code reading only and marked unverified in the list: a killed
+      process cannot run the deferred cleanup. Its `.install-*` directory seems to stay, and
+      nothing appears to remove it later, so it holds disk the next room check counts against.
+      Not fixed here; item 7 records trials, and a fix would be its own leaf.
+    - 34 unchecked trials plus 4 owner items. `make check` exit 0 (4,690 tests, lint 0, plan
+      110). Item 7 stays [ ] until the verifier confirms this text, including the new lines.
+  - Item 7 final check (the engine verifier, a non-author, 2026-09-26): not CLEAN, five fixes.
+    It ran one read-only overlay probe. Scratchpad: `v43-5-verify-engine-10/`.
+    - 1: "`/localia` says it was kept" was wrong for `local.ephemeral off`. A persistent session
+      prints "stays running for this project after session close" (`cmd_localia.go:129-130`);
+      "kept running …" appears only when a later session has it back `on` (the F2 case).
+    - 2: the "Anthropic … reset at" line (its own R2 suggestion) was wrong. Nothing sets
+      `Limit.ResetAt`. The Claude CLI's "plan limit reached … it resets <time>" pauses as
+      estimated, "retry at", 15 minutes. Probe `claude_reset_probe_test.go`: `estimated=true`,
+      "retry at 04:29". Only an HTTP 429 with `Retry-After` gives "reset at".
+    - 3: the firewall line holds for dropped or refused connections and DNS
+      (`runtimeFetchError`). A proxy answering 403 or 407 gives "returned HTTP N; retry setup
+      later" with the generic advice (`runtime_release.go:192-194`).
+    - 4: the killed-process `.install-*` observation is confirmed by code reading. The only
+      removal is the same process's deferred `RemoveAll`, and `ForgetFailures` touches only
+      `failed-*.json`. `kolk uninstall` without keeping data does remove it.
+    - 5: the crash-during-publication entry needed what to observe: no second download, though
+      the release lookup still has to be online.
+    - Owner note (low, EO2 class): the vendor's reset time (`LimitResets`) never reaches the
+      pause.
+    - "With fixes 1–5 applied, the list is CLEAN from my side."
+  - Fixes 1–5 applied in the verifier's wording (Claude Code session, 2026-09-26), and its owner
+    note added under "Owner decisions". No other text was added.
+    - Spot-checked before editing: `cmd_localia.go:124-131`; `ResetAt` is declared only at
+      `provider/limit.go:46`; the HTTP-status path at `runtime_release.go:192-194`.
+    - 34 unchecked trials plus 5 owner items. `make check` exit 0 (4,690 tests, lint 0, plan
+      110).
+  - **§7 item 7 closed 2026-09-26** ([x]). §7 is complete except the landing-page item, which is
+    left for the release that ships V43. Nothing committed; V43 work stays uncommitted on HEAD
+    921c46f.
+  - Delta re-check, terminal side (the terminal verifier, a non-author, 2026-09-25): not
+    yet verified. Scratchpad: `v43-5-verify-terminal-2/`.
+    - Holding:
+      - N2: `bash -lc 'rg …'` groups; double-quoted and `'"'"'` forms stay `Ran`.
+      - N3: the heading, fence and list render correctly.
+      - N4: none of 42 IDs gives a generic word.
+      - N5 fixed.
+      - N6: assistant bullets, child prose and prose after a diff are plain.
+      - N7: counts keep their colour at 48/54/56, with no overflow or no-break-space leak
+        at 4–80.
+      - N8 holds.
+      - Gates: `go test -race` tui, term, engine and cli ok; `make check` exit 0 (4636).
+    - Q1 (medium): quoting, escaping and expansion bypass the N1 allow-list. `strings.Fields`
+      sees `'-delete'`, `"-delete"`, `\-delete`, `''-delete`, `$'-delete'`,
+      `{-delete,}` and `${IFS}-delete` as operands, but the shell turns each into
+      `-delete` first.
+      - 27 bypasses, including through the Codex wrapper, all grouped with output hidden.
+      - Confirmed in a real bash: they deleted files, and `sort '-o'` wrote out.txt.
+      - Fix: tokenize with quote removal, and reject an unquoted `\`, `$`, braces or glob
+        characters.
+    - Q2 (low-medium): `find -- . -delete` groups, because `--` was taken as the end of the
+      whole command, while `find`'s expression follows it. BSD find deleted the files.
+    - Q3 (low): `unwrapShell` checks only the basename, so `./bash -lc 'cat a'` and
+      `/tmp/x/sh -c 'ls'` unwrap.
+    - Q4 (low, colour; present since T6): a blank output row, written as 4 spaces, trims to
+      "" and ends the record, so later rows (such as `[exit error: …]`) are not muted.
+    - Harmless survivors, all erring toward showing the command: `--` removed; the
+      egrep/fgrep alias removed; attached values unsupported; dash/ksh added.
+    - Order: Q1, then Q2+Q3 (the same guard), then Q4, then the engine's gap 1 and zero
+      wording. Then a final re-check.
+  - Q1 fixed (Claude Code session, 2026-09-25; quoting and expansion hid options from the
+    allow-list).
+    - `shellStages` now tokenizes the command as the shell will pass it:
+      - single quotes are literal;
+      - double quotes are accepted only with no `$`, backtick or `\` inside;
+      - an unquoted `|` separates stages;
+      - anything the shell would rewrite first rejects the command: `\ $ \` { } * ? [ ]
+        < > ; & ( ) ! #`, newlines.
+    - The allow-list then sees the words the tool will see, so `'-delete'`, `"-delete"`,
+      `\-delete`, `''-delete`, `$'-delete'`, `{-delete,}`, `${IFS}-delete`, `sort '-o'`,
+      `rg '--pre'`, `sed … '-i'` and the wrapper forms all stay commands.
+    - As a benefit, quoted names read as themselves (`cat 'my notes.txt'` → `Read my
+      notes.txt`), and a quoted `|` in a pattern (`rg -n 'a|b' internal`) no longer breaks
+      the command into stages.
+    - Red: `TestQuotedOrExpandedOptionsNeverReadAsExploration`.
+      - The verifier's 21 Q1 forms, `find . -name *`, and `find . "${IFS}-delete"`.
+      - 4 positives.
+      - The earlier N1, N2 and T4 tests all still pass.
+    - Mutants via `go test -overlay`, all 6 killed:
+      - single quotes literal;
+      - double quotes allowed to expand;
+      - `$` allowed;
+      - `\` allowed;
+      - braces allowed;
+      - globs allowed.
+    - `go test -race ./internal/tui ./internal/cli -count=1` passes; `make check` exits 0
+      (4637 tests, lint 0 issues).
+  - Q2 and Q3 fixed (Claude Code session, 2026-09-25; the same guard).
+    - Q2: for `find`, `--` now rejects the command, because it ends only find's leading
+      options and the expression after it still runs. For every other reader, the words
+      after `--` really are operands (patterns and paths), so `--` still ends checking
+      there: `grep -rn -- -delete .` still groups as a search.
+    - Q3: `unwrapShell` accepts a shell only as a bare name (found on the PATH, as a bare
+      `cat` is) or in `/bin`, `/usr/bin`, `/usr/local/bin` or `/opt/homebrew/bin`
+      (`shellDirs`). `./bash`, `bin/zsh`, `/tmp/x/sh` and `/home/me/bin/bash` stay
+      commands.
+    - Red: `TestFindDashDashAndForeignShellsStayCommands`.
+      - 6 negatives: `find -- . -delete`, `find -- . -fprint out.txt`, and the four
+        foreign shells above. All 6 grouped before the fix.
+      - 4 positives: `/bin/zsh`, `/opt/homebrew/bin/bash`, `/usr/local/bin/bash` with
+        `rg -n -- -x .`, and `grep -rn -- -delete .`.
+    - Mutants via `go test -overlay`, all 8 killed:
+      - the find `--` case removed;
+      - the directory check removed;
+      - each of the five `shellDirs` entries dropped in turn;
+      - `./` added.
+    - `go test -race ./internal/tui ./internal/cli -count=1` passes; `make check` exits 0
+      (4638 tests).
+  - Q4 fixed (Claude Code session, 2026-09-25; a blank output row ended the record).
+    - `workExcerpt` writes a blank line of tool output as the output indent alone. The
+      record-continuation check tested the trimmed row, so that row trimmed to "" and read
+      as the blank line that ends a record. Every row after it lost its muted style.
+    - The 4-space check in `renderMarkdownStyledBlocks` now tests the raw row, as the
+      prompt block already does (T5). A truly blank line still ends the record.
+    - Red: `TestABlankOutputRowDoesNotEndTheRecord`, end to end from `workRecordText`.
+      - Output `--- FAIL…`, a blank line, `render_test.go:12…`, `FAIL`, `[exit error…]`.
+      - Before the fix, the three rows after the blank rendered with the plain style.
+      - It also asserts that indented prose after a truly blank line stays plain.
+    - Mutants via `go test -overlay`, all 4 killed:
+      - the trimmed row tested again;
+      - the record never ends;
+      - a truly blank line continues it;
+      - `└` rows no longer continue it.
+    - `go test -race ./internal/tui ./internal/cli -count=1` passes; `make check` exits 0
+      (4639 tests, lint 0 issues).
+- [~] **V43.6 owner decisions** — `docs/v43-checklist.md` §8, decided by the owner 2026-09-28
+  from §7's open list. Built by the Claude Code session in a /loop, one item per iteration,
+  each checked by a non-author before its [x]. The release follows once every item is [x].
+  - Owner decisions (2026-09-28), in the owner's words condensed:
+    - #5: fix the reset time; a limit must give an automatic, fully recoverable session.
+    - #6: fix the leftover `.install-*` staging.
+    - #3: ROCm stays automatic; warn at the bottom while the automatic choice leaves models on
+      CPU, until the user selects CPU in settings, persisted for good. Fix the `gpu_mode` gap.
+    - #2 (F2): never stop a kept runtime implicitly; add option C, `/localia stop`.
+    - #4: keep `modelForKind`; make the gateway test meaningful.
+    - #1 (F1, widened): explore, then build a complete compressed resume snapshot so no
+      context, background task or result is lost or redone at a limit, pause or error.
+  - Order chosen: #5, #6, #3, #2, #4, #1, then the release (small and isolated first; #1
+    builds on #5's pause).
+  - §8 item 1 built (Claude Code session, 2026-09-28): vendor reset times reach the pause.
+    - Cause: `ClaudeSession.classifyLimitFailure` returned `fmt.Errorf("%s", message)`. The
+      reset lived only in the text, `Classify` matched "plan limit", and the pause fell back
+      to the 15-minute estimate. For a handover the probe only checks sign-in, so auto-resume
+      re-sent the turn every 15 minutes into the same limit. Plan 35 already specified
+      `resetsAt` → `ResetAt`; the code now does what the plan said.
+      [Corrected in round 2: "the probe only checks sign-in" was wrong for the shipped CLI.
+      It never set `ConnectorName`, so a Claude pause was probed through the gateway's key
+      check or `ListModels`. Round 2 wires it.]
+    - Fix, `agentcli/session.go`: `planLimitError` embeds a `provider.Limit`
+      (subscription allowance, account scope, `Source: "vendor-frame"`, `ResetAt` from
+      `LimitResets` when given, `Message` scrubbed). `Error()` is the unchanged sentence;
+      `Unwrap()` hands classification the Limit.
+    - Three gaps the real reset exposed, fixed in the same leaf:
+      - A stale reset (already past) would lift the pause at once into the same limit and
+        the same stale time, in a tight loop. `PauseFor` and `Cooldowns.Mark` now trust a
+        reset only while it is ahead (`until.After(now)`), else Retry-After, else the
+        default estimate.
+      - A reset days away (the seven-day window) read "reset at 09:00" with no day.
+        `Pause.resumesAt(now)`: today "15:04"; within six days "Wed 09:00"; beyond "Oct 9
+        09:00". Days are counted on calendar dates as UTC midnights, with no DST hour.
+      - One timer for a days-long wait does not count time the machine sleeps. The resume
+        monitor's default wait is now `waitWallClock`: slices of at most one minute
+        (`resumeWaitSlice`) re-read the wall clock, so it ends within a slice of waking past
+        the reset.
+    - Ollama Cloud: its known 429 names no reset, and an earlier review rejected guessing one
+      (EO2). A `Retry-After` it sends already reaches the pause (`http_error.go:66`). Codex's
+      stream reads no rate-limit fields; no recorded shape, nothing to carry.
+    - Red, 12 of the 13 new tests failing or unbuildable before the fix. [Corrected in round 2:
+      `TestAClaudePlanLimitWithoutAResetStaysAnAllowance` is a pin; it passed before the fix
+      too.]
+      - `agentcli/plan_limit_reset_test.go`: `TestAClaudePlanLimitCarriesTheVendorsReset`
+        (real frames), `TestAClaudePlanLimitWithoutAResetStaysAnAllowance`,
+        `TestAPlanLimitsMessageIsScrubbed`;
+      - `continuity/pause_reset_test.go`: `TestAPauseTrustsOnlyAResetStillAhead`,
+        `TestAResetNamesItsDayWhenItIsNotToday`,
+        `TestAPauseDaysAwayNamesItsDayWhereverItIsShown`;
+      - `engine/vendor_reset_test.go`: `TestACooldownTrustsOnlyAResetStillAhead`,
+        `TestTheResumeWaitFollowsTheWallClock` (asleep, awake, cancelled, the default),
+        `TestAVendorResetIsWhenTheSessionComesBack` (end to end: pause, saved pause,
+        waiting turn, the monitor's first wait).
+    - Mutants via `go test -overlay`, 17 of 17 killed (scratchpad `s8i1/mut.py`): Unwrap
+      nil, no reset, reset always, source, scope, no scrub, `PauseFor` non-zero and
+      not-before, day bounds ×3, `Resumes` bypassing the day, `Mark` non-zero, the default
+      timer, an unbounded slice, one slice only, a swallowed error.
+    - One known survivor, untestable by design: `Round(0)` in `waitUntilWall`. The standard
+      library gives no way to make the wall and monotonic clocks diverge in a test.
+    - The trial entry for Claude's plan limit now states the new expected behaviour.
+    - Gates: `go test -race` on engine, continuity, provider/..., session and cli ok;
+      `make check` exit 0 (4,703 tests, lint 0, cold start p50 6.4 ms, plan 110).
+    - Next: a non-author verifier, before item 1's [x].
+  - §8 item 1 review (the verifier, a non-author, 2026-09-28): NOT CLEAN. Scratchpad
+    `v43-6-verify-1/`. The core change held: a real Claude rejection through the real
+    `ClaudeBackend`, `ClaudeSession` and `RunTurn` paused at the vendor's reset under all four
+    `on_subscription_limit` policies, and the author's 17 mutants were re-killed.
+    - 1 (high): the CLI never set `ConnectorName` (`connectorFor` fell back to "openrouter"),
+      so a Claude plan limit cooled `account|openrouter`. That was pre-existing, but now it
+      lasted until the vendor's reset, days instead of 15 minutes, in the shared file. Every
+      OpenRouter candidate was excluded, and only the exhausted plan was offered.
+    - 2 (medium): `Cooldown.Describe` still printed "resumes 01:03" beside "reset at Thu 01:03".
+    - 3 (medium, pre-existing, worse): `rejectedLimit` was never cleared. After a resume, an
+      unrelated failure (529 overloaded) read as the old plan limit, with its days-away reset.
+    - 4 (low-medium): a model's own window (`seven_day_opus`) paused the whole account for days.
+    - 5 (low): `provider.limit{pause}` published a reset already past.
+    - Test gaps: the default wait (3 surviving mutants); the day computed in local time
+      (DST); `Mark` at reset == now.
+    - Wrong claims: the two corrected above.
+  - Round 2 fixes (Claude Code session, 2026-09-28):
+    - 1: `classifyLimitFailure` sets `Connector: "claude"`. `cli/run.go` wires
+      `ConnectorName: a.modelConnector` (`subagent_backend.go`): claude, then codex, by the
+      same `vendorKnowsModel` rule `subagentBackend` uses. Gateway ids answer "" and keep the
+      keyed endpoint. A Codex limit now cools codex, and a Claude pause is probed through its
+      sign-in, as V35.2b intended.
+    - 2: `continuity.ResetClock(reset, now, loc)` is the one day-aware formatter;
+      `Pause.Resumes` and `Cooldown.Describe` both use it.
+    - 3: `TurnObserved` clears `rejectedLimit` at the start of every turn.
+    - 4: a `seven_day_<family>` or `five_hour_<family>` window is `ScopeModel`; the engine
+      fills in the model it called (`retry.go`).
+    - 5: `publishLimit` states `reset_at` only while it is ahead.
+    - Tests added:
+      - agentcli: the connector assert; `TestAPlanLimitOnAModelsOwnWindowIsThatModels`;
+        `TestARejectionClassifiesOnlyItsOwnTurn` (three turns: rejected, resumed, 529).
+      - continuity: `TestAResetCountsDaysAcrossADaylightSavingChange` (New York on the
+        spring-forward Sunday, and Tokyo's day, via `time/tzdata`).
+      - engine: `Mark` at reset == now; a real 60 ms wall-clock wait and a cancelled hour;
+        `TestACooldownDaysAwayNamesItsDay`; `TestAPauseEventNeverStatesAResetAlreadyPast`.
+      - cli, `limit_connector_test.go`: `TestTheAgentKnowsWhichConnectorAModelRunsThrough`
+        and `TestAPlanLimitCoolsTheConnectorItCameThrough` (a real `newAgent` on a Claude
+        session, a limit naming no connector: pause and cooldown are claude's, until the
+        vendor's time).
+    - Mutants: round 2, 15 of 15 killed (`s8i1/mut2.py`): connector, scope never model, no
+      five_hour, bare prefix, no per-turn reset, clock not in loc, midnight in loc,
+      `Describe` HH:MM, event non-zero, `Mark` not-before, wall wait nil and half, unwired,
+      no connectors, no codex. Round 1 re-run against the new code: 17 of 17. Known
+      survivors, untestable by design (no way to make the wall and monotonic clocks diverge
+      in a test): `Round(0)`, and `waitWallClock` replaced by a single timer.
+    - Gates: `go test -race` on engine, continuity, provider/..., session and cli ok;
+      `make check` exit 0 (4,711 tests, lint 0, cold start p50 5.8 ms, plan 110).
+    - Next: the verifier re-checks round 2, before item 1's [x].
+  - §8 item 1 round-2 re-check (the verifier, 2026-09-28): NOT CLEAN. Scratchpad
+    `v43-6-verify-2/`. All round-1 findings held fixed for Claude. Round-1 probes, re-run:
+    seven-day and seven_day_opus cool claude's keys until the reset; the status line names
+    the day; the monitor waits for the reset, asks the claude sign-in, and delivers. Mutants
+    15/15 and 17/17 re-killed.
+    - 1 (high, a regression from round 2): wiring `ConnectorName` broke auto-resume for every
+      pause that is not a handover. `probeLifted` compared against `connectorFor`, which
+      falls back to "openrouter". Once `ConnectorName` was non-nil, a gateway, compatible,
+      Localia or child pause asked `HandoverSignedIn("openrouter")`, which is always false.
+      `/models` was asked 0 times, and it waited for /resume. Control with the round-1
+      wiring: delivered.
+    - 2 (medium): Copilot ("auto") was still keyed to openrouter and never auto-resumed.
+    - Test gap: the handover branch of `probeLifted` had no test (deleting it, or answering
+      `true`, survived both packages).
+  - Round 3 fixes (Claude Code session, 2026-09-28):
+    - 1: `probeLifted` takes the sign-in branch only when `ConnectorName(pause.Model)` itself
+      names `pause.Connector`, never on the gateway fallback. Otherwise it probes the
+      endpoint. A Claude pause saved before round 2 (connector "openrouter") falls to the
+      endpoint probe, as it always did.
+    - 2: `ConnectorName: a.modelConnectorIn(sess)`: for the session's own model the session
+      answers, "" included (it records the connector its model runs through, kept current by
+      every switch). Other models, a child's, go through the vendor catalogues.
+    - Found while fixing: the resume monitor now reads the session's model and connector
+      off the turn's goroutine, while a /model switch writes them, and saves from that
+      goroutine already read them. Those four accessors were unlocked. `ModelName`,
+      `SetModelName`, `ConnectorName` and `SetConnector` now take `messagesMu`, the lock the
+      save snapshots under. They are committed lines, outside Codex's uncommitted diff in
+      `session.go`; the claim is recorded in `docs/v43-5-codex-review.md`.
+    - Tests:
+      - engine `TestTheResumeProbeAsksWhereTheModelRuns`: a handover asks its sign-in; a
+        gateway, a pre-round-2 Claude pause and a pause with no connector ask the endpoint.
+      - cli `TestAGatewayPauseIsProbedAtItsEndpoint` (503, 402; red: asked
+        `openrouter=false`, /models 0 times) and `TestAHandoverPauseIsProbedThroughItsSignIn`
+        (signed in, delivered; signed out, re-armed).
+      - cli `TestACopilotSessionKeysItsLimitToCopilot` (red: connector openrouter) and
+        `TestTheSessionNamesItsOwnModelsConnector`.
+      - session `TestTheModelAndConnectorAreSafeToReadWhileSwitching` (red under -race: 4
+        data races).
+    - Mutants, round 3: 13 of 13 killed (`s8i1/mut3.py`): the fallback comparison (engine
+      and cli), no branch (engine and cli), branch always true, no empty-connector guard,
+      the session last, the session only when non-empty, the plain wiring, and each of the 4
+      locks removed (under -race). Rounds 1 and 2 re-run: 17/17 and 15/15. Two dropped
+      during the round, both my mistakes, not gaps: a no-op mutant, and a case-insensitive
+      match nothing needed, simplified to `==`.
+    - Gates: `go test -race` on session, engine, continuity, provider/... and cli ok;
+      `make check` exit 0 (4,721 tests, lint 0, cold start p50 6.2 ms, plan 110).
+    - Next: the verifier re-checks round 3, before item 1's [x].
+  - §8 item 1 round-3 re-check (the verifier, 2026-09-28): NOT CLEAN, 1 finding and 1 nit.
+    Scratchpad `v43-6-verify-3/`.
+    - Held: gateway 503/402 probe `/models` and deliver; Copilot is keyed and probed as
+      copilot; Claude waits 50h, then asks its sign-in. Seven saved-pause routes each
+      probe the right thing (Claude/Codex children on a gateway session, a gateway child on
+      a Claude session, pre-round-2, no connector, no model, transport). Lock stress: 300
+      iterations of every accessor and save path under -race, no deadlock; the lock order
+      is always writeMu, then messagesMu. Mutants 45/45 reproduced.
+    - 1 (medium): `ConnectorName` captured the startup session. /new and /clear rebuild the
+      agent in place with a new session, so after /new then /model auto a Copilot limit
+      was keyed "openrouter" again and never asked copilot's sign-in. The same staleness
+      could name "copilot" for the Claude plan's claude-sonnet. It also hid an older bug:
+      /new created the new session with connector "" while the backend stayed a plan, so
+      on a Claude session `FastLaneModel()` chose a free gateway model for the Claude
+      backend (the 2026-09-03 shape).
+    - Nit: `switchModel` wrote model and connector in two critical sections.
+  - Round 4 fixes (Claude Code session, 2026-09-28):
+    - The closure reads the agent's session when asked: `var ag *engine.Agent`, then
+      `ConnectorName: func(model) { return a.connectorIn(ag.Sess, model) }`. /new rewrites
+      `*ag` in place, so the pointer sees the new session.
+    - /new and /clear carry the connector over: the backend stays, so its connector stays.
+    - `SessionPort` gains `Route()` and `SetRoute(model, connector)`: the pair read and
+      written under one lock (session: `messagesMu`; FakeSession: its mutex; the two engine
+      test sessions: constants). `switchModel` writes the pair once; `connectorIn` reads it
+      once.
+    - Found while fixing: `moveToMetered` (the subscription-limit switch to the metered
+      model) moved the backend to the gateway but left the plan's connector on the session,
+      so the file said "metered model via claude", and the session-first rule would have
+      repeated it. It now writes `SetRoute(model, "")`.
+    - Tests:
+      - cli `TestNewKeepsTheSessionsConnectorCurrent`: on a plan session, /new keeps claude,
+        `ConnectorName` and the fast lane; a switch after /new names copilot, and a limit
+        pauses as copilot. Red on both.
+      - engine `TestMovingToMeteredRecordsTheGateway` (red).
+      - session `TestTheRouteIsReadAndWrittenAsOnePair`: a reader never sees a mixed pair.
+      - `TestTheSessionNamesItsOwnModelsConnector` moved to `connectorIn`.
+    - Mutants, round 4, 8 of 8 killed (`s8i1/mut4.py`): no carry, the captured closure, a
+      switch with no connector, the metered move keeping the connector, SetRoute split,
+      Route split (both in two critical sections, `-count=3`), Route unlocked (under
+      -race), and the session ignored. Rounds 1–3 retargeted to the new lines and re-run:
+      17/17, 15/15, 13/13. An unpinnable guard was removed: /new comparing the route's
+      model to `SessionModel()`, which every writer now keeps equal.
+    - Gates: `go test -race` on session, engine, continuity, provider/... and cli ok;
+      `make check` exit 0 (4,726 tests, lint 0, cold start p50 5.5 ms, plan 110).
+    - Next: the verifier re-checks round 4, before item 1's [x].
+  - §8 item 1 round-4 re-check (the verifier, 2026-09-28): NOT CLEAN, 1 finding and 2 nits.
+    Scratchpad `v43-6-verify-4/`. The /new probes passed functionally, there is exactly
+    one `engine.New` and one Options copy, free rotation cannot run with a plan connector,
+    and mutants 53/53 reproduced.
+    - 1 (medium; the underlying race predates the item, and round 4 built on it): /new's
+      `*ag = *engine.New(opts)` overwrote the whole agent while goroutines held it:
+      background discovery (`TurnActive`), the pause monitor, and round 4's closure.
+      `TestNewKeepsTheSessionsConnectorCurrent` failed alone under -race every time (3/3 runs,
+      12/12 binary runs) and passed only inside the full package. With a pause watched,
+      /new raced 5 reads, and the old monitor kept running on the rewritten agent, probing
+      for a pause the new session does not have. `Sess` is an interface value, so a torn
+      read could crash.
+    - Nits (no change; both unreachable today, so any change would be an unpinnable guard):
+      free rotation writes only the model; `moveToMetered` clears the connector even when
+      no gateway client exists.
+  - Round 5 fixes (Claude Code session, 2026-09-28):
+    - New `engine/new_session.go`:
+      - `ReplaceSession(sess, ckpt)` replaces the struct overwrite. It first calls
+        `QuiesceResume` (stop and join the monitor, cancel and join every delivery, the
+        resume machinery kept). It then swaps `Sess`/`Ckpt` under the new `sessMu`, resets
+        every per-session field under that field's own lock (`spend.reset`,
+        `saveState.reset`, atomics), and finally runs `adoptSession`, split out of `New`
+        (system prompt, dangling tool calls, model name).
+      - What belongs to the process stays: the options, the locks, `turnDepth`, the
+        already-started extra tool servers (the overwrite would have started them again),
+        and the resume base.
+    - `Session()`: the locked accessor for readers off the turn goroutine. The status
+      line's `Context()` and the CLI's `ConnectorName` closure read through it.
+    - cli: /new calls `ag.ReplaceSession`, and a store that will not open is now a nil
+      interface, not a nil `*Store` inside one (an older bug). The plain REPL runs
+      `ag.QuiesceResume()` before taking its turn lock for /new and /clear, as it stops
+      resume before /exit, so the swap never joins a delivery that is waiting on the lock
+      it holds.
+    - Tests:
+      - engine `TestEveryAgentFieldIsClassifiedForANewSession`: every Agent field must be
+        listed as renewed or kept; a new field fails by name.
+      - engine `TestANewSessionRenewsEveryRenewedField`: all 22 renewed fields are set,
+        then checked zero by reflection.
+      - engine `TestANewSessionStartsFreshAndKeepsTheProcess`: spend, tokens, turn, hops
+        and limit reset; the system prompt is in; the next turn lands in the new
+        session; the extra tool servers were started once.
+      - engine `TestANewSessionStopsThePreviousPausesWatch`: the old watch is withdrawn,
+        the old pause is kept, the new session starts unpaused, no probe follows, and two
+        status-line readers run across the swap under -race.
+      - engine `TestANewSessionJoinsADeliveryInFlight`: a busy surface holds the delivery;
+        the swap returns, the old session gets its pause back, the new one does not.
+      - cli `TestReplNewInterruptsAnAutomaticallyDeliveredTurn`: /new while a delivered
+        turn runs interrupts it and starts the new session instead of hanging.
+      - The verifier's evidence: `TestNewKeepsTheSessionsConnectorCurrent` passes alone
+        under -race, 5 of 5.
+    - Mutants, round 5, 25 of 26 killed (`s8i1/mut5.py`):
+      - quiesce, stop monitor, cancel deliveries, the wait, and adopt;
+      - each of the 14 reset statements, plus partial `spend.reset` and `saveState.reset`;
+      - the REPL's pre-quiesce;
+      - under -race, with `-count=5` because the race detector sees only races that
+        interleave: the swap unlocked, `Session()` unlocked, `contextUsage` reading `Sess`
+        directly, and /new reverted to the struct overwrite.
+      - Known survivor, equivalent by construction: the closure reading `ag.Sess` instead
+        of `ag.Session()`. Every `ConnectorName` call runs on the turn goroutine or the
+        monitor, and the swap joins the monitor first. The locked accessor is kept as the
+        right API for an off-goroutine caller.
+    - Test-design notes: the meter readers were split one per accessor, and the token
+      count set as after a turn, because a lock or atomic taken by one read ordered the
+      other and hid the race.
+    - Rounds 1–4 retargeted and re-run: 17/17, 15/15, 13/13, 8/8.
+    - Gates: `go test -race` on session, engine, continuity, provider/..., cli and tui ok;
+      `make check` exit 0 (4,732 tests, lint 0, cold start p50 5.8 ms, plan 110).
+    - Next: the verifier re-checks round 5, before item 1's [x].
+  - §8 item 1 round-5 re-check (the verifier, 2026-09-28): NOT CLEAN, 1 low finding (latent
+    through the CLI) and 1 note. Scratchpad `v43-6-verify-5/`.
+    - Held: the /new tests pass alone under -race (15/15 binary runs; round 4 had failed
+      12/12). The /new-while-paused probes are race-free. The renewed list matches a fresh
+      `New()`, and "kept" is stricter than the old overwrite. No deadlock in the TUI
+      (`SubmitWhenIdle` never blocks), the plain REPL, /new twice, or /new right after a
+      pause. Mutants reproduced.
+    - 1 (low): the monitor goroutine's tail (`resume.go`, re-arm check) reads `a.Sess`
+      after `resumeDeliveries.Done()`, outside `QuiesceResume`'s join. An accepted delivery
+      followed by `ReplaceSession` raced 10/10 under -race. Through the CLI it was masked by
+      an incidental lock order. It also allowed a declined delivery's tail to re-arm a watch
+      on the old pause after the join.
+    - Note (pre-existing): rules kept "for this session" (`keepRule`, and /permissions
+      session rules) survived /new, against their own promise.
+  - Round 6 fixes (Claude Code session, 2026-09-28):
+    - Whole-lifetime join. `resumeRunning` counts every monitor goroutine from
+      `armResume` to exit, and `resumeParent` keeps the surface's context. `QuiesceResume`
+      now cancels the generation (`resumeStop`) under `resumeMu`, where `armResume` checks
+      it and counts its goroutine, so none is added during the wait. It then waits on
+      `resumeRunning` and derives a fresh generation from `resumeParent`. This subsumes the
+      delivery cancel loop and wait, so both are removed.
+    - /new drops the session-scoped rules (`a.sessionRules = nil`, then `applyRules`), so
+      only stored rules remain.
+    - Tests:
+      - engine `TestANewSessionJoinsAWatchsWholeLifetime`: an accepted delivery, then /new
+        50 ms later (red under -race, 3/3); then a pause in the new session is watched and
+        delivered.
+      - cli `TestNewEndsTheRulesKeptForTheSession` (red: all three rules survived).
+      - `resumeParent` and `resumeRunning` added to the kept list.
+    - Mutants, round 6, 9 of 9 killed (`s8i1/mut6.py`): no generation cancel, no join
+      (-race), no new generation, no Done, no Add (-race), no parent, the early return
+      always taken, session rules kept, rules not re-applied.
+    - Round 5 re-run, with its three superseded `QuiesceResume` mutants dropped: 22/23. The
+      one survivor, `closure-sess`, is now fully equivalent, as the verifier noted: a
+      monitor armed from a tail is joined before the swap.
+    - Removed as unpinnable: a whole-lifetime wait in `closeResume`. After Close, a tail can
+      neither re-arm nor deliver.
+    - Rounds 1–4: 17/17, 15/15, 13/13, 8/8.
+    - Gates: `go test -race` on session, engine, continuity, provider/..., cli and tui ok;
+      the session-swap tests -race ×10 (engine) and ×5 (cli) ok; `make check` exit 0
+      (4,734 tests, lint 0, cold start p50 6.8 ms, plan 110).
+    - Next: the verifier re-checks round 6, before item 1's [x].
+  - §8 item 1 round-6 re-check (the verifier, 2026-09-28): NOT CLEAN, 1 medium finding (new
+    in round 6) and notes. Scratchpad `v43-6-verify-6/`.
+    - Held: the round-5 tail race is fixed (15/15 clean). Auto-resume survives three /new
+      in a row; Close during a quiesce; a cancelled surface context; Resume and ContinueOn
+      from a delivery callback. End to end, a pause after /new auto-resumes in the plain
+      REPL (3/3) and in the TUI (real `tuiRepl` over a pipe, 3/3), all race-free. 84/84
+      mutants reproduced.
+    - 1 (medium): /new or /clear during /plan dropped plan mode's refusals ("deny
+      write(*)", "deny bash(*)", held in `a.sessionRules`) but kept its instruction
+      (`ExtraSystem`). The new session was told "read only", yet write and bash were
+      allowed, and `/plan off` answered "not in plan mode". Control: round 5 kept both.
+    - Notes:
+      - Latent: `WatchPauses` concurrent with `QuiesceResume` would misuse the WaitGroup.
+        Unreachable today: both surfaces call `WatchPauses` once, before input.
+      - Pre-existing: the dashboard's live marker (`sessionHold`) stayed on the old session
+        after /new; the `--debug` log stays at the old session's path.
+  - Round 7 fixes (Claude Code session, 2026-09-28):
+    - Plan mode is a mode, and /new keeps the mode. /new keeps plan mode's rules (filtered
+      with `isPlanRule`, as `leavePlanMode` filters) with the instruction they enforce,
+      drops only rules someone scoped to the session, and says "plan mode is still on".
+    - The live marker follows the session: /new closes the old hold and takes one for the
+      new session.
+    - `QuiesceResume` documents its contract: never concurrent with `WatchPauses`.
+    - The `--debug` log is left as it is: one log per process is the more useful record,
+      so no change.
+    - Tests:
+      - cli `TestNewKeepsPlanMode`: /plan, a user session rule, /new. Plan mode's refusals
+        and instruction stay, the user rule ends, /new says so, and /plan off then clears
+        both. Red.
+      - cli `TestNewMovesTheLiveMarker`: after /new the old session is idle and the new one
+        live, and a second /new releases the marker the first took (the survivor below
+        made this second step necessary). Red.
+    - Mutants, round 7, 5 of 5 killed (`s8i1/mut7.py`): plan rules dropped, every rule
+      kept, no notice, the old hold not closed, the new hold not stored (it survived until
+      the second-/new check). Round 6's rules mutants retargeted: 9/9.
+    - All rounds: 17/17, 15/15, 13/13, 8/8, 22/23 (`closure-sess`, equivalent), 9/9, 5/5.
+    - Gates: `go test -race` on session, engine, continuity, provider/..., cli and tui ok;
+      `make check` exit 0 (4,736 tests, lint 0, cold start p50 5.9 ms, plan 110).
+    - Next: the verifier re-checks round 7, before item 1's [x].
+  - §8 item 1 round-7 re-check (the verifier, 2026-09-28): NOT CLEAN, 1 low finding (errs
+    safe). Scratchpad `v43-6-verify-7/`.
+    - Held: plan mode survives /new and /clear (write and bash denied, the instruction
+      kept, /plan off works). No duplicates across two /new. The live marker moves, a nil
+      startup hold is handled, and a failed new Hold is advisory. The auto-resume and tail
+      probes stay clean. Mutant count: 89 killed of 90 run.
+    - 1 (low): plan mode was detected by rule text, so a user's own `deny bash(*) session`
+      survived /new, /new announced "plan mode is still on", and /plan then answered
+      "already in plan mode" and never set the instruction. The misdetection itself
+      predated the item.
+    - Both round-7 choices were accepted: the `QuiesceResume` contract comment, and the
+      debug log kept per process.
+  - Round 8 fixes (Claude Code session, 2026-09-28):
+    - Plan mode is state. The new `app.planOn` field replaces text matching. `activeRules`
+      adds `planRules` while it holds, under a new `plan` scope. `inPlanMode` reads it.
+      `enterPlanMode` and `leavePlanMode` flip it and never touch `sessionRules`.
+      `isPlanRule` is removed. /new drops every session rule and keeps plan mode.
+    - `/permissions forget` on a plan-mode rule answers "/plan off leaves plan mode"
+      instead of leaving plan mode half on.
+    - `cmd_plan.go` and `cmd_permissions.go` are committed files, not another agent's
+      uncommitted work.
+    - Tests:
+      - cli `TestARuleThatReadsLikePlanModeIsNotPlanMode`: a user's `deny bash(*)
+        session` is not plan mode and ends at /new with no notice. /plan with a
+        look-alike `deny write(*)` in place still enters plan mode, and /plan off keeps
+        the user's own rule. Red.
+      - cli `TestPlanModesRulesGoOnlyWithPlanMode`: listed under the `plan` scope, and
+        forget refuses.
+      - The six existing plan-mode tests pass unchanged.
+    - Mutants, round 8, 8 of 8 killed (`s8i1/mut8.py`): not listed, listed as session, no
+      state set on enter or leave, detection by text, forget allowed, /new keeping session
+      rules, /new ending plan mode. Round 7's two filter mutants and round 6's
+      `rules-kept-session` were dropped as superseded, since their lines are gone.
+    - All rounds: 17, 15, 13, 8, 22 (+ `closure-sess`, equivalent), 8, 3, 8: 94 killed.
+    - Gates: `go test -race` on session, engine, continuity, provider/..., cli and tui ok;
+      `make check` exit 0 (4,738 tests, lint 0, cold start p50 6.2 ms, plan 110).
+    - Next: the verifier re-checks round 8, before item 1's [x].
+  - §8 item 1 round-8 re-check (the verifier, 2026-09-28): **CLEAN.** Scratchpad
+    `v43-6-verify-8/`.
+    - The round-7 plan-attack probe passes: a user's look-alike rule ends at /new with no
+      notice, and /plan still enters plan mode properly.
+    - Plan mode survives /new and /clear. /plan off restores both, and the user's own
+      `deny bash(*)` now survives /plan off (it was lost before round 8).
+    - `/permissions` lists plan rules last under `plan`, numbered consistently; forget
+      refuses on them. A session restored from disk comes back with plan mode off, and
+      /plan works there. Nothing else reads plan mode from text.
+    - Earlier regression probes pass (auto-resume after /new in both surfaces, the live
+      marker, the engine tail ×5 under -race). Mutants: 94 killed; `closure-sess`
+      equivalent.
+    - Note 1, accepted as deliberate: plan rules now always come after session rules, so
+      an `allow` added during /plan no longer reopens what plan mode refuses (before, the
+      last rule added won). This matches "refused, whatever the tier".
+    - Note 2, applied: `docs/plan/15-code-mode.md` §3 and G15.3 now describe the `plan`
+      scope and plan mode as state.
+    - Pre-existing, recorded in the checklist as known and low (errs safe): `applyRules`
+      drops rules kept at a prompt on /plan, /plan off and /permissions edits.
+  - **§8 item 1 closed 2026-09-28** ([x]). Summary of what the eight rounds changed:
+    - The vendor's reset reaches the pause (`planLimitError`, `Connector: "claude"`,
+      model-scoped windows, per-turn rejection).
+    - A stale reset is never trusted; resets name their day everywhere (`ResetClock`).
+    - The resume wait follows the wall clock.
+    - Connectors are named by the session and the catalogues; the resume probe asks a
+      handover's sign-in and anything else's endpoint.
+    - Model and connector are written and read as one pair (`Route`/`SetRoute`), and the
+      metered move records the gateway.
+    - /new is a safe session swap: `ReplaceSession` with a whole-lifetime `QuiesceResume`,
+      the connector carried over, session rules ended, plan mode kept, the live marker
+      moved.
+    - Plan mode is state.
+    - Next: §8 item 2, the stale `.install-*` staging sweep.
+  - §8 item 2 built (Claude Code session, 2026-09-28): stale Localia staging is swept.
+    - Cause: each setup downloads into `MkdirTemp(i.Dir, ".install-")`, removed only by
+      that process's deferred `RemoveAll`. A killed setup left its partial download for
+      good. Nothing listed the directory later (`ForgetFailures` touches only
+      `failed-*.json`), and the room check counted those bytes against every later
+      attempt.
+    - Fix, `runtime_install.go`: `sweepStaging()` runs right after `Ensure` takes
+      `install.lock`, before the tree is read, so it runs before the room check and on the
+      reuse path too. [Corrected in round 2: through the CLI a complete runtime never reaches
+      `Ensure`, since the starter gates `Provision`, so round 2 adds a start-time sweep.] Under the lock no other setup can be using staging, so anything left
+      is stale. Only directories named with the new `stagingPrefix` constant are removed:
+      a symlink that reads like staging is not followed or removed, and nothing else in
+      the directory is touched.
+    - Red, `internal/local/staging_sweep_test.go`, all failing before the fix:
+      - `TestSetupSweepsStagingAKilledSetupLeftBehind`: a 1 MiB partial download is
+        removed; `keep-me` is kept; the symlink `.install-link` and its target are kept.
+      - `TestReusingTheRuntimeSweepsStagingToo`: the reuse path sweeps, with no network.
+      - `TestTheSweepWaitsForTheLock`: while another holder has `install.lock`, its
+        staging survives the waiting setup; once the lock is released, it is swept.
+    - Mutants via `go test -overlay`, 5 of 5 killed (`s8i2/mut.py`): no sweep, sweeping
+      before the lock, following symlinks, any directory, and `Remove` instead of
+      `RemoveAll`.
+    - The trial entry for interrupted downloads now states the expected behaviour.
+    - `runtime_install.go` is uncommitted V43.4b work by a Claude Code session; the claim is
+      recorded in `docs/v43-5-codex-review.md`.
+    - Gates: `go test -race ./internal/local` ok; `make check` exit 0 (4,741 tests, lint 0,
+      cold start p50 6.1 ms, plan 110).
+    - Next: a non-author verifier, before item 2's [x].
+  - §8 item 2 review (a fresh non-author verifier, 2026-09-28): NOT CLEAN, 1 medium and 3 low,
+    all test gaps or wording. No safety bug: live staging was never deleted, no symlink was
+    followed, nothing outside `.install-*` was touched. Checked: the only staging creator is
+    `install()` under the lock; `flock` holds across processes (a real Python holder and a
+    real in-flight install); non-unix targets fail the lock before any sweep; odd names;
+    15,000 files in 0.69 s. Scratchpad `v43-6-verify-item2/`.
+    - 1 (medium): "before the room check" was untested. The fixture's free space is fixed,
+      so `defer i.sweepStaging()` and a sweep after `i.room` both survived.
+    - 2 (low): only one leftover was ever planted, so first-only survived.
+    - 3 (low): a sweep that fails was silent and untested.
+    - 4 (low): through the CLI the starter reaches `Ensure` only when the runtime is
+      missing or incomplete, so a complete runtime, or the user's own Ollama, never swept.
+      The "reuse path" claims were true only of the installer.
+  - Round 2 fixes (Claude Code session, 2026-09-28):
+    - 1–3: `TestTheRoomCheckSeesTheSweptSpace` (free space shrinks with the storage
+      directory's bytes, with room for the download only once the 1 MiB leftover is gone),
+      `TestSetupSweepsEveryStaleStaging` (three leftovers), and
+      `TestALeftoverThatWillNotGoIsReported`. `sweepStaging` now reports each directory it
+      cannot remove, by path, and setup carries on.
+    - 4: `RuntimeInstaller.SweepStale()` uses `lock.Try` and never waits: it skips while a
+      setup holds the lock. It leaves missing or symlinked storage alone.
+      `HostStarter.Tidy` runs on a start, before discovery. The CLI wires `Tidy` to the
+      installations directory (`local_runtime.go`), with notes to the surface.
+      Tests: `TestAStartSweepsWithoutWaitingOnASetup` (free, a setup in progress, no
+      storage, symlinked storage), `TestAStarterTidiesBeforeItStarts` (complete managed
+      runtime and running Ollama), and cli `TestTheRuntimeStarterTidiesTheInstallations`.
+    - The trial text now says "the next runtime start".
+    - Mutants, round 2, 11 of 11 killed (`s8i2/mut2.py`): deferred sweep, sweep after the
+      room check, first-only, no note, `Acquire` instead of `Try`, no lock, no `Lstat`
+      guard, a no-op `SweepStale`, `Tidy` after discovery, `Tidy` never called, CLI not
+      wired. Round 1 retargeted and re-run: 5/5.
+    - Gates: `go test -race` on local and cli ok; the lock tests `-race -count=20` ok;
+      `make check` exit 0 (4,751 tests, lint 0, cold start p50 5.9 ms, plan 110).
+    - Next: the verifier re-checks round 2, before item 2's [x].
+  - §8 item 2 round-2 re-check (the verifier, 2026-09-28): NOT CLEAN, 1 medium and 2 low
+    (two are test gaps). Scratchpad `v43-6-verify-item2-r2/`. All round-1 findings are
+    fixed; its survivors now die. The wired starter swept on the complete managed runtime,
+    the user's Ollama, a running one and the sign-in path, with 0 provisions. `lock.Try`
+    never blocks (a busy try returned in 356 µs against a real holder). A start costs
+    3.0 ms with storage.
+    - 1 (medium, test gap): nothing pinned that `SweepStale` holds the lock while it
+      sweeps. Releasing right after `Try`, or `lock.Held` instead, survived, and both
+      reopen a race with another process's setup.
+    - 2 (low): the start's note went to `a.stdout`. In `--output-format stream-json` that
+      is the NDJSON stream, which then fails to decode. The same was already true of setup
+      progress ("• Preparing Localia"). `Tidy` also ignored `SetOutput`.
+    - 3 (low, test gaps): the sign-in path tidying, once per start, and the CLI note
+      reaching the surface.
+  - Round 3 fixes (Claude Code session, 2026-09-28):
+    - `HostStarter.Tidy` is now `func(io.Writer)`, called with the starter's own output, so
+      it follows `SetOutput`. The CLI's `Tidy` writes its notes there.
+    - In stream-json the local runtime's output goes to stderr (`run.go`:
+      `a.localRuntime.SetOutput(a.stderr)` beside `ag.Out = io.Discard`). That also fixes
+      the older setup-progress case and the runtime's start line.
+    - Tests:
+      - local `TestTheStartSweepHoldsTheLock`: `lock.Held` must be true inside the sweep's
+        note callback.
+      - local `TestAStarterTidiesOncePerStartIntoItsOwnOutput`: 5 `Ensure` or 5
+        `EnsureInstalled` give 1 tidy, into the `SetOutput` writer.
+      - cli `TestTheStartNoteReachesTheSurface`.
+      - cli `TestStreamJSONKeepsTheLocalRuntimesWordsOffStdout`: a start's note, and setup
+        progress, leave stdout decodable by `protocol.DecodeStream` and land on stderr.
+        Red on both.
+    - Mutants, round 3, 8 of 8 killed (`s8i2/mut3.py`): release after `Try`, a `Held`
+      check, tidy only on setup, tidy on every `Ensure`, tidy into `io.Discard`, the CLI
+      note to stdout, no CLI notes, no stderr in stream-json. Rounds 1–2 retargeted and
+      re-run: 5/5, 11/11.
+    - Gates: `go test -race` on local and cli ok; `make check` exit 0 (4,757 tests, lint 0,
+      cold start p50 6.0 ms, plan 110).
+    - Next: the verifier re-checks round 3, before item 2's [x].
+  - §8 item 2 round-3 re-check (the verifier, 2026-09-28): **CLEAN.** Scratchpad
+    `v43-6-verify-item2-r3/`.
+    - Both lock mutants die.
+    - C1–C3: the start note follows `SetOutput`, and stdout stays NDJSON with the note and
+      setup progress on stderr.
+    - C4, a real start (a fake `ollama serve` run and stopped): stdout is pure NDJSON, and
+      stderr carries Preparing, ready and started.
+    - C5: plain `-p` output is unchanged.
+    - R1–R7 and P10 pass; R2's 40 racing setups all succeed under -race.
+    - Its mutants: 16 of 17. The author's 24 overlays were re-run: all 24 killed.
+    - Its survivor, `tidy-no-nil-guard`, is now pinned by
+      `TestAStarterWithoutAnOutputStillTidies`: a starter with a nil output still tidies,
+      without a panic. That mutant is now killed.
+    - Outside the item, pre-existing since aac7994: in `--mode agent`, `reportAgentLane`
+      prints "agent lane: …" to stream-json's stdout ahead of the frames (probe C6). Added
+      to §8 item 6, which covers stream-json.
+  - **§8 item 2 closed 2026-09-28** ([x]). Stale `.install-*` staging is swept under the
+    lock by every setup before its room check. Every runtime start sweeps as well (`lock.Try`,
+    never waiting), and a directory that cannot be removed is reported by path. In
+    stream-json the local runtime's words go to stderr.
+    - Next: §8 item 3 (ROCm stays automatic; `gpu_mode cpu`; the CPU warning).
+  - §8 item 3 split into two leaves (the checklist records both): (a) `gpu_mode cpu` skips
+    every companion; (b) the TUI's CPU warning.
+  - §8 item 3a built (Claude Code session, 2026-09-28): CPU chosen skips every companion.
+    - Cause: `local.gpu_mode` was read only by the fit planner (`fit.go`). Companion
+      detection (`detectRuntimeCompanion`) ignored it, so an AMD machine with CPU chosen
+      still downloaded about 1 GiB of ROCm. Discovery reported the bundle missing (and the
+      starter tried to complete it), and the AMD or Jetson notes still showed.
+    - Fix:
+      - `RuntimeInstaller.CPUOnly` makes `companionNeed()` return no need, so nothing is
+        fetched, nothing reported missing and no GPU note shown. It covers ROCm and both
+        JetPacks.
+      - The CLI builds every installer through one new helper, `localInstaller`, which
+        reads `CPUOnly` from the config when called (`localCPUChosen`). It folds case and
+        trims, as the planner does, so a `/config` change applies at once. The four sites
+        use it: the provisioning seam in `cli.go`, discovery, `ForgetFailures` and
+        housekeeping.
+    - Tests:
+      - local `TestChoosingCPUSkipsEveryCompanion`: every platform and companion; standard
+        download only, no companion in the tree, no notes, nothing missing or unserved.
+        Red for all 3.
+      - local `TestChoosingCPUReusesAStandardTree`: a tree installed before the AMD card;
+        CPU chosen; nothing missing and an offline reuse. Red.
+      - cli `TestTheInstallerCarriesTheCPUChoice`: unset, cpu, auto, gpu, cpu, and a
+        hand-written " CPU ".
+      - cli `TestEveryRuntimeInstallerIsBuiltInOnePlace`: a source scan allowing one
+        construction site. Overlays cannot reach a source scan, so it was checked by a
+        controlled experiment: a real second site in `local_runtime.go` failed the test,
+        and the file was restored byte-identical (verified with `cmp`).
+    - Mutants, 4 of 4 killed by overlay (`s8i3/mut_a.py`), plus the scan by the experiment:
+      detection ignoring CPU, the helper dropping it, always chosen, and an exact-case
+      comparison.
+    - Gates: `go test -race` on local and cli ok; `make check` exit 0 (4,765 tests, lint 0,
+      cold start p50 5.8 ms, plan 110).
+    - Next: a non-author verifier, before 3a's [x].
+  - §8 item 3a review (a fresh non-author verifier, 2026-09-28): NOT CLEAN, 5 findings (2
+    behavioural, low–medium) and 1 observation. The installer core held on every path:
+    fresh install, a tree that has ROCm kept, failure memory, the starter's `incomplete`
+    path, a switch back to auto that adds ROCm, and the Jetson and AMD-arm64 notes silent.
+    No command downloads a companion under CPU. Scratchpad `v43-6-verify-item3a/`.
+    - 1: a running runtime cached its companion facts at start, so a mid-session `/config`
+      change was not reflected. Under CPU, status still said ROCm "is not installed … Kolk
+      adds it". Under auto after CPU, `/localia plan` placed on an AMD card the running
+      runtime cannot use.
+    - 2: CPU erased the vendor facts, so the picker dropped "· CPU only".
+    - 3: "no GPU note / nothing unserved" was never exercised on hardware that has notes.
+    - 4: the source scan missed `new`, `var` and aliases (and flagged comments), and the
+      helper test used only a nil progress (the `progress == nil &&` mutant survived).
+    - 5: the round-1 CHECKPOINTS claims overstated. Corrected here: "4 of 4 killed"
+      omitted two call-site mutants the text scan could not see; "a /config change applies
+      at once" held only for new installers; the local test's unserved assertion could
+      not fail.
+    - Observation: `gpu_mode cpu` never forces Ollama off a GPU it can use. Recorded in the
+      checklist as an owner note, not built.
+  - Round 2 fixes (Claude Code session, 2026-09-28): facts are kept apart from the choice.
+    - `companionNeed()` is detection only. The new `acquisitionNeed()` applies the choice
+      for `Ensure`: no fetch, no note.
+    - `Find` applies it for reporting. Under CPU a missing companion becomes "unserved by
+      this tree" (`UnservedVendor` = the companion's vendor): nothing missing, no note,
+      and the fit plans and the picker still know the card is unusable. A raw unserved
+      vendor is kept.
+    - `HostStarter.Host()` re-reads a running runtime's missing, unserved and vendor facts
+      through `Discover` when the tree is still the one running (binary match), so a
+      `/config` change shows at once. The failure memory stays as cached (setup may have
+      forgotten it) and is dropped when nothing is missing.
+    - `TestLocaliaSetupWithARunningRuntimeSaysWhatItLacks` caught a first version that
+      refreshed the failure too, undoing `ClearCompanionFailure`.
+    - Tests:
+      - local `TestCPUChosenKeepsTheCardsATreeCannotServe`.
+      - local `TestCPUChosenSilencesEveryGPUNote` (Jetson R32, unrecognised L4T, AMD on
+        arm64; auto versus CPU).
+      - local `TestARunningRuntimeReportsTheChoiceInForce` (auto to cpu to auto, a
+        replaced tree, failure under CPU). All red.
+      - cli: a non-nil progress case; the scan is now AST-based (any `RuntimeInstaller`
+        selector outside `localInstaller`). Controlled experiments: a second literal,
+        `new` and `var` all fail it, a comment passes, and the file was restored identical.
+    - Mutants, round 2, 9 of 9 killed (`s8i3/mut_a2.py`): acquisition ignoring CPU, `Find`
+      ignoring it, CPU dropping unserved, a note under CPU, an unserved overwrite, no
+      refresh, no binary guard, the failure kept under CPU, the helper with nil progress.
+      Round 1 re-run: 4/4.
+    - Gates: `go test -race` on local and cli ok; `make check` exit 0 (4,771 tests, lint 0,
+      cold start p50 6.0 ms, plan 110).
+    - Next: the verifier re-checks round 2, before 3a's [x].
+  - §8 item 3a round 3 (Codex, 2026-09-28): reviewed the prior staging-sweep
+    closeout and round-2 CPU changes. Status and mtimes were checked before edits;
+    scoped ownership claims are in `docs/v43-5-codex-review.md`. No other leaf was taken.
+    - Fresh read-only verifier `verify_cpu_companions` found two reporting gaps:
+      CPU-start to auto lost a persisted companion failure; CPU chosen after another
+      setup replaced the current installation did not silence the old running tree.
+      Its follow-up combined CPU-start / replacement / auto probe also found that the
+      old tree's missing-companion facts had been erased at startup.
+    - Red: `go test ./internal/local ./internal/cli -run
+      'TestStartingOnCPUDoesNotForgetACompanionFailure|TestCPUChoiceStillAppliesToAnOlderRunningTree'
+      -count=1 -timeout=90s` failed on both behaviours. Log:
+      `/tmp/kolk-s8-3a-round3-red.log`. The combined transition independently failed
+      `go test ./internal/local -run '^TestCPUStartupKeepsOldTreeFactsAfterAnotherSetup$'
+      -count=1 -timeout=90s` (`/tmp/kolk-s8-3a-round3-combined-red.log`).
+    - Fix: installation discovery retains private, unmasked companion facts for the
+      tree a runtime starts. Current CPU reporting is a separate `CPUChosen` callback
+      wired to persisted CLI config: no missing-companion/failure/GPU note under CPU,
+      but unserved-vendor facts remain true. The binary guard still prevents a newer
+      installation's capabilities being attributed to the old running process.
+      Same-tree discovery refreshes failures, except after explicit setup clears them.
+      The clear flag resets before a new runtime start.
+    - Regression coverage includes replacement, absent discovery, a user's default
+      server appearing, repeated cpu/auto changes, real failed companion downloads,
+      explicit failure clearing, and a failure recorded while the runtime already runs.
+      That last case was added after the failure-refresh mutant survived the original
+      before-startup-only test once raw startup facts were retained; it now kills it.
+    - Author overlay mutations: 15/15 killed on the final production code, scripts
+      `/tmp/kolk-s8-3a-mutants/{run,round3,raw}.py` and per-mutant `.json`/`.log` files.
+      These remove CPU acquisition/reporting guards, CLI choice wiring (including
+      progress), unserved facts, current-policy masking, failure refresh/clear guards,
+      and raw fact capture/caching. Every Go invocation uses `-timeout=90s`.
+    - Independent verifier: **CLEAN** after the three adversarial transition probes,
+      using real installer fixtures and read-only overlays under `/tmp/kolk-cpu-review2/`.
+      `go test -race -overlay /tmp/kolk-cpu-review2/probe.json ./internal/local ./internal/cli
+      -run 'Test(Review|ChoosingCPU|CPUChosen|ARunningRuntimeReportsTheChoiceInForce|StartingOnCPU|CPUStartup|CPUChoiceStillApplies|LocaliaSetupWithARunningRuntime|TheInstallerCarriesTheCPUChoice|EveryRuntimeInstallerIsBuiltInOnePlace)'
+      -count=1 -timeout=120s` passed (local 2.141s, CLI 1.797s); seven independent
+      round-3 overlay mutants were killed with `-race -timeout=90s`. No repository writes.
+    - Final production race: `go test -race ./internal/local ./internal/cli -count=1
+      -timeout=5m` passed (20.075s / 37.179s), `/tmp/kolk-s8-3a-final-race.log`.
+      `make check` passed with 4,777 tests and zero lint issues before the last test
+      expansion. Final gate rerun and closure follow below. Initial sandbox-only runs
+      could not bind fixture ports; all reported passing runs used enabled access.
+    - Final expanded test independently rechecked: **CLEAN**, `go test -race
+      ./internal/local -run '^TestStartingOnCPUDoesNotForgetACompanionFailure$'
+      -count=1 -timeout=90s` (1.566s). The verifier regenerated
+      `/tmp/kolk-cpu-review2/final-no-failure-refresh.json` against final production;
+      `recorded_while_running` killed it. Repository remained read-only for the verifier.
+    - Final `make check` exit 0: **4,779 tests**, zero lint issues, cold start p50
+      6.2 ms, plan 110; every architecture/platform/budget/site/installer/spec/release
+      gate green. Log: `/tmp/kolk-s8-3a-close-check.log`. `git diff --check` passed.
+  - **§8 item 3a closed 2026-09-28** ([x]). CPU skips every companion and GPU note;
+    reporting follows the persisted choice without discarding running-tree facts.
+    Only this leaf was closed in this iteration. Next: §8 item 3b, the persistent TUI
+    CPU/degraded-choice warning. Release remains gated on the remaining section-8 items.
+  - §8 item 3b implementation (Codex, 2026-09-28–29): reviewed 3a's CLEAN closeout,
+    checked status and mtimes, and claimed only this leaf in
+    `docs/v43-5-codex-review.md` before edits.
+    - Red: `TestLocalPlacementWarningStaysBelowTheComposer` and the CLI warning
+      cases first failed for missing policy/field; logs `/tmp/kolk-s8-3b-red-{tui,cli}.log`.
+      Round-2 behavioral red tests caught explicit GPU mode dismissing a warning
+      without a CPU choice and canceled-turn context inventing CPU placement
+      (`/tmp/kolk-s8-3b-red-round2.log`). Child-path red tests caught a warning
+      missing under a remote parent, stale child updates raising old warnings,
+      repeated placement probes, and a slow probe blocking the callback
+      (`/tmp/kolk-s8-3b-red-{child,round3,async}.log`).
+    - Fix: the CLI estimates automatic placement for a local selected model
+      from its catalog size and usable hardware, apart from pull disk/RAM
+      admission. A missing or unusable accelerator yields a persistent footer
+      warning. A fitting GPU and remote/Ollama Cloud models do not. Unknown
+      custom models with no usable GPU get a definite CPU warning; with a
+      usable GPU they get an uncertainty warning because their weight size is
+      unknown. A canceled turn cannot erase a GPU from the probe. Explicit
+      `local.gpu_mode cpu` is the durable dismissal;
+      the existing config write persists it. The warning survives parent status
+      refreshes and stays last in the footer, including narrow layouts.
+    - A local child under a remote parent raises the same warning. Accepted
+      child status renders immediately; placement probes run asynchronously,
+      once per model per run, with no TUI lock held. Results from stale rows,
+      earlier runs, closed screens, or settings changed to CPU are discarded.
+    - Author overlay probes: 10/10 killed by focused tests, including wrong
+      warning order, missing config/parent wiring, ignored CPU choice, canceled
+      probe, GPU-fit misreport, silent custom model, lost child warning, and ignored acknowledgment;
+      `/tmp/kolk-s8-3b-mutants/round2.py` plus per-mutant overlays/logs.
+      All Go tests use explicit `-timeout=90s`.
+    - Independent verifier `verify_local_warning` (fresh, read-only) returned
+      **CLEAN** on final production. Its focused TUI/CLI/local race tests passed
+      with `-timeout=5m`; overlay race probes covered old runs, CPU choice and
+      a remote parent with a local child. Independent mutants for repeated or
+      blocking probes, stale child acceptance, old-run results, silent custom
+      models, and CPU hidden by 48-column truncation were killed. The last two
+      findings first failed author regressions before the fixes. No repository
+      files were written by the verifier.
+    - Final author gates: `go test -race ./internal/tui ./internal/cli
+      ./internal/local -count=1 -timeout=5m` passed (TUI 2.276s, CLI 22.917s,
+      local 14.658s; `/tmp/kolk-s8-3b-final-race.log`). `make check` exit 0:
+      **4,792 tests**, zero lint issues, cold start p50 5.2 ms, plan 110, and
+      all architecture/platform/site/installer/spec/release gates green
+      (`/tmp/kolk-s8-3b-final-check.log`). `git diff --check` passed.
+    - Scope limit: the footer uses the local fit estimate, not Ollama's live
+      CPU/GPU telemetry. An unknown-size custom model with a usable GPU says
+      CPU is possible, never that Ollama definitely used it.
+  - **§8 item 3b closed 2026-09-29** ([x]). Only this leaf was closed in this
+    iteration. Next: §8 item 4, explicit `/localia stop` for kept runtimes.
+    Release remains gated on the remaining section-8 items.
+  - §8 item 4 implementation (Codex, 2026-09-29): reviewed 3b's CLEAN
+    closeout and checked status/mtimes before editing; the scoped claim is in
+    `docs/v43-5-codex-review.md`. No other leaf was taken.
+    - Red: new local stop tests failed because `HostStarter` had no explicit
+      stop, endpoint-owner check or signal seam (`/tmp/kolk-s8-4-red-local.log`).
+      The CLI regression failed because `local.ephemeral off→on` gave no stop
+      hint (`/tmp/kolk-s8-4-red-cli.log`). Independent review reproduced a
+      missing hint when a user default Ollama server obscured the kept record;
+      the repository regression failed before the fix
+      (`/tmp/kolk-s8-4-red-hint.log`). A second red case found that a foreign
+      listener could trigger a misleading hint
+      (`/tmp/kolk-s8-4-red-foreign-hint.log`).
+    - Fix: `/localia stop` is the sole explicit stop for a persisted project
+      runtime. It takes the project registry lock, reads a bounded regular
+      record, verifies project, private loopback address, original PID
+      identity, Ollama heartbeat, and that the PID owns that exact listening
+      socket, then rechecks identity before signalling the detached process
+      group and removing the record. Linux verifies `/proc` socket inodes;
+      macOS uses a bounded `lsof` check; Windows fails closed because managed
+      runtime setup is unsupported there. Failed verification sends no signal;
+      a signal error preserves the record. Session close still leaves kept and adopted
+      runtimes running. The off→on config response and `/localia` status offer
+      the stop command only for a verified kept runtime, even when a default
+      user server is also present.
+    - Author overlays: **11/11 killed** by behavioral tests, including bypassed
+      identity, heartbeat, listener, project and default-port checks; retained
+      record, implicit close, missing command, and missing or unsafe hints.
+      Script and per-mutant logs: `/tmp/kolk-s8-4-mutants/run.py`.
+      `go test -race ./internal/shell ./internal/local ./internal/cli -run
+      'Test(SignalManagedProcessGroup|ProcessOwnsOnlyItsExactLoopbackListener|StopKeptRuntime|ConcurrentStopKeptRuntime|LocaliaStop|LifetimeHint)'
+      -count=1 -timeout=90s` passed. Shell tests used a real loopback listener
+      and a real detached child process; no Ollama executable was started.
+    - Fresh non-author verifier `verify_local_stop` returned **CLEAN**, made no
+      repository edits, and passed `go test -race ./internal/local
+      ./internal/cli ./internal/shell -count=1 -timeout=5m`. Read-only overlay
+      race probes under `/tmp/kolk-s8-4-verifier/` covered both hint defects,
+      symlink/trailing records and stop racing persistent restart. Independent
+      mutants for final identity, symlink/trailing-data acceptance and foreign
+      listener acceptance were killed; every Go invocation had `-timeout`.
+    - Final `make check` exit 0: **4,806 tests**, zero lint issues, cold start
+      p50 5.6 ms, plan 110, all architecture/platform/site/installer/spec/
+      release gates green (`/tmp/kolk-s8-4-final-check.log`).
+      `git diff --check` passed. Physical stop against an actual Ollama process
+      remains for the Localia hardware trial in §7.
+  - **§8 item 4 closed 2026-09-29** ([x]). Only this leaf was closed in this
+    iteration. Next: §8 item 5, preserve `modelForKind` and strengthen the
+    gateway routing regression. Release remains gated on the remaining items.
+  - §8 item 5 (Codex, 2026-09-29): reviewed item 4's CLEAN closeout and checked
+    status/mtimes. The owner decision to retain `modelForKind` is recorded in
+    `docs/v43-5-codex-review.md`; no production routing changed.
+    - Red: with `runOrchestrated` replaced by a no-op through a Go overlay,
+      the old gateway test passed (`/tmp/kolk-s8-5-old-vacuous.log`). The new
+      test failed under the same fault with zero requests
+      (`/tmp/kolk-s8-5-red-orchestration.log`).
+    - Fix: `TestAGatewaySessionRoutesExactlyAsItDidBefore` now drives a mock
+      gateway through planning, a trivial and a routine child, and synthesis.
+      It asserts the selected model on every request; the planner/child/
+      synthesis request purposes; both child results in synthesis; the final
+      answer in the session; and visible rejection of both out-of-menu slots.
+      This pins the one-rung gateway behavior without deleting `modelForKind`.
+    - Author overlay probes: **5/5 killed** (no orchestration, wrong child
+      route, skipped children, wrong main route, silent slot replacement),
+      `/tmp/kolk-s8-5-mutants/run.py`. Focused engine/CLI race tests passed
+      with `-timeout=90s`.
+    - Fresh non-author verifier `verify_gateway_regression` returned **CLEAN**
+      after finding and fixing a meaningful survivor: three unrelated
+      same-model calls could formerly pass the request-count assertion.
+      Six read-only overlay mutants are now killed, including that one,
+      wrong planner/synthesis/child routes and accepted outside-menu slots.
+      Baseline race test passed ten runs; every Go invocation used
+      `-timeout=90s`. No repository edits by the verifier.
+    - Final `make check` exit 0: **4,806 tests**, zero lint issues, cold start
+      p50 5.3 ms; all architecture/platform/site/installer/spec/release gates
+      green (`/tmp/kolk-s8-5-make-check.log`). `git diff --check` passed.
+  - **§8 item 5 closed 2026-09-29** ([x]). Next: §8 item 6, explore and
+    record the complete compressed resume snapshot design before building.
+    Release remains gated on the remaining items.
+  - §8 item 6 design (Codex, 2026-09-29): reviewed item 5's CLEAN closure and
+    checked status/mtimes before taking only the design leaf. The capability
+    audit found no compressed recovery point, no persisted partial stream,
+    ordinary errors ending the run, save failures invisible in stream-json,
+    and text before its NDJSON subscriber. `docs/v43-resume-snapshot.md`
+    compares storage options, chooses a stdlib gzip sidecar, sets symmetric
+    fail-closed revision/load rules, and divides implementation into five
+    ordered leaves. No production code changed in this leaf.
+    - Fresh non-author verifier `verify_snapshot_design` returned **CLEAN**
+      after four review rounds. Findings corrected before closeout: corrupt
+      gzip **or JSON** cannot reveal its revision; newer JSON must verify
+      referenced archives; sidecar-only first turns must list; minted Claude
+      and Codex handles cannot prove safe prompt continuation; partial output
+      must not be truncated; child errors that become outcomes still count;
+      user-work background children need explicit state; transcripts may
+      themselves contain sensitive text. All are now explicit in the design.
+      The verifier made no repo edits; focused session/engine tests and race
+      probes passed with `-timeout=90s`. Its implementation watchpoint is to
+      lock every concurrently mutable serialized scalar during capture, not
+      just messages/run/pause.
+    - `make check` exit 0: **4,806 tests**, zero lint issues, cold start p50
+      5.3 ms, all architecture/platform/site/installer/spec/release gates
+      green (`/tmp/kolk-s8-6-design-final-check.log`). `./scripts/test-plan.sh`
+      passed 110 checks after the final wording edit; `git diff --check`
+      passed. A code red/green test begins each implementation leaf; the
+      design leaf's evidence is its gap audit and independent review.
+  - **§8 item 6 design closed 2026-09-29** ([x]). Next: storage leaf only.
+    Release remains gated on all remaining section-8 leaves.
+  - §8 item 6 storage (Codex, 2026-09-29): checked status/mtimes and claimed
+    only the Store leaf after the design's CLEAN closeout.
+    - Red: `recovery_test.go` first failed to compile because `SaveRecovery`
+      did not exist (`/tmp/kolk-s8-6-store-red.log`). Successive red tests
+      reproduced sidecar-only sessions disappearing from `List`, corrupt
+      candidates being hidden, missing current and archived child history,
+      invisible header failure, corrupt/trailing/escaping archives, stale
+      revision selection, lost fork history, revision overflow, concurrent
+      scalar races, and execution archives written through a linked directory
+      (`/tmp/kolk-s8-6-store-red-*.log`).
+    - Fix: a versioned, SHA-256 checked, bounded gzip sidecar is written mode
+      0600 by atomic durable rename before its same-revision JSON mirror. Both
+      candidates fail closed when unreadable; the highest revision wins and
+      equal revisions must agree. The bundle embeds and validates all current
+      and archived run conversation dependencies, restores them beneath the
+      session root without following linked directories, and remains strict
+      through a `RecoveryVersion` marker if the sidecar is later lost. Legacy
+      revision-zero JSON remains readable. `List`/`Latest`/header repair,
+      export/fork/delete and sidecar-only sessions use the same rules. Forks
+      remap both main and child archive ownership. Every serialized scalar
+      setter now shares the snapshot lock; revision overflow fails visibly.
+    - Author overlay probes: **13/13 killed** behaviorally, including missing
+      write/digest/closure/trailing-data checks, reversed revision precedence,
+      linked execution store, hidden header failure, missing-sidecar bypass,
+      omitted archives, unlocked effort, unlisted or undeleted recovery and
+      orphaned main history (`/tmp/kolk-s8-6-store-mutants/run.py`).
+    - Fresh non-author verifier `verify_recovery_store` returned **CLEAN**
+      after six findings were fixed: historical closure, required embedded
+      archives, checked header errors, invalid sidecar directories in lists,
+      main archive ownership in forks and write-through execution symlinks.
+      Read-only overlay race suites passed for all session tests (9.067s) and
+      focused CLI fork/export/session/resume tests (3.793s), each with
+      `-timeout=120s`. Five independent behavioral mutants were killed. Its
+      final hash-bound recheck after revision overflow and handle cleanup was
+      CLEAN; no repository files were edited.
+    - Final focused race suite for all session and CLI recovery/history tests
+      passed; full `go test -race ./internal/session ./internal/cli -count=1
+      -timeout=5m` passed (`/tmp/kolk-s8-6-store-final-race.log`). `make check`
+      exit 0: **4,832 tests**, zero lint issues, cold start p50 5.7 ms, all
+      architecture/platform/site/installer/spec/release gates green
+      (`/tmp/kolk-s8-6-store-final-check.log`). `git diff --check` passed.
+  - **§8 item 6 storage closed 2026-09-29** ([x]). Next: capture leaf only.
+    Release remains gated on capture, resume, surfaces and walk-back.
+  - §8 item 6 capture (Codex authored; Claude reviewed and fixed, 2026-09-29/30).
+    Codex claimed Capture after Store closed and wrote it test-first
+    (`internal/engine/recovery_capture_test.go`). Its author evidence, left
+    unrecorded when its usage limit stopped it: 19/19 overlay mutants killed
+    (`/tmp/kolk-s8-6-capture-mutants/final.log`), race ok
+    (`/tmp/kolk-s8-6-capture-race.log`), `make check` ok at 4,838 tests
+    (`/tmp/kolk-s8-6-capture-check.log`). The owner then asked Claude to
+    continue; Claude took item 6 over from Capture (recorded in
+    `docs/v43-5-codex-review.md`).
+    - First independent review (a fresh Claude verifier, a non-author of
+      Codex's code) came back **NOT CLEAN** with 11 findings, each proven by an overlay probe:
+      (1) a recovery write failing on the disk (EDQUOT reads "disc quota
+      exceeded") classified as a plan limit and became a pause; (2) a JSON
+      mirror/header failure after the durable sidecar treated as a lost
+      boundary; (3) a call the pause gate stopped, or one that never left
+      (route failure), journaled as in flight; (4) partial output copied
+      quadratically; (5) vendor-owned tool boundaries live-only; (6) the pause
+      announced before its write, a user cancel writing a recovery point, the
+      main loop's tool boundary unjournaled, a final message not superseding
+      the partial, a minted handle read as confirmation; (7) never-started work
+      marked waiting; (8) two recovery writes for one boundary; (9) children
+      announced paused with no durable pause; (10) confirmation unlearned on
+      re-save; (11) a failed pause left in the run for a later JSON save.
+    - Fixes (Claude, on top of Codex's lines): `Classify` returns no limit
+      for a `syscall.Errno` and a bare Errno is no transport error; RunTurn
+      never treats a `RecoverySaveError` as a limit; `RecoveryMirrorError`
+      is durable and warns; `onProviderCallStart` runs in the retry loop just
+      before each send (main, planner, synthesis, child); per-call
+      `strings.Builder` partials materialized at snapshot; a
+      `continuity.VendorToolBoundary` per task fed by both progress
+      observers and cleared by a committed response; monotonic per-handle
+      confirmation for main and children; plans start queued and only
+      running work becomes waiting; the scheduler leaves a gate-stopped
+      boundary to the pause write; held children and tasks are announced
+      once, after the write: waiting when durable, otherwise failed with "no
+      pause was saved" (also after a user cancel); a failed pause restores
+      the prior `LastPause` and clears the session pause; `/new` resets the
+      new fields. Codex's two never-started assertions changed from waiting
+      to queued (its test is named "…KeepsNewWorkQueued"), and its
+      failed-pause test now uses a realistic account-scope limit and proves
+      the pause write was attempted (it was vacuous). Partial spill-to-disk
+      was dropped by a dated design amendment in
+      `docs/v43-resume-snapshot.md`: one call's partial is bounded by the
+      provider's output limit, and the envelope is built whole in memory at
+      write time anyway.
+    - Author overlay mutants: **40/40 killed**
+      (session scratchpad `v43-6-capture-fixes/mut.py`). The first pass left 11
+      survivors (JSON-mirror branch, eager main in-flight, commit keeping
+      unfinished vendor tools ×2, early child announcement, held-task
+      failure, unlaunched-task status, main-session monotonicity, the two
+      `/new` resets, and children held only at a cancel); each gained a test
+      that kills it. One of them exposed a real bug: the failed status used
+      `SubagentPhaseSchedule`, which `advanceSubagentStatus` rejects silently,
+      so a held task never said its pause was unsaved.
+    - `go test -race -count=1 -timeout 900s` on engine, continuity, session,
+      provider/... and cli: passed. `make check` exit 0: **4,871 tests**,
+      lint 0, cold start p50 5.8 ms, every script gate green
+      (session scratchpad `v43-6-capture-fixes/check2.log`).
+    - Codex continuation, 2026-09-30 (owner asked to review and continue
+      Claude's work): status and source mtimes checked before editing; Claude's
+      eleven fixes retained. Fresh read-only `verify_capture_claude` returned
+      NOT CLEAN on two overlay repros: a native tool error followed by a
+      successful answer wrote no recovery, and a routed main call saved the
+      default backend's handle. The next fresh review, `verify_capture_followup`,
+      proved vendor-owned failed tools had the same omission in direct, child,
+      planner and synthesis calls, and routed handles lacked actual model binding.
+    - Red: `go test -count=1 -timeout 90s ./internal/engine -run
+      '^(TestNativeToolErrorsAreRecoveryBoundaries|TestMainHandleComesFromActualRoute)$'`
+      failed in code, agent and routed-main cases
+      (`/tmp/kolk-capture-followup-red.log`). `-run '^TestVendorFailedTool'`
+      failed all four vendor phases (`/tmp/kolk-capture-vendor-red.log`);
+      `-run '^TestMainHandleRetainsActualModelBinding$'` failed the actual
+      planner-route binding (`/tmp/kolk-capture-binding-red.log`).
+    - Fixes: native errors latch recovery immediately, close new-task admission,
+      drain admitted children and save their settled results/private transcripts
+      before queued work or synthesis; the main loop commits and saves each
+      failed native result before the next call/tool. Vendor tool failure
+      observations stay latched across later successes and save at the committed
+      response or drained-child boundary. Failed saves stop further admission.
+      The main attempt end hook captures the actual backend's handle and the
+      actual model/vendor/effort, clearing stale handles on native routes.
+      Save-time bookkeeping no longer overwrites that state with the default
+      backend. Existing Claude test changes are limited to the explicit-backend
+      signature and removal of a redundant read in the initialization test.
+    - New regressions: `capture_followup_test.go` and
+      `capture_vendor_failure_test.go`; failed-result contents, pending batch
+      calls, round/loop state, successful child repair with queued siblings,
+      save failures before admission, all vendor phases, late successful tool
+      events, and native/routed handle ownership. Author mutations: **19/19
+      killed**, no invalid mutants (`/tmp/kolk-capture-followup-mutants/run.py`,
+      `results.log`, `summary.json`); every test invocation uses `-timeout=45s`.
+    - Author focused race: `go test -race -count=1 -timeout 300s
+      ./internal/engine ./internal/continuity ./internal/session
+      ./internal/provider/... ./internal/cli` passed
+      (`/tmp/kolk-capture-followup-final-race.log`). `make check` exit 0:
+      **4,897 tests**, lint 0, cold start p50 6.5 ms, every gate green
+      (`/tmp/kolk-capture-followup-check.log`); PATH-local Go wrapper supplies
+      `-timeout=900s` to test commands that do not supply their own timeout.
+    - Final independent review found two further Capture gaps: ordinary
+      child errors did not close admission until backend cleanup returned, and
+      budget stops could proceed to synthesis without a recovery point. Red
+      race probes and author regressions are recorded in
+      `/tmp/kolk-capture-close-red.log` and `/tmp/kolk-capture-budget-red.log`.
+      Final provider/open errors now latch before cleanup, and landing failures
+      latch before backend close. Budget-skipped tasks are resolved and saved
+      together once with reason `limit`, after active children drain and before
+      synthesis. A failed save prevents synthesis; cancellation saves nothing.
+      Regressions include slow backend cleanup for provider and landing errors,
+      multiple budget-skipped tasks, budget save failure and cancellation.
+    - Final author gates: **24/24 valid overlay mutants killed**
+      (`/tmp/kolk-capture-followup-mutants/run.py`, `summary.json`, `results.log`
+      and `corrected.log`). One harness variant initially left an unused local;
+      corrected to a compiling omission and killed, not counted as a test kill
+      until then. Full focused race above passed again including CLI
+      (`/tmp/kolk-capture-followup-final2-race.log`). Final `make check` exit 0:
+      **4,905 tests**, zero lint issues, binary 9.87 MB, cold start p50 6.1 ms,
+      every platform/site/surface/installer/spec/release gate green
+      (`/tmp/kolk-capture-followup-check-final.log`). `git diff --check` passed.
+    - Fresh non-author `verify_capture_final` returned **CLEAN** after the
+      fixes. Repo read-only, probes/mutants only through `/tmp` overlays; every
+      test invocation had an explicit timeout. Independent focused race passed
+      engine/continuity/session/provider/.../CLI (`-timeout 300s`). Six
+      independent overlay probes passed five times under race (`-timeout 120s`):
+      mixed vendor-tool error + limit writes one pause, cancellation writes no
+      recovery, replacement handle does not inherit confirmation, ordinary
+      error/slow cleanup, landing error/slow cleanup, and budget capture. Three
+      independent omission mutants killed; final cleanup/budget regressions
+      passed three times under race. Evidence and stable before/after production
+      hashes: `/tmp/kolk-capture-final-verifier/`.
+  - **§8 item 6 Capture closed 2026-09-30** ([x]). Claude's eleven fixes
+    preserved and six additional Capture findings fixed. Next: Resume only;
+    Surfaces and Walk-back remain separate open leaves. No release, commit or
+    push is claimed; all §8 leaves and release gates must close first.
+    - Codex, after the note above (01:35–01:39): two more red-first fixes. A
+      queued child was admitted while a failed child's backend `Close` still
+      blocked (`/tmp/kolk-capture-close-red.log`), and a budget limit exposed
+      as a task outcome wrote no recovery point before synthesis
+      (`/tmp/kolk-capture-budget-red.log`). Its gates at 01:39 were green:
+      race (`/tmp/kolk-capture-followup-final2-race.log`) and `make check` at
+      4,905 tests (`/tmp/kolk-capture-followup-check-final.log`). Recorded here
+      by Claude, 03:56, because Codex stopped before writing it down.
+    - Final fresh review (Claude-launched, non-author, 03:36–03:54, session
+      scratchpad `v43-6-verify-capture-r3`) returned **NOT CLEAN**:
+      - F1: after a failed recovery write, five of the new paths still flushed
+        the plain JSON session at turn end. They were the main loop's native
+        tool error, a vendor tool failure, the scheduler's child error, the
+        budget boundary, and a planner or synthesis vendor failure. The
+        deferred `saveMainProgress` and the orchestrator's deferred store
+        marked the session dirty again, and `flush(saveTurnEnd)` wrote it.
+      - F2: the cancel guards on the two new save paths were unpinned; the
+        mutants removing them survived the whole package.
+      Codex had been idle since 01:39, so Claude took both as additive fixes,
+      recorded in `docs/v43-5-codex-review.md`.
+    - Fix: `saveState.recoveryLost` holds ordinary writes back from a failed
+      recovery write until its turn has unwound. `markDirty` sets nothing
+      while held, and RunTurn's final defer ends the hold after its own
+      flush. The state stays in memory, and the next ordinary save after the
+      turn writes it without a boundary's claim. `/new`'s reset clears it.
+      New tests in `capture_final_review_test.go`:
+      - no JSON flush after a failed recovery write, on the review's five paths
+        plus the ordinary error and a failed pause;
+      - the hold ends with its turn;
+      - a user cancel on a native or vendor tool failure writes nothing.
+      The `/new` reset test now sets the new field too.
+    - Author mutants: **6/6 killed** (session scratchpad
+      `v43-6-capture-final/mut.py`): hold ignored, hold never set, hold never
+      ended, reset keeping the hold, and the review's M01/M02. The one
+      survivor, clearing the hold on a later success in the same turn, was
+      unreachable, since every failed write returns at once. That branch was
+      removed rather than kept as dead code.
+    - The review's watchpoints go to Resume (in its plan). W2 is the main
+      one: mid-turn recovery points leave main "running" while the loop is
+      between calls, so "running" alone is not a hard-exit signal. W1 (two
+      writes for one budget boundary) is defensible as written, because the
+      design writes before any admission decision.
+    - Gates after the fix: unit and race green on engine, continuity,
+      session, provider/... (race adds cli). `make check` exit 0: **4,917
+      tests**, lint 0, cold start p50 6.1 ms (session scratchpad
+      `v43-6-capture-final/check.log`).
+    - Follow-up verification closed 2026-09-30 (Codex). Reviewing the previous
+      step before Resume found this delta still pending; the earlier 4,905-test
+      closeout had not verified it. Source mtimes (03:56–03:58) and git status
+      checked before claiming the follow-up; Claude's implementation and tests
+      were preserved. No production or test source changed in this iteration.
+    - Reproduced the original F1 red with a read-only overlay removing the
+      failed-write hold: native tool, child/scheduler, budget, vendor tool and
+      planner cases each exposed an extra durable JSON write (0 -> 1).
+      Six valid omission mutants killed: hold ignored, never set, never ended,
+      reset retaining the hold, native cancel guard removed and vendor cancel
+      guard removed. Reproduce with
+      `python3 /tmp/kolk-capture-hold-mutants/run.py`; each Go test specifies
+      `-count=1 -timeout=60s`. Evidence: `results.log`, `summary.json` and
+      `never-set-hold.log` in that directory.
+    - Current-tree gates: `go test -race -count=1 -timeout 300s
+      ./internal/engine ./internal/continuity ./internal/session
+      ./internal/provider/... ./internal/cli` passed
+      (`/tmp/kolk-capture-hold-race.log`). `make check` exit 0: **4,917 tests**,
+      zero lint issues, cold start p50 7.6 ms, every gate green
+      (`/tmp/kolk-capture-hold-check.log`). The PATH-local Go wrapper supplies
+      an explicit timeout to test commands without their own. `git diff --check`
+      passed.
+    - Fresh non-author `verify_capture_hold` returned **CLEAN**. Read-only
+      repository; four independent overlay probes passed five times under race:
+      all ordinary save reasons/intervals remain held, a durable mirror warning
+      does not hold successful saves, synthesis failure is held, and nested
+      automatic continuation suppresses trailing JSON then releases the hold.
+      Six independent valid mutants killed, including both cancellation guards.
+      Focused engine/session/continuity/provider race passed; all tests had
+      explicit timeouts. SHA-256 hashes unchanged across 181 files. Evidence:
+      `/tmp/kolk-verify-capture-hold/REPORT.md`, `race.log`, `probes.log`,
+      `mutants.log` and hash manifests.
+    - **Capture, including F1/F2, closed [x].** This iteration stops at the
+      verified follow-up. Resume is the next open leaf; Surfaces, Walk-back and
+      release remain gated. No commit, push or release performed.
+
+
+  - §8 item 6 Resume / Native recovery (Codex, 2026-09-30).
+    - Reviewed the previous Capture F1/F2 closeout, checked git status and file
+      mtimes before claiming/editing; preserved Claude's failed-write hold and
+      other agents' uncommitted work. Split Resume into three ordered leaves:
+      native recovery, vendor continuation proof, complete restart validation.
+      Only Native recovery is closed by this evidence.
+    - Red: `go test -count=1 -timeout=120s ./internal/engine -run
+      '^TestNative'` failed on missing recovery provenance, unavailable manual
+      claims, pending calls, completed replies, retirement and cancel retry.
+      Original output: `/tmp/kolk-native-resume-red.log`.
+    - Fix: a successful compressed boundary carries explicit recovery reason;
+      failed writes restore the previous marker. Error/limit snapshots become
+      manually claimable. Native continuation executes only unanswered tool
+      calls, preserves settled task results and committed direct/synthesis
+      answers, and saves retirement before a provider call, tool, scheduler
+      admission or synthesis. Failed retirement admits no work and retains the
+      prior snapshot; ordinary trailing writes stay held. A later hard exit
+      cannot replay a retired compressed snapshot. Empty vendor handles retain
+      explicit ownership and cannot silently become native work.
+    - Thirteen public-API tests use real compressed/JSON restart storage,
+      observable files, provider call counts and disk reads at action admission.
+      They cover claim retry after an unstarted cancellation, discarded pending
+      calls, completed/failed tasks, live same-batch and scheduler continuation,
+      failed capture provenance, unknown boundaries and current vendor ownership.
+      Initial broader race testing caught a cancellation result regression;
+      restoring the scheduler's nil outcomes on cancellation fixed it. Full gate
+      caught an embedded-selector lint issue in the test, fixed before final gates.
+    - Author overlay mutants: **16/16 valid mutants killed**, no repository
+      mutation. `python3 /tmp/kolk-native-mutants.py`; each test uses
+      `-count=1 -timeout=30s`. Evidence:
+      `/tmp/kolk-native-resume-mutants/summary.txt` and per-mutant `test.log`.
+      Mutations remove provenance/rollback/claim/reclaim, retain stale markers,
+      ignore failed retirement, bypass the failed-write hold, skip pending calls,
+      fabricate results, regenerate direct/synthesis replies, lose vendor
+      ownership, admit a vendor backend/unknown boundary, or skip scheduler/tool
+      retirement. The hold mutation survived the early-return retirement test;
+      the existing live same-batch failure test killed it with two writes instead
+      of one. No implementation change was needed for that test-selection gap.
+    - Final race: `go test -race -count=1 -timeout=300s ./internal/engine
+      ./internal/continuity ./internal/session ./internal/provider/...
+      ./internal/cli` passed (`/tmp/kolk-native-resume-final-race.log`).
+      `PATH=/tmp/kolk-capture-followup-bin:$PATH make check` exited 0:
+      **4,936 tests**, zero lint issues, cold start p50 7.4 ms, all
+      architecture/platform/site/installer/spec/release gates green
+      (`/tmp/kolk-native-resume-check.log`). The wrapper gives every Go test an
+      explicit timeout. `git diff --check` passed.
+    - Fresh non-author `verify_native_resume` returned **CLEAN**, then reaffirmed
+      it after final test additions. Repository read-only; three independent
+      real-disk overlay probes and three valid mutants verify empty-handle
+      ownership refusal and retired-boundary hard-exit refusal. Full independent
+      engine/session/continuity race passed (`-count=1 -timeout=180s`); overlay
+      probes passed under race (`-count=1 -timeout=60s`). Production hashes
+      unchanged across review; final report includes source/test SHA-256 hashes,
+      exact commands and observed output:
+      `/tmp/kolk-native-verify.8O9tOl/REPORT.md`.
+    - **Native recovery closed [x].** Legacy LastPause vendor compatibility is
+      deliberately still subject to the next vendor-proof leaf. Full dependency,
+      worktree, archive, binding and background-child restart validation, Surfaces
+      and Walk-back remain open. No commit, push or release performed; stop here.
+  - §8 item 6 Resume / Vendor recovery (Claude, 2026-09-30, claimed 13:58 in
+    `docs/v43-5-codex-review.md` after Codex's Native recovery closeout).
+    - Found first: every shipped adapter sends kolk's whole transcript each turn
+      and resumes the vendor conversation by handle. None can attach to an
+      unfinished vendor turn. Codex's native path refused all vendor work at
+      error/limit boundaries, so a subscription session recovered only through
+      a pause. The pause path continued any saved handle with "Allowance is
+      available again…", even one the vendor never confirmed.
+    - Red (session scratchpad `vendor-recovery-red.log`) on
+      `vendor_recovery_test.go`, all failing on the tree before the fix:
+      - a never-started task reopened its minted handle with the continuation
+        wording;
+      - an accepted resumable task's continuation did not name its unfinished
+        tool;
+      - accepted-but-unreachable work was not refused;
+      - the journal did not record the adapter's proofs;
+      - a vendor main session could not recover from an error.
+      The author's first rule ("no handle, no tools, so never accepted") was
+      corrected by Codex's existing
+      `TestNativeRecoveryDoesNotReplayAVendorWithNoHandle`. Copilot names its
+      session only in its last frame, so absence proves nothing unless the
+      adapter confirms before acting.
+    - Fix: the adapters state `ResumesConversation` (Claude, Codex and Copilot)
+      and `ConfirmsBeforeActing` (Claude and Codex only). The plan decorator
+      forwards both. The journal records them beside the handle
+      (`ProviderResumable`, `ProviderConfirmsFirst`). `recoverVendorWork`
+      decides each unsettled vendor task and the main session before any
+      provider is opened, at every boundary:
+      - proven never started: a fresh conversation, no continuation;
+      - last turn committed: nothing to redo;
+      - an unfinished turn the vendor may have acted on: continue only on its
+        confirmed handle through a resuming adapter, naming each unfinished
+        vendor tool to inspect first;
+      - otherwise: refused, with the work retained.
+      A vendor-owned saved request cannot move to a native backend. The
+      continuation wording no longer claims an allowance returned after an
+      ordinary error. Journals from before capture keep their path. The
+      design is recorded in `docs/v43-resume-snapshot.md` ("Vendor recovery —
+      2026-09-30"). `continuationConversation`, the fake in
+      `continuation_test.go`, now reports confirmation and the proofs, as the
+      real adapters do; a handle alone proves nothing.
+    - Author mutants: **22/22 killed** (session scratchpad
+      `vendor-recovery/mut.py`). They cover every rule, both proofs' recording
+      for children and main, ownership, the continuation text on both paths,
+      each adapter's claim and the decorator's forwarding. One redundant legacy
+      guard was removed rather than kept: the general rule already gives
+      pre-capture journals their old path, pinned by
+      `TestAJournalFromBeforeCaptureKeepsItsPath`.
+    - Race `-count=1 -timeout 900s` on engine, continuity, session,
+      provider/... and cli: passed. `make check` exit 0: **4,954 tests**, lint
+      0, cold start p50 11.3 ms (session scratchpad `vendor-recovery/check.log`).
+    - Pending: a fresh non-author verifier (brief:
+      `vendor-recovery/verifier-brief.md`). The leaf stays open until CLEAN.
+
+
+    - **2026-09-30 Codex independent review: NOT CLEAN; Vendor recovery stays [ ].**
+      Checked status/mtimes and reviewed Native closeout before finding Claude's
+      intervening claim and later 14:38 proof revisions. Preserved all author
+      production/tests per AGENTS.md; review probes use /tmp overlays only.
+      The earlier author gate does not cover the current revised tree.
+    - Current `make check` fails in vet/build: engine tests reference removed
+      `ProviderConfirmsFirst` (vendor_recovery_test.go:232/234), and CLI tests
+      call removed `ConfirmsBeforeActing` (verify_continuation_test.go:33/41).
+      `go test -race -count=1 -timeout=180s ./internal/engine
+      ./internal/provider/agentcli ./internal/cli` fails for the same reasons;
+      agentcli passes alone. Logs: `/tmp/kolk-vendor-review-{check,race}.log`.
+    - Three Codex fault-injection overlay probes compiled and failed behavioral
+      assertions under race (`-count=1 -timeout=60s`): a delivered request with
+      an external-effect sentinel and lost output is falsely proven unstarted
+      by both Claude and Codex; Claude automatically sends it twice. Separately,
+      Claude's abandonTurn consumes init/tool/result while draining but loses
+      acceptance and handle evidence, also falsely proving the turn unstarted.
+      Reproduce: `go test -overlay /tmp/kolk-vendor-review/overlay.json -race
+      -count=1 -timeout=60s ./internal/provider/agentcli -run '^TestReview'`.
+      Source and output: `proof_loss_test.go`, `proofs.log`, `REPORT.md` in that
+      directory; SHA-256 manifest records the reviewed source. No live vendor
+      actions were performed.
+    - Fresh non-author `verify_vendor_recovery` independently found three more
+      failures: a confirmed resumable handle admits an accepted unfinished tool
+      without attachment/reconciliation proof; legacy missing proof admits
+      work; a different current vendor handle is accepted and the run marked
+      done. Its engine overlay supplies only a disclosed obsolete-field test
+      compile shim, leaving production unchanged. Probes use race and explicit
+      timeout; evidence: `/tmp/kolk-vendor-independent/probes.log` and report.
+    - Required repair remains with the author: distinguish positive non-delivery
+      from unknown delivered work; preserve drain observations; require actual
+      unfinished-turn continuation/completion evidence; validate vendor/model/
+      handle identity; make legacy uncertainty explicit; synchronize tests and
+      docs with those rules. Rerun red/fix, mutants, focused race, make check and
+      fresh independent verification before closure. No [x], source rewrite,
+      next-leaf implementation, commit, push or release in this review iteration.
+    - **Author repair, contract v3 (Claude, 2026-09-30 18:50–19:15).** Codex's review
+      and the earlier Claude-launched verifier (F1–F4, M12/M18) are accepted in full.
+      The 14:38 tree was a half-applied rename: my session was suspended mid-edit.
+      - Adapters state facts about their latest turn:
+        - `TurnNeverStarted` is positive non-delivery only. The process could not
+          start, or a write to its stdin failed. A dead process's `Send` now marks
+          the session unusable. Missing output after delivery proves nothing.
+        - `TurnClosed` is the vendor's own close: Claude's result frame (also
+          when drained), codex `turn.completed`/`turn.failed` via a new
+          `EventTurnEnd`, Copilot's result frame.
+        - `ProviderHandleConfirmed` survives the process that confirmed it,
+          until the handle is retired.
+        - The drain records the handle and the closure.
+        - Claude's own retry happens only for an undelivered turn. A resumed
+          process that answered nothing has its handle forgotten either way, so
+          a dead resume can't wedge later turns.
+        - Copilot has no `TurnNeverStarted`.
+      - The plan decorator forwards observed streams and all four facts. A failed
+        turn notes its handle only when the vendor confirmed it.
+      - `recoverVendorWork` v3:
+        - never delivered and no tool reported: fresh start;
+        - committed with nothing unfinished: go on;
+        - otherwise continue only a vendor-closed turn with no unfinished vendor
+          tool, a confirmed handle and a resuming adapter;
+        - everything else is refused and retained, including legacy journals.
+      - The main conversation must be the session's own (same handle) at any
+        boundary.
+      - A continuation task never falls back. If its model can't start, it is
+        held like a pause (tree kept, checkpoint open, not an outcome), and the
+        run stops at one recovery write.
+      - The inspect-first continuation text is gone.
+      - Design: `docs/v43-resume-snapshot.md` "Vendor recovery (contract v3)".
+    - Tests. Codex's three fault-injection probes and the verifier's end-to-end
+      decorated-Claude probe are now permanent tests (a real `ClaudeBackend` in
+      the real `verifyingBackend`, driving a fake `claude` on PATH):
+      - no replay after a tool and a death (exit 3 and kill -9);
+      - the positive path: a vendor-closed turn continues after a restart with
+        `--resume` on the same handle and one continuation message.
+      Existing tests were adjusted, not weakened:
+      - `fakeLineProcess.exitWhenDrained` now models a closed pipe, so the
+        expired-login and minted-handle tests keep their in-turn retry for
+        undelivered prompts;
+      - the dead-resume test splits into an undelivered case (retried) and a
+        delivered-silent case (not resent, handle forgotten, next turn fresh);
+      - Codex's projection test now pins the fifth event, `turn.end`;
+      - `continuationConversation` states `TurnClosed` for its limit.
+    - Author mutants: **38/38 killed** (session scratchpad `vendor-recovery/mut3.py`).
+      They span the adapter layer (14), the decorator (4) and the engine rules,
+      identity, fallback, hold and recording (20). The first pass had 4
+      survivors, each now killed by a new or strengthened test: the one-shot
+      closure, the fallback (the held test gave the task the ceiling's model),
+      the hold and the double write.
+    - Gates on the combined tree at 19:12, with Codex's Surfaces work in
+      progress beside it:
+      - Race (`-count=1 -timeout 900s`) on engine, continuity, session,
+        provider/... and cli: passed. It skipped only Codex's in-progress red test
+        `TestStreamTurnRefusesUnavailableJournal`.
+      - `make check`: the test step ran 5,011 tests. The only failure is that
+        Surfaces red test (`internal/cli/recovery_stream_test.go`, Codex's, claimed
+        18:52).
+      - Every other gate target run explicitly passed: fmt, vet, arch, purity,
+        platforms, lint 0, budgets (cold start p50 7.0 ms), site 472, surface 21,
+        installer 72, spec 29, release 24/41/30, smoke 18, plan 110, pins 46.
+      - Logs are in the session scratchpad: `vendor-recovery/{race3,check3,gates3}.log`.
+      - A fully green `make check` needs Surfaces green too, and is re-run before
+        either leaf closes.
+    - Pending: a fresh non-author verifier on contract v3 (brief
+      `vendor-recovery/verifier-brief-v3.md`). The leaf stays [ ] until it is CLEAN.
+    - **Second fresh verifier on v3: NOT CLEAN** (session scratchpad `vendor-recovery/verify-v3/`).
+      All six round-1 probes now pass, and the automatic plan-limit resume works on the real
+      composition. New findings:
+      - F1: tools drained after an interrupted read never reached the journal. Worse, a
+        continuation attempt that merely failed to start then made the task look
+        "never started", and it was started over after the vendor had acted.
+      - F2: children weren't checked against their saved conversation.
+      - F3: pre-journal pause-only vendor sessions resent their turn.
+      - F4: `on_subscription_limit switch`, free rotation and ask-yes resend acted turns
+        within the same turn. This predates V43 and is recorded as its own leaf.
+      - F5: the vendor wasn't compared, only the handle.
+      - F6: production `Send` never fails, so the "undelivered" retry could never fire. It
+        failed safe, but a fake hid it.
+      - F7 and surviving mutants X1/X2/X19: test gaps.
+    - Fixes (Claude, 19:30–20:10):
+      - `shell.LinesProcess.Queue` and `Exited` report positive non-delivery; the session
+        uses `Queue`. The expired-login retry works again with a real process.
+      - The drain reports tools to the observer.
+      - `ProviderDelivered` is sticky. An attempt that never arrived restores the task's
+        state, in-flight flag and partial output from before it (`attemptBefore`,
+        `settleAttempt`).
+      - A child continuation must drive the saved handle (`drivesConversation`).
+      - The main vendor is compared.
+      - A legacy pause-only journal on a vendor session with a conversation is refused.
+      - The verifier's probes are adopted as permanent tests (`*_round2_test.go`).
+      - New tests: attempts that never arrive (partial preserved, committed turn stays
+        committed), `Queue` on an exited child, the paused-selection guards, and the
+        turn-start reset.
+      - One redundant line removed from the session. F4 is now a checklist leaf,
+        "In-turn fallback safety".
+    - Author mutants: round 1 **36/36** after re-anchoring (`mut3.py`), and round 2 **12 of 13** (session scratchpad `vendor-recovery/mut4.py`). R2 (`Queue` returning true from its second exited
+      branch) is equivalent except in the instant the child dies, which is the race the
+      design says fails safe.
+    - The round-1 set's A2 (a failed write leaves the session usable) had lost its test
+      when the fakes moved to `Queue`. It is pinned again by
+      `TestAFailedWriteWithoutQueueIsRetriedOnANewProcess`.
+    - Gates at 20:19 on the combined tree:
+      - race on engine, continuity, session, provider/..., cli and shell: passed;
+      - `make check`: 5,030 tests, the only failure still Codex's in-progress Surfaces
+        test;
+      - every other gate target passed: lint 0, cold start p50 6.5 ms, site 472,
+        surface 21, installer 72, spec 29, release 24/41/30, smoke 18, plan 110, pins 46.
+    - Pending: the same verifier's round-3 delta review. The leaf stays [ ] until CLEAN.
+    - **Round-3 delta review: NOT CLEAN.** F1–F3, F5–F7 were fixed and the F4 deferral
+      was accepted. New findings:
+      - **N1 (blocking):** `Queue` false on a `--resume` process that had exited while
+        idle, or on an idle process that was killed, retired the handle. The retry then
+        sent the continuation to a brand-new conversation. End to end, the side-effect
+        log read "deployed in H-saved / continued in <new uuid>".
+      - **N2:** a continuation that never arrived replaced the handle with a fresh,
+        unconfirmed one.
+      - Watchpoints: Codex never proved a turn unstarted; stale adapter flags after a
+        prompt error.
+    - Fixes (Claude, 2026-10-01 03:20–03:47, after a suspended session left the tree
+      unbuildable at 20:41; repaired 03:20 and Codex was told):
+      - An adapter retry never changes conversation: it resumes the same handle.
+      - A dead resume is judged over the process's life (`EverReceived`), on the
+        process that failed. An idle kill retires the handle only if the killed turn
+        was delivered.
+      - `shell.NotStartedError` (LookPath / stdout pipe / Start) is the only proof of
+        non-delivery for Claude's one-shot path and Codex.
+      - Capture skips the handle and confirmation update when `settleAttempt` keeps a
+        never-arrived attempt, for both the main session and children.
+      - Per-turn flags are reset before `promptFromMessages`.
+      - The verifier's probes are adopted (`*_round3_test.go`). The concurrent-restore
+        probe got a send barrier and an in-flight precondition: it now passes 40/40, and
+        20/20 under race.
+    - Evidence loss: the session restart at ~03:44 wiped the scratchpad. That took the
+      round 1–3 mutant scripts and logs and the earlier verifier briefs with it. Evidence
+      now lives in `/tmp/kolk-vendor-recovery/`.
+    - **Author mutants, consolidated rounds 1–3: 70/70 killed** (`/tmp/kolk-vendor-recovery/mutants.py`;
+      every anchor checked to match exactly once; logs in `mut/`, results in
+      `mutants-run1.txt` and `mutants-run2.txt`).
+      - The first pass killed 64. A18 failed to build (a mutant bug), and five survived:
+        A7 and A16 (dead resume judged per turn), A19 (judged on the wrong process),
+        J7 (a child's kept attempt overwrote the handle) and S3 (Start failure untyped).
+      - New tests kill all six:
+        - `TestClaudeBackendKeepsAResumedConversationThatAnsweredBefore`;
+        - `TestClaudeBackendJudgesADeadResumeOnTheProcessThatFailed`;
+        - `TestAChildAttemptThatNeverArrivedKeepsItsConversation`;
+        - `TestRunLinesSaysWhenAProcessNeverRan`, which also pins that a process that
+          ran and failed is never "never started".
+    - Gates at 08:07 on the combined tree (Codex's Surfaces included):
+      - race on shell, provider/..., cli, engine, continuity and session: all ok, no
+        skips (`race-r3.log`);
+      - **`make check` fully green: 5,048 tests**, lint 0, cold start p50 5.7 ms,
+        site 472, surface 21, installer 72, spec 29, release 24/41/30, smoke 18,
+        plan 110, pins 46 (`check-r3.log`).
+    - Design doc: "Round-3 corrections" added to `docs/v43-resume-snapshot.md`.
+    - Pending: a fresh non-author verifier (round 4; the round-3 verifier ended with
+      the old session). Brief: `/tmp/kolk-vendor-recovery/verifier-brief-r4.md`. The
+      leaf stays [ ] until it is CLEAN.
+    - **Round-4 fresh verifier: NOT CLEAN** (2026-10-01 08:09–08:38; read-only, mtimes
+      and sha256 of 33 in-scope files identical at start and end). N1, N2, the Codex
+      start proof, the one-shot proofs and dead-resume-without-wedge were all confirmed
+      fixed. New findings:
+      1. HIGH — the adapter's retry process, killed mid-turn, was never retired.
+         End to end, after `/resume discard` the next request resumed the conversation
+         whose tool was left unfinished.
+      2. MEDIUM-HIGH — every fresh request after the first in a vendor session was sent
+         with the continuation text ("do not repeat completed actions").
+      3. MEDIUM — `/resume` could not reopen held or failed-resume work in the same
+         process (`resumeClaim` stuck), while new requests were refused.
+      4. MEDIUM — a retirement was never written to the session file, so a restart
+         resumed the killed conversation.
+      5. MEDIUM — a cancelled turn that Close killed after its grace was not retired.
+      6. LOW — a hard exit after the vendor's result frame retired a closed turn.
+      7. LOW (latent) — a respawn used kolk's handle, not the vendor's own name.
+      8. `/new` kept the old session's vendor conversation, so session B's request ran in
+         session A's paused conversation.
+      - Its surviving mutants V1, V2, V4, V14 and V17 were real test gaps.
+    - Fixes (Claude, 2026-10-01 08:40–09:44):
+      - `retireIfKilled` judges every process that ran the turn, after it is closed: a
+        delivered turn the vendor had not closed retires the conversation (1, 5, 6).
+      - `ProviderHandleRetired`, set by `forgetHandle` and cleared when a new handle is
+        minted. The decorator then records an empty handle in the session file (4).
+      - `noteTurn` adopts the vendor's own name for the conversation (7).
+      - runLoop sends the continuation text only when the journal shows the request's
+        own vendor call stopped, `Main.ProviderInFlight` (2).
+      - RunTurn releases its own resume claim after `finishExecution` (3).
+      - `ForgetConversation` on the Claude, Codex and Copilot adapters. The decorator
+        forwards it and `ReplaceSession` calls it (8).
+      - Copilot resets its closure flag before building the prompt.
+      - The verifier's probes are adopted (`*_round4_test.go` in agentcli, cli and
+        engine). P-A12 (a trailing frame after the result, then an idle exit) is kept
+        as a fail-safe pin: the continuation may be refused, but never moves.
+      - New author tests cover V2, V14, V17, the engine side of 2 and 8, the decorator
+        side of 4 and 8, and adapter forgetting.
+    - Pre-existing tests corrected, not weakened: three `backend_test.go` hard-exit
+      tests used a fake that delivered the vendor's result frame and also reported a
+      kill, which models a closed turn. They now use `killedMidTurn` (the assistant
+      frame, then death) and keep their retirement and announcement assertions. The
+      round-5 verifier is asked to judge this.
+    - The first full mutant pass (94) killed 93. R4, an `else` branch that dropped a
+      session killed after its result frame, survived as equivalent, so the branch was
+      removed: the next turn finds that process gone and retries on the same
+      conversation.
+    - **Evidence lost again:** the machine rebooted at ~12:08 and wiped `/tmp`, taking
+      the round-3/4 mutant scripts and logs, the round-4 verifier's working files and
+      the round-5 brief. The verifier's probes survive as the adopted tests. Evidence
+      now lives in `~/.cache/kolk-vendor-recovery/` (mutant suite rebuilt and
+      re-anchored; brief `verifier-brief-r5.md`).
+    - **Author mutants, rounds 1–4 consolidated: 92/92 killed**
+      (`~/.cache/kolk-vendor-recovery/mutants.py`; results in `mutants-r4-full.txt`, logs
+      in `mut/`; every anchor checked to match exactly once). The full post-reboot pass
+      killed 92 of 93.
+      - R3 (a closed turn retired) survived because its guard was unreachable: only an
+        unusable session is judged, and an unusable session never closed its turn,
+        since a result frame (read or drained) ends the turn in step.
+      - The guard was removed and the invariant stated in `retireIfKilled`. If it ever
+        broke, the effect would be a refused continuation, not a replay. A14 was
+        re-anchored and is killed.
+    - The adopted P-E2 probe had an ineffectual assignment that lint flagged. It now runs
+      the resumed request and checks that it continues the saved conversation.
+    - Gates at 14:05 on the combined tree:
+      - race on shell, provider/..., cli, engine, continuity and session: all ok
+        (`race-r4.log`);
+      - **`make check` fully green: 5,091 tests**, lint 0, cold start p50 6.1 ms,
+        site 472, surface 21, installer 72, spec 29, release 24/41/30, smoke 18,
+        plan 110, pins 46 (`check-r4.log`).
+    - Design doc: "Round-4 corrections" in `docs/v43-resume-snapshot.md`.
+    - Pending: a fresh non-author verifier, round 5
+      (`~/.cache/kolk-vendor-recovery/verifier-brief-r5.md`). The leaf stays [ ] until
+      it is CLEAN.
+    - **Round-5 fresh verifier: NOT CLEAN** (2026-10-01 14:07–14:42; read-only, the
+      sha256 and mtimes of 38 in-scope files identical at start and end). All eight
+      round-4 fixes were confirmed. The three changed `backend_test.go` fixtures were
+      judged corrected, not weakened. New findings:
+      - **F1 MEDIUM:** run.go bound the startup decorator's note to the startup
+        session, so after `/new` session B's file never learned its conversation and
+        session A's object was told it. After a restart, B's continuable work was
+        refused.
+      - **F3 MEDIUM (pre-existing):** agent-mode planner and synthesis calls stopped
+        after a vendor-closed turn were sent again verbatim on the same conversation.
+        On the real adapter the vendor's tool ran twice.
+      - **F4 LOW (my round-4 regression):** the retry's replacement was judged for a
+        kill even when usable, so a replacement killed after its result frame retired
+        a closed conversation. My "R3/R4 equivalent" claim was wrong on this path.
+      - **F2 LOW (race):** the claim release was keyed by run ID. A delivery that
+        continuity's monitor armed inside the turn lost its claim, and `/resume`
+        could hand the run out twice. The race is forced by a gate in the test.
+      - **W1 watchpoint:** a turn refused by a closed session reported the previous
+        turn's facts.
+      - Its mutants: 26 of 31 killed. K31 was the F4 guard; K02, K03 and K26 were
+        equivalent; K30 was a test gap with no behaviour difference.
+    - Fixes (Claude, 2026-10-01 14:45–15:40):
+      - F1: `noteOnCurrentSession` in run.go binds the note to the agent's current
+        session, for the startup backend and for `/model` switches.
+      - F3: one closure each builds the planner and synthesis requests. When the saved
+        run stopped in that phase with the main call in flight, it appends
+        `continuationMessage()`, so the overflow retry keeps it too.
+      - F4: `retireIfKilled` judges only unusable sessions.
+      - F2: each claim is counted (`claimRunLocked`, `resumeClaims`, kept for the
+        process), and a turn releases only the claim it was given.
+      - W1: per-turn facts are reset before a closed or unusable session refuses.
+      - The verifier's probes are adopted (`continuation_round5_test.go`,
+        `verify_continuation_round5{,_phase}_test.go`,
+        `vendor_recovery_round5_test.go`, `vendor_claim_round5_test.go`). The F1 cli
+        probes are routed through the production `noteOnCurrentSession`, not a copy of
+        the old binding.
+      - New author tests:
+        - `TestNewRecordsTheNewConversationInTheNewSession` drives the real `newAgent`
+          and `/new` with a fake `claude`, for the startup backend and for a `/model`
+          one, asserting the switch took effect;
+        - the planner subtest also checks that the synthesis after a continued planner
+          is an ordinary request;
+        - `TestAPlannerThatWasNeverSentIsNotContinued`.
+      - My first `/model` subtest silently tested the startup backend: the switch was
+        refused after a turn, because the fake vendor lists only opus. Mutant R27
+        exposed it. The switch now happens before the first turn and is asserted.
+    - **Author mutants, rounds 1–5: 104/104 killed** (`~/.cache/kolk-vendor-recovery/mutants.py`;
+      `mutants-r5-full.txt` plus `mutants-r5-rest.txt`).
+      - Of the 12 new round-5 mutants, three first survived or failed to build:
+        - R27 (the `/model` binding): the subtest above;
+        - R34 (in-flight ignored): killed by
+          `TestAPlannerThatWasNeverSentIsNotContinued`;
+        - R35: a build-only bug in the mutant itself.
+      - The full run filled the disk at mutant 81. Every overlay build adds about
+        240 MB to GOCACHE, which had reached 25 GB. I cleared it with
+        `go clean -cache`.
+      - The runner now uses its own GOCACHE, capped at 6 GB, and resumed with
+        `--from`. R12, whose log showed disk errors, was re-run with the rest, and no
+        mutant log now contains a disk error.
+    - The adopted planner probe had an `x-x` index that staticcheck flagged; it is
+      simplified.
+    - Gates at 16:05 on the combined tree:
+      - race on shell, provider/..., cli, engine, continuity and session: all ok
+        (`race-r5.log`);
+      - **`make check` fully green: 5,105 tests**, lint 0, cold start p50 5.2 ms,
+        site 472, surface 21, installer 72, spec 29, release 24/41/30, smoke 18,
+        plan 110, pins 46 (`check-r5.log`).
+    - Design doc: "Round-5 corrections" in `docs/v43-resume-snapshot.md`.
+    - Pending: a fresh non-author verifier, round 6
+      (`~/.cache/kolk-vendor-recovery/verifier-brief-r6.md`). The leaf stays [ ] until
+      it is CLEAN.
+    - **Round-6 fresh verifier: NOT CLEAN** (2026-10-01 16:07–17:20, cut off by the
+      account's session limit, then resumed with its context at 21:30; the sha256 and
+      mtimes of 47 in-scope files identical at start and end). All round-5 fixes held.
+      It checked agent-mode resume from every phase, and `/new` followed by a restart of
+      the old session, both green. New findings:
+      - **L2 MEDIUM-LOW (pre-existing, widened by round 5):** the identity check used
+        the saved model, but the resumed call went through today's routing (tiers,
+        slots). A continuation could therefore reach a backend that never saw the turn.
+      - **C1 and C1b LOW (race, plain REPL):**
+        - C1: a refused typed request cleared a pending delivery's claim.
+        - C1b: a retyped request continued the run while the delivery waited, and
+          the delivery then sent the original request again.
+      - **K3 LOW (fail-safe):** a trailing frame after the result plus a kill retires the
+        conversation. This contradicted the round-5 doc's "on every path".
+      - Surviving mutants: V4 and V5 were test gaps (native main). V9 is equivalent: a
+        declined delivery restores the pause, and every path re-claims. V17 is
+        superseded: the explicit clear was removed in favour of the counted release.
+        V2 and V3 are unreachable for vendors.
+    - Fixes (Claude, 2026-10-01 21:40–22:50):
+      - L2: a stopped main call (direct, planner, synthesis) continues on
+        `savedMainModel`, the model checked to drive the saved handle.
+      - C1: a refused turn releases the claim only when its input is the saved request.
+      - C1b: the monitor marks the delivery context with its claim count
+        (`deliveryTicketKey`). A delivered turn whose claim is no longer its own is
+        skipped and says so. The ticket is removed for nested turns.
+      - V17: the redundant uncounted clear after a `retireRecovery` error is removed.
+      - K3: the doc is corrected, and the probe is kept as a fail-safe pin (refused,
+        never moved).
+      - Adopted tests: `vendor_route_round6_test.go` (plus a synthesis case), and
+        `vendor_claim_round6_test.go`, whose delivered turns run inside the callback in
+        its own context exactly as `repl.go` does. The verifier's version replayed them
+        outside with `context.Background()`, which is not how the REPL runs them.
+      - Also adopted: `vendor_phase_round6_test.go`,
+        `verify_continuation_round6_test.go` and `continuation_round6_test.go`.
+      - New author test: `TestANativeMainIsNeverSentAVendorContinuation`.
+    - Round-6 mutants R30 (re-anchored) and R37–R46: all killed except R44, which is
+      equivalent (see the design doc).
+
+
+  - §8 item 6 Surfaces (Codex; parallel task split with Claude, 2026-09-30).
+    - The owner directed Codex to follow Claude's instructions. Claude's 18:50
+      task split explicitly permits Surfaces in parallel with Vendor recovery;
+      Codex claimed it at 18:52 in docs/v43-5-codex-review.md. Checked status
+      and mtimes; Claude's listed production/tests were preserved. Only Surfaces
+      is implemented in this iteration; no next-leaf or release work is claimed.
+    - Red: missing typed/sticky warnings, absent-storage silence, credential text
+      in plain save errors, missing protocol validation, and resume startup prose
+      before NDJSON. Logs: `/tmp/kolk-surfaces-red.log` and
+      `/tmp/kolk-surfaces-red-engine-cli.log`. During Claude's mid-edit proof
+      rename, focused engine/CLI reds used a disclosed test-only compile shim;
+      their assertions failed on pre-fix save.go/run.go overlays. No peer source
+      was changed or peer tests claimed green by that shim.
+    - Fix: `recovery.failed` carries stable code `recovery_save_failed`, boundary
+      reason (pause/limit/error/resume), scrubbed message and required `durable`.
+      Every failed exceptional write reports, including missing storage and a
+      failed retirement before a new turn ID exists. A saved sidecar with failed
+      mirror emits `durable: true` without turning the recovery into failure.
+      Plain output and the structural TUI callback use the same scrubbed text;
+      the footer warning survives status refresh and transcript eviction.
+      Protocol validation, schema, golden event and changelog are updated.
+    - Stream-json reserves stdout before agent construction, resume notices and
+      lane reporting; human diagnostics go to stderr. `streamTurn` subscribes
+      before work, refuses missing/unreplayable journals, reports write/short-write
+      failures and cancels the run. It drains the final journal and resumes a
+      slow subscription from the last frame actually written, without duplicates.
+      An expired cursor reports an incomplete stream rather than silent success.
+    - First reviewer stopped at its usage limit after pointing out dropped late
+      events for a slow subscriber. A deterministic token burst with stdout held
+      until the failed save reproduced recovery=0/terminal=0 under the legacy
+      drain overlay (`/tmp/kolk-surfaces-slow-red.log`); replay fixes both. The
+      initial closed-journal fixture was also corrected: Bus.Close does not
+      prohibit subsequent in-memory use; an expired cursor is the actual failure
+      tested. No bus semantics were changed to accommodate that fixture.
+    - Author mutation evidence: **13 valid mutants killed** (12 notification,
+      schema, TUI and startup mutants in `/tmp/kolk-surfaces-mutants/summary.txt`,
+      plus the legacy slow-drain mutant above). Reproduce with
+      `python3 /tmp/kolk-surfaces-mutants.py`; every Go test uses `-timeout=60s`.
+      The current import-only overlay supplies Claude's missing stdlib import to
+      compile CLI tests; it changes no vendor behavior.
+    - Final scoped race: `go test -overlay
+      /tmp/kolk-surfaces-current/compile.json -race -count=1 -timeout=300s
+      ./internal/engine ./internal/cli ./internal/tui ./protocol` passed
+      (`/tmp/kolk-surfaces-overlay-race.log`). Focused surface paths also pass
+      (`/tmp/kolk-surfaces-focused4.log`). `git diff --check` passed.
+    - Fresh non-author `verify_surfaces_final`: **CLEAN for Surfaces**, with six
+      independent tests/seven cases covering exact overflow replay, expired
+      cursor, short/failed writes, unexpected shutdown, cancellation on broken
+      stdout, and a TUI warning surviving 20,000 lines and competing notices.
+      Seven independent valid mutants killed; focused race passed with the
+      disclosed import-only overlay. Repository read-only, /tmp overlays only,
+      every test has an explicit timeout, hashes recorded. Evidence:
+      `/tmp/kolk-surfaces-final-verifier/REPORT.md`, `probe-final.log`,
+      `race-overlay.log`, `mutants.json` and adjacent logs.
+    - **Surfaces remains [ ] pending the unmodified shared full gate.** Current
+      `make check` fails fmt-check on Claude's session.go; unmodified CLI build
+      fails because his backend.go uses errors.Is without importing errors.
+      Evidence: `/tmp/kolk-surfaces-check.log`, `/tmp/kolk-surfaces-race.log`.
+      The proposed build-only fix is `/tmp/kolk-surfaces-peer-build.patch`, with
+      source hashes in `/tmp/kolk-surfaces-peer-build-base.json`; it was not
+      applied to the shared tree. The isolated copy `/tmp/kolk-surfaces-gate`
+      contains only those two extra build corrections for its full gate.
+      This is explicitly not a claim that Vendor recovery is verified or the
+      shared full gate passed. No staging, commit, push or release performed.
+
+Acceptance evidence is recorded per leaf below and in `docs/build-log.md` before closure.
+
+### V43.1 acceptance
+
+- Red: focused `internal/tui` regressions reproduced hidden model/effort, tiny-width activity
+  clipping, discarded pause/cooldown notices, raw effort controls and invalid picker indexes.
+  Image regressions reproduced per-frame retransmission and incomplete Park erasure.
+- Green: reserved model/effort columns; sanitized/owned picker data; urgent notices; one-row,
+  two-cell owner artwork with fallback; Kitty upload caching and owned placement cleanup.
+- Verification: `go test ./internal/tui ./internal/term -count=1` and `make check` pass.
+  Independent Claude review ran focused TUI/term/CLI race tests and size/escape overlay probes;
+  final notice/cache/Park follow-up is CLEAN: `go test -race ./internal/tui ./internal/term
+  -count=1` passes (1.795s / 1.356s), plus three independent overlay probes. Final `make check`:
+  3,661 tests, zero lint issues, cold-start p50 7.5ms. Closed 2026-09-14.
+- Walk-back: V43.1 supersedes earlier wheel-only and block-octopus geometry decisions for the
+  persistent TUI. Historical plain-REPL/release evidence remains a record of those releases.
+- Limit: inline image protocol/cleanup is tested locally with byte-level fixtures. A physical
+  Kitty/iTerm/WezTerm/Ghostty visual rehearsal is not claimed.
+
+### V43.1b acceptance
+
+- Red: regressions reproduced hidden native output, inherited provider trails, unseparated
+  prompts, missing backgrounds in scrollback, dropped warnings and truncated diff tails.
+- Green: grouped, scrubbed work records with agent identity; actual edit counts and bounded
+  previews; coloured bullets/counts and full-row red/green diffs; shaded multiline prompts.
+  Unpaired warnings and unfinished tools stay visible without invented completion states.
+- Verification: final `make check` passes (3,674 tests, zero lint issues, cold-start p50 8.6ms).
+  Independent Claude review ran race tests across TUI/tools/agentcli/engine/CLI and separate
+  overlay probes. Findings were fixed; focused race follow-up and end-to-end truncated/mixed
+  hunk probes are CLEAN (`/tmp/kolk-v43-worklog-fixes.jsonl`). Closed 2026-09-15.
+- Walk-back: V43.1b replaces one-line tool trails in the persistent TUI with structured records;
+  plain output remains supported. Prompt styling now survives transcript overflow.
+- Limits: provider edit counts/diffs are shown only when supplied. Native edits report actual
+  before/after content. `/tmp/kolk-work-preview-rgb.png` previews actual renderer output with
+  sample records; it is not evidence of live provider execution or a physical terminal trial.
+
+### V43.2 acceptance
+
+- Red: low effort dropped 11 of 12 planned tasks; routine work stayed at the ceiling; a child
+  showing low effort sent the parent's high effort; discovered Codex max became xhigh on the wire.
+- Green: one fresh discovered roster per plan, strict selected-model ceiling, exact signed-in
+  provider binding, lower models for routine/trivial work, resolved effort shared by requests,
+  status and accounting, and preserved exact offered spellings. Opening failures retain the
+  provider binding and recompute effort for the selected-model fallback. Blank slots are unset.
+- Verification: final `make check` passes (3,685 tests, zero lint issues, cold-start p50 5.9ms).
+  Independent Claude review/follow-up is CLEAN (`/tmp/kolk-v43-routing-followup.jsonl`):
+  `go test -race -count=1 ./internal/engine ./internal/cli ./internal/provider/agentcli
+  ./internal/arch` passes, plus external overlay probes for ranks, provider identity, fallback,
+  effort, malformed menus, fresh catalogs, bounded concurrency and the production lane text.
+  Closed 2026-09-15.
+- Owner decision: the task queue has no fixed total-count cap. A 120-task overlay plan opened
+  all 120 children, intentionally. Concurrency defaults to three and is independently configured;
+  total spend is bounded only when `max_run_cost_usd` is set. This follows the owner's request
+  for as many agents as necessary; no silent truncation or new approval step was introduced.
+- Walk-back: V43.2 supersedes effort-based task widths in E7.2, PLAN item 7 and the historical
+  width-wrapper audit; also supersedes routine-at-ceiling routing. The legacy family roster
+  remains a fallback for embedders without discovery. Before the first catalog arrives, the
+  terminal offers only the selection; the next plan sees newly discovered lower models.
+- Limits: the CLI roster callback runs on the session owner after directory setup, never on
+  child goroutines. Cross-vendor capability equivalence is not inferred. Model/effort tests use
+  local fixtures; no billed provider rehearsal is claimed.
+
+### V43.3a acceptance
+
+- Red: independent offline probes reproduced clock-based loss of pending input, nil-callback
+  consumption, a repeated pause without a watcher, and a callback joining its own watcher.
+- Implemented: expiry is a read; a missing callback keeps the pause; watcher retirement precedes
+  delivery; a separate cancellable lifetime lets Close join callbacks; declined delivery retains
+  pending input without overwriting a newer pause. Runtime Submit reports acceptance.
+- Further red probes reproduced TUI acceptance before startup, queued-prompt replacement and
+  a plain-REPL watcher surviving exit. Ready-gated delivery, honest acceptance, 30s backoff and
+  surface cleanup fix those cases. Slash mutations serialize with resumed work; /continue claims
+  the pause before switching. Empty pending input does not send an empty provider turn.
+- Verification: final `make check` passes (3,706 tests, zero lint issues, cold-start p50 6.3ms;
+  `/tmp/kolk-v43-pause-check3.log`). Independent Claude lifecycle review is CLEAN
+  (`/tmp/kolk-v43-pause-followup.jsonl`): three focused race passes and external overlays,
+  including 400 delivery-vs-resume iterations, 54 re-paused turns under Close and lifecycle
+  hammer tests. Final surface follow-up is CLEAN (`/tmp/kolk-v43-pause-surface-review.jsonl`):
+  two focused continuity/CLI/engine race passes and reset-boundary probes. Closed 2026-09-15.
+- Walk-back: V43.3a supersedes clock-based pause clearing and the watcher-owned callback lifetime
+  in V35.2b and PLAN item 35. Doctor keeps expired pauses visible; labels distinguish a future
+  reset from readiness to retry and give explicit session/resume instructions.
+- Limits: Close/cleanup is called outside a delivery callback. A saved pause refuses unrelated
+  one-shot input; open its interactive session to resume. Accepted queued work and durable task
+  graphs/child conversations remain V43.3b; context history remains V43.3c.
+
+### V43.3b acceptance
+
+- Red: `TestSynthesisResumeKeepsCompletedTasks` replanned and exhausted the fixture after two
+  completed children; `TestChildLimitPausesTheWholePlan` returned success and launched later work.
+- Implemented: versioned execution journal, restored task outcomes and conversations, remaining
+  tool calls, round/repetition guards, observed spend, task identities and child provider handles.
+  A shared pause barrier drains in-flight operations before saving and prevents new launches.
+  Saved worktrees are retained and verified before reuse. Code and single-task fallback retain
+  the existing prompt and results. Automatic TUI resumption only accepts an idle surface.
+- Local evidence: real-session restart tests preserve a completed write across process objects
+  without overwriting a sentinel; a concurrent two-tool batch finishes its first call, pauses,
+  then runs only its second call. Child handles do not replace the parent's conversation.
+- Independent review found unbounded historical journals in routine saves, cancellation racing a
+  limit, missing discard recovery, and a reduced budget ignored on resume. Fixes archive older
+  journals, distinguish stops from pauses, add `/resume discard`, and retain the tighter budget.
+  An accepted resume canceled before startup also returns ownership to its saved pause.
+- Verification: final `make check` passes (3,727 tests, zero lint issues, cold-start p50 6.1ms;
+  `/tmp/kolk-v43-continuation-check4.log`). Focused engine/session/CLI race tests pass. Independent
+  Claude review is CLEAN in `/tmp/kolk-v43-continuation-fix-review.jsonl` and
+  `/tmp/kolk-v43-continuation-final-review.jsonl`, including repeated focused race tests.
+  Closed 2026-09-16.
+- Walk-back: supersedes V35's removal/re-appending of pending prompts and V36.2c's unconditional
+  worktree release. A paused tree remains available for verified reuse. Older execution transcripts
+  remain in session JSON exports. Discard retains files, worktrees and history.
+- Limits: recovery is from a settled allowance pause, not arbitrary process death during a tool
+  action. An uncertain interrupted execution is retained and requires explicit discard. Context
+  compaction remains V43.3c; Localia remains V43.4. No billed provider rehearsal is claimed.
+
+### V43.3c acceptance
+
+- Red: a single long turn could not shrink; failed archival discarded the complete conversation;
+  stale large window metadata blocked overflow recovery. Independent probes also reproduced
+  summaries receiving already-stripped facts and unnecessary summary-provider failures.
+- Implemented: immutable main/child archives before replacement; rollback on failed session save;
+  compaction of complete tool rounds within a turn; original goal, instructions and assistant
+  decisions retained; original evidence supplied to summaries; bounded retries after real shrinkage.
+  Child context windows follow the actual routed backend/wire model. Planner follow-ups receive
+  prior conversation, and dependency/synthesis previews preserve complete results in the journal.
+- Restart evidence: a child reads a file, compacts after overflow, pauses on quota, reloads its
+  working messages and full archive, then resumes without repeating the completed read. Fork and
+  JSON export retain main and child archives after the source session is deleted. `/compact undo`
+  keeps subsequent turns and rolls back on failed persistence.
+- Focused `go test -race ./internal/engine ./internal/session ./internal/cli -run
+  'Compact|Context|Overflow|SessionsForkAndExport|PlannerSees|HugeResult|ChildWindow' -count=1`
+  passes. Independent window and save-failure overlays pass twice under the race detector.
+  Final `make check` passes: 3,745 tests, zero lint issues, cold-start p50 6.9ms
+  (`/tmp/kolk-v43-context-check3.log`). Independent review is CLEAN, with the scoped race suite
+  and five additional window/save-failure probes passing twice. Closed 2026-09-22.
+- Walk-back: C12.2a–c/C12.6 and plan 12's older archive-failure and turn-boundary promises are
+  superseded. Undo preserves messages appended after compaction.
+- Limit: Kolk retains and compacts transcripts it owns. Vendor-private context remains
+  vendor-owned; shrinking Kolk's main transcript does not compact a vendor's private history.
+  No billed provider or physical terminal rehearsal is claimed.
+
+### V43.4 implementation order
+
+- [x] **V43.4a project runtime lifetime** — project-scoped ephemeral setting, owned-session
+  shutdown, detached persistence and verified reuse. Existing host servers remain user-owned.
+- [x] **V43.4b managed native setup** — verified installation, progress and cancellation;
+  startup/model-selection integration and cached model reuse.
+- [x] **V43.4c integrated Localia review** — concurrency, ownership, surface documentation and
+  independent acceptance of the complete setup/lifetime flow. Closed 2026-09-25 with V43.4c.1–3.
+
+V43.4c runs one subleaf at a time, owned by Codex:
+
+- [x] **V43.4c.1 setup-to-pull and exit integration** — recheck resources after runtime setup,
+  verify cancellation/concurrent setup and session ownership, clarify first-run local guidance.
+  Started by Codex; continued by the Claude Code session; independently verified. Closed 2026-09-24.
+- [x] **V43.4c.2 Linux accelerator bundles** — discover required official companion bundles,
+  verify installation/reuse without modifying running trees, and report unsupported hardware.
+  Built by the Claude Code session; four independent verifier passes. Closed 2026-09-25.
+  Investigation (Claude Code session, 2026-09-24). The latest stable release is v0.34.4
+  (2026-09-23). Its Linux assets, all `.tar.zst` with SHA-256 digests:
+  - standard: amd64 1.36 GiB, arm64 1.48 GiB;
+  - companions: `-rocm` (amd64, 1.0 GiB), `-mlx` (amd64, 1.2 GiB), `-jetpack5` (arm64,
+    283 MiB), `-jetpack6` (arm64, 257 MiB).
+
+  The official `ollama.com/install.sh` extracts a companion over the same install tree:
+  - `-rocm` when an AMD display device (PCI vendor 1002) is present;
+  - `-jetpack6` or `-jetpack5` when `/etc/nv_tegra_release` names R36 or R35; any other
+    release gets an "Unsupported JetPack version" warning;
+  - MLX never. NVIDIA needs no companion: CUDA ships in the standard bundle. The script's
+    sudo driver install is out of scope for Kolk.
+
+  Kolk already reads sysfs DRM vendor IDs (`probe.go`; 0x1002 is amd). Installations are
+  immutable, digest-identified directories, which makes adding a companion as a new tree the
+  natural design. Plan, one subleaf at a time:
+  - (a) detection, a pure function over the prober's filesystem root, matching install.sh;
+  - (b) release selection and install: the companion asset from the same release, with the
+    same origin, size and digest checks; extracted over the standard bundle in private staging
+    before publication; recorded in the installation identity; room checked for both;
+  - (c) reuse and reporting: offline reuse only when the recorded companion matches detection.
+    A standard-only tree on newly detected hardware is copied locally into a new tree, not
+    modified in place. The consent text and progress name the companion and its size;
+    unsupported JetPack is reported. MLX stays uninstalled, matching the official installer;
+  - (d) independent verification and gates.
+  Limit: there is no AMD or Jetson machine to test on (the homelab GPU is an NVIDIA GTX 1660
+  SUPER, which needs no companion), so fixtures only.
+  - (a) done (Claude Code session, 2026-09-24): `internal/local/runtime_companion.go`.
+    - `runtimeCompanions` is a table of the three official companion assets; MLX is
+      deliberately absent.
+    - `detectRuntimeCompanion(platform, root fs.FS)` reads through the prober's filesystem
+      root. It checks `etc/nv_tegra_release` first (R36→jetpack6, R35→jetpack5, matched as a
+      whole number so R350 is not R35), then the sysfs DRM card vendors through
+      `Prober.accelerators` (0x1002→rocm).
+    - Hardware no bundle serves gets a `Note` rather than a guess: an old or unrecognised L4T
+      release, or an AMD GPU on arm64. The official script would fetch a nonexistent
+      `arm64-rocm` asset there.
+    - Red: compile-red until the package existed. Green:
+      `TestDetectRuntimeCompanionFollowsTheOfficialInstaller` (13 cases, including connectors,
+      mixed Intel+AMD, NVIDIA, Intel, macOS and a tegra file off arm64) and
+      `TestRuntimeCompanionsAreTheOfficialAssets`.
+    - `go test -race ./internal/local` passes (10.0s); `make lint arch platforms buildtags
+      purity` pass (0 issues).
+    - Not wired into installation yet; that is subleaf (b).
+  - (b1) done (Claude Code session, 2026-09-24): companion selection in
+    `internal/local/runtime_release.go`.
+    - `releaseFor(ctx, platform, companion)` selects the standard bundle and, when asked, its
+      companion from the same stable release. `release()` is kept as a wrapper, so the earlier
+      tests are unchanged.
+    - Both assets pass the same `trustedRuntimeAsset` checks: exactly one asset, the exact
+      official URL for this tag, a bounded size and a SHA-256 digest. A companion failure
+      refuses the whole release, and errors now name the asset.
+    - Red: compile-red. Green: `TestRuntimeCompanionReleaseSelectionAndTrust` covers each
+      official companion, the no-companion case and seven bad-companion cases (missing, which
+      names the asset; duplicate; foreign URL; another tag's URL; no digest; zero size; huge
+      size). `TestRuntimeReleaseSelectionAndTrust` still passes.
+    - Real packaging: an overlay test fed the actual v0.34.4 metadata through `releaseFor`.
+      rocm, jetpack5 and jetpack6 all select with their digests (amd64 1361+1003 MiB; arm64
+      1477+283 and 1477+257 MiB).
+    - `go test -race ./internal/local` passes (10.0s); `make lint arch` pass (0 issues).
+  - Real packaging check for (b2): ranged fetches of the first 8 MiB of the v0.34.4 bundles
+    show each companion adds its own subdirectory: `lib/ollama/rocm_v7_2/…` and
+    `lib/ollama/cuda_jetpack6/…`. The standard bundle starts at `bin/ollama`. So a merge that
+    refuses file overlaps fits the official packaging.
+  - (b2) done (Claude Code session, 2026-09-24): installation in
+    `internal/local/runtime_install.go` (and `runtime_installed.go`).
+    - `Ensure` detects the companion through a new `hardware fs.FS` seam. The real root is used
+      in production; a fixture platform with no root needs none, so the earlier tests are
+      unchanged. The companion is selected with `releaseFor`.
+    - The room check covers both archives before any download. The companion is downloaded and
+      verified like the standard bundle, with progress carrying a new `RuntimeProgress.Bundle`
+      name.
+    - The companion is extracted into its own empty staging directory, then merged into the
+      standard staging tree by `mergeRuntimeTree`. Directories merge; a file or link already
+      present refuses with its path. The combined tree is flushed again, then published.
+    - `runtimeInstallation` records `companion` and `companion_sha256`, and both are part of
+      `directory()`. A combined tree is therefore a new immutable directory, and a
+      standard-only tree in use is never modified. `validateRecord` accepts only an official
+      companion with a lowercase SHA-256, both fields set or both empty.
+    - Red: compile-red (`hardware`, `Bundle`). Green:
+      - `TestRuntimeInstallerAddsTheCompanionToANewTree` (rocm, jetpack5, jetpack6): download
+        order, progress bundles, identity, companion symlink, standard files kept, record,
+        no leaked staging, offline reuse;
+      - `TestRuntimeInstallerRefusesAnUntrustedCompanion` (overlap naming `bin/ollama`,
+        tampered digest, one byte short of room for both): nothing published or leaked;
+      - `TestRuntimeInstallerRefusesATamperedCompanionRecord` (4 cases). These are
+        defense-in-depth: a tampered field also changes the derived directory, so they pass
+        even without the new check.
+    - Mutants (session scratchpad `b2-mutants/`): room counting only the standard bundle,
+      overwrite on overlap, and identity without the companion all fail. Removing the
+      post-merge re-sync survives. Like V43.4b's own directory sync, fsync is not observable
+      in tests; that is accepted.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (10.3s, 17.9s);
+      `make lint arch platforms` pass (0 issues).
+    - Not yet: upgrading an existing standard-only tree, consent and progress wording in the
+      CLI, and unsupported-hardware reporting. Those are subleaf (c).
+  - (c1) done (Claude Code session, 2026-09-24): reuse and upgrade.
+    - Plan change: an upgrade re-downloads both bundles rather than copying the installed tree
+      locally. V43 is unreleased, so no managed installs exist yet, and an upgrade only
+      follows a hardware change or a JetPack upgrade. The copy would add risk for little gain.
+    - `Find` delegates to a new `current()`, which also returns the validated record.
+      `Ensure` reuses the installed tree offline when it already has the needed companion,
+      or when none is needed. A spare companion is kept, since that tree still runs.
+      Otherwise a new `install()` builds a new tree beside the installed one, which is never
+      touched.
+    - If that upgrade fails for any reason other than cancellation, `Ensure` keeps the
+      working runtime and emits a new `RuntimeProgress` "note" stage (`Note` field) saying
+      which bundle, for what hardware, and why. Offline reuse is never broken.
+    - Red, behavioral:
+      - `TestRuntimeInstallerAddsANeededCompanionBesideTheInstalledTree`: the standard tree
+        was reused after the machine started needing ROCm;
+      - `TestRuntimeInstallerKeepsTheWorkingRuntimeWhenACompanionCannotBeAdded`: no note was
+        emitted.
+    - Green: both pass. The installed tree's binary is unchanged (mtime and size), no
+      companion is written into it, and there is offline reuse with and without the GPU.
+      Cancellation still fails.
+    - Mutants (`c1-mutants/`): an exact-match-only reuse rule, no fallback, and always
+      reusing all fail.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (10.4s, 18.0s); `make
+      lint` 0 issues.
+    - The CLI does not print the "note" stage yet; that is (c2), with bundle-aware progress
+      and consent sizes.
+  - (c2) done (Claude Code session, 2026-09-24): setup progress in the CLI.
+    - Red: `TestNativeSetupProgressNamesTheCompanionAndShowsNotes`. The ROCm download was
+      invisible: the percent throttle never reset between bundles, so even its 100% was
+      suppressed behind the standard bundle's. The fallback "note" stage was dropped.
+    - Green: `provisionLocalRuntime` resets the throttle when `RuntimeProgress.Bundle`
+      changes. Lines are named by the new `local.RuntimeBundleLabel` ("Runtime", "ROCm
+      bundle", "JetPack 5/6 bundle"), and notes print as `  ! <note>`.
+      `TestRuntimeCompanionsAreTheOfficialAssets` now also requires a label for every official
+      companion.
+    - Consent sizes: dropped from scope. Stating a companion's size before the question would
+      need the release metadata, a network request before consent. The standard bundle's size
+      is not stated today either. The prompt names the companion from local detection instead,
+      which is (c3), with unsupported-hardware reporting.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (10.5s, 18.1s); `make
+      lint arch` pass (0 issues).
+  - (c3) done (Claude Code session, 2026-09-24): reachability and consent.
+    - Gap found in (c1): the session starter provisions only when no binary exists. A
+      standard-only managed tree on hardware now needing a companion was therefore started
+      as-is, and the (c1) upgrade was unreachable from the CLI.
+    - Fixes:
+      - `Host.MissingCompanion` (a person-facing description, e.g. "ROCm bundle for AMD GPU
+        card0") is set by `RuntimeInstaller.Find`, read-only, for a managed tree lacking the
+        needed companion and for an absent installation. `Ensure`'s own reuse logic is
+        unchanged.
+      - `HostStarter.Ensure` routes an installed managed host with a missing companion through
+        `Provision`, which upgrades or falls back with a note. A user's own Ollama is never
+        provisioned.
+      - `discoverLocalRuntime` keeps a discovered companion note when nothing is installed.
+      - `printPullSetup` names the companion. For an absent runtime: "sets up Ollama (official
+        build, no Docker or sudo) with its …". For a managed tree missing it: "a yes also
+        downloads Ollama again with its …, beside the installed runtime, and starts it".
+    - Red: compile-red (`MissingCompanion`); then behavioral red for the two new consent rows
+      of the setup-disclosure table.
+    - Green: `TestRuntimeInstallerFindReportsAMissingCompanion` (absent, standard tree on AMD,
+      complete tree); `TestHostStarterCompletesAManagedTreeMissingItsCompanion` (missing,
+      complete, user's own); the setup-disclosure table now has seven states.
+    - Mutants (`c3-mutants/`): no completion, and completing a user's own Ollama, both fail.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (10.6s, 18.3s); `make
+      lint arch platforms` pass (0 issues).
+    - Remaining in (c): `/localia` status showing a missing companion and unsupported-hardware
+      notes; `docs/localia.md`.
+  - (c4) done (Claude Code session, 2026-09-24): status and docs.
+    - `Host.AcceleratorNote` is set by `Find` from detection's note. The `/localia` RUNTIME
+      section prints "accelerator: <bundle> is not installed; the next local setup or model
+      start adds it" and `! <note>`.
+    - Red: `TestLocaliaStatusNamesMissingCompanionsAndUnsupportedAccelerators` (compile-red,
+      then behavioral red on the absent case). `HostStarter.Host` discarded an absent
+      discovery entirely, so a session with no runtime dropped both notes. Now it keeps them.
+      `discoverLocalRuntime` keeps both notes on its absent path.
+    - Green: that test (missing companion, unsupported accelerator, absent with companion) and
+      `TestRuntimeInstallerFindDescribesUnservedAccelerators` (an AMD GPU on arm64 gives a
+      note naming ROCm, and no companion).
+    - `docs/localia.md` platform scope now describes companion installation, consent, upgrade,
+      fallback, MLX and the notes.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (11.6s, 19.2s); `make
+      lint arch` pass (0 issues).
+    - Subleaf (c) is complete. Next: (d) independent verification of V43.4c.2.
+  - (d) Independent verification 1 (a fresh Claude agent, 2026-09-24): FINDINGS.
+    - Gates: `make check` exit 0 (4,506 tests, 0 lint issues). Race runs of local, cli and
+      provider pass; the new tests pass at `-count=10`.
+    - Verified clean: merge safety (every overlap shape; escape links refused by the
+      extractor; partial failure publishes nothing); identity (dest-exists recovery; 4
+      concurrent installers give one tree); fallback (a tampered companion gives a visible
+      note; cancellation propagates); pull consent ordering.
+    - Real packaging: `build_linux.sh` v0.34.4 tars only `lib/ollama/rocm_v*` and
+      `lib/ollama/cuda_jetpack{5,6}`.
+    - Findings:
+      - (V1, medium) `/plans login ollama` on a standard-only managed tree that lacks a needed
+        companion re-downloads about 2.4 GiB through starter completion, without disclosure.
+      - (V2, medium) status and docs promise "the next local setup or model start adds it",
+        but a running persistent runtime is reused and neither path adds it.
+      - (V3, low) install.sh returns before its AMD branch when an NVIDIA driver is present;
+        Kolk picks rocm for any 0x1002 card, such as a Ryzen iGPU beside an NVIDIA dGPU.
+      - (V4, low) a deterministic post-download failure repeats the full download each
+        session.
+      - (V5, low) surviving mutants: companion-agnostic reuse, standard-only-only `Find`,
+        fallback on cancellation, and dest-exists without `validateRecord`. Also unreachable
+        note-copy code in `discoverLocalRuntime`, no missing line after a fallback, the
+        internal name in the note.
+    - Probes and logs are in the session scratchpad `v43-4c2-review/`.
+  - V1 fixed (Claude Code session, 2026-09-24). A sign-in never downloads a runtime.
+    - The new `HostStarter.EnsureInstalled` starts only what is installed, as it is. It never
+      provisions an absent runtime or completes a tree with its companion.
+    - The CLI's `startHostFor` becomes `startHostWith(ctx, host, setup)`. `/plans login ollama`
+      uses `setup=false`; pulls and `/localia setup` keep setup and its consent text.
+    - Red: `TestOllamaLoginNeverDownloadsARuntime` (behavioral: setup ran once). Green: that
+      test and `TestHostStarterEnsureInstalledNeverSetsUp` (missing companion: no setup;
+      absent: error, no setup).
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (10.7s, 18.2s); `make
+      lint arch` pass (0 issues).
+  - V2 fixed, together with V5's "no missing line after a fallback" (Claude Code session,
+    2026-09-25).
+    - `HostStarter` keeps the running managed runtime's missing companion (`missing`) from
+      discovery. It is cleared only when setup produced a different tree, so a fallback that
+      kept the old tree still reports the gap. `Host()` returns it for a runtime the session
+      started.
+    - `/localia` status for a running runtime says "the running runtime started without it,
+      and Kolk adds it the next time it starts one". A stopped or absent runtime gets "the next
+      local setup, pull or model start adds it".
+    - `docs/localia.md`: a running (for example persistent) runtime keeps running without the
+      bundle until it stops, and a sign-in never downloads.
+    - Red: the new "running without companion" status row (it claimed setup would add the
+      bundle) and `TestHostStarterRemembersAMissingCompanionAfterStarting` (the fallback case
+      lost the gap). Green: both, plus the "completed" case reporting nothing missing.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (10.5s, 18.3s); `make
+      lint arch` pass (0 issues).
+  - V3 fixed (Claude Code session, 2026-09-25).
+    - install.sh (v0.34.4) exits at `check_gpu nvidia-smi` before its AMD branch.
+      `detectRuntimeCompanion` now returns no companion when `proc/driver/nvidia/version`
+      exists, the loaded-driver equivalent readable through the probe's filesystem root. This
+      runs after the JetPack check, matching the script's order.
+    - An NVIDIA card with no driver still gets ROCm for an AMD card beside it, as install.sh
+      would. The remaining divergence: nvidia-smi installed while the driver is not loaded.
+    - Red: detection row "nvidia driver wins over amd" (rocm was chosen for card1). Green: that
+      row and "amd beside an nvidia card without driver" (rocm).
+    - `docs/localia.md` names the exception.
+    - `go test -race ./internal/local` passes (10.5s); `go test ./internal/cli` passes; `make
+      lint platforms` pass (0 issues).
+  - V5 part 1 (Claude Code session, 2026-09-25): mutant gaps and the note label.
+    - New tests: `TestRuntimeInstallerSwitchesJetPackBundles` (R35→R36: `Find` reports JetPack
+      6 missing; `Ensure` builds a jetpack6 tree, downloading only jetpack6 as the companion;
+      the JetPack 5 binary is unchanged); `TestRuntimeInstallerCancelledUpgradeIsNotAFallback`
+      (cancelling mid-upgrade returns `context.Canceled`, with no note and the pointer
+      unchanged); `TestRuntimeInstallerRefusesADamagedTreeWithoutAPointer` (a damaged tree
+      whose pointer is gone is refused and never pointed at).
+    - Overlay mutants (`v5-mutants/`): the verifier's survivors now all fail. That is L13
+      (reuse any tree with a companion), L15 (fall back on cancellation), L16 (`Find` reports
+      only standard-only trees) and L25 (dest-exists without `validateRecord`).
+    - The fallback note now names the bundle for a person ("the ROCm bundle for AMD GPU card0
+      could not be added (…)"), not the internal "rocm". It was red first.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (10.9s, 18.0s); `make
+      lint` 0 issues.
+    - V5 remaining: the note-copy in `discoverLocalRuntime` that only fakes reach, which needs
+      a hermetic hardware seam for the CLI. Then V4.
+  - V5 part 2 (Claude Code session, 2026-09-25): no code that only fakes reach, and hermetic
+    CLI tests.
+    - The note-copy in `discoverLocalRuntime` is removed. Production `DiscoverHost` never sets
+      those fields; notes come only from `RuntimeInstaller.Find`.
+    - `RuntimeInstaller.Hardware` is now exported. The CLI passes a new `app.localHardware`
+      seam to discovery and to the production installer (nil means the real root), and
+      `newTestApp` sets an empty `fstest.MapFS`. CLI tests no longer read the real
+      `/proc/driver/nvidia` or `/sys/class/drm`. This cannot be shown red on the macOS dev
+      machine, since darwin has no companions.
+    - The two tests that went through the removed copy now inject through a session
+      `HostStarter`, which is real production code (it keeps an absent discovery's notes): the
+      status test, and every row of the pull-consent table. Detection-driven notes stay covered
+      in `internal/local`.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (11.0s, 18.2s); `make
+      lint arch` pass (0 issues).
+  - V4 fixed (Claude Code session, 2026-09-25): no repeated multi-GB downloads for a release
+    that already failed.
+    - Content failures are wrapped in `runtimeContentError`: a SHA-256 mismatch, an unpack
+      failure, a bad runtime binary, and a companion extract or merge refusal. While
+      *upgrading* a working tree, `install` remembers one in a small
+      `failed-<tag>-<tree identity>.json` marker, unless the context was cancelled.
+    - The next upgrade for that exact release and tree skips the downloads and falls back at
+      once, with the note "an earlier attempt with vX failed (…); a new Ollama release retries
+      it".
+    - A fresh installation never reads or writes markers, so an explicit setup always retries
+      and shows the real error. Transport failures and too little room are never remembered.
+    - Red: `TestRuntimeInstallerDoesNotRepeatAFailedCompanionForItsRelease` (the second
+      session re-downloaded both bundles). Green: it (a new tag is tried afresh and installs
+      ROCm) and `TestRuntimeInstallerRetriesACompanionAfterATransportFailure` (two sessions,
+      two attempts).
+    - Two design corrections came from the first green run: markers are written only while
+      upgrading, since a fresh-install refusal must leave nothing behind, and the key includes
+      the tag, so "a new release retries" holds even with identical digests.
+    - Mutants (`v4-mutants/`): never skipping, remembering transport errors, and keying
+      without the tag all fail.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (11.0s, 18.4s); `make
+      lint arch` pass (0 issues).
+  - All five findings (V1–V5) are addressed. Next: the verifier's follow-up pass, then `[x]`.
+  - (d) Independent verification 2 (the same verifier, follow-up, 2026-09-25): FINDINGS, and
+    not ready for `[x]`.
+    - Confirmed: V1 and V3 fixed; V2 fixed for the reported scenario; V4 stops repeat
+      downloads for genuine content failures. The earlier survivors L1/L13/L15/L16/L25 are
+      killed.
+    - Gates: `make check` exit 0 (4,521 tests, 0 lint issues); race runs of local, cli and
+      provider pass; new tests pass at `-count=10`.
+    - Findings:
+      - (G1, medium) running out of disk *during unpacking* was remembered as a content
+        failure. After the user freed space, every session, including `/localia setup`,
+        skipped the release until a new one. The pre-download room check counts only the
+        compressed archives.
+      - (G2, low) while a marker exists, status, the pull question and the docs still promise
+        the bundle, and there is no way to force a retry.
+      - (G3, low) a stale `missing` labels the user's own server once a reused persistent
+        runtime died.
+      - (G4, low) `missing` follows the current record, not the tree a running persistent
+        process started from.
+      - Surviving mutants: V2d (persistent reuse does not set `missing`), V3b (NVIDIA check
+        before the tegra check), V4d (a fresh install reads markers), V4g (marker symlink),
+        V4l (merge failure not remembered), V4m (empty-error marker).
+    - Logs are in `v43-4c2-followup/`.
+  - G1 fixed (Claude Code session, 2026-09-25).
+    - `room()` wraps a new `errRuntimeNoRoom`, including when the extractor's reserve calls
+      it. The new `runtimeContentFailure` leaves an unpacking error unclassified when it
+      matches `errRuntimeNoRoom` or `syscall.ENOSPC`.
+    - Content is now only: a digest mismatch, a genuine unpack failure, a bad runtime binary,
+      or a merge overlap (`mergeRuntimeTree` wraps the overlap itself). Local I/O in
+      `addCompanion` (mkdir, open, fsync) is no longer classified.
+    - Red: `TestRuntimeInstallerDoesNotRememberRunningOutOfRoom` (room passes before download
+      but runs out during unpack; after freeing space, the next session downloaded nothing).
+      Green: it downloads both bundles and installs the ROCm tree.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (11.9s, 18.7s); `make
+      lint platforms arch` pass (0 issues); `GOOS=windows go build ./internal/local` passes.
+  - G2 fixed (Claude Code session, 2026-09-25): a remembered failure is visible and can be
+    retried.
+    - `Host.CompanionFailure` is set by `Find`: `rememberedFailure` reads the newest valid
+      `failed-*` marker for this platform and companion, read-only and offline. Markers are
+      read through the shared `readFailure` (regular file, ≤4 KiB, non-empty reason).
+    - `RuntimeInstaller.ForgetFailures` clears all markers under the install lock.
+      `/localia setup` calls it first, even when a runtime is running.
+    - Status for a remembered failure: "an earlier attempt failed (…). `/localia setup`
+      retries it, and a new Ollama release is tried automatically".
+    - Pull question: "a yes also starts Ollama; adding its … failed before (…), so only a new
+      Ollama release (a new runtime download) or `/localia setup` retries it". This replaces
+      the false "downloads Ollama again".
+    - `docs/localia.md` describes remembering, retry, and what is never remembered.
+    - Red: the status "remembered failure" row, the pull "installed-companion-failed-before"
+      row, and compile-red for `TestRuntimeInstallerReportsAndForgetsARememberedFailure`.
+      Green: those, plus `TestLocaliaSetupForgetsRememberedFailures`, whose overlay mutant
+      without the forget call fails.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (11.4s, 18.2s); `make
+      lint arch platforms` pass (0 issues).
+  - G3 fixed, G4 accepted, V3b closed (Claude Code session, 2026-09-25).
+    - G3: `HostStarter` adopting a running server (the user's own) now resets `missing`, and
+      `Host()` reports `MissingCompanion` only for a managed runtime. Red:
+      `TestHostStarterAdoptingAUserServerClearsTheMissingCompanion`, the verifier's path: a
+      reused persistent runtime has died and the user's server answers; the status still
+      named Kolk's missing bundle.
+    - G4, accepted limit: `missing` comes from the installation record, not from the tree a
+      running persistent process started from. Two projects in persistent mode, where one
+      upgraded to the combined tree while the other's process still runs the standard tree,
+      misreport that process. Tracking the running tree means extending the persistent
+      process record. That is deferred as an edge case; the next start of that runtime uses
+      the current tree.
+    - V3b: detection row "jetson with the nvidia driver loaded" (jetpack6). The overlay mutant
+      that moves the NVIDIA check before the JetPack check (`g3-mutants/`) now fails.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (11.4s, 18.2s); `make
+      lint arch` pass (0 issues).
+    - Remaining test gaps: V2d (persistent reuse sets `missing`), V4d (a fresh install
+      ignores markers), V4g (a symlinked marker is ignored), V4l (a merge failure is
+      remembered), V4m (an empty-error marker is ignored).
+  - Test gaps closed (Claude Code session, 2026-09-25): all five mutants now fail
+    (`gap-mutants/`).
+    - V2d: `TestPersistentReuseKeepsTheMissingCompanion` publishes a real persistent runtime,
+      reuses it from a second session, and checks the gap is still reported.
+    - V4d: `TestFreshInstallIgnoresRememberedFailures`, via the shared
+      `upgradeWithTamperedCompanion` helper; the release is tried and the real SHA-256 error
+      returned.
+    - V4g and V4m: `TestMalformedFailureMarkersAreIgnored`. The symlink case needed a
+      *relative in-tree* link: an absolute or escaping link is already refused by `os.Root`,
+      so the mutant survived until the test used the case the regular-file check exists
+      for. An empty reason is also ignored.
+    - V4l: `TestAnOverlappingCompanionIsRemembered` (the next session downloads nothing).
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (11.8s, 18.2s); `make
+      lint` 0 issues.
+    - All V43.4c.2 findings (V1–V5, G1–G3) are fixed and G4 is an accepted limit. Next: the
+      verifier's final pass, then `[x]`.
+  - (d) Independent verification 3 (the same verifier, final pass, 2026-09-25).
+    - G1, G3 and every listed gap are verified; G4 is accepted.
+    - Gates: `make check` exit 0 (4,535 tests, 0 lint issues); the new tests pass at
+      `-count=10`.
+    - Finding: (H1, low) once a runtime is running after a remembered failure, status went back
+      to "Kolk adds it the next time it starts one", which the next start does not do: the
+      starter cached only `missing`, not the failure.
+    - Informational:
+      - I1: EDQUOT, EIO and an unmeasurable free space during unpacking still count as
+        content. This is mitigated: status shows the reason and `/localia setup` clears it.
+      - I2: `/localia setup` waits silently on the install lock, and a foreign non-removable
+        `failed-*.json` entry would make it fail. That is speculative.
+      - I3: marker matching is correct for real tags.
+    - Recommendation: close after H1. Logs are in `v43-4c2-final/`.
+  - H1 fixed, and the remaining low gaps closed (Claude Code session, 2026-09-25).
+    - `HostStarter` carries `failure` next to `missing`: from discovery, cleared when setup
+      produced a new tree, and re-read from discovery when setup kept the old tree, so a
+      failure remembered by that very attempt is included. Reset on adopt and on
+      `forgetExited`. `Host()` returns `CompanionFailure` for a managed runtime.
+    - Status for a running runtime with a remembered failure: "an earlier attempt failed (…),
+      and the running runtime started without it. After `/localia setup`, its next start
+      retries; a new Ollama release is tried automatically".
+    - Red: `TestHostStarterCarriesARememberedFailureIntoTheRunningRuntime` (remembered before;
+      remembered by this attempt) and the status row "running after a remembered failure",
+      which also forbids the old promise.
+    - Gap tests:
+      - `TestRuntimeContentFailureClassification`: ENOSPC nested in `PathError` inside
+        `errors.Join` inside `%w`, and room, are not content; a corrupt frame is.
+      - `TestRememberedFailureMatchesPlatformAndCompanion`: no cross-companion or
+        cross-platform match; the newest wins.
+      - `TestACorruptCompanionArchiveIsRemembered`.
+    - Overlay mutants (`final-gap-mutants/`): G1b, G2b, G2c, G2d and G1f all fail.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (11.8s, 19.5s); `make
+      lint arch` pass (0 issues).
+    - Next: the verifier confirms H1 and the gates, then `[x]`.
+  - (d) Independent verification 4 (the same verifier, closing, 2026-09-25): CLEAN.
+    - Non-author gates: `make check` exit 0 (4,542 tests, 0 lint issues); `go test -race
+      ./internal/local ./internal/cli ./internal/provider` passes.
+    - Every H1 probe passes. The re-discovery after `Provision` neither adopts a server nor
+      rebinds the binary, and cannot deadlock: production `Discover` never takes the
+      starter's lock.
+    - Mutants G1b, G1f, G2b, G2c, G2d, H1a, H1b and H1c are all killed. Logs are in
+      `v43-4c2-close/`.
+    - **V43.4c.2 closed 2026-09-25.**
+  - Limits (V43.4c.2):
+    - Fixtures, overlays, the real v0.34.4 release metadata and 8 MiB bundle heads only. No
+      AMD or Jetson machine was used, and no full companion bundle was downloaded or run.
+    - Accepted: G4 (`missing` follows the record, not the running persistent tree).
+    - Informational: I1 (EDQUOT, EIO and an unmeasurable free space during unpacking still
+      count as content; mitigated by the reason shown and `/localia setup`); I2 (setup waits
+      on the install lock silently).
+    - Remaining divergence from install.sh: nvidia-smi installed while the driver is not
+      loaded.
+- [x] **V43.4c.3 complete flow acceptance** — reconcile surfaces and integrated evidence before
+  advancing to the final six-priority review. Continued by the Claude Code session from Codex's
+  V43.4c.1 work; three integrated verification passes plus a delta re-check by a non-author
+  verifier. Closed 2026-09-25.
+  - Surface reconciliation, part 1 (Claude Code session, 2026-09-25).
+    - Surveyed: README, `docs/localia.md`, the `/localia` usage table, `/doctor`, the model
+      listing, and the first-run and consent text.
+    - Found: `/doctor` said "kolk uses it and never stops it" for *any* running server,
+      including a Kolk-managed session runtime that stops at session close when ephemeral. It
+      also showed none of the accelerator lines `/localia` now shows.
+    - Fix: `/localia`'s accelerator lines move into a shared `printAcceleratorStatus`, used by
+      both commands, so the wording cannot drift. `/doctor` names a managed runtime as "Kolk's
+      runtime" with its real lifetime ("it stops when this session closes" or "it stays running
+      for this project"). The user's own server keeps "never stops it".
+    - README: added the Linux GPU bundles and the `/localia` and `/doctor` notes.
+    - Red: `TestDoctorDescribesKolksRuntimeAndItsAccelerator` (managed with a missing bundle;
+      the user's own server; an unserved accelerator). Green: that test and the unchanged
+      status tests.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (12.1s, 18.5s); `make
+      lint surface plan-check site` pass (0 issues; 21, 110 and 472 checks).
+  - Surface reconciliation, part 2 (Claude Code session, 2026-09-25).
+    - Model-picker rows. Picking a model is consent to what the pick does, but a managed runtime
+      missing its bundle said only "starts ollama when picked". The pick also re-downloads the
+      runtime with the bundle, and a first setup did not name the bundle it adds.
+    - Rows now say "downloads Ollama again with its … when picked" for a managed tree missing a
+      bundle (unless a remembered failure means the pick skips it), and "sets up Localia with
+      its … when picked" for a first setup. The user's own Ollama is unchanged.
+    - `/localia models` now names Cloud tags: "Ollama Cloud tags run on ollama.com and need no
+      plan: /localia pull --yes <tag>-cloud".
+    - Red: `TestPickerRowsSayWhatAPickDownloads` (managed missing bundle; absent with bundle;
+      failed before and the user's own stay "starts ollama") and
+      `TestLocalCatalogMentionsCloudTags`.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (11.7s, 18.2s); `make
+      lint` 0 issues.
+    - Surfaces now reconciled: first-run text, the host 404 advice, pull consent, sign-in,
+      `/localia` status, `/doctor`, the picker, the catalog, README and `docs/localia.md`.
+      Next: independent verification of the integrated flow, and a record of the machine
+      trials still needed.
+  - Integrated verification 1 (a fresh Claude agent, 2026-09-25): FINDINGS (3 medium, 8 low,
+    1 cosmetic).
+    - How: overlay seams for platform (linux amd64/arm64, windows) and release, driving a real
+      `RuntimeInstaller` with a fake `ollama serve` through the real CLI flows.
+    - Passed: macOS and Linux first runs end to end; AMD fresh setup and offline reuse;
+      standard tree to ROCm upgrade; persistent reuse; sign-in in every state (never
+      downloads); Cloud proof; Jetson R36 and R32. No races, consent bypasses or ownership
+      errors.
+    - `make check` exit 0 (4,552 tests, 0 lint issues).
+    - Findings:
+      - (F1, medium) not-pulled picker rows omit what the pick does; a pick sets up the runtime
+        (about 2.4 GiB on AMD).
+      - (F2, medium) after `local.ephemeral on`, a still-running persistent runtime is
+        orphaned. Status and doctor say "not running", and the next session starts a second
+        server.
+      - (F3, medium) a runtime-setup failure on the first prompt shows as a paused endpoint
+        ("unreachable"); the cause is never printed.
+      - (F4) after a remembered failure, a new release's download is hidden by "starts ollama
+        when picked".
+      - (F5) the plain `/model` listing contradicts the picker for an incomplete tree.
+      - (F6) Windows rows promise a setup that cannot happen.
+      - (F7) the 401 advice names `ollama signin`.
+      - (F8) the printed `/plans login ollama "Ollama Pro"` fails when pasted (quotes are not
+        stripped).
+      - (F9) `/localia setup` does not retry while a runtime runs; its status is stale.
+      - (F10) the fit plan says GPU where the runtime cannot use it.
+      - (F11) a first AMD install is all-or-nothing on ROCm.
+      - (F12) `/doctor` shows a blank version.
+      - I1–I5 informational.
+    - Machine-trial list: 12 owner steps (Linux amd64 on the TrueNAS box, Pi 5 arm64, a
+      physical AMD card, a Jetson, Windows, a real signin, a real Cloud `/api/show`, a
+      physical terminal, persistent detach, a blocked network, edge platforms, interrupted
+      real downloads).
+    - Logs and transcripts are in `v43-4c-integrated/`.
+  - F1, F4 and F6 fixed (Claude Code session, 2026-09-25): every picker row's pick is disclosed.
+    - A new `pickSuffix(host)` is applied to every local row, not-pulled rows included.
+      - A managed tree missing its bundle: "downloads Ollama again with its … when picked".
+      - With a remembered failure: "starts ollama when picked; a new Ollama release downloads it
+        again with its …".
+      - Absent where managed setup is supported: "sets up Localia [with its …] when picked".
+      - Absent where it is not: "needs Ollama installed first: <InstallHint>" (F6).
+      - A user's own Ollama: "starts ollama when picked".
+    - Red: `TestEveryPickerRowSaysWhatThePickSetsUp` (4 rows). The earlier picker tests still
+      pass.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (11.6s, 18.2s); `make
+      lint` 0 issues.
+    - Remaining from integrated verification 1: F2, F3 (medium); F5, F7, F8, F9, F10, F11
+      (low); F12 (cosmetic).
+  - F3 fixed (Claude Code session, 2026-09-25): a setup failure is no longer a paused
+    endpoint.
+    - `provider.Classify` treats any `url.Error` or `net.Error` in the chain as the model
+      endpoint's transport limit. A DNS failure reaching GitHub during runtime setup therefore
+      paused the turn ("…hit its endpoint (unreachable)"), attributed it to a connector, and
+      never printed the cause.
+    - `HostStarter.Ensure` now wraps a `Provision` failure in a new `RuntimeSetupError` that
+      deliberately does not unwrap. Its text is "setting up Localia failed: <cause>; check the
+      network and retry, or install Ollama yourself and Kolk will use it". Cancellation and
+      deadline errors pass through unwrapped.
+    - Red: `TestRuntimeSetupFailureIsNotAModelEndpointLimit` (the DNS setup failure was
+      classified as a transport limit). Green: not a limit, names `api.github.com` and
+      Localia; a cancelled setup still returns `context.Canceled`.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (11.6s, 17.8s); `make
+      lint arch` pass (0 issues).
+  - F2 fixed (Claude Code session, 2026-09-25): a kept persistent runtime is reused, not
+    orphaned.
+    - Decision (cautious, reversible): an ephemeral session reads the project's persistent
+      record, read-only, with the same identity and readiness checks. It reuses a runtime an
+      earlier `local.ephemeral off` left running, instead of starting a second server, and
+      never stops it. It holds no process handle, so `Close` cannot signal it, as V43.4a
+      decided. Taking ownership and stopping it is left to the owner.
+    - `HostStarter.kept` and `Host.KeptRunning` are revalidated like persistent reuse and reset
+      when the process has died. `Host()` also reports a kept runtime from the record before
+      any start.
+    - `/localia` says "kept running from an earlier `local.ephemeral off`; this session reuses
+      it and leaves it running", and `/doctor` says the same. `docs/localia.md` explains that
+      turning ephemeral back on does not stop it.
+    - Red: `TestEphemeralSessionReusesAPersistentRuntimeLeftRunning` (compile-red on
+      `KeptRunning`; behaviorally the ephemeral session started a second server). Green: the
+      same address, 0 session starts, and Close leaves the kept process running.
+    - `TestStatusAndDoctorNameAKeptRuntime` was written after the fix. It is proven by an
+      overlay mutant without the kept case (`f2-mutants/`), which fails.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (11.7s, 18.2s); `make
+      lint arch` pass (0 issues).
+    - Remaining: F5, F7, F8, F9, F10, F11 (low); F12 (cosmetic).
+  - F8 fixed (Claude Code session, 2026-09-25).
+    - `runPlanLogin` drops one pair of matching quotes around the plan name
+      (`unquotePlanName`), so the printed `/plans login ollama "Ollama Pro"` works when
+      pasted. The slash line is split on spaces.
+    - A name matching no plan now lists the provider's plans ("its plans are: Ollama Pro, …").
+    - Red: `TestPlansLoginAcceptsTheQuotedPlanThePickerPrints` (the pasted command failed
+      with `no exact provider CLI plan "\"Ollama Pro\""`). Green: accepted; an unknown name
+      lists the plans.
+    - `go test -race ./internal/cli` passes; `make lint` 0 issues.
+    - Remaining: F5, F7, F9, F10, F11 (low); F12 (cosmetic).
+  - F7 fixed (Claude Code session, 2026-09-25).
+    - The Ollama 401 advice (`adviseHost`) now says "Sign in with `/plans login ollama <plan>`,
+      or open <signin_url>, then try again". It no longer says "run `ollama signin`", which a
+      Kolk-managed runtime lacks on PATH and a user's own `ollama` would point at port 11434.
+    - Red: the tightened `TestHostClientErrorsNameTheirOriginAndItsRemedy`. Green: the session
+      command and the server's sign-in URL are both named.
+    - `go test -race ./internal/provider` and `go test ./internal/cli ./internal/engine` pass;
+      `make lint` 0 issues.
+    - Remaining: F5, F9, F10, F11 (low); F12 (cosmetic).
+  - F9 fixed (Claude Code session, 2026-09-25).
+    - With a runtime running, `/localia setup` forgot the remembered failure but printed only
+      "✓ Localia is ready". The starter kept its cached failure, so status still said "an
+      earlier attempt failed".
+    - Setup now also calls the new `HostStarter.ClearCompanionFailure`, and prints the shared
+      accelerator line after "ready": "the running runtime started without it, and Kolk adds
+      it the next time it starts one". That is accurate, because the next start retries.
+    - Red: `TestLocaliaSetupWithARunningRuntimeSaysWhatItLacks` (setup printed only "ready").
+      Green: setup names the gap, and status no longer blames the forgotten failure.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (11.8s, 18.6s); `make
+      lint arch` pass (0 issues, after `gofmt` on the new test).
+    - Remaining: F5, F10, F11 (low); F12 (cosmetic).
+  - F5 fixed (Claude Code session, 2026-09-25).
+    - For an installed but stopped runtime, the plain `/model` listing said "`/model` can still
+      pick a pulled one and start it". It now ends with the picker's own `pickSuffix`, e.g.
+      "· downloads Ollama again with its ROCm bundle for AMD GPU card0 when picked", so the
+      two surfaces cannot disagree.
+    - Red: `TestModelListingSaysWhatAPickDoesLikeThePicker`.
+    - `go test -race ./internal/cli` passes; `make lint` 0 issues.
+    - Remaining: F10, F11 (low); F12 (cosmetic).
+  - F12 fixed (Claude Code session, 2026-09-25).
+    - `HostStarter.ensure` takes the version from the discovered installed host along with its
+      binary. A runtime started from an installed tree, or reused from a persistent record, now
+      reports it: `/doctor` shows "✓ ollama v0.34.4 running …", not a blank version.
+    - Red: `TestHostStarterKeepsTheInstalledVersion`.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes; `make lint` 0 issues.
+    - Remaining: F10, F11 (low).
+  - F11 fixed (Claude Code session, 2026-09-25): a first install is not held hostage by its
+    bundle.
+    - On a fresh install (no working runtime), a companion failure drops the companion and
+      installs the standard runtime, with the note "the ROCm bundle for … could not be added
+      (…); installing the runtime without it". That covers the release lacking the asset
+      (re-selected without it), a failed companion download or verification, and a failed
+      unpack or merge.
+    - After a failed merge the standard tree is rebuilt from its verified archive by the new
+      `extractStandard`, so no fragment of the dropped bundle ships and there is no second
+      download.
+    - An upgrade keeps its working tree and remembered failures; room and cancellation still
+      refuse. The next session reports the gap and retries it as an upgrade.
+    - Walk-back: the b2 test `TestRuntimeInstallerRefusesAnUntrustedCompanion` now expects a
+      standard-only tree plus a note for overlap and tampering (room is unchanged).
+      `TestFreshInstallIgnoresRememberedFailures` now checks the real cause in the note.
+    - Red: those two, plus `TestFreshInstallWithoutTheCompanionAssetInstallsTheRuntime`.
+      Added: `TestFreshInstallRebuildsTheTreeAfterAPartialMerge`.
+    - Mutants (`f11-mutants/`): without the re-extraction, and never dropping, both fail.
+    - `docs/localia.md` updated.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (11.8s, 18.5s); `make
+      lint arch` pass (0 issues).
+    - Remaining: F10 (low).
+  - F10 fixed (Claude Code session, 2026-09-25): fit plans never place a model on an unusable
+    GPU.
+    - Discovery gains machine-readable facts. `Host.UnservedVendor` is set from detection (an
+      AMD GPU on arm64 has no ROCm bundle), and `Host.CompanionVendor` is the vendor a missing
+      companion serves (`companionVendors`: rocm→amd; JetPack serves a Tegra GPU, which the
+      prober does not list).
+    - `Host.UnusableVendor()` returns the unserved vendor. It also returns a missing bundle's
+      vendor when the next start will not add it: a runtime running without it, or a
+      remembered failure. The starter carries both facts into a running runtime.
+    - The CLI's new `usableHardware` drops that vendor's cards before `/localia plan`, both
+      pull fit checks, and the picker's "CPU only" marker. `/localia` status still lists the
+      real hardware, next to its note.
+    - Red: the tightened Find tests (`UnservedVendor` on arm64 AMD; `UnusableVendor()` after a
+      remembered ROCm failure) and `TestFitPlanLeavesOutAnUnservedGPU`. The CLI test is proven
+      by an overlay mutant without the filter (`f10-mutants/`), which fails.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (11.9s, 18.5s); `make
+      lint arch` pass (0 issues).
+    - All integrated-verification findings are addressed: F1–F12 fixed; I1–I5 informational.
+      Next: integrated verification 2, then close V43.4c.3 and V43.4c.
+  - Integrated verification 2 (same verifier, 2026-09-25): FINDINGS; V43.4c not ready to close.
+    - Ten of twelve fixes are verified; F3 and F10 are partial.
+    - `make check` exit 0 (4,567 tests, 0 lint issues); no races.
+    - Findings:
+      - (G1, medium) a setup deadline (the installer's 30s lookup, e.g. behind a dropping
+        firewall) passed through unwrapped and still paused the model endpoint, because
+        `context.DeadlineExceeded` is a `net.Error`.
+      - (G2, low; a regression from F11) after a first install drops ROCm, the session clears
+        `missing`, so status, plan and picker describe a complete runtime.
+      - (G3, low) with no runtime yet, `Host()` drops `UnservedVendor` and `CompanionVendor`,
+        so F10 misses that state.
+      - (G4, low) the docs overpromise: a first-install failure is not remembered, and setup
+        with a running runtime does not retry at once.
+      - (G5, low) the setup-error suffix "check the network and retry" also appears for
+        failures a retry cannot fix (Windows, checksum); the Windows pull question says
+        nothing about installing Ollama first.
+      - (G6, low) a kept runtime that is alive but not answering blocks ephemeral sessions,
+        and no surface says why.
+    - Informational: a running starter drops `AcceleratorNote` (this predates V43.4c.3); the
+      plan's fallback text when a card was filtered out.
+    - Logs are in `v43-4c-integrated-2/`.
+  - G1 fixed (Claude Code session, 2026-09-25).
+    - `HostStarter.ensure` passes a `Provision` error through only when it is a cancellation
+      (not a `net.Error`, so it can never be misclassified) or when the caller's own context
+      has ended. The installer's own deadline, its 30s release lookup behind a dropping
+      firewall, is now a `RuntimeSetupError`.
+    - Red: `TestSetupDeadlineIsASetupFailureNotAnEndpointLimit` (classified as a transport
+      limit).
+    - Codex's `TestFailedNativeSetupKeepsPreviousSelection` expects an installer
+      `context.Canceled` to pass through with a live caller context. A first, stricter version
+      of this fix broke it, so the cancellation clause keeps that contract.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes (13.3s, 19.9s); `make
+      lint` 0 issues.
+    - Remaining: G2, G3, G4, G5, G6 (low).
+  - G2 fixed (Claude Code session, 2026-09-25; a regression from F11).
+    - After `Provision`, the starter cleared the gap whenever the binary changed, assuming a new
+      tree carries the bundle. Since F11 a first install can publish a standard-only tree.
+    - It now re-discovers after every `Provision` and trusts the answer when the discovered
+      binary is the one about to run: bundle added, old tree kept (with why), or first
+      install without it. Otherwise it falls back to the old rule, where a new binary clears
+      the gap, so a foreign server answering discovery never leaks in.
+    - Red: `TestHostStarterKeepsTheGapAfterAFirstInstallDroppedTheBundle` (the gap and
+      `UnusableVendor` were lost). The earlier starter tests (completed, kept tree, failure
+      carried, foreign binary) still pass.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes; `make lint` 0 issues.
+    - Remaining: G3, G4, G5, G6 (low).
+  - G3 fixed (Claude Code session, 2026-09-25; F10 did not reach a machine with no runtime).
+    - With no runtime yet, `HostStarter.Host()` copied only `MissingCompanion` and
+      `AcceleratorNote` from discovery. On arm64 with an AMD card, `/localia` said the GPU
+      runs on the CPU while `/localia plan`, the pull question and the picker rows still
+      placed models on it.
+    - The absent branch now also carries `UnservedVendor` and `CompanionVendor`. It
+      deliberately leaves out `CompanionFailure`: a fresh install ignores remembered
+      failures (`failedBefore` runs only while upgrading) and tries the bundle again, so the
+      card stays usable in the plan.
+    - Red: `TestHostStarterWithNoRuntimeKeepsWhatSetupCannotServe` (the real `Find` on
+      linux/arm64 with an AMD card; plus a leftover failure that must not carry), and
+      `TestFitPlanLeavesOutAnUnservedGPU/no_runtime_yet`.
+    - Mutants via `go test -overlay`, both killed: the failure carried to the absent host;
+      `UnservedVendor` dropped again.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes; `make lint arch` clean.
+    - Remaining: G4, G5, G6 (low).
+  - G4 fixed (Claude Code session, 2026-09-25; docs overpromised).
+    - `docs/localia.md` said every download failure is remembered and that `/localia setup`
+      retries at once. Neither holds in every case.
+    - The platform-scope text now says:
+      - a failure is remembered only while adding the bundle to an installed runtime;
+      - a first install remembers nothing, so the next start downloads that release again
+        and remembers a second failure;
+      - `/localia setup` forgets remembered failures and retries at once only when no runtime
+        is running, otherwise at the runtime's next start.
+    - The CLI wording already matched: both "setup retries it" lines are printed only for a
+      runtime that is not running.
+    - New tests pin the text:
+      - `TestAFirstInstallFailureIsRememberedOnlyByTheNextStart` covers the chain across
+        three starts: first install alone with no marker; next start downloads the release
+        again and remembers; third start downloads nothing.
+      - `TestAFailedFirstInstallRemembersNothing` covers a corrupt standard bundle, where
+        there is no runtime and no marker.
+    - Mutants via `go test -overlay`, all killed:
+      - m1, a first install remembers: it survived the whole suite before the second test,
+        a real gap, since a one-off bad download would hold back that release's bundle;
+      - m2, an upgrade forgets its failure;
+      - m3, the remembered skip is ignored.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes; `make check` exits 0.
+    - Remaining: G5, G6 (low).
+  - G5 fixed (Claude Code session, 2026-09-25; setup advice for failures a retry cannot fix).
+    - Before: `RuntimeSetupError` appended "check the network and retry, or install Ollama
+      yourself" to every cause. That included Windows, where the install advice was said
+      twice, a checksum mismatch, and a full disk. On Windows with no Ollama, the pull still
+      asked "Download and install it now?", and a yes could only fail.
+    - Advice now fits the cause:
+      - A typed `runtimeFetchError` marks failures to reach or read the release: the request
+        (`get`), the metadata read, the download body (`fetchReader`, which leaves `io.EOF`
+        unwrapped; file write errors stay unmarked), and a truncated download. Only these
+        get "check the network and retry".
+      - A full disk (`errRuntimeNoRoom` or `ENOSPC`) gets "free some disk space and retry".
+      - The unsupported platform (sentinel `errManagedSetupUnsupported`, same text) gets no
+        suffix, since it already names the remedy.
+      - Anything else gets "installing Ollama yourself also works".
+    - With no Ollama and no managed setup for the platform, `printPullSetup` refuses before
+      the question, naming `InstallHint()`, as the picker row does. This covers catalog and
+      Cloud pulls.
+    - Deliberate contract change: the Codex row "absent-unsupported" in
+      `TestLocaliaPullNamesRuntimeSetupBeforeTheQuestion` expected a question. It moved to
+      `TestLocaliaPullWithNoOllamaAndNoSetupRefusesBeforeAsking`.
+    - Red: `TestRuntimeSetupErrorAdvisesOnlyWhatCanFixIt` drives the real installer through
+      the starter for 7 causes: offline, dropped reading the release, dropped mid-download,
+      truncated, failed verification, no room, unsupported platform. It also checks none is
+      an endpoint limit and "install Ollama" appears at most once.
+    - Mutants via `go test -overlay`, all 8 killed: each of the four fetch sites unmarked;
+      `io.EOF` marked; the unsupported and room branches removed; the pull asking again.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes; `make check` exits 0.
+    - Remaining: G6 (low).
+  - G6 fixed (Claude Code session, 2026-09-25; a regression from F2).
+    - The case: a kept runtime whose process identity still checks out but does not answer
+      (hung, SIGSTOP). It blocked every ephemeral session in the project with "retry when it
+      is ready". Meanwhile `Host()` swallowed the error, so `/localia` said "installed",
+      `/doctor` said "not running", and the picker said "starts ollama when picked".
+    - Behaviour:
+      - `reusable` now returns a typed `runtimeStalled` with the same message.
+      - An ephemeral session (before any reuse, or when a reused kept runtime stalls
+        mid-session) starts its own runtime beside it, prints why to `Out`, and never signals
+        the kept one. This is the pre-F2 behaviour, for the stalled case only.
+      - A persistent session keeps the error: the project has one runtime, so it neither
+        starts a second nor moves quietly to a user's own server.
+    - Surfaces:
+      - `Host()` carries the stall in a new `Host.StalledRuntime` on both paths.
+      - `/localia` and `/doctor` print it through the shared `printStalledRuntime`, with
+        advice per mode: ephemeral "this session starts its own and leaves that one alone";
+        persistent "local models fail until it answers or that process ends".
+      - `/doctor` no longer says "not running" for it.
+      - In persistent mode the picker says "Kolk's runtime is not answering; a pick fails
+        until it does". The ephemeral row's "starts ollama when picked" is now true.
+    - Docs: one sentence in `docs/localia.md`, lifetime section.
+    - Red tests:
+      - `TestEphemeralSessionStartsItsOwnBesideAStalledKeptRuntime`, before reuse and
+        mid-session;
+      - `TestPersistentSessionNamesAStalledRuntime`, including the mid-session case where a
+        user server is running;
+      - `TestStatusDoctorAndPickerNameAStalledRuntime`.
+    - Codex's `TestPersistentRuntimeNeverDuplicatesALiveUnreadyServer` still passes.
+    - Mutants via `go test -overlay`, all 9 killed:
+      - the ephemeral path blocks again;
+      - the mid-session kept stall blocks;
+      - a persistent stall is let through (which would adopt a user server);
+      - either `Host()` path silent;
+      - no note;
+      - persistent advice text swapped;
+      - `/doctor` "not running";
+      - picker row.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes; `make check` exits 0.
+    - Still open, informational, not fixed here:
+      - An ephemeral session still stops on a corrupt or oversized kept record, where
+        before F2 it ignored records. This is a different case that needs a corrupt file.
+      - A running starter drops `AcceleratorNote` (pre-existing).
+      - The plan's fallback text "no accelerator could hold the model" is wrong when a card
+        was filtered out as unusable.
+    - All findings from integrated verification 2 (G1-G6) are fixed. Next: integrated
+      verification 3 by a non-author, then decide V43.4c.3 and V43.4c.
+  - Integrated verification 3 (non-author verifier agent, 2026-09-25): clean for G1-G6, one
+    new low finding (H1).
+    - Hygiene: no repo or git writes; probes only via `go test -overlay`. The overlay was
+      rebuilt from current sources, differing only by the platform seam (checked with `diff`).
+    - Round-1/2 probes against current code, all fixed:
+      - G1 deadline: "context deadline exceeded; check the network and retry", no pause.
+      - Offline first run: "no such host; check the network and retry".
+      - FreshDrop (G2): the gap is named while running; the plan and rows say CPU.
+      - arm64 AMD with no runtime (G3): plan and pull say cpu; rows show "CPU only".
+      - SetupIdleRetryStillBad (G4): matches the reworded docs.
+      - Windows pull (G5): refused before the question with the install hint, for catalog
+        and Cloud pulls; no setup suffix.
+      - Kept runtime wedged (G6): status, doctor and the first prompt name the stall; the
+        session starts its own; the kept process is never stopped.
+      - Two probes still fail, neither a finding: one feeds `Classify` an error the starter
+        never wrapped; the other is the pre-existing `AcceleratorNote` drop.
+    - Adversarial checks, all under `-race`:
+      - Download write failure (`RLIMIT_FSIZE`): no network advice, not a limit.
+      - Synthetic write or sync ENOSPC: "free some disk space".
+      - Companion download: same `download()`. Foreign redirect: "check the network".
+        HTTP 403: "retry setup later". EDQUOT: generic advice.
+      - 32 goroutines racing `Host()` and `Ensure()` against a stalled kept runtime: one
+        server, one note, no race.
+      - Own start failing beside a stall: the real error; `Host()` still names the stall.
+      - Jetson R32 with no runtime: the note is shown and the plan says cpu.
+    - Verifier mutants:
+      - Killed by the author's suites: installer deadlines passing through again, trusting
+        any re-discovered binary, no re-discovery, `Host()` silent before a start.
+      - M1 survives them: marking download write errors as fetch failures.
+      - M5 survives them: `Host()` without `h.mu`, under `-race`.
+      - The verifier's own probes kill both (`TestV3DownloadWriteFailureIsNotAFetch`,
+        `TestV3HostAndEnsureRaceBesideAStalledKeptRuntime`). These are test gaps to adopt.
+      - M6 survives both (the caller-context clause). It is harmless, since no current
+        caller sets a deadline.
+    - Consistency: picker, `/model` listing, `/localia`, `/doctor`, the pull question and
+      the docs agree for every earlier state and for a stalled ephemeral session.
+    - H1 (low): with a stalled persistent runtime, `printPullSetup` and
+      `printAcceleratorStatus` (`cmd_localia.go`) do not check `StalledRuntime`.
+      - The pull question promises to download or start Ollama, and the accelerator line
+        says the next start adds the bundle.
+      - In fact every yes, setup, sign-in or prompt fails at once with "not answering;
+        retry when it is ready".
+      - It is a false promise, not a consent problem. The picker is already right.
+    - Accepted limits:
+      - A corrupt (not oversized) kept record blocks an ephemeral session, and its message
+        has no path (`runtime_record.go` decode error). Records are written atomically.
+      - A foreign server answering re-discovery loses a dropped-ROCm gap for that session.
+      - Pre-existing: `AcceleratorNote` is dropped once running; the fallback reason is
+        wrong for a filtered card.
+    - Gates rerun by the verifier:
+      - `go test -race -count=1 ./internal/local ./internal/cli ./internal/provider` ok.
+      - `make check` exit 0, 4590 tests, lint 0 issues.
+    - Evidence: scratchpad `v43-4c-integrated-3/` (overlay, mutants with logs, transcripts,
+      gate logs).
+    - Verdict: V43.4c.3 and V43.4c can be marked [x] once H1 is fixed or accepted.
+    - Plan: fix H1, adopt the M1 and M5 gap tests, have the verifier re-check that delta,
+      then mark [x].
+  - H1 fixed (Claude Code session, 2026-09-25).
+    - A new predicate, `waitsOnStalled(host)`, is true for a persistent session whose
+      project runtime runs but does not answer. It is now the one check behind every
+      surface, and the picker and `printStalledRuntime` reuse it.
+    - In that state:
+      - The pull refuses before its question, naming the stall ("a pull works once it
+        answers or that process ends"), for catalog and Cloud pulls.
+      - The accelerator line says "nothing adds it while Kolk's runtime is not answering".
+      - The `/model` listing names the stall and says a pick fails until then, instead of
+        "installed but not running … can still pick".
+    - An ephemeral session is unchanged, since it starts its own runtime (G6), so its
+      promises hold.
+    - Red: `TestAStalledPersistentRuntimePromisesNothing`, with the ephemeral case as a
+      control (it asks, and promises the bundle download).
+    - Mutants via `go test -overlay`, all 4 killed: the predicate ignoring the mode; the pull
+      asking again; the accelerator line promising; the listing promising.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes; `make check` exits 0.
+    - Remaining before [x]: adopt the M1 and M5 gap tests, then the verifier re-checks the
+      delta (H1 and the gap tests).
+  - Verification-3 gap tests adopted (Claude Code session, 2026-09-25; test-only, no
+    production change).
+    - M1, download write errors marked as fetch failures: new
+      `TestDownloadWriteFailureIsNotAFetch`, in `runtime_install_unix_test.go` with build
+      tag darwin || linux.
+      - Adapted from the verifier's probe. `RLIMIT_FSIZE` is process-wide, so the failing
+        install runs in a helper process (`KOLK_FSIZE_HELPER=1`, the pattern of
+        `internal/lock`). No other test sees the limit, even under a future `t.Parallel`.
+      - The helper cuts the ~2 KiB+ download at 1 KiB with SIGXFSZ ignored, then requires a
+        setup failure with no fetch mark and no "check the network".
+      - A marker line proves the check ran.
+    - M5, `Host()` without `h.mu`: new `TestHostAndEnsureRaceBesideAStalledKeptRuntime` in
+      `lifetime_test.go`.
+      - 16 `Host` and 16 `Ensure` goroutines on an ephemeral session beside a stalled kept
+        runtime: one server of its own, one address, the kept runtime left alone.
+    - Both mutants were rebuilt from current sources and killed under `-race`:
+      - M1 by the helper test.
+      - M5 with 7 DATA RACE reports, killed in 20 of 20 separate processes. Within one
+        process, `-count` dedupes race reports, so kills were counted per process.
+    - The real code passed 30 of 30 runs with `-race`.
+    - `go test -race ./internal/local ./internal/cli -count=1` passes; `make check` exits 0
+      (4597 tests, lint 0 issues).
+    - Remaining before [x]: the verifier re-checks the delta (H1 and the gap tests).
+  - Delta re-check (non-author verifier, 2026-09-25): CLEAN; V43.4c.3 and V43.4c can be
+    marked [x].
+    - Hygiene: no repo or git writes; the overlay was rebuilt from current sources.
+    - Stalled persistent runtime: `/localia`, `/doctor`, the accelerator line, the picker,
+      the `/model` listing and the pull all agree.
+      - The pull is refused for catalog and Cloud pulls, with `y` or `--yes`.
+      - The whole run made 0 pulls and 0 downloads, and the kept process was never stopped.
+    - Stalled ephemeral runtime: unchanged. The session starts its own, and the pull still
+      promises the ROCm download.
+    - Mutants:
+      - M1 is killed by `TestDownloadWriteFailureIsNotAFetch`; the child output shows a real
+        mid-copy cut ("file too large").
+      - M5 is killed in 20 of 20 separate processes; the real code passed 20 of 20.
+      - The verifier's M8 (fail before any byte is written) passed the helper test. Tightened
+        here: the helper now requires `errors.Is(setup.err, syscall.EFBIG)`, and M8 is now
+        killed by it (M1 still is; the real code passes 3 of 3 under `-race`).
+    - H1 regression checks, all correct:
+      - stalled with no missing bundle;
+      - a stall plus a remembered failure (the "nothing adds it" line wins; setup forgets the
+        marker, then fails on the stall);
+      - sign-in and `/localia setup` fail with "retry when it is ready": the older wording,
+        with the same meaning.
+    - Informational, not fixed:
+      - A stalled persistent record with no installation: the picker's absent branch
+        (`pickSuffix`) does not check the stall. It needs the tree deleted under a live
+        process, and Windows cannot publish persistent records.
+      - `/localia plan` with a stall and a missing bundle still says `placement: gpu`. It
+        describes the runtime after the process ends, and pulls are refused anyway.
+    - Gates rerun by the verifier:
+      - `go test -race -count=1 ./internal/local ./internal/cli ./internal/provider` ok.
+      - `make check` exit 0, 4597 tests, lint 0 issues.
+    - Evidence: scratchpad `v43-4c-integrated-3b/`.
+  - V43.4c.3 closed. Next: the V43 final integrated review (`docs/v43-checklist.md` §7).
+
+#### V43.4c.1 evidence — closed 2026-09-24
+
+- Fit recheck after setup (Codex, 2026-09-24): `TestLocalPullRechecksFitAfterNativeSetup` disk and
+  memory cases refuse the pull after setup exhausts capacity; the session still owns and closes the
+  runtime. Focused `go test -race ./internal/cli -run 'Test(LocalPull|NativeSetup|FirstRun|Localia)'`
+  passes.
+- Keyless first-run guidance (Codex, continued by the Claude Code session 2026-09-24): the no-key
+  message names the local start `kolk -m ollama/qwen2.5-coder:7b`. Following that path, the first
+  prompt sets up the runtime and then gets Ollama's 404 for the unpulled model. That advice sent the
+  user to `ollama pull`, which is not on PATH for a Kolk-managed runtime, and to `/models`, which is
+  not a command. Red: `TestHostClientNotFoundNamesThePull`. Green: the advice names
+  `/localia pull <name>` and `/model`. `go test -race ./internal/provider` and
+  `go test ./internal/cli ./internal/engine ./internal/provider/... -count=1` pass.
+- Setup cancellation and concurrency (Claude Code session 2026-09-24). The terminal footer reads the
+  context window on each spinner tick: `Meter` → `Agent.Context` → `LazyHostBackend.ContextWindow`.
+  That read took the backend lock, which `ensureClient` held across `HostStarter.Ensure`, so the
+  spinner and footer froze for the whole first-run runtime download and for each readiness wait of
+  up to 15s. Red: `TestContextWindowDoesNotWaitForRuntimeSetup` blocked for more than 1s behind a
+  held `Provision`. Green: a separate `ensureMu` serializes address resolution, while `mu` guards
+  only the cached client and windows. Lock order is `ensureMu` → starter lock, then `mu`, never the
+  reverse. `TestCancelledSetupDoesNotCancelTheNextCaller` pins per-caller cancellation (it passed
+  without a fix): the cancelled caller starts nothing, and a waiting caller runs setup itself. One
+  server starts, session exit stops it, and a closed starter never runs setup again.
+  `go test -race ./internal/local -count=1` passes (10.1s); the three focused tests pass
+  `-count=20` under race; the CLI local/host/Localia race subset passes.
+- First-run copies (Claude Code session 2026-09-24). Plan 22 now carries a V43.4c.1 note giving
+  the current no-key text, exit status and local route. Platform scope is included: macOS and Linux
+  set up natively; elsewhere the refusal says to install Ollama separately. The landing page is
+  deliberately unchanged. It deploys from `main` through Cloudflare Pages and pins the released
+  v1.3.4 installer, whose binary still prints the earlier text. Updating it now would advertise
+  unreleased behavior. The release-time update is a new item in checklist section 7.
+  `make plan-check site` passes (110 and 472 checks); `TestFirstRunWithoutAKeyIsExactAndReadOnly`
+  still pins the exact text.
+- Cloud pulls on a managed runtime (Claude Code session 2026-09-24). Not-pulled rows in the picker
+  and model listing said `ollama pull <tag>`. For a Kolk-managed runtime that `ollama` is not on
+  PATH, and it would target 11434 rather than the managed port. `/localia pull` refused every Cloud
+  tag ("no local model named"), so no in-session path existed. Red:
+  `TestLocaliaPullsACloudManifestWithoutAFitPlan` (approve/decline), the updated
+  `TestModelsListsAnUnpulledCloudCatalogueRow…` and both `TestPicker…Cloud…` expectations. Green:
+  `local.IsCloudModelName` (`TestIsCloudModelNameAcceptsOnlyCloudSelectors`). `/localia pull`
+  routes Cloud tags to a manifest-only pull through the session's server. It skips the fit plan and
+  keeps the same yes/`--yes` consent and setup/ownership path; `approvePull` and `pullHost` are now
+  shared with local pulls. Rows say `/localia pull <tag>`, and `docs/localia.md` documents it.
+  `go test -race ./internal/cli ./internal/local -count=1` passes (18.3s, 10.1s); `make arch`
+  passes.
+- Ollama sign-in with an idle or absent runtime (Claude Code session 2026-09-24). With any
+  non-running server, `/plans login ollama` said "none is listening on 127.0.0.1:11434 … start
+  `ollama serve`", which a Kolk-managed runtime's owner cannot do. Red:
+  `TestOllamaLoginStartsAnIdleSessionRuntime` (installed and absent). Green: an installed, idle
+  runtime is started through `startHostFor`, the same session starter pulls use. Sign-in runs its
+  binary against the started endpoint and verifies there. The session keeps ownership until exit;
+  outside a session the starter stops after verification. With no runtime, the refusal names
+  `/localia setup` and runs no signin. Walk-back: the pre-V43 `TestOllamaLoginWithNoServerSaysWhatToStart`
+  becomes `TestOllamaLoginStartsAnInstalledServerFirst` (started once, stopped once, verified at
+  the started address). `docs/localia.md` states the behavior. `go test -race ./internal/cli
+  -count=1` passes (18.7s).
+- Independent verification 1 (separate Claude agent, 2026-09-24): FINDINGS, all low severity; no
+  race, deadlock, leak, ownership error or consent bypass. Full `make check` exit 0 (4,431 tests,
+  0 lint issues, site 472, plan 110 checks). Focused race `-count=10` passes on all 13 new or
+  changed tests; the listed mutants fail their tests; the new footer test fails against the HEAD
+  `hostbackend.go`. Probes, overlays and logs are in the session scratchpad under
+  `v43-4c1-review/`. Findings to fix before `[x]`:
+  (F1) cloud-pull consent says "manifest only" although a yes can also install and start the
+  runtime; (F2) the host 404 advice promises `/localia pull` for any name, but it accepts only
+  the fit catalog and Cloud tags, and own-Ollama users lost `ollama pull` for other names;
+  (F3) `IsCloudModelName` is purely a spelling check, so "manifest only" is not proven by the
+  server (`/api/show` `remote_host`), and an `ollama/` prefix is not stripped; (F4) the new
+  sign-in tests (and one older one) reach the real ollama.com through `reportVendorDiscovery`.
+  Informational: `ensureMu` and the starter lock ignore cancellation while another caller's
+  setup is in flight. Current wiring cannot reach this.
+- F1 fixed (Claude Code session 2026-09-24). Red: `TestLocaliaPullNamesRuntimeSetupBeforeTheQuestion`
+  (local and Cloud; with no runtime, the text before `[y/N]` hid the setup, and Cloud said
+  "manifest only"). Green: `printPullSetup` adds a `setup:` line before every pull question.
+  Installed-idle says a yes also starts Ollama. Absent says a yes also sets it up, printed only
+  when the installer exists and `local.ManagedSetupSupported()`, which is the platform table
+  `InstallHint` already used. The Cloud text drops "only". The absent sign-in refusal now uses
+  `Host.InstallHint()`, so Windows is not sent to `/localia setup`. `go test -race
+  ./internal/cli ./internal/local -count=1` passes (18.8s, 9.9s); `make arch platforms buildtags
+  purity` pass.
+- F2 fixed (Claude Code session 2026-09-24). Red: the tightened `TestHostClientNotFoundNamesThePull`
+  requires the advice to scope `/localia pull` to `/localia models` and Cloud tags, and to keep
+  `ollama pull <name>` for a user-run server. Green: the host 404 advice says exactly that, plus
+  `/model` for what is pulled. `go test -race ./internal/provider` and `go test ./internal/cli
+  ./internal/engine -count=1` pass.
+- F3 fixed (Claude Code session 2026-09-24). Red: `TestLocaliaPullNeedsTheServersCloudProof`.
+  An unconfirmed `big:70b-cloud` was pulled under the Cloud text; `ollama/gpt-oss:120b-cloud` went
+  on the wire with its route prefix; `ollama/qwen2.5-coder:7b` was refused as unknown. Green:
+  `local.CloudModelRemoteHost` uses the same `/api/show` `remote_host` proof as `ListCloudModels`
+  (`TestCloudModelRemoteHostNeedsTheServersProof`). A Cloud pull now refuses with "not an Ollama
+  Cloud model on this server; nothing was pulled" unless the server names a remote host, and
+  prints the confirmed host. `pullLocalModel` strips a pasted `ollama/` prefix. Tests share the
+  `ollamaPullServer` fixture. `go test -race ./internal/cli ./internal/local -count=1` passes
+  (18.7s, 9.9s); `make arch` passes.
+- F4 fixed (Claude Code session 2026-09-24). Red: `TestTestAppNeverAsksOllamaCom`. Discovery
+  through a `newTestApp` app fetched the live ollama.com catalog (succeeded in 0.33s). Green:
+  `newTestApp` routes the `ollama` connector's lister offline; it already did the same for the
+  loopback server and the installer. Every other connector keeps the registry, and a test's own
+  `modelLister` still overrides it. With `GODEBUG=http2debug=1`, the three sign-in tests the
+  verifier named show 0 `:authority = "ollama.com"` requests. `go test -race ./internal/cli
+  -count=1` passes (16.8s).
+- Independent verification 2 (the same verifier, follow-up, 2026-09-24): F1–F4 are confirmed
+  fixed, and each mutant is killed by its test. Across 16 combinations, nothing is provisioned,
+  started or requested before consent. Whole-package egress shows 0 ollama.com lookups. Full
+  `make check` exit 0 (4,440 tests, 0 lint issues). Logs are in `v43-4c1-followup/`.
+  Two low findings:
+  (L1) `CloudModelRemoteHost` returns "" for every failure, so Esc, a timeout, a 5xx or a 401
+  all read "is not an Ollama Cloud model"; (L2) the installed-idle setup line and the
+  `ManagedSetupSupported` guard have no killing test, and the setup-disclosure test has no
+  platform guard. Informational: the whole-package egress run shows one real openrouter.ai
+  request from the pre-existing `TestKeyFromStdinStillWorksOutsideASession`, which is outside
+  this leaf.
+- L1 fixed (Claude Code session 2026-09-24). The old behavior was reproduced by the verifier's
+  `TestFUProbeCancelDuringProof` and `…RemoteHostProofVariants`. Red: the rewritten
+  `TestCloudModelRemoteHostNeedsTheServersProof` (compile-red on the old single-value API) and
+  the new `TestLocaliaCloudPullSaysWhyTheCheckFailed`, which could not be run against the old CLI
+  once the API changed. Green: `showHostModel` delegates to `requestShowHostModel`, which keeps
+  the reason for a failure; existing callers keep the boolean. `CloudModelRemoteHost` now returns
+  `(host, error)`. Only a 200 without a remote host, or a 404, is `ErrNotCloudModel`; a 401 is
+  `ErrCloudSignedOut`; any other failure is wrapped; a cancelled caller gets its own context
+  error. The CLI says "not an Ollama Cloud model" only for the verdict. Otherwise it names the
+  sign-in, "could not confirm …", or returns the cancellation, and in every case nothing is
+  pulled. `go test -race ./internal/cli ./internal/local -count=1` passes (17.5s, 10.0s);
+  `make lint arch` pass (0 issues).
+- L2 fixed (Claude Code session 2026-09-24). `TestLocaliaPullNamesRuntimeSetupBeforeTheQuestion`
+  is now a table over runtime state (absent, absent without a supported platform, installed,
+  running) × local/Cloud. It asserts the exact promise, or no `setup:` line where a yes adds
+  nothing. A new app seam `managedSetupSupported` is `local.ManagedSetupSupported` in production,
+  so the test holds on every platform (compile-red before the seam). Overlay mutants in the
+  session scratchpad `l2-mutants/`: dropping the installed-idle line fails both `installed/…`
+  subtests, and dropping the platform guard fails both `absent-unsupported/…` subtests.
+  `go test -race ./internal/cli ./internal/local -count=1` passes (17.4s, 9.9s); `make lint
+  arch` pass (0 issues).
+- Independent verification 3 (the same verifier, final pass, 2026-09-24): no product defect
+  remains. Every `/api/show` failure kind gets its own message, and nothing is pulled in any
+  case. A differential probe against the pre-L1 `showHostModel` gives identical results across
+  14 answers. Five L2 mutants and seven more L1 mutants are killed. Full `make check` exit 0
+  (4,447 tests, 0 lint issues). Logs are in `v43-4c1-final/`. Two low test gaps remained:
+  (T1) the invalid-JSON `/api/show` path was unpinned; (T2) the exact-cancellation contract
+  survived removing both guards.
+- T1/T2 closed (Claude Code session, test-only). `garbled:cloud` (200, invalid JSON) is now a
+  "could not confirm" failure in both the local and CLI tests. A cancelled check must return
+  exactly the caller's `context canceled`, with no "could not confirm" wrapping. Overlay mutants
+  in the session scratchpad `t1t2-mutants/`: n8 (ignore JSON decode errors) and n2+n4 (drop
+  both cancellation guards) now fail both tests with the user-facing failure the verifier
+  described. `go test -race ./internal/cli ./internal/local ./internal/provider -count=1`
+  passes (17.5s, 9.9s, 1.6s); `make lint` 0 issues.
+- Walk-backs: the pre-V43 `TestOllamaLoginWithNoServerSaysWhatToStart` contract is superseded,
+  because an installed, idle runtime is now started for the sign-in. The host 404 advice no longer
+  sends every user to `ollama pull`. Plan 22's quoted first-run text carries a V43.4c.1 note.
+- Limits: fixtures and overlays only. No live Ollama answered `/api/show` for an unpulled Cloud
+  tag, so the 401-when-signed-out mapping is untested against a real server. The landing page
+  keeps the released v1.3.4 text until a release ships V43. `ensureMu` and the starter lock
+  ignore cancellation while another caller's setup is in flight, which current wiring cannot
+  reach. `remote_host` is printed as the server sent it, like pull status lines. The
+  pre-existing `TestKeyFromStdinStillWorksOutsideASession` still reaches openrouter.ai. The
+  remaining `/models` references in advice belong to checklist section 7.
+
+### V43.4a acceptance — closed 2026-09-24
+
+- Red: `local.ephemeral` was unknown; project settings had no scope. Regression tests reproduced
+  cached followers using a replaced server's old port and a session leaking a runtime discovered
+  after its route map was built. A login mutation reproduced signin targeting the inherited
+  endpoint while verification checked the private managed endpoint.
+- Green: canonical project preferences, default on; shared session owner for pulls/chat/status;
+  detached persistent startup and serialized, private project records; identity/loopback/readiness
+  validation; rollback after failed publication; no signalling registry PIDs. Exited processes
+  are reaped before replacement; backend clients/windows follow the new address. Signin binds
+  the same endpoint per child, including PTY/window flows, without changing the parent environment.
+  Late-discovered runtimes close through the session fallback; cached weights remain untouched.
+- Verification: `make check` passes (3,764 tests, zero lint issues, sandbox overhead p50 6.7ms;
+  `/tmp/kolk-v43-local-lifetime-check5.log`). Focused local/config/CLI/shell race tests pass.
+  Independent review is CLEAN: parent-exit handshake, concurrent starts, post-launch publication
+  failure, replacement followers, pull/chat reuse, endpoint-bound login and late cleanup passed
+  repeated race tests. A separate terminal-daemon overlay proves endpoint binding survives a
+  replaced launcher environment.
+- Walk-back: E3b/E10 and plan 25's unconditional session lifetime/ownership wording are amended;
+  the old claims guard retains host-isolation restrictions but allows the newly implemented
+  runtime ownership. Effort help no longer promises orchestration width.
+- Limits: native installation is V43.4b. Windows persistent startup is unavailable because its
+  existing file-lock layer is unimplemented; it fails before launch. Physical Linux/Windows/GPU
+  runtime trials are not claimed; fixtures and cross-build gates are recorded separately.
+
+### V43.4b acceptance — closed 2026-09-24
+
+- Green: current stable official bundles are resolved on demand, verified by exact HTTPS origin,
+  size and SHA-256, then extracted with bounded gzip/Zstandard decoding into private staging.
+  Files, libraries, safe relative links and notices stay together. Durable completion records,
+  per-platform pointers and a shared installation lock support offline reuse and interrupted
+  publication recovery. The copied Go 1.26.4 decoder retains its BSD license and source hashes;
+  there is no new module dependency, external decompressor, Docker or privileged installer.
+- Integration: `/localia setup`, approved pulls and local model selection share the session
+  owner. Local startup/resume is keyless; browsing stays read-only. Exact cached tags/custom
+  namespaces remain visible during remote catalog failures; unverified execution stays unknown.
+  A later remote switch retains the startup endpoint. Invalid names and failed setup leave the
+  previous selection intact.
+- Independent red-to-green: normalized symlink targets, missing nested directory sync,
+  architecture-pointer collisions, lock aliases modifying unrelated files, keyless picker/listing,
+  lost explicit endpoints, cached cloud labels, catalog-outage visibility and incomplete IDs.
+  Archive, installation/lock and CLI overlays all pass repeated focused race tests; review CLEAN.
+  Evidence: `/tmp/kolk-v43-archive-audit-overlay.json`, `kolk-v43-install-audit-overlay.json`,
+  `kolk-v43-cli-native-audit-overlay.json` and `kolk-v43-cli-native-followup-overlay.json` in `/tmp`.
+- Final gates: `make check` exits 0 (4,419 tests, zero lint issues, 9.56 MB binary, cold start
+  p50 6.0ms, sandbox overhead p50 6.5ms; `/tmp/kolk-v43-native-check3.log`). CLI/local/lock focused
+  race tests passed twice independently after the final fixes. Earlier no-install, missing-route,
+  library-only and local-key promises are amended; usage and scope live in `docs/localia.md`.
+- Actual archive trial: production `Ensure` discovered Ollama v0.34.4, downloaded 160,042,307
+  bytes and verified SHA-256 `e9c8fddaab5f48f47f2c4ae3d23d0732f5182417125353faeed2188e34a22799`.
+  The macOS bundle extracted/published successfully: universal Intel/Apple Silicon executables,
+  companion libraries, notices and 10 symlinks. `Find` and `Ensure` then reused it with networking
+  disabled. Independent `-race` overlay passed in 38.702s; its disposable tree was removed.
+  Evidence: `/tmp/kolk-v43-real-artifact-audit-overlay.json` and
+  `/tmp/kolk-v43-real-artifact-audit.log`. An initial DNS failure preceded the successful run.
+- Limits: no downloaded vendor executable ran. Physical GPU execution and actual Linux archives
+  remain untested; Linux amd64/arm64 packaging is fixture/build verified. Extra Linux GPU bundles
+  and integrated flow remain V43.4c; Windows managed installation is unavailable.
+
 ## Current baseline
 
 - Branch: `main` at `40226f1` when this ledger was created (2026-08-23).
@@ -1847,6 +7291,10 @@ Acceptance checklist:
 
 ### E7.2 effort knob matrix — verified detail
 
+**Part superseded by V43.2 (2026-09-15):** effort no longer caps plan length. The
+scheduler keeps every planned task and bounds concurrency separately. Per-task effort governs
+child rounds and request context; the historical width table below records the earlier release.
+
 Scope:
 
 - Wire tool round limits per turn via `MaxRoundsFor(mode, effort) int`:
@@ -2780,6 +8228,10 @@ Acceptance checklist:
 
 ### C12.2a compaction transform — verified detail
 
+**V43.3c supersedes the preserve-all-recent promise below:** completed tool traffic can shrink
+inside a recent turn when needed. Goals/instructions remain, pending batches stay untouched,
+summaries receive original facts, and full pre-compaction history is durably archived.
+
 The pure half of compaction: given a conversation and a token target, give up the least meaningful
 content first and stop at the first stage that fits.
 
@@ -2829,6 +8281,9 @@ Acceptance checklist:
 
 ### C12.2b compaction in the turn loop — verified detail
 
+**V43.3c supersedes turn-boundary-only execution:** main and native child loops may compact after
+a complete tool round. Failed archival or persistence retains the complete working context.
+
 Compaction now runs, at exactly one place: the start of a turn, before anything is sent. Never
 during one. Compacting between a tool call and its result would orphan the call, which is the exact
 damage A10's session repair exists to undo, and it would be caused by the feature meant to keep
@@ -2867,6 +8322,10 @@ Acceptance checklist:
 - [x] `go test -race ./internal/engine ./internal/cli` and full `make check` green.
 
 ### C12.2c overflow recovery and `/compact` — verified detail
+
+**V43.3c refines the retry boundary:** one smaller retry per refused request; a successful tool
+round permits later recovery. Undo preserves messages appended since compaction and returns false
+if the restored session cannot be saved. An unchanged oversized goal is never retried blindly.
 
 Two things close the compaction work.
 
@@ -3003,6 +8462,11 @@ Acceptance checklist:
 recorded as remaining.
 
 ### C12.6 durable compaction archive — verified detail
+
+**V43.3c supersedes numbered/capped snapshots and proceed-on-archive-failure:** new archives live
+under `<id>.compactions/<sha256>.json`, support concurrent children, and stay outside routine saves.
+Legacy snapshots remain readable. Full JSON export and fork include both kinds. A failed archive
+prevents replacing the working transcript; successful in-memory undo alone is insufficient.
 
 C12.2b made compaction reversible for the life of the process. The item 12 design promised more than
 that, and the gap mattered: a session compacted in the morning and reopened in the afternoon had
@@ -4076,6 +9540,13 @@ Acceptance checklist:
 
 ### E10 built — what E made dead is gone, and what it made false is no longer said
 
+**V43.4 amendment (2026-09-23):** the owner's managed native setup/lifetime request supersedes
+the generic bans on managed/owned runtime terminology. Host reuse and shared cached weights
+remain; the claims guard still rejects retired private-installation/isolation promises. V43.4a
+adds project lifetime; V43.4b verifies native setup with the trial limits recorded above.
+It supersedes the absent-runtime refusal below and E3b's absent-route restriction. Exact cached
+tags replace E9's library-only matching; local startup/resume no longer requires a remote key.
+
 **Deleted:** `InstallRuntime`, `pinnedRuntime`, `PinnedRuntime`, `RuntimeRelease`, the managed
 `Runtime` and its `RuntimeSpec`, `paths.LocalRuntimeDir`, and the three dead-export allowances that
 had kept them — 800 lines of a runtime kolk will never install, with their tests. `Process` and
@@ -4235,6 +9706,10 @@ against a server kolk started itself would need `OLLAMA_HOST` carried into the l
 handover seam does not carry env, and the honest message beats a silent default.
 
 ### E3b built — kolk starts an Ollama of its own, lazily, and stops only that one
+
+**V43.4a amendment:** lifetime now follows project `local.ephemeral`: on stops at session close,
+off detaches and records an endpoint for reuse. Session pulls share the same runtime. The
+earlier unconditional stop-after-pull/session contract is superseded.
 
 `local.HostStarter` starts the user's binary on a loopback port kolk chooses, with a curated
 environment, waits for it to answer as Ollama, prints one transcript line naming the pid and
@@ -6317,7 +11792,8 @@ caller had ever wanted. Their tests went with them; a test for a function nobody
 **Kept with a real reason, one.** `MaxTasksForEffort` is an exported wrapper around `maxTasksFor`, and
 deleting it broke a test that asserts orchestration width per effort — behaviour worth pinning, and
 unreachable from an external test package any other way. It stays, and the allowlist now says that
-rather than "untriaged".
+rather than "untriaged". **Superseded by V43.2:** effort-based task truncation and this
+wrapper/allowlist entry are removed; full-plan execution is tested through real orchestration.
 
 **Three investigated and found not to be defects**, which is worth recording because each looked like
 one:
@@ -6975,7 +12451,8 @@ Acceptance checklist:
 **E7.1 is the cleanest leaf audited so far.** Ran all twelve spellings through the binary: `low`,
 `medium`, `high`, `max`, `1`–`4`, and the legacy `quick`/`standard`/`deep`/`ultra` each resolve
 correctly, and `bogus` is refused naming the canonical set. E7.2's three knobs — `MaxRoundsFor`,
-`TimeoutForEffort`, `maxTasksFor` — all exist and all take effort.
+`TimeoutForEffort`, `maxTasksFor` — all existed and took effort at this audit.
+**V43.2 supersedes the last:** task count is independent of effort.
 
 **C9.1's "parity engine" is weaker than the phrase suggests, in two ways.**
 
@@ -11095,7 +16572,9 @@ Subcheckpoints, one at a time:
       could not be isolated runs under the run's tree lock with its row saying `shared tree: why`;
       landing happens under that lock and the per-task snapshot, in finish order; a landing that
       does not fit fails only its task with the reason; the tree is released before the task
-      reports, on every path, with a context that survives cancellation. Red first: writers run
+      reports, on every path, with a context that survives cancellation. **Superseded by V43.3b:**
+      allowance pauses retain their worktrees for verified reuse; discard retains their files too.
+      Red first: writers run
       together (in-flight ≥ 2), fallback serialises (in-flight = 1) and explains, a refused landing
       fails one task. The race detector caught the release running after the report; fixed by
       releasing before reporting, as the vendor child already was. Wired in `run.go` with the
@@ -11465,7 +16944,8 @@ Subcheckpoints, one at a time:
       capacity, transport; refusal and budget are stops) and `PauseFor` (the cooldown's own reset rule);
       `SessionPort.Paused/SetPaused` under the messages lock, persisted with the session. `RunTurn`
       refuses to spend while paused (a second prompt sends no request), and on a pausable limit keeps
-      the original input verbatim, removes the dangling user message so the transcript claims no answer,
+      the original input verbatim, removes the dangling user message so the transcript claims no answer
+      (**superseded by V43.3b:** retain the prompt once and continue the saved execution phase),
       saves, publishes `provider.limit{pause}` and `turn.finished{paused}`, prints one line with the
       resume time and `/resume`, and returns a typed `PausedError`. The retry loop no longer publishes
       the terminal action; `RunTurn` owns it as `pause` or `stop`. Two engine tests re-read their old
@@ -11475,7 +16955,10 @@ Subcheckpoints, one at a time:
     - [x] **V35.2b the resume monitor** — a goroutine per paused session that waits for the reset (or the
       kind's default), confirms the limit lifted without spending tokens (key status for keyed models,
       the vendor's quota-free auth status for a handover, `/models` for a compatible endpoint), and hands
-      the pending turn back to the surface to run on the same model; backs off to the next reset when
+      the pending turn back to the surface to run on the same model.
+      **Lifecycle superseded by V43.3a:** retire the watcher before accepted delivery, retain input
+      on a declined handoff, retry with backoff, arm after TUI readiness, and join on surface exit.
+      The original implementation backs off to the next reset when
       still capped; dies with the session. `continuity.resume auto      **Closed 2026-09-05, on main.** Red observed: a session paused on a 429 stayed paused; nothing
       re-sent the turn, `Resume` did not exist and `continuity.resume` was not a key. Green: one
       `resumeMonitor` goroutine per paused session, living in the session context the surface hands

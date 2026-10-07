@@ -383,3 +383,88 @@ func resolvedTempDir(t *testing.T) string {
 	}
 	return dir
 }
+
+// The response label opens the model's own words. A round that answered only
+// with tool calls has none, so it must not leave a bare "kolk-code" row
+// between the work records; the round that does answer still opens with it.
+func TestAToolOnlyRoundLeavesNoBareLabel(t *testing.T) {
+	work := resolvedTempDir(t)
+	target := filepath.Join(work, "notes.txt")
+	if err := os.WriteFile(target, []byte("remember the footer\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	srv := enginetest.New(
+		// Only whitespace before the tool call: still no words to label.
+		enginetest.Step{Text: "\n\n", ToolCalls: []provider.ToolCall{{ID: "call_1", Function: provider.FunctionCall{
+			Name: "read_file", Arguments: `{"path":"` + jsonEsc(target) + `"}`}}}},
+		enginetest.Step{Text: "The notes say to remember the footer."},
+	)
+	defer srv.Close()
+	ag, out, _, _ := newTestAgent(t, srv, engine.ModeCode)
+	if err := ag.RunTurn(context.Background(), "read my notes"); err != nil {
+		t.Fatal(err)
+	}
+	// Nor an empty row where the label was: the line it would have ended.
+	if strings.HasPrefix(stripColour(out.String()), "\n") {
+		t.Fatalf("a tool-only round left an empty row:\n%q", out.String())
+	}
+	answered := false
+	for _, line := range strings.Split(out.String(), "\n") {
+		plain := strings.TrimSpace(stripColour(line))
+		if plain == "kolk-code" {
+			t.Fatalf("a tool-only round left a bare label row:\n%s", out.String())
+		}
+		answered = answered || strings.HasPrefix(plain, "kolk-code The notes say")
+	}
+	if !answered {
+		t.Fatalf("the answering round lost its label:\n%s", out.String())
+	}
+}
+
+// stripColour removes the SGR sequences the engine writes around its labels.
+func stripColour(s string) string {
+	var out strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '[' {
+			for i += 2; i < len(s) && s[i] != 'm'; i++ {
+			}
+			continue
+		}
+		out.WriteByte(s[i])
+	}
+	return out.String()
+}
+
+// A reply that opens with a newline starts its first block on a line of its
+// own: a heading, a fence or a list item glued onto the label line would stop
+// being one. Text streams in fragments, so the newline may come in its own
+// whitespace-only fragments or at the head of the first word's.
+func TestAReplyOpeningWithANewlineKeepsItsFirstBlock(t *testing.T) {
+	for _, c := range []struct{ reply, first string }{
+		{"\n\n## Plan\n- step one", "## Plan"},
+		{"\n\n\n\n\n\n\n```go\nx := 1\n```", "```go"},
+		{"\n- first\n- second", "- first"},
+	} {
+		srv := enginetest.New(enginetest.Step{Text: c.reply})
+		ag, out, _, _ := newTestAgent(t, srv, engine.ModeCode)
+		if err := ag.RunTurn(context.Background(), "plan it"); err != nil {
+			t.Fatal(err)
+		}
+		srv.Close()
+		lines := strings.Split(stripColour(out.String()), "\n")
+		found := false
+		for i, line := range lines {
+			if strings.HasPrefix(line, "kolk-code ") && strings.TrimSpace(strings.TrimPrefix(line, "kolk-code ")) != "" {
+				t.Fatalf("%q: the first block was glued onto the label line %q:\n%s", c.reply, line, out.String())
+			}
+			// The block follows the label directly: the dropped whitespace
+			// ends the label line once, it is not replayed as blank rows.
+			if strings.TrimSpace(line) == "kolk-code" {
+				found = i+1 < len(lines) && strings.TrimRight(lines[i+1], " ") == c.first
+			}
+		}
+		if !found {
+			t.Fatalf("%q: the label is not followed directly by %q:\n%q", c.reply, c.first, out.String())
+		}
+	}
+}

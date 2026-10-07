@@ -50,6 +50,12 @@ type Task struct {
 	Needs []int
 	// Model is resolved by the router. Empty until then.
 	Model string
+	// Vendor binds a discovered model to the adapter that advertised it.
+	Vendor string
+	// Effort is resolved against this model's advertised set before launch.
+	Effort string
+	// CeilingEffort is the corresponding effort if opening a lower model fails.
+	CeilingEffort string
 	// Workspace is the tree the task ran in when it had one of its own (plan
 	// 36). Empty means the session's root. Set by the run, not the planner.
 	Workspace string
@@ -69,6 +75,9 @@ func (t Task) annotation() string {
 	}
 	if t.Model != "" {
 		parts = append(parts, t.Model)
+	}
+	if t.Effort != "" {
+		parts = append(parts, t.Effort)
 	}
 	if len(parts) == 0 {
 		return ""
@@ -142,6 +151,42 @@ func parseTasks(reply string, maxTasks int) []Task {
 		}
 	}
 	return resolveNeeds(tasks)
+}
+
+// planProblem says why a planner reply gave fewer tasks than it planned, for
+// the line that replaces "single-step task" when that is not what happened,
+// or "" when it did. The reply carries no finish reason, so a plan cut off at
+// the planner's output limit is known by its shape: an array that starts and
+// never parses. usable is how many tasks parseTasks kept.
+func planProblem(reply string, usable int) string {
+	start := strings.Index(reply, "[")
+	switch {
+	case strings.TrimSpace(reply) == "":
+		return "the planner's reply was empty"
+	case start == -1:
+		return "the planner answered without a plan"
+	}
+	end := strings.LastIndex(reply, "]")
+	var elements []json.RawMessage
+	if end < start || json.Unmarshal([]byte(reply[start:end+1]), &elements) != nil {
+		return "the planner's plan could not be read; it may have been cut off"
+	}
+	// Well-formed, but not tasks this can read (a string where a number
+	// belongs): not cut off, just unreadable.
+	var planned []planTask
+	switch {
+	case json.Unmarshal([]byte(reply[start:end+1]), &planned) != nil:
+		return "the planner's plan could not be read"
+	case len(elements) == 0:
+		return "the planner's plan had no tasks"
+	case usable == 0 && len(elements) == 1:
+		return "the planner's one task could not be read"
+	case usable == 0:
+		return fmt.Sprintf("none of the planner's %d tasks could be read", len(elements))
+	case usable < len(elements):
+		return fmt.Sprintf("only %d of the planner's %d tasks could be read", usable, len(elements))
+	}
+	return ""
 }
 
 // allEarlier lists every task before this one, in the planner's own 1-based

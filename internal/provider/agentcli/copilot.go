@@ -94,6 +94,8 @@ type CopilotBackend struct {
 	execution ExecutionOptions
 	run       lineRunner
 	mu        sync.Mutex
+	// turnClosed records that the latest turn's result frame arrived.
+	turnClosed bool
 }
 
 // NewCopilotBackendWithOptions validates the envelope once, as the other
@@ -127,7 +129,33 @@ func (b *CopilotBackend) ProviderHandle() string {
 	return b.session
 }
 
+// ForgetConversation leaves the session this backend drives, so the next turn
+// opens a new one: a new kolk session must not share the old one's.
+func (b *CopilotBackend) ForgetConversation() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.session = ""
+}
+
+func (b *CopilotBackend) ProviderHandleConfirmed() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.session != ""
+}
+
 func (b *CopilotBackend) Close() error { return nil }
+
+// TurnClosed reports that Copilot's result frame ended the latest turn.
+func (b *CopilotBackend) TurnClosed() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.turnClosed
+}
+
+// ResumesConversation reports that a named session continues with --resume.
+// Copilot names its session only in its last frame, so it cannot prove a turn
+// never started, and it has no TurnNeverStarted.
+func (b *CopilotBackend) ResumesConversation() bool { return true }
 
 func (b *CopilotBackend) StreamChat(ctx context.Context, model string, messages []provider.Message, tools []provider.Tool, onToken func(string)) (provider.Message, provider.Meta, error) {
 	return b.StreamChatObserved(ctx, model, messages, tools, onToken, nil)
@@ -140,6 +168,11 @@ var ErrCopilotToolsDenied = fmt.Errorf("copilot denied its tools: a non-interact
 
 // StreamChatObserved is StreamChat with optional typed provider boundaries.
 func (b *CopilotBackend) StreamChatObserved(ctx context.Context, model string, messages []provider.Message, _ []provider.Tool, onToken func(string), observe func(provider.ProgressEvent)) (provider.Message, provider.Meta, error) {
+	// Every turn starts unclosed, before anything can fail, so no failure
+	// reports the previous turn's closure.
+	b.mu.Lock()
+	b.turnClosed = false
+	b.mu.Unlock()
 	prompt, err := promptFromMessages(messages)
 	if err != nil {
 		return provider.Message{}, provider.Meta{Model: model}, err
@@ -167,8 +200,9 @@ func (b *CopilotBackend) StreamChatObserved(ctx context.Context, model string, m
 		for _, event := range translated {
 			events = append(events, event)
 			if event.SessionID != "" {
+				// Only the result frame names the session, and it ends the turn.
 				b.mu.Lock()
-				b.session = event.SessionID
+				b.session, b.turnClosed = event.SessionID, true
 				b.mu.Unlock()
 			}
 			observeProviderEvent(observe, event, progressPending)

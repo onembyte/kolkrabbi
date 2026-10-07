@@ -56,7 +56,7 @@ func TestWorkingStateKeepsItsSpinnerWhenAgentRowsUseTheHeight(t *testing.T) {
 	if !strings.Contains(view, "working") {
 		t.Fatalf("working state disappeared from the constrained frame:\n%s", view)
 	}
-	if !strings.Contains(view, activityLine(0, "working")) {
+	if !strings.Contains(view, "⠋ working…") {
 		t.Fatalf("working state has no visible spinner in the constrained frame:\n%s", view)
 	}
 }
@@ -285,6 +285,55 @@ func TestAgentStatusRowsClipSafelyInANarrowFrame(t *testing.T) {
 	t.Fatal("narrow frame lost its agent row")
 }
 
+// Below 80 columns the worker rows are full width, and the ← view lists every
+// agent. Both keep the effort and state whole for realistic model IDs, as the
+// agents' window does, and give way on the model and summary instead.
+func TestNarrowWorkerRowsAndTheFullViewKeepEffortAndState(t *testing.T) {
+	for _, model := range []string{"anthropic/claude-opus-4-20250514", "anthropic/claude-sonnet-4", "openai/gpt-5.1-codex-max", "ollama/qwen2.5-coder:7b"} {
+		status := AgentStatus{ID: "a1", Index: 1, Total: 3, Model: model, Effort: "max", State: "working",
+			Summary: "rewrite the footer layout", Sequence: 1}
+		const identity = " · max · working"
+		// The model gives way to its short name before it is clipped, so a
+		// narrow row still says which model it is.
+		named := shortModelName(model)
+		if len(named) > 4 {
+			named = named[:4]
+		}
+		for width := 40; width < 80; width++ {
+			m := New(Status{Mode: "agent"})
+			m.SetAgentStatuses([]AgentStatus{status})
+			found := false
+			for _, row := range m.viewRows(width, 20, 0) {
+				if !strings.HasPrefix(row.text, "agent [1/3]") {
+					continue
+				}
+				found = true
+				if !strings.Contains(row.text, identity) || !strings.Contains(row.text, named) || cellWidth(row.text) > width {
+					t.Fatalf("%s at width %d: worker row %q lost its effort, state or model", model, width, row.text)
+				}
+			}
+			if !found {
+				t.Fatalf("%s at width %d: no worker row", model, width)
+			}
+
+			// The view's own identity row, not the worker rows the frame
+			// also draws beneath it.
+			c := NewController(Status{Mode: "agent", Lifecycle: "working"}, 4096)
+			c.SetAgentStatus(status)
+			c.HandleKey(Key{Kind: KeyLeft})
+			identityRow := ""
+			for _, line := range c.agentsViewLines(width) {
+				if strings.HasPrefix(line, "    ") && !strings.HasPrefix(line, "     ") {
+					identityRow = line
+				}
+			}
+			if !strings.Contains(identityRow, named) || !strings.Contains(identityRow, identity) || cellWidth(identityRow) > width {
+				t.Fatalf("%s at width %d: the full view's row %q lost the effort, state or model", model, width, identityRow)
+			}
+		}
+	}
+}
+
 // Resize must redraw the same ordered task rows, not reconstruct them from
 // stale renderer output. Drive the Runtime path (where concurrent engine
 // callbacks and terminal reflow meet) with deliberately hostile fields.
@@ -377,5 +426,39 @@ func TestRuntimeAgentStatusUpdatesAreRaceSafe(t *testing.T) {
 	got := runtime.Snapshot()
 	if got.Status.Agents != 32 || len(got.AgentStatuses) != 32 {
 		t.Fatalf("concurrent updates lost agents: count %d rows %d", got.Status.Agents, len(got.AgentStatuses))
+	}
+}
+
+// An unresolved effort's "effort default" placeholder is the least
+// informative field on a narrow row (V43.5 N8): it gives way before the model
+// and the state do, and still shows when the row has room for it.
+func TestTheEffortPlaceholderGivesWayOnNarrowRows(t *testing.T) {
+	status := AgentStatus{ID: "a7", Index: 7, Total: 12, Model: "anthropic/claude-opus-4-20250514", State: "blocked",
+		Summary: "rewrite the footer", Sequence: 1}
+	for width := 30; width < 80; width++ {
+		// The worker row carries its label too, so it needs 40 columns;
+		// the ← view has no label and holds from 30.
+		if row := formatAgentStatusRow(status, width); width >= 40 &&
+			(!strings.Contains(row, " · blocked") || !strings.Contains(row, "opus") || cellWidth(row) > width) {
+			t.Fatalf("width %d: row %q lost its state or model to the placeholder", width, row)
+		}
+		c := NewController(Status{Mode: "agent", Lifecycle: "working"}, 4096)
+		c.SetAgentStatus(status)
+		c.HandleKey(Key{Kind: KeyLeft})
+		for _, line := range c.agentsViewLines(width) {
+			if strings.HasPrefix(line, "    ") && !strings.HasPrefix(line, "     ") &&
+				(!strings.Contains(line, " · blocked") || !strings.Contains(line, "opus")) {
+				t.Fatalf("width %d: the full view's row %q lost its state or model", width, line)
+			}
+		}
+	}
+	if row := formatAgentStatusRow(status, 140); !strings.Contains(row, "effort default") {
+		t.Fatalf("a row with room dropped the placeholder: %q", row)
+	}
+	c := NewController(Status{Mode: "agent", Lifecycle: "working"}, 4096)
+	c.SetAgentStatus(status)
+	c.HandleKey(Key{Kind: KeyLeft})
+	if view := strings.Join(c.agentsViewLines(140), "\n"); !strings.Contains(view, "effort default · blocked") {
+		t.Fatalf("the full view with room dropped the placeholder:\n%s", view)
 	}
 }

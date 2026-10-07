@@ -1,10 +1,31 @@
 package engine
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/onembyte/kolkrabbi/internal/bus"
+	"github.com/onembyte/kolkrabbi/internal/secret"
+	"github.com/onembyte/kolkrabbi/internal/xid"
+	"github.com/onembyte/kolkrabbi/protocol"
 )
+
+// RecoverySaveError means an exceptional boundary exists only in memory. It
+// is kept distinct so RunTurn does not retry the same failed write or let its
+// ordinary end-of-turn flush masquerade as the compressed recovery point.
+type RecoverySaveError struct {
+	Reason string
+	Err    error
+}
+
+func (e *RecoverySaveError) Error() string {
+	return fmt.Sprintf("could not save the %s recovery point: %v; restart recovery is not guaranteed", e.Reason, secret.Scrub(e.Err.Error()))
+}
+
+func (e *RecoverySaveError) Unwrap() error { return e.Err }
 
 // defaultSaveInterval bounds how long the tool loop may go without writing the
 // transcript when nothing on disk changed.
@@ -99,11 +120,34 @@ type saveState struct {
 	wroteFile bool
 	// last is when the transcript last reached disk, by either route.
 	last time.Time
-	// warned keeps a failing disk to one line rather than one per save. It
-	// lives here rather than on the Agent because O3 made the pre-write hook a
-	// flush point, and with no isolator every orchestrated task shares it: two
-	// tasks meeting a read-only disk at once used to race on this flag.
+	// warned keeps a failing disk to one line per failing streak rather than
+	// one per save; a successful write clears it, so a disk that recovers and
+	// fails again is reported again. It lives here rather than on the Agent
+	// because O3 made the pre-write hook a flush point, and with no isolator
+	// every orchestrated task shares it: two tasks meeting a read-only disk at
+	// once used to race on this flag.
 	warned bool
+	// recoveryLost holds ordinary writes back from the moment a compressed
+	// recovery write fails until its turn has unwound. The deferred stores on
+	// the way out would otherwise mark the session dirty again and the turn's
+	// end would flush a JSON copy of the very boundary that did not reach disk.
+	recoveryLost bool
+}
+
+// reset returns the coalescer to what a fresh agent's holds.
+func (s *saveState) reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pending, s.wroteFile, s.last, s.warned, s.recoveryLost = false, false, time.Time{}, false, false
+}
+
+// endRecoveryHold lets ordinary writes through again once the turn whose
+// recovery write failed has unwound; the state in memory is kept, and the
+// next ordinary save persists it without a boundary's claim.
+func (s *saveState) endRecoveryHold() {
+	s.mu.Lock()
+	s.recoveryLost = false
+	s.mu.Unlock()
 }
 
 // markDirty records that the session changed without writing anything.
@@ -117,7 +161,9 @@ func (a *Agent) markDirty() {
 		return
 	}
 	a.saveState.mu.Lock()
-	a.saveState.pending = true
+	if !a.saveState.recoveryLost {
+		a.saveState.pending = true
+	}
 	a.saveState.mu.Unlock()
 }
 
@@ -202,23 +248,104 @@ func (a *Agent) takePending() bool {
 	return true
 }
 
-// writeSession performs one write and reports a failure once per session.
+// writeSession performs one write and reports a failure once per failing
+// streak. A failed pause is reported every time: the pause's own message
+// promises a later /resume, which holds only while this session runs.
 func (a *Agent) writeSession(reason saveReason, write func() error) {
 	err := write()
+	a.saveState.mu.Lock()
 	if err == nil {
+		a.saveState.warned = false
+		a.saveState.mu.Unlock()
 		return
 	}
-	a.saveState.mu.Lock()
 	first := !a.saveState.warned
 	a.saveState.warned = true
 	a.saveState.mu.Unlock()
-	if !first {
+	if !first && reason != savePause {
 		return
 	}
 	// Through Out, not os.Stderr: in a session Out is the terminal renderer,
 	// which owns the screen, and anything printed around it lands outside the
 	// rows it manages and scribbles over the composer.
 	fmt.Fprintf(a.Out, "\nwarning: could not save session at the %s: %v\n", saveRules[reason].name, err)
+	if reason == savePause {
+		fmt.Fprintln(a.Out, "warning: the paused turn is kept only until this session exits")
+	}
+}
+
+// saveRecovery freezes the execution in the session and writes the compressed
+// recovery point. It returns the failure because callers must close admission
+// and withhold a durable-pause claim when this boundary did not reach disk.
+func (a *Agent) saveRecovery(reason string) error {
+	if a.Sess == nil {
+		return a.recoveryWriteFailed(reason, fmt.Errorf("session storage is unavailable"))
+	}
+	a.executionMu.Lock()
+	prior := ""
+	if a.execution != nil {
+		prior = a.execution.Recovery
+		a.execution.Recovery = reason
+	}
+	a.executionMu.Unlock()
+	a.storeExecution()
+	// SaveRecovery writes all current state, so it satisfies the dirty work the
+	// ordinary coalescer was carrying. On failure that work deliberately stays
+	// out of the turn-end Save path: a JSON write is not the promised complete
+	// compressed boundary.
+	_ = a.takePending()
+	err := a.Sess.SaveRecovery(reason)
+	// The compressed file is the recovery point. A mirror or header that
+	// failed after it landed is a warning, not a lost boundary.
+	var durable interface{ RecoveryDurable() bool }
+	if err != nil && errors.As(err, &durable) && durable.RecoveryDurable() {
+		a.notifyRecoveryFailure(reason, err.Error(), true)
+		err = nil
+	}
+	a.saveState.mu.Lock()
+	if err == nil {
+		a.saveState.warned = false
+		a.saveState.mu.Unlock()
+		return nil
+	}
+	a.saveState.mu.Unlock()
+	// A later ordinary save must not give a failed recovery write provenance.
+	a.executionMu.Lock()
+	if a.execution != nil {
+		a.execution.Recovery = prior
+		a.Sess.SetRunState(a.execution)
+	}
+	a.executionMu.Unlock()
+	return a.recoveryWriteFailed(reason, err)
+}
+
+func (a *Agent) recoveryWriteFailed(reason string, err error) error {
+	a.saveState.mu.Lock()
+	a.saveState.pending = false
+	a.saveState.warned, a.saveState.recoveryLost = true, true
+	a.saveState.mu.Unlock()
+	recoveryErr := &RecoverySaveError{Reason: reason, Err: err}
+	a.notifyRecoveryFailure(reason, recoveryErr.Error(), false)
+	return recoveryErr
+}
+
+// notifyRecoveryFailure uses the same scrubbed message for humans and machines.
+// A durable sidecar with a failed mirror is still a write failure, but does not
+// claim the recovery point itself was lost. Every failed write emits a notice.
+func (a *Agent) notifyRecoveryFailure(reason, message string, durable bool) {
+	message = secret.Scrub(message)
+	fmt.Fprintf(a.Out, "\nwarning: %s\n", message)
+	if surface, ok := a.Out.(interface{ RecoveryWarning(string) }); ok {
+		surface.RecoveryWarning("warning: " + message)
+	}
+	if a.Bus != nil {
+		turn := a.lastTurnID
+		if turn == "" {
+			turn = xid.New(xid.Turn)
+		}
+		data, _ := json.Marshal(protocol.RecoveryFailedData{Code: "recovery_save_failed", Reason: reason, Message: message, Durable: durable})
+		_, _ = a.Bus.Publish(bus.Event{Turn: turn, Type: protocol.EventRecoveryFailed, Data: data})
+	}
 }
 
 // saveInterval is Options.SaveInterval with its default applied. It is read

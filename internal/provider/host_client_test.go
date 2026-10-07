@@ -97,19 +97,37 @@ func TestHostClientErrorsNameTheirOriginAndItsRemedy(t *testing.T) {
 	if strings.Contains(advice.Summary+advice.NextAction, "OpenRouter") || strings.Contains(advice.NextAction, "/key") {
 		t.Errorf("advice sends the user to fix OpenRouter for an Ollama sign-in: %+v", advice)
 	}
-	if !strings.Contains(advice.NextAction, "ollama signin") {
-		t.Errorf("advice does not name the command that signs in: %+v", advice)
+	// A Kolk-managed runtime has no `ollama` on PATH, and a user's own one
+	// would sign in the server on 11434: the session's command signs in the
+	// server this session talks to.
+	if !strings.Contains(advice.NextAction, "/plans login ollama <plan>") {
+		t.Errorf("advice does not name the session's sign-in: %+v", advice)
+	}
+	if strings.Contains(advice.NextAction, "run `ollama signin`") {
+		t.Errorf("advice sends the user to a command a managed runtime lacks: %+v", advice)
 	}
 	if !strings.Contains(advice.NextAction, "https://ollama.com/connect?name=box") {
 		t.Errorf("the sign-in URL the server offered was dropped: %+v", advice)
 	}
 }
 
+// A Kolk-managed runtime puts no `ollama` on PATH, and `/models` is not a
+// command, so the pull and the listing are named as the session spells them.
+// `/localia pull` takes only what `/localia models` lists and Cloud tags, so
+// the advice says that and keeps `ollama pull` for a server the user runs.
 func TestHostClientNotFoundNamesThePull(t *testing.T) {
 	err := &HTTPError{StatusCode: http.StatusNotFound, Origin: "ollama", Message: `model "qwen2.5-coder:7b" not found`}
 	advice, ok := Advise(err)
-	if !ok || !strings.Contains(advice.NextAction, "ollama pull") {
-		t.Fatalf("a missing local model does not say how to pull it: %+v", advice)
+	if !ok {
+		t.Fatal("no advice for a missing local model")
+	}
+	for _, want := range []string{"/localia pull <name>", "`/localia models`", "Cloud", "`ollama pull <name>`", "`/model`"} {
+		if !strings.Contains(advice.NextAction, want) {
+			t.Errorf("advice lacks %q: %+v", want, advice)
+		}
+	}
+	if strings.Contains(advice.NextAction, "/models") {
+		t.Errorf("advice names /models, which is not a command: %+v", advice)
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -39,7 +40,7 @@ func TestRuntimeStreamsWhileRetainingTypeAheadAndCancelsOneTurn(t *testing.T) {
 	// The request is echoed into the transcript ahead of the reply, a cancelled
 	// turn commits its marker where the output it stopped is, and the type-ahead
 	// draft survives the interrupt that ended the turn.
-	if got.Draft != "next draft" || got.Transcript != "❯ first request\nassistant streaming"+interruptedNotice {
+	if got.Draft != "next draft" || got.Transcript != "\n❯ first request\n\nassistant streaming"+interruptedNotice {
 		t.Fatalf("runtime mixed draft/output: %#v", got)
 	}
 	if got.Status.Lifecycle != "interrupted" {
@@ -49,6 +50,58 @@ func TestRuntimeStreamsWhileRetainingTypeAheadAndCancelsOneTurn(t *testing.T) {
 		if bytes.Count(output.Bytes(), []byte(sequence)) != 1 {
 			t.Fatalf("terminal sequence %q count != 1 in %q", sequence, output.String())
 		}
+	}
+}
+
+func TestRuntimeSubmitReportsWhetherItAcceptedPendingInput(t *testing.T) {
+	r := NewRuntime(RuntimeOptions{Output: io.Discard, Turn: func(context.Context, string) error { return nil }})
+	if r.Submit("too early") || r.Snapshot().Transcript != "" {
+		t.Fatal("surface accepted input before startup")
+	}
+	r.baseContext = context.Background()
+	// An active turn queues the request for the surface's next turn.
+	r.activeStop = func() {}
+	if r.SubmitWhenIdle("automatic continuation") || r.controller.Queued() != "" {
+		t.Fatal("busy surface claimed a continuation in the replaceable type-ahead queue")
+	}
+	if !r.Submit("waiting task") || r.controller.Queued() != "waiting task" {
+		t.Fatal("active surface did not accept pending input")
+	}
+	if r.Submit("another task") || r.controller.Queued() != "waiting task" {
+		t.Fatal("resume delivery replaced an existing queued request")
+	}
+	r.closing = true
+	if r.Submit("retain this task") || r.controller.Queued() != "waiting task" {
+		t.Fatal("closing surface claimed input it could not run")
+	}
+	r.closing = false
+	if r.Submit(" \t") {
+		t.Fatal("empty input was accepted")
+	}
+}
+
+func TestRuntimeReadyCanSubmitTheWaitingTurn(t *testing.T) {
+	finished := make(chan struct{})
+	input := newGatedInput(nil, nil)
+	input.releaseWhen(finished)
+	var r *Runtime
+	r = NewRuntime(RuntimeOptions{Input: input, Output: io.Discard,
+		Ready: func(context.Context) {
+			if !r.Submit("waiting task") {
+				t.Error("ready surface declined a turn")
+				close(finished)
+			}
+		},
+		Turn: func(_ context.Context, prompt string) error {
+			if prompt != "waiting task" {
+				t.Errorf("prompt = %q", prompt)
+			}
+			close(finished)
+			return nil
+		},
+	})
+	if err := r.Run(context.Background()); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -688,5 +741,53 @@ func TestRuntimeReadSecretBlocksUntilEnterAndNeverRendersTheValue(t *testing.T) 
 	}
 	if got := runtime.Snapshot().Draft; got != "next draft" {
 		t.Fatalf("the overlay consumed the main draft: %q", got)
+	}
+}
+
+// Adopted from the V43.5 §7 item 3 verification (S1): a stop that was the last
+// activity waits for the animator to retire, so no stale frame follows it. If
+// another agent's activity starts before the animator retires, it joins that
+// animator, and the first stop must not then wait for the other agent to
+// finish: its own row is gone, and the row now belongs to the newcomer.
+func TestAnActivityStopDoesNotWaitForAnotherAgentsActivity(t *testing.T) {
+	var armed atomic.Bool
+	entered := make(chan struct{}, 1)
+	gate := make(chan struct{})
+	rt := NewRuntime(RuntimeOptions{Output: io.Discard, Width: func() int { return 80 }, Height: func() int { return 24 },
+		// The meter is read outside the screen lock, between frames: holding
+		// the animator there opens the window deterministically.
+		Meter: func() (string, string, []PlanMeter) {
+			if armed.Load() {
+				armed.Store(false)
+				entered <- struct{}{}
+				<-gate
+			}
+			return "", "", nil
+		}})
+	stopA := rt.Start(context.Background(), "working")
+	armed.Store(true)
+	<-entered
+	returned := make(chan struct{})
+	go func() { stopA(); close(returned) }()
+	for {
+		rt.mu.Lock()
+		empty := len(rt.activities) == 0
+		rt.mu.Unlock()
+		if empty {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	time.Sleep(20 * time.Millisecond) // A's stop has seen itself last and waits
+	stopB := rt.Start(context.Background(), "working")
+	defer stopB()
+	close(gate)
+	select {
+	case <-returned:
+	case <-time.After(2 * time.Second):
+		t.Fatal("agent A's stop is still waiting for agent B's activity to end")
+	}
+	if got := rt.Snapshot().Activity; got == "" {
+		t.Error("B's activity row vanished when A's stop returned")
 	}
 }

@@ -31,6 +31,32 @@ func waitForRetry(ctx context.Context, delay time.Duration) error {
 	}
 }
 
+// resumeWaitSlice bounds each sleep of the resume monitor's wait.
+const resumeWaitSlice = time.Minute
+
+// waitWallClock is the resume monitor's wait. A vendor's reset can be days
+// away, and a timer does not count time the machine spends asleep: one timer
+// for the whole wait would run it all again after waking. Bounded slices
+// re-read the wall clock, so the wait ends within a slice of waking past it.
+func waitWallClock(ctx context.Context, delay time.Duration) error {
+	return waitUntilWall(ctx, time.Now().Add(delay), time.Now, waitForRetry)
+}
+
+// waitUntilWall sleeps in slices of at most resumeWaitSlice until the wall
+// clock reaches deadline. Round(0) drops now's monotonic reading, which makes
+// every comparison a wall-clock one.
+func waitUntilWall(ctx context.Context, deadline time.Time, now func() time.Time, sleep func(context.Context, time.Duration) error) error {
+	for {
+		remaining := deadline.Sub(now().Round(0))
+		if remaining <= 0 {
+			return nil
+		}
+		if err := sleep(ctx, min(remaining, resumeWaitSlice)); err != nil {
+			return err
+		}
+	}
+}
+
 // streamChat is the engine's single pre-stream retry boundary. HTTPError can
 // only be returned before a successful streaming response is handed to the
 // scanner, so this never replays output already shown to the user.
@@ -47,6 +73,9 @@ func (a *Agent) streamChatObserved(ctx context.Context, phase, model string, mes
 // streamChatOnObserved retains streamChatOn's retry/routing behaviour while
 // projecting meaningful provider-owned boundaries when a backend exposes them.
 func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, phase, model string, messages []provider.Message, toolset []provider.Tool, onToken func(string), tokensVisible bool, observe func(provider.ProgressEvent)) (provider.Message, provider.Meta, error) {
+	if a.WorkLog != nil {
+		ctx = provider.WithToolProgress(ctx)
+	}
 	stopActivity := func() {}
 	if a.Activity != nil {
 		if stop := a.Activity.Start(ctx, phase); stop != nil {
@@ -75,6 +104,9 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 
 	tried := map[string]bool{model: true}
 	for retry := 0; ; retry++ {
+		if err := pauseGate(ctx).stopped(); err != nil {
+			return provider.Message{}, provider.Meta{Model: model}, err
+		}
 		// Resolved every attempt, not once: rotation and the metered fallback
 		// change `model` inside this loop, and the backend has to follow it.
 		backend, wire, routeErr := a.backendFor(model)
@@ -87,8 +119,15 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 		if own := pinned.forModel(model); own != nil {
 			backend = own
 		}
-		messageSeen := false
+		_, vendorOwned := backend.(interface{ ProviderHandle() string })
+		messageSeen, toolReported := false, false
 		observeAttempt := func(event provider.ProgressEvent) {
+			if event.Kind == provider.ProgressToolStarted || event.Kind == provider.ProgressToolFinished {
+				toolReported = true
+			}
+			if event.Kind == provider.ProgressToolFinished && event.Error {
+				providerToolFailed(ctx)
+			}
 			// A provider can stream thousands of text deltas. The work ledger
 			// records the transition into responding once per physical attempt;
 			// tool, error, and limit boundaries remain individually observable.
@@ -105,10 +144,15 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 		var msg provider.Message
 		var meta provider.Meta
 		var err error
-		if observed, ok := backend.(provider.ObservedChatBackend); ok && observe != nil {
+		providerCallStarting(ctx)
+		if observed, ok := backend.(provider.ObservedChatBackend); ok && (observe != nil || vendorOwned) {
 			msg, meta, err = observed.StreamChatObserved(ctx, wire, messages, toolset, streamToken, observeAttempt)
 		} else {
 			msg, meta, err = backend.StreamChat(ctx, wire, messages, toolset, streamToken)
+		}
+		providerCallEnded(ctx, backend, model)
+		if a.WorkLog != nil && observe != nil {
+			observe(provider.ProgressEvent{Kind: provider.ProgressStreamEnded})
 		}
 		if err == nil {
 			return msg, meta, nil
@@ -130,6 +174,18 @@ func (a *Agent) streamChatOnObserved(ctx context.Context, pinned pinnedBackend, 
 				limit.Connector = a.connectorFor(model)
 			}
 			a.Cooldowns.Mark(limit)
+		}
+		if limited && pauseGate(ctx).note(limit) {
+			// A coordinated run pauses together. A child must not rotate or
+			// bill another model while its siblings are retaining their work.
+			return provider.Message{}, meta, limit
+		}
+		// A delivered vendor turn may already have changed files before its
+		// refusal. Billing consent does not prove replay is safe. Only the
+		// adapter's delivery/closure proof and absence of tool reports permit
+		// another physical attempt, on this model or on a fallback.
+		if vendorOwned && (toolReported || meta.ToolCalls > 0 || (!turnNeverStarted(backend) && !turnClosed(backend))) {
+			return provider.Message{}, meta, fmt.Errorf("%s may already have acted; saved work is retained and this turn cannot retry or switch models: %w", model, err)
 		}
 		// Every hop or wait below is published as it is made (V35.1c); the terminal
 		// action -- pause or stop -- is RunTurn's to publish (V35.2a).

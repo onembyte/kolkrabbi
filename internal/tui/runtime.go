@@ -23,10 +23,12 @@ const (
 // interactive event loop. The CLI owns command dispatch and model work; the
 // runtime owns only input decoding, screen repainting, and concurrency.
 type RuntimeOptions struct {
-	Input  io.Reader
-	Output io.Writer
-	Width  func() int
-	Height func() int
+	// Graphics is a detected inline-image protocol: kitty, iterm, or empty.
+	Graphics string
+	Input    io.Reader
+	Output   io.Writer
+	Width    func() int
+	Height   func() int
 	// Resize fires when the terminal changes size. The runtime probes Width and
 	// Height again and repaints; a nil channel means the size never changes.
 	Resize   <-chan struct{}
@@ -37,6 +39,8 @@ type RuntimeOptions struct {
 	Settings []SettingSpec
 	Files    []string
 	Turn     func(context.Context, string) error
+	// Ready runs after startup can accept turns, before keyboard input.
+	Ready func(context.Context)
 	// CyclePermission advances to the next permission tier and returns the
 	// one now in effect. Nil leaves Shift+Tab inert.
 	CyclePermission func() string
@@ -45,6 +49,9 @@ type RuntimeOptions struct {
 	// footer only between turns, so both numbers froze for exactly as long as a
 	// turn ran — which is when the context number is the interesting one.
 	Meter func() (context string, cost string, limits []PlanMeter)
+	// WarningForModel reports a local child's CPU placement from CLI policy.
+	// It is called outside the screen lock on a working child status.
+	WarningForModel func(model string) string
 	// Mouse asks the terminal for button reports, so a click places the
 	// caret. It costs the terminal's own drag-select, which is why it is a
 	// setting; shift-drag still selects in every terminal worth the name.
@@ -72,18 +79,22 @@ func (w *synchronizedWriter) Write(p []byte) (int, error) {
 // output may stream from a worker while the main goroutine keeps accepting a
 // separate type-ahead draft.
 type Runtime struct {
-	mu         sync.Mutex
-	input      io.Reader
-	controller *Controller
-	renderer   *Renderer
-	decoder    *Decoder
-	width      func() int
-	height     func() int
-	spinClock  spinnerClock
-	turn       func(context.Context, string) error
-	cyclePerm  func() string
-	meter      func() (string, string, []PlanMeter)
-	mouse      bool
+	mu              sync.Mutex
+	input           io.Reader
+	controller      *Controller
+	renderer        *Renderer
+	decoder         *Decoder
+	width           func() int
+	height          func() int
+	spinClock       spinnerClock
+	turn            func(context.Context, string) error
+	cyclePerm       func() string
+	meter           func() (string, string, []PlanMeter)
+	warningForModel func(string) string
+	warningChecked  map[string]bool
+	warningChecking map[string]bool
+	warningRun      uint64
+	mouse           bool
 	// Frame pacing. Streaming floods Write with a token apiece; repainting on
 	// every token re-renders the whole transcript per byte and makes the frame
 	// chase the model instead of the reader. Frames coalesce to ~30/s, which no
@@ -95,6 +106,7 @@ type Runtime struct {
 	baseContext context.Context
 	activeID    uint64
 	activeStop  context.CancelFunc
+	ready       func(context.Context)
 	activityID  uint64
 	// activities are every piece of work currently in flight, oldest first.
 	// Agent mode runs several subagents at once, so this cannot be one slot:
@@ -107,9 +119,13 @@ type Runtime struct {
 	// animIdle wakes the animator the moment the last activity ends, so a stop
 	// never has to wait out a frame interval to be told the row is empty.
 	animIdle chan struct{}
-	turns    sync.WaitGroup
-	approval chan Decision
-	secret   chan secretReply
+	// animRejoined is closed when an activity starts while a stop waits for
+	// the animator to retire: the row belongs to the newcomer, so the stop no
+	// longer has to wait.
+	animRejoined chan struct{}
+	turns        sync.WaitGroup
+	approval     chan Decision
+	secret       chan secretReply
 	// question is the reply channel of the model worker waiting on a picker.
 	question chan questionReply
 	// output is the terminal itself, kept so a child process can be given the
@@ -137,6 +153,7 @@ type Runtime struct {
 	// longer owns; with a closed flag the timer's work collapses to flag care.
 	closed    bool
 	renderErr error
+	workGroup string
 }
 
 // NewRuntime creates a normal-screen runtime. Terminal raw mode remains a CLI
@@ -156,6 +173,7 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 	}
 	output := &synchronizedWriter{out: options.Output}
 	controller := NewController(options.Status, defaultDraftSize)
+	controller.screen.graphics = options.Graphics
 	controller.SetCommands(options.Commands, 8)
 	controller.SetModels(options.Models)
 	controller.SetFiles(options.Files)
@@ -166,7 +184,7 @@ func NewRuntime(options RuntimeOptions) *Runtime {
 		renderer: NewRenderer(output), decoder: NewDecoder(),
 		output: output,
 		width:  options.Width, height: options.Height, resize: options.Resize, turn: options.Turn,
-		cyclePerm: options.CyclePermission, meter: options.Meter, mouse: options.Mouse,
+		cyclePerm: options.CyclePermission, meter: options.Meter, warningForModel: options.WarningForModel, mouse: options.Mouse, ready: options.Ready,
 		spinClock: realSpinnerClock{},
 		quit:      make(chan struct{}),
 	}
@@ -178,11 +196,15 @@ func (r *Runtime) Run(ctx context.Context) error {
 	r.baseContext = ctx
 	r.renderer.SetMouse(r.mouse)
 	if err := r.renderer.Start(); err != nil {
+		r.closing = true
 		r.mu.Unlock()
 		return err
 	}
 	r.renderLocked()
 	r.mu.Unlock()
+	if r.ready != nil {
+		r.ready(ctx)
+	}
 
 	type readResult struct {
 		data []byte
@@ -263,6 +285,10 @@ readLoop:
 	// The last frame first: a deferred one pending in the pacing window has to
 	// reach the screen while the renderer can still draw it, not after Close.
 	r.flushFrameLocked()
+	// Then the transcript still in the frame goes to scrollback, and only the
+	// composer and footer are erased. Close erases the whole region, so this
+	// used to take the session's last screenful with it (all of a short one).
+	r.commitRestLocked()
 	r.closed = true
 	closeErr := r.renderer.Close()
 	renderErr := r.renderErr
@@ -334,6 +360,9 @@ func (r *Runtime) Write(p []byte) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.controller.AppendTranscript(string(p))
+	if len(p) > 0 {
+		r.workGroup = ""
+	}
 	r.renderLocked()
 	if r.renderErr != nil {
 		return len(p), r.renderErr
@@ -410,6 +439,14 @@ func (r *Runtime) startActivityDetail(ctx context.Context, phase, detail string)
 		// retired one cannot reach its successor.
 		r.animIdle = make(chan struct{}, 1)
 	}
+	// A stop that was the last activity may be waiting for the animator to
+	// retire, so that no frame of its row follows it. This activity owns the
+	// row now, so that wait is over: an animator it joins will not retire
+	// until this ends, and the stop must not wait for another agent's work.
+	if r.animRejoined != nil {
+		close(r.animRejoined)
+		r.animRejoined = nil
+	}
 	animDone, animIdle := r.animDone, r.animIdle
 	r.mu.Unlock()
 
@@ -435,9 +472,19 @@ func (r *Runtime) startActivityDetail(ctx context.Context, phase, detail string)
 			// work that has not finished.
 			r.mu.Lock()
 			last := len(r.activities) == 0
+			var rejoined chan struct{}
+			if last {
+				if r.animRejoined == nil {
+					r.animRejoined = make(chan struct{})
+				}
+				rejoined = r.animRejoined
+			}
 			r.mu.Unlock()
 			if last {
-				<-animDone
+				select {
+				case <-animDone:
+				case <-rejoined:
+				}
 			}
 		})
 	}
@@ -722,6 +769,22 @@ func (r *Runtime) ConfigPicker() *ConfigPick {
 func (r *Runtime) SetStatus(status Status) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if status.LocalWarningAcknowledged != r.controller.status.LocalWarningAcknowledged {
+		r.warningChecked = nil
+		r.warningChecking = nil
+		r.warningRun++
+	}
+	r.controller.SetStatus(status)
+	r.renderLocked()
+}
+
+// RecoveryWarning receives a typed save notice through the engine's output
+// surface. It remains visible independently of the bounded transcript.
+func (r *Runtime) RecoveryWarning(message string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	status := r.controller.status
+	status.RecoveryWarning = sanitizeTerminalLine(message)
 	r.controller.SetStatus(status)
 	r.renderLocked()
 }
@@ -731,7 +794,42 @@ func (r *Runtime) SetStatus(status Status) {
 func (r *Runtime) SetAgentStatus(status AgentStatus) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if !r.controller.acceptsAgentStatus(status) {
+		return
+	}
 	r.controller.SetAgentStatus(status)
+	probe := status.State == "working" && r.warningForModel != nil &&
+		!r.warningChecked[status.Model] && !r.warningChecking[status.Model]
+	run := r.warningRun
+	if probe {
+		if r.warningChecking == nil {
+			r.warningChecking = make(map[string]bool)
+		}
+		r.warningChecking[status.Model] = true
+	}
+	if probe {
+		go r.probeLocalWarning(status.Model, run)
+	}
+	r.renderLocked()
+}
+
+// A slow hardware probe must never delay the engine's child-status callback.
+// Its answer is applied only while the same run still owns the model.
+func (r *Runtime) probeLocalWarning(model string, run uint64) {
+	warning := r.warningForModel(model)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if run != r.warningRun || r.closed {
+		return
+	}
+	delete(r.warningChecking, model)
+	if r.controller.hasObservedModel(model) {
+		if r.warningChecked == nil {
+			r.warningChecked = make(map[string]bool)
+		}
+		r.warningChecked[model] = true
+		r.controller.SetLocalWarning(warning)
+	}
 	r.renderLocked()
 }
 
@@ -747,17 +845,24 @@ func (r *Runtime) Approval() *Approval {
 func (r *Runtime) Controller() *Controller { return r.controller }
 
 func (r *Runtime) startTurnLocked(prompt string) {
+	r.startTurnContextLocked(r.baseContext, prompt)
+}
+
+func (r *Runtime) startTurnContextLocked(base context.Context, prompt string) {
+	r.warningRun++
+	r.warningChecked = nil
+	r.warningChecking = nil
 	// A new turn is a new run: the last run's window must not sit over it.
 	r.controller.CloseAgentWindow()
 	// The request joins the transcript before the answer does. Without it the
 	// draft vanished on Enter and the scrollback held only replies, so a
 	// session read as a monologue and there was no record of what was asked.
 	r.controller.AppendTranscript(promptEcho(prompt))
+	r.workGroup = ""
 	if r.turn == nil {
 		r.controller.FinishTurn("ready")
 		return
 	}
-	base := r.baseContext
 	if base == nil {
 		r.controller.FinishTurn("failed")
 		return
@@ -879,6 +984,19 @@ func (r *Runtime) flushFrameLocked() {
 	}
 }
 
+// commitRestLocked writes what is left of the transcript above the frame and
+// erases the rest of the frame, in one write, as a paint does for overflow.
+func (r *Runtime) commitRestLocked() {
+	if r.renderErr != nil {
+		return
+	}
+	width := r.width()
+	if width <= 0 {
+		width = defaultWidth
+	}
+	r.renderErr = r.renderer.Render(r.controller.Remaining(width), "")
+}
+
 type emptyReader struct{}
 
 func (emptyReader) Read([]byte) (int, error) { return 0, io.EOF }
@@ -926,23 +1044,66 @@ func (r *Runtime) Secret() *SecretPrompt {
 }
 
 // Submit enters a prompt as if the person had typed it: it runs now when the
-// surface is idle and queues behind the active turn otherwise. The resume
-// monitor uses it to hand a paused turn back (V35.2b); a closing runtime
-// drops it, since the session that owned it is leaving.
-func (r *Runtime) Submit(prompt string) {
+// surface is idle and queues behind the active turn otherwise. False means the surface could
+// not accept it, so the caller must retain the pending turn.
+func (r *Runtime) Submit(prompt string) bool {
+	return r.submit(deliveryValues{}, prompt, true)
+}
+
+// SubmitWhenIdle accepts an automatic continuation only when it can start.
+// A busy surface leaves ownership with the caller: a type-ahead queue can be
+// replaced or cancelled by the user and cannot own a saved allowance pause.
+func (r *Runtime) SubmitWhenIdle(prompt string) bool {
+	return r.submit(deliveryValues{}, prompt, false)
+}
+
+// SubmitWhenIdleContext retains the resume monitor's delivery claim. The
+// accepted turn lives with the session; the monitor may end after handing it
+// over, so only its values, rather than its cancellation, follow the turn.
+func (r *Runtime) SubmitWhenIdleContext(delivery context.Context, prompt string) bool {
+	if delivery == nil || delivery.Err() != nil {
+		return false
+	}
+	return r.submit(deliveryValues{values: delivery}, prompt, false)
+}
+
+type deliveryValues struct {
+	context.Context
+	values context.Context
+}
+
+func (c deliveryValues) Value(key any) any {
+	if value := c.values.Value(key); value != nil {
+		return value
+	}
+	return c.Context.Value(key)
+}
+
+func (r *Runtime) submit(delivery deliveryValues, prompt string, allowQueue bool) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.closing || strings.TrimSpace(prompt) == "" {
-		return
+	if r.closing || r.baseContext == nil || r.baseContext.Err() != nil || r.turn == nil || strings.TrimSpace(prompt) == "" {
+		return false
+	}
+	if delivery.values != nil && delivery.values.Err() != nil {
+		return false
 	}
 	if r.activeStop != nil {
+		if !allowQueue || r.controller.Queued() != "" {
+			return false
+		}
 		r.controller.QueueRequest(prompt)
 		r.renderLocked()
-		return
+		return true
 	}
 	r.controller.BeginTurn()
-	r.startTurnLocked(prompt)
+	base := r.baseContext
+	if delivery.values != nil {
+		base = deliveryValues{Context: base, values: context.WithoutCancel(delivery.values)}
+	}
+	r.startTurnContextLocked(base, prompt)
 	r.renderLocked()
+	return true
 }
 
 // agentWindowLinger is how long the agents' window stays after the turn

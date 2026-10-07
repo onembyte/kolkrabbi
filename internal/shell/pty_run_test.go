@@ -29,6 +29,22 @@ func TestAChildRunInSessionGetsARealTerminal(t *testing.T) {
 	}
 }
 
+func TestInSessionLoginBindsTheEndpointAndScrubsSecrets(t *testing.T) {
+	t.Setenv("OLLAMA_HOST", "10.0.0.9:11434")
+	t.Setenv("OPENAI_API_KEY", "sentinel-secret")
+	ctx, err := WithOllamaLoginEndpoint(context.Background(), "127.0.0.1:43111")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := RunInSession(ctx, "sh", []string{"-c", `printf 'host=%s key=%s\n' "$OLLAMA_HOST" "$OPENAI_API_KEY"`}, strings.NewReader(""), &out, 80, 24); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(out.String()); got != "host=127.0.0.1:43111 key=" {
+		t.Fatalf("login environment: %q", got)
+	}
+}
+
 // Keystrokes have to reach the child, or a login prompt can never be answered.
 func TestKeystrokesReachTheChild(t *testing.T) {
 	var out bytes.Buffer

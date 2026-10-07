@@ -247,28 +247,24 @@ func TestActivityStopsBeforeToolHandlingAndErrors(t *testing.T) {
 			t.Fatal("expected provider error")
 		}
 		got := events.snapshot()
-		// runLoop prints its trailing newline only after streamChat has stopped;
-		// a 503 is a capacity limit that waiting lifts, so the turn then pauses
-		// and says so (V35.2a) -- after the newline, never before the stop.
-		newline := eventIndex(got, "write:\n")
-		if eventCount(got, "start:thinking") != 1 || eventCount(got, "stop:thinking") != 1 || newline < 0 {
+		// A 503 is a capacity limit that waiting lifts, so the turn pauses and
+		// says so (V35.2a), never before the activity stops. Since V35.3b the
+		// recommendation block follows the notice. Re-read 2026-09-25 (V43.5
+		// T8): the response label waits for the model's words, so a round that
+		// failed before any writes no label and no line to end — the pause
+		// notice is the first write, after the stop.
+		if eventCount(got, "start:thinking") != 1 || eventCount(got, "stop:thinking") != 1 {
 			t.Fatalf("error lifecycle = %#v", got)
 		}
-		if stop := eventIndex(got, "stop:thinking"); stop >= newline {
-			t.Fatalf("error returned before activity stopped: %#v", got)
-		}
-		// The pause notice comes after the stop and the newline; since V35.3b
-		// the recommendation block follows the notice, so the notice is no
-		// longer the last write — it is the first after the newline.
-		paused := -1
+		stop, first := eventIndex(got, "stop:thinking"), -1
 		for i, event := range got {
-			if strings.Contains(event, "paused") {
-				paused = i
+			if strings.HasPrefix(event, "write:") {
+				first = i
 				break
 			}
 		}
-		if paused < 0 || paused <= newline {
-			t.Fatalf("a capacity limit did not end in a pause notice after the newline: %#v", got)
+		if first < 0 || first < stop || !strings.Contains(got[first], "paused") {
+			t.Fatalf("the error was written before activity stopped, or not first as a pause: %#v", got)
 		}
 	})
 }
@@ -301,7 +297,7 @@ func TestAgentActivityPhasesAreDeterministic(t *testing.T) {
 	}
 }
 
-func TestCancelledContextReachesAndStopsActivity(t *testing.T) {
+func TestCancelledTurnDoesNotStartActivityOrProviderWork(t *testing.T) {
 	srv := enginetest.New(enginetest.Step{Text: "unused"})
 	defer srv.Close()
 	ag, _, _, _ := newTestAgentInternal(t, srv, ModeCode)
@@ -314,8 +310,8 @@ func TestCancelledContextReachesAndStopsActivity(t *testing.T) {
 		t.Fatal("expected cancellation")
 	}
 	got := events.snapshot()
-	if eventCount(got, "context-cancelled") != 1 || eventCount(got, "stop:thinking") != 1 {
-		t.Fatalf("cancelled activity lifecycle = %#v", got)
+	if len(got) != 0 || len(srv.Requests) != 0 {
+		t.Fatalf("already cancelled turn started work: events=%#v, requests=%d", got, len(srv.Requests))
 	}
 }
 

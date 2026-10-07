@@ -36,11 +36,7 @@ func MeasureContext(window, lastPromptTokens int, messages []provider.Message) C
 		usage.Used, usage.Measured = lastPromptTokens, true
 		return usage
 	}
-	characters := 0
-	for _, message := range messages {
-		characters += len(message.Content)
-	}
-	usage.Used = characters / charsPerToken
+	usage.Used = estimateTokens(messages)
 	return usage
 }
 

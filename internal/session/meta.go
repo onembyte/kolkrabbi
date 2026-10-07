@@ -94,12 +94,16 @@ func (s *Session) meta() Meta {
 // that wrote the transcript has done the thing that matters, and must not
 // report failure because a cache beside it could not be replaced.
 func writeMeta(dir string, m Meta) {
+	_ = writeMetaChecked(dir, m)
+}
+
+func writeMetaChecked(dir string, m Meta) error {
 	m.Version = metaVersion
 	data, err := json.Marshal(m)
 	if err != nil {
-		return
+		return err
 	}
-	_ = atomicfile.WriteWith(metaPath(dir, m.ID), append(data, '\n'), 0o600,
+	return atomicfile.WriteWith(metaPath(dir, m.ID), append(data, '\n'), 0o600,
 		atomicfile.WriteOptions{SkipDirSync: true, SkipFileSync: true})
 }
 
@@ -190,17 +194,37 @@ func List(dir string) ([]Meta, error) {
 		return nil, err
 	}
 	out := make([]Meta, 0, len(entries))
+	seen := make(map[string]bool)
 	for _, e := range entries {
 		name := e.Name()
 		// `<id>.meta.json`, `<id>.cooldowns.json` and the pre-compaction
 		// archives all end in .json; the transcript is the one file whose name
 		// is the session id.
-		if e.IsDir() || !strings.HasSuffix(name, ".json") {
+		if e.IsDir() && !strings.HasSuffix(name, ".resume.json.gz") {
 			continue
 		}
-		id := strings.TrimSuffix(name, ".json")
-		if validateSessionID(id) != nil {
+		var id string
+		switch {
+		case strings.HasSuffix(name, ".resume.json.gz"):
+			id = strings.TrimSuffix(name, ".resume.json.gz")
+		case strings.HasSuffix(name, ".json"):
+			id = strings.TrimSuffix(name, ".json")
+		default:
 			continue
+		}
+		if validateSessionID(id) != nil || seen[id] {
+			continue
+		}
+		seen[id] = true
+		if _, err := os.Lstat(recoveryPath(dir, id)); err == nil {
+			s, err := Load(dir, id)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, s.meta())
+			continue
+		} else if !os.IsNotExist(err) {
+			return nil, err
 		}
 		m, ok := readMeta(dir, id)
 		if !ok {
@@ -220,7 +244,19 @@ func List(dir string) ([]Meta, error) {
 // is derived state, so something must be able to prove it still matches and
 // put it back when it does not.
 func RepairMeta(dir, id string) (bool, error) {
+	if err := validateSessionID(id); err != nil {
+		return false, err
+	}
 	fresh, ok := metaFromTranscript(dir, id)
+	if _, err := os.Lstat(recoveryPath(dir, id)); err == nil {
+		s, err := Load(dir, id)
+		if err != nil {
+			return false, err
+		}
+		fresh, ok = s.meta(), true
+	} else if !os.IsNotExist(err) {
+		return false, err
+	}
 	if !ok {
 		return false, os.ErrNotExist
 	}

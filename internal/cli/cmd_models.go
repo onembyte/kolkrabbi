@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -24,9 +25,16 @@ func (a *app) runModels(ctx context.Context, args []string) error {
 		return err
 	}
 	endpoint := config.ResolveBaseURL("", cfg)
+	if a.sessionEndpoint != "" {
+		endpoint = a.sessionEndpoint
+	}
 	client, err := providerClientForEndpoint(ctx, endpoint, d.CredentialsFile())
 	if err != nil {
-		return err
+		var guided *GuidedError
+		if !errors.As(err, &guided) {
+			return err
+		}
+		fmt.Fprintln(a.stdout, "remote catalog · add the provider key with /key; local models remain available")
 	}
 
 	forceRefresh := false
@@ -40,8 +48,11 @@ func (a *app) runModels(ctx context.Context, args []string) error {
 	}
 
 	filter := strings.Join(filterArgs, " ")
-	if err := a.printModelCatalog(ctx, client, d.CatalogFile(), forceRefresh, filter); err != nil {
-		return err
+	var catalogErr error
+	if client != nil {
+		if err := a.printModelCatalog(ctx, client, d.CatalogFile(), forceRefresh, filter); err != nil {
+			catalogErr = err
+		}
 	}
 	// --refresh asks every signed-in vendor before the sections print, not
 	// after: a refresh that renders the previous catalog and then says it
@@ -60,7 +71,7 @@ func (a *app) runModels(ctx context.Context, args []string) error {
 		}
 	}
 	a.printHostModels(ctx, d.HostCatalogFile(), filter)
-	return nil
+	return catalogErr
 }
 
 // printHostModels lists what the user's own Ollama serves, below the gateway
@@ -116,13 +127,21 @@ func (a *app) printVendorModels(filter string) {
 }
 
 func (a *app) printHostModels(ctx context.Context, cacheFile, filter string) {
-	host := a.discoverHost(ctx)
+	host := a.localHost(ctx)
 	switch host.State {
 	case local.HostInstalled:
-		fmt.Fprintf(a.stdout, "\nlocal · ollama at %s is installed but not running; its models are listed here once it runs, and `/model` can still pick a pulled one and start it\n", host.Binary)
+		if a.waitsOnStalled(host) {
+			fmt.Fprintf(a.stdout, "\nlocal · %s; its models are listed here once it answers, and a pick fails until then\n", host.StalledRuntime)
+			a.printCachedHostModels(filter)
+			return
+		}
+		// The same words the picker uses for what a pick does.
+		fmt.Fprintf(a.stdout, "\nlocal · ollama at %s is installed but not running; its models are listed here once it runs, and `/model` can still pick a pulled one%s\n", host.Binary, a.pickSuffix(host))
+		a.printCachedHostModels(filter)
 		return
 	case local.HostAbsent:
 		fmt.Fprintf(a.stdout, "\nlocal · ollama is not installed; install it with: %s\n", host.InstallHint())
+		a.printCachedHostModels(filter)
 		return
 	}
 	models, err := a.listHostModels(ctx, host.Addr, cacheFile)
@@ -134,10 +153,31 @@ func (a *app) printHostModels(ctx context.Context, cacheFile, filter string) {
 	renderHostModels(a.stdout, host, models, filter)
 }
 
+func (a *app) printCachedHostModels(filter string) {
+	filter = strings.ToLower(filter)
+	if a.pulledNames == nil {
+		return
+	}
+	var names []string
+	for name, present := range a.pulledNames() {
+		if present {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		id := local.HostPrefix + name
+		if filter != "" && !strings.Contains(strings.ToLower(id), filter) {
+			continue
+		}
+		fmt.Fprintf(a.stdout, "  %-44s cached · execution location and capabilities checked when Ollama starts\n", id)
+	}
+}
+
 func renderHostModels(out io.Writer, host local.Host, models []local.HostModel, filter string) {
 	fmt.Fprintf(out, "\nlocal · ollama %s at %s\n", host.Version, host.Addr)
 	if len(models) == 0 {
-		fmt.Fprintln(out, "  nothing pulled yet; `ollama pull <model>` adds one")
+		fmt.Fprintln(out, "  nothing pulled yet; `/localia pull <model>` plans and downloads one")
 		return
 	}
 	filter = strings.ToLower(filter)
@@ -151,7 +191,7 @@ func renderHostModels(out io.Writer, host local.Host, models []local.HostModel, 
 			if description != "" {
 				description += " · "
 			}
-			description += "not pulled: ollama pull " + m.Name
+			description += "not pulled: /localia pull " + m.Name
 		}
 		fmt.Fprintf(out, "%-48s ctx %-9d %s\n", info.ID, info.ContextLength, description)
 	}

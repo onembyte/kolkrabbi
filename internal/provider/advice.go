@@ -187,9 +187,11 @@ func adviseTransport(err error) (Advice, bool) {
 func adviseHost(httpErr *HTTPError) (Advice, bool) {
 	switch httpErr.StatusCode {
 	case http.StatusUnauthorized:
-		next := "Run `ollama signin` in a terminal, then try again."
+		// The session's command signs in the server this session talks to; a
+		// Kolk-managed runtime has no `ollama` on PATH for a terminal to run.
+		next := "Sign in with `/plans login ollama <plan>`, then try again."
 		if httpErr.SignInURL != "" {
-			next = "Sign in at " + httpErr.SignInURL + " (or run `ollama signin`), then try again."
+			next = "Sign in with `/plans login ollama <plan>`, or open " + httpErr.SignInURL + ", then try again."
 		}
 		return Advice{Summary: "the local Ollama server is signed out of ollama.com, which this cloud model needs", NextAction: next}, true
 	case http.StatusTooManyRequests:
@@ -203,7 +205,7 @@ func adviseHost(httpErr *HTTPError) (Advice, bool) {
 	case http.StatusNotFound:
 		return Advice{
 			Summary:    "the local Ollama server has no model by that name",
-			NextAction: "`ollama pull <name>` fetches it; `/models` lists what is pulled.",
+			NextAction: "`/localia pull <name>` downloads a model from `/localia models` or an Ollama Cloud tag; a server you run yourself also takes `ollama pull <name>`. `/model` lists what is pulled.",
 		}, true
 	}
 	if httpErr.StatusCode >= 500 {

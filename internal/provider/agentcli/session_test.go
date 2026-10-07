@@ -16,13 +16,25 @@ type fakeLineProcess struct {
 	sent     []byte
 	lines    [][]byte
 	hardExit bool
+	// exitWhenDrained models a process that exits once its last frame is
+	// read. As the production one does, it never fails a write: it says the
+	// line was dropped because the child had already exited.
+	exitWhenDrained bool
 }
 
 func (p *fakeLineProcess) HardExit() bool { return p.hardExit }
 
 func (p *fakeLineProcess) Send(line []byte) error {
-	p.sent = append([]byte(nil), line...)
+	p.Queue(line)
 	return nil
+}
+
+func (p *fakeLineProcess) Queue(line []byte) bool {
+	if p.exitWhenDrained && len(p.lines) == 0 {
+		return false
+	}
+	p.sent = append([]byte(nil), line...)
+	return true
 }
 func (p *fakeLineProcess) Next(context.Context) ([]byte, error) {
 	if len(p.lines) == 0 {
@@ -110,7 +122,8 @@ func TestClaudeSessionObservedStreamKeepsProviderToolIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	var observed []provider.ProgressEvent
-	if _, _, err := session.TurnObserved(context.Background(), []provider.Message{{Role: "user", Content: "read it"}}, "opus", nil,
+	var tokens strings.Builder
+	if _, _, err := session.TurnObserved(provider.WithToolProgress(context.Background()), []provider.Message{{Role: "user", Content: "read it"}}, "opus", func(s string) { tokens.WriteString(s) },
 		func(event provider.ProgressEvent) { observed = append(observed, event) }); err != nil {
 		t.Fatal(err)
 	}
@@ -118,6 +131,9 @@ func TestClaudeSessionObservedStreamKeepsProviderToolIdentity(t *testing.T) {
 		observed[1].Kind != provider.ProgressToolFinished || observed[0].ID != observed[1].ID ||
 		observed[0].Name != "Read" || observed[1].Name != "Read" {
 		t.Fatalf("provider progress = %+v", observed)
+	}
+	if observed[0].Input == "" || observed[1].Output != "README.md: 12 lines" || strings.Contains(tokens.String(), "· Read") {
+		t.Fatalf("typed tool results were lost or duplicated: %+v, tokens %q", observed, tokens.String())
 	}
 }
 

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kolkrabbi.francomichetti.com/spec/0/schemas/events/recovery.failed.json",
+  "title": "recovery.failed payload",
+  "type": "object",
+  "required": ["code", "reason", "message", "durable"],
+  "properties": {
+    "code": {"type": "string", "enum": ["recovery_save_failed"]},
+    "reason": {"type": "string", "enum": ["pause", "limit", "error", "resume"]},
+    "message": {"type": "string", "minLength": 1},
+    "durable": {"type": "boolean"}
+  },
+  "additionalProperties": true
+}

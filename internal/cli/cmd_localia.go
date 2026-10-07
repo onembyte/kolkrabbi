@@ -2,7 +2,9 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -15,9 +17,8 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/local"
 )
 
-// runLocalia reports what this machine could run locally and what Kolkrabbi is
-// currently storing for it. It reads only: nothing here downloads, starts, or
-// configures anything, because every pull is an explicit user action.
+// runLocalia reports local capacity and cached models. Status, models and plan
+// are read-only; explicit setup, pull and endpoint commands perform their action.
 func (a *app) runLocalia(ctx context.Context, args []string) error {
 	return a.runLocaliaWith(ctx, nil, args)
 }
@@ -27,6 +28,16 @@ func (a *app) runLocalia(ctx context.Context, args []string) error {
 func (a *app) runLocaliaWith(ctx context.Context, ag *engine.Agent, args []string) error {
 	if len(args) > 0 {
 		switch args[0] {
+		case "stop":
+			if len(args) != 1 {
+				return usagef("usage: /localia stop")
+			}
+			return a.stopLocalRuntime(ctx)
+		case "setup":
+			if len(args) != 1 {
+				return usagef("usage: /localia setup")
+			}
+			return a.setupLocalRuntime(ctx)
 		case "add":
 			if len(args) < 3 {
 				return usagef("usage: /localia add <name> <host:port>")
@@ -91,9 +102,15 @@ func (a *app) runLocaliaWith(ctx context.Context, ag *engine.Agent, args []strin
 	if err != nil {
 		return err
 	}
+	if root, err := verifiedProjectRoot(); err == nil {
+		cfg.Local = cfg.LocalForProject(root)
+	}
 	fmt.Fprintln(a.stdout, "\nSETTINGS")
 	for _, key := range config.LocalKeys {
 		value, _ := config.GetLocal(cfg, key)
+		if key == "local.ephemeral" && value == "" {
+			value = "on (default; stops at session close)"
+		}
 		if value == "" {
 			value = "(computed)"
 		} else if key == "local.reserved_ram_bytes" {
@@ -106,6 +123,26 @@ func (a *app) runLocaliaWith(ctx context.Context, ag *engine.Agent, args []strin
 		fmt.Fprintf(a.stdout, "  %-30s %s\n", key, value)
 	}
 	fmt.Fprintf(a.stdout, "  change with: /config set %s <value>\n", config.LocalKeys[0])
+	if a.localRuntime != nil {
+		fmt.Fprintln(a.stdout, "\nRUNTIME")
+		host := a.localHost(ctx)
+		switch {
+		case host.State == local.HostRunning && !host.Managed:
+			fmt.Fprintf(a.stdout, "  %s · user managed; Kolk leaves it running\n", host.Addr)
+		case host.KeptRunning:
+			fmt.Fprintf(a.stdout, "  %s · kept running from an earlier `local.ephemeral off`; this session reuses it and leaves it running\n", host.Addr)
+			if a.localRuntime.RecordedRuntime(ctx) == host.Addr {
+				fmt.Fprintln(a.stdout, "  stop it explicitly with /localia stop")
+			}
+		case a.localRuntime.Persistent:
+			fmt.Fprintf(a.stdout, "  %s · stays running for this project after session close\n", host.State)
+		default:
+			fmt.Fprintf(a.stdout, "  %s · stops when this session closes\n", host.State)
+		}
+		fmt.Fprintln(a.stdout, "  downloaded models stay cached; config changes apply next session")
+		a.printStalledRuntime(host)
+		a.printAcceleratorStatus(host)
+	}
 
 	// What is pulled, by the record that exists: a running server's own list,
 	// else the manifest tree the last pull left in the store.
@@ -126,7 +163,7 @@ func (a *app) runLocaliaWith(ctx context.Context, ag *engine.Agent, args []strin
 func (a *app) pulledModelNames(ctx context.Context) []string {
 	var names []string
 	if a.discoverHost != nil && a.listHostModels != nil {
-		if host := a.discoverHost(ctx); host.State == local.HostRunning {
+		if host := a.localHost(ctx); host.State == local.HostRunning {
 			if models, err := a.listHostModels(ctx, host.Addr, ""); err == nil {
 				for _, m := range models {
 					names = append(names, m.Name)
@@ -187,6 +224,7 @@ func (a *app) printLocalCatalog(filter string) error {
 			local.HumanBytes(requirement.VRAMBytes), local.HumanBytes(requirement.RAMBytes))
 	}
 	fmt.Fprintln(a.stdout, "\nplan one before pulling it: /localia plan <model>")
+	fmt.Fprintln(a.stdout, "Ollama Cloud tags run on ollama.com and need no plan: /localia pull --yes <tag>-cloud")
 	return nil
 }
 
@@ -206,7 +244,7 @@ func (a *app) printLocalPlan(ctx context.Context, name string) error {
 	if err != nil {
 		return err
 	}
-	hardware := a.hardware(ctx, existingAncestor(local.HostModelDir(os.Environ())))
+	hardware := a.usableHardware(ctx, existingAncestor(local.HostModelDir(os.Environ())))
 
 	plan, err := local.PlanFit(hardware, localRuntimeConfig(cfg), entry.Requirement())
 	if err != nil {
@@ -244,6 +282,25 @@ func (a *app) hardware(ctx context.Context, modelDir string) local.Hardware {
 		return a.probeHardware(bounded, modelDir)
 	}
 	return local.NewSystemProber(modelDir).Probe(bounded)
+}
+
+// usableHardware is the hardware a fit plan may place a model on: the probe,
+// less accelerators the local runtime cannot use (an AMD GPU with no ROCm
+// bundle for it), so a plan never says "gpu" beside a note saying "CPU".
+func (a *app) usableHardware(ctx context.Context, modelDir string) local.Hardware {
+	hardware := a.hardware(ctx, modelDir)
+	unusable := a.localHost(ctx).UnusableVendor()
+	if unusable == "" {
+		return hardware
+	}
+	usable := make([]local.Accelerator, 0, len(hardware.Accelerators))
+	for _, card := range hardware.Accelerators {
+		if card.Vendor != unusable {
+			usable = append(usable, card)
+		}
+	}
+	hardware.Accelerators = usable
+	return hardware
 }
 
 // localRuntimeConfig turns saved settings into the planner's input, leaving
@@ -286,8 +343,16 @@ func stripYesFlag(args []string) ([]string, bool) {
 // model that cannot fit is refused before the user is asked to approve a
 // download that could never have worked.
 func (a *app) pullLocalModel(ctx context.Context, name string, approved bool) error {
+	// A picker id pasted whole names the same model: ollama/<name> is the
+	// route, and the server knows only <name>.
+	name = strings.TrimPrefix(strings.TrimSpace(name), local.HostPrefix)
 	entry, err := local.LookupModel(name)
 	if err != nil {
+		// A Cloud tag is outside the fit catalog: its weights stay on
+		// ollama.com, and its pull fetches only the manifest.
+		if local.IsCloudModelName(name) {
+			return a.pullCloudModel(ctx, strings.TrimSpace(name), approved)
+		}
 		return err
 	}
 	dirs, err := a.resolve()
@@ -298,7 +363,7 @@ func (a *app) pullLocalModel(ctx context.Context, name string, approved bool) er
 	if err != nil {
 		return err
 	}
-	plan, err := local.PlanFit(a.hardware(ctx, existingAncestor(local.HostModelDir(os.Environ()))), localRuntimeConfig(cfg), entry.Requirement())
+	plan, err := local.PlanFit(a.usableHardware(ctx, existingAncestor(local.HostModelDir(os.Environ()))), localRuntimeConfig(cfg), entry.Requirement())
 	if err != nil {
 		return err
 	}
@@ -316,41 +381,44 @@ func (a *app) pullLocalModel(ctx context.Context, name string, approved bool) er
 		fmt.Fprintf(a.stdout, "  fallback:  %s\n", plan.Fallback)
 	}
 
-	if !approved {
-		// A session reads the keyboard from its own goroutine, so prompting
-		// here would compete with it for the user's keystrokes — the same
-		// contention a provider login would cause.
-		if a.terminalOwned != nil && a.terminalOwned() {
-			// `kolk localia` retired on 2026-09-02, so "another terminal" is no
-			// longer a place this can be done: --yes is the answer, and it is
-			// the same consent given in advance.
-			return fmt.Errorf("a pull needs a yes or no, which this session cannot ask for; repeat it as `/localia pull --yes %s`", entry.Name)
-		}
-		if !a.confirmed("Download and install it now?") {
-			fmt.Fprintln(a.stdout, "cancelled; nothing was downloaded")
-			return nil
-		}
+	if err := a.printPullSetup(ctx); err != nil {
+		return err
+	}
+	if ok, err := a.approvePull(entry.Name, approved, "Download and install it now?"); !ok || err != nil {
+		return err
 	}
 
 	// The pull is the host's own (E10): the bytes land in its store, and
 	// `ollama list` shows them afterwards exactly as if the user had typed
 	// `ollama pull` — which is what this is, with the fit plan and the
 	// approval above in front of it.
-	host := a.discoverHost(ctx)
-	addr := host.Addr
-	switch host.State {
-	case local.HostAbsent:
-		return fmt.Errorf("ollama is not installed, so nothing can pull %s; install it with: %s", entry.Name, host.InstallHint())
-	case local.HostInstalled:
-		// Installed and idle: a pull is exactly the first use that earns a
-		// started server. Stopped again when the pull is done.
-		started, stop, err := a.startHostFor(ctx, host)
-		if err != nil {
-			return err
-		}
-		defer stop()
-		addr = started
+	addr, stop, err := a.pullHost(ctx)
+	if err != nil {
+		return err
 	}
+	defer stop()
+	// Approval and native installation can take minutes and consume the disk
+	// the weights will use. Recheck immediately before the model request; the
+	// estimate shown before setup is no longer evidence of available capacity.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	current, err := local.PlanFit(a.usableHardware(ctx, existingAncestor(local.HostModelDir(os.Environ()))), localRuntimeConfig(cfg), entry.Requirement())
+	if err != nil {
+		return fmt.Errorf("fit changed before the model download: %w; check /localia plan %s", err, entry.Name)
+	}
+	if current.Placement != plan.Placement || current.GPUIndex != plan.GPUIndex {
+		fmt.Fprintf(a.stdout, "  ! Fit now estimates %s", current.Placement)
+		if current.Accelerator != "" {
+			fmt.Fprintf(a.stdout, " (%s, index %d)", current.Accelerator, current.GPUIndex)
+		}
+		if current.Fallback != "" {
+			fmt.Fprintf(a.stdout, " · %s", current.Fallback)
+		}
+		fmt.Fprintln(a.stdout)
+	}
+	fmt.Fprintf(a.stdout, "  └ Fit rechecked · %s disk free · %s available for %s (estimate)\n",
+		local.HumanBytes(current.DiskFreeBytes), local.HumanBytes(current.AvailableBytes), current.Placement)
 	fmt.Fprintf(a.stdout, "pulling %s through ollama at %s\n", entry.Name, addr)
 	if err := local.PullHostModel(ctx, addr, entry.Name, a.stdout); err != nil {
 		return err
@@ -359,13 +427,158 @@ func (a *app) pullLocalModel(ctx context.Context, name string, approved bool) er
 	return nil
 }
 
+// pullCloudModel pulls the manifest that lets the session's Ollama route a
+// Cloud model to ollama.com. Nothing loads here, so there is no fit to plan,
+// but the download is still the user's explicit choice. Going through the
+// session's server is what makes this work on a Kolk-managed runtime, whose
+// `ollama` is not on PATH and does not listen on the default port.
+func (a *app) pullCloudModel(ctx context.Context, name string, approved bool) error {
+	if err := validateLocalModelName(name); err != nil {
+		return err
+	}
+	fmt.Fprintf(a.stdout, "%s (Ollama Cloud)\n", name)
+	fmt.Fprintln(a.stdout, "  runs on:   ollama.com; nothing is loaded on this machine")
+	fmt.Fprintln(a.stdout, "  download:  its manifest, into this session's Ollama; the weights stay on ollama.com")
+	fmt.Fprintln(a.stdout, "  needs:     a server signed in to ollama.com (/plans login ollama <plan>)")
+	if err := a.printPullSetup(ctx); err != nil {
+		return err
+	}
+	if ok, err := a.approvePull(name, approved, "Pull its manifest now?"); !ok || err != nil {
+		return err
+	}
+	addr, stop, err := a.pullHost(ctx)
+	if err != nil {
+		return err
+	}
+	defer stop()
+	// The spelling only claims Cloud. A name ending in -cloud could be any
+	// registry model, whose pull would bring weights this text never sized,
+	// so the server has to name the remote host before anything is pulled.
+	// Only the server's own answer is a verdict about the model; a cancelled,
+	// signed-out or failing check says what happened instead.
+	remote, err := local.CloudModelRemoteHost(ctx, addr, name)
+	switch {
+	case ctx.Err() != nil:
+		return ctx.Err()
+	case errors.Is(err, local.ErrNotCloudModel):
+		return fmt.Errorf("%s is not an Ollama Cloud model on this server; nothing was pulled. `/localia models` lists local models", name)
+	case errors.Is(err, local.ErrCloudSignedOut):
+		return fmt.Errorf("this Ollama is signed out of ollama.com, so it cannot confirm %s; nothing was pulled. Sign in with /plans login ollama <plan>, then pull again", name)
+	case err != nil:
+		return fmt.Errorf("could not confirm %s is an Ollama Cloud model: %w; nothing was pulled", name, err)
+	}
+	fmt.Fprintf(a.stdout, "  └ Cloud model confirmed · runs at %s\n", remote)
+	fmt.Fprintf(a.stdout, "pulling %s through ollama at %s\n", name, addr)
+	if err := local.PullHostModel(ctx, addr, name, a.stdout); err != nil {
+		return err
+	}
+	fmt.Fprintf(a.stdout, "%s is pulled; `/model` lists it as ollama/%s\n", name, name)
+	return nil
+}
+
+// printPullSetup says what else a yes does. A pull goes through a running
+// server, so with none the approval also covers starting Ollama and, where
+// Kolk can install it, setting it up. The question must cover all of that.
+// With no Ollama and no way to set one up here, a yes could only fail, so it
+// refuses before the question and names the install instead.
+func (a *app) printPullSetup(ctx context.Context) error {
+	canSetUp := a.installLocalRuntime != nil && a.managedSetupSupported != nil && a.managedSetupSupported()
+	host := a.localHost(ctx)
+	companion := ""
+	if host.MissingCompanion != "" {
+		companion = " with its " + host.MissingCompanion
+	}
+	if a.waitsOnStalled(host) {
+		return fmt.Errorf("%s; a pull works once it answers or that process ends", host.StalledRuntime)
+	}
+	switch host.State {
+	case local.HostInstalled:
+		// A managed tree without the accelerator bundle this machine needs
+		// is completed first: a new runtime download, beside the old one.
+		if host.Managed && companion != "" && canSetUp && host.CompanionFailure != "" {
+			// That release is skipped; only a newer one downloads again.
+			fmt.Fprintf(a.stdout, "  setup:     a yes also starts Ollama; adding its %s failed before (%s), so only a new Ollama release (a new runtime download) or `/localia setup` retries it\n", host.MissingCompanion, host.CompanionFailure)
+			return nil
+		}
+		if host.Managed && companion != "" && canSetUp {
+			fmt.Fprintf(a.stdout, "  setup:     a yes also downloads Ollama again%s, beside the installed runtime, and starts it\n", companion)
+			return nil
+		}
+		fmt.Fprintln(a.stdout, "  setup:     a yes also starts Ollama")
+	case local.HostAbsent:
+		if !canSetUp {
+			return fmt.Errorf("no Ollama to pull into; install it with %s, then run this again", host.InstallHint())
+		}
+		fmt.Fprintf(a.stdout, "  setup:     no Ollama yet; a yes also sets up Ollama (official build, no Docker or sudo)%s and starts it\n", companion)
+	}
+	return nil
+}
+
+// approvePull asks before a download. Anything but an explicit yes declines;
+// --yes is the same consent given in advance.
+func (a *app) approvePull(name string, approved bool, question string) (bool, error) {
+	if approved {
+		return true, nil
+	}
+	// A session reads the keyboard from its own goroutine, so prompting
+	// here would compete with it for the user's keystrokes — the same
+	// contention a provider login would cause.
+	if a.terminalOwned != nil && a.terminalOwned() {
+		// `kolk localia` retired on 2026-09-02, so "another terminal" is no
+		// longer a place this can be done: --yes is the answer, and it is
+		// the same consent given in advance.
+		return false, fmt.Errorf("a pull needs a yes or no, which this session cannot ask for; repeat it as `/localia pull --yes %s`", name)
+	}
+	if !a.confirmed(question) {
+		fmt.Fprintln(a.stdout, "cancelled; nothing was downloaded")
+		return false, nil
+	}
+	return true, nil
+}
+
+// pullHost is the server a pull goes through: the running one, else the one
+// an approved pull earns by setup and startup. A live session retains that
+// runtime for follow-up work under its configured lifetime.
+func (a *app) pullHost(ctx context.Context) (string, func(), error) {
+	host := a.localHost(ctx)
+	switch host.State {
+	case local.HostAbsent, local.HostInstalled:
+		return a.startHostFor(ctx, host)
+	}
+	return host.Addr, func() {}, nil
+}
+
 // startHostFor brings up the user's idle Ollama for one command, through the
 // same starter a session uses, and hands back the way to stop it.
 func (a *app) startHostFor(ctx context.Context, host local.Host) (string, func(), error) {
+	return a.startHostWith(ctx, host, true)
+}
+
+// startHostWith starts the session's runtime; without setup it only starts
+// what is installed, as it is, and never downloads a runtime or bundle.
+func (a *app) startHostWith(ctx context.Context, host local.Host, setup bool) (string, func(), error) {
+	if a.localRuntime != nil {
+		ensure := a.localRuntime.Ensure
+		if !setup {
+			ensure = a.localRuntime.EnsureInstalled
+		}
+		addr, err := ensure(ctx)
+		// The session route owns cleanup, including after a failed pull.
+		return addr, func() {}, err
+	}
 	if a.startHost != nil {
 		return a.startHost(ctx, host)
 	}
 	starter := &local.HostStarter{Binary: host.Binary, Environ: os.Environ(), Out: a.stdout}
+	if setup && a.installLocalRuntime != nil {
+		dirs, err := a.resolve()
+		if err != nil {
+			return "", func() {}, err
+		}
+		starter.Provision = func(ctx context.Context, out io.Writer) (local.Host, error) {
+			return a.provisionLocalRuntime(ctx, dirs, out)
+		}
+	}
 	addr, err := starter.Ensure(ctx)
 	if err != nil {
 		return "", func() {}, err
@@ -387,4 +600,46 @@ func (a *app) confirmed(question string) bool {
 	}
 	answer := strings.ToLower(strings.TrimSpace(line))
 	return answer == "y" || answer == "yes"
+}
+
+// printAcceleratorStatus is what /localia and /doctor say about this
+// machine's accelerator bundle: missing, failed before, or not served at all.
+// waitsOnStalled reports a persistent session whose project runtime runs but
+// does not answer. Nothing starts or sets up beside the project's one
+// runtime, so no surface may promise a start, a download or a setup.
+func (a *app) waitsOnStalled(host local.Host) bool {
+	return host.StalledRuntime != "" && a.localRuntime != nil && a.localRuntime.Persistent
+}
+
+// printStalledRuntime names a recorded runtime that runs but does not answer,
+// and what this session does about it: a persistent session has only that
+// one, and an ephemeral one starts its own beside it.
+func (a *app) printStalledRuntime(host local.Host) {
+	switch {
+	case host.StalledRuntime == "":
+	case a.waitsOnStalled(host):
+		fmt.Fprintf(a.stdout, "  ! %s; local models fail until it answers or that process ends\n", host.StalledRuntime)
+	default:
+		fmt.Fprintf(a.stdout, "  ! %s; this session starts its own and leaves that one alone\n", host.StalledRuntime)
+	}
+}
+
+func (a *app) printAcceleratorStatus(host local.Host) {
+	switch {
+	case host.MissingCompanion != "" && a.waitsOnStalled(host):
+		fmt.Fprintf(a.stdout, "  accelerator: %s is not installed; nothing adds it while Kolk's runtime is not answering\n", host.MissingCompanion)
+	case host.MissingCompanion != "" && host.CompanionFailure != "" && host.State == local.HostRunning:
+		// Its next start skips that release too, until setup forgets it.
+		fmt.Fprintf(a.stdout, "  accelerator: %s is not installed; an earlier attempt failed (%s), and the running runtime started without it. After `/localia setup`, its next start retries; a new Ollama release is tried automatically\n", host.MissingCompanion, host.CompanionFailure)
+	case host.MissingCompanion != "" && host.CompanionFailure != "":
+		fmt.Fprintf(a.stdout, "  accelerator: %s is not installed; an earlier attempt failed (%s). `/localia setup` retries it, and a new Ollama release is tried automatically\n", host.MissingCompanion, host.CompanionFailure)
+	case host.MissingCompanion != "" && host.State == local.HostRunning:
+		// A running runtime is reused as it is; nothing adds to it.
+		fmt.Fprintf(a.stdout, "  accelerator: %s is not installed; the running runtime started without it, and Kolk adds it the next time it starts one\n", host.MissingCompanion)
+	case host.MissingCompanion != "":
+		fmt.Fprintf(a.stdout, "  accelerator: %s is not installed; the next local setup, pull or model start adds it\n", host.MissingCompanion)
+	}
+	if host.AcceleratorNote != "" {
+		fmt.Fprintf(a.stdout, "  ! %s\n", host.AcceleratorNote)
+	}
 }

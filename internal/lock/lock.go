@@ -49,7 +49,7 @@ type File struct {
 
 // Try acquires path immediately or returns a BusyError.
 func Try(path string) (*File, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	f, err := openLockFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("opening lock %s: %w", path, err)
 	}

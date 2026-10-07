@@ -96,6 +96,9 @@ func (a *Agent) orchestrationModel() string {
 // but not this: they configured the slot once and selected the model just now,
 // and the nearer choice is the one that meant it.
 func (a *Agent) underCeiling(model string) string {
+	if a.AgentRoster != nil {
+		return a.roster(a.RungAvailable).clamp(model)
+	}
 	return ClampToCeiling(model, a.SessionModel())
 }
 

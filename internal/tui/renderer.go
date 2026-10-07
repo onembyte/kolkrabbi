@@ -30,7 +30,8 @@ type Renderer struct {
 	// lastView is the frame the rows count was computed for. A resize changes
 	// how many physical rows that same frame occupies, and the clear sequence
 	// has to erase the frame the terminal is actually showing.
-	lastView string
+	lastView    string
+	kittyLoaded bool
 }
 
 // NewRenderer binds a renderer to one terminal writer.
@@ -84,6 +85,18 @@ func (r *Renderer) Start() error {
 // committing them rather than letting the next repaint overwrite them.
 func (r *Renderer) Render(committed []string, view string) error {
 	var frame strings.Builder
+	if strings.Contains(r.lastView, "\x1b_G") {
+		frame.WriteString(deleteOctopus)
+	}
+	loaded := r.kittyLoaded
+	if strings.Contains(view, kittyOctopus) {
+		image := placeOctopus
+		if !loaded {
+			image = uploadOctopus + image
+			loaded = true
+		}
+		view = strings.Replace(view, kittyOctopus, image, 1)
+	}
 
 	// Back to the top-left of the region this renderer owns.
 	frame.WriteString("\r")
@@ -122,6 +135,7 @@ func (r *Renderer) Render(committed []string, view string) error {
 	}
 	r.rows = rows
 	r.lastView = view
+	r.kittyLoaded = loaded
 	return nil
 }
 
@@ -152,21 +166,7 @@ func (r *Renderer) Resized(width int) {
 // by runes under-flows the resize reflow and leaves stale rows above the
 // repainted frame.
 func visibleWidth(row string) int {
-	cells := 0
-	inEscape := false
-	for _, r := range row {
-		switch {
-		case inEscape:
-			if r >= 0x40 && r <= 0x7e {
-				inEscape = false
-			}
-		case r == 0x1b:
-			inEscape = true
-		default:
-			cells += runeCellWidth(r)
-		}
-	}
-	return cells
+	return cellWidth(sanitizeTerminalLine(row))
 }
 
 // Park erases the frame and gives the terminal back, so a child process can
@@ -177,9 +177,14 @@ func (r *Renderer) Park() {
 	if !r.started || r.closed {
 		return
 	}
-	_, _ = io.WriteString(r.out, "\r"+eraseBelow+showCursor+bracketedPasteOff+r.mouseSequence(false))
+	sequence := ""
+	if r.kittyLoaded {
+		sequence = freeOctopus
+	}
+	_, _ = io.WriteString(r.out, sequence+r.clearSequence()+showCursor+bracketedPasteOff+r.mouseSequence(false))
 	r.rows = 0
 	r.lastView = ""
+	r.kittyLoaded = false
 }
 
 // Resume takes the terminal back after a parked child has finished.
@@ -198,14 +203,18 @@ func (r *Renderer) Close() error {
 		return nil
 	}
 	sequence := ""
+	if r.kittyLoaded {
+		sequence = freeOctopus
+	}
 	if r.rows > 0 {
-		sequence = r.clearSequence()
+		sequence += r.clearSequence()
 	}
 	sequence += showCursor + bracketedPasteOff + r.mouseSequence(false)
 	if _, err := io.WriteString(r.out, sequence); err != nil {
 		return err
 	}
 	r.rows = 0
+	r.kittyLoaded = false
 	r.closed = true
 	return nil
 }

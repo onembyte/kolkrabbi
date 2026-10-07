@@ -21,6 +21,11 @@ type SessionPort interface {
 	SetConnector(string)
 	SessionEffort() string
 	ConnectorName() string
+	// Route and SetRoute read and write the model and the connector it runs
+	// through as one pair, so a reader never sees a new model beside the old
+	// connector. Every switch of the backend writes both.
+	Route() (model, connector string)
+	SetRoute(model, connector string)
 	// SetMode and SessionMode do the same for the mode, so a resumed run opens
 	// in the mode it was left in. The engine writes it on every switch.
 	SetMode(string)
@@ -41,7 +46,14 @@ type SessionPort interface {
 	GetMessages() []provider.Message
 	SetMessages([]provider.Message)
 	AppendMessage(provider.Message)
+	// ArchiveMessages durably retains a full conversation before compaction.
+	// Implementations must support concurrent children and return an immutable reference.
+	ArchiveMessages([]provider.Message) (string, error)
 	Save() error
+	// SaveRecovery writes the complete compressed exceptional boundary. A
+	// caller must not claim a durable pause or admit later work unless it
+	// returns nil.
+	SaveRecovery(reason string) error
 	// SaveInterim writes the transcript between two boundaries: same bytes,
 	// same atomic rename, without the directory fsync a boundary earns. The
 	// engine's interval save is its only caller (OPTIMIZATION_PLAN.md O3); an
@@ -51,6 +63,11 @@ type SessionPort interface {
 	// clears it. Persisted with the session (plan 35 §2.2).
 	Paused() *continuity.Pause
 	SetPaused(*continuity.Pause)
+	// RunState returns an owned snapshot of the latest accepted execution.
+	// SetRunState replaces that execution or appends a new one; older runs are
+	// retained for their child history. A save persists it with the pause.
+	RunState() *continuity.Run
+	SetRunState(*continuity.Run)
 }
 
 // Checkpointer is the pre-write snapshot port.
@@ -165,6 +182,9 @@ type GitCheckpointer interface {
 // answer for every task.
 type Isolator interface {
 	Isolate(ctx context.Context, root, name string) (dir string, err error)
+	// Resume verifies that a saved directory is still this task's worktree
+	// in this project. A missing or replaced tree must never fall back to root.
+	Resume(ctx context.Context, root, name, dir string) error
 	Land(ctx context.Context, root, dir string) error
 	Release(ctx context.Context, root, dir string)
 }

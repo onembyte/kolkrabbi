@@ -39,9 +39,9 @@ func TestScreenRegionsKeepTranscriptActivityAndDraftIndependent(t *testing.T) {
 		"assistant first response",
 		"❯ fix the renderer",
 		"  then run every test  ",
-		"⏵ ask (shift+tab) · mode code · effort ultra",
+		"⏵ ask (shift+tab) · mode code",
 		"🐙 thinking…",
-		"session 01TESTSESSION · model stealth/ox-alpha",
+		"model stealth/ox-alpha · effort ultra · session 01TESTSESSION",
 	)
 	statusRow := ""
 	for _, line := range strings.Split(view, "\n") {
@@ -116,10 +116,10 @@ func TestViewUsesTextOnlyHorizontalComposerFrameAndLabeledStatus(t *testing.T) {
 	if frame[2] != strings.Repeat("─", 64) {
 		t.Fatalf("closing rule = %q", frame[2])
 	}
-	if !strings.HasPrefix(frame[3], "  ⏵ auto (shift+tab) · mode code · effort ultra") {
+	if !strings.HasPrefix(frame[3], "  ⏵ auto (shift+tab) · mode code") {
 		t.Fatalf("tier status row = %q", frame[3])
 	}
-	if frame[4] != "  session 20260824-061500-abcd · model openrouter/free" {
+	if !strings.HasPrefix(frame[4], "  model openrouter/free · effort ultra · session ") {
 		t.Fatalf("session status row = %q", frame[4])
 	}
 	for _, decorative := range []string{"╭", "╰", "│", "✦", "⚡", "▸", "🐙"} {
@@ -139,8 +139,8 @@ func TestViewShowsSessionNameCurrentModelEffortAndWorkingFolder(t *testing.T) {
 
 	view := m.View(160, 10)
 	for _, want := range []string{
-		"session fix detached output · model cohere/north-mini-code:free",
-		"⏵ auto (shift+tab) · mode code · effort ultra · folder ~/kolkrabbi · state working",
+		"model cohere/north-mini-code:free · effort ultra · session fix detached output · folder ~/kolkrabbi",
+		"⏵ auto (shift+tab) · mode code · state working",
 	} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("status omitted current metadata %q:\n%s", want, view)
@@ -160,10 +160,8 @@ func TestStatusKeepsCoreMetadataVisibleAtTypicalTerminalWidth(t *testing.T) {
 
 	view := m.View(72, 10)
 	for _, want := range []string{
-		"session purple composer checkpoint",
 		"model cohere/north-mini-code:free",
 		"effort ultra",
-		"folder ~/kolkrabbi",
 	} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("72-column status clipped core metadata %q:\n%s", want, view)
@@ -316,4 +314,36 @@ func topRule(view string) string {
 		}
 	}
 	return ""
+}
+
+// A wrapped paragraph's last row holds whatever is left once it fits. The
+// remainder used to be split at its own last space regardless, so every
+// wrapped paragraph ended with one word alone on a row.
+func TestWrapWordsKeepsARemainderThatFits(t *testing.T) {
+	got := wrapWords("checking how the footer reserves room for the effort beside long models", 44)
+	want := []string{"checking how the footer reserves room for", "the effort beside long models"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("wrapWords = %q, want %q", got, want)
+	}
+	// Greedy everywhere: no row could have taken the next row's first word.
+	for _, text := range []string{
+		"the quick brown fox jumps over the lazy dog and keeps running far away",
+		"  └ first output line that is quite long and wraps past the width",
+		"a b c d e f g h i j k l m n o p q r s t u v w x y z",
+	} {
+		for width := 8; width < 80; width++ {
+			rows := wrapWords(text, width)
+			for _, row := range rows {
+				if cellWidth(row) > width {
+					t.Fatalf("width %d: row %q is wider than the row", width, row)
+				}
+			}
+			for i := 0; i+1 < len(rows); i++ {
+				next, _, _ := strings.Cut(rows[i+1], " ")
+				if cellWidth(rows[i]+" "+next) <= width {
+					t.Fatalf("width %d: row %q had room for %q:\n%q", width, rows[i], next, rows)
+				}
+			}
+		}
+	}
 }

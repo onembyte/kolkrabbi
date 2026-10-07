@@ -137,7 +137,7 @@ func TestPickerMergesPulledAndUnpulledCloudRows(t *testing.T) {
 		t.Fatalf("pulled Cloud row appeared %d times after merge, want 1", got)
 	}
 	row, ok := rowByID(rows, "ollama/glm-5.1:cloud")
-	if !ok || row.Cost != tui.CostSubscription || !strings.Contains(row.Name, "not pulled: ollama pull glm-5.1:cloud") || !strings.Contains(row.Name, "Ollama Pro") {
+	if !ok || row.Cost != tui.CostSubscription || !strings.Contains(row.Name, "not pulled: /localia pull glm-5.1:cloud") || !strings.Contains(row.Name, "Ollama Pro") {
 		t.Fatalf("unpulled verified Cloud row = %+v, want one subscription row with pull guidance", row)
 	}
 	pulled, _ := rowByID(rows, "ollama/gpt-oss:120b-cloud")
@@ -157,7 +157,7 @@ func TestPickerKeepsUnpulledCloudRowsActionableWhenSignedOut(t *testing.T) {
 	}
 
 	row, ok := rowByID(tuiModels(context.Background(), a, agent), "ollama/glm-5.1:cloud")
-	if !ok || row.Cost != tui.CostSubscriptionLogin || !strings.Contains(row.Name, "not pulled: ollama pull glm-5.1:cloud") || !strings.Contains(row.Name, "sign in first") {
+	if !ok || row.Cost != tui.CostSubscriptionLogin || !strings.Contains(row.Name, "not pulled: /localia pull glm-5.1:cloud") || !strings.Contains(row.Name, "sign in first") {
 		t.Fatalf("unverified unpulled Cloud row = %+v, want pull and login guidance", row)
 	}
 }
@@ -187,7 +187,7 @@ func TestPickerDeduplicatesPartialHostAndManifestRows(t *testing.T) {
 	a.listHostModels = func(context.Context, string, string) ([]local.HostModel, error) {
 		return []local.HostModel{{Name: "qwen2.5-coder:7b"}}, context.DeadlineExceeded
 	}
-	a.pulledNames = func() map[string]bool { return map[string]bool{"qwen2.5-coder": true} }
+	a.pulledNames = func() map[string]bool { return map[string]bool{"qwen2.5-coder:7b": true} }
 	agent, err := a.newAgent(context.Background(), &options{})
 	if err != nil {
 		t.Fatal(err)
@@ -239,7 +239,7 @@ func TestPickerDrawsAnIdleOllamaFromItsManifestTree(t *testing.T) {
 	storeFirstRunKey(t)
 	a, _, _ := newTestApp(t, "")
 	a.discoverHost = func(context.Context) local.Host { return local.Host{State: local.HostInstalled, Binary: "/opt/ollama"} }
-	a.pulledNames = func() map[string]bool { return map[string]bool{"qwen2.5-coder": true} }
+	a.pulledNames = func() map[string]bool { return map[string]bool{"qwen2.5-coder:7b": true} }
 	agent, err := a.newAgent(context.Background(), &options{})
 	if err != nil {
 		t.Fatal(err)

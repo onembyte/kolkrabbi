@@ -19,6 +19,10 @@ const (
 	EventUsage            EventKind = "usage"
 	EventError            EventKind = "error"
 	EventLimit            EventKind = "limit"
+	// EventTurnEnd is the vendor's own word that it closed the turn, for a
+	// vendor whose closing frame carries nothing else kolk keeps. Collect
+	// ignores it; recovery reads it.
+	EventTurnEnd EventKind = "turn.end"
 )
 
 // Event is the allow-listed, credential-free projection of one Claude frame.

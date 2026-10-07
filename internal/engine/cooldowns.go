@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/atomicfile"
+	"github.com/onembyte/kolkrabbi/internal/continuity"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 )
 
@@ -103,7 +104,7 @@ func (c *Cooldowns) Mark(limit provider.Limit) (Cooldown, bool) {
 	now := c.now()
 	until := limit.ResetAt
 	switch {
-	case !until.IsZero():
+	case until.After(now): // a reset already past is stale: the pause's rule
 	case limit.RetryAfter > 0:
 		until = now.Add(limit.RetryAfter)
 	case limit.Kind.DefaultCooldown() > 0:
@@ -172,7 +173,7 @@ func (cd Cooldown) Describe() string {
 	if cd.Scope == provider.ScopeModel && cd.Model != "" {
 		what = cd.Model
 	}
-	return fmt.Sprintf("%s · %s · resumes %s", what, strings.ReplaceAll(string(cd.Kind), "_", " "), cd.Until.Local().Format("15:04"))
+	return fmt.Sprintf("%s · %s · resumes %s", what, strings.ReplaceAll(string(cd.Kind), "_", " "), continuity.ResetClock(cd.Until, time.Now(), time.Local))
 }
 
 // shared says which file a scope belongs to: the user's, or the session's.

@@ -97,10 +97,12 @@ func (c *Controller) agentsViewLines(width int) []string {
 		}
 		lines = append(lines, clipLine(fmt.Sprintf("%s%d %s", marker, status.Index,
 			compactAgentField(status.Summary, "task")), width))
-		lines = append(lines, clipLine(fmt.Sprintf("    %s · %s · %s",
-			compactAgentField(status.Model, "model unknown"),
-			compactAgentField(status.Effort, "effort default"),
-			compactAgentField(status.State, "working")), width))
+		// The model gives way; the effort and state stay whole.
+		identity := " · " + compactAgentField(status.Effort, "effort default") + " · " + compactAgentField(status.State, "working")
+		if cellWidth("    "+compactAgentField(status.Model, "model unknown")+identity) > width {
+			identity = narrowIdentity(status, identity)
+		}
+		lines = append(lines, clipLine("    "+fitAgentModel(status.Model, width-cellWidth("    "+identity))+identity, width))
 		if index != c.agentsIndex {
 			continue
 		}

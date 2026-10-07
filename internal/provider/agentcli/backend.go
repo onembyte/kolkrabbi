@@ -2,6 +2,7 @@ package agentcli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -29,6 +30,18 @@ type ClaudeBackend struct {
 	handle  string
 	resume  bool
 	started bool
+	// confirmed is the last handle a vendor frame named. It outlives the
+	// process that named it, so a conversation the vendor confirmed stays
+	// confirmed after that process dies, until the handle itself is retired.
+	confirmed string
+	// delivered records that the latest turn's prompt reached a process, and
+	// turnClosed that the vendor's result frame ended that turn, whatever became
+	// of the process afterwards.
+	delivered, turnClosed bool
+	// retired records that the conversation was given up (a killed turn, a
+	// dead resume, a new session) and no new one has opened yet, so the
+	// session file can forget it too.
+	retired bool
 	run     lineRunner
 	start   startLineProcess
 	// startWithOptions is an injectable seam for capability-aware process
@@ -91,6 +104,56 @@ func (b *ClaudeBackend) ProviderHandle() string {
 	return b.handle
 }
 
+// ProviderHandleConfirmed reports only the vendor's acknowledgement. Claude
+// accepts a locally minted --session-id before system/init proves that a
+// conversation exists, so a non-empty ProviderHandle alone is insufficient.
+// The acknowledgement survives the process that gave it: a handle the vendor
+// named stays confirmed until it is retired.
+func (b *ClaudeBackend) ProviderHandleConfirmed() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.session != nil && b.session.ProviderHandle() != "" {
+		return true
+	}
+	return b.handle != "" && b.handle == b.confirmed
+}
+
+// TurnNeverStarted proves the latest turn's prompt never reached a Claude
+// process. Once one was delivered, missing output proves nothing: a process
+// can act and die before its frames arrive.
+func (b *ClaudeBackend) TurnNeverStarted() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return !b.delivered
+}
+
+// TurnClosed reports that Claude's own result frame ended the latest turn.
+func (b *ClaudeBackend) TurnClosed() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.turnClosed
+}
+
+// noteTurn records what a session said about the turn it ran: whether its
+// prompt was delivered, whether the vendor closed it, and the conversation it
+// named. Called before the session can be retired, so none of it is lost.
+func (b *ClaudeBackend) noteTurn(session *ClaudeSession) {
+	delivered, closed, named := session.Delivered(), session.TurnClosed(), session.ProviderHandle()
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.delivered = b.delivered || delivered
+	b.turnClosed = closed
+	// The vendor's own name for the conversation is the one every later
+	// process resumes, as the journal and the session file record it.
+	if named != "" {
+		b.handle, b.confirmed = named, named
+	}
+}
+
+// ResumesConversation reports that a confirmed conversation continues with
+// --resume. A new message continues it; the interrupted prompt is not resent.
+func (b *ClaudeBackend) ResumesConversation() bool { return true }
+
 func (b *ClaudeBackend) StreamChat(ctx context.Context, model string, messages []provider.Message, tools []provider.Tool, onToken func(string)) (provider.Message, provider.Meta, error) {
 	return b.StreamChatObserved(ctx, model, messages, tools, onToken, nil)
 }
@@ -101,6 +164,9 @@ func (b *ClaudeBackend) StreamChatObserved(ctx context.Context, model string, me
 	// vendor owns tool execution here, and --allowedTools takes names, not
 	// JSON Schema. Pretending to forward them would claim a definition of the
 	// vendor's tool loop kolk does not have.
+	b.mu.Lock()
+	b.delivered, b.turnClosed = false, false
+	b.mu.Unlock()
 	prompt, err := promptFromMessages(messages)
 	if err != nil {
 		return provider.Message{}, provider.Meta{Model: model}, err
@@ -127,59 +193,53 @@ func (b *ClaudeBackend) StreamChatObserved(ctx context.Context, model string, me
 			}
 		}
 		message, meta, turnErr := session.TurnObserved(ctx, messages, model, watch, observe)
-		// A killed process leaves the vendor's turn unfinished with nothing
-		// recorded, and the vendor CONTINUES that turn on the next --resume.
-		// Resuming here would let it execute the tool calls kolk has already
-		// told the user were cancelled — editing files after a "cancelled"
-		// turn, and diverging kolk's transcript from the vendor's permanently.
-		// So the conversation is retired rather than reused. Nothing is lost:
-		// promptFromMessages sends the whole conversation every turn, so kolk
-		// replays its own transcript whether or not the vendor remembers it.
-		if session.HardExit() {
-			b.forgetHandle()
-			b.dropSession(session)
-			// Say so — except to the person who just pressed Ctrl-C. §2.5 marks
-			// a user cancellation Silent, and they already know why the
-			// provider stopped; this line would arrive on every cancellation
-			// attached to the thing they deliberately did. Written through
-			// onToken rather than watch so it does not count as answer content:
-			// `streamed` decides whether a turn may be retried, and a notice is
-			// not half an answer.
-			if onToken != nil && ctx.Err() == nil {
-				onToken(retirementTrail())
-			}
-		}
+		b.noteTurn(session)
 		// A session that lost its place in the provider stream is replaced
 		// rather than kept: one unrecoverable interrupt must not end Claude for
-		// the rest of the Kolkrabbi session. But a process that was opened with
-		// --resume and produced nothing before dying is the signature of a
-		// handle the vendor no longer keeps (the transcripts expire after 30
-		// days, or the process died before its conversation was created), so
-		// the handle is dropped along with the process: the retry below
-		// mints a fresh one instead of resuming the same dead one, and the
-		// stale handle never wedges the rest of the Kolkrabbi session.
+		// the rest of the Kolkrabbi session.
 		if session.Unusable() {
-			retrying := turnErr != nil && !streamed && ctx.Err() == nil
-			if retrying && session.Resumed() {
-				b.forgetHandle()
-			}
+			// Only a turn whose prompt never reached the process is tried
+			// again, and on the same conversation: a turn never moves to a
+			// conversation that did not see what came before it. A delivered
+			// one may have run tools, whose frames can be lost with the process
+			// or reach observe rather than onToken, so "nothing streamed" is no
+			// proof that nothing happened.
+			retrying := turnErr != nil && !streamed && !session.Delivered() && ctx.Err() == nil
+			last := session
 			b.dropSession(session)
+			b.retireIfKilled(ctx, session, onToken)
 			// The process was already gone when this turn began — the previous
 			// turn ended it, which is what an expired login looks like from
 			// here. Without this retry the user signs in again, sends a turn,
 			// and gets "claude exited before finishing the turn" for their
-			// trouble; only the turn after that works. Nothing was streamed, so
-			// one attempt on a fresh process is invisible and costs a turn
-			// that had already failed.
+			// trouble; only the turn after that works. The prompt never
+			// reached that process, so one attempt on a fresh one is invisible
+			// and cannot repeat anything.
 			if retrying {
 				if replacement, startErr := b.getSession(ctx); startErr == nil {
 					message, meta, turnErr = replacement.TurnObserved(ctx, messages, model, watch, observe)
+					b.noteTurn(replacement)
 					if replacement.Unusable() {
 						b.dropSession(replacement)
 					}
+					b.retireIfKilled(ctx, replacement, onToken)
+					last = replacement
 				}
 			}
+			// A resumed process that answered nothing in its whole life is the
+			// signature of a conversation the vendor no longer keeps (its
+			// transcripts expire, or the process died before the conversation
+			// existed). Its handle goes once this turn has failed, so the next
+			// turn opens a fresh one and the stale handle never wedges the
+			// session; no turn is moved to it midway.
+			if turnErr != nil && last.Resumed() && !last.EverReceived() {
+				b.forgetHandle()
+			}
 		}
+		// A session still usable ended its turn with the vendor's result
+		// frame, so even a process killed just after it left nothing
+		// unfinished: the next turn finds it gone and retries on the same
+		// conversation, its prompt never having reached that process.
 		return message, meta, turnErr
 	}
 	// One-shot: no session process, so this turn is its own invocation.
@@ -202,8 +262,26 @@ func (b *ClaudeBackend) StreamChatObserved(ctx context.Context, model string, me
 			return runClaude(ctx, invocation, runner, onEvent)
 		}
 	}
+	// The prompt travels in the invocation: once the run is attempted it may
+	// have reached a process, unless the process provably never ran.
+	b.mu.Lock()
+	b.delivered = true
+	b.mu.Unlock()
+	defer func() {
+		var notStarted *shell.NotStartedError
+		if errors.As(err, &notStarted) {
+			b.mu.Lock()
+			b.delivered = false
+			b.mu.Unlock()
+		}
+	}()
 	err = run(ctx, invocation, func(event Event) {
 		events = append(events, event)
+		if event.Kind == EventMessageCompleted {
+			b.mu.Lock()
+			b.turnClosed = true
+			b.mu.Unlock()
+		}
 		observeProviderEvent(observe, event, progressPending)
 		if event.Kind == EventMessageDelta && onToken != nil {
 			onToken(event.Text)
@@ -234,6 +312,7 @@ func (b *ClaudeBackend) getSession(ctx context.Context) (*ClaudeSession, error) 
 	// resume.
 	if b.handle == "" {
 		b.handle = NewVendorHandle()
+		b.retired = false
 	}
 	resume := b.started || b.resume
 	args, err := BuildClaudeSessionArgsWithOptions(b.Model, b.Mode, b.Effort, b.handle, resume, b.execution)
@@ -273,6 +352,71 @@ func (b *ClaudeBackend) forgetHandle() {
 	b.handle = ""
 	b.resume = false
 	b.started = false
+	b.retired = true
+}
+
+// ProviderHandleRetired reports that the conversation this backend drove was
+// retired and no new one has opened since. A retired conversation must not be
+// resumed by anything, a later kolk process included.
+func (b *ClaudeBackend) ProviderHandleRetired() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.retired
+}
+
+// ForgetConversation leaves the conversation this backend drives: its process
+// ends and the next turn opens a new conversation. A new kolk session on the
+// same backend must not share the old session's conversation, where that
+// session's own saved work may wait.
+func (b *ClaudeBackend) ForgetConversation() {
+	b.mu.Lock()
+	session := b.session
+	b.mu.Unlock()
+	if session != nil {
+		b.dropSession(session)
+	}
+	b.forgetHandle()
+}
+
+// retireIfKilled drops a session whose process was killed rather than allowed
+// to end its own turn, and retires the conversation when the kill caught a
+// delivered turn the vendor had not closed. Such a turn is unfinished with
+// nothing recorded, and the vendor CONTINUES it on the next --resume:
+// resuming would let it execute the tool calls kolk has already told the user
+// were cancelled — editing files after a "cancelled" turn, and diverging
+// kolk's transcript from the vendor's permanently. So the conversation is
+// retired rather than reused. Nothing is lost: promptFromMessages sends the
+// whole conversation every turn, so kolk replays its own transcript whether
+// or not the vendor remembers it. A process killed while idle, or after the
+// vendor's result frame, ended its last turn, and its conversation is whole.
+//
+// It is judged after the session is dropped, because dropping closes the
+// process, and a close can itself be the kill: a cancelled turn whose vendor
+// will not stop is killed after its grace. Every process that ran the turn
+// is judged, the retry's replacement included.
+func (b *ClaudeBackend) retireIfKilled(ctx context.Context, session *ClaudeSession, onToken func(string)) {
+	// Only a session that lost its place in the stream is judged, and such a
+	// session never closed its turn: a result frame, drained or read, ends
+	// the turn in step. A process killed after the result, the retry's
+	// replacement included, therefore retires nothing; the next turn finds it
+	// gone and retries on the same conversation.
+	if !session.Unusable() || !session.HardExit() {
+		return
+	}
+	b.dropSession(session)
+	if !session.Delivered() {
+		return
+	}
+	b.forgetHandle()
+	// Say so — except to the person who just pressed Ctrl-C. §2.5 marks a user
+	// cancellation Silent, and they already know why the provider stopped;
+	// this line would arrive on every cancellation attached to the thing they
+	// deliberately did. Written through onToken rather than watch so it does
+	// not count as answer content: `streamed` decides whether a turn may be
+	// retried, and a notice is not half an answer.
+	if onToken != nil && ctx.Err() == nil {
+		onToken(retirementTrail())
+	}
 }
 
 // dropSession retires one session so the next turn starts a fresh provider

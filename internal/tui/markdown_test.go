@@ -139,3 +139,72 @@ func TestMarkdownControlSequencesAreStrippedBeforeStructuralParsing(t *testing.T
 		t.Fatalf("list row kept OSC bytes: %q / %q", lines[1], lines[2])
 	}
 }
+
+// Adopted from the V43.5 §7 item 3 exercise (Z2): a wrapped numbered item, a
+// plan task's route included, and kolk's own ◆ notices continue under their
+// text, as bullets already do, not at column 0 where they read as new lines.
+func TestNumberedItemsAndNoticesHangUnderTheirText(t *testing.T) {
+	for _, c := range []struct {
+		line, hang string
+	}{
+		{"  1. T1 mechanical  [boilerplate · trivial · small · low]", "     "},
+		{"1. an assistant's numbered item that wraps across rows", "     "},
+		{"12. a twelfth numbered item that also wraps across rows", "      "},
+		{"◆ paused: mid hit its subscription allowance; reset at 01:34; /resume to retry", "  "},
+		{"  ◆ T2 routine could not start on mid; falling back to sel", "    "},
+		// A number that merely starts a line is not an item: no hang.
+		{"  3.14 is only a number that starts this long line of prose", ""},
+		{"  . and a bare dot is no item either, on this long line", ""},
+	} {
+		rows, _ := renderMarkdownStyledBlocks(c.line+"\n", 30)
+		if len(rows) < 2 {
+			t.Fatalf("%q did not wrap at 30 columns", c.line)
+		}
+		for _, row := range rows[1:] {
+			if row.text == "" {
+				continue
+			}
+			if !strings.HasPrefix(row.text, c.hang) || strings.HasPrefix(row.text, c.hang+" ") || cellWidth(row.text) > 30 {
+				t.Errorf("%q: continuation %q, want it under the text at %d columns", c.line, row.text, len(c.hang))
+			}
+		}
+	}
+}
+
+// Adopted from the V43.5 §7 item 3 verification (Z3): a hang that leaves no
+// room for the text clipped every row to "…", so the line said nothing and
+// took dozens of rows. Too narrow to hang, a line wraps like prose instead.
+func TestAHangWiderThanTheRowGivesWayToTheText(t *testing.T) {
+	lines := map[string]string{
+		"20250514. install the runtime before the first request": "20250514.",
+		"1. install the runtime":                                 "1.",
+		"◆ paused: the model hit its allowance":                  "◆",
+		"  ◆ T2 could not start on mid; falling back":            "◆",
+		"- a bullet item with some text":                         "·",
+		"    ↳ find the entry point":                             "↳",
+	}
+	for width := 4; width <= 12; width++ {
+		for line, marker := range lines {
+			rows, _ := renderMarkdownStyledBlocks(line+"\n", width)
+			// Giving way drops the hang, never the marker that says what the
+			// line is (a marker wider than the row may itself be broken).
+			var text strings.Builder
+			for _, row := range rows {
+				text.WriteString(strings.TrimSpace(row.text))
+			}
+			if !strings.Contains(text.String(), marker) {
+				t.Errorf("width %d, %q: the rows %q lost the marker %q", width, line, text.String(), marker)
+			}
+			// A column one character wide is as unreadable as a column of "…".
+			if len(rows) > cellWidth(line)/2 {
+				t.Errorf("width %d, %q: %d rows for %d cells", width, line, len(rows), cellWidth(line))
+			}
+			for _, row := range rows {
+				if strings.TrimSpace(row.text) == "…" || cellWidth(row.text) > width {
+					t.Errorf("width %d, %q: row %q lost its text or overflowed", width, line, row.text)
+					break
+				}
+			}
+		}
+	}
+}

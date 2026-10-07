@@ -34,8 +34,16 @@ type Status struct {
 	Cooling string
 	// Paused is the one-line notice while the session itself is paused on a
 	// limit and will resume; empty, and then absent, otherwise.
-	Paused    string
-	Lifecycle string
+	Paused string
+	// LocalWarning is a persistent, actionable placement warning supplied by
+	// the CLI. It stays at the bottom of the footer until the choice changes.
+	LocalWarning string
+	// RecoveryWarning survives activity and status refreshes after a failed save.
+	RecoveryWarning string
+	// LocalWarningAcknowledged is set when the user explicitly chose CPU.
+	// It clears a warning retained from an earlier local child run.
+	LocalWarningAcknowledged bool
+	Lifecycle                string
 	// Context and Cost are the two numbers that decide whether to compact or
 	// stop. Empty means not measured yet, which is different from zero.
 	Context string
@@ -68,6 +76,7 @@ type Snapshot struct {
 // Model, so synchronization belongs at that boundary rather than inside every
 // field mutation.
 type Model struct {
+	graphics          string
 	transcript        []byte
 	activity          string
 	draft             string
@@ -170,7 +179,7 @@ func (m *Model) view(width, height, cursor int) string {
 }
 
 func (m *Model) renderView(width, height, cursor int) string {
-	return joinViewRowsWidth(m.viewRows(width, height, cursor), true, width)
+	return joinViewRowsWidth(m.viewRows(width, height, cursor), true, width, m.graphics)
 }
 
 type rowStyle uint8
@@ -195,6 +204,10 @@ const (
 	// styleUser is the request the user sent: their own words, on their own
 	// ground, so a long one can be found in a transcript at a glance.
 	styleUser
+	styleDiffAdd
+	styleDiffDel
+	styleWork
+	styleAction
 )
 
 const (
@@ -290,17 +303,17 @@ var (
 	paletteMu     sync.RWMutex
 	activeTier    = "256"
 	activeTheme   = themes[0]
-	activePalette = palette256
+	activePalette = withBackgrounds(palette256, false)
 )
 
-// SetPalette selects the escape tier: "256", "16", or "none". It is called
+// SetPalette selects "truecolor", "256", "16", or "none". It is called
 // once by the CLI before the first frame, from the same capability probe the
 // legacy line REPL uses for its colour.
 func SetPalette(tier string) {
 	paletteMu.Lock()
 	defer paletteMu.Unlock()
 	switch tier {
-	case "16", "none":
+	case "16", "none", "truecolor":
 		activeTier = tier
 	default:
 		activeTier = "256"
@@ -345,19 +358,46 @@ func ActiveTheme() string {
 
 func (t theme) palette(tier string) palette {
 	switch tier {
+	case "truecolor":
+		result := withBackgrounds(t.c256, false)
+		result[styleDiffAdd] = "\x1b[48;2;31;58;43;38;2;211;231;215m"
+		result[styleDiffDel] = "\x1b[48;2;74;35;31;38;2;237;200;193m"
+		return result
 	case "16":
-		return t.c16
+		return withBackgrounds(t.c16, true)
 	case "none":
 		return palette{styleNone: ""}
 	}
-	return t.c256
+	return withBackgrounds(t.c256, false)
+}
+
+func withBackgrounds(source palette, basic bool) palette {
+	result := make(palette, len(source)+3)
+	for style, sequence := range source {
+		result[style] = sequence
+	}
+	result[styleAction] = "\x1b[1m"
+	// Ownership and edit shading stay legible in every theme.
+	if basic {
+		result[styleUser] = "\x1b[100;97m"
+		result[styleDiffAdd] = "\x1b[42;30m"
+		result[styleDiffDel] = "\x1b[41;97m"
+	} else {
+		result[styleUser] = "\x1b[48;5;236;38;5;255m"
+		result[styleDiffAdd] = "\x1b[48;5;22;38;5;151m"
+		result[styleDiffDel] = "\x1b[48;5;52;38;5;181m"
+	}
+	return result
 }
 
 const resetANSI = "\x1b[0m"
 
 type viewRow struct {
-	text  string
-	style rowStyle
+	urgent    bool // actionable pause notices survive footer compression
+	icon      bool
+	rightIcon bool
+	text      string
+	style     rowStyle
 	// spans, when set, draw the row as a run of differently styled pieces;
 	// text is then their concatenation, kept for width and diffing.
 	spans []styledSpan
@@ -401,7 +441,11 @@ func (m *Model) layoutWithComposer(width, height, cursor int) ([]viewRow, int, i
 	activity := []viewRow{}
 	if m.activity != "" {
 		for _, line := range strings.Split(m.activity, "\n") {
-			activity = append(activity, viewRow{text: clipLine(line, width), style: stylePurple})
+			// At very small widths keep the wheel and phase ahead of the icon.
+			if width < 20 {
+				line = strings.TrimPrefix(line, octopusMark+" ")
+			}
+			activity = append(activity, viewRow{text: clipLine(line, width), style: stylePurple, icon: strings.HasPrefix(line, octopusMark+" ")})
 		}
 	}
 	// The agents' window (plan 37): on a screen wide enough for two columns
@@ -412,13 +456,24 @@ func (m *Model) layoutWithComposer(width, height, cursor int) ([]viewRow, int, i
 	if window == nil {
 		for _, status := range m.agentStatuses {
 			agentRows = append(agentRows, viewRow{
-				text: clipLine(formatAgentStatusLine(status), width), style: agentStatusStyle(status),
+				text: formatAgentStatusRow(status, width), style: agentStatusStyle(status),
 			})
 		}
 	}
 	statusLine := planMetersRow(m.status.Limits, width)
-	for _, status := range formatStatus(m.status) {
+	for _, status := range formatStatus(m.status, width) {
 		statusLine = append(statusLine, viewRow{text: clipLine(status, width), style: stylePurpleMuted})
+	}
+	// Notice rows are appended last; retain them before ordinary metadata
+	// when a short terminal forces compression.
+	notices := 0
+	for _, notice := range []string{m.status.Cooling, m.status.Paused, m.status.LocalWarning, m.status.RecoveryWarning} {
+		if notice != "" {
+			notices++
+		}
+	}
+	for index := len(statusLine) - notices; index < len(statusLine); index++ {
+		statusLine[index].urgent = true
 	}
 	// Only the window is drawn. The selection may sit anywhere in the full
 	// list; the controller keeps top such that it is inside this slice.
@@ -461,29 +516,29 @@ func (m *Model) layoutWithComposer(width, height, cursor int) ([]viewRow, int, i
 	if height > 0 && len(composer) > height {
 		composer = composer[len(composer)-height:]
 	}
-	for height > 0 && len(agentRows)+len(statusLine)+len(composer) > height && len(agentRows) > 0 {
+	if len(statusLine) > 0 && len(activity) == 1 &&
+		cellWidth(statusLine[0].text)+cellWidth(activity[0].text)+1 <= width {
+		statusLine[0].right = activity[0].text
+		statusLine[0].rightStyle = stylePurple
+		statusLine[0].rightIcon = activity[0].icon
+		activity = nil
+	}
+	for height > 0 && len(activity)+len(agentRows)+len(statusLine)+len(composer) > height && len(agentRows) > 0 {
 		agentRows = agentRows[1:]
 	}
-	for height > 0 && len(statusLine)+len(composer) > height && len(statusLine) > 0 {
-		// Keep the first row, which carries the permission tier, mode and
-		// lifecycle state; the secondary session/model row is less urgent than
-		// proving that an active turn is still alive.
-		statusLine = statusLine[:len(statusLine)-1]
+	for height > 0 && len(activity)+len(statusLine)+len(composer) > height && len(statusLine) > 0 {
+		// Keep the permission/state row ahead of metadata, and an actionable
+		// pause ahead of both. Remove the last ordinary row first.
+		remove := len(statusLine) - 1
+		for remove > 0 && statusLine[remove].urgent {
+			remove--
+		}
+		statusLine = append(statusLine[:remove], statusLine[remove+1:]...)
 	}
 	for height > 0 && len(activity)+len(composer) > height && len(activity) > 0 {
 		// This is only reachable when the terminal has no row beyond the
 		// composer for the indicator. Preserve input usability in that
 		// impossible-to-share frame; every normal active frame keeps activity.
-		activity = nil
-	}
-	// The indicator sits at the right end of the first status row when it fits:
-	// beside the state it describes, below the composer. If it does not fit
-	// horizontally, it remains its own row, which the height priority above
-	// protects from being crowded out by agent details.
-	if len(statusLine) > 0 && len(activity) == 1 &&
-		cellWidth(statusLine[0].text)+cellWidth(activity[0].text)+1 <= width {
-		statusLine[0].right = activity[0].text
-		statusLine[0].rightStyle = stylePurple
 		activity = nil
 	}
 	if height > 0 {
@@ -605,13 +660,28 @@ func (m *Model) CommitOverflow(width, height int) []viewRow {
 	offset := offsetAfterLines(m.transcript, cut.source)
 	committed := make([]viewRow, 0, cut.rendered)
 	for _, row := range rendered[:cut.rendered] {
-		if transcriptStyle(row.text) == stylePurple {
-			row.style = stylePurple
-		}
 		committed = append(committed, viewRow{text: row.text, style: row.style})
 	}
 	m.transcript = m.transcript[:copy(m.transcript, m.transcript[offset:])]
 	return committed
+}
+
+// Remaining is the transcript CommitOverflow has not yet handed out, rendered
+// for the terminal's scrollback. It is for the way out: nothing will repaint
+// the frame again, so what is still in it (the last answer, a block held back
+// whole, or all of a short session) is written out whole rather than erased
+// with the frame. The transcript stays as it is, so the session's state after
+// exit still shows what the session showed.
+func (m *Model) Remaining(width int) []viewRow {
+	if width < 4 {
+		width = 4
+	}
+	rendered, _ := renderMarkdownStyledBlocks(string(m.transcript), width)
+	rows := make([]viewRow, 0, len(rendered))
+	for _, row := range rendered {
+		rows = append(rows, viewRow{text: row.text, style: row.style})
+	}
+	return rows
 }
 
 // offsetAfterLines is the byte index just past the count-th newline. The
@@ -630,15 +700,6 @@ func offsetAfterLines(transcript []byte, count int) int {
 	return len(transcript)
 }
 
-// transcriptStyle marks a line the user typed. It is the composer's own purple,
-// so a request reads as theirs whether it is on screen or in scrollback.
-func transcriptStyle(line string) rowStyle {
-	if strings.HasPrefix(line, promptMarker+" ") {
-		return stylePurple
-	}
-	return styleNone
-}
-
 func joinViewRows(rows []viewRow, styled bool) string {
 	return joinViewRowsWidth(rows, styled, 0)
 }
@@ -646,7 +707,7 @@ func joinViewRows(rows []viewRow, styled bool) string {
 // joinViewRowsWidth renders rows, placing any right-aligned field flush with
 // width. It composes here rather than earlier because a right field carries its
 // own style, and padding has to be measured on visible runes, not escape bytes.
-func joinViewRowsWidth(rows []viewRow, styled bool, width int) string {
+func joinViewRowsWidth(rows []viewRow, styled bool, width int, graphics ...string) string {
 	var output strings.Builder
 	for index, row := range rows {
 		if index > 0 {
@@ -670,11 +731,19 @@ func joinViewRowsWidth(rows []viewRow, styled bool, width int) string {
 				writeStyled(&output, span.text, span.style, styled)
 			}
 		} else {
-			writeStyled(&output, row.text, row.style, styled)
+			if styled && (row.style == styleUser || row.style == styleDiffAdd || row.style == styleDiffDel) {
+				fill := width
+				if row.right != "" {
+					fill -= cellWidth(row.right) + 1
+					pad = " "
+				}
+				row.text += strings.Repeat(" ", max(0, fill-cellWidth(row.text)))
+			}
+			writeStyled(&output, renderOctopus(row.text, row.icon, styled, graphics), row.style, styled)
 		}
 		if row.right != "" {
 			output.WriteString(pad)
-			writeStyled(&output, row.right, row.rightStyle, styled)
+			writeStyled(&output, renderOctopus(row.right, row.rightIcon, styled, graphics), row.rightStyle, styled)
 		}
 	}
 	return output.String()
@@ -686,6 +755,10 @@ func writeStyled(output *strings.Builder, text string, style rowStyle, styled bo
 	}
 	if !styled || style == styleNone {
 		output.WriteString(text)
+		return
+	}
+	if style == styleWork {
+		writeWorkHeading(output, text, styled)
 		return
 	}
 	paletteMu.RLock()
@@ -797,12 +870,23 @@ func wrapWords(line string, width int) []string {
 	}
 	var out []string
 	for line != "" {
+		// What is left fits: it is the last row, not split at its own last
+		// space, which ended every wrapped paragraph on one word alone.
+		if cellWidth(line) <= width {
+			out = append(out, line)
+			break
+		}
 		// The last space whose column still fits inside the width…
 		spaceAt := -1
 		used := 0
 		for index, r := range line {
 			cells := runeCellWidth(r)
 			if used+cells > width {
+				// A space just past the edge is a break too: the word before
+				// it fills the row exactly, and the space is never drawn.
+				if r == ' ' {
+					spaceAt = index
+				}
 				break
 			}
 			used += cells
@@ -852,6 +936,9 @@ func firstRune(text string) rune {
 }
 
 func clipLine(line string, width int) string {
+	if width <= 0 {
+		return ""
+	}
 	if cellWidth(line) <= width {
 		return line
 	}
@@ -897,7 +984,11 @@ func isWideRune(r rune) bool {
 		(r >= 0x20000 && r <= 0x3fffd))
 }
 
-func formatStatus(status Status) []string {
+func formatStatus(status Status, widths ...int) []string {
+	width := 10000
+	if len(widths) > 0 {
+		width = widths[0]
+	}
 	sessionLabel := status.SessionName
 	if sessionLabel == "" {
 		sessionLabel = status.Session
@@ -909,19 +1000,8 @@ func formatStatus(status Status) []string {
 	groups := [][]statusField{
 		{
 			{label: "mode", value: status.Mode},
-			{label: "effort", value: status.Effort},
-			// What confines the commands this session runs, right after how hard
-			// it is thinking about them; "off" is a word, never a blank.
+			// The enforcer is always explicit, including when it is off.
 			{label: "sandbox", value: status.Sandbox},
-			// A remembered limit, only while there is one: the renderer drops an
-			// empty value, so nothing cooling means no word about it.
-			{label: "cooling", value: status.Cooling},
-			// The session's own pause, only while there is one: why it stopped
-			// and when it comes back, where the eye already looks for state.
-			{label: "paused", value: status.Paused},
-			// Last in this group, so a narrow terminal clips these before the
-			// mode or the tier.
-			{label: "folder", value: status.Folder},
 			{label: "state", value: status.Lifecycle},
 			// What the run is doing belongs on the row that already carries
 			// mode and state, not beside the cost.
@@ -931,13 +1011,13 @@ func formatStatus(status Status) []string {
 			{label: "queued", value: queuedCount(status.Queued)},
 		},
 		{
-			{label: "session", value: sessionLabel},
 			{label: "model", value: status.Model},
-			// The two numbers that decide whether to compact or stop live on
-			// the shorter row, where a normal terminal still shows them. They
-			// are last within it, so the model clips after them, never before.
+			{label: "effort", value: status.Effort},
+			// Measurements precede optional session and folder labels.
 			{label: "context", value: status.Context},
 			{label: "cost", value: status.Cost},
+			{label: "session", value: sessionLabel},
+			{label: "folder", value: status.Folder},
 		},
 	}
 	lines := make([]string, 0, len(groups))
@@ -948,14 +1028,42 @@ func formatStatus(status Status) []string {
 				visible = append(visible, lead)
 			}
 		}
+		// A field after the effort overflows a row the model already fills,
+		// and the row's own clip ends in "…": that cell must not be the
+		// effort's last letter.
+		followed := false
+		for i, field := range fields {
+			if field.label != "effort" {
+				continue
+			}
+			for _, later := range fields[i+1:] {
+				followed = followed || sanitizeTerminalLine(later.value) != ""
+			}
+		}
 		for _, field := range fields {
 			value := sanitizeTerminalLine(field.value)
+			if field.label == "model" && status.Effort != "" {
+				reserve := cellWidth(statusIndent + "model " + " · effort " + sanitizeTerminalLine(status.Effort))
+				if followed {
+					reserve++
+				}
+				value = clipLine(value, max(1, width-reserve))
+			}
 			if value != "" {
 				visible = append(visible, field.label+" "+value)
 			}
 		}
 		if len(visible) > 0 {
 			lines = append(lines, statusIndent+strings.Join(visible, " · "))
+		}
+	}
+	// A pause is actionable state, so a long folder or permission label must
+	// never push its reason and reset time off screen. Do not repeat "paused".
+	// An account cooldown and a session pause are independent. The pause is
+	// last so compression retains it when only one notice fits.
+	for _, notice := range []string{status.Cooling, status.Paused, status.LocalWarning, status.RecoveryWarning} {
+		if notice != "" {
+			lines = append(lines, statusIndent+sanitizeTerminalLine(notice))
 		}
 	}
 	return lines
@@ -1056,7 +1164,7 @@ func skipEscapeSequence(text string, start int) int {
 			}
 		}
 		return next
-	case ']': // OSC: terminated by BEL or ST (ESC backslash).
+	case ']', '_', 'P', '^': // OSC/APC/DCS/PM: terminated by BEL or ST.
 		next++
 		for next < len(text) {
 			if text[next] == 0x07 {
@@ -1186,17 +1294,20 @@ func agentWindowRow(status AgentStatus, inner int) string {
 	state := compactAgentField(status.State, "working")
 	tail := " · " + state
 	if model := shortModelName(status.Model); model != "" {
+		effort := compactAgentField(status.Effort, "")
+		// Keep the state and effort intact even for dated model IDs. The
+		// summary is optional; a model name has to keep at least one cell.
+		reserve := cellWidth(fmt.Sprintf("%d ", status.Index) + tail + " · " + "·" + effort)
+		model = clipLine(model, max(1, inner-reserve))
 		tail += " · " + model
-		if effort := compactAgentField(status.Effort, ""); effort != "" {
+		if effort != "" {
 			tail += "·" + effort
 		}
 	}
 	head := fmt.Sprintf("%d ", status.Index)
 	what := compactAgentField(status.Summary, "task")
-	if room := inner - cellWidth(head) - cellWidth(tail); room > 0 {
-		what = clipLine(what, room)
-	}
-	return head + what + tail
+	what = clipLine(what, max(0, inner-cellWidth(head)-cellWidth(tail)))
+	return clipLine(head+what+tail, inner)
 }
 
 // shareLogRoom decides how many steps to show under each agent. Every agent
@@ -1240,6 +1351,16 @@ func (m *Model) shareLogRoom(agents []AgentStatus, room int) [][]string {
 	return out
 }
 
+// variantWords qualify a model rather than name it: its tier, size or tuning.
+// Alone they say nothing about which model is working — "max" beside an
+// effort of max least of all, or "it", "large" and "coder" for half a menu.
+var variantWords = map[string]bool{
+	"max": true, "mini": true, "nano": true, "pro": true, "lite": true, "plus": true, "turbo": true,
+	"ultra": true, "latest": true, "preview": true, "instruct": true, "chat": true, "cloud": true,
+	"exp": true, "beta": true, "thinking": true, "fast": true,
+	"it": true, "large": true, "small": true, "medium": true, "tiny": true, "base": true, "coder": true,
+}
+
 // shortModelName is the model as a person says it: the part that tells one
 // model from another, without the vendor and the route it came by.
 func shortModelName(model string) string {
@@ -1250,16 +1371,49 @@ func shortModelName(model string) string {
 	if cut := strings.LastIndex(model, "/"); cut >= 0 {
 		model = model[cut+1:]
 	}
-	// The last part names the model where it is a word — haiku, fable, luna —
-	// and where it is a version or a size the vendor prefix goes instead, so
-	// claude-fable-5-1 stays fable-5-1 rather than becoming "1".
-	if cut := strings.LastIndex(model, "-"); cut >= 0 && isLetters(model[cut+1:]) {
-		return model[cut+1:]
+	parts := strings.Split(model, "-")
+	last := len(parts) - 1
+	if last == 0 {
+		return model
 	}
-	if cut := strings.Index(model, "-"); cut > 0 && cut+1 < len(model) {
-		model = model[cut+1:]
+	// The last part names the model where it is a word — haiku, fable, luna.
+	variant := variantWords[strings.ToLower(parts[last])]
+	if isLetters(parts[last]) && !variant {
+		return parts[last]
 	}
-	return model
+	// A variant stays with what it qualifies: codex-max, flash-lite, walking
+	// back over a run of them (mistral-large-latest). After a version
+	// (gemini-2.5-pro), at the family itself (o4-mini), or in a family that
+	// carries its version (qwen3-coder:480b-cloud), only the whole ID says
+	// which model it is.
+	if variant {
+		anchor := last - 1
+		for anchor > 0 && variantWords[strings.ToLower(parts[anchor])] {
+			anchor--
+		}
+		if !isVersion(parts[anchor]) && !hasDigit(parts[0]) {
+			return strings.Join(parts[anchor:], "-")
+		}
+		return model
+	}
+	// Where the last part is a version or a size the vendor family goes
+	// instead, so claude-fable-5-1 stays fable-5-1 rather than becoming "1".
+	// A family that carries its version (qwen2.5) is the name, and one whose
+	// rest is only a version (gpt-5.1) stays with it.
+	if hasDigit(parts[0]) || isVersion(parts[1]) || variantWords[strings.ToLower(parts[1])] {
+		return model
+	}
+	return strings.Join(parts[1:], "-")
+}
+
+// isVersion reports a part that is a version or a size: 2.5, 4o, v3.1, 70b.
+func isVersion(part string) bool {
+	part = strings.TrimPrefix(strings.TrimPrefix(part, "v"), "V")
+	return part != "" && unicode.IsDigit([]rune(part)[0])
+}
+
+func hasDigit(text string) bool {
+	return strings.IndexFunc(text, unicode.IsDigit) >= 0
 }
 
 func isLetters(text string) bool {

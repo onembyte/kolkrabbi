@@ -273,7 +273,7 @@ starts in ~10 ms per invocation (fork+exec+run, measured over 20 runs on an M-se
 | Area | Prototype has | Gap vs. the vision |
 |---|---|---|
 | Modes | `chat` (no tools), `code` (tool loop), `agent` (plan → sequential subagents → synthesis) | parallel subagents, per-task model routing, mode auto-suggest |
-| Effort | `quick/standard/deep/ultra` → model tier map + orchestration width (2–6 tasks) | per-mode efforts, provider `reasoning.effort`, tool/round budgets |
+| Effort | `quick/standard/deep/ultra` → model tier map; effort-based task count superseded by V43.2 | per-mode efforts, provider `reasoning.effort`, tool/round budgets |
 | Providers | OpenRouter + any OpenAI-compatible `--base-url` (Ollama/LiteLLM/vLLM) | OAuth login, subscription backends (Claude Max), fallbacks/retries |
 | Tools | `bash`, `read_file`, `write_file`, `edit_file`, `list_dir`; confirm gating; `-y` yolo | grep/glob, web, MCP, permission rules, sandboxing |
 | Sessions | JSON per session, atomic saves, resume `-r`/`-s`, dangling-tool-call repair | compaction, search, fork, SQLite |
@@ -380,7 +380,7 @@ backend only.
 **Inputs:** `docs/research/ecosystem.md`
 
 ### [x] 7. The effort dial — fully configurable, including inside code mode — **hardened → [`docs/plan/07-effort-dial.md`](docs/plan/07-effort-dial.md)**
-**Decision:** four levels `low/medium/high/max` (numeric aliases `1..4`, legacy `quick..ultra` aliases preserved), governing model tier, provider reasoning effort, tool rounds (4/12/24/50 in code, 2/6/12/20 in chat), subagent width (1/2/4/6), and verification depth. Live `/effort` re-resolves model and updates persistent footer immediately in any mode. Zero-config tier inheritance from session model.
+**Decision:** four levels `low/medium/high/max` (numeric aliases `1..4`, legacy `quick..ultra` aliases preserved), governing model tier, provider reasoning effort, tool rounds (4/12/24/50 in code, 2/6/12/20 in chat), verification depth, and originally subagent width (1/2/4/6). V43.2 supersedes effort-based task counts: the plan keeps every task, with concurrency configured separately. Live `/effort` re-resolves model and updates persistent footer immediately in any mode. Zero-config tier inheritance from session model.
 **Scope:** what "effort" means in kolk and how the user tunes it.
 **Today:** `quick/standard/deep/ultra` → optional model tier map (`config set-tier`) + subagent count in agent mode. Unset tiers fall back to the session model.
 **Decide:**
@@ -454,6 +454,10 @@ backend only.
 ### [x] 12. Sessions, context & memory
 **Hardened 2026-08-26** ([`docs/plan/12-sessions-context-memory.md`](docs/plan/12-sessions-context-memory.md)): sessions stay JSON because the dependency budget hard-fails above two modules; compaction measures the window from provider-reported tokens, fires at 75%, drops old tool output first, stays reversible and visible, and an overflow error compacts and retries once.
 **Scope:** persistence, resume, compaction, memory files.
+
+V43.3c extends compaction into complete tool-round boundaries, including native children, while
+retaining immutable full-history archives. It supersedes preserving all recent tool traffic and
+continuing after failed archival; accepted work and history take precedence over reducing a request.
 **Today:** JSON sessions, atomic save, `-r`/`-s`, list/rm/clear, title from first input, dangling tool-call repair.
 **Decide:**
 - Storage: JSON files vs SQLite (shared with the dashboard, item 17); migration path; one DB for everything?
@@ -479,7 +483,7 @@ backend only.
 ### [x] 14. Agent mode — orchestration & per-task model routing ("Hermes-style, but multi-model")
 **Hardened 2026-08-26** ([`docs/plan/14-orchestration-routing.md`](docs/plan/14-orchestration-routing.md)): a run must survive its own failures before it is worth routing or parallelising — today one failed subagent discards every result before it. Tasks become records carrying kind and dependencies; kinds route to named slots (orchestrator/worker/explore/fast) resolved through config → effort tiers → session model; cost is shown and optionally capped; concurrency is three at a time, spawn depth 1, and lands last because it multiplies every failure mode above it.
 **Scope:** planner → subagents → synthesis done well; different models for different tasks; what to borrow from Hermes Agent.
-**Today:** planner (strict-JSON task list) → sequential subagents (isolated contexts, ≤ 12 rounds) → synthesis; width by effort; main session only stores request → answer.
+**Current orchestration:** planner (strict-JSON task list) → bounded parallel subagents with per-task model/effort → synthesis. V43.2 removes effort-based task truncation; concurrency defaults to three. V43.3 tracks durable child continuation.
 **Decide:**
 - Parallel subagents: concurrency, shared confirm UX (queue prompts; yolo-in-sandbox default), per-subagent streaming panes vs a log.
 - Per-task routing: a task classifier (fast lane) tags tasks (`edit`, `test`, `research`, `explain`, `design`, `boilerplate`) → model per tag from config + your dashboard ratings; cost-aware; always overridable.
@@ -634,14 +638,19 @@ The inventory and acceptance gates live in [`docs/plan/24-subscription-provider-
 ### [~] 25. Local models through a host Ollama
 **Scope:** the Ollama the user already has — found on the loopback default and adopted read-only,
 or started for the session on a port kolk chooses; its models in the picker; Ollama Cloud behind
-its own sign-in. Kolk never installs one.
+its own sign-in. **V43.4 supersedes the no-install/session-only decisions at the owner's request:**
+project `local.ephemeral` chooses session-close shutdown (default on) or persistent native reuse.
+V43.4a verifies lifetime. V43.4b implements native installation, keyless local sessions,
+exact cached tags and shared setup/pull/model-selection routing; independent review and gates pass.
+Integrated flow and additional Linux GPU bundles remain V43.4c; physical trial limits are recorded.
 The contract lives in [`docs/plan/25-managed-local-models.md`](docs/plan/25-managed-local-models.md).
 
 - [x] ~~Kolk-owned versioned sidecar, private endpoint, and a model store inside Kolk's data
   directory~~ — superseded by option E (2026-08-29) and deleted: the user's own Ollama is found,
   adopted read-only or started for the session, and its store is the store.
 - [x] Runtime lifecycle: start at most once and lazily, on a port kolk chooses, stop only what kolk
-  started, close with the session.
+  started, close with the session. V43.4a extends this with project-scoped persistent reuse and
+  shared session routing for pulls, model discovery and chat.
 - [ ] Hardware probe with the fixed `{accelerators, system_ram_bytes, disk_free_bytes}` shape that
   fails closed to "unknown" and never lets a missing probe authorize a pull.
 - [ ] Fit planner: show size, required VRAM/RAM, reserved headroom, and fallback before any pull;
@@ -826,13 +835,24 @@ have evidence.
 **Inputs:** `CHECKPOINTS.md`, `docs/plan/10-saga-loop.md`, `docs/plan/21-quality-testing-security.md`,
 the 2026-08-31 architecture/security/routing/release review.
 
+### [x] 38. Product polish — terminal clarity, efficient agents and continuity
+**Hardened 2026-09-14** ([`docs/plan/38-product-polish.md`](docs/plan/38-product-polish.md)):
+the owner's six priorities become V43.1–V43.4: model/effort legibility and the pixel octopus,
+verified ceiling routing, durable agent continuation, and managed native Localia with project
+lifetime settings. This tick records the design; implementation closure belongs to CHECKPOINTS.md.
+The 2026-10-07 closeout/release queue is `docs/october-release-checklist.md`;
+`docs/optimization-resume-audit.md` orders remaining measured optimizations separately.
+
 ### [ ] 35. Continuity — when a limit hits, the work stays
 **Drafted 2026-09-05** ([`docs/plan/35-continuity.md`](docs/plan/35-continuity.md)): six of the seven
 continuity cards on the capabilities page are prose. One continuity engine over the two routing knobs
 that exist: a closed limit taxonomy with a durable cooldown registry, an honest pause with a resume
 path, a ranked recommendation, a chain over every configured option, ask-before-free by default, and
-opt-in automatic switching only between equivalent models. Owner answered §9 on 2026-09-05; V35.1
-is open.
+opt-in automatic switching only between equivalent models. Owner answered §9 on 2026-09-05.
+Implementation evidence belongs to the V35 ledger. V43.3a supersedes the original resume-watcher
+lifetime and clock-based clearing. V43.3b closes durable agent continuation with a saved plan,
+child conversations, verified worktree reuse and explicit discard recovery; it supersedes removing
+and re-appending pending prompts. V43.3c tracks context preservation.
 
 ### [ ] 37. Local models anywhere — this machine, the LAN, or one exact address
 **Drafted 2026-09-09** ([`docs/plan/37-local-models-anywhere.md`](docs/plan/37-local-models-anywhere.md)):

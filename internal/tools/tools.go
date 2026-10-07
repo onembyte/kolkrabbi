@@ -64,6 +64,9 @@ type Options struct {
 	// one seam in, one seam out, and neither can veto — a hook that could stop
 	// a tool call would be a second permission system.
 	PostWrite PostWrite
+	// Report carries observed command status or completed file changes to a
+	// display adapter. It cannot veto execution or alter model-visible results.
+	Report func(ExecutionReport)
 }
 
 // postWrite fires the after-the-fact seam, if there is one.
@@ -259,6 +262,9 @@ func Execute(ctx context.Context, name, argsJSON string, o Options) (string, err
 			return "", err
 		}
 		result := truncateDropped(res.Output, res.Dropped)
+		if o.Report != nil {
+			o.Report(ExecutionReport{Failed: !res.OK()})
+		}
 		if !res.OK() {
 			// The model sees the failure and reacts to it. A command that exits
 			// non-zero is a fact about the world, not a broken tool. Under a
@@ -337,10 +343,18 @@ func Execute(ctx context.Context, name, argsJSON string, o Options) (string, err
 				return "", err
 			}
 		}
+		var before []byte
+		var readErr error
+		if o.Report != nil {
+			before, readErr = os.ReadFile(request.Path)
+		}
 		if err := os.WriteFile(request.Path, []byte(a.Content), 0o644); err != nil {
 			return "", err
 		}
 		o.postWrite("write_file", request.Path)
+		if readErr == nil || os.IsNotExist(readErr) {
+			o.reportChange(request.Display, string(before), a.Content, os.IsNotExist(readErr))
+		}
 		return fmt.Sprintf("wrote %d bytes to %s", len(a.Content), request.Display), nil
 
 	case "edit_file":
@@ -382,6 +396,7 @@ func Execute(ctx context.Context, name, argsJSON string, o Options) (string, err
 			return "", err
 		}
 		o.postWrite("edit_file", request.Path)
+		o.reportChange(request.Display, content, updated, false)
 		return fmt.Sprintf("edited %s", request.Display), nil
 
 	case "list_dir":

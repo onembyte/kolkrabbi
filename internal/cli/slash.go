@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/onembyte/kolkrabbi/internal/checkpoint"
 	"github.com/onembyte/kolkrabbi/internal/commands"
@@ -30,13 +31,13 @@ func words(list ...string) []tui.Choice { return []tui.Choice{{Words: list}} }
 var slashCommandTable = []slashCommand{
 	{"key", "[<provider>] | - | --why [<provider>] | --backend <keychain|file> [<provider>]", "add an API key (read hidden, never from the line); --why shows where it comes from; --backend moves it", []tui.Choice{{Words: []string{"-", "--why", "--backend"}}, {After: []string{"--backend"}, Words: []string{"keychain", "file"}}}},
 	{"mode", "<chat|code|agent>", "switch mode (agent = orchestrated; code is default)", words("chat", "code", "agent")},
-	{"effort", "<low|medium|high|max|ultra>", "select model tier and orchestration width", words("low", "medium", "high", "max", "ultra")},
+	{"effort", "<low|medium|high|max|ultra>", "set reasoning effort and tool-round allowance", words("low", "medium", "high", "max", "ultra")},
 	{"model", "[id | alias] [effort]", "pick or switch this session's model (bare opens a picker in a terminal)", nil},
 	{"plans", "[filter] | login <provider> <plan>", "list plans or start provider-owned login", words("login")},
 	{"plogin", "[filter]", "search plans and start provider-owned login", nil},
 	{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors", nil},
 	{"agents", "", "what the agents of this run, or the last one, did — model, effort, task and every step", nil},
-	{"localia", "[models [filter] | plan <model> | pull [--yes] <model> | add <name> <host:port> | rm <name> | list | use <name> [model] | direct [--yes] <command…>]", "local models: this machine's hardware and pulls, and endpoints on the LAN or at one address", []tui.Choice{{Words: []string{"models", "plan", "pull", "add", "rm", "list", "use", "direct"}}, {After: []string{"pull"}, Words: []string{"--yes"}}, {After: []string{"direct"}, Words: []string{"--yes"}}}},
+	{"localia", "[setup | stop | models [filter] | plan <model> | pull [--yes] <model> | add <name> <host:port> | rm <name> | list | use <name> [model] | direct [--yes] <command…>]", "local models: this machine's native setup, hardware and pulls, and endpoints on the LAN or at one address", []tui.Choice{{Words: []string{"setup", "stop", "models", "plan", "pull", "add", "rm", "list", "use", "direct"}}, {After: []string{"pull"}, Words: []string{"--yes"}}, {After: []string{"direct"}, Words: []string{"--yes"}}}},
 	{"compact", "[undo]", "shrink the conversation now, or put back the last one", words("undo")},
 	{"remember", "[--project] <note>", "add one line of standing guidance", words("--project")},
 	{"config", "[get <k> | set <k> <v> | unset <k> | show]", "read and write saved settings", words("get", "set", "unset", "show")},
@@ -52,7 +53,7 @@ var slashCommandTable = []slashCommand{
 	{"full-auto", "", "stop asking; the floor still refuses", nil},
 	{"new", "", "start a fresh saved session", nil},
 	{"clear", "", "alias for /new", nil},
-	{"session", "", "show the current session id and file", nil},
+	{"session", "", "show the current session id and file, and how to export it", nil},
 	{"changes", "", "list files modified by this session", nil},
 	{"diff", "[path]", "show what this session changed, as a diff", nil},
 	{"plan", "[off]", "read-only: explore and propose, without writing or running anything", words("off")},
@@ -65,7 +66,7 @@ var slashCommandTable = []slashCommand{
 	{"doctor", "", "check keys, directories, terminal and network", nil},
 	{"theme", "[kolkrabbi|nord|quiet]", "change the look for this session; /config set theme keeps it", nil},
 	{"mcp", "add <name> <command> [args…] | rm <name> | list | tools", "tool servers: their tools appear as <name>__<tool> and answer to `allow mcp(<name>__*)`", words("add", "rm", "list", "tools")},
-	{"resume", "", "lift a limit pause now and re-send the turn that was waiting", nil},
+	{"resume", "[discard]", "continue saved work; discard abandons the request and keeps files/history", words("discard")},
 	{"continue", "[n]", "switch to the nth equivalent model the pause recommended and re-send the turn", nil},
 	{"help", "", "show all slash commands", nil},
 	{"exit", "", "quit Kolkrabbi", nil},
@@ -97,12 +98,27 @@ func slashSuggestions() []tui.CommandSpec {
 }
 
 func printSlashHelp(out interface{ Write([]byte) (int, error) }) {
+	writeSlashTable(out, "")
+}
+
+// slashColumn is where a command's summary starts, in /help and kolk help
+// alike. Aligning to the widest usage instead put every summary about 170
+// columns in, off the edge of any ordinary terminal, once /localia's grammar
+// grew; a usage too long for the column now takes a row of its own, with its
+// summary at the column on the next.
+const slashColumn = 42
+
+func writeSlashTable(out interface{ Write([]byte) (int, error) }, indent string) {
 	for _, command := range slashCommandTable {
 		usage := "/" + command.name
 		if command.args != "" {
 			usage += " " + command.args
 		}
-		_, _ = fmt.Fprintf(out, "%-42s %s\n", usage, command.summary)
+		if utf8.RuneCountInString(usage) < slashColumn {
+			_, _ = fmt.Fprintf(out, "%s%-*s %s\n", indent, slashColumn, usage, command.summary)
+			continue
+		}
+		_, _ = fmt.Fprintf(out, "%s%s\n%s%*s %s\n", indent, usage, indent, slashColumn, "", command.summary)
 	}
 }
 
@@ -137,6 +153,24 @@ func (a *app) reportAgentLane(ag *engine.Agent) {
 		return
 	}
 	roster := ag.Roster(a.rungAvailable())
+	if roster.Discovered {
+		models := make([]string, 0, len(roster.Rungs))
+		for _, rung := range roster.Rungs {
+			models = append(models, rung.Model)
+		}
+		fmt.Fprintf(a.stdout, "agent lane: %s\n", strings.Join(models, " → "))
+		if roster.LoginModel != "" {
+			fmt.Fprintf(a.stdout, "  /plans login can unlock %s for simple tasks\n", roster.LoginModel)
+		} else if len(roster.Rungs) == 1 {
+			fmt.Fprintln(a.stdout, "  no lower model is ranked and available; tasks use your selection")
+		} else {
+			fmt.Fprintln(a.stdout, "  hard → selected · routine → next lower · trivial → lowest")
+		}
+		if len(roster.Blocked) > 0 {
+			fmt.Fprintf(a.stdout, "  capped at %s — %s out of reach\n", ag.SessionModel(), strings.Join(roster.Blocked, ", "))
+		}
+		return
+	}
 	// Only rungs the vendor still lists are worth naming as refused: telling
 	// someone gpt-5.6-pro is out of reach when the vendor no longer offers it
 	// is a limit on nothing.
@@ -213,7 +247,18 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		}
 		fmt.Fprintf(a.stdout, "theme: %s for this session; `/config set theme %s` keeps it\n", tui.ActiveTheme(), tui.ActiveTheme())
 	case "/resume":
-		a.resumeNow(ctx, ag)
+		switch arg {
+		case "":
+			a.resumeNow(ctx, ag)
+		case "discard":
+			if ag.DiscardPending() {
+				fmt.Fprintln(a.stdout, "◆ pending request abandoned; files, saved worktrees and history are retained")
+			} else {
+				fmt.Fprintln(a.stdout, "nothing is waiting to be abandoned")
+			}
+		default:
+			fmt.Fprintln(a.stdout, "usage: /resume [discard]")
+		}
 	case "/continue":
 		a.continueNow(ctx, ag, arg)
 	case "/help":
@@ -317,27 +362,52 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		}
 	case "/new", "/clear":
 		sess := session.New(a.dirs.Sessions(), ag.SessionModel())
-		ckpt, err := checkpoint.Open(sess.CkptDir())
-		if err != nil {
-			ckpt = nil
+		// The backend stays, so the connector answering for its model stays:
+		// a new session on a plan is still on that plan.
+		if ag.Sess != nil {
+			sess.SetConnector(ag.Sess.ConnectorName())
 		}
-		if ckpt != nil {
+		// A nil interface when the store will not open, never a nil *Store
+		// inside one: "checkpointing is not enabled" tests the interface.
+		var ckpt engine.Checkpointer
+		if store, err := checkpoint.Open(sess.CkptDir()); err == nil {
 			// A new session in the same project gets its own store. The notice
 			// is not reprinted: whatever the answer is here, the session this
 			// one replaced already said it.
-			ckpt.UseShadow(ctx, projectRoot())
+			store.UseShadow(ctx, projectRoot())
+			ckpt = store
 		}
-		opts := ag.Options
-		opts.Sess = sess
-		opts.Ckpt = ckpt
-		*ag = *engine.New(opts)
+		// In place, through the engine: goroutines still hold this agent (the
+		// pause monitor, background discovery, the status line), and a
+		// whole-struct overwrite raced every one of them.
+		ag.ReplaceSession(sess, ckpt)
+		// Rules someone scoped to the session end with it: those added with
+		// /permissions for this session, and those kept at a prompt. Plan mode
+		// is a mode, and /new keeps the mode: its refusals stay with the
+		// instruction they enforce. What is stored for good is read again.
+		a.sessionRules = nil
+		a.applyRules(ag)
+		// The live marker follows the session this process now runs.
+		if a.sessionHold != nil {
+			_ = a.sessionHold.Close()
+			a.sessionHold = nil
+		}
+		if held, err := session.Hold(a.dirs.Sessions(), sess.ID); err == nil {
+			a.sessionHold = held
+		}
 		fmt.Fprintf(a.stdout, "new session: %s\n", sess.ID)
+		if a.inPlanMode() {
+			fmt.Fprintln(a.stdout, "\033[2mplan mode is still on · /plan off to act\033[0m")
+		}
 	case "/session":
 		sessID := ""
 		if ag.Sess != nil {
 			sessID = ag.Sess.SessionID()
 		}
 		fmt.Fprintf(a.stdout, "id:    %s\nfile:  %s\n", sessID, a.dirs.Session(sessID))
+		// Export is a command outside the session; this is where a person
+		// looking for "this session" learns it exists.
+		fmt.Fprintf(a.stdout, "export: kolk sessions export %s  (--json for the full record, compactions included)\n", sessID)
 	case "/changes":
 		if ag.Ckpt == nil {
 			fmt.Fprintln(a.stdout, "checkpointing is not enabled.")
@@ -447,8 +517,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 			if err := a.printPlanModelChoices(); err != nil {
 				fmt.Fprintf(a.stderr, "could not list subscription models: %v\n", err)
 			}
-			d, _ := a.locate()
-			if err := a.printModelCatalog(ctx, ag.Client, d.CatalogFile(), false, ""); err != nil {
+			if err := a.printSessionModelCatalog(ctx, ag, ""); err != nil {
 				fmt.Fprintf(a.stderr, "could not list models: %v\n", err)
 			}
 			fmt.Fprintln(a.stdout, "\nswitch: /model <id|alias>  (shortcuts: /model claude-pro, /model claude-max, /model gpt-plus, /model gpt-plus-terra, /model gpt-plus-luna, /model gpt-pro, /model gpt-pro-sol, /model gpt-pro-terra, /model gpt-pro-luna)")
@@ -488,8 +557,7 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 				fmt.Fprintf(a.stdout, "model set to %s\n", label)
 			}
 		} else {
-			d, _ := a.locate()
-			if err := a.printModelCatalog(ctx, ag.Client, d.CatalogFile(), false, modelRef); err != nil {
+			if err := a.printSessionModelCatalog(ctx, ag, modelRef); err != nil {
 				fmt.Fprintf(a.stderr, "could not list models: %v\n", err)
 			}
 			fmt.Fprintf(a.stdout, "\nswitch: /model <id|alias>\n")

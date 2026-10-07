@@ -3,7 +3,6 @@ package cli
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/onembyte/kolkrabbi/internal/atomicfile"
 	"github.com/onembyte/kolkrabbi/internal/buildinfo"
 	"github.com/onembyte/kolkrabbi/internal/bus"
 	"github.com/onembyte/kolkrabbi/internal/checkpoint"
@@ -29,7 +27,6 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/session"
 	"github.com/onembyte/kolkrabbi/internal/shell"
 	"github.com/onembyte/kolkrabbi/internal/stats"
-	"github.com/onembyte/kolkrabbi/protocol"
 )
 
 // runDefault is `kolk` with no verb: build an agent, then either run one turn
@@ -38,6 +35,14 @@ func (a *app) runDefault(ctx context.Context, args []string) (err error) {
 	o, err := parseFlags(args)
 	if err != nil {
 		return err
+	}
+
+	// Reserve stdout before setup, resume notices, or runtime construction can
+	// print. All human diagnostics use stderr for the entire streaming command.
+	streamOutput := a.stdout
+	if o.outputFormat == "stream-json" {
+		a.stdout = a.stderr
+		defer func() { a.stdout = streamOutput }()
 	}
 
 	ag, err := a.newAgent(ctx, o)
@@ -75,26 +80,19 @@ func (a *app) runDefault(ctx context.Context, args []string) (err error) {
 	a.debugLog.Printf("session %s, model %s, mode %s, effort %s, permission %s",
 		ag.Sess.SessionID(), ag.SessionModel(), ag.Mode, ag.Effort, ag.Permission)
 	defer func() {
-		// Every goroutine this run started is joined before it returns; a
-		// background refresh is cancelled rather than waited for.
-		a.joinBackground()
-		// Named last, after everything else has had its say, so the line a
-		// person needs to attach to a bug report is the final thing on screen.
-		if path := a.debugLog.Path(); path != "" {
-			_ = a.debugLog.Close()
-			fmt.Fprintf(a.stderr, "debug log: %s\n", path)
-		}
-		// Released before the backend so a crash in Close still frees the
-		// session for the next process.
-		if a.sessionHold != nil {
-			_ = a.sessionHold.Close()
-			a.sessionHold = nil
-		}
-		if closeErr := ag.Close(); closeErr != nil {
+		backendErr, runtimeErr := a.releaseRun(ag)
+		if backendErr != nil {
 			if err == nil {
-				err = closeErr
+				err = backendErr
 			} else {
-				fmt.Fprintf(a.stderr, "warning: backend close failed: %v\n", closeErr)
+				fmt.Fprintf(a.stderr, "warning: backend close failed: %v\n", backendErr)
+			}
+		}
+		if runtimeErr != nil {
+			if err == nil {
+				err = runtimeErr
+			} else {
+				fmt.Fprintf(a.stderr, "warning: local runtime close failed: %v\n", runtimeErr)
 			}
 		}
 	}()
@@ -118,29 +116,16 @@ func (a *app) runDefault(ctx context.Context, args []string) (err error) {
 		defer stop()
 
 		if o.outputFormat == "stream-json" {
-			if ag.Bus != nil {
-				sub, err := ag.Bus.Subscribe(0)
-				if err == nil {
-					ag.Out = io.Discard
-					done := make(chan struct{})
-					go func() {
-						defer close(done)
-						for env := range sub.Events() {
-							frame, err := protocol.EncodeNDJSON(env)
-							if err == nil {
-								_, _ = a.stdout.Write(frame)
-							}
-						}
-					}()
-					turnErr := ag.RunTurn(tctx, o.prompt)
-					_ = ag.Bus.Close()
-					<-done
-					return turnErr
-				}
+			if a.localRuntime != nil {
+				a.localRuntime.SetOutput(a.stderr)
 			}
+			return streamTurn(tctx, ag, o.prompt, streamOutput)
 		}
 
 		return ag.RunTurn(tctx, o.prompt)
+	}
+	if o.outputFormat == "stream-json" {
+		return usagef("stream-json requires a prompt or piped input")
 	}
 	if a.canUseTUI() {
 		return a.tuiRepl(ctx, ag)
@@ -185,6 +170,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	if err != nil {
 		return nil, err
 	}
+	a.bindLocalRuntime(cfg, d, root)
 	if retireLegacyFreeConfig(cfg) {
 		fmt.Fprintf(a.stderr,
 			"warning: %s is no longer guaranteed free; replacing the old free preset with live free-model discovery\n",
@@ -198,9 +184,17 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	}
 
 	endpoint := config.ResolveBaseURL(o.baseURL, cfg)
-	client, err := providerClientForEndpoint(ctx, endpoint, d.CredentialsFile())
+	a.sessionEndpoint = endpoint
+	localStartup, err := localStartupSelected(o, cfg, d)
 	if err != nil {
 		return nil, err
+	}
+	var client *provider.Client
+	if !localStartup {
+		client, err = providerClientForEndpoint(ctx, endpoint, d.CredentialsFile())
+		if err != nil {
+			return nil, err
+		}
 	}
 	// Before the first turn, what the vendor's terms say about this key.
 	printVendorNotice(a.stderr, client)
@@ -220,7 +214,10 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	// fetches, bounded so a slow network cannot hold the prompt hostage. 1.2.2
 	// made two catalog requests here, one of them uncached and unbounded, and
 	// the blank screen it produced was timed at ten seconds.
-	catalog := a.loadCatalog(ctx, client, d.CatalogFile())
+	var catalog []provider.ModelInfo
+	if client != nil {
+		catalog = a.loadCatalog(ctx, client, d.CatalogFile())
+	}
 	// Model precedence: -m flag > the resumed session's model > config > the
 	// live zero-cost coding choice. Explicit user choices never cause a catalog
 	// request and a resumed session never changes models behind the user's back.
@@ -234,7 +231,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	// route below. 230 µs, measured.
 	var host local.Host
 	if a.discoverHost != nil {
-		host = a.discoverHost(ctx)
+		host = a.localHost(ctx)
 	}
 	model := o.model
 	if model == "" {
@@ -333,7 +330,9 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 			// scrubber runs over it like every other line.
 			info := buildinfo.Get()
 			a.debugLog.Printf("kolk %s (%s) %s/%s, go %s", info.Version, info.Commit, info.OS, info.Arch, info.Go)
-			a.debugLog.Printf("base url %s", client.BaseURL)
+			if client != nil {
+				a.debugLog.Printf("base url %s", client.BaseURL)
+			}
 		} else {
 			fmt.Fprintf(a.stderr, "warning: --debug could not open %s: %v\n", path, err)
 		}
@@ -362,12 +361,12 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		freeModels = provider.RankFreeModels(provider.FallbackCatalogSeed())
 	}
 
-	backend, model, err := a.planBackend(model, mode, effort, sess.ProviderStateName(), func(state string) {
-		// The vendor conversation handle is noted the moment the backend owns
-		// one, and the engine's next save writes it to disk; a failed save only
-		// costs the resume, never the turn.
-		sess.SetProviderStateName(state)
-	}, permission)
+	// The vendor conversation handle is noted the moment the backend owns
+	// one, and the engine's next save writes it to disk; a failed save only
+	// costs the resume, never the turn.
+	var ag *engine.Agent
+	backend, model, err := a.planBackend(model, mode, effort, sess.ProviderStateName(),
+		noteOnCurrentSession(sess, func() *engine.Agent { return ag }), permission)
 	if err != nil {
 		return nil, err
 	}
@@ -378,8 +377,14 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 	if err := engine.ValidateSlots(cfg.Slots); err != nil {
 		fmt.Fprintf(a.stderr, "config: %v\n", err)
 	}
+	if localStartup && backend == nil {
+		backend = localOnlyBackend{}
+	}
 
-	ag := engine.New(engine.Options{
+	// Declared first: ConnectorName reads the agent's session as it is when
+	// asked. /new and /clear replace the session (ReplaceSession), so a
+	// session captured here would answer for one that is gone.
+	ag = engine.New(engine.Options{
 		Client:     client,
 		Backend:    backend,
 		Model:      model,
@@ -414,6 +419,7 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		// What the run may climb down to: a cheaper rung of a vendor the user
 		// has actually signed into through kolk.
 		RungAvailable: a.rungAvailable(),
+		AgentRoster:   a.agentRoster,
 		// What to do when the plan behind the session runs out: ask (the
 		// default), switch to the metered model below, or stop (A33.7).
 		OnSubscriptionLimit: cfg.Routing.OnSubscriptionLimit,
@@ -433,7 +439,10 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		// What could continue the work when the model stops (plan 35 §2.3).
 		Candidates:       func() []continuity.Candidate { return a.continuityCandidates(ctx) },
 		HandoverSignedIn: a.connectorSignedIn,
-		MeteredModel:     func() string { return meteredFallback },
+		// Which connector a model runs through: the key a limit on it cools,
+		// and the sign-in a pause on it is probed through.
+		ConnectorName: func(model string) string { return a.connectorIn(ag.Session(), model) },
+		MeteredModel:  func() string { return meteredFallback },
 		// The catalogue the session already fetched, so an unset slot can be
 		// resolved by what each role needs instead of collapsing to the effort
 		// model (A33.4). Already in memory: this costs nothing to pass.
@@ -450,7 +459,6 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		FreeModels:         freeModels,
 		ContextWindow:      a.contextWindowFor(model),
 		UserMemoryFile:     d.MemoryFile(),
-		ArchiveCompaction:  archiveCompaction(d.Sessions(), sess.ID),
 	})
 	// How the session moves to one of the candidates when asked (plan 35
 	// §2.5): the surface owns the backends, so it performs the switch.
@@ -467,18 +475,10 @@ func (a *app) newAgent(ctx context.Context, o *options) (*engine.Agent, error) {
 		// the model-id prefix (plan 37); this machine's Ollama keeps the name
 		// it has always had.
 		ag.Routes = endpointRoutes(cfg)
-		switch host.State {
-		case local.HostRunning:
-			ag.Routes[local.SidecarName] = local.NewHostBackend(host.Addr)
-		case local.HostInstalled:
-			// Installed and idle: kolk starts one of its own on a port it
-			// chooses, lazily — when a host model is first chosen or first
-			// asked for a turn (E3b, E8) — measured
-			// at 300–440 ms to ready, which is a cost to pay once when asked
-			// for and never at every startup — and stops it at exit.
-			ag.Routes[local.SidecarName] = local.NewLazyHostBackend(&local.HostStarter{
-				Binary: host.Binary, Environ: os.Environ(), Out: a.stdout,
-			})
+		if a.localRuntime != nil && (host.State != local.HostAbsent || a.localRuntime.Provision != nil) {
+			// The same owner supplies chat, pulls, model discovery and status.
+			// Closing this route stops only a session-owned runtime.
+			ag.Routes[local.SidecarName] = local.NewLazyHostBackend(a.localRuntime)
 		}
 	}
 	// Rules the user already wrote down apply from the first turn. A stored
@@ -557,6 +557,23 @@ func (a *app) planBackend(model, mode, effort, state string, note func(string), 
 		return backend, model, err
 	}
 	return backend, planModel.Model, nil
+}
+
+// noteOnCurrentSession records a vendor conversation handle on the session
+// the agent is on when the handle is noted, not the one the backend was built
+// for: /new keeps the backend and moves the agent to a new session, whose file
+// must learn the new session's conversation (and leave the old one's alone).
+// Until the agent exists, the startup session is the current one.
+func noteOnCurrentSession(startup engine.SessionPort, agent func() *engine.Agent) func(string) {
+	return func(state string) {
+		if ag := agent(); ag != nil {
+			if current := ag.Session(); current != nil {
+				current.SetProviderStateName(state)
+				return
+			}
+		}
+		startup.SetProviderStateName(state)
+	}
 }
 
 // planBackendFor reports the provider that must answer for one model. A nil
@@ -661,32 +678,6 @@ func (a *app) planEffort(effort string, plan provider.PlanModel) string {
 	return resolved
 }
 
-// archiveCompaction keeps every conversation a compaction replaced, numbered
-// and never overwritten: a second compaction must not erase the record of the
-// first, which is the one the user is most likely to want back.
-func archiveCompaction(dir, id string) func([]provider.Message) (string, error) {
-	return func(messages []provider.Message) (string, error) {
-		encoded, err := json.MarshalIndent(messages, "", "  ")
-		if err != nil {
-			return "", err
-		}
-		for n := 1; n <= maxCompactionArchives; n++ {
-			path := filepath.Join(dir, fmt.Sprintf("%s.pre-compact-%d.json", id, n))
-			if _, err := os.Stat(path); err == nil {
-				continue
-			}
-			if err := atomicfile.Write(path, append(encoded, '\n'), 0o600); err != nil {
-				return "", err
-			}
-			return path, nil
-		}
-		return "", fmt.Errorf("session %s already has %d compaction archives", id, maxCompactionArchives)
-	}
-}
-
-// maxCompactionArchives bounds what one session can leave on disk.
-const maxCompactionArchives = 100
-
 // projectRoot is what file tools are confined to: the repository the user is
 // working in, or the directory Kolkrabbi was started in when there is none.
 //
@@ -738,6 +729,18 @@ func (a *app) contextWindowFor(model string) int {
 // a subscription plan, at the provider that can actually answer it. Without
 // this the status line names one model while a different provider replies.
 func (a *app) switchModel(ctx context.Context, ag *engine.Agent, ref string) (string, error) {
+	// An explicit local selection earns setup. Do it before changing the model
+	// so failed downloads leave the previous selection and conversation intact.
+	if name, ok := strings.CutPrefix(ref, local.HostPrefix); ok {
+		if err := validateLocalModelName(name); err != nil {
+			return "", err
+		}
+		if a.localRuntime != nil {
+			if _, err := a.localRuntime.Ensure(ctx); err != nil {
+				return "", err
+			}
+		}
+	}
 	// A model that cannot take tools is refused for a mode that sends them,
 	// here, with the sentence plan 06 wrote — rather than as a 400 in the
 	// middle of a turn, because the engine sends tool schemas by mode and
@@ -750,13 +753,34 @@ func (a *app) switchModel(ctx context.Context, ag *engine.Agent, ref string) (st
 	// the model the user just chose, and new provider state lands back in the
 	// session file the same way it does at startup.
 	state, note := "", func(string) {}
-	if ag.Sess != nil {
-		state = ag.Sess.ProviderStateName()
-		note = func(state string) { ag.Sess.SetProviderStateName(state) }
+	if current := ag.Session(); current != nil {
+		state = current.ProviderStateName()
+		note = noteOnCurrentSession(current, func() *engine.Agent { return ag })
 	}
 	backend, planModel, err := a.planBackendFor(ref, ag.Mode, ag.Effort, state, note, ag.Permission)
 	if err != nil {
 		return "", err
+	}
+	var remote *provider.Client
+	prefix, _, _ := strings.Cut(ref, "/")
+	if backend == nil && ag.Client == nil && ag.Routes[prefix] == nil {
+		dirs, err := a.resolve()
+		if err != nil {
+			return "", err
+		}
+		cfg, err := config.Load(dirs.ConfigFile())
+		if err != nil {
+			return "", err
+		}
+		endpoint := a.sessionEndpoint
+		if endpoint == "" {
+			endpoint = config.ResolveBaseURL("", cfg)
+		}
+		remote, err = providerClientForEndpoint(ctx, endpoint, dirs.CredentialsFile())
+		if err != nil {
+			return "", err
+		}
+		printVendorNotice(a.stderr, remote)
 	}
 
 	previous := ag.SessionBackend()
@@ -770,6 +794,8 @@ func (a *app) switchModel(ctx context.Context, ag *engine.Agent, ref string) (st
 		ag.SetSessionBackend(backend)
 	} else if ag.Client != nil {
 		ag.SetSessionBackend(ag.Client)
+	} else if remote != nil {
+		ag.SetSessionBackend(remote)
 	}
 	// The retired provider owns a child process; nothing else will release it.
 	if current := ag.SessionBackend(); previous != nil && previous != current {
@@ -788,14 +814,14 @@ func (a *app) switchModel(ctx context.Context, ag *engine.Agent, ref string) (st
 	a.warmHostModel(ctx, ag, resolved)
 	ag.PinnedModel = true
 	if ag.Sess != nil {
-		ag.Sess.SetModelName(resolved)
 		// The connector the session runs on now is session state too, so the
-		// card and a later resume say the same thing the run does.
+		// card and a later resume say the same thing the run does. One write,
+		// so no reader sees the new model beside the old connector.
+		connector := ""
 		if wrapped, ok := backend.(*verifyingBackend); ok {
-			ag.Sess.SetConnector(wrapped.plan.Connector)
-		} else {
-			ag.Sess.SetConnector("")
+			connector = wrapped.plan.Connector
 		}
+		ag.Sess.SetRoute(resolved, connector)
 	}
 	return resolved + label, nil
 }
@@ -932,11 +958,11 @@ func (a *app) warmHostModel(ctx context.Context, ag *engine.Agent, model string)
 		warm = func(ctx context.Context, w modelWarmer, model string) {
 			// Off the turn path, but not off the session: a warm that
 			// outlived the session would load a model for nobody.
-			go func() {
+			a.startBackground(ctx, func(ctx context.Context) {
 				ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 				defer cancel()
 				w.Warm(ctx, model)
-			}()
+			})
 		}
 	}
 	warm(ctx, warmer, wire)
@@ -950,7 +976,7 @@ func (a *app) refuseToollessHostModel(ctx context.Context, ag *engine.Agent, ref
 	if !ok || ag.Mode == engine.ModeChat || a.discoverHost == nil || a.listHostModels == nil {
 		return nil
 	}
-	host := a.discoverHost(ctx)
+	host := a.localHost(ctx)
 	if host.State != local.HostRunning {
 		return nil
 	}

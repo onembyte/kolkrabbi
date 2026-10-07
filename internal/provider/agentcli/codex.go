@@ -14,6 +14,7 @@ package agentcli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -86,10 +87,14 @@ func codexEffortHint(discovered []string) string {
 }
 
 // codexProviderEffort translates Kolkrabbi's canonical maximum into the word
-// accepted by Codex. The engine deliberately has one four-rung vocabulary;
-// provider spellings belong at the adapter boundary.
-func codexProviderEffort(effort string) string {
+// accepted by Codex when an exact spelling has not been discovered.
+func codexProviderEffort(effort string, offered []string) string {
 	effort = strings.ToLower(strings.TrimSpace(effort))
+	for _, level := range offered {
+		if strings.EqualFold(strings.TrimSpace(level), effort) {
+			return effort
+		}
+	}
 	if effort == "max" {
 		return "xhigh"
 	}
@@ -151,7 +156,7 @@ func BuildCodexInvocationWithOptions(model, mode, effort, handle string, resume 
 	if err != nil {
 		return CodexInvocation{}, err
 	}
-	effort = codexProviderEffort(effort)
+	effort = codexProviderEffort(effort, options.Efforts)
 	if !effortAllowed(effort, options.Efforts, codexEfforts) {
 		return CodexInvocation{}, fmt.Errorf("codex has no %q effort level; %s", effort, codexEffortHint(options.Efforts))
 	}
@@ -214,7 +219,7 @@ func TranslateCodex(line []byte) ([]Event, error) {
 		return []Event{{Kind: EventInit, SessionID: frame.ThreadID}}, nil
 	case "turn.completed":
 		if frame.Usage == nil {
-			return nil, nil
+			return []Event{{Kind: EventTurnEnd}}, nil
 		}
 		return []Event{{Kind: EventUsage,
 			InputTokens:   frame.Usage.InputTokens,
@@ -224,13 +229,16 @@ func TranslateCodex(line []byte) ([]Event, error) {
 			// reasoning tokens; both were produced by this turn, so both are
 			// this turn's completion work.
 			OutputTokens: frame.Usage.OutputTokens + frame.Usage.ReasoningOutputTokens,
-		}}, nil
+		}, {Kind: EventTurnEnd}}, nil
 	case "error", "turn.failed":
-		text := codexErrorText(frame)
-		if text == "" {
-			return nil, nil
+		var events []Event
+		if frame.Type == "turn.failed" {
+			events = append(events, Event{Kind: EventTurnEnd})
 		}
-		return []Event{{Kind: EventError, Error: secret.Scrub(text)}}, nil
+		if text := codexErrorText(frame); text != "" {
+			events = append(events, Event{Kind: EventError, Error: secret.Scrub(text)})
+		}
+		return events, nil
 	case "item.started", "item.completed":
 		// An agent_message only ever arrives completed; announcing it twice
 		// would stream the answer twice.
@@ -275,8 +283,13 @@ func codexItemEvents(item *codexItem, started bool) []Event {
 		if item.AggregatedOutput != "" {
 			output = secret.Scrub(item.AggregatedOutput)
 		}
-		return []Event{{Kind: EventTool, ToolCallID: item.ID,
-			ToolOutput: output, ToolIsError: item.ExitCode != nil && *item.ExitCode != 0}}
+		// A declined or failed command may carry no exit code at all: the
+		// status says how it ended, and a declined one never ran.
+		if output == "" && item.Status == "declined" {
+			output = "declined"
+		}
+		return []Event{{Kind: EventTool, ToolCallID: item.ID, ToolOutput: output,
+			ToolIsError: item.ExitCode != nil && *item.ExitCode != 0 || codexItemFailed(item.Status)}}
 	case "file_change":
 		detail := make([]string, 0, len(item.Changes))
 		for _, change := range item.Changes {
@@ -286,7 +299,8 @@ func codexItemEvents(item *codexItem, started bool) []Event {
 			return []Event{{Kind: EventTool, ToolName: "file-change", ToolCallID: item.ID,
 				ToolInput: strings.Join(detail, ", ")}}
 		}
-		return []Event{{Kind: EventTool, ToolCallID: item.ID, ToolOutput: strings.Join(detail, ", ")}}
+		return []Event{{Kind: EventTool, ToolCallID: item.ID, ToolOutput: strings.Join(detail, ", "),
+			ToolIsError: codexItemFailed(item.Status)}}
 	case "error":
 		if item.Message == "" {
 			return nil
@@ -346,8 +360,8 @@ type codexItem struct {
 	Message string `json:"message"`
 	// Text is only set on type:"agent_message" items.
 	Text string `json:"text"`
-	// Command and AggregatedOutput/ExitCode belong to command_execution items;
-	// Changes and Status to file_change ones.
+	// Command and AggregatedOutput/ExitCode belong to command_execution items,
+	// Changes to file_change ones; both carry Status.
 	Command          string `json:"command"`
 	AggregatedOutput string `json:"aggregated_output"`
 	ExitCode         *int   `json:"exit_code"`
@@ -356,6 +370,13 @@ type codexItem struct {
 		Path string `json:"path"`
 		Kind string `json:"kind"`
 	} `json:"changes"`
+}
+
+// codexItemFailed reads an item's status (codex-rs exec_events.rs: completed,
+// failed, declined, in_progress): a failed or declined item did not do what it
+// set out to, whatever its exit code says.
+func codexItemFailed(status string) bool {
+	return status == "failed" || status == "declined"
 }
 
 type codexUsage struct {
@@ -378,10 +399,13 @@ type CodexBackend struct {
 	// has minted one. An empty one opens a thread; every later turn resumes
 	// the one reported by thread.started. kolk mints nothing here, because
 	// codex names its own threads and accepts no claim on them.
-	thread    string
-	execution ExecutionOptions
-	run       lineRunner
-	mu        sync.Mutex
+	thread string
+	// turnDelivered records that the latest turn's prompt reached a codex
+	// process; turnClosed, that codex itself ended that turn.
+	turnDelivered, turnClosed bool
+	execution                 ExecutionOptions
+	run                       lineRunner
+	mu                        sync.Mutex
 }
 
 // CodexKnowsModel reports whether this adapter can spawn a model.
@@ -424,7 +448,7 @@ func NewCodexBackendFromHandleWithOptions(model, mode, effort, handle string, re
 	if err := validateExecutionOptions(options); err != nil {
 		return nil, err
 	}
-	effort = codexProviderEffort(effort)
+	effort = codexProviderEffort(effort, options.Efforts)
 	if !effortAllowed(effort, options.Efforts, codexEfforts) {
 		return nil, fmt.Errorf("codex has no %q effort level; %s", effort, codexEffortHint(options.Efforts))
 	}
@@ -445,6 +469,41 @@ func (b *CodexBackend) ProviderHandle() string {
 	return b.thread
 }
 
+// ForgetConversation leaves the thread this backend drives, so the next turn
+// opens a new one: a new kolk session must not share the old one's thread.
+func (b *CodexBackend) ForgetConversation() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.thread = ""
+}
+
+func (b *CodexBackend) ProviderHandleConfirmed() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.thread != ""
+}
+
+// TurnNeverStarted proves the latest turn's prompt never reached a codex
+// process. Once one was started with it, missing output proves nothing: the
+// process may have acted and lost its stdout.
+func (b *CodexBackend) TurnNeverStarted() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return !b.turnDelivered
+}
+
+// TurnClosed reports that codex itself ended the latest turn:
+// turn.completed or turn.failed arrived.
+func (b *CodexBackend) TurnClosed() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.turnClosed
+}
+
+// ResumesConversation reports that a known thread continues with
+// `codex exec resume <thread>` and a new message.
+func (b *CodexBackend) ResumesConversation() bool { return true }
+
 // Close is part of the backend seam. One-shot turns leave nothing running.
 func (b *CodexBackend) Close() error { return nil }
 
@@ -456,6 +515,9 @@ func (b *CodexBackend) StreamChat(ctx context.Context, model string, messages []
 func (b *CodexBackend) StreamChatObserved(ctx context.Context, model string, messages []provider.Message, tools []provider.Tool, onToken func(string), observe func(provider.ProgressEvent)) (provider.Message, provider.Meta, error) {
 	// The tool schemas the gateway seam passes are deliberately ignored: codex
 	// owns tool execution behind its sandbox and never sees kolk's schemas.
+	b.mu.Lock()
+	b.turnDelivered, b.turnClosed = false, false
+	b.mu.Unlock()
 	prompt, err := promptFromMessages(messages)
 	if err != nil {
 		return provider.Message{}, provider.Meta{Model: model}, err
@@ -471,6 +533,9 @@ func (b *CodexBackend) StreamChatObserved(ctx context.Context, model string, mes
 	if err != nil {
 		return provider.Message{}, provider.Meta{Model: model}, err
 	}
+	b.mu.Lock()
+	b.turnDelivered = true
+	b.mu.Unlock()
 	start := time.Now()
 	events := make([]Event, 0, 8)
 	// The trail streams as the vendor works: each tool run is named when it
@@ -487,11 +552,12 @@ func (b *CodexBackend) StreamChatObserved(ctx context.Context, model string, mes
 	}
 	err = run(ctx, invocation, func(event Event) {
 		events = append(events, event)
+		b.mu.Lock()
 		if event.SessionID != "" {
-			b.mu.Lock()
 			b.thread = event.SessionID
-			b.mu.Unlock()
 		}
+		b.turnClosed = b.turnClosed || event.Kind == EventTurnEnd
+		b.mu.Unlock()
 		observeProviderEvent(observe, event, progressPending)
 		if onToken == nil {
 			return
@@ -500,12 +566,22 @@ func (b *CodexBackend) StreamChatObserved(ctx context.Context, model string, mes
 		case EventMessageDelta:
 			onToken(event.Text)
 		case EventTool:
+			if observe != nil && provider.ToolProgressOnly(ctx) {
+				return
+			}
 			if line := toolTrail(event, pending); line != "" {
 				onToken(line)
 			}
 		}
 	})
 	if err != nil {
+		// A codex that never ran never took the prompt.
+		var notStarted *shell.NotStartedError
+		if errors.As(err, &notStarted) {
+			b.mu.Lock()
+			b.turnDelivered = false
+			b.mu.Unlock()
+		}
 		return provider.Message{}, provider.Meta{Model: model, Elapsed: time.Since(start)}, err
 	}
 	message, meta, err := Collect(events, time.Since(start))

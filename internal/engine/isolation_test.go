@@ -45,6 +45,13 @@ func (f *fakeIsolator) Land(_ context.Context, _, dir string) error {
 	return nil
 }
 
+func (f *fakeIsolator) Resume(_ context.Context, root, name, dir string) error {
+	if dir != filepath.Join(root, ".worktrees", name) {
+		return errors.New("saved tree does not belong to this task")
+	}
+	return nil
+}
+
 func (f *fakeIsolator) Release(_ context.Context, _, dir string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

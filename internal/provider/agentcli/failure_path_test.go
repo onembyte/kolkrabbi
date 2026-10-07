@@ -50,7 +50,9 @@ func TestAnExpiredPlanLoginLeavesTheSessionUsable(t *testing.T) {
 	backend := &ClaudeBackend{start: func(context.Context, string, []string) (lineProcess, error) {
 		starts++
 		if starts == 1 {
-			return &fakeLineProcess{lines: [][]byte{
+			// It refuses the turn and exits: the next turn's prompt cannot
+			// reach it, so that turn is retried on a new process.
+			return &fakeLineProcess{exitWhenDrained: true, lines: [][]byte{
 				[]byte(`{"type":"result","subtype":"error_during_execution","is_error":true,"result":"Invalid API key · Please run /login"}`),
 			}}, nil
 		}

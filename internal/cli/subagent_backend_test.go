@@ -11,6 +11,23 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/provider/agentcli"
 )
 
+func TestSubagentFactoryRestoresOnlyTheChildHandle(t *testing.T) {
+	dirs := isolateHome(t)
+	a, _, _ := newTestApp(t, "")
+	a.dirs = dirs
+	signInAs(t, dirs, "openai", "ChatGPT Pro", "codex")
+	backend, err := a.subagentBackend()(context.Background(), "gpt-5.6-luna", "code", "medium", engine.SubagentCapabilities{
+		Workspace: t.TempDir(), NetworkAccess: true, ProviderState: "saved-child-thread",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer backend.(io.Closer).Close()
+	if got := backend.(*agentcli.CodexBackend).ProviderHandle(); got != "saved-child-thread" {
+		t.Fatalf("restored handle = %q", got)
+	}
+}
+
 // The defect every judge found independently, on 2026-08-30: planModelCatalog
 // had no claude-haiku row, so ResolvePlanModel returned ErrNotAPlanModel and
 // planBackendFor answered with a nil backend AND a nil error — "ordinary

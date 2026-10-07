@@ -92,7 +92,7 @@ func RunLinesWithOptions(ctx context.Context, executable string, args []string, 
 	}
 	path, err := LookPath(executable)
 	if err != nil {
-		return err
+		return &NotStartedError{msg: err.Error(), err: err}
 	}
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Dir = options.Dir
@@ -104,12 +104,12 @@ func RunLinesWithOptions(ctx context.Context, executable string, args []string, 
 	cmd.Stderr = stderr
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return fmt.Errorf("opening %s stdout: %w", executable, err)
+		return &NotStartedError{msg: fmt.Sprintf("opening %s stdout: %v", executable, err), err: err}
 	}
 	exited := make(chan struct{})
 	groupChild(cmd, exited)
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("starting %s: %w", executable, err)
+		return &NotStartedError{msg: fmt.Sprintf("starting %s: %v", executable, err), err: err}
 	}
 	defer close(exited)
 	if err := readProviderLines(stdout, onLine); err != nil {
@@ -125,3 +125,14 @@ func RunLinesWithOptions(ctx context.Context, executable string, args []string, 
 	}
 	return nil
 }
+
+// NotStartedError is a process that never ran: its executable could not be
+// found, or it could not be started. Nothing it was given reached it. Its
+// message is the one the failure always had.
+type NotStartedError struct {
+	msg string
+	err error
+}
+
+func (e *NotStartedError) Error() string { return e.msg }
+func (e *NotStartedError) Unwrap() error { return e.err }

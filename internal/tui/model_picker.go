@@ -50,6 +50,13 @@ func (c *Controller) RequestModelPicker(entries []ModelPickEntry) {
 	}
 	c.modelPicker = make([]ModelPickEntry, len(entries))
 	copy(c.modelPicker, entries)
+	for index := range c.modelPicker {
+		entry := &c.modelPicker[index]
+		entry.Efforts = append([]string(nil), entry.Efforts...)
+		if entry.Effort < 0 || entry.Effort >= len(entry.Efforts) {
+			entry.Effort = 0
+		}
+	}
 	c.modelIndex = 0
 	c.modelFilter = filterBox{}
 	c.modelTop = 0
@@ -219,15 +226,39 @@ func (c *Controller) modelPickerLines(width int) []string {
 		if row == c.modelIndex {
 			marker = "> "
 		}
-		line := marker + strconv.Itoa(row+1) + "  " + sanitizeTerminalLine(entry.ID) +
-			"  " + sanitizeTerminalLine(entry.Name)
-		line += "  " + effortDial(entry)
-		lines = append(lines, clipLine(line, width))
+		lines = append(lines, modelPickerRow(marker+strconv.Itoa(row+1)+"  ", entry, row == c.modelIndex, width))
 	}
 	if last < len(indices) {
 		lines = append(lines, clipLine("  ↓", width))
 	}
 	return append(lines, strings.Repeat("─", max(0, width)))
+}
+
+// The active effort always has a reserved column. Only the selected model
+// expands its ladder, and only when that leaves room for its identity.
+func modelPickerRow(prefix string, entry ModelPickEntry, selected bool, width int) string {
+	id := sanitizeTerminalLine(entry.ID)
+	name := sanitizeTerminalLine(entry.Name)
+	dial := ""
+	if len(entry.Efforts) > 0 {
+		dial = "[" + sanitizeTerminalLine(entry.Efforts[entry.Effort]) + "]"
+		if selected && cellWidth(prefix+id+"  "+effortDial(entry)) <= width {
+			dial = effortDial(entry)
+		}
+	}
+	tail := ""
+	if dial != "" {
+		tail = "  " + dial
+	}
+	room := max(0, width-cellWidth(prefix+tail))
+	body := clipLine(id, room)
+	if name != "" && name != id && room-cellWidth(id) >= 12 {
+		body += "  " + clipLine(name, room-cellWidth(id)-2)
+	}
+	if tail != "" {
+		body += strings.Repeat(" ", max(0, room-cellWidth(body)))
+	}
+	return clipLine(prefix+body+tail, width)
 }
 
 // effortDial renders one row's effort ladder with the active level bracketed:
@@ -238,6 +269,7 @@ func effortDial(entry ModelPickEntry) string {
 	}
 	pieces := make([]string, len(entry.Efforts))
 	for index, effort := range entry.Efforts {
+		effort = sanitizeTerminalLine(effort)
 		if index == entry.Effort {
 			pieces[index] = "[" + effort + "]"
 		} else {

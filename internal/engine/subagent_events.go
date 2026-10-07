@@ -3,6 +3,7 @@ package engine
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"github.com/onembyte/kolkrabbi/internal/bus"
 	"github.com/onembyte/kolkrabbi/internal/xid"
@@ -62,6 +63,7 @@ func (a *Agent) noteSubagents(delta int) {
 // once, which the race detector catches and which a real run can turn into a
 // concurrent map write -- a panic mid-turn, not a wrong number.
 func (a *Agent) subagentTaskID(index int) string {
+	saved := a.executionTask(index)
 	a.subagentMu.Lock()
 	defer a.subagentMu.Unlock()
 	if a.subagentIDTurn != a.lastTurnID {
@@ -76,6 +78,9 @@ func (a *Agent) subagentTaskID(index int) string {
 		a.subagentIDs = map[int]string{}
 	}
 	id := xid.New(xid.Task)
+	if saved.ID != "" {
+		id = saved.ID
+	}
 	a.subagentIDs[index] = id
 	return id
 }
@@ -93,16 +98,29 @@ func (a *Agent) newSubagentStatus(tasks []Task, index int, childTurn, model, eff
 		Model:     model,
 		Effort:    effort,
 		Summary:   summary,
+		Sequence:  a.executionTask(index).Sequence,
 	}
 }
 
 func (a *Agent) queueSubagentStatus(tasks []Task, index int, childTurn, model, effort string) SubagentStatus {
+	saved := a.executionTask(index)
 	status, err := advanceSubagentStatus(
 		a.newSubagentStatus(tasks, index, childTurn, model, effort),
 		SubagentQueued, SubagentPhaseSchedule, "queued",
 	)
 	if err != nil {
 		return SubagentStatus{}
+	}
+	if prior, settled := executionOutcome(saved); settled {
+		status.State, status.Phase, status.Step = SubagentDone, SubagentPhaseComplete, "saved: "+prior.Status.String()
+		switch prior.Status {
+		case statusFailed, statusIncomplete:
+			status.State = SubagentFailed
+		case statusBlocked, statusOverBudget:
+			status.State = SubagentBlocked
+		}
+	} else if saved.Sequence > 0 {
+		status.State, status.Step = SubagentWaiting, "continuing saved task"
 	}
 	a.subagentMu.Lock()
 	if a.subagentStatus == nil {
@@ -212,6 +230,12 @@ func (a *Agent) blockSubagentStatus(index int, reason string) {
 }
 
 func (a *Agent) notifySubagent(status SubagentStatus) {
+	a.executionMu.Lock()
+	if a.execution != nil && status.Index > 0 && status.Index <= len(a.execution.Tasks) {
+		task := &a.execution.Tasks[status.Index-1]
+		task.ID, task.Sequence = status.ID, status.Sequence
+	}
+	a.executionMu.Unlock()
 	if a.Subagents != nil {
 		a.Subagents(status)
 	}
@@ -313,4 +337,67 @@ func (a *Agent) publishSubagentFinished(childTurn string, index int, ok bool, mo
 		Type: protocol.EventSubagentFinished,
 		Data: data,
 	})
+}
+
+// pausedChild is a child that stopped at the run's limit. It is announced as
+// paused only once the pause it belongs to is durable.
+type pausedChild struct {
+	childTurn string
+	index     int
+	model     string
+}
+
+// holdSubagentPaused counts the child out at once, as every path out does,
+// and says what is true now: it stopped at the limit and the pause is being
+// saved. "Paused, waiting for allowance" is kept until the pause is.
+func (a *Agent) holdSubagentPaused(childTurn string, index int, model string) {
+	a.noteSubagents(-1)
+	a.updateSubagentStatus(index, SubagentWaiting, SubagentPhaseSchedule, "stopped at the limit; saving the pause")
+	a.subagentMu.Lock()
+	a.pausedChildren = append(a.pausedChildren, pausedChild{childTurn: childTurn, index: index, model: model})
+	a.subagentMu.Unlock()
+}
+
+// holdPausedTask keeps an unresolved task's "waiting for allowance" until the
+// pause is saved.
+func (a *Agent) holdPausedTask(index int) {
+	a.subagentMu.Lock()
+	a.pausedTasks = append(a.pausedTasks, index)
+	a.subagentMu.Unlock()
+}
+
+// announcePausedChildren settles what the tasks held at a pause say: paused
+// and waiting for the allowance once the pause is durable; stopped at the
+// limit with no pause saved otherwise, whether its write failed or the user
+// cancelled first. Nothing claims a wait that no saved pause backs.
+func (a *Agent) announcePausedChildren(durable bool) {
+	a.subagentMu.Lock()
+	children, tasks := a.pausedChildren, a.pausedTasks
+	a.pausedChildren, a.pausedTasks = nil, nil
+	a.subagentMu.Unlock()
+	// A held child is usually a held task too; each says it once, in order.
+	held := append([]int(nil), tasks...)
+	for _, child := range children {
+		if !slices.Contains(held, child.index) {
+			held = append(held, child.index)
+		}
+	}
+	for _, index := range held {
+		if durable {
+			a.updateSubagentStatus(index, SubagentWaiting, SubagentPhaseSchedule, "paused: waiting for allowance")
+		} else {
+			a.updateSubagentStatus(index, SubagentFailed, SubagentPhaseComplete, "stopped at the limit; no pause was saved")
+		}
+	}
+	for _, child := range children {
+		if a.Bus == nil {
+			continue
+		}
+		data := protocol.SubagentFinishedData{ID: a.subagentTaskID(child.index), ChildTurn: child.childTurn, Mode: a.Mode, Model: child.model}
+		if durable {
+			data.Reason = "paused"
+		}
+		encoded, _ := json.Marshal(data)
+		_, _ = a.Bus.Publish(bus.Event{Turn: a.lastTurnID, Type: protocol.EventSubagentFinished, Data: encoded})
+	}
 }

@@ -22,10 +22,10 @@ Together they are the reason phase F cannot come first: the moment several agent
 
 The design is therefore ordered by what has to exist before autonomy, not by what is most
 interesting: a path jail, a hardline blocklist that survives `--yolo`, scrubbed tool output, and
-auto-deny inside subagents. Those in-process controls ship first. The owner accepted OS-level
-sandboxing as v1 scope on 2026-09-01, but it remains a later implementation leaf because each
-supported platform needs native negative proof; an accepted safety requirement is not an available
-control until that evidence exists.
+auto-deny inside subagents. Those in-process controls shipped first. The owner accepted OS-level
+sandboxing as v1 scope on 2026-09-01; V34.1e closed on 2026-09-05 after native negative proof.
+The opt-in native Bash sandbox now ships on supported macOS/Linux (§7.2). Unsupported
+platforms and vendor-owned tool loops are not thereby claimed confined by Kolk.
 
 ## Spec
 

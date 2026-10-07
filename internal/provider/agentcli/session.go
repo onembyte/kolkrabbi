@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/secret"
 	"github.com/onembyte/kolkrabbi/internal/shell"
 )
 
@@ -29,12 +30,19 @@ type startLineProcessWithOptions func(context.Context, string, []string, shell.P
 // ClaudeSession owns one persistent provider CLI process for one Kolkrabbi
 // session. Turns are serialized because the provider stream is ordered.
 type ClaudeSession struct {
-	process  lineProcess
-	mu       sync.Mutex
-	model    string
-	effort   string
-	closed   bool
-	unusable bool
+	// delivered records that the current turn's prompt reached the process;
+	// received, that any frame came back for it; turnClosed, that the vendor's
+	// own result frame ended the turn, whether in the turn or in the drain
+	// after an interruption. everReceived is received over the process's whole
+	// life: a resumed process that never answered anything is a dead resume,
+	// one that answered and later died idle is not.
+	delivered, received, turnClosed, everReceived bool
+	process                                       lineProcess
+	mu                                            sync.Mutex
+	model                                         string
+	effort                                        string
+	closed                                        bool
+	unusable                                      bool
 	// providerID is the vendor's own conversation handle, reported on
 	// system/init and on the result frame. It is the --resume handle and the
 	// only piece of vendor state worth carrying across process boundaries.
@@ -51,10 +59,11 @@ type ClaudeSession struct {
 	spentOutput        int
 	spentCacheRead     int
 	spentCacheCreation int
-	// rejectedLimit holds the last rate_limit_event rejection: the vendor hands
-	// over the cause before the failure, and the failure's own prose is
+	// rejectedLimit holds this turn's rate_limit_event rejection: the vendor
+	// hands over the cause before the failure, and the failure's own prose is
 	// usually a bare "credit balance too low". The zero Event carries no Kind,
-	// which is how "nothing recorded" reads.
+	// which is how "nothing recorded" reads. Each turn starts with none, so a
+	// rejection explains only the failure of the turn it arrived in.
 	rejectedLimit Event
 }
 
@@ -154,6 +163,10 @@ func (s *ClaudeSession) Turn(ctx context.Context, messages []provider.Message, m
 func (s *ClaudeSession) TurnObserved(ctx context.Context, messages []provider.Message, model string, onToken func(string), observe func(provider.ProgressEvent)) (provider.Message, provider.Meta, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// Every turn starts with nothing proven, a refused one included: its
+	// prompt reached nothing, whatever the previous turn did.
+	s.rejectedLimit = Event{}
+	s.delivered, s.received, s.turnClosed = false, false, false
 	if s.closed {
 		return provider.Message{}, provider.Meta{}, fmt.Errorf("claude session is closed")
 	}
@@ -168,8 +181,18 @@ func (s *ClaudeSession) TurnObserved(ctx context.Context, messages []provider.Me
 	if err != nil {
 		return provider.Message{}, provider.Meta{Model: model}, err
 	}
-	if err := s.process.Send(request); err != nil {
+	// Delivery is proven only by a process that says so. The production one
+	// never reports a failed write (its exit says why instead), but it can say
+	// the line was dropped because the child had already exited: then the
+	// prompt provably never arrived, and the read below reports the exit.
+	if queue, ok := s.process.(interface{ Queue([]byte) bool }); ok {
+		s.delivered = queue.Queue(request)
+	} else if err := s.process.Send(request); err != nil {
+		// The process is gone: it cannot take this turn or any later one.
+		s.unusable = true
 		return provider.Message{}, provider.Meta{Model: model}, err
+	} else {
+		s.delivered = true
 	}
 	start := time.Now()
 	events := make([]Event, 0, 8)
@@ -180,20 +203,17 @@ func (s *ClaudeSession) TurnObserved(ctx context.Context, messages []provider.Me
 	for {
 		line, err := s.process.Next(ctx)
 		if err != nil {
-			meta, cause := s.abandonTurn(ctx, explainEarlyExit(err))
+			meta, cause := s.abandonTurn(ctx, explainEarlyExit(err), observe, progressPending)
 			return provider.Message{}, abandonedMeta(meta, model, start), cause
 		}
+		s.received, s.everReceived = true, true
 		translated, err := Translate(line)
 		if err != nil {
-			meta, cause := s.abandonTurn(ctx, err)
+			meta, cause := s.abandonTurn(ctx, err, observe, progressPending)
 			return provider.Message{}, abandonedMeta(meta, model, start), cause
 		}
 		for _, event := range translated {
-			// init and result both carry the conversation handle; the result
-			// frame is the latest word, and either arriving first still lands.
-			if event.SessionID != "" {
-				s.providerID = event.SessionID
-			}
+			s.observeTurnEvent(event)
 		}
 		// The whole frame is consumed before collecting: a result frame carries
 		// its usage *after* the completion event, so returning on sight of the
@@ -205,7 +225,7 @@ func (s *ClaudeSession) TurnObserved(ctx context.Context, messages []provider.Me
 			switch {
 			case event.Kind == EventMessageDelta && onToken != nil:
 				onToken(event.Text)
-			case event.Kind == EventTool && onToken != nil:
+			case event.Kind == EventTool && onToken != nil && (observe == nil || !provider.ToolProgressOnly(ctx)):
 				// The vendor ran this tool already — the trail says what
 				// happened, to whom it happened, and that kolk did not do it.
 				if line := toolTrail(event, pending); line != "" {
@@ -299,6 +319,27 @@ func limitWindowName(window string) string {
 	return strings.ReplaceAll(window, "_", "-")
 }
 
+// modelWindow says whether a window caps one model family (seven_day_opus)
+// rather than the whole plan: the other models stay usable while it lasts.
+func modelWindow(window string) bool {
+	for _, prefix := range []string{"seven_day_", "five_hour_"} {
+		if strings.HasPrefix(window, prefix) && len(window) > len(prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// planLimitError is a plan limit as a person reads it, the vendor's sentence,
+// and underneath the Limit it classifies as: the account's allowance, lifting
+// at the reset the vendor named. The pause takes that reset as its own.
+type planLimitError struct{ provider.Limit }
+
+func (e planLimitError) Error() string { return e.Message }
+
+// Unwrap hands classification the Limit itself, reset time included.
+func (e planLimitError) Unwrap() error { return e.Limit }
+
 // classifyLimitFailure turns the vendor's terminal failure into what it is
 // when a rejection preceded it: the plan window ran out, and the answer to
 // "when can I go again" is a timestamp the vendor already gave.
@@ -322,7 +363,18 @@ func (s *ClaudeSession) classifyLimitFailure(err error) error {
 	if cause != "" {
 		message += " (" + cause + ")"
 	}
-	return fmt.Errorf("%s", message)
+	limit := provider.Limit{
+		Kind: provider.LimitSubscriptionAllowance, Scope: provider.ScopeAccount, Connector: "claude",
+		Message: secret.Scrub(message), Source: "vendor-frame",
+	}
+	if modelWindow(s.rejectedLimit.LimitWindow) {
+		// The engine names the model, as it does for every limit.
+		limit.Scope = provider.ScopeModel
+	}
+	if s.rejectedLimit.LimitResets > 0 {
+		limit.ResetAt = time.Unix(s.rejectedLimit.LimitResets, 0)
+	}
+	return planLimitError{limit}
 }
 
 // oneLine is the first line of s, rune-capped at max.
@@ -385,7 +437,7 @@ func abandonedMeta(meta provider.Meta, model string, start time.Time) provider.M
 // The provider keeps emitting the frames it had already produced for that turn,
 // and handing them to the next turn would answer the previous question. The
 // caller still holds s.mu, so no other turn can interleave with the drain.
-func (s *ClaudeSession) abandonTurn(ctx context.Context, cause error) (provider.Meta, error) {
+func (s *ClaudeSession) abandonTurn(ctx context.Context, cause error, observe func(provider.ProgressEvent), progressPending map[string]string) (provider.Meta, error) {
 	// The turn's context is usually already cancelled — that is why the turn is
 	// being abandoned — so the drain detaches from its cancellation while
 	// keeping its values.
@@ -404,12 +456,18 @@ func (s *ClaudeSession) abandonTurn(ctx context.Context, cause error) (provider.
 			s.unusable = true
 			return provider.Meta{}, cause
 		}
+		s.received, s.everReceived = true, true
 		events, translateErr := Translate(line)
 		if translateErr != nil {
 			continue
 		}
 		drained = append(drained, events...)
 		for _, event := range events {
+			// What the drain consumes is still this turn's: the conversation it
+			// names, the tools the vendor ran and its closing of the turn are
+			// all kept, so none of it can pass for a turn that never acted.
+			s.observeTurnEvent(event)
+			observeProviderEvent(observe, event, progressPending)
 			if event.Kind == EventMessageCompleted {
 				// Collect's own error is discarded: this turn already failed and
 				// `cause` is why. What is wanted here is only the accounting.
@@ -433,4 +491,43 @@ func (s *ClaudeSession) Close() error {
 	}
 	s.closed = true
 	return s.process.Close()
+}
+
+// Delivered reports whether the latest turn's prompt reached the process.
+func (s *ClaudeSession) Delivered() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.delivered
+}
+
+// TurnClosed reports whether the vendor's result frame ended the latest turn.
+func (s *ClaudeSession) TurnClosed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.turnClosed
+}
+
+// Received reports whether any frame came back for the latest turn.
+func (s *ClaudeSession) Received() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.received
+}
+
+// EverReceived reports whether the process answered anything in its life.
+func (s *ClaudeSession) EverReceived() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.everReceived
+}
+
+// observeTurnEvent keeps what one frame says about its turn: init and result
+// both carry the conversation handle, the result frame being the latest word
+// and either arriving first still landing; the result frame closes the turn.
+// Called with s.mu held.
+func (s *ClaudeSession) observeTurnEvent(event Event) {
+	if event.SessionID != "" {
+		s.providerID = event.SessionID
+	}
+	s.turnClosed = s.turnClosed || event.Kind == EventMessageCompleted
 }

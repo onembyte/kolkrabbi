@@ -110,3 +110,66 @@ func TestEnteringPlanModeTwiceIsNotTwoSetsOfRules(t *testing.T) {
 		t.Fatalf("rules = %d, want %d", got, first)
 	}
 }
+
+// Plan mode is state, not a guess from rule text: a session rule someone
+// wrote that happens to read like plan mode's is theirs. /new drops it like
+// any session rule and announces no plan mode, and /plan still enters plan
+// mode properly, instruction included.
+func TestARuleThatReadsLikePlanModeIsNotPlanMode(t *testing.T) {
+	a, ag := planFixture(t)
+	out := &strings.Builder{}
+	a.stdout = out
+	a.slash(context.Background(), ag, "/permissions deny bash(*) session")
+	if a.inPlanMode() {
+		t.Fatal("a user's own session rule reads as plan mode")
+	}
+	a.slash(context.Background(), ag, "/new")
+	if len(ag.Rules) != 0 || strings.Contains(out.String(), "plan mode is still on") {
+		t.Fatalf("after /new: rules %d, output:\n%s", len(ag.Rules), out.String())
+	}
+
+	a.slash(context.Background(), ag, "/permissions deny write(*) session")
+	a.slash(context.Background(), ag, "/plan")
+	if ag.ExtraSystem != planInstruction {
+		t.Fatal("/plan with a look-alike rule in place did not enter plan mode")
+	}
+	if verdict, _ := ag.Judge(tools.Request{Tool: "bash", Command: "go test ./..."}); verdict != engine.VerdictDeny {
+		t.Fatal("plan mode left bash allowed")
+	}
+	a.slash(context.Background(), ag, "/plan off")
+	// Leaving takes plan mode's refusals and leaves the user's own.
+	if verdict, _ := ag.Judge(tools.Request{Tool: "write_file", Path: "/p/a.go", Display: "a.go"}); verdict != engine.VerdictDeny {
+		t.Fatal("/plan off removed the user's own deny write(*)")
+	}
+	if verdict, _ := ag.Judge(tools.Request{Tool: "bash", Command: "go test ./..."}); verdict != engine.VerdictAllow {
+		t.Fatal("/plan off left bash refused")
+	}
+}
+
+// Plan mode's refusals are listed under their own scope and go only with plan
+// mode: forgetting one would leave plan mode half on.
+func TestPlanModesRulesGoOnlyWithPlanMode(t *testing.T) {
+	a, ag := planFixture(t)
+	out := &strings.Builder{}
+	a.stdout = out
+	a.slash(context.Background(), ag, "/plan")
+	out.Reset()
+	a.slash(context.Background(), ag, "/permissions")
+	listed := false
+	for _, line := range strings.Split(out.String(), "\n") {
+		if strings.Contains(line, "deny bash(*)") {
+			listed = strings.HasSuffix(strings.TrimSpace(line), " "+scopePlan)
+		}
+	}
+	if !listed {
+		t.Fatalf("/permissions does not show plan mode's rules as plan mode's:\n%s", out.String())
+	}
+	out.Reset()
+	a.slash(context.Background(), ag, "/permissions forget 1")
+	if !strings.Contains(out.String(), "/plan off") {
+		t.Fatalf("forgetting a plan rule said:\n%s", out.String())
+	}
+	if verdict, _ := ag.Judge(tools.Request{Tool: "write_file", Path: "/p/a.go", Display: "a.go"}); verdict != engine.VerdictDeny {
+		t.Fatal("forgetting a plan rule took away one of plan mode's refusals")
+	}
+}

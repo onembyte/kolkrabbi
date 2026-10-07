@@ -41,8 +41,7 @@ var DeadExportAllowlist = map[string]string{
 	// Triaged 2026-08-27, and nothing here says "untriaged" any more. Eleven of
 	// the sixteen were deleted: four legacy effort aliases, atomicfile.WriteJSON,
 	// shell.Have, shell.Quote, dash.Dist, NewClaudeSession, NewSessionDecider
-	// and VerifySagaChapter. The five below each earn their place.
-	"MaxTasksForEffort": "exported only so the external test package can assert orchestration width",
+	// and VerifySagaChapter. Remaining entries name their current consumers.
 
 	// A7.4's event-to-text path, built ahead of the thing that will read it.
 	//

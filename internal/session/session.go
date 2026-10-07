@@ -73,15 +73,28 @@ type Session struct {
 	ProviderState string `json:"provider_state,omitempty"`
 	// Pause is the limit this session is stopped on, when it is (plan 35 §2.2).
 	Pause *continuity.Pause `json:"pause,omitempty"`
+	// Executions holds the latest request and any not-yet-archived predecessors.
+	// Save moves older records to sibling archives, retaining complete child
+	// history without rewriting it at every new tool boundary.
+	Executions []continuity.Run `json:"executions,omitempty"`
 	// TitleAuto marks a title Kolkrabbi derived rather than one the user chose.
 	TitleAuto bool      `json:"title_auto,omitempty"`
 	UpdatedAt time.Time `json:"updated_at"`
-	Messages  []Message `json:"messages"`
+	// Revision orders the readable JSON mirror and compressed recovery point.
+	// Legacy sessions start at zero.
+	Revision uint64 `json:"revision,omitempty"`
+	// RecoveryVersion keeps archive validation strict once a session uses
+	// recovery snapshots, including if its sidecar is later lost.
+	RecoveryVersion int       `json:"recovery_version,omitempty"`
+	Messages        []Message `json:"messages"`
 
 	// messagesMu guards Messages. The TUI samples context and cost from a
 	// drawing goroutine while a turn appends, so the one field two goroutines
 	// actually share is serialized instead of left to schedule luck.
 	messagesMu sync.Mutex
+	// Serialize snapshot plus rename: an older concurrent save must never
+	// overwrite the later snapshot of a pause or completed tool result.
+	writeMu sync.Mutex
 	// dir is where this session is stored; not serialized
 
 	dir string // where this session is stored; not serialized
@@ -264,6 +277,8 @@ func (s *Session) SaveInterim() error {
 }
 
 func (s *Session) write(opts atomicfile.WriteOptions) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
 	if err := validateSessionID(s.ID); err != nil {
 		return err
 	}
@@ -281,7 +296,16 @@ func (s *Session) write(opts atomicfile.WriteOptions) error {
 	// save and the test grew a second saving goroutine. It was never a
 	// coalescing bug; one saver simply hid it.
 	s.messagesMu.Lock()
+	if s.Revision == ^uint64(0) {
+		s.messagesMu.Unlock()
+		return fmt.Errorf("session revision exhausted")
+	}
+	if err := s.archiveExecutionsLocked(); err != nil {
+		s.messagesMu.Unlock()
+		return fmt.Errorf("archiving completed execution history: %w", err)
+	}
 	s.UpdatedAt = time.Now()
+	s.Revision++
 	b, err := json.MarshalIndent(s, "", " ")
 	header := s.meta()
 	s.messagesMu.Unlock()
@@ -303,6 +327,8 @@ func (s *Session) write(opts atomicfile.WriteOptions) error {
 // is marked automatic so Kolkrabbi may later improve on its own guess without
 // ever overwriting a name a person chose.
 func (s *Session) SetTitleFromInput(input string) {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
 	if s.Title != "" {
 		return
 	}
@@ -312,6 +338,8 @@ func (s *Session) SetTitleFromInput(input string) {
 
 // SetTitle records a title as chosen rather than derived.
 func (s *Session) SetTitle(title string) {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
 	s.Title = trimTitle(strings.Join(strings.Fields(title), " "))
 	s.TitleAuto = false
 }
@@ -319,6 +347,8 @@ func (s *Session) SetTitle(title string) {
 // SetAutoTitle replaces a derived title with a better derived one, and does
 // nothing to a title the user chose.
 func (s *Session) SetAutoTitle(title string) bool {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
 	if !s.TitleAuto {
 		return false
 	}
@@ -334,7 +364,11 @@ func (s *Session) SetAutoTitle(title string) bool {
 }
 
 // TitleIsAuto reports whether the current title was derived rather than chosen.
-func (s *Session) TitleIsAuto() bool { return s.TitleAuto }
+func (s *Session) TitleIsAuto() bool {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
+	return s.TitleAuto
+}
 
 const maxTitleBytes = 60
 
@@ -355,18 +389,84 @@ func trimTitle(t string) string {
 	return cut + "…"
 }
 
-func (s *Session) SessionID() string             { return s.ID }
-func (s *Session) SessionTitle() string          { return s.Title }
-func (s *Session) ModelName() string             { return s.Model }
-func (s *Session) SetModelName(m string)         { s.Model = m }
-func (s *Session) SessionEffort() string         { return s.Effort }
-func (s *Session) SetEffort(level string)        { s.Effort = level }
-func (s *Session) SessionMode() string           { return s.Mode }
-func (s *Session) SetMode(mode string)           { s.Mode = mode }
-func (s *Session) ConnectorName() string         { return s.Connector }
-func (s *Session) SetConnector(n string)         { s.Connector = n }
-func (s *Session) ProviderStateName() string     { return s.ProviderState }
-func (s *Session) SetProviderStateName(v string) { s.ProviderState = v }
+func (s *Session) SessionID() string { return s.ID }
+func (s *Session) SessionTitle() string {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
+	return s.Title
+}
+
+// ModelName and ConnectorName, with their setters, hold the lock a save
+// snapshots under: the resume monitor reads both off the turn's goroutine
+// while a /model switch writes them.
+func (s *Session) ModelName() string {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
+	return s.Model
+}
+
+func (s *Session) SetModelName(m string) {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
+	s.Model = m
+}
+
+func (s *Session) ConnectorName() string {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
+	return s.Connector
+}
+
+func (s *Session) SetConnector(n string) {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
+	s.Connector = n
+}
+
+// Route and SetRoute are the model and its connector as one pair.
+func (s *Session) Route() (model, connector string) {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
+	return s.Model, s.Connector
+}
+
+func (s *Session) SetRoute(model, connector string) {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
+	s.Model, s.Connector = model, connector
+}
+
+func (s *Session) SessionEffort() string {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
+	return s.Effort
+}
+func (s *Session) SetEffort(level string) {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
+	s.Effort = level
+}
+func (s *Session) SessionMode() string {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
+	return s.Mode
+}
+func (s *Session) SetMode(mode string) {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
+	s.Mode = mode
+}
+
+func (s *Session) ProviderStateName() string {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
+	return s.ProviderState
+}
+func (s *Session) SetProviderStateName(v string) {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
+	s.ProviderState = v
+}
 
 // Paused and SetPaused read and record the limit the session is stopped on,
 // under the same lock the messages use, so a save sees a consistent pair.
@@ -389,6 +489,29 @@ func (s *Session) SetPaused(p *continuity.Pause) {
 	}
 	copyOfPause := *p
 	s.Pause = &copyOfPause
+}
+
+func (s *Session) RunState() *continuity.Run {
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
+	if len(s.Executions) == 0 {
+		return nil
+	}
+	return s.Executions[len(s.Executions)-1].Clone()
+}
+
+func (s *Session) SetRunState(run *continuity.Run) {
+	if run == nil {
+		return
+	}
+	s.messagesMu.Lock()
+	defer s.messagesMu.Unlock()
+	copyOfRun := run.Clone()
+	if n := len(s.Executions); n > 0 && s.Executions[n-1].ID == run.ID {
+		s.Executions[n-1] = *copyOfRun
+	} else {
+		s.Executions = append(s.Executions, *copyOfRun)
+	}
 }
 func (s *Session) GetMessages() []provider.Message {
 	s.messagesMu.Lock()
@@ -417,6 +540,44 @@ func Load(dir, id string) (*Session, error) {
 	if err := validateSessionID(id); err != nil {
 		return nil, err
 	}
+	jsonSession, jsonErr := loadJSON(dir, id)
+	recovered, files, recoveryErr := readRecovery(dir, id)
+	if jsonErr != nil && !os.IsNotExist(jsonErr) {
+		return nil, jsonErr
+	}
+	if recoveryErr != nil && !os.IsNotExist(recoveryErr) {
+		return nil, recoveryErr
+	}
+	if jsonSession == nil && recovered == nil {
+		return nil, os.ErrNotExist
+	}
+	if jsonSession != nil && jsonSession.RecoveryVersion != 0 && jsonSession.RecoveryVersion != recoveryVersion {
+		return nil, fmt.Errorf("session %s uses unsupported recovery format %d", id, jsonSession.RecoveryVersion)
+	}
+	chosen := jsonSession
+	if recovered != nil {
+		if jsonSession == nil || recovered.Revision > jsonSession.Revision {
+			chosen = recovered
+		} else if recovered.Revision == jsonSession.Revision {
+			jsonState, _ := json.Marshal(jsonSession)
+			recoveredState, _ := json.Marshal(recovered)
+			if string(jsonState) != string(recoveredState) {
+				return nil, fmt.Errorf("session %s has conflicting records at revision %d", id, recovered.Revision)
+			}
+		}
+		if err := restoreRecoveryArchives(dir, files); err != nil {
+			return nil, err
+		}
+	}
+	if chosen.RecoveryVersion != 0 {
+		if err := chosen.validateRunArchives(); err != nil {
+			return nil, err
+		}
+	}
+	return chosen, nil
+}
+
+func loadJSON(dir, id string) (*Session, error) {
 	path := filepath.Join(dir, id+".json")
 	info, err := os.Lstat(path)
 	if err != nil {
@@ -431,7 +592,7 @@ func Load(dir, id string) (*Session, error) {
 	}
 	var s Session
 	if err := json.Unmarshal(b, &s); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading session %s: %w", path, err)
 	}
 	if err := validateSessionID(s.ID); err != nil {
 		return nil, fmt.Errorf("invalid session id in %s.json: %w", id, err)
@@ -472,8 +633,16 @@ func Delete(dir, id string) error {
 	if err := validateSessionID(id); err != nil {
 		return err
 	}
-	if err := os.Remove(filepath.Join(dir, id+".json")); err != nil {
-		return err
+	removed := false
+	for _, path := range []string{filepath.Join(dir, id+".json"), recoveryPath(dir, id)} {
+		if err := os.Remove(path); err == nil {
+			removed = true
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+	}
+	if !removed {
+		return os.ErrNotExist
 	}
 	archives, err := CompactionArchives(dir, id)
 	if err != nil {
@@ -495,6 +664,12 @@ func Delete(dir, id string) error {
 	// RemoveAll is nil for a path that does not exist, so this only reports a
 	// checkpoint directory that really could not be removed — which matters,
 	// because a stale .ckpt outlives the session it belonged to.
+	if err := os.RemoveAll(filepath.Join(dir, id+".executions")); err != nil {
+		return err
+	}
+	if err := os.RemoveAll(filepath.Join(dir, id+".compactions")); err != nil {
+		return err
+	}
 	return os.RemoveAll(filepath.Join(dir, id+".ckpt"))
 }
 

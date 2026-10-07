@@ -33,6 +33,11 @@ func (a *app) subagentBackend() engine.SubagentBackend {
 		store := a.vendorCatalogs()
 		vendor := ""
 		switch {
+		case capabilities.Provider != "":
+			vendor = capabilities.Provider
+			if (vendor != "claude" && vendor != "codex") || !a.vendorKnowsModel(store, vendor, model) {
+				return nil, fmt.Errorf("cannot run %s: %s no longer lists this delegated model", model, vendor)
+			}
 		case a.vendorKnowsModel(store, "claude", model):
 			vendor = "claude"
 		case a.vendorKnowsModel(store, "codex", model):
@@ -61,18 +66,49 @@ func (a *app) subagentBackend() engine.SubagentBackend {
 			// refused agent mode: every turn resumes the backend's own thread,
 			// so several subagents on one backend would interleave into a
 			// single vendor transcript.
-			return agentcli.NewCodexBackendFromHandleWithOptions(model, mode, effort, "", false, execution)
+			return agentcli.NewCodexBackendFromHandleWithOptions(model, mode, effort, capabilities.ProviderState, capabilities.ProviderState != "", execution)
 		}
-		// Empty handle, resume false: a conversation of its own, minted fresh
-		// and never persisted. A subagent's handle must not become the
+		// A child resumes only its own persisted handle. It must not become the
 		// session's resume handle — the session is a different conversation,
 		// and inheriting a child's would resume the wrong one.
 		//
 		// Unwrapped by verifyingBackend on purpose: that wrapper exists to
 		// confirm the connector on its first answered turn and to record it,
 		// and a subagent is not where a session-level fact should be decided.
-		return agentcli.NewClaudeBackendFromHandleWithOptions(model, mode, effort, "", false, execution)
+		return agentcli.NewClaudeBackendFromHandleWithOptions(model, mode, effort, capabilities.ProviderState, capabilities.ProviderState != "", execution)
 	}
+}
+
+// modelConnector names the vendor CLI a model runs through, in the order
+// subagentBackend picks one: the connector a limit met on it cools, and the
+// sign-in a pause on it is probed through. Anything else, a gateway id
+// included, answers "" and stays with the keyed endpoint.
+func (a *app) modelConnector(model string) string {
+	if strings.TrimSpace(model) == "" {
+		return ""
+	}
+	store := a.vendorCatalogs()
+	for _, vendor := range []string{"claude", "codex"} {
+		if a.vendorKnowsModel(store, vendor, model) {
+			return vendor
+		}
+	}
+	return ""
+}
+
+// connectorIn is modelConnector with the session's own answer first. The
+// session records the connector its current model runs through, kept current
+// by every switch, and for that model it is the only one that knows: Copilot's
+// "auto" is no vendor's catalogue row, a Claude or GPT model offered through
+// Copilot belongs to Copilot's plan, and a gateway serving a model under a
+// vendor's name (connector "") is still the gateway.
+func (a *app) connectorIn(sess interface{ Route() (string, string) }, model string) string {
+	if sess != nil {
+		if current, connector := sess.Route(); model == current {
+			return connector
+		}
+	}
+	return a.modelConnector(model)
 }
 
 // connectorProvider returns the provider identity for an adapter connector.

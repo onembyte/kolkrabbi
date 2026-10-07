@@ -72,12 +72,16 @@ already renders a unified diff. `/diff` is those two facts joined.
 
 ### 3. Plan mode — a permission rule, not a new engine
 
-`/plan` switches the session to a read-only posture: `deny write(*)`, `deny bash(*)` as session-scoped
-rules, plus a system-prompt line telling the model to explore and propose rather than act.
+`/plan` switches the session to a read-only posture: `deny write(*)`, `deny bash(*)` as rules of
+their own `plan` scope, plus a system-prompt line telling the model to explore and propose rather
+than act.
 
-Building it out of E13's rules rather than a new mode flag means there is one place where "may I do
-this" is answered, and `/permissions` shows a plan-mode session exactly why it is refusing things.
-Leaving plan mode drops the rules it added and nothing else.
+Building it out of E13's rules means there is one place where "may I do this" is answered, and
+`/permissions` shows a plan-mode session exactly why it is refusing things. Whether plan mode is on
+is state of its own (V43.6), not read back from rule text: a session rule someone wrote that reads
+like plan mode's is theirs. The plan rules apply while that state holds, listed last, so a later
+session `allow` cannot reopen what plan mode refuses. Leaving plan mode drops them and nothing else,
+`/permissions forget` on one points to `/plan off`, and `/new` keeps plan mode as it keeps the mode.
 
 Approving a plan is not a new mechanism either: the user reads it and leaves plan mode. An "approve"
 verb that silently re-enables writing would be a second permission system.
@@ -92,8 +96,8 @@ same reading of what changed, and not specified further here until that exists.
 
 - **G15.1 `/undo`** — one turn, both halves, and neither half moves without the other.
 - **G15.2 `/diff`** — the session's changes as diffs, per file, truncated in the middle.
-- **G15.3 plan mode** — `/plan` as session-scoped deny rules plus a prompt line, visible in
-  `/permissions`, dropped on exit.
+- **G15.3 plan mode** — `/plan` as plan-scoped deny rules plus a prompt line, visible in
+  `/permissions`, dropped on exit (plan mode tracked as state since V43.6).
 
 ## Open questions
 

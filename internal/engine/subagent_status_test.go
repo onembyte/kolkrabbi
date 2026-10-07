@@ -45,8 +45,16 @@ func TestSubagentStatusTransitionsAreObservedAndMonotonic(t *testing.T) {
 
 func TestSubagentStatusRejectsBackwardAndPostTerminalTransitions(t *testing.T) {
 	working := SubagentStatus{State: SubagentWorking, Phase: SubagentPhaseProvider, Sequence: 7, Step: "working"}
-	if got, err := advanceSubagentStatus(working, SubagentWaiting, SubagentPhaseSchedule, "wait again"); err == nil || got != working {
-		t.Fatalf("working -> waiting = %+v, %v; want unchanged rejection", got, err)
+	if got, err := advanceSubagentStatus(working, SubagentQueued, SubagentPhaseSchedule, "queue again"); err == nil || got != working {
+		t.Fatalf("working -> queued = %+v, %v; want unchanged rejection", got, err)
+	}
+	paused, err := advanceSubagentStatus(working, SubagentWaiting, SubagentPhaseSchedule, "waiting for allowance")
+	if err != nil || paused.Sequence != 8 {
+		t.Fatalf("working -> waiting = %+v, %v", paused, err)
+	}
+	resumed, err := advanceSubagentStatus(paused, SubagentWorking, SubagentPhaseProvider, "continuing")
+	if err != nil || resumed.Sequence != 9 {
+		t.Fatalf("waiting -> working = %+v, %v", resumed, err)
 	}
 	done := SubagentStatus{State: SubagentDone, Phase: SubagentPhaseComplete, Sequence: 8, Step: "done"}
 	if got, err := advanceSubagentStatus(done, SubagentWorking, SubagentPhaseTool, "restart"); err == nil || got != done {

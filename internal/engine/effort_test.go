@@ -197,29 +197,6 @@ func TestTimeoutForEffort(t *testing.T) {
 	}
 }
 
-func TestMaxTasksForEffort(t *testing.T) {
-	cases := []struct {
-		effort string
-		want   int
-	}{
-		{engine.EffortLow, 1},
-		{engine.EffortMedium, 2},
-		{engine.EffortHigh, 4},
-		{engine.EffortMax, 6},
-		{"1", 1},
-		{"quick", 1},
-		{"4", 6},
-		{"ultra", 8},
-		{"5", 8},
-		{"unknown", 2},
-	}
-	for _, tc := range cases {
-		if got := engine.MaxTasksForEffort(tc.effort); got != tc.want {
-			t.Errorf("MaxTasksForEffort(%s) = %d, want %d", tc.effort, got, tc.want)
-		}
-	}
-}
-
 func TestTurnExceedsMaxToolRounds(t *testing.T) {
 	// EffortLow allows 4 tool rounds in code mode.
 	// We simulate 5 consecutive rounds of tool calls to trigger the limit.

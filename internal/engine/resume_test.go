@@ -45,7 +45,7 @@ func newResumeHarness(t *testing.T, policy string, probe func(n int) bool) *resu
 			h.probes++
 			return probe(h.probes), nil
 		},
-		ResumeReady: func(pending string) { h.resumed <- pending },
+		ResumeReady: func(_ context.Context, pending string) bool { h.resumed <- pending; return true },
 	})
 	h.a.WatchPauses(context.Background())
 	t.Cleanup(func() { _ = h.a.Close() })
@@ -165,5 +165,58 @@ func TestTheResumeMonitorDiesWithTheAgent(t *testing.T) {
 	case <-h.resumed:
 		t.Fatal("a closed agent still handed a turn back")
 	default:
+	}
+}
+
+// Adopted from the V43.5 engine re-check (gap 2): the monitor's own delivery
+// publishes the resume too, and like the explicit path it never presents an
+// assumed reset time as the vendor's.
+func TestTheMonitorsResumeNeverPresentsAnEstimateAsAReset(t *testing.T) {
+	for _, c := range []struct {
+		name       string
+		retryAfter string
+		estimated  bool
+	}{
+		{"assumed", "", true},
+		{"vendor's Retry-After", "1800", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			srv := enginetest.New(enginetest.Step{StatusCode: http.StatusTooManyRequests, RetryAfter: c.retryAfter,
+				ErrorBody: `{"error":{"message":"You have reached your usage limit"}}`})
+			defer srv.Close()
+			resumed := make(chan string, 1)
+			a := New(Options{
+				Client: provider.NewCompatibleClient(srv.URL), Bus: newTestBus(t), Mode: ModeCode, Model: "vendor/paid",
+				Permission: PermissionFullAuto, Out: io.Discard, Sess: enginetest.NewFakeSession("s_test", "vendor/paid"),
+				ResumeWait:  func(ctx context.Context, _ time.Duration) error { return ctx.Err() },
+				ProbeLimit:  func(context.Context, continuity.Pause) (bool, error) { return true, nil },
+				ResumeReady: func(_ context.Context, pending string) bool { resumed <- pending; return true },
+			})
+			defer a.Close()
+			a.WatchPauses(context.Background())
+			var paused *PausedError
+			if err := a.RunTurn(context.Background(), "hello"); !errors.As(err, &paused) || paused.Pause.Estimated != c.estimated {
+				t.Fatalf("pause = %v %+v; want estimated=%v", err, paused, c.estimated)
+			}
+			select {
+			case <-resumed:
+			case <-time.After(5 * time.Second):
+				t.Fatal("the monitor never delivered the waiting turn")
+			}
+			events := 0
+			for _, env := range bReplay(t, a.Bus) {
+				var d protocol.ProviderLimitData
+				if env.Type != protocol.EventProviderLimit || json.Unmarshal(env.Data, &d) != nil || d.Action != "resume" {
+					continue
+				}
+				events++
+				if (d.ResetAt != "") == c.estimated {
+					t.Errorf("provider.limit{resume}.reset_at = %q; estimated=%v", d.ResetAt, c.estimated)
+				}
+			}
+			if events != 1 {
+				t.Fatalf("resume events = %d, want exactly one", events)
+			}
+		})
 	}
 }

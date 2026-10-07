@@ -60,37 +60,55 @@ func Catalog(filter string) []CatalogEntry {
 	return out
 }
 
-// PulledNames reports which catalog models are already on disk, by reading the
-// manifest tree the sidecar writes when a pull completes. Ollama's own layout
-// is the only record of what was pulled, and reading it beats asking kolk's
-// caller to guess: a model listed in the catalog is a plan for a pull, not
-// evidence that one happened. A missing directory is "nothing pulled yet",
-// never an error — the picker has to draw the same way on a fresh machine.
+// PulledNames reports exact model tags recorded in Ollama's manifest tree.
+// A cached 7b variant is never evidence that 14b is present. Custom namespaces
+// and registries remain selectable even when the fit catalog does not know them.
 func PulledNames(modelDir string) map[string]bool {
 	out := map[string]bool{}
-	library := filepath.Join(modelDir, "manifests", "registry.ollama.ai", "library")
-	names, err := os.ReadDir(library)
-	if err != nil {
-		return out
-	}
-	for _, name := range names {
-		tags, err := os.ReadDir(filepath.Join(library, name.Name()))
-		if err != nil || len(tags) == 0 {
-			continue
+	base := filepath.Join(modelDir, "manifests")
+	_ = filepath.WalkDir(base, func(name string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return filepath.SkipDir
 		}
-		out[name.Name()] = true
-	}
+		rel, err := filepath.Rel(base, name)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+		parts := strings.Split(filepath.ToSlash(rel), "/")
+		if entry.IsDir() {
+			if len(parts) >= 4 {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if len(parts) != 4 || !entry.Type().IsRegular() {
+			return nil
+		}
+		model := parts[2]
+		if parts[1] != "library" {
+			model = parts[1] + "/" + model
+		}
+		if parts[0] != "registry.ollama.ai" {
+			model = parts[0] + "/" + model
+		}
+		out[model+":"+parts[3]] = true
+		return nil
+	})
 	return out
 }
 
-// IsPulled reports whether a catalog entry like "qwen2.5-coder:7b" is on disk:
-// the manifest tree is keyed by library name, and the tag rides inside it.
+// PulledName checks an exact tag, using Ollama's implicit :latest spelling.
 func PulledName(names map[string]bool, entry string) bool {
-	library, _, ok := strings.Cut(entry, ":")
-	if !ok {
-		library = entry
+	if names[entry] {
+		return true
 	}
-	return names[library]
+	if !strings.Contains(filepath.Base(entry), ":") {
+		return names[entry+":latest"]
+	}
+	return false
 }
 
 // LookupModel resolves an exact catalog name.

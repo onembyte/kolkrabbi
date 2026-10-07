@@ -18,11 +18,16 @@ var knownPhases = map[string]bool{
 	"synthesizing": true, "streaming": true,
 }
 
-// activityLine is the turning wheel and what Kolkrabbi is doing. It carried a
-// four-cell block-drawn octopus until 1.2.5; at that size the mark read as
-// noise rather than as a logo, and the wheel already says the same thing —
-// something is happening — without spending four cells to say it.
+// The logical icon occupies the same two cells as an emoji. Image-capable
+// terminals replace it with the site's purple pixel mark at rendering time.
+const octopusMark = "🐙"
+
+// activityLine keeps the mark still while the wheel beside its face turns.
 func activityLine(frame int, phase string) string {
+	return activityLineDetail(frame, phase, "")
+}
+
+func activityLineDetail(frame int, phase, detail string) string {
 	phase = strings.TrimSpace(strings.ToLower(phase))
 	if !knownPhases[phase] {
 		phase = "working"
@@ -30,7 +35,11 @@ func activityLine(frame int, phase string) string {
 	if frame < 0 {
 		frame = 0
 	}
-	return wheelFrames[frame%len(wheelFrames)] + " " + phase + "…"
+	line := octopusMark + " " + wheelFrames[frame%len(wheelFrames)] + " " + phase + "…"
+	if detail = compactAgentField(detail, ""); detail != "" {
+		line += " · " + detail
+	}
+	return line
 }
 
 type spinnerTimer interface {
@@ -71,17 +80,5 @@ func promptEcho(prompt string) string {
 		// indents them.
 		lines[index] = "  " + line
 	}
-	return strings.Join(lines, "\n") + "\n"
-}
-
-// activityLineDetail is the activity line with what the agent is doing
-// beside the phase: the tool it started, or the step the engine last
-// reported. Empty detail is the plain line.
-func activityLineDetail(frame int, phase, detail string) string {
-	line := activityLine(frame, phase)
-	detail = strings.TrimSpace(detail)
-	if detail == "" {
-		return line
-	}
-	return line + " · " + detail
+	return "\n" + strings.Join(lines, "\n") + "\n\n"
 }

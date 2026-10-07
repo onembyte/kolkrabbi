@@ -89,12 +89,33 @@ permanent, and never as zero.
 *Shipped 2026-09-05 as V35.2a–c: the pause on the session, the token-free resume monitor with
 `continuity.resume auto|manual` and `/resume`, and the three surfaces. The PAUSE card is flipped.*
 
+*V43.3a hardens that lifecycle: expiry alone never clears pending input; no callback means the
+pause stays. Watchers retire before delivery, callbacks acknowledge acceptance, busy surfaces
+retry with backoff, and surface exit cancels and joins delivery. The TUI arms only after startup.
+This supersedes the original watcher-owned callback/close behavior below. Accepted task graphs
+and child conversations are the separate V43.3b continuation work; the original pending-input
+record did not preserve them.*
+
+*V43.3b (verified 2026-09-16) adds an execution journal. The transcript retains the
+unanswered user prompt once; resumption continues its saved phase, task outcomes and child tool
+conversations. TUI automatic delivery starts only on an idle surface, leaving busy-session
+ownership with the saved pause instead of the replaceable type-ahead queue. Provider-owned
+unfinished child conversations retain their own handle and require the same provider to resume.*
+
+The execution journal also distinguishes a settled allowance pause from a process interrupted
+while work was in flight. The latter may contain actions with uncertain outcomes, so it is not
+automatically replayed. `/resume discard` abandons an unfinished request while retaining its
+files, saved worktrees and history; it also provides recovery when a saved worktree is unavailable.
+Older execution transcripts move to immutable sibling archives and remain included in
+`kolk sessions export <id> --json`, keeping routine saves proportional to the current request.
+
 Owner decision: **by default kolk stops when a limit hits and resumes automatically when the limit
 resets; the wait costs no tokens.** Switching models is a separate opt-in (§2.4).
 
 - Session gains `Paused *Pause {Kind, Scope, Connector, Model, ResetAt, Since, PendingTurn string}`,
   persisted with the session (under the messages lock, V34.2b). The pending user input is kept
-  verbatim; it is **not** appended to the transcript as an answered turn.
+  verbatim. V43.3b supersedes removal/re-appending of that prompt: it remains in the transcript,
+  and the unfinished execution journal distinguishes a waiting request from an answered turn.
 - A paused session refuses to spend: `RunTurn` returns a `Pause` naming the reset time; the TUI
   status line reads `paused · <reason> · resumes <time>`; `/doctor` says it.
 - **The resume monitor is code, not a model.** It runs inside kolk, the way Claude Code runs its own
@@ -226,7 +247,8 @@ card flip in the same commit as the record.
 - Cooldowns: persistence round-trip; a second session in the same connector sees the plan cooldown;
   expiry; never-loop (a capped key is asked once per cooldown, proven with a counting backend).
 - Pause: pending turn survives a restart; a paused session spends nothing (a counting client);
-  resume after expiry runs the pending turn once; resume before expiry says when.
+  resume after expiry runs the pending turn once; explicit `/resume` may try before expiry.
+  Expiry without an accepting surface retains pending input; repeated limits rearm the watcher.
 - Chain: two subscription connectors, one metered, two free, with every combination of cooling and
   pinned; each turn tries a candidate at most once; the transcript names every hop; the money
   boundary is never crossed under `ask` and is crossed under `auto` only with the flag.

@@ -66,6 +66,15 @@ else
   done <<< "$lint_versions"
 fi
 
+# O10: ordinary pushes must run race instrumentation and preserve a coverage
+# report, not only the normal pass/fail suite. Keep the tooling read-only.
+ci="$ROOT/.github/workflows/ci.yml"
+for required in 'race-and-coverage:' 'go test -race -coverprofile=coverage.out -count=1 ./...' 'go tool cover -func=coverage.out' 'uses: actions/upload-artifact@' 'path: coverage.out'; do
+  if grep -Fq "$required" "$ci"; then pass; else
+    fail "CI lacks the race/coverage contract: $required"
+  fi
+done
+
 if [ "$failures" -eq 0 ]; then
   printf 'workflow pins: %d checks passed\n' "$checks"
 else

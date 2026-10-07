@@ -24,6 +24,8 @@ func (s *failingSaveSession) SessionMode() string              { return "" }
 func (s *failingSaveSession) SetMode(string)                   {}
 func (s *failingSaveSession) ConnectorName() string            { return "" }
 func (s *failingSaveSession) SetConnector(string)              {}
+func (s *failingSaveSession) Route() (string, string)          { return "vendor/model", "" }
+func (s *failingSaveSession) SetRoute(string, string)          {}
 func (s *failingSaveSession) ProviderStateName() string        { return "" }
 func (s *failingSaveSession) SetProviderStateName(string)      {}
 func (s *failingSaveSession) SetTitleFromInput(string)         {}
@@ -37,7 +39,11 @@ func (s *failingSaveSession) Save() error {
 	return errors.New("disk is read-only")
 }
 
-func (s *failingSaveSession) SaveInterim() error { return s.Save() }
+func (s *failingSaveSession) SaveInterim() error        { return s.Save() }
+func (s *failingSaveSession) SaveRecovery(string) error { return s.Save() }
+func (s *failingSaveSession) ArchiveMessages([]provider.Message) (string, error) {
+	return "memory:failing-save", nil
+}
 
 // The engine writes everything through Options.Out: in a session that is the
 // terminal renderer, which owns the screen. A warning printed straight to
@@ -77,8 +83,11 @@ func TestRestoringACompactionReportsAFailedSave(t *testing.T) {
 	agent := &Agent{Options: Options{Out: &out, Sess: session}}
 	agent.preCompact = []provider.Message{{Role: "user", Content: "before"}}
 
-	if !agent.RestoreCompaction() {
-		t.Fatal("the restore itself should report success in memory")
+	if agent.RestoreCompaction() {
+		t.Fatal("a failed durable restore must not report success")
+	}
+	if len(session.messages) != 0 || agent.preCompact == nil {
+		t.Fatal("failed restore changed working messages or consumed the saved history")
 	}
 	// Telling the user their conversation is back while it is not on disk is
 	// the kind of quiet half-success this session keeps finding.
@@ -89,3 +98,62 @@ func TestRestoringACompactionReportsAFailedSave(t *testing.T) {
 
 func (s *failingSaveSession) Paused() *continuity.Pause   { return nil }
 func (s *failingSaveSession) SetPaused(*continuity.Pause) {}
+func (s *failingSaveSession) RunState() *continuity.Run   { return nil }
+func (s *failingSaveSession) SetRunState(*continuity.Run) {}
+
+// flakySaveSession fails its saves only while fail is set: the shape of a
+// disk that fills, is cleared, and fills again.
+type flakySaveSession struct {
+	failingSaveSession
+	fail bool
+}
+
+func (s *flakySaveSession) Save() error {
+	s.saves++
+	if s.fail {
+		return errors.New("no space left on device")
+	}
+	return nil
+}
+
+func (s *flakySaveSession) SaveInterim() error { return s.Save() }
+
+// One warning per failing streak, not per session: a disk that recovers and
+// fails again is a new failure the person has not been told about.
+func TestSaveWarningReturnsAfterTheDiskRecovers(t *testing.T) {
+	var out strings.Builder
+	session := &flakySaveSession{fail: true}
+	agent := &Agent{Options: Options{Out: &out, Sess: session}}
+
+	agent.saveFor(saveTurnEnd)
+	agent.saveFor(saveTurnEnd)
+	session.fail = false
+	agent.saveFor(saveTurnEnd)
+	session.fail = true
+	agent.saveFor(saveTurnEnd)
+	agent.saveFor(saveTurnEnd)
+
+	if got := strings.Count(out.String(), "could not save session"); got != 2 {
+		t.Fatalf("warned %d times, want once per failing streak (2):\n%s", got, out.String())
+	}
+}
+
+// A pause's own message promises a later /resume. When the pause itself
+// could not be saved, that promise holds only while this session runs, so it
+// is said every time, even in the middle of a streak already reported.
+func TestAFailedPauseSaveIsAlwaysReported(t *testing.T) {
+	var out strings.Builder
+	agent := &Agent{Options: Options{Out: &out, Sess: &failingSaveSession{}}}
+
+	agent.saveFor(saveTurnEnd)
+	agent.saveFor(savePause)
+	agent.saveFor(saveTurnEnd)
+
+	text := out.String()
+	if got := strings.Count(text, "could not save session"); got != 2 {
+		t.Fatalf("warned %d times, want the streak once and the pause once:\n%s", got, text)
+	}
+	if !strings.Contains(text, "at the pause") || !strings.Contains(text, "only until this session exits") {
+		t.Fatalf("the pause warning does not say what is at stake:\n%s", text)
+	}
+}

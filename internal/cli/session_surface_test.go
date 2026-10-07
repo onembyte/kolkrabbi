@@ -5,6 +5,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/buildinfo"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // The main usage of every command is inside a running session. This test is
@@ -146,5 +147,109 @@ func TestARetiredVerbIsRefusedNotSentToAModel(t *testing.T) {
 	}
 	if _, retired := retiredVerbs["config the model"]; retired {
 		t.Fatal("a quoted sentence matched a retired verb; it must be one whole argument")
+	}
+}
+
+// Adopted from the V43.5 §7 item 5 review (H1): kolk help aligned every
+// summary to the longest usage, and /localia's grammar is about 170 columns
+// wide, so every summary sat off the right edge of an ordinary terminal. On
+// both surfaces a summary starts within reach, and a usage too long for its
+// column gets a row of its own.
+func TestEverySlashSummaryStartsWithinReach(t *testing.T) {
+	a, out, _ := newTestApp(t, "")
+	if code := a.main(context.Background(), []string{"help"}); code != ExitOK {
+		t.Fatalf("kolk help exit = %d", code)
+	}
+	var slash strings.Builder
+	printSlashHelp(&slash)
+	for surface, text := range map[string]string{"kolk help": out.String(), "/help": slash.String()} {
+		lines := strings.Split(text, "\n")
+		for _, command := range slashCommandTable {
+			found := false
+			for _, line := range lines {
+				at := strings.Index(line, command.summary)
+				if at < 0 {
+					continue
+				}
+				found = true
+				if column := utf8.RuneCountInString(line[:at]); column > 45 {
+					t.Errorf("%s: /%s's summary starts at column %d", surface, command.name, column)
+				}
+				// A usage that fits keeps its summary beside it.
+				if usage := "/" + command.name + " " + command.args; len(usage) < 40 && !strings.Contains(line, "/"+command.name) {
+					t.Errorf("%s: /%s's summary is not on its row", surface, command.name)
+				}
+			}
+			if !found {
+				t.Errorf("%s: /%s's summary is missing", surface, command.name)
+			}
+		}
+	}
+}
+
+// Adopted from the V43.5 item 5 verification (I5-4): kolk help lists /config
+// and /model, but `kolk help config` answered "no such command". Help for a
+// session command, with or without its slash or by its old verb, gives its
+// usage and says where it runs; help for a sessions verb names kolk sessions.
+func TestHelpFindsSessionCommandsAndSessionsVerbs(t *testing.T) {
+	for name, want := range map[string]string{
+		"config":  "usage: /config",
+		"/config": "usage: /config",
+		"model":   "usage: /model",
+		"models":  "usage: /model",
+		"resume":  "usage: /resume",
+		"export":  "usage: kolk sessions",
+		"fork":    "usage: kolk sessions",
+	} {
+		a, out, errOut := newTestApp(t, "")
+		if code := a.main(context.Background(), []string{"help", name}); code != ExitOK {
+			t.Errorf("kolk help %s exit = %d: %s", name, code, errOut.String())
+			continue
+		}
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("kolk help %s:\n%s\nwant %q", name, out.String(), want)
+		}
+	}
+	a, _, errOut := newTestApp(t, "")
+	if code := a.main(context.Background(), []string{"help", "nosuch"}); code == ExitOK || !strings.Contains(errOut.String(), "kolk help") {
+		t.Errorf("kolk help nosuch = %d, %q; want an error that points to kolk help", code, errOut.String())
+	}
+}
+
+// Adopted from the same verification (nits): an unknown config key names
+// where the keys are, and /help mentions export where /session is listed.
+func TestUnknownConfigKeysAndExportPointSomewhere(t *testing.T) {
+	a, _, _ := newTestApp(t, "")
+	for _, key := range []string{"nosuch", "local.nosuch"} {
+		err := a.runConfig(context.Background(), []string{"set", key, "1"})
+		if err == nil || !strings.Contains(err.Error(), "/config lists every setting") {
+			t.Errorf("/config set %s: %v", key, err)
+		}
+	}
+	var help strings.Builder
+	printSlashHelp(&help)
+	if !strings.Contains(help.String(), "export") {
+		t.Errorf("/help never mentions export:\n%s", help.String())
+	}
+}
+
+// Adopted from the V43.5 item 5 re-check (J3): where a name is both an outside
+// verb and a session command, or both a session command and a sessions verb,
+// help says which is which rather than answering for only one.
+func TestHelpSaysWhichOfTwoSameNamedCommandsItMeans(t *testing.T) {
+	for name, wants := range map[string][]string{
+		"/help": {"usage: /help"},
+		"clear": {"/clear", "kolk sessions"},
+	} {
+		a, out, _ := newTestApp(t, "")
+		if code := a.main(context.Background(), []string{"help", name}); code != ExitOK {
+			t.Errorf("kolk help %s exit = %d", name, code)
+			continue
+		}
+		for _, want := range wants {
+			if !strings.Contains(out.String(), want) {
+				t.Errorf("kolk help %s:\n%s\nwant %q", name, out.String(), want)
+			}
+		}
 	}
 }

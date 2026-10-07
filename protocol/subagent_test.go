@@ -300,7 +300,7 @@ func assertSubagentSchema(t *testing.T, name string) {
 	// The guarantee worth keeping is that no field appears undeclared and that
 	// the REQUIRED set is exact — not that every declared field is required,
 	// which would forbid the additive change these two are.
-	wantOptional := []string{"model"}
+	wantOptional := []string{"model", "reason"}
 	if name == "subagent.started" {
 		wantRequired = []string{"id", "child_turn", "task", "mode", "index", "total"}
 		wantOptional = []string{"level", "model"}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -29,7 +30,7 @@ import (
 func paletteTier() string {
 	colorTerm := strings.TrimSpace(strings.ToLower(os.Getenv("COLORTERM")))
 	if strings.Contains(colorTerm, "truecolor") || strings.Contains(colorTerm, "24bit") {
-		return "256"
+		return "truecolor"
 	}
 	termName := strings.TrimSpace(strings.ToLower(os.Getenv("TERM")))
 	if strings.Contains(termName, "256color") ||
@@ -116,6 +117,8 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 		resize = changes
 	}
 	var screen *tui.Runtime
+	stopResume := func() {}
+	defer func() { stopResume() }()
 	// The mouse setting, read once for this session: the frame asks the
 	// terminal for button reports only when the user wants them, because
 	// reporting takes the terminal's own drag-select away.
@@ -126,6 +129,12 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 		}
 	}
 	screen = tui.NewRuntime(tui.RuntimeOptions{
+		Graphics: term.InlineImages(),
+		Ready: func(readyCtx context.Context) {
+			stopResume = a.armAutoResume(readyCtx, ag, func(resumeCtx context.Context, pending string) bool {
+				return screen.SubmitWhenIdleContext(resumeCtx, pending)
+			})
+		},
 		Input: a.terminalInput, Output: originalStdout,
 		Width: func() int {
 			width, _ := a.terminalSize(a.terminalOutput)
@@ -135,8 +144,11 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 			_, height := a.terminalSize(a.terminalOutput)
 			return height
 		},
-		Resize:   resize,
-		Status:   tuiStatus(ag, "ready", folder),
+		Resize: resize,
+		Status: a.tuiLocalStatus(ctx, ag, "ready", folder),
+		WarningForModel: func(model string) string {
+			return a.localPlacementWarning(ctx, model)
+		},
 		Commands: slashSuggestions(),
 		Models:   models,
 		Plans:    tuiPlans(),
@@ -182,7 +194,7 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 					return nil
 				}
 				shouldExit := a.slash(turnContext, ag, prompt)
-				screen.SetStatus(tuiStatus(ag, "ready", folder))
+				screen.SetStatus(a.tuiLocalStatus(turnContext, ag, "ready", folder))
 				if shouldExit {
 					return tui.ErrExit
 				}
@@ -192,7 +204,7 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 			// marked case used to be a branch of its own above, with this same
 			// status-and-error block copied under it.
 			err := a.runInteractivePrompt(turnContext, ag, trimmedPrompt)
-			screen.SetStatus(tuiStatus(ag, tuiTurnLifecycle(turnContext, err), folder))
+			screen.SetStatus(a.tuiLocalStatus(turnContext, ag, tuiTurnLifecycle(turnContext, err), folder))
 			if err != nil && !errors.Is(err, context.Canceled) {
 				_, _ = fmt.Fprintf(screen, "\nerror: %v\n", err)
 				writeAdvice(screen, err)
@@ -210,6 +222,10 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 	a.readHidden = func(ctx context.Context, prompt string) (string, bool) { return screen.ReadSecret(ctx, prompt) }
 	defer func() { a.readHidden = nil }()
 	a.stdout, a.stderr = screen, screen
+	if a.localRuntime != nil {
+		a.localRuntime.SetOutput(screen)
+		defer a.localRuntime.SetOutput(originalStdout)
+	}
 	// `/agents` reads the screen's own record of the run (V40.4).
 	previousReport := a.agentReport
 	a.agentReport = screen.AgentReport
@@ -217,6 +233,17 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 	ag.Out = screen
 	ag.Activity = screen
 	ag.Work = screen
+	previousWorkLog := ag.WorkLog
+	defer func() { ag.WorkLog = previousWorkLog }()
+	ag.WorkLog = func(record engine.WorkRecord) {
+		screen.LogWork(tui.WorkRecord{
+			Agent: record.Agent, Name: record.Name, Arguments: record.Arguments,
+			Output: record.Output, Error: record.Error, Path: record.Path, Diff: record.Diff,
+			Added: record.Added, Removed: record.Removed, Changed: record.Changed,
+			Created: record.Created, Failed: record.Failed, Provider: record.Provider,
+			Pending: record.Pending, Warning: record.Warning,
+		})
+	}
 	// Per-task lifecycle goes through Runtime rather than reaching into its
 	// controller: subagents publish concurrently, while Runtime owns the lock
 	// protecting rendering and snapshots.
@@ -230,7 +257,6 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 	}
 	ag.Decider = tuiDecider{runtime: screen}
 	ag.Ask = tuiChooser{runtime: screen}
-	a.armAutoResume(ctx, ag, screen.Submit)
 
 	// The login runs here, inside the session, on a terminal of its own. The
 	// runtime parks the frame and forwards the keyboard; shell puts the child
@@ -244,6 +270,7 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 	}
 	defer func() { a.loginInSession = previousLogin }()
 	runErr := screen.Run(ctx)
+	stopResume()
 	a.stdout, a.stderr = originalStdout, originalStderr
 	restoreErr := restoreTerminal()
 	// Only now: the renderer has released the screen and the terminal is out of
@@ -258,9 +285,6 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 // to re-read the catalog here, which on a stale cache meant a second network
 // wait before the first prompt could be drawn.
 func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
-	if ag.Client == nil {
-		return nil
-	}
 	// Every model the user can actually reach, in one list, each labelled by
 	// what choosing it costs. Ordered so the ones that bill nothing extra come
 	// first: a subscription already paid for, then free, then the user's own
@@ -317,7 +341,7 @@ func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 	out = append(out, a.hostModelRows(ctx, manifest, pulled)...)
 
 	models := a.catalog
-	if len(models) == 0 {
+	if len(models) == 0 && ag.Client != nil {
 		models = provider.FallbackCatalogSeed()
 	}
 	for _, model := range models {
@@ -473,6 +497,54 @@ func tuiStatus(ag *engine.Agent, lifecycle, folder string) tui.Status {
 		Approval: approval, Sandbox: sandboxStatus(ag), Cooling: ag.CoolingNotice(), Paused: pausedNotice(ag), Lifecycle: lifecycle,
 		Context: contextLabel(ag), Cost: sessionCostLabel(ag), Limits: planMeters(ag),
 	}
+}
+
+func (a *app) tuiLocalStatus(ctx context.Context, ag *engine.Agent, lifecycle, folder string) tui.Status {
+	status := tuiStatus(ag, lifecycle, folder)
+	status.LocalWarningAcknowledged = a.localCPUChosen()
+	status.LocalWarning = a.localPlacementWarning(ctx, status.Model)
+	return status
+}
+
+// A placement estimate is read when the TUI starts and after each turn. It
+// never pulls a model or changes the GPU setting; /config is the durable choice.
+func (a *app) localPlacementWarning(ctx context.Context, model string) string {
+	name, localModel := strings.CutPrefix(model, local.HostPrefix)
+	if !localModel || local.IsCloudModelName(name) {
+		return ""
+	}
+	dirs, err := a.locate()
+	if err != nil {
+		return ""
+	}
+	cfg, err := config.Load(dirs.ConfigFile())
+	if err != nil {
+		return ""
+	}
+	mode := strings.ToLower(strings.TrimSpace(cfg.Local.GPUMode))
+	if mode == "cpu" {
+		return ""
+	}
+	// The turn may have ended by cancellation. Placement is session state;
+	// using that canceled context would make a real GPU probe look absent.
+	hardware := a.usableHardware(context.WithoutCancel(ctx), existingAncestor(local.HostModelDir(os.Environ())))
+	// Disk room and RAM admission decide whether a pull can proceed; this
+	// footer asks only where the automatic choice would place the model.
+	hardware.DiskFree = local.Capacity{Bytes: math.MaxUint64, Known: true}
+	hardware.SystemRAM = local.Capacity{Bytes: math.MaxUint64, Known: true}
+	if entry, err := local.LookupModel(name); err == nil {
+		fit := localRuntimeConfig(cfg)
+		fit.GPUMode = "auto"
+		plan, err := local.PlanFit(hardware, fit, entry.Requirement())
+		if err == nil && plan.Placement == local.PlacementGPU {
+			return ""
+		}
+	} else if len(hardware.Accelerators) > 0 {
+		// Custom model size is unknown: a usable card does not prove the
+		// weights fit. Warn without claiming that Ollama actually chose CPU.
+		return "warning: CPU possible in automatic local placement; model size unknown; choose /config set local.gpu_mode cpu to accept this"
+	}
+	return "warning: CPU fallback under automatic local placement; choose /config set local.gpu_mode cpu to accept this"
 }
 
 // tuiTurnLifecycle mirrors Runtime's terminal classification at the CLI
@@ -664,18 +736,16 @@ func tuiSettings(a *app) []tui.SettingSpec {
 // starts it. Catalogued models not pulled carry the exact command that would
 // pull them. Cloud models bill against the Ollama plan, so their row is the
 // plan's — subscription when the connector is verified, sign-in-first when not.
-// No Ollama at all lists nothing here; `kolk doctor` and `kolk models` name
-// the install line.
+// Without a runtime, cached models offer native setup on selection; unpulled
+// models keep their explicit pull command. Listing starts nothing.
 func (a *app) hostModelRows(ctx context.Context, manifest provider.ConnectorManifest, pulled map[string]bool) []tui.ModelSpec {
 	if a.discoverHost == nil || a.listHostModels == nil {
 		return nil
 	}
-	host := a.discoverHost(ctx)
-	if host.State == local.HostAbsent {
-		return nil
-	}
+	host := a.localHost(ctx)
 	var models []local.HostModel
-	fromManifest := host.State == local.HostInstalled
+	unknownPlacement := make(map[string]bool)
+	fromManifest := host.State != local.HostRunning
 	cache := ""
 	if d, err := a.locate(); err == nil {
 		cache = d.HostCatalogFile()
@@ -691,10 +761,21 @@ func (a *app) hostModelRows(ctx context.Context, manifest provider.ConnectorMani
 	if fromManifest {
 		// No server to ask, so the manifest tree says what is pulled; what
 		// each model can do is unknown until one runs.
-		for _, entry := range local.Catalog("") {
-			if local.PulledName(pulled, entry.Name) {
-				models = append(models, local.HostModel{Name: entry.Name, Parameters: entry.Parameters, Quantization: entry.Quantization})
+		var names []string
+		for name, present := range pulled {
+			if present {
+				names = append(names, name)
 			}
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			m := local.HostModel{Name: name}
+			if entry, err := local.LookupModel(name); err == nil {
+				m.Parameters, m.Quantization = entry.Parameters, entry.Quantization
+			} else {
+				unknownPlacement[name] = true
+			}
+			models = append(models, m)
 		}
 	}
 	models = mergeHostModels(models)
@@ -720,11 +801,7 @@ func (a *app) hostModelRows(ctx context.Context, manifest provider.ConnectorMani
 	}
 	// The same bounded probe `kolk localia` uses; 112 µs on the owner's
 	// machine, and a process exec where nvidia-smi exists.
-	modelDir := ""
-	if d, err := a.locate(); err == nil {
-		modelDir = d.LocalModelsDir()
-	}
-	cpuOnly := len(a.hardware(ctx, modelDir).Accelerators) == 0
+	cpuOnly := len(a.usableHardware(ctx, existingAncestor(local.HostModelDir(os.Environ()))).Accelerators) == 0
 
 	rows := make([]tui.ModelSpec, 0, len(models))
 	for _, m := range models {
@@ -732,7 +809,7 @@ func (a *app) hostModelRows(ctx context.Context, manifest provider.ConnectorMani
 		if m.Cloud {
 			label := sizeLabel(m)
 			if m.NotPulled {
-				label += "not pulled: ollama pull " + m.Name + " · "
+				label += "not pulled: /localia pull " + m.Name + " · "
 			}
 			if cloudVerified {
 				rows = append(rows, tui.ModelSpec{
@@ -749,14 +826,17 @@ func (a *app) hostModelRows(ctx context.Context, manifest provider.ConnectorMani
 		}
 		if m.NotPulled {
 			rows = append(rows, tui.ModelSpec{ID: id, Cost: tui.CostLocal, Rank: tui.ModelRank(tui.CostLocal),
-				Name: sizeLabel(m) + "not pulled: /localia pull " + m.Name})
+				Name: sizeLabel(m) + "not pulled: /localia pull " + m.Name + a.pickSuffix(host)})
 			continue
 		}
+		cost := tui.CostLocal
 		name := sizeLabel(m) + "runs on this machine"
-		if host.State == local.HostInstalled {
-			name += " · starts ollama when picked"
+		if unknownPlacement[m.Name] {
+			cost = "?"
+			name = "cached model · execution location unknown until Ollama answers"
 		}
-		if cpuOnly {
+		name += a.pickSuffix(host)
+		if cpuOnly && !unknownPlacement[m.Name] {
 			name += " · CPU only"
 		}
 		switch {
@@ -765,7 +845,7 @@ func (a *app) hostModelRows(ctx context.Context, manifest provider.ConnectorMani
 		case !m.Tools:
 			name += " · chat only, no tools"
 		}
-		rows = append(rows, tui.ModelSpec{ID: id, Cost: tui.CostLocal, Rank: tui.ModelRank(tui.CostLocal), Name: name})
+		rows = append(rows, tui.ModelSpec{ID: id, Cost: cost, Rank: tui.ModelRank(cost), Name: name})
 	}
 	return rows
 }
@@ -807,6 +887,36 @@ func pausedNotice(ag *engine.Agent) string {
 	}
 	if p := ag.Sess.Paused(); p != nil {
 		return p.Notice()
+	}
+	return ""
+}
+
+// pickSuffix says what picking a local row does to the runtime. Picking a
+// model starts, sets up or completes the runtime, so a pick is consent to it,
+// and every local row, pulled or not, says which.
+func (a *app) pickSuffix(host local.Host) string {
+	canSetUp := a.installLocalRuntime != nil && a.managedSetupSupported != nil && a.managedSetupSupported()
+	switch host.State {
+	case local.HostInstalled:
+		switch {
+		case a.waitsOnStalled(host):
+			// The project's one runtime; a pick waits on it, never beside it.
+			return " · Kolk's runtime is not answering; a pick fails until it does"
+		case host.Managed && host.MissingCompanion != "" && canSetUp && host.CompanionFailure == "":
+			return " · downloads Ollama again with its " + host.MissingCompanion + " when picked"
+		case host.Managed && host.MissingCompanion != "" && canSetUp:
+			// That release is skipped; a newer one is tried, and downloaded.
+			return " · starts ollama when picked; a new Ollama release downloads it again with its " + host.MissingCompanion
+		}
+		return " · starts ollama when picked"
+	case local.HostAbsent:
+		switch {
+		case !canSetUp:
+			return " · needs Ollama installed first: " + host.InstallHint()
+		case host.MissingCompanion != "":
+			return " · sets up Localia with its " + host.MissingCompanion + " when picked"
+		}
+		return " · sets up Localia when picked"
 	}
 	return ""
 }

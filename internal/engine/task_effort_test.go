@@ -148,3 +148,18 @@ func TestEachSubagentBackendReceivesTheTaskEffort(t *testing.T) {
 		}
 	}
 }
+
+func TestSubagentRequestOverridesParentEffort(t *testing.T) {
+	backend := &effortCapturingBackend{}
+	a := New(Options{Backend: backend, Mode: ModeAgent, Model: "vendor/x", Effort: EffortHigh,
+		Root: t.TempDir(), Permission: PermissionFullAuto, Out: io.Discard,
+		Sess: enginetest.NewFakeSession("s", "vendor/x")})
+	ctx := provider.WithEffort(context.Background(), EffortHigh)
+	_, err := a.runTasks(ctx, "mechanical task", []Task{{Title: "read", Kind: KindResearch, Level: LevelTrivial, Model: "vendor/x"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if backend.seen != EffortLow {
+		t.Fatalf("request effort = %q, want low", backend.seen)
+	}
+}

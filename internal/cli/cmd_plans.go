@@ -116,17 +116,22 @@ func (a *app) runPlanLogin(ctx context.Context, args []string) error {
 		return usagef("/plans login <provider> <plan>")
 	}
 	providerName := strings.ToLower(strings.TrimSpace(args[0]))
-	planFilter := strings.TrimSpace(strings.Join(args[1:], " "))
+	planFilter := unquotePlanName(strings.TrimSpace(strings.Join(args[1:], " ")))
 	matches := provider.Plans(providerName)
 	selected := provider.Plan{}
+	names := make([]string, 0, len(matches))
 	for _, plan := range matches {
+		names = append(names, plan.Name)
 		if strings.EqualFold(plan.Name, planFilter) {
 			selected = plan
 			break
 		}
 	}
 	if selected.Name == "" {
-		return fmt.Errorf("no exact provider CLI plan %q for %s", planFilter, providerName)
+		if len(names) == 0 {
+			return fmt.Errorf("no exact provider CLI plan %q for %s", planFilter, providerName)
+		}
+		return fmt.Errorf("no exact provider CLI plan %q for %s; its plans are: %s", planFilter, providerName, strings.Join(names, ", "))
 	}
 	if selected.Auth != "provider CLI" {
 		return fmt.Errorf("%s uses %s, not a provider CLI login", selected.Name, selected.Auth)
@@ -193,16 +198,39 @@ func (a *app) runConnectorLoginWith(ctx context.Context, connectorsFile string, 
 	// is the server's — so without one the login cannot start, and a
 	// connector recorded against nothing would be a claim.
 	var host local.Host
+	executable := selected.Connector
 	if selected.Connector == local.SidecarName {
-		host = a.discoverHost(ctx)
-		if host.State != local.HostRunning {
-			fmt.Fprintln(a.stdout, "ollama signin needs a running Ollama server and none is listening on 127.0.0.1:11434.")
-			fmt.Fprintln(a.stdout, "start one with `ollama serve` (or open the Ollama app), then run this again.")
+		host = a.localHost(ctx)
+		switch host.State {
+		case local.HostRunning:
+		case local.HostInstalled:
+			// An explicit sign-in earns startup, as a pull does. A Kolk-managed
+			// runtime is neither on PATH nor on the default port, so "start
+			// `ollama serve`" is not something its owner can do.
+			// Started as installed: a sign-in never downloads a runtime or
+			// an accelerator bundle; setup and pulls ask before they do.
+			addr, stop, err := a.startHostWith(ctx, host, false)
+			if err != nil {
+				return err
+			}
+			defer stop()
+			host.State, host.Addr = local.HostRunning, addr
+		default:
+			fmt.Fprintln(a.stdout, "ollama signin needs a running Ollama server, and this machine has none yet.")
+			fmt.Fprintf(a.stdout, "Install one with %s, then run this again.\n", host.InstallHint())
 			return nil
+		}
+		var err error
+		ctx, err = shell.WithOllamaLoginEndpoint(ctx, host.Addr)
+		if err != nil {
+			return err
+		}
+		if host.Binary != "" {
+			executable = host.Binary
 		}
 	}
 	fmt.Fprintf(a.stdout, "starting %s login; Kolkrabbi will not see credentials\n", selected.Connector)
-	if err := run(ctx, selected.Connector, loginArgs); err != nil {
+	if err := run(ctx, executable, loginArgs); err != nil {
 		return err
 	}
 	// A provider CLI that quits without signing in also exits 0, so a clean exit
@@ -289,4 +317,14 @@ func isKeyedVendor(providerName string) bool {
 		}
 	}
 	return false
+}
+
+// unquotePlanName drops one pair of matching quotes. Kolk prints a plan name
+// quoted (`/plans login ollama "Ollama Pro"`), and the slash line is split on
+// spaces, so a pasted command keeps them.
+func unquotePlanName(name string) string {
+	if len(name) >= 2 && (name[0] == '"' || name[0] == '\'') && name[len(name)-1] == name[0] {
+		return strings.TrimSpace(name[1 : len(name)-1])
+	}
+	return name
 }

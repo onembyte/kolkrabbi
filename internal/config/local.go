@@ -24,6 +24,10 @@ type Endpoint struct {
 }
 
 type LocalSettings struct {
+	// Ephemeral defaults to on. ProjectEphemeral overrides it for canonical
+	// project roots; preferences live in user storage, never a cloned repo.
+	Ephemeral        *bool           `json:"ephemeral,omitempty"`
+	ProjectEphemeral map[string]bool `json:"project_ephemeral,omitempty"`
 	// Endpoints are the local model endpoints this machine knows about,
 	// beyond its own Ollama, which needs no record.
 	Endpoints            []Endpoint `json:"endpoints,omitempty"`
@@ -36,6 +40,7 @@ type LocalSettings struct {
 
 // LocalKeys are the dotted config keys this section accepts, in display order.
 var LocalKeys = []string{
+	"local.ephemeral",
 	"local.gpu_mode",
 	"local.gpu_index",
 	"local.quantization",
@@ -49,6 +54,12 @@ var LocalKeys = []string{
 func SetLocal(cfg *Config, key, value string) error {
 	value = strings.TrimSpace(value)
 	switch key {
+	case "local.ephemeral":
+		on, err := ParseOnOff(value)
+		if err != nil {
+			return err
+		}
+		cfg.Local.Ephemeral = &on
 	case "local.gpu_mode":
 		mode := strings.ToLower(value)
 		if mode != "auto" && mode != "cpu" && mode != "gpu" {
@@ -81,7 +92,7 @@ func SetLocal(cfg *Config, key, value string) error {
 		}
 		cfg.Local.ReservedRAMBytes = &bytes
 	default:
-		return fmt.Errorf("unknown config key %q", key)
+		return fmt.Errorf("unknown config key %q; /config lists every setting", key)
 	}
 	return nil
 }
@@ -90,6 +101,11 @@ func SetLocal(cfg *Config, key, value string) error {
 // all. An empty value for a known key means "unset, inheriting the default".
 func GetLocal(cfg *Config, key string) (string, bool) {
 	switch key {
+	case "local.ephemeral":
+		if cfg.Local.Ephemeral == nil {
+			return "", true
+		}
+		return onOff(cfg.Local.Ephemeral), true
 	case "local.gpu_mode":
 		return cfg.Local.GPUMode, true
 	case "local.gpu_index":
@@ -117,6 +133,8 @@ func GetLocal(cfg *Config, key string) (string, bool) {
 // UnsetLocal returns one setting to its computed default.
 func UnsetLocal(cfg *Config, key string) error {
 	switch key {
+	case "local.ephemeral":
+		cfg.Local.Ephemeral = nil
 	case "local.gpu_mode":
 		cfg.Local.GPUMode = ""
 	case "local.gpu_index":
@@ -128,7 +146,7 @@ func UnsetLocal(cfg *Config, key string) error {
 	case "local.reserved_ram_bytes":
 		cfg.Local.ReservedRAMBytes = nil
 	default:
-		return fmt.Errorf("unknown config key %q", key)
+		return fmt.Errorf("unknown config key %q; /config lists every setting", key)
 	}
 	return nil
 }
@@ -168,24 +186,53 @@ func ParseBytes(value string) (uint64, error) {
 // so printing a fixed default for them would be a guess presented as a fact.
 func (l LocalSettings) settings() []Setting {
 	rows := make([]Setting, 0, len(LocalKeys))
-	add := func(key, value string) {
-		if value != "" {
-			rows = append(rows, Setting{Key: key, Value: value, Summary: "local model runtime"})
+	value := "on"
+	if l.Ephemeral != nil && !*l.Ephemeral {
+		value = "off"
+	}
+	rows = append(rows, Setting{Key: "local.ephemeral", Value: value, Default: l.Ephemeral == nil,
+		Summary: "stop Kolk's local runtime when the session closes; off keeps it for this project"})
+	// Every key is listed, set or not: one nobody can see is one nobody sets.
+	// Unset, Kolkrabbi computes the value from the machine.
+	add := func(key, value, summary string) {
+		row := Setting{Key: key, Value: value, Summary: summary}
+		if value == "" {
+			row.Value, row.Default = "computed", true
 		}
+		rows = append(rows, row)
 	}
-	add("local.gpu_mode", l.GPUMode)
+	add("local.gpu_mode", l.GPUMode, "where local models run: auto · cpu · gpu")
+	gpuIndex := ""
 	if l.GPUIndex != nil {
-		add("local.gpu_index", strconv.Itoa(*l.GPUIndex))
+		gpuIndex = strconv.Itoa(*l.GPUIndex)
 	}
-	add("local.quantization", l.Quantization)
+	add("local.gpu_index", gpuIndex, "which GPU runs local models when there are several, counting from 0")
+	add("local.quantization", l.Quantization, "the weight format local models are pulled in")
+	vram := ""
 	if l.ReservedVRAMFraction != nil {
-		add("local.reserved_vram_fraction", strconv.FormatFloat(*l.ReservedVRAMFraction, 'g', -1, 64))
+		vram = strconv.FormatFloat(*l.ReservedVRAMFraction, 'g', -1, 64)
 	}
+	add("local.reserved_vram_fraction", vram, "share of GPU memory kept free for other work, from 0 to below 1")
+	ram := ""
 	if l.ReservedRAMBytes != nil {
-		add("local.reserved_ram_bytes", strconv.FormatUint(*l.ReservedRAMBytes, 10))
+		ram = strconv.FormatUint(*l.ReservedRAMBytes, 10)
 	}
+	add("local.reserved_ram_bytes", ram, "system memory kept free for other work, in bytes")
 	return rows
 }
+
+// LocalForProject applies the project override without mutating shared config.
+// root is the verified, canonical project directory supplied by the surface.
+func (c *Config) LocalForProject(root string) LocalSettings {
+	l := c.Local
+	if on, ok := l.ProjectEphemeral[root]; ok {
+		l.Ephemeral = &on
+	}
+	return l
+}
+
+// EphemeralEnabled is the effective lifetime; absent settings stop at exit.
+func (l LocalSettings) EphemeralEnabled() bool { return l.Ephemeral == nil || *l.Ephemeral }
 
 // FindEndpoint returns the endpoint with this name.
 func (c *Config) FindEndpoint(name string) (Endpoint, bool) {

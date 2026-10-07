@@ -1,5 +1,7 @@
 package engine
 
+import "strings"
+
 // The roster is the closed set of models an orchestrated run may spend on.
 //
 // Rung 0 is the model the user selected, and every rung after it is cheaper.
@@ -20,11 +22,20 @@ type Rung struct {
 	Vendor string
 	// Depth is 0 for the ceiling and larger for cheaper models.
 	Depth int
+	// Efforts contains the exact spellings advertised for this model.
+	Efforts []string
 }
 
 // Roster is the run's whole menu, strongest first.
 type Roster struct {
 	Rungs []Rung
+	// Discovered makes this menu authoritative, including for configured slots.
+	Discovered bool
+	// Blocked contains discovered models ranked above the selection.
+	Blocked []string
+	// LoginModel is a discovered lower model that a sign-in would unlock.
+	// It is guidance only and is never part of the runnable menu.
+	LoginModel string
 }
 
 // Cheapest is the rung a trivial task should reach for.
@@ -64,6 +75,19 @@ func (a *Agent) Roster(available RungAvailable) Roster { return a.roster(availab
 
 func (a *Agent) roster(available RungAvailable) Roster {
 	model := a.SessionModel()
+	if a.AgentRoster != nil {
+		connector := ""
+		if a.Sess != nil {
+			connector = a.Sess.ConnectorName()
+		}
+		roster := a.AgentRoster(model, connector)
+		// A missing or malformed menu cannot change the user's ceiling.
+		if len(roster.Rungs) == 0 || roster.Rungs[0].Model != model {
+			return Roster{Rungs: []Rung{{Model: model}}, Discovered: true}
+		}
+		roster.Discovered = true
+		return roster
+	}
 	vendor, depth, ranked := modelRank(model)
 	roster := Roster{Rungs: []Rung{{Model: model, Vendor: vendor, Depth: 0}}}
 	if !ranked {
@@ -85,4 +109,32 @@ func (a *Agent) roster(available RungAvailable) Roster {
 		})
 	}
 	return roster
+}
+
+// slot is a configured slot's model when this menu can vouch for it. Outside
+// a discovered menu it reports false, and the task's level routes it instead.
+func (r Roster) slot(model string) (string, bool) {
+	if !r.Discovered {
+		return ClampToCeiling(model, r.Ceiling().Model), true
+	}
+	for _, rung := range r.Rungs {
+		if strings.EqualFold(strings.TrimSpace(model), rung.Model) {
+			return rung.Model, true
+		}
+	}
+	return "", false
+}
+
+// clamp admits only models whose capability is established by this menu.
+// Explicit cross-vendor slots use the legacy policy only without discovery.
+func (r Roster) clamp(model string) string {
+	if !r.Discovered {
+		return ClampToCeiling(model, r.Ceiling().Model)
+	}
+	for _, rung := range r.Rungs {
+		if strings.EqualFold(strings.TrimSpace(model), rung.Model) {
+			return rung.Model
+		}
+	}
+	return r.Ceiling().Model
 }

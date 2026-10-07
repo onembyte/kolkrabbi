@@ -12,8 +12,9 @@ downloads what was published and checks it from the outside.
 
 Three questions were still open. They are answered here, and two of the answers are refusals:
 
-1. **Homebrew, scoop, winget, AUR — not yet, and not because they are hard.** A package that lags
-   the release is worse than no package.
+1. **Homebrew is available through `onembyte/tap`** (supersedes the August refusal).
+   Regenerate and verify its formula for every published release. Scoop, winget and AUR remain
+   unshipped.
 2. **macOS notarization — not for the CLI.** `curl` does not quarantine what it downloads, so
    Gatekeeper never sees the binary the install script places. It becomes a real requirement the day
    item 19 ships something with an icon.
@@ -34,15 +35,15 @@ would have been discovered by a user, not by us.
 | `curl \| sh` (`site/install.sh`) | built | detects OS/arch, refuses anything but macOS/Linux on amd64/arm64, follows the `releases/latest` redirect, verifies SHA-256 against `checksums.txt`, rejects archives containing unexpected paths, and installs to the first writable directory on `PATH` (or `KOLK_INSTALL_DIR`). 72 contract checks. |
 | GitHub Releases | built | four archives — darwin/linux × amd64/arm64 — plus `checksums.txt`, signed with keyless Cosign. |
 | `go install` | built | supported and defended: a guardrail fails CI if a `replace` directive ever appears in the root `go.mod`, because `go install …@latest` hard-refuses such a module. |
-| Homebrew tap | **refused for now** | see below. |
+| Homebrew tap | built | `brew install onembyte/tap/kolk`; `kolkrabbi` alias; macOS/Linux × amd64/arm64. Updated from verified release checksums. |
 | scoop / winget | **refused** | Windows is advisory until migration step 13; shipping a package for a platform that is not yet supported is a promise we cannot keep. |
 | AUR | **refused for now** | an AUR package needs a maintainer who watches AUR. |
 
-**Why no Homebrew tap yet.** It costs a second repository, a token with write access to it, and a
-standing obligation. GoReleaser's `brews:` block makes the mechanical part a ten-line change, which
-is exactly why it can wait: nothing is learned by doing it early, and a stale tap teaches users that
-`brew upgrade` does not get them the current kolk. Revisit when install friction — not
-discoverability — is what people complain about.
+**Homebrew follow-through.** The tap is `onembyte/homebrew-tap`. The repository's
+`scripts/update-homebrew-tap.sh` emits the four-target formula from published checksums; a
+reviewed tap commit/push and install/upgrade verification follow each release. No cross-repository
+write token is held by the main CI. Use the fully qualified name above; short names require the
+tap to be trusted under Homebrew 6. Never treat a successful main release as proof the tap updated.
 
 **Why no notarization.** The install script fetches a tarball with `curl`, which does not set
 `com.apple.quarantine`; Gatekeeper therefore never evaluates the binary and notarization would
@@ -81,10 +82,11 @@ run it by hand. Revisit if signature verification ever becomes cheap in the stan
 
 | Job | What it guards |
 | --- | --- |
-| `test` (ubuntu + macos) | the suite, with `-race`. Windows is advisory until migration step 13. |
+| `test` (ubuntu + macos) | the ordinary suite, every module. Windows is advisory until migration step 13. |
+| `race-and-coverage` (ubuntu) | full root-module race suite, coverage total and a 14-day uploaded report (O10.3–4, October 7). |
 | `guardrails` | arch layering, purity, build tags, platforms, the mode surface, the site, the installer, the spec guard, `go.mod` tidiness and the no-`replace` rule, and the four workflow/release contracts. |
 | `lint` | golangci-lint. |
-| `budgets` | binary size (20 MB hard / 12 MB soft), cold-start p50 (30 ms hard / 20 ms soft), the test-count floor, and the two-module ceiling. These fail; they never warn. |
+| `budgets` | binary size baseline + 10% ratchet and 20 MB absolute ceiling, cold-start p50 (30 ms hard / 20 ms soft), test-count floor and two-module dependency ceiling. |
 | `release` (tag only) | reruns `make check`, validates the tag, rehearses all four archives, publishes, then verifies what was published. |
 | `smoke` (weekly) | one real turn against a real provider. New in this item. |
 
@@ -128,6 +130,6 @@ fails if it is not present in the fallback catalogue.
 
 ## Open questions
 
-- A Homebrew tap, when install friction is the complaint.
+- Homebrew release handoff must stay current; the tap itself is no longer an open design question.
 - Notarization and a signing identity, when item 19 ships a bundled app.
 - Signature verification in the fast paths, if it ever stops costing a dependency tree.

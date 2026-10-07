@@ -176,6 +176,41 @@ func TestAgentRowsCarryTheirModelAndEffort(t *testing.T) {
 	}
 }
 
+// A short name says which model is working. A variant word alone ("max",
+// "pro", "mini", "cloud") says nothing — "max·max" beside an effort of max
+// least of all — and a family that carries its version keeps it.
+func TestShortModelNamesSayWhichModelIsWorking(t *testing.T) {
+	for model, want := range map[string]string{
+		// Pinned by the rows above and the agents' window tests.
+		"claude-haiku": "haiku", "claude-fable": "fable", "claude-opus": "opus", "shop/qwen3": "qwen3",
+		"gpt-5.6-luna": "luna", "gpt-5.6-sol": "sol", "claude-fable-5-1": "fable-5-1",
+		"anthropic/claude-opus-4-20250514": "opus-4-20250514",
+		// A variant stays with what it qualifies.
+		"openai/gpt-5.1-codex-max": "codex-max", "claude-3-5-sonnet-latest": "sonnet-latest",
+		"gemini-2.0-flash-lite": "flash-lite", "gpt-oss:120b-cloud": "oss:120b-cloud",
+		// After a version, or the family itself, only the whole ID says it.
+		"gemini-2.5-pro": "gemini-2.5-pro", "gpt-4o-mini": "gpt-4o-mini", "o4-mini": "o4-mini",
+		"deepseek-v3.1:671b-cloud": "deepseek-v3.1:671b-cloud", "qwen3-coder:480b-cloud": "qwen3-coder:480b-cloud",
+		// A family that carries its version is the name; a family whose rest
+		// is only a version is kept with it.
+		"ollama/qwen2.5-coder:7b": "qwen2.5-coder:7b", "gpt-5.1": "gpt-5.1", "deepseek-v3.1": "deepseek-v3.1",
+		// Size and tuning words qualify a model too (V43.5 N4).
+		"google/gemma-3-27b-it": "gemma-3-27b-it", "mistralai/mistral-large": "mistral-large",
+		"01-ai/yi-large": "yi-large", "mistralai/devstral-small": "devstral-small", "qwen/qwen3-coder": "qwen3-coder",
+		"deepseek-chat-v3.1": "deepseek-chat-v3.1", "ollama/deepseek-coder-v2:16b": "deepseek-coder-v2:16b",
+		"mistral-large-latest": "mistral-large-latest",
+		"":                     "",
+	} {
+		if got := shortModelName(model); got != want {
+			t.Errorf("shortModelName(%q) = %q, want %q", model, got, want)
+		}
+	}
+	row := agentWindowRow(AgentStatus{Index: 1, State: "working", Model: "openai/gpt-5.1-codex-max", Effort: "max", Summary: "task"}, 60)
+	if !strings.Contains(row, "codex-max·max") {
+		t.Fatalf("the window row does not say which model: %q", row)
+	}
+}
+
 // What room is left after every agent has a row goes to their logs, and the
 // agents that are working get it first.
 func TestLogsFillWhatIsLeftAfterTheRows(t *testing.T) {

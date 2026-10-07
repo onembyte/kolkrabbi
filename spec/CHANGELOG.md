@@ -5,6 +5,16 @@ are allowed during version 0, but every change is recorded here.
 
 ## 0 — unreleased
 
+- Add `recovery.failed` for every failed pause, limit, error or resume recovery write.
+  `code` is `recovery_save_failed`; `reason` identifies the boundary; `message` is
+  scrubbed display text. Required `durable` distinguishes a saved compressed sidecar
+  with a failed mirror from a lost recovery point. This event is independent of
+  the turn's terminal result and includes failures before a resumed turn starts.
+
+- `subagent.finished` gains optional `reason: "paused"`: this provider attempt
+  ended with unfinished work retained. `ok: false` with that reason is a pause,
+  not a failed task. Its `work.updated` state is `waiting`. A resumed task keeps
+  its task ID and increasing sequence; each provider attempt has its own child turn.
 - Add `provider.limit`: one event per limit a model hits, with closed `kind` (subscription_allowance,
   account_quota, endpoint_capacity, budget_stop, model_refusal, transport), `scope` (model, account,
   endpoint) and `action` (retry, rotate, recommend, ask, switch, pause, stop), the reset time when

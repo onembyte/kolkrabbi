@@ -22,10 +22,10 @@ BIN_HARD=$(( BIN_BASELINE * 110 / 100 ))
 BIN_CEILING=$((20 * 1024 * 1024)) # 20 MB — the absolute ceiling
 START_HARD_MS=30
 START_SOFT_MS=20
-# 90 % of the 3,575 `=== RUN` lines the root module ran on 2026-09-09. The old
+# 90 % of the 5,158 `=== RUN` lines the root module ran on 2026-10-07. The old
 # floor of 22 could not trip: it would have taken deleting 99 % of the suite.
 # Bump it with each release, the same way BIN_BASELINE ratchets.
-TEST_FLOOR=3217
+TEST_FLOOR=4642
 
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT

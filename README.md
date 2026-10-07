@@ -9,11 +9,11 @@ for the terminal — an alternative to Claude Code and Codex CLI that works with
 Plus/Pro (Codex) and GitHub Copilot, each through that vendor's own CLI with no
 API key; any model on [OpenRouter](https://openrouter.ai); or a local model on
 Ollama, vLLM, or any OpenAI-compatible endpoint. When one plan hits its limit,
-Kolkrabbi pauses and resumes by itself, or continues on your next subscription
+Kolkrabbi pauses and resumes by itself, or at a proven safe boundary continues on your next subscription
 ([how](https://kolkrabbi.francomichetti.com/subscriptions)).
 
 Think Claude Code, but: separate chat, code, and agent modes, an effort dial that
-selects *which model* and agent task width instead of just thinking tokens, and
+selects *which model* and reasoning/tool budgets instead of just thinking tokens, and
 every call tracked locally so you learn which models actually earn their cost.
 
 Go, two dependencies, a single static binary under 10MB, milliseconds to start.
@@ -50,9 +50,9 @@ benefits from decomposition and isolated working contexts.
 
 `ultrathink` scales thinking on one vendor's model. Kolkrabbi's effort scales
 across providers: each level maps to a model tier you choose, and it also sets
-the tool-round limit per turn, the shell timeout, and how many tasks an
-orchestrated run may open (low 1, medium 2, high 4, max 6, ultra 8). `ultra`
-is the fifth rung, above `max` on each of those; it is also how a vendor's own
+the tool-round limit per turn and the shell timeout. The planner keeps every task;
+independent tasks run with bounded concurrency (three by default), rather than
+being truncated by effort. `ultra` is the fifth rung above `max`; it is also how a vendor's own
 `ultra` is reached. The older `quick/standard/deep` words and the numbers
 `1..5` are still accepted.
 
@@ -95,7 +95,7 @@ kolk                                                              # opens a sess
 Then, in the session:
 
 ```
-/key sk-or-v1-...        # or export OPENROUTER_API_KEY=... before starting
+/key                    # asks for the key, hidden; any supported provider
 ```
 
 That's the whole setup. Everything else is optional.
@@ -167,6 +167,7 @@ kolk --mode chat              # start in chat
 kolk --mode agent "plan, implement, and verify this change"
 kolk --permission auto-approve "run the tests and fix failures"   # edits flow, commands still ask
 kolk -r                       # resume the most recent session
+kolk -m ollama/qwen2.5-coder:7b # local session; no remote API key required
 kolk --base-url http://localhost:11434/v1 -m qwen2.5-coder:14b "..."  # Ollama — keyless; the OpenRouter key never leaves openrouter.ai
 ```
 
@@ -286,7 +287,7 @@ internal/stats         local JSONL store + aggregation (the dashboard)
 internal/dash          server-rendered, loopback-only usage dashboard
 internal/bus, serve    event bus and the NDJSON / stdio / SSE surfaces
 internal/devices       pairing codes and per-device tokens for remote access
-internal/local         the user's own Ollama: discovery, start, models, pulls; hardware probe, fit planner
+internal/local         native Ollama setup, discovery, project lifetime, models and pulls; hardware fit
 internal/tui, term     persistent composer, status line, terminal facts
 internal/redact, secret, keystore   scrubbing and credential storage
 internal/enginetest    scripted fake OpenRouter for offline e2e testing
@@ -336,9 +337,13 @@ The reasoning for each, and the condition that would change it, is in
   it, says what runs there, and its models become `rig/<model>`. kolk tells an
   Ollama from anything OpenAI-compatible by asking, so Docker Model Runner and
   llama.cpp need no setting of their own, and it sends no key to any of them.
-- Local models use the Ollama you already have; kolk never installs one. A
-  pulled model shows in `/model` even while Ollama is idle, and picking it
-  starts the server for the session.
+- Localia reuses an existing Ollama or installs the official native runtime through
+  `/localia setup`, an approved pull, or local model selection. No Docker or sudo is needed.
+  On Linux it adds the official ROCm or JetPack bundle an AMD GPU or Jetson needs, as Ollama's
+  own installer does, and `/localia` and `/doctor` name any GPU it cannot serve.
+  Project `local.ephemeral` defaults on: its runtime stops at session close and weights stay
+  cached. Off retains a project runtime for later sessions. See [Localia](docs/localia.md)
+  for platform scope, explicit model downloads and setup commands.
 - No MCP or skills yet. The execution sandbox is opt-in and off by default:
   `/sandbox on` (or `/config set sandbox on` to persist) confines kolk's own
   `bash` tool with Seatbelt on macOS and Landlock on Linux 5.13 or newer.

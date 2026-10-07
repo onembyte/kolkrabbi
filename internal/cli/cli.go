@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"strings"
 	"sync"
@@ -92,6 +93,10 @@ type app struct {
 	// They are deliberately not written anywhere: a rule that outlives the
 	// session someone scoped it to is a rule nobody consented to.
 	sessionRules []string
+	// planOn is whether /plan is on. Plan mode's refusals come from it
+	// (activeRules adds planRules while it holds), never from matching rule
+	// text: a session rule someone wrote that reads like plan mode's is theirs.
+	planOn bool
 	// in is the one shared stdin reader. The REPL and the engine's tool
 	// confirmations both read lines from it; two readers would each buffer and
 	// one would eat the other's input.
@@ -117,6 +122,20 @@ type app struct {
 	// discoverHost finds the user's own Ollama. Injected so a test never
 	// probes the real loopback port, which on the owner's machine has one.
 	discoverHost func(context.Context) local.Host
+	// localRuntime is bound to this session's canonical project and lifetime.
+	// Every local surface consults it before default-port discovery.
+	localRuntime *local.HostStarter
+	// Native installation is injected so no fixture can fetch or execute a release.
+	installLocalRuntime func(context.Context, string, func(local.RuntimeProgress)) (local.Host, error)
+	// managedSetupSupported says whether that installer has a build for this
+	// platform, so a pull question never promises setup a yes cannot do.
+	managedSetupSupported func() bool
+	// localHardware is where the installer's accelerator detection reads the
+	// machine; nil means the real root. Tests pass an empty one, so a test
+	// run on a machine with a GPU sees none.
+	localHardware fs.FS
+	// Preserve an explicit --base-url even when startup selected a keyless local model.
+	sessionEndpoint string
 	// identify probes a local endpoint's address, injected so the endpoint
 	// commands can be tested without a network.
 	identify func(context.Context, string) (local.Runtime, error)
@@ -178,8 +197,12 @@ type app struct {
 	pendingLogin   *provider.Plan
 	replaceSelf    func(path string, args []string, env []string) error
 	executablePath func() (string, error)
-	isStdinPiped   func() bool
-	handover       func(context.Context, string, []string, string) error
+	// runReleased records that releaseRun has freed what the run holds, so
+	// the run's own deferred release does not free it twice after a restart
+	// that could not exec.
+	runReleased  bool
+	isStdinPiped func() bool
+	handover     func(context.Context, string, []string, string) error
 	// handoverWindow runs a provider login in a terminal window kolk opens
 	// itself, so a session never has to step down for its user to sign in.
 	// Nil means this kolk build has no such path and the screen-down flow
@@ -206,6 +229,10 @@ func newApp() *app {
 	a.discoverHost = func(ctx context.Context) local.Host {
 		return local.DiscoverHost(ctx, local.HostDiscovery{Addr: local.DefaultHostAddr, LookPath: shell.LookPath})
 	}
+	a.installLocalRuntime = func(ctx context.Context, dir string, progress func(local.RuntimeProgress)) (local.Host, error) {
+		return a.localInstaller(dir, progress).Ensure(ctx)
+	}
+	a.managedSetupSupported = local.ManagedSetupSupported
 	a.listHostModels = local.ListHostModels
 	a.listCloudCatalog = local.ListCloudCatalog
 	a.listCloudModels = local.ListCloudModels
@@ -380,13 +407,42 @@ func (a *app) runHelp(_ context.Context, args []string) error {
 		a.printUsage()
 		return nil
 	}
-	c := lookupCommand(args[0])
-	if c == nil {
-		return usagef("no such command %q", args[0])
+	if c := lookupCommand(args[0]); c != nil {
+		fmt.Fprintf(a.stdout, "%s\n  %s\n", usageLine(c.name), c.summary)
+		return nil
 	}
-	fmt.Fprintf(a.stdout, "%s\n  %s\n", usageLine(c.name), c.summary)
-	return nil
+	// kolk help lists the session's commands, so help for one of them (with
+	// or without its slash, or by the verb it replaced) answers too, and says
+	// where it runs.
+	name := strings.TrimPrefix(args[0], "/")
+	if moved, ok := retiredVerbs[name]; ok {
+		name = strings.TrimPrefix(moved, "/")
+	}
+	found := false
+	for _, sc := range slashCommandTable {
+		if sc.name == name {
+			// The slash registry's own usage, not usageLine's: /help is also
+			// the name of an outside verb, whose usage would be the wrong one.
+			usage := strings.TrimSpace("usage: /" + sc.name + " " + sc.args)
+			fmt.Fprintf(a.stdout, "%s\n  %s\n  a session command: open a session with `kolk`, then run it there\n", usage, sc.summary)
+			found = true
+		}
+	}
+	// A sessions verb too, even when a session command shares the name:
+	// `/clear` starts a new session, `kolk sessions clear` deletes them all.
+	if sessionsVerbs[name] {
+		fmt.Fprintf(a.stdout, "%s\n  %s is part of kolk sessions\n", usageLine("sessions"), name)
+		found = true
+	}
+	if found {
+		return nil
+	}
+	return usagef("no such command %q", args[0])
 }
+
+// sessionsVerbs are the words `kolk sessions` takes, so help for one of them
+// finds the command it belongs to.
+var sessionsVerbs = map[string]bool{"search": true, "rename": true, "fork": true, "export": true, "rm": true, "clear": true}
 
 // usageLine is the usage a command prints when it is used wrongly, generated
 // from the registry the command actually lives in.
@@ -437,15 +493,7 @@ Open a session — this is the normal way in:
 Inside the session, everything is a /command:
 `, build.String())
 
-	w := tabwriter.NewWriter(a.stdout, 0, 0, 2, ' ', 0)
-	for _, c := range slashCommandTable {
-		usage := "/" + c.name
-		if c.args != "" {
-			usage += " " + c.args
-		}
-		fmt.Fprintf(w, "  %s\t%s\n", usage, c.summary)
-	}
-	_ = w.Flush() // a failed write to a terminal is not actionable
+	writeSlashTable(a.stdout, "  ")
 
 	fmt.Fprint(a.stdout, `
 Outside a session there are four commands and no more, because only these are
@@ -454,7 +502,7 @@ things a session cannot do:
 	// Name and summary only: `kolk sessions` grammar is long enough to push
 	// every summary off the right edge, and `kolk help <command>` is where a
 	// grammar belongs.
-	w = tabwriter.NewWriter(a.stdout, 0, 0, 2, ' ', 0)
+	w := tabwriter.NewWriter(a.stdout, 0, 0, 2, ' ', 0)
 	for _, c := range commandTable() {
 		fmt.Fprintf(w, "  kolk %s\t%s\n", c.name, c.summary)
 	}

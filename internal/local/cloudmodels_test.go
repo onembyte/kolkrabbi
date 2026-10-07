@@ -2,9 +2,14 @@ package local
 
 import (
 	"context"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCloudModelAliasUsesOllamaSourceSuffixRules(t *testing.T) {
@@ -19,6 +24,69 @@ func TestCloudModelAliasUsesOllamaSourceSuffixRules(t *testing.T) {
 	for input, want := range tests {
 		if got := cloudModelAlias(input); got != want {
 			t.Errorf("cloudModelAlias(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+// Only an answer without a remote host says "not Cloud". A signed-out server,
+// a failing or unreachable one, and a cancelled check each say something else,
+// and none of them may be reported as the model's nature.
+func TestCloudModelRemoteHostNeedsTheServersProof(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		switch {
+		case strings.Contains(string(body), `"glm-5.1:cloud"`):
+			_, _ = w.Write([]byte(`{"remote_host":"https://ollama.com:443"}`))
+		case strings.Contains(string(body), `"missing:cloud"`):
+			http.Error(w, `{"error":"model not found"}`, http.StatusNotFound)
+		case strings.Contains(string(body), `"locked:cloud"`):
+			http.Error(w, `{"error":"unauthorized","signin_url":"https://ollama.com/connect"}`, http.StatusUnauthorized)
+		case strings.Contains(string(body), `"broken:cloud"`):
+			http.Error(w, `{"error":"boom"}`, http.StatusInternalServerError)
+		case strings.Contains(string(body), `"garbled:cloud"`):
+			_, _ = w.Write([]byte(`not json`))
+		case strings.Contains(string(body), `"slow:cloud"`):
+			<-r.Context().Done()
+		default:
+			_, _ = w.Write([]byte(`{"capabilities":["completion"]}`))
+		}
+	}))
+	defer server.Close()
+	addr := strings.TrimPrefix(server.URL, "http://")
+	ctx := context.Background()
+
+	if got, err := CloudModelRemoteHost(ctx, addr, "glm-5.1:cloud"); err != nil || got != "https://ollama.com:443" {
+		t.Errorf("proven Cloud model = %q, %v; want its remote host", got, err)
+	}
+	for _, name := range []string{"big:70b-cloud", "missing:cloud"} {
+		if got, err := CloudModelRemoteHost(ctx, addr, name); got != "" || !errors.Is(err, ErrNotCloudModel) {
+			t.Errorf("%s = %q, %v; want ErrNotCloudModel", name, got, err)
+		}
+	}
+	if _, err := CloudModelRemoteHost(ctx, addr, "locked:cloud"); !errors.Is(err, ErrCloudSignedOut) {
+		t.Errorf("a 401 = %v; want ErrCloudSignedOut", err)
+	}
+	for _, target := range []struct{ addr, name string }{{addr, "broken:cloud"}, {addr, "garbled:cloud"}, {"127.0.0.1:1", "glm-5.1:cloud"}} {
+		if got, err := CloudModelRemoteHost(ctx, target.addr, target.name); got != "" || err == nil || errors.Is(err, ErrNotCloudModel) {
+			t.Errorf("%s at %s = %q, %v; want a failure to ask, not a verdict", target.name, target.addr, got, err)
+		}
+	}
+	cancelled, cancel := context.WithCancel(ctx)
+	time.AfterFunc(50*time.Millisecond, cancel)
+	// Exactly the caller's own error, not a wrapped "asking ollama" failure.
+	if _, err := CloudModelRemoteHost(cancelled, addr, "slow:cloud"); err == nil || err.Error() != context.Canceled.Error() {
+		t.Errorf("a cancelled check = %v; want the caller's context.Canceled itself", err)
+	}
+}
+
+func TestIsCloudModelNameAcceptsOnlyCloudSelectors(t *testing.T) {
+	for name, want := range map[string]bool{
+		"gpt-oss:120b-cloud": true, "glm-5.1:cloud": true, "owner/model:latest-cloud": true,
+		"qwen2.5-coder:7b": false, "glm-5.1": false, "registry:5000/model": false,
+		"cloud": false, "-cloud": false, "": false, "  ": false,
+	} {
+		if got := IsCloudModelName(name); got != want {
+			t.Errorf("IsCloudModelName(%q) = %v, want %v", name, got, want)
 		}
 	}
 }

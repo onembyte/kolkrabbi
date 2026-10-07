@@ -2,6 +2,17 @@
 
 Status: hardened on 2026-08-26 · supersedes: — · PLAN.md item 12
 
+V43.3c updates the implementation contract below (acceptance in CHECKPOINTS.md): compaction may
+run between complete tool rounds, including within a single turn and native child conversations.
+Recent output may be excerpted if needed; system instructions, the original goal and pending tool
+batches remain intact. Original facts feed summaries. Complete snapshots are archived before any
+working-context replacement under `<id>.compactions/<sha256>.json`; failed archival or session
+persistence leaves the full working conversation intact. Legacy numbered archives remain readable.
+Full JSON exports and forks include archives. `/compact undo` preserves subsequent turns.
+Overflow retries require actual shrinkage, once per rejected request, with a target bounded by
+the failing request as well as the correct model window. Provider-owned private context remains
+the provider's responsibility; Kolk retains its observable history and conversation handle.
+
 ## Decision (the short version)
 
 Sessions stay one JSON file each. The dashboard's SQLite plan does not pull sessions with it,

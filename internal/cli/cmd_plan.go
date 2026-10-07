@@ -7,7 +7,7 @@ import (
 	"github.com/onembyte/kolkrabbi/internal/engine"
 )
 
-// planRules are what plan mode adds: read-only, for this session only.
+// planRules are what plan mode adds: read-only, for as long as plan mode is on.
 //
 // Built out of E13's rules rather than a new mode flag, so there stays exactly
 // one place where "may I do this" is answered and `/permissions` can show a
@@ -36,7 +36,7 @@ func (a *app) enterPlanMode(ag *engine.Agent) {
 		fmt.Fprintln(a.stdout, "already in plan mode. /plan off when you are ready to act.")
 		return
 	}
-	a.sessionRules = append(a.sessionRules, planRules...)
+	a.planOn = true
 	a.applyRules(ag)
 	ag.SetExtraSystem(planInstruction)
 
@@ -50,34 +50,12 @@ func (a *app) leavePlanMode(ag *engine.Agent) {
 		return
 	}
 	// Drops the rules plan mode added and nothing else: a session rule someone
-	// wrote themselves is not plan mode's to remove.
-	kept := a.sessionRules[:0]
-	for _, rule := range a.sessionRules {
-		if !isPlanRule(rule) {
-			kept = append(kept, rule)
-		}
-	}
-	a.sessionRules = kept
+	// wrote themselves is not plan mode's to remove, whatever it reads like.
+	a.planOn = false
 	a.applyRules(ag)
 	ag.SetExtraSystem("")
 
 	fmt.Fprintf(a.stdout, "plan mode off. Back to %s.\n", ag.Permission)
 }
 
-func (a *app) inPlanMode() bool {
-	for _, rule := range a.sessionRules {
-		if isPlanRule(rule) {
-			return true
-		}
-	}
-	return false
-}
-
-func isPlanRule(rule string) bool {
-	for _, planRule := range planRules {
-		if rule == planRule {
-			return true
-		}
-	}
-	return false
-}
+func (a *app) inPlanMode() bool { return a.planOn }

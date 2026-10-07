@@ -93,6 +93,7 @@ var packageLayer = map[string]Layer{
 	"internal/selfupdate":   L0Platform,
 	"internal/term":         L0Platform,
 	"internal/xid":          L0Platform,
+	"internal/zstd":         L0Platform,
 
 	// L2 — the event journal and fan-out hinge.
 	"internal/bus": L2Hinge,
@@ -192,6 +193,7 @@ var stdlibOnlyPackages = map[string]bool{
 	"internal/diff":    true,
 	"internal/netaddr": true,
 	"internal/redact":  true,
+	"internal/zstd":    true,
 }
 
 // authHeaders are request headers that carry a credential. Building one is

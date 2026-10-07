@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -90,6 +91,32 @@ func TestStoredCredentialBuildsComputedDefaultAgent(t *testing.T) {
 }
 
 func TestModeAgentFlagRunsTheOrchestratedPipeline(t *testing.T) {
+	// A repository of its own, with a commit and an uncommitted change, so the
+	// writing tasks take real worktrees as they would in a user's project.
+	// From inside this repository they took worktrees of the real one and
+	// snapshotted the developer's uncommitted tree into its .git on every
+	// test run (V43.5 G1).
+	project := t.TempDir()
+	git := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", project}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return string(out)
+	}
+	git("init", "-q")
+	if err := os.WriteFile(filepath.Join(project, "README"), []byte("project\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	git("add", "README")
+	git("commit", "-qm", "init")
+	if err := os.WriteFile(filepath.Join(project, "notes.txt"), []byte("uncommitted\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(project)
 	d := storeFirstRunKey(t)
 	srv := enginetest.New(
 		enginetest.Step{Text: `["inspect the request", "prepare the answer"]`},
@@ -121,6 +148,15 @@ func TestModeAgentFlagRunsTheOrchestratedPipeline(t *testing.T) {
 	}
 	if srv.Tools[0] != 0 || srv.Tools[1] == 0 || srv.Tools[2] == 0 || srv.Tools[3] != 0 {
 		t.Errorf("tool schemas by role = %v, want none/tools/tools/none", srv.Tools)
+	}
+	// The writers had worktrees of their own: only that path snapshots the
+	// uncommitted tree into a commit, which the finished worktrees leave
+	// unreachable in this repository. None is left behind.
+	if !strings.Contains(git("fsck", "--unreachable", "--no-reflogs"), "unreachable commit") {
+		t.Errorf("the writers did not take worktrees: no snapshot commit in the project")
+	}
+	if worktrees := strings.Count(git("worktree", "list"), "\n"); worktrees != 1 {
+		t.Errorf("worktrees left behind: %d", worktrees-1)
 	}
 }
 

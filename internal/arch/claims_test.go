@@ -9,22 +9,23 @@ import (
 
 // staleClaims are sentences the code no longer honours. Each was true under
 // the managed-sidecar contract plan 25 had before option E, and each is now a
-// promise about behaviour that does not exist. History (CHECKPOINTS, the
+// promise about behaviour that does not exist. V43.4 restores native runtime
+// ownership and project lifetime at the owner's request, so those two generic
+// phrases are no longer forbidden. Host reuse and shared model storage remain.
+// History (CHECKPOINTS, the
 // build log, plan 25's own record of what changed) may keep them; anything a
 // user reads as current may not.
 var staleClaims = []string{
 	"never touches a host-owned Ollama",
 	"never touches a host installation",
 	"belongs to the host and is never used",
-	"managed local runtime",
-	"Kolk-owned runtime",
 	"pins no verified local runtime",
 	"/localia runtime install",
 }
 
 var claimExempt = []string{"CHECKPOINTS.md", "docs/build-log.md", "docs/plan/25-managed-local-models.md", "CHANGELOG.md", "claims_test.go"}
 
-func TestNoManagedSidecarClaimsSurvive(t *testing.T) {
+func TestNoRetiredLocalIsolationClaimsSurvive(t *testing.T) {
 	root := repoRootDir(t)
 	for _, glob := range []string{"README.md", "PLAN.md", "SECURITY.md", "site/*.html", "internal/**/*.go", "cmd/**/*.go", "docs/plan/*.md"} {
 		matches, _ := filepath.Glob(filepath.Join(root, glob))

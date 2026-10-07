@@ -8,3 +8,5 @@ import "os"
 // the boundary explicit until LockFileEx and its contention tests land there.
 func tryLock(*os.File) (bool, error) { return false, ErrUnsupported }
 func unlock(*os.File) error          { return ErrUnsupported }
+
+func openLockFile(string) (*os.File, error) { return nil, ErrUnsupported }

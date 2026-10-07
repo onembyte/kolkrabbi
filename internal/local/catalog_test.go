@@ -34,13 +34,36 @@ func TestPulledNamesReadsTheSidecarManifestTree(t *testing.T) {
 	}
 
 	pulled := PulledNames(modelDir)
-	if len(pulled) != 2 || !pulled["qwen2.5-coder"] || !pulled["llama3.1"] {
+	if len(pulled) != 2 || !pulled["qwen2.5-coder:7b"] || !pulled["llama3.1:8b"] {
 		t.Fatalf("pulled = %+v, want exactly the two completed pulls", pulled)
 	}
 	if PulledName(pulled, "qwen2.5-coder:7b") != true {
 		t.Fatal("catalog's tagged name did not map onto its library manifest")
 	}
-	if PulledName(pulled, "phi4:14b") || PulledName(pulled, "gemma2:9b") {
+	if PulledName(pulled, "qwen2.5-coder:14b") || PulledName(pulled, "phi4:14b") || PulledName(pulled, "gemma2:9b") {
 		t.Fatal("an unpulled or interrupted pull reads as present")
+	}
+}
+
+func TestCachedModelsKeepNamespacesTagsAndIgnoreDirectories(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"registry.ollama.ai/library/demo/latest", "registry.ollama.ai/team/custom/tiny", "registry.example.com:5000/team/custom/large"} {
+		file := filepath.Join(dir, "manifests", name)
+		if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, []byte("{}"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "manifests/registry.ollama.ai/library/demo/fake-tag"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	pulled := PulledNames(dir)
+	if len(pulled) != 3 || !PulledName(pulled, "demo") || !PulledName(pulled, "team/custom:tiny") || !PulledName(pulled, "registry.example.com:5000/team/custom:large") {
+		t.Fatalf("cached variants=%v", pulled)
+	}
+	if PulledName(pulled, "demo:fake-tag") || PulledName(pulled, "team/custom:large") || PulledName(pulled, "registry.example.com:5000/team/custom") {
+		t.Fatalf("invented variant in %v", pulled)
 	}
 }

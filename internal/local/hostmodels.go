@@ -195,19 +195,33 @@ type shownModel struct {
 // model_info["<architecture>.context_length"], which is where older servers
 // and cloud models put it.
 func showHostModel(ctx context.Context, client *http.Client, base, name string) (shownModel, bool) {
+	shown, err := requestShowHostModel(ctx, client, base, name)
+	return shown, err == nil
+}
+
+// showStatusError is an /api/show answer other than 200, kept so a caller
+// can tell "no such model" from "signed out" from "the server failed".
+type showStatusError struct{ status int }
+
+func (e *showStatusError) Error() string {
+	return fmt.Sprintf("/api/show answered HTTP %d", e.status)
+}
+
+// requestShowHostModel is showHostModel with the reason for a failure.
+func requestShowHostModel(ctx context.Context, client *http.Client, base, name string) (shownModel, error) {
 	body, _ := json.Marshal(map[string]string{"model": name})
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/api/show", bytes.NewReader(body))
 	if err != nil {
-		return shownModel{}, false
+		return shownModel{}, err
 	}
 	request.Header.Set("Content-Type", "application/json")
 	response, err := client.Do(request)
 	if err != nil {
-		return shownModel{}, false
+		return shownModel{}, err
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
-		return shownModel{}, false
+		return shownModel{}, &showStatusError{status: response.StatusCode}
 	}
 	var reply struct {
 		Capabilities []string `json:"capabilities"`
@@ -219,13 +233,13 @@ func showHostModel(ctx context.Context, client *http.Client, base, name string) 
 	}
 	body, err = io.ReadAll(io.LimitReader(response.Body, hostShowMaxBodyBytes+1))
 	if err != nil {
-		return shownModel{}, false
+		return shownModel{}, err
 	}
 	if len(body) > hostShowMaxBodyBytes {
-		return shownModel{}, false
+		return shownModel{}, fmt.Errorf("/api/show answer exceeds %d bytes", hostShowMaxBodyBytes)
 	}
 	if err := json.Unmarshal(body, &reply); err != nil {
-		return shownModel{}, false
+		return shownModel{}, err
 	}
 	remoteHost := strings.TrimSpace(reply.RemoteHost)
 	shown := shownModel{contextLength: reply.Details.ContextLength, capabilitiesPresent: reply.Capabilities != nil, remote: remoteHost != "", remoteHost: remoteHost}
@@ -252,7 +266,7 @@ func showHostModel(ctx context.Context, client *http.Client, base, name string) 
 			}
 		}
 	}
-	return shown, true
+	return shown, nil
 }
 
 func firstNonZero(a, b int) int {

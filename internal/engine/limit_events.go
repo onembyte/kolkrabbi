@@ -23,7 +23,9 @@ func (a *Agent) publishLimit(limit provider.Limit, action string) {
 		Kind: string(limit.Kind), Scope: string(limit.Scope), Action: action,
 		Model: limit.Model, Connector: limit.Connector, Message: limit.Message, Source: limit.Source,
 	}
-	if !limit.ResetAt.IsZero() {
+	// The vendor's reset, only while it is ahead: a stale one is not when
+	// anything happens (the pause estimated its own time instead).
+	if limit.ResetAt.After(time.Now()) {
 		data.ResetAt = limit.ResetAt.UTC().Format(time.RFC3339)
 	}
 	if limit.RetryAfter > 0 {

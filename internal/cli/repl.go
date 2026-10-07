@@ -19,7 +19,29 @@ import (
 // replPrompt opens a line in the plain REPL, matching the composer.
 const replPrompt = "❯"
 
+// replWriter keeps prompt/error writes whole while automatic delivery runs
+// alongside the input reader. The turn lock cannot guard printing a prompt:
+// waiting for a running turn there would prevent reading /exit or EOF.
+type replWriter struct {
+	mu  *sync.Mutex
+	out io.Writer
+}
+
+func (w replWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.out.Write(p)
+}
+
 func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
+	stdout, stderr, engineOut := a.stdout, a.stderr, ag.Out
+	var outputMu sync.Mutex
+	a.stdout, a.stderr, ag.Out = replWriter{&outputMu, stdout}, replWriter{&outputMu, stderr}, replWriter{&outputMu, engineOut}
+	if a.localRuntime != nil {
+		a.localRuntime.SetOutput(a.stdout)
+		defer a.localRuntime.SetOutput(stdout)
+	}
+	defer func() { a.stdout, a.stderr, ag.Out = stdout, stderr, engineOut }()
 	resumedNote := ""
 	if ag.Sess != nil {
 		if n := len(ag.Sess.GetMessages()); n > 1 {
@@ -36,13 +58,20 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 	// A turn the resume monitor brings back runs on its goroutine, under the
 	// same lock as a typed one, so the two never share the backend.
 	var turnMu sync.Mutex
-	a.armAutoResume(ctx, ag, func(pending string) {
+	stopResume := a.armAutoResume(ctx, ag, func(resumeCtx context.Context, pending string) bool {
 		turnMu.Lock()
 		defer turnMu.Unlock()
-		if err := a.runInteractivePrompt(ctx, ag, pending); err != nil {
+		if resumeCtx.Err() != nil {
+			return false
+		}
+		turnCtx, stop := signal.NotifyContext(resumeCtx, os.Interrupt)
+		defer stop()
+		if err := a.runInteractivePrompt(turnCtx, ag, pending); err != nil {
 			fmt.Fprintf(a.stderr, "\033[31merror:\033[0m %v\n", err)
 		}
+		return true
 	})
+	defer stopResume()
 
 	for {
 		// The same marker the persistent composer draws. Mode moved into the
@@ -70,8 +99,20 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 		goal, markedSaga := inlineSagaPrompt(line)
 		sagaRequest := markedSaga && goal != ""
 		if looksLikeSlashCommand(line) && !sagaRequest {
+			switch strings.Fields(line)[0] {
+			case "/exit", "/quit":
+				// Cancel a delivered turn before waiting for its turn lock.
+				stopResume()
+			case "/new", "/clear":
+				// The same, keeping auto-resume for the new session: a
+				// delivery waiting on the turn lock would otherwise never be
+				// joined by the session swap that holds it.
+				ag.QuiesceResume()
+			}
 			tctx, stop := signal.NotifyContext(ctx, os.Interrupt)
+			turnMu.Lock()
 			shouldExit := a.slash(tctx, ag, line)
+			turnMu.Unlock()
 			stop()
 			if shouldExit || eof {
 				return nil
@@ -89,7 +130,6 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 		tctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 		turnMu.Lock()
 		err = a.runInteractivePrompt(tctx, ag, line)
-		turnMu.Unlock()
 		stop()
 		switch {
 		case errors.Is(err, context.Canceled):
@@ -98,6 +138,7 @@ func (a *app) repl(ctx context.Context, ag *engine.Agent) error {
 			fmt.Fprintf(a.stderr, "\033[31merror:\033[0m %v\n", err)
 			writeAdvice(a.stderr, err)
 		}
+		turnMu.Unlock()
 		if eof {
 			return nil
 		}

@@ -192,11 +192,11 @@ func TestCompactFallsBackToASummaryAndKeepsItValid(t *testing.T) {
 	if result.Messages[0].Role != "system" {
 		t.Fatalf("system prompt lost: %+v", result.Messages[0])
 	}
-	if !strings.Contains(result.Messages[1].Content, "summarised") {
-		t.Fatalf("the summary is not labelled as one: %q", result.Messages[1].Content)
+	if result.Messages[1].Content != "one" {
+		t.Fatal("the original goal was not retained")
 	}
-	if !strings.Contains(result.Messages[1].Content, "tests pass") {
-		t.Fatalf("the summary content was lost: %q", result.Messages[1].Content)
+	if !strings.Contains(result.Messages[2].Content, "summarised") || !strings.Contains(result.Messages[2].Content, "tests pass") {
+		t.Fatalf("the labelled summary content was lost: %q", result.Messages[2].Content)
 	}
 }
 
@@ -318,7 +318,7 @@ func TestCompactionArchivesWhatItReplaced(t *testing.T) {
 	}
 }
 
-func TestCompactionProceedsWhenItCannotArchive(t *testing.T) {
+func TestCompactionRetainsHistoryWhenItCannotArchive(t *testing.T) {
 	agent, session, out := compactionAgent(t, 20_000, 19_000)
 	agent.ArchiveCompaction = func([]provider.Message) (string, error) {
 		return "", errors.New("disk is full")
@@ -327,15 +327,13 @@ func TestCompactionProceedsWhenItCannotArchive(t *testing.T) {
 
 	agent.compactIfNeeded(context.Background())
 
-	// The session still had to fit. Losing the archive costs reversibility
-	// beyond this process, not the ability to keep working.
-	if estimateTokens(session.GetMessages()) >= before {
-		t.Fatal("a failed archive stopped the compaction")
+	if estimateTokens(session.GetMessages()) != before {
+		t.Fatal("a failed archive discarded history")
 	}
 	if !strings.Contains(out.String(), "disk is full") {
 		t.Fatalf("output = %q, want the archive failure surfaced", out.String())
 	}
-	if !agent.RestoreCompaction() {
-		t.Fatal("in-memory undo must still work without an archive")
+	if agent.RestoreCompaction() {
+		t.Fatal("failed compaction should not create an undo")
 	}
 }

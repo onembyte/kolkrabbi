@@ -1,6 +1,20 @@
 package engine
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/onembyte/kolkrabbi/internal/continuity"
+)
+
+func (s *spend) snapshot() continuity.Spend {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return continuity.Spend{USD: s.usd, Limit: s.limit, Calls: s.calls, Worst: s.worst, Billing: s.billing}
+}
+
+func restoredSpend(saved continuity.Spend) *spend {
+	return &spend{usd: saved.USD, limit: saved.Limit, calls: saved.Calls, worst: saved.Worst, billing: saved.Billing}
+}
 
 // spend is what one orchestrated run has cost so far.
 //
@@ -21,6 +35,13 @@ type spend struct {
 	// billing is the one mode every call was billed under, "mixed" once two
 	// differ, empty until a call said (provider.Billing*).
 	billing string
+}
+
+// reset returns s to what a fresh agent's holds.
+func (s *spend) reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.usd, s.limit, s.inflight, s.calls, s.worst, s.billing = 0, 0, 0, 0, 0, ""
 }
 
 // noteBilling folds one call's billing mode into the session's.

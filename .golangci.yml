@@ -29,6 +29,11 @@ linters:
     rules:
       - path: _test\.go
         linters: [errcheck]
+      # Preserve the pinned Go decoder byte-for-byte. Its io.Reader EOF
+      # comparisons intentionally distinguish the exact terminal sentinel.
+      - path: ^internal/zstd/zstd\.go$
+        source: 'if err == io.EOF'
+        linters: [errorlint]
 
 formatters:
   enable:

@@ -34,6 +34,9 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	if len(args) >= 2 && args[1] == "local.ephemeral" {
+		return a.configLocalLifetime(ctx, cfg, d.ConfigFile(), args)
+	}
 	if len(args) == 0 {
 		a.printSettings(cfg, "")
 		return nil
@@ -147,7 +150,7 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 		case strings.HasPrefix(key, "local."):
 			value, known := config.GetLocal(cfg, key)
 			if !known {
-				return usagef("unknown config key %q", key)
+				return usagef("unknown config key %q; /config lists every setting", key)
 			}
 			if value == "" {
 				fmt.Fprintln(a.stdout, "(unset — Kolkrabbi computes it)")
@@ -155,7 +158,7 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 				fmt.Fprintln(a.stdout, value)
 			}
 		default:
-			return usagef("unknown config key %q", key)
+			return usagef("unknown config key %q; /config lists every setting", key)
 		}
 
 	case "set":
@@ -353,7 +356,7 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 			stored, _ := config.GetLocal(cfg, key)
 			fmt.Fprintf(a.stdout, "%s → %s\n", key, stored)
 		default:
-			return usagef("unknown config key %q", key)
+			return usagef("unknown config key %q; /config lists every setting", key)
 		}
 
 	case "unset":
@@ -489,7 +492,7 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 			}
 			fmt.Fprintf(a.stdout, "removed %s\n", key)
 		default:
-			return usagef("unknown config key %q", key)
+			return usagef("unknown config key %q; /config lists every setting", key)
 		}
 
 	case "set-model":
@@ -523,11 +526,11 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 
 	case "set-tier":
 		if len(args) < 3 {
-			return usagef("usage: /config set-tier <low|medium|high|max|ultra> <model>")
+			return usagef("usage: /config set-tier <%s> <model>", effortWords())
 		}
 		canonical, ok := engine.NormalizeEffort(args[1])
 		if !ok {
-			return usagef("unknown effort %q (low|medium|high|max|ultra)", args[1])
+			return usagef("unknown effort %q (%s)", args[1], effortWords())
 		}
 		if cfg.Tiers == nil {
 			cfg.Tiers = map[string]string{}
@@ -539,26 +542,11 @@ func (a *app) runConfig(ctx context.Context, args []string) error {
 		fmt.Fprintf(a.stdout, "tier %s → %s\n", canonical, args[2])
 
 	case "show":
-		fmt.Fprintf(a.stdout, "model:    %s\nbase_url: %s\n",
-			orDefault(cfg.Model, defaultModel+" (default)"),
-			orDefault(cfg.BaseURL, provider.DefaultBaseURL+" (default)"))
+		// The whole table, as bare /config prints it: /help offers this word
+		// for reading the settings, and it used to print three of them.
+		a.printSettings(cfg, "")
 		if len(cfg.Tiers) == 0 {
-			fmt.Fprintln(a.stdout, "tiers:    (none — all efforts use the session model; set with `/config set-tier`)")
-			break
-		}
-		fmt.Fprintln(a.stdout, "tiers:")
-		for _, e := range engine.CanonicalEfforts {
-			if m, ok := cfg.Tiers[e]; ok {
-				fmt.Fprintf(a.stdout, "  %-9s %s\n", e, m)
-			}
-		}
-		for _, e := range []string{"quick", "standard", "deep", "ultra"} {
-			if m, ok := cfg.Tiers[e]; ok {
-				c, _ := engine.NormalizeEffort(e)
-				if _, canonicalSet := cfg.Tiers[c]; !canonicalSet {
-					fmt.Fprintf(a.stdout, "  %-9s %s\n", e, m)
-				}
-			}
+			fmt.Fprintln(a.stdout, "no effort tiers: every effort uses the session model; /config set effort.<level> <model> adds one")
 		}
 
 	default:
@@ -597,10 +585,14 @@ func parseEffortKey(key string) (string, error) {
 	}
 	canonical, ok := engine.NormalizeEffort(level)
 	if !ok {
-		return "", usagef("unknown effort %q (low|medium|high|max|ultra)", level)
+		return "", usagef("unknown effort %q (%s)", level, effortWords())
 	}
 	return canonical, nil
 }
+
+// effortWords is the effort ladder as usage and error text spell it, from the
+// engine's own list so the two cannot drift apart.
+func effortWords() string { return strings.Join(engine.CanonicalEfforts, "|") }
 
 func validEffort(s string) bool {
 	_, ok := engine.NormalizeEffort(s)
@@ -617,7 +609,11 @@ var configVerbs = map[string]bool{
 // shows the value in effect, with unset rows marked, because the question a
 // person opens this to answer is "what is kolk doing", not "what did I type".
 func (a *app) printSettings(cfg *config.Config, filter string) bool {
-	rows := cfg.Settings(defaultModel, provider.DefaultBaseURL)
+	view := *cfg
+	if root, err := verifiedProjectRoot(); err == nil {
+		view.Local = cfg.LocalForProject(root)
+	}
+	rows := view.Settings(defaultModel, provider.DefaultBaseURL)
 	filter = strings.ToLower(strings.TrimSpace(filter))
 	if filter != "" {
 		kept := rows[:0]

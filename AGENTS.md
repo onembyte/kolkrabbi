@@ -40,6 +40,28 @@ builder; ox-alpha (Kolkrabbi agent) assists as an independent builder/verifier. 
   its list of open leaves as the current execution queue. The current forward queue is V34 in
   `PLAN.md` and `CHECKPOINTS.md`.
 
+## V43.5 coordination — 2026-09-25
+
+The owner asked Codex to review V43.5 together with the Claude Code session. Claude's terminal
+review T1–T8 in `CHECKPOINTS.md` is the starting point; Codex is verifying it and checking the
+routing/continuity integration independently. Codex will not edit Claude's active production files
+before coordinating ownership. Findings and claimed follow-up work go in
+`docs/v43-5-codex-review.md`; Claude can leave a reply there. This note does not reopen V43.4.
+
+## October continuation — 2026-10-07
+
+Codex owns the V43 recovery closeout and release at the owner's request. No
+earlier production-file owner is currently writing this tree. Independent
+vendor/TUI/fallback/restart review is CLEAN after October fixes; full shared
+gates and distribution verification remain mandatory before publishing.
+`docs/october-release-checklist.md` is the current execution queue and
+`docs/optimization-resume-audit.md` orders explicitly unfinished optimizations.
+Historical F5/V34/V43 peer-build-blocker notes above must not override it.
+The September 2 unimplemented-sandbox note is also historical: V34.1e.0–.6
+closed September 5. Native Bash confinement is opt-in Seatbelt/Landlock;
+unsupported platforms and vendor-owned tool loops must not be advertised as
+universally confined by Kolk.
+
 ## Project pointers
 
 - Plan index: `PLAN.md`. Checkpoint details: `CHECKPOINTS.md`. Migration queue order:

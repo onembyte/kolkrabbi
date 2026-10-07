@@ -1,5 +1,43 @@
 # 25. Local models through a host Ollama
 
+## V43 owner amendment — 2026-09-24
+
+The owner requested managed native setup and a project runtime lifetime. V43.4 supersedes
+the earlier refusal to install and the unconditional session-only lifetime below. Setup is
+verified under V43.4b on 2026-09-24 (4,419 tests, independent review CLEAN). This is implementation
+acceptance; no release was published. The real macOS bundle passed verified extraction and offline
+reuse in disposable storage. No downloaded runtime was executed; Linux/GPU trials remain open.
+
+V43.4a implements `/config set local.ephemeral on|off` for the current canonical project,
+stored in user configuration. Default on keeps a private runtime through follow-up tasks and
+pulls, then stops it on session close. Off detaches the process and records its loopback endpoint
+for verified reuse by the same project. Concurrent starts are serialized; only persistent
+endpoints are shared. A user's existing default server is adopted and never stopped. Model
+weights continue using the existing cached store. Changes apply to the next session.
+
+The lifetime implementation passed independent review and all gates on macOS (2026-09-24);
+Linux process behavior has a
+platform implementation and build gate. Windows persistent startup is unavailable until the
+platform's file-lock support exists; it fails before launching a process. No Windows or physical
+GPU runtime trial is claimed. See `CHECKPOINTS.md` for actual gate results.
+
+V43.4b adds `/localia setup`, automatic native preparation for approved pulls and local
+selection, and keyless local startup/resume. The official stable release is discovered on
+demand; exact HTTPS origins, size and SHA-256 are checked before root-anchored extraction.
+Private staging, bounded decompression, safe relative library links, directory sync and
+immutable completion records protect installation. Concurrent projects serialize setup;
+platform-specific pointers support Intel/native Mac switching. Cached tags are exact, including
+custom namespaces; unverified execution location stays unknown. Listing models remains
+independent of a remote key or catalog outage.
+
+This supersedes the no-install contract, absent-runtime refusal, library-only cache matching
+and remote-key requirement for local sessions in earlier sections. Model pulls remain explicit
+and the fit catalog still bounds which uncached variants Kolk can plan. The standard Linux and
+macOS bundles are covered; optional Linux GPU bundles and integrated physical-machine review
+remain V43.4c. User instructions and platform limits: [`../localia.md`](../localia.md).
+
+## Earlier host-Ollama decision (amended above)
+
 Status: accepted v1 host-Ollama scope · V34.4d proven 2026-09-05 · supersedes the
 managed-sidecar contract of 2026-08-26
 

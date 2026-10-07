@@ -1,0 +1,1 @@
+{"seq":604,"ts":"2026-09-30T00:00:00Z","session":"s_01ARYZ6S41TSV4RRFFQ69G5FAV","turn":"t_01ARYZ6S41TSV4RRFFQ69G5FAW","type":"recovery.failed","data":{"code":"recovery_save_failed","reason":"pause","message":"could not save the pause recovery point: disk full; restart recovery is not guaranteed","durable":false}}

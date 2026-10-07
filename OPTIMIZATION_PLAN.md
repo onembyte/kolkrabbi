@@ -545,6 +545,12 @@ where an older session directory gets its headers written for the first time.
 
 ### O7 — Bounded spill replay on resume  ·  P2
 
+**2026-10-07 disposition: design work remains, not a release blocker.** O1 already bounds
+normal spill growth at 64 MiB (plus the retained-window rewrite). Opening currently validates
+the complete persisted stream, including session identity and prefix corruption. A tail-only
+scan would silently stop checking that prefix. Keep the current implementation until a
+validated index/integrity design preserves those guarantees; do not mark O7 implemented.
+
 Once O1.4 caps the spill file this mostly solves itself. Remaining step: on open, seek to the
 last `MaxBytes` of the file (or the last N frames) instead of decoding from the start, and set
 `latest`/`lastTime` from the final frame. Requires a frame-aligned backward scan: read the tail
@@ -637,7 +643,16 @@ push; coverage number in the build log.
 **Risk / rollback.** Parallel tests expose real races — that is the point; each one found is a
 finding for the ledger, not a reason to serialise. Rollback per package by removing `t.Parallel()`.
 
-- [ ] O10.1 sleeps · [ ] O10.2 parallel · [ ] O10.3 race job · [ ] O10.4 coverage · [ ] O10.5 cmd tests
+- [ ] O10.1 sleeps · [ ] O10.2 parallel · [x] O10.3 race job · [x] O10.4 coverage · [x] O10.5 cmd tests
+
+**2026-10-07 partial closeout.** Ubuntu CI now runs the full root-module race suite with coverage
+and uploads a 14-day report through a SHA-pinned action. Local race+coverage passed, total 83.6%.
+An isolated RLIMIT_FSIZE failure test now restores the limit before Go writes its report; the
+actual EFBIG classification assertion remains. Real executable smoke tests cover daemon help
+and the mock's tool-call/final-reply sequence on an ephemeral loopback port (O17 complete).
+The new contract was red (5 missing checks) before CI wiring and now passes 57 checks.
+Independent review verified the workflow and instrumented disk-failure helper. Sleep removal,
+package-by-package parallelization and the wall-time target remain open; no halving is claimed.
 
 **Phase 2 exit.** O3, O5, O6, O7, O8, O10 ticked; a 200-session, 20k-record profile starts and
 resumes as fast as an empty one; CI runs the suite once, in parallel, under `-race`.
@@ -647,6 +662,16 @@ resumes as fast as an empty one; CI runs the suite once, in parallel, under `-ra
 ## Phase 3 — Long-term (design first; each is a `docs/plan` conversation or an owner decision)
 
 ### O4 — Send the delta, not the transcript, to a resumed vendor conversation  ·  P1
+
+**2026-10-07 safety walk-back.** The design below is historical, not approved implementation.
+Its "full replay on any doubt" rule is superseded by the accepted V43 recovery contract:
+never replay an accepted unfinished vendor request or silently move its effects to another
+model. Continue only through a confirmed, owned vendor conversation at a proven boundary;
+otherwise retain the journal and refuse with advice. Any future happy-path watermark must
+preserve that rule on hard exit, expired handle, restart and undo. O4 remains design-first,
+including its owner decision and benchmark; its old abnormal-path success criterion must not
+be used as a release gate. See `docs/v43-resume-snapshot.md` and
+`docs/optimization-resume-audit.md` for the current queue.
 
 **Problem.** `promptFromMessages` sends the whole conversation every turn (`backend.go:136`) even
 when the process was opened with `--resume` on a handle the vendor already holds (`:238`). Over a

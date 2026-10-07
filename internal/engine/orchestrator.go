@@ -3,6 +3,7 @@ package engine
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,80 +11,104 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/onembyte/kolkrabbi/internal/continuity"
 	"github.com/onembyte/kolkrabbi/internal/provider"
 	"github.com/onembyte/kolkrabbi/internal/xid"
 	"github.com/onembyte/kolkrabbi/protocol"
 )
-
-// MaxTasksForEffort is orchestration width for one effort level.
-//
-// Exported solely so the external test package can assert the width table,
-// which is behaviour worth pinning and unreachable from outside otherwise. It
-// is listed in arch.DeadExportAllowlist for exactly that reason rather than
-// being mistaken for something production calls.
-func MaxTasksForEffort(effort string) int { return maxTasksFor(effort) }
-
-func maxTasksFor(effort string) int {
-	eff, ok := NormalizeEffort(effort)
-	if !ok {
-		eff = EffortMedium
-	}
-	switch eff {
-	case EffortLow:
-		return 1
-	case EffortHigh:
-		return 4
-	case EffortMax:
-		return 6
-	case EffortUltra:
-		return 8
-	default: // EffortMedium
-		return 2
-	}
-}
 
 // runOrchestrated is agent mode: a planner decomposes the request into
 // tasks, each task runs in an isolated subagent with its own context (zero
 // context cost to the main conversation), and a synthesis call produces the
 // final answer. The main session only ever sees user input -> final answer,
 // so its history stays small and valid.
-func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
-	a.Sess.AppendMessage(provider.Message{Role: "user", Content: userInput})
-	a.saveFor(saveUserMessage)
+func (a *Agent) runOrchestrated(ctx context.Context, userInput string) (turnErr error) {
+	ctx, vendorToolFailure := watchProviderToolFailures(ctx)
+	ctx = context.WithValue(ctx, executionPauseKey{}, &executionPause{})
+	run := a.executionSnapshot()
+	if run == nil {
+		// Internal callers may exercise orchestration without RunTurn.
+		a.lastTurnID = xid.New(xid.Turn)
+		a.beginExecution(userInput, userInput)
+		defer func() { a.finishExecution(turnErr) }()
+		run = a.executionSnapshot()
+	}
+	if run.Phase == "synthesis" && a.showCommittedReply(run) {
+		return nil
+	}
+	// The main vendor call this run was making when it stopped, planner or
+	// synthesis, is continued on its conversation rather than sent again.
+	stopped := run.Main.ProviderState != "" && run.Main.ProviderInFlight
+	stoppedPhase := run.Phase
+	if run.Phase == "new" {
+		a.Sess.AppendMessage(provider.Message{Role: "user", Content: userInput})
+		a.saveFor(saveUserMessage)
+		a.setExecutionPhase("plan")
+		run.Phase = "plan"
+	}
 
 	model := a.orchestrationModel()
-	maxTasks := maxTasksFor(a.Effort)
 
 	// One accounting scope per run. Cleared afterwards so an ordinary turn is
 	// never charged against an orchestration ceiling.
-	a.runSpend = &spend{limit: a.MaxRunCostUSD}
-	defer func() { a.runSpend = nil }()
+	a.runSpend = restoredSpend(run.Spend)
+	if a.MaxRunCostUSD > 0 && (a.runSpend.limit == 0 || a.MaxRunCostUSD < a.runSpend.limit) {
+		a.runSpend.limit = a.MaxRunCostUSD
+	}
+	defer func() {
+		a.storeExecution()
+		a.runSpend = nil
+	}()
 
 	// ---- 1. plan ----
-	fmt.Fprintf(a.Out, "%s◆ planning (%s)…%s\n", colorMag, model, colorReset)
-	a.publishMainWork(protocol.WorkStateWorking, protocol.WorkPhasePlanning, "planning tasks", model, a.Effort)
-	tasks, meta, err := a.plan(ctx, model, userInput, maxTasks)
-	if err != nil {
-		return err
+	tasks := executionTasks(run)
+	// A run saved in its direct phase is being resumed, not newly planned.
+	resuming := run.Phase == "direct"
+	problem := ""
+	if run.Phase == "plan" {
+		fmt.Fprintf(a.Out, "%s◆ planning (%s)…%s\n", colorMag, model, colorReset)
+		a.publishMainWork(protocol.WorkStateWorking, protocol.WorkPhasePlanning, "planning tasks", model, a.Effort)
+		// A stopped call continues on the model that answered it, the one
+		// checked to drive the saved conversation, whatever the slots say now.
+		planModel, continuing := model, stopped && stoppedPhase == "plan"
+		if continuing {
+			planModel = a.savedMainModel(run)
+		}
+		planned, why, meta, err := a.planContinuing(ctx, planModel, userInput, 0, continuing)
+		if err != nil {
+			a.recordFailedWork("planner", meta, a.Effort)
+			return err
+		}
+		a.record("planner", meta, 0)
+		tasks, problem = planned, why
+		// Resolve once. The persisted plan is exactly what was announced and
+		// executed, including effort and the discovered provider binding.
+		a.assignModels(tasks)
+		a.setExecutionPlan(tasks)
+		a.completeMainProviderCall()
+		a.storeExecution()
+		if err := a.saveProviderToolFailure(ctx, vendorToolFailure); err != nil {
+			return err
+		}
 	}
-	a.record("planner", meta, 0)
 
 	if len(tasks) <= 1 {
 		// not worth orchestrating: degrade gracefully to the normal loop,
-		// reusing the user message we already appended.
-		fmt.Fprintf(a.Out, "%s◆ single-step task, running directly%s\n", colorMag, colorReset)
-		a.publishMainWork(protocol.WorkStateWorking, protocol.WorkPhaseSchedule, "running a single task directly", model, a.Effort)
-		msgs := a.Sess.GetMessages()
-		if len(msgs) > 0 {
-			a.Sess.SetMessages(msgs[:len(msgs)-1])
+		// reusing the user message we already appended. With no readable
+		// plan nothing is lost either, since the request runs whole, but the
+		// planner did not choose a single step, so that is not what is said.
+		line, work := "single-step task, running directly", "running a single task directly"
+		switch {
+		case resuming:
+			line, work = "resuming the request directly", "resuming the request directly"
+		case problem != "":
+			line, work = problem+"; running the request directly", "running the request directly: no readable plan"
 		}
-		a.saveFor(saveOrchestratorStep)
+		fmt.Fprintf(a.Out, "%s◆ %s%s\n", colorMag, line, colorReset)
+		a.publishMainWork(protocol.WorkStateWorking, protocol.WorkPhaseSchedule, work, model, a.Effort)
+		a.setExecutionPhase("direct")
 		return a.runLoop(ctx, userInput)
 	}
-
-	// Routing is resolved before anything is printed, so the plan a person
-	// reads is the plan that runs, models included.
-	a.assignModels(tasks)
 
 	a.announcePlan(tasks)
 	a.publishMainWork(protocol.WorkStateWorking, protocol.WorkPhaseSchedule,
@@ -94,6 +119,10 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 	if err != nil {
 		return err
 	}
+	if err := a.retireRecovery(ctx); err != nil {
+		return err
+	}
+	a.setExecutionPhase("synthesis")
 
 	// ---- 3. synthesize ----
 	if failures := countFailures(outcomes); failures > 0 {
@@ -102,26 +131,38 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 	}
 	fmt.Fprintf(a.Out, "\n%s◆ synthesizing%s\n", colorMag, colorReset)
 	a.publishMainWork(protocol.WorkStateWorking, protocol.WorkPhaseSynthesis, "synthesizing the result", model, a.Effort)
-	var sb strings.Builder
-	sb.WriteString("Original request:\n" + userInput + "\n\nTasks and what became of them:\n")
-	sb.WriteString(summarise(tasks, outcomes))
-	sb.WriteString("\nWrite the final answer to the original request based on this work. Be concise; report what was done, key findings, and anything the user must know. Do not repeat raw task output verbatim.")
-	if failures := countFailures(outcomes); failures > 0 {
-		// The reader cannot see the task list. If the answer does not say what
-		// is missing from it, nothing will.
-		fmt.Fprintf(&sb, "\n\nIMPORTANT: %d of %d tasks failed, were blocked, or were stopped by the run's budget. Say plainly what could not be done and what that leaves uncertain. Do not present the answer as complete.", failures, len(tasks))
+	budget := briefingBudget(a.orchestrationWindow(model))
+	synthesis := func(budget int) []provider.Message {
+		msgs := synthesisMessages(userInput, tasks, outcomes, budget)
+		if stopped && stoppedPhase == "synthesis" {
+			msgs = appendMessage(msgs, continuationMessage())
+		}
+		return msgs
 	}
-
-	synth := []provider.Message{
-		{Role: "system", Content: "You are the orchestrator's synthesis step. You produce the final user-facing answer from completed subagent work."},
-		{Role: "user", Content: sb.String()},
-	}
+	synth := synthesis(budget)
 	fmt.Fprintf(a.Out, "%s%s%s ", colorCyan, a.responseLabel(), colorReset)
-	msg, meta, err := a.streamChatObserved(ctx, activitySynthesizing, model, synth, nil, func(tok string) {
+	onToken := func(tok string) {
+		a.appendMainPartial(tok)
 		fmt.Fprint(a.Out, tok)
-	}, a.mainProviderProgress(model, a.Effort))
+	}
+	synthModel := model
+	if stopped && stoppedPhase == "synthesis" {
+		synthModel = a.savedMainModel(run)
+	}
+	msg, meta, err := a.streamChatObserved(a.mainProviderCall(ctx), activitySynthesizing, synthModel, synth, nil, onToken, a.mainProviderProgress(synthModel, a.Effort))
+	if provider.IsContextOverflow(err) {
+		a.recordFailedWork("synthesis", meta, a.Effort)
+		smaller := synthesis(max(128, min(budget/2, estimateTokens(synth))))
+		if estimateTokens(smaller) < estimateTokens(synth) {
+			fmt.Fprintln(a.Out, "\nsynthesis context was too long; retrying once with shorter result excerpts")
+			msg, meta, err = a.streamChatObserved(a.mainProviderCall(ctx), activitySynthesizing, synthModel, smaller, nil, onToken, a.mainProviderProgress(synthModel, a.Effort))
+		} else {
+			return err
+		}
+	}
 	if err != nil {
 		fmt.Fprintln(a.Out)
+		a.recordFailedWork("synthesis", meta, a.Effort)
 		return err
 	}
 	fmt.Fprintln(a.Out)
@@ -129,7 +170,11 @@ func (a *Agent) runOrchestrated(ctx context.Context, userInput string) error {
 
 	// the main session only records the final answer: valid, compact history
 	a.Sess.AppendMessage(provider.Message{Role: "assistant", Content: msg.Content})
+	a.completeMainProviderCall()
 	a.saveFor(saveAssistantMessage)
+	if err := a.saveProviderToolFailure(ctx, vendorToolFailure); err != nil {
+		return err
+	}
 	a.footer(meta)
 	// The footer reports the synthesis call. What the user actually spent is
 	// the whole run, and that number exists nowhere else.
@@ -169,6 +214,23 @@ func (a *Agent) announcePlan(tasks []Task) {
 // on the first error discards results that already cost money. The only thing
 // that stops a run is the user cancelling it, which is not a failure to report.
 func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([]outcome, error) {
+	if pauseGate(ctx) == nil {
+		ctx = context.WithValue(ctx, executionPauseKey{}, &executionPause{})
+	}
+	gate := pauseGate(ctx)
+	// Resolve any direct caller's unbound tasks here, before goroutines start.
+	// Normal plans were already resolved for their announcement. No child
+	// reads discovery or connector state while another child is opening.
+	var unresolved Roster
+	for i := range tasks {
+		if tasks[i].Model != "" {
+			continue
+		}
+		if len(unresolved.Rungs) == 0 {
+			unresolved = a.roster(a.RungAvailable)
+		}
+		a.resolveTask(&tasks[i], unresolved)
+	}
 	outcomes := make([]outcome, len(tasks))
 	results := make([]string, len(tasks))
 	resolved := make([]bool, len(tasks))
@@ -181,14 +243,19 @@ func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([
 	for index := range tasks {
 		childTurns[index] = xid.New(xid.Turn)
 		model := tasks[index].Model
-		if model == "" {
-			model = a.modelForKind(tasks[index].Kind)
-		}
-		effort := effortForTask(tasks[index].Level, a.Effort)
+		effort := a.taskEffort(tasks[index])
 		status := a.queueSubagentStatus(tasks, index, childTurns[index], model, effort)
 		a.notifySubagent(status)
 		if step := dependencyWaitStep(tasks[index]); step != "" {
 			a.updateSubagentStatus(index, SubagentWaiting, SubagentPhaseSchedule, step)
+		}
+	}
+	if saved := a.executionSnapshot(); saved != nil && len(saved.Tasks) == len(tasks) {
+		for i, task := range saved.Tasks {
+			if prior, settled := executionOutcome(task); settled {
+				outcomes[i], results[i], resolved[i], started[i] = prior, prior.Result, true, true
+				a.setExecutionTaskState(i, continuity.TaskSettled)
+			}
 		}
 	}
 
@@ -215,19 +282,34 @@ func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([
 	reports := make([]taskRun, len(tasks))
 	reportReady := make([]bool, len(tasks))
 	running, writing := 0, false
+	budgetLimit := false
+	var retainedStop error
 
 	for {
+		if running == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			if err := a.retireRecovery(ctx); err != nil {
+				return outcomes, err
+			}
+		}
 		// Launch everything that can go now. Resolving a task without running
 		// it — blocked, over budget — can unblock the next one, so this
 		// sweeps until nothing more is ready.
-		for running < limit {
+		for running < limit && gate.stopped() == nil && !gate.needsRecovery() && retainedStop == nil {
 			index, launch, ok := a.nextRunnable(tasks, outcomes, resolved, started, writing)
 			if !ok {
 				break
 			}
 			started[index] = true
 			if !launch {
+				// Budget exhaustion admits no more work. Finish resolving its
+				// skipped tasks, then save their shared boundary once.
+				budgetLimit = budgetLimit || outcomes[index].Status == statusOverBudget
 				resolved[index] = true
+				a.setExecutionOutcome(index, outcomes[index])
+				a.storeExecution()
 				continue
 			}
 			if a.sharesTree(tasks[index].Kind) {
@@ -235,10 +317,31 @@ func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([
 			}
 			running++
 			a.runSpend.start()
+			a.setExecutionTaskState(index, continuity.TaskRunning)
 			go a.runOneTask(ctx, finished, userInput, tasks, results, index, childTurns[index], tree)
 		}
 
 		if running == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			if gate.needsRecovery() || budgetLimit {
+				// One boundary is one recovery point: when a sibling's limit
+				// has closed the gate, the pause write that follows saves this
+				// boundary, with every task in its final state.
+				if a.Sess != nil && gate.stopped() == nil {
+					reason := "error"
+					if budgetLimit {
+						reason = "limit"
+					}
+					if err := a.saveRecovery(reason); err != nil {
+						return outcomes, err
+					}
+				}
+				gate.recovered()
+				budgetLimit = false
+				continue
+			}
 			break
 		}
 
@@ -263,13 +366,40 @@ func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([
 		if a.sharesTree(tasks[done.index].Kind) {
 			writing = false
 		}
+		var unavailable *conversationUnavailable
+		if errors.As(done.err, &unavailable) {
+			// Its conversation cannot open now. Like a pause, the task stays
+			// unresolved with its handle and nothing more is admitted; the run
+			// stops once the tasks already running come back.
+			if retainedStop == nil {
+				retainedStop = unavailable
+			}
+			a.storeExecution()
+			reports[done.index], reportReady[done.index] = done, true
+			continue
+		}
+		if gate.note(done.err) {
+			// Keep this task unresolved, drain the other in-flight operations,
+			// and leave the rest of the graph queued for the next attempt.
+			a.storeExecution()
+			reports[done.index], reportReady[done.index] = done, true
+			continue
+		}
 
 		outcomes[done.index] = a.classify(done.result, done.err)
 		results[done.index] = outcomes[done.index].Result
 		resolved[done.index] = true
+		a.setExecutionOutcome(done.index, outcomes[done.index])
+		a.storeExecution()
 		a.reportTaskMilestone(tasks, outcomes, done)
 		reports[done.index] = done
 		reportReady[done.index] = true
+		if done.err != nil {
+			// This error becomes a task outcome rather than the turn's return.
+			// Close admission, drain the children already in flight, and persist
+			// that complete boundary before starting the next queued task.
+			gate.requestRecovery()
+		}
 	}
 	// A completion milestone belongs to when the task actually resolved; its
 	// full private transcript is different. Flush those buffered reports only
@@ -279,6 +409,21 @@ func (a *Agent) runTasks(ctx context.Context, userInput string, tasks []Task) ([
 		if reportReady[index] {
 			a.flushTaskReport(tasks, reports[index])
 		}
+	}
+	if err := gate.stopped(); err != nil {
+		a.markExecutionWaiting()
+		a.storeExecution()
+		for i := range tasks {
+			if !resolved[i] {
+				a.holdPausedTask(i)
+			}
+		}
+		return outcomes, err
+	}
+	if retainedStop != nil {
+		a.markExecutionWaiting()
+		a.storeExecution()
+		return outcomes, retainedStop
 	}
 	if a.liveSurface() {
 		fmt.Fprintf(a.Out, "%s◆ %d agents finished: %s%s\n", colorMag, len(tasks), tallyOutcomes(outcomes), colorReset)
@@ -346,12 +491,9 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	}
 
 	model := tasks[index].Model
-	if model == "" {
-		// Routing normally happens before the run; resolving here as well
-		// keeps a task that arrived without one from asking for an empty model.
-		model = a.modelForKind(tasks[index].Kind)
-	}
-	effort := effortForTask(tasks[index].Level, a.Effort)
+	effort := a.taskEffort(tasks[index])
+	saved := a.executionTask(index)
+	ctx = context.WithValue(ctx, childResumeKey{}, childResume{model: model, handle: saved.ProviderState})
 	// A child turn of its own, so a reader can tell one subagent's work from
 	// another's and from the parent's. Published around the call rather than
 	// inside runSubagent: the event is about the task's lifetime, and the task
@@ -364,7 +506,11 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	// released on every path out — a cancelled run included, which is why the
 	// release keeps working after the context is done.
 	isolated := ""
-	if a.Isolator != nil && writesFiles(tasks[index].Kind) {
+	keepTree := false
+	if saved.Workspace != "" && a.Isolator != nil {
+		isolated = saved.Workspace
+		tasks[index].Workspace = isolated
+	} else if a.Isolator != nil && writesFiles(tasks[index].Kind) {
 		a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseCheckpoint, "preparing a tree of its own")
 		dir, err := a.Isolator.Isolate(ctx, a.Root, childTurn)
 		if err != nil {
@@ -380,7 +526,7 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	// call covers the early returns; the once makes the second call nothing.
 	var releasedTree sync.Once
 	releaseTree := func() {
-		if isolated == "" {
+		if isolated == "" || keepTree {
 			return
 		}
 		releasedTree.Do(func() { a.Isolator.Release(context.WithoutCancel(ctx), a.Root, isolated) })
@@ -390,7 +536,7 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 		tree.Lock()
 		defer tree.Unlock()
 	}
-	capabilities := a.subagentCapabilities(tasks[index].Kind, model, isolated)
+	capabilities := a.subagentCapabilities(tasks[index].Kind, model, isolated, tasks[index].Vendor)
 	// A snapshot per writing subagent, so a task that makes a mess is
 	// rewindable on its own rather than by undoing the whole turn (A33.8).
 	// Only writing kinds: research and explain change no files, so a snapshot
@@ -403,8 +549,13 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	// its snapshot brackets the landing instead.
 	snapshot := -1
 	if a.Ckpt != nil && writesFiles(tasks[index].Kind) && isolated == "" {
-		a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseCheckpoint, "creating rollback checkpoint")
-		snapshot = a.Ckpt.BeginTask(ctx, tasks[index].Title)
+		if saved.Checkpoint != nil {
+			snapshot = *saved.Checkpoint
+		} else {
+			a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseCheckpoint, "creating rollback checkpoint")
+			snapshot = a.Ckpt.BeginTask(ctx, tasks[index].Title)
+			a.saveChildCheckpoint(index, snapshot)
+		}
 	}
 
 	// The task's own provider, opened here because this function already owns
@@ -412,7 +563,7 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	// on every path out, including the failure below: a provider owns a child
 	// process and nothing else will release it.
 	a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseProvider, a.subagentOpeningStep(model, capabilities))
-	own, release, openErr := a.openSubagentBackend(ctx, model, effort, tasks[index].Kind, isolated)
+	own, release, openErr := a.openSubagentBackend(ctx, model, effort, tasks[index].Kind, isolated, tasks[index].Vendor)
 	defer release()
 
 	// A cheaper rung that will not spawn must not lose the task: the work still
@@ -422,34 +573,68 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	// Announced, never silent. Quietly running on a more expensive model is the
 	// exact surprise this feature exists to prevent — the direction being "up
 	// to what you already chose" does not make it one to discover later.
-	if openErr != nil {
+	// A task continuing a saved vendor conversation never falls back: another
+	// model is another conversation, and the task's own is the only one that
+	// knows what it already did.
+	if openErr != nil && saved.ProviderState == "" {
 		if ceiling := a.SessionModel(); ceiling != "" && ceiling != model {
 			fmt.Fprintf(a.Out, "%s  ◆ %s could not start on %s; falling back to %s%s\n",
 				colorDim, tasks[index].Title, model, ceiling, colorReset)
 			release()
 			model = ceiling
-			// A different vendor may have a different network answer.
-			capabilities = a.subagentCapabilities(tasks[index].Kind, model, isolated)
+			if tasks[index].CeilingEffort != "" {
+				effort = tasks[index].CeilingEffort
+			}
+			// Rebuild the envelope for the fallback model, retaining the
+			// plan's discovered provider binding.
+			capabilities = a.subagentCapabilities(tasks[index].Kind, model, isolated, tasks[index].Vendor)
 			a.updateSubagentStatusRoute(index, model, effort)
 			a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseProvider, a.subagentOpeningStep(model, capabilities))
-			own, release, openErr = a.openSubagentBackend(ctx, model, effort, tasks[index].Kind, isolated)
+			own, release, openErr = a.openSubagentBackend(ctx, model, effort, tasks[index].Kind, isolated, tasks[index].Vendor)
 			defer release()
 		}
 	}
 
+	// The backend a continuation opened must drive the very conversation the
+	// task was saved on. A shared session provider or another handle would
+	// take the continuation to a conversation that never saw the task.
+	if openErr == nil && saved.ProviderState != "" && !drivesConversation(own, saved.ProviderState) {
+		openErr = fmt.Errorf("the provider opened for it does not drive that conversation")
+	}
 	var result string
 	var err error
+	tasks[index].Model, tasks[index].Effort = model, effort
+	a.saveChildRoute(index, model, effort, isolated, childTurn)
 	if openErr != nil {
 		// One provider that will not start is not a reason to throw away what
 		// the other subagents produced. The task fails; the run does not. And
 		// there is no third attempt: the ceiling is the last rung there is.
 		err = openErr
+		if saved.ProviderState != "" {
+			err = &conversationUnavailable{task: index, model: model, err: openErr}
+		}
 	} else {
 		result, err = a.runSubagent(ctx, pinnedBackend{backend: own, model: model}, out, model, effort, buffered == nil, userInput, tasks, results, index)
 	}
+	// Cleanup may block before this child can report to the scheduler. Close
+	// admission as soon as its final error is known, before another sibling's
+	// completion can open a slot for queued work.
+	// A conversation that cannot open now is held like a pause, not failed:
+	// the task keeps its tree, lands nothing and is not an outcome.
+	var unavailable *conversationUnavailable
+	retained := errors.As(err, &unavailable)
+	if err != nil && !retained {
+		pauseGate(ctx).requestRecovery()
+	}
+	paused := pauseGate(ctx).note(err)
+	if !paused && !retained && isolated != "" && pauseGate(ctx).stopped() != nil {
+		err, paused = pauseGate(ctx).stopped(), true
+	}
+	held := paused || retained
+	keepTree = held && ctx.Err() == nil
 	// Closed on every path out. A task that died half-way is exactly the one
 	// that leaves a tree nobody asked for, and it is the one worth rewinding.
-	if snapshot >= 0 {
+	if snapshot >= 0 && !held {
 		a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseCheckpoint, "recording task changes")
 		a.Ckpt.EndTask(ctx, snapshot)
 	}
@@ -458,9 +643,10 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	// withdrew the question (V34.2e). A task that failed part-way still lands
 	// what it did, as a shared-tree task would have left it, so nothing is
 	// lost; a patch that does not fit fails the task and says so.
-	if isolated != "" && ctx.Err() == nil {
+	if isolated != "" && ctx.Err() == nil && !held {
 		a.updateSubagentStatus(index, SubagentWorking, SubagentPhaseCheckpoint, "landing its changes")
 		if landErr := a.landTask(ctx, tree, tasks[index].Title, isolated); landErr != nil {
+			pauseGate(ctx).requestRecovery()
 			if err == nil {
 				err = landErr
 			} else {
@@ -468,13 +654,17 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 			}
 		}
 	}
-	if err != nil {
+	if err != nil && !paused {
 		a.updateSubagentStatus(index, SubagentFailed, SubagentPhaseComplete, "failed: "+err.Error())
 	}
 	// On every path out, including failure. An event that only fires on success
 	// leaves a count stuck at a number that never comes down, which is worse
 	// than no count at all.
-	a.publishSubagentFinished(childTurn, index, err == nil, model, effort)
+	if paused {
+		a.holdSubagentPaused(childTurn, index, model)
+	} else {
+		a.publishSubagentFinished(childTurn, index, err == nil, model, effort)
+	}
 
 	run := taskRun{index: index, result: result, err: err}
 	if buffered != nil {
@@ -665,7 +855,11 @@ func (a *Agent) noteRunCost() {
 // string would be the one place that guarantee leaks, which is why the test
 // checks it against the ladders themselves rather than a hardcoded list.
 func decompositionPrompt(maxTasks int) string {
-	return fmt.Sprintf(`Decompose the request below into at most %d concrete, self-contained tasks for coding subagents that have file and shell access but cannot talk to each other. If the request is trivial or a single step, return a single task.
+	width := "as many concrete, self-contained tasks as the request needs"
+	if maxTasks > 0 {
+		width = fmt.Sprintf("at most %d concrete, self-contained tasks", maxTasks)
+	}
+	return fmt.Sprintf(`Decompose the request below into %s for coding subagents that have file and shell access but cannot talk to each other. If the request is trivial or a single step, return a single task.
 
 Respond with ONLY a JSON array. No prose, no markdown fences. Each element is an object:
 
@@ -678,7 +872,7 @@ implementation or analysis. hard: needs real reasoning, is subtle, or the rest o
 depends on getting it right. Omit it when unsure.
 "needs" lists the task numbers (counting from 1) whose results this task actually requires.
 Omit "needs" or use [] when the task stands alone - do not list a task merely because it
-comes earlier.`, maxTasks)
+comes earlier. Keep each task meaningful; avoid splitting work merely to create more agents.`, width)
 }
 
 // plan asks the planner for a strict-JSON task list.
@@ -686,25 +880,53 @@ comes earlier.`, maxTasks)
 // The reply is asked for as objects and accepted as either: a planner that
 // sends the flat array of strings this used to require still produces a
 // working plan, it just produces one that cannot be routed.
-func (a *Agent) plan(ctx context.Context, model, userInput string, maxTasks int) ([]Task, provider.Meta, error) {
-	prompt := decompositionPrompt(maxTasks) + "\n\nRequest:\n" + userInput
+// plan asks the planner for tasks. With none it could read, the string says
+// why, so the run does not announce a single step the planner never chose.
+func (a *Agent) plan(ctx context.Context, model, userInput string, maxTasks int) ([]Task, string, provider.Meta, error) {
+	return a.planContinuing(ctx, model, userInput, maxTasks, false)
+}
 
-	msgs := []provider.Message{
-		{Role: "system", Content: "You are a planning module. You output only strict JSON."},
-		{Role: "user", Content: prompt},
+// planContinuing is plan, continuing the planner call a stopped run was
+// making instead of sending it again when continuing is set.
+func (a *Agent) planContinuing(ctx context.Context, model, userInput string, maxTasks int, continuing bool) ([]Task, string, provider.Meta, error) {
+	budget := briefingBudget(a.orchestrationWindow(model))
+	planning := func(budget int) []provider.Message {
+		msgs := a.planningMessages(userInput, maxTasks, budget)
+		if continuing {
+			msgs = appendMessage(msgs, continuationMessage())
+		}
+		return msgs
 	}
-	msg, meta, err := a.streamChatObserved(ctx, activityPlanning, model, msgs, nil, nil,
+	msgs := planning(budget)
+	msg, meta, err := a.streamChatObserved(a.mainProviderCall(ctx), activityPlanning, model, msgs, nil, a.appendMainPartial,
 		a.mainProviderProgress(model, a.Effort))
-	if err != nil {
-		return nil, meta, err
+	if provider.IsContextOverflow(err) {
+		a.recordFailedWork("planner", meta, a.Effort)
+		smaller := planning(max(128, min(budget/2, estimateTokens(msgs))))
+		if estimateTokens(smaller) < estimateTokens(msgs) {
+			fmt.Fprintln(a.Out, "planning context was too long; retrying once with shorter history excerpts")
+			msg, meta, err = a.streamChatObserved(a.mainProviderCall(ctx), activityPlanning, model, smaller, nil, a.appendMainPartial, a.mainProviderProgress(model, a.Effort))
+		} else {
+			return nil, "", provider.Meta{}, err // Already accounted above.
+		}
 	}
-	return parseTasks(msg.Content, maxTasks), meta, nil
+	if err != nil {
+		return nil, "", meta, err
+	}
+	tasks := parseTasks(msg.Content, maxTasks)
+	if len(tasks) <= 1 {
+		return tasks, planProblem(msg.Content, len(tasks)), meta, nil
+	}
+	return tasks, "", meta, nil
 }
 
 // runSubagent executes one task in an isolated context: its conversation
 // never enters the main session, only its final summary does.
 func (a *Agent) runSubagent(ctx context.Context, pinned pinnedBackend, out io.Writer, model, effort string, tokensVisible bool, original string, tasks []Task, results []string, idx int) (string, error) {
-	capabilities := a.subagentCapabilities(tasks[idx].Kind, model, tasks[idx].Workspace)
+	ctx = context.WithValue(ctx, providerToolFailureKey{}, func() { pauseGate(ctx).requestRecovery() })
+	ctx = context.WithValue(ctx, workAgentKey{}, idx+1)
+	ctx = provider.WithEffort(ctx, effort)
+	capabilities := a.subagentCapabilities(tasks[idx].Kind, model, tasks[idx].Workspace, tasks[idx].Vendor)
 	cwd := capabilities.Workspace
 	if cwd == "" {
 		cwd = workingDir()
@@ -718,33 +940,97 @@ func (a *Agent) runSubagent(ctx context.Context, pinned pinnedBackend, out io.Wr
 
 Overall request: %s
 `, idx+1, len(tasks), runtime.GOOS, cwd, network, original)
-	briefing.WriteString(dependencyBriefing(tasks, results, idx))
+	baseBriefing := briefing.String()
+	dependencyBudget := briefingBudget(a.childWindow(pinned, model))
+	briefing.WriteString(dependencyBriefingWithin(tasks, results, idx, dependencyBudget))
 
 	msgs := []provider.Message{
 		{Role: "system", Content: briefing.String()},
 		{Role: "user", Content: "Your task: " + tasks[idx].Title},
 	}
+	saved := a.executionTask(idx)
+	if len(saved.Messages) > 0 {
+		msgs = saved.Messages
+	}
 
 	maxRounds := MaxRoundsFor(ModeCode, effort)
 	// A subagent gets its own counter: two children repeating different calls
 	// are two pieces of work, not one loop.
-	var loop doomLoop
-	for round := 0; round < maxRounds; round++ {
-		msg, meta, err := a.streamChatOnObserved(ctx, pinned, activityWorking, model, msgs, a.toolsFor(ctx, ModeCode), func(tok string) {
-			fmt.Fprint(out, tok)
-		}, tokensVisible, a.subagentProviderProgress(idx))
-		if err != nil {
+	loop := restoredLoop(saved.Loop)
+	round := saved.Rounds
+	continuing := saved.ProviderState != ""
+	overflowRecovered := false
+	_, providerOwned := pinned.backend.(interface{ ProviderHandle() string })
+	window := a.childWindow(pinned, model)
+	defer func() { a.saveChildConversation(idx, msgs, round, loop, pinned.backend) }()
+	// Beside other agents this child's transcript is a buffer, and a live
+	// surface never prints it (it shows each agent's status instead). What a
+	// person must see (a compaction, and above all one that could not be
+	// saved) goes to the surface itself there.
+	notices := out
+	if a.liveSurface() {
+		notices = a.Out
+	}
+	for {
+		if last := msgs[len(msgs)-1]; last.Role == "assistant" && len(last.ToolCalls) == 0 {
+			return strings.TrimSpace(last.Content), nil
+		}
+		calls := pendingToolCalls(msgs)
+		if len(calls) == 0 {
+			if round >= maxRounds {
+				break
+			}
+			if !providerOwned && MeasureContext(window, 0, msgs).ShouldCompact() {
+				a.saveChildConversation(idx, msgs, round, loop, pinned.backend)
+				msgs, _ = a.compactChild(idx, msgs, window/2, notices)
+			}
+			request := msgs
+			if continuing {
+				request = appendMessage(msgs, provider.Message{Role: "user", Content: "The previous attempt stopped before this task finished. Continue the unfinished assigned task in this saved conversation from its current state. Keep the original goal and completed work; do not repeat completed actions."})
+			}
+			sending := onProviderCallStart(ctx, func() { a.beginChildProviderCall(idx) })
+			msg, meta, err := a.streamChatOnObserved(sending, pinned, activityWorking, model, request, a.toolsFor(ctx, ModeCode), func(tok string) {
+				a.appendChildPartial(idx, tok)
+				fmt.Fprint(out, tok)
+			}, tokensVisible, a.subagentProviderProgress(idx))
+			if err != nil {
+				a.recordFailedWork("subagent", meta, effort)
+				fmt.Fprintln(out)
+				if !providerOwned && !overflowRecovered && provider.IsContextOverflow(err) {
+					overflowRecovered = true
+					a.saveChildConversation(idx, msgs, round, loop, pinned.backend)
+					var changed bool
+					msgs, changed = a.compactChild(idx, msgs, overflowTarget(window, msgs), notices)
+					if !changed && strings.HasPrefix(msgs[0].Content, baseBriefing) {
+						candidate := append([]provider.Message(nil), msgs...)
+						candidate[0].Content = baseBriefing + dependencyBriefingWithin(tasks, results, idx, max(128, min(dependencyBudget/2, estimateTokens(msgs))))
+						if freed := estimateTokens(msgs) - estimateTokens(candidate); freed > 0 {
+							msgs, changed = a.retainChildCompaction(idx, msgs, Compaction{Messages: candidate, Replaced: 1, FreedTokens: freed}, notices)
+						}
+					}
+					if changed {
+						fmt.Fprintf(notices, "agent %d: request was too long; retrying once with the smaller context\n", idx+1)
+						continue
+					}
+				}
+				return "", err
+			}
+			continuing = false
+			overflowRecovered = false
 			fmt.Fprintln(out)
-			return "", err
+			a.recordAtEffort("subagent", meta, len(msg.ToolCalls), effort)
+			msgs = append(msgs, msg)
+			a.completeChildProviderCall(idx)
+			round++
+			if len(msg.ToolCalls) == 0 {
+				return strings.TrimSpace(msg.Content), nil
+			}
+			calls = msg.ToolCalls
 		}
-		fmt.Fprintln(out)
-		a.recordAtEffort("subagent", meta, len(msg.ToolCalls), effort)
-		msgs = append(msgs, msg)
-
-		if len(msg.ToolCalls) == 0 {
-			return strings.TrimSpace(msg.Content), nil
-		}
-		for _, tc := range msg.ToolCalls {
+		for _, tc := range calls {
+			if err := pauseGate(ctx).stopped(); err != nil {
+				return "", err
+			}
 			owner := a.subagentToolWork(idx)
 			a.publishKolkToolRequested(tc, owner)
 			var result string
@@ -764,6 +1050,7 @@ Overall request: %s
 				a.publishKolkToolStarted(tc, owner)
 				result, err = a.executeSubagentTool(ctx, tc, out, effort, tasks[idx].Workspace)
 				if err != nil {
+					pauseGate(ctx).requestRecovery()
 					result = "Error: " + err.Error()
 				}
 				loop.observe(tc.Function.Name, tc.Function.Arguments, result)
@@ -777,6 +1064,7 @@ Overall request: %s
 			}
 			msgs = append(msgs, provider.Message{Role: "tool", ToolCallID: tc.ID, Content: result})
 		}
+		a.markChildToolBoundary(idx)
 	}
 	// Not an empty result: whatever the last round produced is what this task
 	// reached, and it is worth more than nothing to the synthesis.

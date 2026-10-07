@@ -1,8 +1,11 @@
 package engine
 
 import (
+	"context"
 	"strings"
 	"testing"
+
+	"github.com/onembyte/kolkrabbi/internal/enginetest"
 )
 
 func rosterAgent(model string) *Agent {
@@ -35,8 +38,8 @@ func TestAHardTaskNeverRunsAboveTheModelTheUserChose(t *testing.T) {
 	agent.assignModels(tasks)
 
 	for _, task := range tasks {
-		if task.Model != "claude-sonnet" {
-			t.Errorf("%q ran on %q, want the model the user selected", task.Title, task.Model)
+		if ClampToCeiling(task.Model, "claude-sonnet") != task.Model {
+			t.Errorf("%q ran above the ceiling on %q", task.Title, task.Model)
 		}
 	}
 }
@@ -80,19 +83,65 @@ func TestTheCeilingStillBeatsAConfiguredSlot(t *testing.T) {
 	}
 }
 
-// A gateway session has no ladder, so nothing about its routing may change.
+// A gateway menu with one model must send the planner, children and synthesis
+// to that model, even when slots name models on other vendors. This runs the
+// requests rather than comparing two routing helpers that can agree by accident.
 func TestAGatewaySessionRoutesExactlyAsItDidBefore(t *testing.T) {
-	agent := &Agent{Options: Options{Model: "openrouter/free"}}
-	tasks := []Task{
-		{Title: "a", Kind: KindBoilerplate, Level: LevelTrivial},
-		{Title: "b", Kind: KindEdit, Level: LevelHard},
+	srv := enginetest.New(
+		enginetest.Step{Text: `[{"title":"mechanical task","kind":"boilerplate","level":"trivial"},{"title":"research task","kind":"research","level":"routine"}]`},
+		enginetest.Step{Text: "mechanical done"},
+		enginetest.Step{Text: "research done"},
+		enginetest.Step{Text: "final answer"},
+	)
+	defer srv.Close()
+	agent, out, sess, _ := newTestAgentInternal(t, srv, ModeAgent)
+	agent.SetSessionModel("gateway/paid-ceiling")
+	sess.SetModelName("gateway/paid-ceiling")
+	agent.AgentRoster = func(ceiling, _ string) Roster {
+		return Roster{Rungs: []Rung{{Model: ceiling}}}
 	}
-	agent.assignModels(tasks)
-
-	for index, task := range tasks {
-		if task.Model != agent.modelForKind(tasks[index].Kind) {
-			t.Errorf("%q routed to %q, want what kind-based routing gives", task.Title, task.Model)
+	agent.Slots = map[string]string{SlotFast: "another-vendor/cheap", SlotExplore: "another-vendor/research"}
+	agent.MaxConcurrentTasks = 1
+	if err := agent.runOrchestrated(context.Background(), "do both gateway tasks"); err != nil {
+		t.Fatal(err)
+	}
+	if len(srv.Models) != 4 {
+		t.Fatalf("gateway made %d requests, want planner, two children and synthesis: %v", len(srv.Models), srv.Models)
+	}
+	for i, model := range srv.Models {
+		if model != "gateway/paid-ceiling" {
+			t.Errorf("gateway request %d used %q, want the selected model", i, model)
 		}
+	}
+	requestHas := func(index int, want string) bool {
+		for _, message := range srv.Requests[index] {
+			if strings.Contains(message.Content, want) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, check := range []struct {
+		request int
+		content string
+	}{
+		{0, "You are a planning module"},
+		{1, "Your task: mechanical task"},
+		{2, "Your task: research task"},
+		{3, "You are the orchestrator's synthesis step"},
+		{3, "Result: mechanical done"},
+		{3, "Result: research done"},
+	} {
+		if !requestHas(check.request, check.content) {
+			t.Errorf("gateway request %d did not contain %q: %+v", check.request, check.content, srv.Requests[check.request])
+		}
+	}
+	if messages := sess.GetMessages(); len(messages) != 3 || messages[2].Content != "final answer" {
+		t.Errorf("main conversation did not retain the synthesized answer: %+v", messages)
+	}
+	if !strings.Contains(out.String(), "another-vendor/cheap is outside") ||
+		!strings.Contains(out.String(), "another-vendor/research is outside") {
+		t.Fatalf("gateway did not announce the rejected out-of-menu slots:\n%s", out.String())
 	}
 }
 
@@ -155,8 +204,8 @@ func TestAFableSessionRoutesTrivialWorkToHaikuOnThePlan(t *testing.T) {
 		{Title: "design", Kind: KindDesign, Level: LevelHard},
 	}
 	agent.assignModels(tasks)
-	if tasks[0].Model != "claude-haiku" || tasks[1].Model != "claude-fable" || tasks[2].Model != "claude-fable" {
-		t.Fatalf("models = %q / %q / %q, want haiku / fable / fable", tasks[0].Model, tasks[1].Model, tasks[2].Model)
+	if tasks[0].Model != "claude-haiku" || tasks[1].Model != "claude-opus" || tasks[2].Model != "claude-fable" {
+		t.Fatalf("models = %q / %q / %q, want haiku / opus / fable", tasks[0].Model, tasks[1].Model, tasks[2].Model)
 	}
 
 	alone := &Agent{Options: Options{Model: "claude-fable"}}

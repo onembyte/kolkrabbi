@@ -53,20 +53,26 @@ func TestClaudeBackendIgnoresEngineToolSchemas(t *testing.T) {
 // Nothing is lost by retiring it: promptFromMessages serialises the whole
 // conversation on every turn, so kolk replays its own transcript regardless of
 // whether the vendor remembers anything.
+// killedMidTurn is a process killed while its turn ran: it has answered part
+// of the turn and dies before the vendor's result frame closes it.
+func killedMidTurn(text string) *fakeLineProcess {
+	return &fakeLineProcess{lines: claudeTurnFrames(text)[:1], hardExit: true}
+}
+
 func TestAHardExitRetiresTheVendorConversation(t *testing.T) {
 	var argvs [][]string
 	backend := ClaudeBackend{
 		Model: "opus", Mode: "code", Effort: "high",
 		start: func(_ context.Context, _ string, args []string) (lineProcess, error) {
 			argvs = append(argvs, args)
-			return &fakeLineProcess{lines: claudeTurnFrames("answered"), hardExit: true}, nil
+			return killedMidTurn("answered"), nil
 		},
 	}
 	messages := []provider.Message{{Role: "user", Content: "hi"}}
 
 	for turn := range 2 {
-		if _, _, err := backend.StreamChat(context.Background(), "opus", messages, nil, nil); err != nil {
-			t.Fatalf("turn %d: %v", turn+1, err)
+		if _, _, err := backend.StreamChat(context.Background(), "opus", messages, nil, nil); err == nil {
+			t.Fatalf("turn %d: a killed turn answered", turn+1)
 		}
 	}
 
@@ -95,15 +101,15 @@ func TestARetiredConversationIsAnnounced(t *testing.T) {
 	backend := ClaudeBackend{
 		Model: "opus", Mode: "code", Effort: "high",
 		start: func(context.Context, string, []string) (lineProcess, error) {
-			return &fakeLineProcess{lines: claudeTurnFrames("answered"), hardExit: true}, nil
+			return killedMidTurn("answered"), nil
 		},
 	}
 	var streamed string
 	_, _, err := backend.StreamChat(context.Background(), "opus",
 		[]provider.Message{{Role: "user", Content: "hi"}}, nil,
 		func(token string) { streamed += token })
-	if err != nil {
-		t.Fatal(err)
+	if err == nil {
+		t.Fatal("a killed turn answered")
 	}
 	if !strings.Contains(streamed, "answered") {
 		t.Fatalf("the turn's own output went missing: %q", streamed)
@@ -121,7 +127,7 @@ func TestAUserCancelledTurnRetiresQuietly(t *testing.T) {
 	backend := ClaudeBackend{
 		Model: "opus", Mode: "code", Effort: "high",
 		start: func(context.Context, string, []string) (lineProcess, error) {
-			return &fakeLineProcess{lines: claudeTurnFrames("answered"), hardExit: true}, nil
+			return killedMidTurn("answered"), nil
 		},
 	}
 	ctx, cancel := context.WithCancel(context.Background())

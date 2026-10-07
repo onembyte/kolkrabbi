@@ -155,7 +155,7 @@ func (a *app) doctorLimits() {
 		fmt.Fprintf(a.stdout, "  · %s (%s)\n", cd.Describe(), cd.Source)
 	}
 	for _, sess := range paused {
-		fmt.Fprintf(a.stdout, "  · session %s %s; kolk resumes it by itself, or /resume inside it now\n", sess.ID, sess.Pause.Notice())
+		fmt.Fprintf(a.stdout, "  · session %s %s; open with kolk -s %s, then /resume to retry\n", sess.ID, sess.Pause.Notice(), sess.ID)
 	}
 }
 
@@ -172,7 +172,7 @@ func pausedSessions(dir string) []session.Meta {
 	}
 	var paused []session.Meta
 	for _, sess := range all {
-		if p := sess.Pause; p != nil && p.ResetAt.After(time.Now()) {
+		if sess.Pause != nil {
 			paused = append(paused, sess)
 		}
 	}
@@ -211,20 +211,38 @@ func (a *app) doctorLocalModels(ctx context.Context) {
 		fmt.Fprintln(a.stdout, "  · host discovery is not wired in this session")
 		return
 	}
-	host := a.discoverHost(ctx)
+	host := a.localHost(ctx)
 	switch host.State {
 	case local.HostRunning:
 		count := ""
 		if models, err := a.listHostModels(ctx, host.Addr, ""); err == nil {
 			count = fmt.Sprintf(", %d model(s)", len(models))
 		}
-		fmt.Fprintf(a.stdout, "  ✓ ollama %s running at %s%s — kolk uses it and never stops it\n", host.Version, host.Addr, count)
+		if host.Managed {
+			lifetime := "Kolk's runtime"
+			if host.KeptRunning {
+				lifetime = "Kolk's runtime, kept running from an earlier `local.ephemeral off`; this session leaves it running"
+			} else if a.localRuntime != nil {
+				lifetime = "Kolk's runtime; it stops when this session closes"
+				if a.localRuntime.Persistent {
+					lifetime = "Kolk's runtime; it stays running for this project"
+				}
+			}
+			fmt.Fprintf(a.stdout, "  ✓ ollama %s running at %s%s — %s\n", host.Version, host.Addr, count, lifetime)
+		} else {
+			fmt.Fprintf(a.stdout, "  ✓ ollama %s running at %s%s — kolk uses it and never stops it\n", host.Version, host.Addr, count)
+		}
 	case local.HostInstalled:
-		fmt.Fprintf(a.stdout, "  · ollama at %s, not running\n", host.Binary)
+		// A stalled runtime is running; the line below says what it does.
+		if host.StalledRuntime == "" {
+			fmt.Fprintf(a.stdout, "  · ollama at %s, not running\n", host.Binary)
+		}
 	case local.HostAbsent:
 		fmt.Fprintln(a.stdout, "  ✗ ollama is not installed")
 		fmt.Fprintf(a.stdout, "  · install it with: %s\n", host.InstallHint())
 	}
+	a.printStalledRuntime(host)
+	a.printAcceleratorStatus(host)
 	a.doctorEndpoints(ctx)
 }
 

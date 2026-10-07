@@ -34,9 +34,14 @@ const warmKeepAlive = "15m"
 type hostBackend struct {
 	addr func(context.Context) (string, error)
 
-	mu      sync.Mutex
-	client  *provider.Client
-	windows map[string]int
+	// ensureMu serializes address resolution, which can include a first-run
+	// runtime download. mu guards only the cached client and windows, so the
+	// footer's per-tick window read never waits behind that download.
+	ensureMu   sync.Mutex
+	mu         sync.Mutex
+	client     *provider.Client
+	clientAddr string
+	windows    map[string]int
 }
 
 func newHostBackend(addr func(context.Context) (string, error)) *hostBackend {
@@ -49,14 +54,18 @@ func NewHostBackend(addr string) *hostBackend {
 }
 
 func (b *hostBackend) ensureClient(ctx context.Context) (*provider.Client, string, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.ensureMu.Lock()
+	defer b.ensureMu.Unlock()
 	addr, err := b.addr(ctx)
 	if err != nil {
 		return nil, "", err
 	}
-	if b.client == nil {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.client == nil || b.clientAddr != addr {
 		b.client = provider.NewHostClient(addr)
+		b.clientAddr = addr
+		b.windows = map[string]int{}
 	}
 	return b.client, addr, nil
 }
@@ -115,6 +124,10 @@ func (b *hostBackend) Warm(ctx context.Context, model string) {
 // trained one because nothing local constrains it.
 func (b *hostBackend) learnWindow(ctx context.Context, addr, model string) {
 	b.mu.Lock()
+	if b.clientAddr != addr {
+		b.mu.Unlock()
+		return
+	}
 	_, known := b.windows[model]
 	b.mu.Unlock()
 	if known {
@@ -125,7 +138,9 @@ func (b *hostBackend) learnWindow(ctx context.Context, addr, model string) {
 		return
 	}
 	b.mu.Lock()
-	b.windows[model] = window
+	if b.clientAddr == addr {
+		b.windows[model] = window
+	}
 	b.mu.Unlock()
 }
 

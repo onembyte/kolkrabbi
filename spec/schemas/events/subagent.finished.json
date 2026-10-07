@@ -28,6 +28,11 @@
     "model": {
       "type": "string",
       "minLength": 1
+    },
+    "reason": {
+      "type": "string",
+      "description": "An attempt ending with paused retains unfinished work; ok=false does not mean the task failed.",
+      "enum": ["paused"]
     }
   },
   "additionalProperties": true

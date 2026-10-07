@@ -370,8 +370,9 @@ func TestClaudeBackendMintsTheHandleOnceAndResumesEverAfter(t *testing.T) {
 	}
 	for _, text := range []string{"one", "two"} {
 		// A dead session between turns forces the second spawn through the
-		// replacement path, which is exactly how a later process comes to exist.
-		process := &fakeLineProcess{lines: claudeTurnFrames(text)}
+		// replacement path, which is exactly how a later process comes to exist:
+		// the second prompt cannot reach the first process, which has exited.
+		process := &fakeLineProcess{exitWhenDrained: true, lines: claudeTurnFrames(text)}
 		backend.start = func(_ context.Context, _ string, args []string) (lineProcess, error) {
 			spawned = append(spawned, append([]string(nil), args...))
 			return process, nil
@@ -403,6 +404,10 @@ func TestClaudeBackendMintsTheHandleOnceAndResumesEverAfter(t *testing.T) {
 // The vendor's own confirmation of the conversation id is the ground truth the
 // session file stores, so a later Kolkrabbi process can --resume it.
 func TestClaudeBackendReportsTheVendorConfirmedHandle(t *testing.T) {
+	minted := &ClaudeBackend{handle: "kolk-minted"}
+	if minted.ProviderHandle() == "" || minted.ProviderHandleConfirmed() {
+		t.Fatal("a locally minted Claude handle was treated as vendor-confirmed")
+	}
 	process := &fakeLineProcess{lines: [][]byte{
 		[]byte(`{"type":"system","subtype":"init","model":"opus","session_id":"vendor-confirmed"}`),
 		[]byte(`{"type":"assistant","message":{"model":"opus","content":[{"type":"text","text":"hi"}]}}`),
@@ -421,11 +426,16 @@ func TestClaudeBackendReportsTheVendorConfirmedHandle(t *testing.T) {
 	if handle := backend.ProviderHandle(); handle != "vendor-confirmed" {
 		t.Fatalf("ProviderHandle() = %q, want the vendor's own confirmation", handle)
 	}
+	if !backend.ProviderHandleConfirmed() {
+		t.Fatal("the vendor-confirmed handle was not marked confirmed")
+	}
 }
 
 // A stored handle the vendor no longer keeps (expired transcript, a child that
-// died before its conversation existed) must degrade into a fresh
-// conversation, not wedge every later turn behind the same dead resume.
+// died before its conversation existed) must not wedge every later turn, and
+// must not move a turn to another conversation midway either: the retry of a
+// prompt that never arrived stays on the same handle, the turn fails, and the
+// next turn opens a fresh conversation.
 func TestClaudeBackendForgetsAStoredHandleThatResumesDead(t *testing.T) {
 	spawned := [][]string{}
 	backend, err0 := NewClaudeBackendFromHandleWithOptions("claude-opus", "code", "high", "handle-the-vendor-forgot", true, ExecutionOptions{})
@@ -434,32 +444,130 @@ func TestClaudeBackendForgetsAStoredHandleThatResumesDead(t *testing.T) {
 	}
 	backend.start = func(_ context.Context, _ string, args []string) (lineProcess, error) {
 		spawned = append(spawned, append([]string(nil), args...))
-		if len(spawned) == 1 {
-			// Nothing streamed: EOF before any frame, the dead-resume signature.
-			return &fakeLineProcess{}, nil
+		if slices.Contains(args, "handle-the-vendor-forgot") {
+			// The dead-resume signature: every process resuming it exits
+			// before any frame and before the prompt can reach it.
+			return &fakeLineProcess{exitWhenDrained: true}, nil
 		}
 		return &fakeLineProcess{lines: claudeTurnFrames("fresh conversation")}, nil
 	}
-	message, _, err := backend.StreamChat(context.Background(), "claude-opus", []provider.Message{{Role: "user", Content: "hi"}}, nil, nil)
-	if err != nil {
+	if _, _, err := backend.StreamChat(context.Background(), "claude-opus", []provider.Message{{Role: "user", Content: "hi"}}, nil, nil); err == nil {
+		t.Fatal("a dead resume answered")
+	}
+	if len(spawned) != 2 || !slices.Contains(spawned[0], "handle-the-vendor-forgot") || !slices.Contains(spawned[1], "handle-the-vendor-forgot") {
+		t.Fatalf("spawns %q; want the retry on the very same conversation, never another", spawned)
+	}
+	message, _, err := backend.StreamChat(context.Background(), "claude-opus", []provider.Message{{Role: "user", Content: "again"}}, nil, nil)
+	if err != nil || message.Content != "fresh conversation" {
+		t.Fatalf("next turn = %q, %v; want a fresh conversation", message.Content, err)
+	}
+	last := spawned[len(spawned)-1]
+	if slices.Contains(last, "--resume") || !slices.Contains(last, "--session-id") {
+		t.Fatalf("next spawn %q resumed the dead handle instead of opening a fresh one", last)
+	}
+}
+
+// A dead resume that took the prompt before dying silently may have acted on
+// it, so the prompt is not sent again in that turn. Its handle still goes: the
+// next turn opens a fresh conversation rather than resuming the dead one.
+func TestClaudeBackendForgetsADeadResumeWithoutResendingItsPrompt(t *testing.T) {
+	spawned := [][]string{}
+	backend, err0 := NewClaudeBackendFromHandleWithOptions("claude-opus", "code", "high", "handle-the-vendor-forgot", true, ExecutionOptions{})
+	if err0 != nil {
+		t.Fatal(err0)
+	}
+	backend.start = func(_ context.Context, _ string, args []string) (lineProcess, error) {
+		spawned = append(spawned, append([]string(nil), args...))
+		if len(spawned) == 1 {
+			return &fakeLineProcess{}, nil // took the prompt, then EOF with no frame
+		}
+		return &fakeLineProcess{lines: claudeTurnFrames("fresh conversation")}, nil
+	}
+	if _, _, err := backend.StreamChat(context.Background(), "claude-opus", []provider.Message{{Role: "user", Content: "hi"}}, nil, nil); err == nil {
+		t.Fatal("a silent dead resume answered")
+	}
+	if len(spawned) != 1 {
+		t.Fatalf("spawned %d processes in the failed turn; a delivered prompt must not be sent again", len(spawned))
+	}
+	message, _, err := backend.StreamChat(context.Background(), "claude-opus", []provider.Message{{Role: "user", Content: "again"}}, nil, nil)
+	if err != nil || message.Content != "fresh conversation" {
+		t.Fatalf("next turn = %q, %v; want a fresh conversation", message.Content, err)
+	}
+	if slices.Contains(spawned[1], "--resume") || !slices.Contains(spawned[1], "--session-id") {
+		t.Fatalf("next spawn %q resumed the dead handle instead of opening a fresh one", spawned[1])
+	}
+}
+
+// A dead resume is judged over the process's life, not one turn. A resumed
+// process that answered before holds a conversation the vendor keeps, so when
+// it dies in a later turn that turn is unfinished, not the handle dead: the
+// next turn goes on resuming it.
+func TestClaudeBackendKeepsAResumedConversationThatAnsweredBefore(t *testing.T) {
+	spawned := [][]string{}
+	backend, err0 := NewClaudeBackendFromHandleWithOptions("claude-opus", "code", "high", "handle-alive", true, ExecutionOptions{})
+	if err0 != nil {
+		t.Fatal(err0)
+	}
+	backend.start = func(_ context.Context, _ string, args []string) (lineProcess, error) {
+		spawned = append(spawned, append([]string(nil), args...))
+		if len(spawned) == 1 {
+			// Answers turn one, then takes turn two's prompt and dies silent.
+			return &fakeLineProcess{lines: claudeTurnFrames("one")}, nil
+		}
+		return &fakeLineProcess{lines: claudeTurnFrames("three")}, nil
+	}
+	if _, _, err := backend.StreamChat(context.Background(), "claude-opus", []provider.Message{{Role: "user", Content: "one"}}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if message.Content != "fresh conversation" {
-		t.Fatalf("message = %q, want the fresh conversation's answer", message.Content)
+	if _, _, err := backend.StreamChat(context.Background(), "claude-opus", []provider.Message{{Role: "user", Content: "two"}}, nil, nil); err == nil {
+		t.Fatal("a turn whose process died answered")
+	}
+	if _, _, err := backend.StreamChat(context.Background(), "claude-opus", []provider.Message{{Role: "user", Content: "three"}}, nil, nil); err != nil {
+		t.Fatal(err)
 	}
 	if len(spawned) != 2 {
-		t.Fatalf("spawned %d processes, want the dead resume retried once", len(spawned))
+		t.Fatalf("spawned %d processes, want two", len(spawned))
 	}
-	if !slices.Contains(spawned[0], "handle-the-vendor-forgot") {
-		t.Fatalf("first spawn %q did not use the stored handle", spawned[0])
+	if i := slices.Index(spawned[1], "--resume"); i < 0 || i+1 >= len(spawned[1]) || spawned[1][i+1] != "handle-alive" {
+		t.Fatalf("next spawn %q left a conversation the vendor had answered on", spawned[1])
 	}
-	rIndex := slices.Index(spawned[1], "--resume")
-	if rIndex >= 0 {
-		t.Fatalf("retry spawn %q resumed the dead handle again", spawned[1])
+}
+
+// The judgement is about the process that failed. A conversation opened
+// fresh answers, its process exits idle, and the retry resuming it dies
+// without a word: that resume is dead, so its handle goes and the next turn
+// opens a fresh conversation, although the first process had answered.
+func TestClaudeBackendJudgesADeadResumeOnTheProcessThatFailed(t *testing.T) {
+	spawned := [][]string{}
+	backend, err0 := NewClaudeBackendFromHandleWithOptions("claude-opus", "code", "high", "", false, ExecutionOptions{})
+	if err0 != nil {
+		t.Fatal(err0)
 	}
-	idIndex := slices.Index(spawned[1], "--session-id")
-	if idIndex < 0 || idIndex+1 >= len(spawned[1]) || spawned[1][idIndex+1] == "" {
-		t.Fatalf("retry spawn %q must open a fresh session-id", spawned[1])
+	backend.start = func(_ context.Context, _ string, args []string) (lineProcess, error) {
+		spawned = append(spawned, append([]string(nil), args...))
+		switch len(spawned) {
+		case 1:
+			return &fakeLineProcess{exitWhenDrained: true, lines: claudeTurnFrames("one")}, nil
+		case 2:
+			return &fakeLineProcess{exitWhenDrained: true}, nil
+		}
+		return &fakeLineProcess{lines: claudeTurnFrames("fresh conversation")}, nil
+	}
+	if _, _, err := backend.StreamChat(context.Background(), "claude-opus", []provider.Message{{Role: "user", Content: "one"}}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := backend.StreamChat(context.Background(), "claude-opus", []provider.Message{{Role: "user", Content: "two"}}, nil, nil); err == nil {
+		t.Fatal("a dead resume answered")
+	}
+	message, _, err := backend.StreamChat(context.Background(), "claude-opus", []provider.Message{{Role: "user", Content: "three"}}, nil, nil)
+	if err != nil || message.Content != "fresh conversation" {
+		t.Fatalf("next turn = %q, %v; want a fresh conversation", message.Content, err)
+	}
+	if len(spawned) != 3 || !slices.Contains(spawned[1], "--resume") {
+		t.Fatalf("spawns %q; want the failed turn's retry to resume its conversation", spawned)
+	}
+	if slices.Contains(spawned[2], "--resume") || !slices.Contains(spawned[2], "--session-id") {
+		t.Fatalf("next spawn %q resumed the dead handle instead of opening a fresh one", spawned[2])
 	}
 }
 

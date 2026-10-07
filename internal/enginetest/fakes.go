@@ -2,6 +2,7 @@ package enginetest
 
 import (
 	"context"
+	"fmt"
 	"github.com/onembyte/kolkrabbi/internal/continuity"
 	"sync"
 	"time"
@@ -22,8 +23,12 @@ type FakeSession struct {
 	providerState string
 	messages      []provider.Message
 	paused        *continuity.Pause
+	run           *continuity.Run
 	saves         int
 	interimSaves  int
+	recoverySaves int
+	recoveryWhy   []string
+	archives      [][]provider.Message
 }
 
 // NewFakeSession creates an in-memory session.
@@ -86,6 +91,18 @@ func (s *FakeSession) ConnectorName() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.connector
+}
+
+func (s *FakeSession) Route() (string, string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.model, s.connector
+}
+
+func (s *FakeSession) SetRoute(model, connector string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.model, s.connector = model, connector
 }
 
 func (s *FakeSession) SetConnector(n string) {
@@ -156,6 +173,22 @@ func (s *FakeSession) Save() error {
 	return nil
 }
 
+func (s *FakeSession) SaveRecovery(reason string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.recoverySaves++
+	s.recoveryWhy = append(s.recoveryWhy, reason)
+	return nil
+}
+
+func (s *FakeSession) ArchiveMessages(messages []provider.Message) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	copy := (continuity.Task{Messages: messages}).Clone().Messages
+	s.archives = append(s.archives, copy)
+	return fmt.Sprintf("memory:%s/%d", s.id, len(s.archives)), nil
+}
+
 // SaveInterim is the engine's between-boundaries save. In memory there is
 // nothing cheaper to do than Save, so this counts separately and does the same
 // thing: what the tests care about is how many writes a turn asked for and
@@ -174,6 +207,14 @@ func (s *FakeSession) SaveCounts() (durable, interim int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.saves, s.interimSaves
+}
+
+// RecoverySaves reports the exceptional writes independently from ordinary
+// transcript persistence.
+func (s *FakeSession) RecoverySaves() (int, []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.recoverySaves, append([]string(nil), s.recoveryWhy...)
 }
 
 // FakeCheckpointer is an in-memory checkpointer.
@@ -255,4 +296,16 @@ func (s *FakeSession) SetPaused(p *continuity.Pause) {
 	}
 	copyOfPause := *p
 	s.paused = &copyOfPause
+}
+
+func (s *FakeSession) RunState() *continuity.Run {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.run.Clone()
+}
+
+func (s *FakeSession) SetRunState(run *continuity.Run) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.run = run.Clone()
 }

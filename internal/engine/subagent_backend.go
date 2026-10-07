@@ -17,6 +17,8 @@ type SubagentCapabilities struct {
 	AdditionalDirs []string
 	NetworkAccess  bool
 	Provider       string
+	// ProviderState belongs to this child, never to the main session.
+	ProviderState string
 	// Permission is the agent's tier at the moment the child is opened, so
 	// the host can map full-auto onto the vendor's own bypass. It is read
 	// from the agent rather than declared by the host: the tier changes
@@ -124,7 +126,7 @@ func (a *Agent) subagentNetwork(kind Kind, model string) bool {
 // and the factory — one source, no drift between what is said and what runs.
 //
 // workspace is the task's own tree when it has one; empty means the host's.
-func (a *Agent) subagentCapabilities(kind Kind, model, workspace string) SubagentCapabilities {
+func (a *Agent) subagentCapabilities(kind Kind, model, workspace, vendor string) SubagentCapabilities {
 	capabilities := a.SubagentCapabilities
 	if workspace != "" {
 		capabilities.Workspace = workspace
@@ -134,6 +136,13 @@ func (a *Agent) subagentCapabilities(kind Kind, model, workspace string) Subagen
 	}
 	capabilities.AdditionalDirs = append([]string(nil), capabilities.AdditionalDirs...)
 	capabilities.NetworkAccess = a.subagentNetwork(kind, model)
+	if vendor != "" {
+		capabilities.Provider = vendor
+		policy, _ := NormalizeSubagentNetwork(a.SubagentNetwork)
+		if policy == SubagentNetworkAuto {
+			capabilities.NetworkAccess = kindWantsNetwork(kind) || networkSwitchless[vendor]
+		}
+	}
 	capabilities.Permission = a.Permission
 	return capabilities
 }
@@ -164,11 +173,14 @@ func (a *Agent) subagentOpeningStep(model string, capabilities SubagentCapabilit
 // The release is always safe to call: a nil port, a backend that is not a
 // Closer, and a failed open all return one that does nothing. That matters
 // because the caller defers it before it can know which case it got.
-func (a *Agent) openSubagentBackend(ctx context.Context, model, effort string, kind Kind, workspace string) (ChatBackend, func(), error) {
+func (a *Agent) openSubagentBackend(ctx context.Context, model, effort string, kind Kind, workspace, vendor string) (ChatBackend, func(), error) {
 	if a.SubagentBackend == nil {
 		return nil, func() {}, nil
 	}
-	capabilities := a.subagentCapabilities(kind, model, workspace)
+	capabilities := a.subagentCapabilities(kind, model, workspace, vendor)
+	if saved, ok := ctx.Value(childResumeKey{}).(childResume); ok && saved.model == model {
+		capabilities.ProviderState = saved.handle
+	}
 	if strings.TrimSpace(capabilities.Workspace) == "" || !filepath.IsAbs(capabilities.Workspace) {
 		return nil, func() {}, fmt.Errorf("subagent workspace is not a verified absolute directory")
 	}
@@ -179,6 +191,9 @@ func (a *Agent) openSubagentBackend(ctx context.Context, model, effort string, k
 	owned, release := releaseSubagentBackend(backend)
 	return owned, release, nil
 }
+
+type childResumeKey struct{}
+type childResume struct{ model, handle string }
 
 func releaseSubagentBackend(backend ChatBackend) (ChatBackend, func()) {
 	closer, ok := backend.(io.Closer)

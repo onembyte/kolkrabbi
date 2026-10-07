@@ -43,3 +43,11 @@ func TestObserveProviderEventKeepsTypedBoundaries(t *testing.T) {
 		t.Fatalf("limit = %+v", got[4])
 	}
 }
+
+func TestUnpairedVendorWarningUsesAWarningRecord(t *testing.T) {
+	var got []provider.ProgressEvent
+	observeProviderEvent(func(event provider.ProgressEvent) { got = append(got, event) }, Event{Kind: EventTool, ToolName: "codex-warning", ToolInput: "metadata unavailable"}, map[string]string{})
+	if len(got) != 1 || got[0].Kind != provider.ProgressWarning || got[0].Input != "metadata unavailable" {
+		t.Fatalf("warning=%+v", got)
+	}
+}

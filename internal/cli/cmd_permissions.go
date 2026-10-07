@@ -12,10 +12,14 @@ import (
 // A rule's scope is how long the user meant it to last. The three that persist
 // nothing, persist here, and persist everywhere are the whole set: anything
 // finer is a distinction people have to remember instead of read.
+//
+// Plan mode's rules are listed under their own scope: they last exactly as
+// long as plan mode, and /plan off is what removes them.
 const (
 	scopeSession = "session"
 	scopeProject = "project"
 	scopeAlways  = "always"
+	scopePlan    = "plan"
 )
 
 // scopedRule is one rule as it will be shown: the line the user wrote and
@@ -90,6 +94,11 @@ func (a *app) forgetRule(ag *engine.Agent, which string) {
 		return
 	}
 	target := rules[index-1]
+	if target.scope == scopePlan {
+		// One of plan mode's refusals taken away would leave plan mode half on.
+		fmt.Fprintln(a.stdout, "that rule is plan mode's: /plan off leaves plan mode.")
+		return
+	}
 
 	if target.scope == scopeSession {
 		kept := a.sessionRules[:0]
@@ -155,6 +164,11 @@ func (a *app) activeRules(ag *engine.Agent) []scopedRule {
 	}
 	for _, line := range a.sessionRules {
 		rules = append(rules, scopedRule{line, scopeSession})
+	}
+	if a.planOn {
+		for _, line := range planRules {
+			rules = append(rules, scopedRule{line, scopePlan})
+		}
 	}
 	return rules
 }

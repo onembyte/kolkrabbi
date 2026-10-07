@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/onembyte/kolkrabbi/internal/continuity"
 	"github.com/onembyte/kolkrabbi/internal/session"
 	"github.com/onembyte/kolkrabbi/internal/stats"
 )
@@ -254,6 +255,42 @@ func (a *app) forkSession(dir, id string) error {
 	fork := session.New(dir, source.Model)
 	fork.Title = source.Title + " (fork)"
 	fork.SetMessages(source.GetMessages())
+	archives, err := source.CompactionHistory()
+	if err != nil {
+		return err
+	}
+	paths := make(map[string]string, len(archives))
+	for _, archive := range archives {
+		path, err := fork.ArchiveMessages(archive.Messages)
+		if err != nil {
+			return err
+		}
+		paths[archive.Path] = path
+	}
+	fork.Executions, err = source.ExecutionHistory()
+	if err != nil {
+		return err
+	}
+	for i := range fork.Executions {
+		run := &fork.Executions[i]
+		// A fork retains evidence, not ownership of the source's unfinished work.
+		if run.Phase != "done" {
+			run.Phase = "stopped"
+		}
+		run.LastPause = nil
+		tasks := []*continuity.Task{&run.Main}
+		for j := range run.Tasks {
+			tasks = append(tasks, &run.Tasks[j])
+		}
+		for _, task := range tasks {
+			for k, path := range task.Archives {
+				if paths[path] == "" {
+					return fmt.Errorf("task history archive is missing: %s", path)
+				}
+				task.Archives[k] = paths[path]
+			}
+		}
+	}
 	if err := fork.Save(); err != nil {
 		return err
 	}
@@ -271,16 +308,46 @@ func (a *app) exportSession(dir, id string, asJSON bool) error {
 		return err
 	}
 	if asJSON {
-		encoded, err := json.MarshalIndent(loaded, "", "  ")
+		// Include archived child history only for the explicit full export.
+		// Normal saves keep these immutable records out of the hot session file.
+		history, badJournals := loaded.ExecutionHistoryReadable()
+		loaded.Executions = history
+		var journals []string
+		for _, err := range badJournals {
+			journals = append(journals, err.Error())
+		}
+		// Every archive that can be read, and each one that cannot, named: one
+		// damaged record must not withhold all the others from the full export.
+		archives, unreadable := loaded.CompactionHistoryReadable()
+		var missing []string
+		for _, err := range unreadable {
+			missing = append(missing, err.Error())
+		}
+		encoded, err := json.MarshalIndent(struct {
+			*session.Session
+			Compactions []session.ConversationArchive `json:"compactions,omitempty"`
+			Unreadable  []string                      `json:"unreadable_compactions,omitempty"`
+			Journals    []string                      `json:"unreadable_executions,omitempty"`
+		}{loaded, archives, missing, journals}, "", "  ")
 		if err != nil {
 			return err
 		}
 		fmt.Fprintf(a.stdout, "%s\n", encoded)
+		if len(missing) > 0 {
+			fmt.Fprintf(a.stderr, "warning: %d compaction archive(s) could not be read; the export names them under unreadable_compactions\n", len(missing))
+		}
+		if len(journals) > 0 {
+			fmt.Fprintf(a.stderr, "warning: %d task journal(s) could not be read; the export names them under unreadable_executions\n", len(journals))
+		}
 		return nil
 	}
 	fmt.Fprintf(a.stdout, "# %s\n\n", loaded.Title)
 	fmt.Fprintf(a.stdout, "_%s · %s · %d messages_\n\n",
 		loaded.ID, loaded.Model, len(loaded.Messages))
+	// This is the conversation as it stands. What compaction replaced, of it
+	// or of an agent's context, is said here with where it is, so the export
+	// does not look whole.
+	a.noteCompactions(loaded)
 	for _, message := range loaded.Messages {
 		switch {
 		case message.Role == "tool":
@@ -296,6 +363,50 @@ func (a *app) exportSession(dir, id string, asJSON bool) error {
 		}
 	}
 	return nil
+}
+
+// noteCompactions tells a Markdown export's reader what compaction set aside.
+// An agent's archive is one a task's journal names; the rest shortened the
+// conversation printed below.
+func (a *app) noteCompactions(loaded *session.Session) {
+	archives, unreadable := loaded.CompactionHistoryReadable()
+	runs, badJournals := loaded.ExecutionHistoryReadable()
+	if len(badJournals) > 0 {
+		// Whose each archive is lives in the task journals; without them all
+		// that can honestly be said is how many there are.
+		if len(archives) > 0 {
+			fmt.Fprintf(a.stdout, "_%d compaction archive(s); the task journals could not be read, so which were this conversation's and which an agent's is unknown; `kolk sessions export %s --json` includes them._\n\n", len(archives), loaded.ID)
+		}
+		if len(unreadable) > 0 {
+			fmt.Fprintf(a.stdout, "_%d compaction archive(s) could not be read (%v)._\n\n", len(unreadable), unreadable[0])
+		}
+		return
+	}
+	agents := map[string]bool{}
+	for _, run := range runs {
+		for _, task := range run.Tasks {
+			for _, path := range task.Archives {
+				agents[path] = true
+			}
+		}
+	}
+	main, agent := 0, 0
+	for _, archive := range archives {
+		if agents[archive.Path] {
+			agent++
+		} else {
+			main++
+		}
+	}
+	if main > 0 {
+		fmt.Fprintf(a.stdout, "_Compaction shortened this conversation %d time(s); `kolk sessions export %s --json` includes every earlier message._\n\n", main, loaded.ID)
+	}
+	if agent > 0 {
+		fmt.Fprintf(a.stdout, "_Agents in this session compacted their context %d time(s); `kolk sessions export %s --json` includes their full history._\n\n", agent, loaded.ID)
+	}
+	if len(unreadable) > 0 {
+		fmt.Fprintf(a.stdout, "_%d compaction archive(s) could not be read (%v); `kolk sessions export %s --json` names them and includes the rest._\n\n", len(unreadable), unreadable[0], loaded.ID)
+	}
 }
 
 // loadSession reads one session by id, reporting a missing one as the ordinary

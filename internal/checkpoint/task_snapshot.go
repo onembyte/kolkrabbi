@@ -53,6 +53,9 @@ func (s *Store) BeginTask(ctx context.Context, title string) int {
 		return -1
 	}
 	s.tasks = append(s.tasks, TaskSnapshot{Title: title, Turn: s.turn, Commit: commit})
+	// The unfinished task may outlive this process while allowance resets.
+	// Its handle must refer to the same snapshot after reopening the session.
+	_ = s.saveManifest()
 	return len(s.tasks) - 1
 }
 

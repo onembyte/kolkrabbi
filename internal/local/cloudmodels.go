@@ -2,6 +2,7 @@ package local
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -98,4 +99,43 @@ func cloudModelAlias(name string) string {
 		return name + "-cloud"
 	}
 	return name + ":cloud"
+}
+
+// ErrNotCloudModel is the server's own answer that a name is not a Cloud
+// model: it knows no such model, or knows it without a remote host.
+var ErrNotCloudModel = errors.New("not an Ollama Cloud model")
+
+// ErrCloudSignedOut is a server that refused the question because it is not
+// signed in to ollama.com.
+var ErrCloudSignedOut = errors.New("the Ollama server is signed out of ollama.com")
+
+// CloudModelRemoteHost asks the server at addr where name runs, with the same
+// proof ListCloudModels requires: an /api/show answer naming a remote host.
+// Only ErrNotCloudModel is a verdict about name. A cancelled caller gets its
+// context's error, and any other failure means the server could not be asked.
+func CloudModelRemoteHost(ctx context.Context, addr, name string) (string, error) {
+	check, cancel := context.WithTimeout(ctx, cloudEnrichmentBudget)
+	defer cancel()
+	client := &http.Client{Timeout: cloudEnrichmentBudget}
+	shown, err := requestShowHostModel(check, client, "http://"+addr, name)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return "", ctxErr
+	}
+	var status *showStatusError
+	switch {
+	case err == nil && shown.remote:
+		return shown.remoteHost, nil
+	case err == nil, errors.As(err, &status) && status.status == http.StatusNotFound:
+		return "", ErrNotCloudModel
+	case errors.As(err, &status) && status.status == http.StatusUnauthorized:
+		return "", ErrCloudSignedOut
+	}
+	return "", fmt.Errorf("asking ollama at %s about %s: %w", addr, name, err)
+}
+
+// IsCloudModelName reports whether name already selects an Ollama Cloud
+// source: a :cloud tag, or an explicit tag ending in -cloud.
+func IsCloudModelName(name string) bool {
+	name = strings.TrimSpace(name)
+	return name != "" && cloudModelAlias(name) == name
 }

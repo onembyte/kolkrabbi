@@ -89,21 +89,39 @@ func TestOllamaLoginThatStaysSignedOutPrintsTheURLAndStaysUnverified(t *testing.
 	}
 }
 
-// `ollama signin` needs a server to talk to. Without one the login cannot
-// even start, and saying so beats a connector recorded against nothing.
-func TestOllamaLoginWithNoServerSaysWhatToStart(t *testing.T) {
+// `ollama signin` needs a server to talk to. An installed, idle one is started
+// for the sign-in, as a pull starts it, and stopped after it outside a session.
+// V43.4c.1 supersedes "start `ollama serve` yourself": a Kolk-managed runtime
+// is neither on PATH nor on the default port.
+func TestOllamaLoginStartsAnInstalledServerFirst(t *testing.T) {
 	isolateConnectorState(t)
-	a, out, _ := newTestApp(t, "")
-	ran := false
-	a.handover = func(context.Context, string, []string, string) error { ran = true; return nil }
+	a, out, errOut := newTestApp(t, "")
+	ran := ""
+	a.handover = func(_ context.Context, executable string, _ []string, _ string) error { ran = executable; return nil }
 	a.discoverHost = func(context.Context) local.Host { return local.Host{State: local.HostInstalled, Binary: "/opt/ollama"} }
-
-	_ = runRetiredVerb(t, a, "plans", "login", "ollama", "Ollama", "Pro")
-	if ran {
-		t.Fatal("signin was run against no server")
+	started, stopped := 0, 0
+	a.startHost = func(context.Context, local.Host) (string, func(), error) {
+		started++
+		return "127.0.0.1:43214", func() { stopped++ }, nil
 	}
-	if !strings.Contains(out.String(), "ollama serve") {
-		t.Errorf("output does not say how to get a server:\n%s", out.String())
+	verifiedAt := ""
+	a.signIn = func(_ context.Context, addr string) local.SignInState {
+		verifiedAt = addr
+		return local.SignInState{Known: true, SignedIn: true, Plan: "pro"}
+	}
+	a.signInBudget = time.Second
+
+	if code := runRetiredVerb(t, a, "plans", "login", "ollama", "Ollama", "Pro"); code != ExitOK {
+		t.Fatalf("plans login exit = %d, stderr = %q", code, errOut.String())
+	}
+	if ran != "/opt/ollama" || verifiedAt != "127.0.0.1:43214" {
+		t.Fatalf("signin ran %q and verified at %q; want the installed binary against the server it started", ran, verifiedAt)
+	}
+	if started != 1 || stopped != 1 {
+		t.Fatalf("started %d, stopped %d; want the server up for the sign-in and down after", started, stopped)
+	}
+	if strings.Contains(out.String(), "ollama serve") {
+		t.Errorf("output still tells the user to start a server:\n%s", out.String())
 	}
 }
 

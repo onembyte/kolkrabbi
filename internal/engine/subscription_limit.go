@@ -144,7 +144,10 @@ func (a *Agent) moveToMetered(model string) {
 	if closer, ok := retired.(io.Closer); ok {
 		_ = closer.Close()
 	}
+	// The metered model runs through the gateway: the plan's connector goes
+	// with the plan's backend, or the session would name the plan's CLI for a
+	// model it does not run.
 	if a.Sess != nil {
-		a.Sess.SetModelName(model)
+		a.Sess.SetRoute(model, "")
 	}
 }

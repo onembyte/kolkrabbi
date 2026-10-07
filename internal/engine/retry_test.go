@@ -102,7 +102,7 @@ func TestRateLimitRetryIsSharedByAgentPlanner(t *testing.T) {
 
 	ag, _, _, _ := newTestAgentInternal(t, srv, ModeAgent)
 	ag.RetryWait = func(context.Context, time.Duration) error { return nil }
-	tasks, _, err := ag.plan(context.Background(), "mock/model", "continue", 3)
+	tasks, _, _, err := ag.plan(context.Background(), "mock/model", "continue", 3)
 	if err != nil || len(tasks) != 1 || tasks[0].Title != "one task" {
 		t.Fatalf("planner retry = %v, %v", tasks, err)
 	}

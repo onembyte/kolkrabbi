@@ -24,8 +24,8 @@ const hostProbeBudget = 300 * time.Millisecond
 type HostState int
 
 const (
-	// HostAbsent: no binary on PATH and nothing answering. The install line is
-	// the only help kolk can offer, and it names it rather than running it.
+	// HostAbsent: no discovered binary or answering server. Explicit setup or
+	// local use can provision a native runtime on supported platforms.
 	HostAbsent HostState = iota
 	// HostInstalled: the binary is on PATH and nothing is listening.
 	HostInstalled
@@ -47,10 +47,57 @@ func (s HostState) String() string {
 
 // Host is the discovered state of the user's own Ollama.
 type Host struct {
+	Managed bool // Kolk-owned runtime, distinct from a user's default server
 	State   HostState
 	Addr    string // where a running server answered
 	Version string // what it reported
 	Binary  string // where the executable is, when it is on PATH
+	// MissingCompanion names, for a person, the official accelerator bundle
+	// Kolk's setup would still add on this machine: to a managed tree that
+	// lacks it, or to an installation not made yet. Empty when none.
+	MissingCompanion string
+	// AcceleratorNote describes accelerator hardware no official bundle
+	// serves, so the runtime will not use it. Empty when there is none.
+	AcceleratorNote string
+	// CompanionFailure is why an earlier attempt to add MissingCompanion
+	// failed, when that failure is remembered; upgrades skip that release
+	// until an explicit setup forgets it or a new release arrives.
+	CompanionFailure string
+	// KeptRunning marks a Kolk runtime an earlier `local.ephemeral off` left
+	// running for this project, which an ephemeral session reuses and never
+	// stops: nothing signals a process another session started.
+	KeptRunning bool
+	// UnservedVendor is accelerator hardware present that no official bundle
+	// serves on this platform; the runtime cannot use it. CompanionVendor is
+	// the vendor MissingCompanion would serve.
+	UnservedVendor, CompanionVendor string
+	// StalledRuntime describes Kolk's recorded runtime for this project when
+	// its process still runs but does not answer. A persistent session fails
+	// until it answers; an ephemeral one starts its own beside it.
+	StalledRuntime string
+	// Installation facts survive CPU's reporting policy so a running tree
+	// retains them even after another setup publishes a replacement tree.
+	requiredCompanion, requiredFailure, requiredVendor string
+}
+
+func (h Host) companionFacts() (string, string, string) {
+	if h.requiredCompanion != "" {
+		return h.requiredCompanion, h.requiredFailure, h.requiredVendor
+	}
+	return h.MissingCompanion, h.CompanionFailure, h.CompanionVendor
+}
+
+// UnusableVendor is the accelerator vendor this runtime cannot use: hardware
+// no bundle serves, or a missing bundle that the next start will not add
+// (a runtime already running without it, or a remembered failure).
+func (h Host) UnusableVendor() string {
+	if h.UnservedVendor != "" {
+		return h.UnservedVendor
+	}
+	if h.MissingCompanion != "" && (h.State == HostRunning || h.CompanionFailure != "") {
+		return h.CompanionVendor
+	}
+	return ""
 }
 
 // HostDiscovery is what DiscoverHost needs from the machine, injected so the
@@ -130,21 +177,26 @@ func hostGet(ctx context.Context, client *http.Client, url string) ([]byte, bool
 	return body, true
 }
 
-// installHints is the one line that installs Ollama, per platform. The Linux
-// script needs sudo and pipes curl into sh, both of which kolk's own hardline
-// forbids, so kolk names the line and never runs it: a floor the product steps
-// over itself is not a floor.
+// installHints covers platforms without managed native setup.
 //
 // A lookup keyed by GOOS rather than a switch on it: the platform rule bans
 // branching on the OS outside the platform layer, and a table is a value.
 var installHints = map[string]string{
-	"linux":   "curl -fsSL https://ollama.com/install.sh | sh  (needs sudo; kolk will not run it for you)",
-	"darwin":  "brew install ollama, or the app from https://ollama.com/download",
 	"windows": "the installer from https://ollama.com/download (no administrator rights needed)",
+}
+
+// ManagedSetupSupported reports whether Kolk can install the official runtime
+// on the platform it is running on.
+func ManagedSetupSupported() bool {
+	_, ok := runtimePlatforms[runtime.GOOS+"/"+runtime.GOARCH]
+	return ok
 }
 
 // InstallHint is the install line for the platform kolk is running on.
 func (h Host) InstallHint() string {
+	if ManagedSetupSupported() {
+		return "/localia setup (official Ollama from ollama.com; no Docker or sudo)"
+	}
 	if hint, ok := installHints[runtime.GOOS]; ok {
 		return hint
 	}

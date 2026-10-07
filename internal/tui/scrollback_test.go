@@ -1,7 +1,10 @@
 package tui
 
 import (
+	"bytes"
+	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -176,5 +179,221 @@ func TestAVeryShortTerminalIsNeverGivenMoreRowsThanItHas(t *testing.T) {
 		if len(lines) > height {
 			t.Errorf("a %d-row terminal got %d rows", height, len(lines))
 		}
+	}
+}
+
+// Adopted from the V43.5 §7 item 2 exercise (X1): lines reach scrollback only
+// when they scroll off the top of the frame, and exit erases the frame. Whatever
+// was still in it (the last answer, a block held back whole, or all of a short
+// session) must be written out before the erase, not lost with it.
+func TestExitLeavesTheTranscriptInTheTerminal(t *testing.T) {
+	var block []string
+	for line := range 10 {
+		block = append(block, fmt.Sprintf("block line %d", line))
+	}
+	short := "\n❯ a question\n\nthe answer the user must keep\n"
+	for name, c := range map[string]struct {
+		width      int
+		transcript string
+		want       []string
+	}{
+		"a session that fits": {40, short, []string{"❯ a question", "the answer the user must keep"}},
+		"a block across the fold": {40,
+			strings.Repeat("prose line\n", 20) + "```text\n" + strings.Join(block, "\n") + "\n```\n" + "the last answer\n",
+			append(append([]string{"prose line", "╭─"}, block...), "╰─", "the last answer"),
+		},
+		// A width the terminal cannot report is the default, as for a paint.
+		"an unknown width": {0, short, []string{"❯ a question", "the answer the user must keep"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var output bytes.Buffer
+			runtime := NewRuntime(RuntimeOptions{
+				Input: bytes.NewReader([]byte("\x04")), Output: &output,
+				Width: func() int { return c.width }, Height: func() int { return 12 },
+				Status: Status{Model: "model", Mode: "code", Lifecycle: "ready"},
+			})
+			runtime.Controller().AppendTranscript(c.transcript)
+			if err := runtime.Run(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			rows := replayInline(output.String())
+			screen := strings.Join(rows, "\n")
+			// In order, and each block row once: shown twice is as wrong as lost.
+			at := 0
+			for _, want := range c.want {
+				found := strings.Index(screen[at:], want)
+				if found < 0 {
+					t.Fatalf("after exit the terminal lost %q (or shows it out of order):\n%s", want, screen)
+				}
+				at += found + len(want)
+				if strings.HasPrefix(want, "block line") && strings.Count(screen, want) != 1 {
+					t.Errorf("%q shows %d times after exit:\n%s", want, strings.Count(screen, want), screen)
+				}
+			}
+			// The composer and footer go: they belong to the running session.
+			if strings.Contains(screen, "mode code") || strings.Contains(screen, "──────────") {
+				t.Errorf("the frame's chrome survived exit:\n%s", screen)
+			}
+		})
+	}
+	// An empty session leaves nothing behind, not even a blank row.
+	var output bytes.Buffer
+	runtime := NewRuntime(RuntimeOptions{Input: bytes.NewReader([]byte("\x04")), Output: &output,
+		Width: func() int { return 40 }, Height: func() int { return 12 }})
+	if err := runtime.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if rows := replayInline(output.String()); len(rows) != 1 || rows[0] != "" {
+		t.Errorf("an empty session left %q after exit", rows)
+	}
+}
+
+// replayInline plays the inline renderer's stream onto an unbounded grid, the
+// way a terminal's screen and scrollback end up: CR, LF, cursor up, erase to
+// line end and erase below. Colour and other sequences take no cells.
+func replayInline(stream string) []string {
+	grid := [][]rune{{}}
+	row, col := 0, 0
+	savedRow, savedCol := 0, 0
+	runes := []rune(stream)
+	for index := 0; index < len(runes); index++ {
+		switch r := runes[index]; {
+		case r == '\r':
+			col = 0
+		case r == '\n':
+			row++
+			for len(grid) <= row {
+				grid = append(grid, nil)
+			}
+		case r == 0x1b && index+1 < len(runes) && runes[index+1] == '[':
+			end := index + 2
+			for end < len(runes) && (runes[end] < 0x40 || runes[end] > 0x7e) {
+				end++
+			}
+			if end == len(runes) {
+				return gridRows(grid)
+			}
+			params := string(runes[index+2 : end])
+			switch runes[end] {
+			case 'A':
+				n, err := strconv.Atoi(params)
+				if err != nil {
+					n = 1
+				}
+				row = max(0, row-n)
+			case 'K':
+				grid[row] = grid[row][:min(col, len(grid[row]))]
+			case 'J':
+				grid[row] = grid[row][:min(col, len(grid[row]))]
+				grid = grid[:row+1]
+			}
+			index = end
+		case r == 0x1b && index+1 < len(runes) && strings.ContainsRune("]_P", runes[index+1]):
+			// String sequences (images, titles) end at BEL or ST (ESC \).
+			for index += 2; index < len(runes); index++ {
+				if runes[index] == 0x07 {
+					break
+				}
+				if runes[index] == 0x1b && index+1 < len(runes) && runes[index+1] == '\\' {
+					index++
+					break
+				}
+			}
+		case r == 0x1b && index+1 < len(runes):
+			// Two-byte sequences: ESC 7 saves the cursor and ESC 8 restores it
+			// (image placement uses them); the rest take no cells.
+			switch runes[index+1] {
+			case '7':
+				savedRow, savedCol = row, col
+			case '8':
+				row, col = savedRow, savedCol
+			}
+			index++
+		default:
+			for len(grid[row]) < col {
+				grid[row] = append(grid[row], ' ')
+			}
+			if col < len(grid[row]) {
+				grid[row][col] = r
+			} else {
+				grid[row] = append(grid[row], r)
+			}
+			col++
+		}
+	}
+	return gridRows(grid)
+}
+
+func gridRows(grid [][]rune) []string {
+	rows := make([]string, len(grid))
+	for index, row := range grid {
+		rows[index] = strings.TrimRight(string(row), " ")
+	}
+	return rows
+}
+
+// Adopted from the V43.5 §7 item 2 verification (Y1): after CommitOverflow, at
+// every point the fold can fall, what was committed and what remains must be
+// the transcript as it renders whole, colour included, because that is what
+// the terminal keeps on exit. A record cut after its heading lost its colour.
+// A blank line of output is the indent alone, as workExcerpt writes it.
+func TestCommittedAndRemainingRowsRenderAsTheWhole(t *testing.T) {
+	record := "\n• Failed make · kolk\n  └ × command failed\n  └ line one\n    line two\n    line three\n    \n    line five\n    [exit error: exit status 2]\n  └ … 2 more lines\n\nafter the record\n"
+	for prose := range 12 {
+		transcript := strings.Repeat("prose line\n", prose) + record
+		whole := NewController(Status{Mode: "code"}, defaultDraftSize)
+		whole.AppendTranscript(transcript)
+		want := whole.Remaining(40)
+
+		split := NewController(Status{Mode: "code"}, defaultDraftSize)
+		split.AppendTranscript(transcript)
+		got := append(split.CommitOverflow(40, 12), split.Remaining(40)...)
+		if strings.Join(got, "\n") != strings.Join(want, "\n") {
+			t.Fatalf("after %d prose lines, committed + remaining differ from the whole:\n%q\nwant\n%q", prose, got, want)
+		}
+	}
+	// Only a record is held whole: indented prose outside one, such as an
+	// answer's indented code, still commits line by line as it scrolls.
+	indented := NewController(Status{Mode: "code"}, defaultDraftSize)
+	indented.AppendTranscript("an answer with indented code:\n" + strings.Repeat("    x := 1\n", 30))
+	if committed := indented.CommitOverflow(40, 12); len(committed) < 20 {
+		t.Errorf("indented prose committed %d rows of 31, want all that left the frame", len(committed))
+	}
+}
+
+// The replay the exit test relies on has to model what image placement
+// sends: a saved and restored cursor, and string sequences that take no cells.
+func TestReplayInlineModelsCursorSaveAndStringSequences(t *testing.T) {
+	got := replayInline("ab\x1b7cd\x1b8X\x1b_Gf=100;AAAA\x1b\\\r\nnext\x1b]0;title\x07 row")
+	if want := []string{"abXd", "next row"}; strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("replay = %q, want %q", got, want)
+	}
+}
+
+// Adopted from the V43.5 §7 item 2 re-check (Y3): with no room for transcript
+// (worker rows fill the frame), every paint commits what it can. A grouped
+// record that grows across those paints must still keep its colour.
+func TestAGrowingRecordCommittedWithNoRoomKeepsItsColour(t *testing.T) {
+	parts := []string{"\n• Explored · agent 1\n  └ Read a.go\n", "  └ Read b.go\n", "  └ Read c.go\n", "\nafter the record\n"}
+	whole := NewController(Status{Mode: "agent"}, defaultDraftSize)
+	whole.AppendTranscript(strings.Join(parts, ""))
+	want := whole.Remaining(40)
+
+	growing := NewController(Status{Mode: "agent"}, defaultDraftSize)
+	var got []string
+	for _, part := range parts {
+		growing.AppendTranscript(part)
+		got = append(got, growing.CommitOverflow(40, 4)...)
+	}
+	got = append(got, growing.Remaining(40)...)
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("a record grown across paints differs from the whole:\n%q\nwant\n%q", got, want)
+	}
+	// Only a record is held open: a finished line of prose still goes to
+	// scrollback at once, or with no room it would not be seen at all.
+	prose := NewController(Status{Mode: "agent"}, defaultDraftSize)
+	prose.AppendTranscript("a finished line of prose\n")
+	if committed := strings.Join(prose.CommitOverflow(40, 4), "\n"); !strings.Contains(committed, "a finished line of prose") {
+		t.Errorf("with no room, a finished prose line was held back: committed %q", committed)
 	}
 }

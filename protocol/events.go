@@ -61,6 +61,8 @@ const (
 	// EventProviderLimit records one classified limit a model hit and what kolk
 	// did about it (plan 35 §2.1).
 	EventProviderLimit EventType = "provider.limit"
+	// EventRecoveryFailed reports a failed exceptional save on every live surface.
+	EventRecoveryFailed EventType = "recovery.failed"
 )
 
 var knownEventTypes = []EventType{
@@ -89,6 +91,7 @@ var knownEventTypes = []EventType{
 	EventTurnFinished,
 	EventTurnCancelled,
 	EventProviderLimit,
+	EventRecoveryFailed,
 }
 
 // KnownEventTypes returns the ordered event vocabulary shipped by this
@@ -232,6 +235,9 @@ type SubagentFinishedData struct {
 	ChildTurn string `json:"child_turn"`
 	Mode      string `json:"mode"`
 	OK        bool   `json:"ok"`
+	// Reason distinguishes a paused attempt from a failed task. Empty retains
+	// the original completed/failed interpretation of OK.
+	Reason string `json:"reason,omitempty"`
 	// Model is the rung that actually ran it, which is not always the rung it
 	// started on: a cheaper one that would not spawn falls back to the ceiling.
 	Model string `json:"model,omitempty"`
@@ -444,6 +450,8 @@ var providerLimitActions = map[string]bool{"retry": true, "rotate": true, "recom
 func validateEventData(event EventType, raw json.RawMessage) error {
 	var text string
 	switch event {
+	case EventRecoveryFailed:
+		return validateRecoveryFailed(raw)
 	case EventHello:
 		var data HelloData
 		if err := json.Unmarshal(raw, &data); err != nil {

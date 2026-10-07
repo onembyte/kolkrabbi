@@ -2,8 +2,6 @@ package engine
 
 import (
 	"errors"
-	"fmt"
-	"strings"
 )
 
 // errRoundsExhausted marks a subagent that ran out of tool rounds. It is a
@@ -76,28 +74,6 @@ func blockedBy(tasks []Task, outcomes []outcome, index int) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-// summarise renders the outcomes for the synthesis prompt.
-//
-// Failures go in the prompt, not only in a log line the user has already
-// scrolled past: an orchestrated answer that silently omits the third of six
-// tasks that did not work is worse than no orchestration, because the reader
-// has no way to know the answer is partial.
-func summarise(tasks []Task, outcomes []outcome) string {
-	var b strings.Builder
-	for i, task := range tasks {
-		fmt.Fprintf(&b, "\n%d. %s [%s]\n", i+1, task.Title, outcomes[i].Status)
-		switch outcomes[i].Status {
-		case statusDone:
-			fmt.Fprintf(&b, "Result: %s\n", outcomes[i].Result)
-		case statusIncomplete:
-			fmt.Fprintf(&b, "Unfinished. What it had reached: %s\n", outcomes[i].Result)
-		default:
-			fmt.Fprintf(&b, "Did not run to completion: %s\n", outcomes[i].Reason)
-		}
-	}
-	return b.String()
 }
 
 // countFailures returns how many tasks produced nothing usable.

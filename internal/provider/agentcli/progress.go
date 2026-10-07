@@ -1,6 +1,11 @@
 package agentcli
 
-import "github.com/onembyte/kolkrabbi/internal/provider"
+import (
+	"unicode/utf8"
+
+	"github.com/onembyte/kolkrabbi/internal/provider"
+	"github.com/onembyte/kolkrabbi/internal/secret"
+)
 
 var (
 	_ provider.ObservedChatBackend = (*ClaudeBackend)(nil)
@@ -20,6 +25,10 @@ func observeProviderEvent(observe func(provider.ProgressEvent), event Event, pen
 			observe(provider.ProgressEvent{Kind: provider.ProgressMessage, Detail: event.Text})
 		}
 	case EventTool:
+		if event.ToolName == "codex-warning" {
+			observe(provider.ProgressEvent{Kind: provider.ProgressWarning, Name: "codex", Input: progressBody(event.ToolInput)})
+			return
+		}
 		if event.ToolName != "" {
 			if event.ToolCallID != "" && pending != nil {
 				pending[event.ToolCallID] = event.ToolName
@@ -27,6 +36,7 @@ func observeProviderEvent(observe func(provider.ProgressEvent), event Event, pen
 			observe(provider.ProgressEvent{
 				Kind: provider.ProgressToolStarted, ID: event.ToolCallID,
 				Name: event.ToolName, Detail: oneLine(event.ToolInput, 100),
+				Input: progressBody(event.ToolInput),
 			})
 			return
 		}
@@ -38,6 +48,7 @@ func observeProviderEvent(observe func(provider.ProgressEvent), event Event, pen
 			observe(provider.ProgressEvent{
 				Kind: provider.ProgressToolFinished, ID: event.ToolCallID,
 				Name: name, Detail: oneLine(event.ToolOutput, 100), Error: event.ToolIsError,
+				Output: progressBody(event.ToolOutput),
 			})
 		}
 	case EventError:
@@ -52,4 +63,17 @@ func observeProviderEvent(observe func(provider.ProgressEvent), event Event, pen
 		}
 		observe(provider.ProgressEvent{Kind: provider.ProgressLimit, Detail: oneLine(limitTrail(event), 100), Error: event.LimitRejected})
 	}
+}
+
+func progressBody(text string) string {
+	text = secret.Scrub(text)
+	const limit = 64 << 10
+	if len(text) <= limit {
+		return text
+	}
+	end := limit
+	for end > 0 && !utf8.RuneStart(text[end]) {
+		end--
+	}
+	return text[:end] + "\n… output excerpt truncated"
 }

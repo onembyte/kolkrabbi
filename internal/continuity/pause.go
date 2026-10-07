@@ -15,18 +15,54 @@ import (
 // stopped it, when it lifts, and the turn that was asked for, kept verbatim so
 // nothing is lost and nothing is re-typed. Persisted with the session.
 type Pause struct {
-	Kind        string    `json:"kind"`
-	Scope       string    `json:"scope"`
-	Connector   string    `json:"connector,omitempty"`
-	Model       string    `json:"model,omitempty"`
-	Message     string    `json:"message,omitempty"`
-	Since       time.Time `json:"since"`
-	ResetAt     time.Time `json:"reset_at"`
-	PendingTurn string    `json:"pending_turn,omitempty"`
+	Kind      string    `json:"kind"`
+	Scope     string    `json:"scope"`
+	Connector string    `json:"connector,omitempty"`
+	Model     string    `json:"model,omitempty"`
+	Message   string    `json:"message,omitempty"`
+	Since     time.Time `json:"since"`
+	ResetAt   time.Time `json:"reset_at"`
+	// Estimated marks a ResetAt kolk assumed because the vendor gave none:
+	// when kolk will try again, not when the vendor resets.
+	Estimated   bool   `json:"estimated,omitempty"`
+	PendingTurn string `json:"pending_turn,omitempty"`
 }
 
-// Resumes says when, in the reader's clock.
-func (p Pause) Resumes() string { return p.ResetAt.Local().Format("15:04") }
+// Resumes formats the recorded reset time in the reader's clock.
+func (p Pause) Resumes() string { return ResetClock(p.ResetAt, time.Now(), time.Local) }
+
+// ResetClock is when a limit lifts, as a person reading at now in loc says it.
+// A vendor's reset can be days away, so a time that is not today names its
+// day: the weekday within the coming week, the date beyond it, where a weekday
+// alone would read as this one. Every display of a reset goes through here.
+func ResetClock(reset, now time.Time, loc *time.Location) string {
+	reset, now = reset.In(loc), now.In(loc)
+	// Calendar dates compared as UTC midnights: whole days, with no daylight
+	// saving hour in between.
+	day := func(t time.Time) time.Time {
+		y, m, d := t.Date()
+		return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+	}
+	switch days := int(day(reset).Sub(day(now)) / (24 * time.Hour)); {
+	case days <= 0:
+		return reset.Format("15:04")
+	case days < 7:
+		return reset.Format("Mon 15:04")
+	}
+	return reset.Format("Jan 2 15:04")
+}
+
+// RetryStatus describes the recorded reset without promising that a closed or
+// manually paused session will run by itself.
+func (p Pause) RetryStatus() string {
+	if !p.ResetAt.After(time.Now()) {
+		return "ready to retry"
+	}
+	if p.Estimated {
+		return "retry at " + p.Resumes()
+	}
+	return "reset at " + p.Resumes()
+}
 
 // HumanKind names the limit the way a person says it.
 func (p Pause) HumanKind() string { return HumanKind(provider.LimitKind(p.Kind)) }
@@ -62,32 +98,42 @@ func Pausable(limit provider.Limit) bool {
 
 // PauseFor builds the pause for a limit met now: the vendor's reset, its
 // Retry-After, or the kind's default -- the same rule the cooldown uses.
+//
+// A reset counts only while it is still ahead. One already past, a stale window
+// or a skewed clock, would lift the pause at once into the same limit and the
+// same stale time, again and again; kolk estimates instead.
 func PauseFor(limit provider.Limit, pending string, now time.Time) Pause {
-	until := limit.ResetAt
+	until, estimated := limit.ResetAt, false
 	switch {
-	case !until.IsZero():
+	case until.After(now):
 	case limit.RetryAfter > 0:
 		until = now.Add(limit.RetryAfter)
 	default:
-		until = now.Add(limit.Kind.DefaultCooldown())
+		until, estimated = now.Add(limit.Kind.DefaultCooldown()), true
 	}
 	return Pause{
 		Kind: string(limit.Kind), Scope: string(limit.Scope), Connector: limit.Connector, Model: limit.Model,
-		Message: secret.Scrub(limit.Message), Since: now, ResetAt: until, PendingTurn: pending,
+		Message: secret.Scrub(limit.Message), Since: now, ResetAt: until, Estimated: estimated, PendingTurn: pending,
 	}
 }
 
 // Limit is the limit this pause was made from, for the event that says it is
 // over: same kind, scope, model and connector; the timing is the pause's own.
+// A reset kolk only estimated is left out: published, it would read as the
+// vendor's, and the protocol leaves reset_at absent when it is unknown.
 func (p Pause) Limit() provider.Limit {
-	return provider.Limit{
+	limit := provider.Limit{
 		Kind: provider.LimitKind(p.Kind), Scope: provider.LimitScope(p.Scope),
-		Model: p.Model, Connector: p.Connector, Message: p.Message, ResetAt: p.ResetAt,
+		Model: p.Model, Connector: p.Connector, Message: p.Message,
 	}
+	if !p.Estimated {
+		limit.ResetAt = p.ResetAt
+	}
+	return limit
 }
 
 // Notice is the one line a surface shows for a pause: what is paused, why, and
-// when it resumes. The same words on the status line, in /doctor and in the
+// when it can retry. The same words on the status line, in /doctor and in the
 // pause message, so a reader meets one vocabulary.
 func (p Pause) Notice() string {
 	what := p.Model
@@ -95,7 +141,7 @@ func (p Pause) Notice() string {
 		what = p.Connector
 	}
 	if what == "" {
-		return "paused · " + p.HumanKind() + " · resumes " + p.Resumes()
+		return "paused · " + p.HumanKind() + " · " + p.RetryStatus()
 	}
-	return "paused · " + what + " · " + p.HumanKind() + " · resumes " + p.Resumes()
+	return "paused · " + what + " · " + p.HumanKind() + " · " + p.RetryStatus()
 }

@@ -28,6 +28,8 @@ func (s *countingSession) SessionMode() string             { return "" }
 func (s *countingSession) SetMode(string)                  {}
 func (s *countingSession) ConnectorName() string           { return "" }
 func (s *countingSession) SetConnector(string)             {}
+func (s *countingSession) Route() (string, string)         { return "mock/model", "" }
+func (s *countingSession) SetRoute(string, string)         {}
 func (s *countingSession) ProviderStateName() string       { return "" }
 func (s *countingSession) SetProviderStateName(string)     {}
 func (s *countingSession) SetTitleFromInput(string)        {}
@@ -38,6 +40,11 @@ func (s *countingSession) SetMessages([]provider.Message)  {}
 func (s *countingSession) AppendMessage(provider.Message)  {}
 func (s *countingSession) Paused() *continuity.Pause       { return nil }
 func (s *countingSession) SetPaused(*continuity.Pause)     {}
+func (s *countingSession) RunState() *continuity.Run       { return nil }
+func (s *countingSession) SetRunState(*continuity.Run)     {}
+func (s *countingSession) ArchiveMessages([]provider.Message) (string, error) {
+	return "memory:counting", nil
+}
 
 // failingCountingSession is the same port with a disk that refuses, which is
 // the only path that touches the once-per-session warning.
@@ -63,6 +70,8 @@ func (s *countingSession) SaveInterim() error {
 	s.interim++
 	return nil
 }
+
+func (s *countingSession) SaveRecovery(string) error { return s.Save() }
 
 func (s *countingSession) counts() (int, int) {
 	s.mu.Lock()

@@ -67,7 +67,7 @@ func (c *Config) settingRows(defaultModel, defaultBaseURL string) []Setting {
 	return []Setting{
 		{"model", model, modelDefault, "the model a new session starts on"},
 		{"mode", mode, modeDefault, "chat = no tools · code = tool loop · agent = orchestrated"},
-		{"effort", effort, effortDefault, "model tier, tool-round limit and orchestration width"},
+		{"effort", effort, effortDefault, "model tier, reasoning effort and tool-round limit"},
 		{"base_url", baseURL, baseURLDefault, "any OpenAI-compatible endpoint (Ollama, LiteLLM, vLLM); used without a key unless it is openrouter.ai"},
 		{"auto_restart_after_update", onOff(c.AutoRestartAfterUpdate), c.AutoRestartAfterUpdate == nil,
 			"restart into the new version after `/update`, keeping the session"},

@@ -231,14 +231,47 @@ func (p *LinesProcess) Send(line []byte) error {
 	if p == nil || p.stdin == nil {
 		return fmt.Errorf("provider process is not running")
 	}
+	p.Queue(line)
+	return nil
+}
+
+// Exited reports, without waiting, whether the child has exited and been
+// reaped.
+func (p *LinesProcess) Exited() bool {
+	if p == nil {
+		return true
+	}
+	select {
+	case <-p.exited:
+		return true
+	default:
+		return false
+	}
+}
+
+// Queue is Send that says whether the line was handed over. It is false only
+// when the child had already exited, so the line provably never reached it;
+// true says the line was queued for a live child, which may still die before
+// reading it. Like Send, it never makes a write failure the diagnosis: Next
+// still reports why the child is gone.
+func (p *LinesProcess) Queue(line []byte) bool {
+	if p == nil || p.stdin == nil {
+		return false
+	}
+	select {
+	case <-p.exited:
+		return false
+	default:
+	}
 	payload := append(append([]byte(nil), line...), '\n')
 	select {
 	case p.writes <- payload:
+		return true
 	case <-p.exited:
 		// The child is already gone. Dropping the line is right: Next is about
 		// to report why, and that report is worth more than this one.
+		return false
 	}
-	return nil
 }
 
 // write is the single writer, so lines reach a line-delimited protocol in the

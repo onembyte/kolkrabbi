@@ -49,7 +49,9 @@ run to around its landing: the user's tree changes only at landing, and that kee
 that a snapshot means "this task alone". A patch that does not apply cleanly is not forced: the
 task is reported `did not land`, its patch is kept at a named path under the data directory, and
 the reason names the earlier task it collided with when git can tell. The worktree is removed
-after landing, and on every failure path, including a cancelled run.
+after landing, and on every failure path, including a cancelled run. V43.3b supersedes that rule
+for an allowance pause: the unfinished tree is retained and its task identity, directory and git
+registration are verified before resumption. `/resume discard` keeps the tree for inspection.
 
 ### 3. The setting
 

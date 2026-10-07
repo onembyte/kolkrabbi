@@ -47,13 +47,14 @@ func translateCodexAll(t *testing.T, lines [][]byte) []Event {
 }
 
 // The plain fixture proves the whole happy path in four frames: the vendor
-// names its thread (kolk's resume handle), the answer arrives whole, and the
-// turn's usage lands where the dashboard reads it.
+// names its thread (kolk's resume handle), the answer arrives whole, the
+// turn's usage lands where the dashboard reads it, and turn.completed says
+// codex closed the turn.
 func TestTranslateCodexProjectsTheCapturedPlainStream(t *testing.T) {
 	events := translateCodexAll(t, codexFixtureLines(t, "codex-plain.jsonl"))
 
-	if len(events) != 4 {
-		t.Fatalf("events = %d, want 4: %+v", len(events), events)
+	if len(events) != 5 {
+		t.Fatalf("events = %d, want 5: %+v", len(events), events)
 	}
 	if events[0].Kind != EventInit || events[0].SessionID != "00000000-0000-4000-8000-0000000000aa" {
 		t.Fatalf("init = %+v, want the vendor's own thread id", events[0])
@@ -69,6 +70,9 @@ func TestTranslateCodexProjectsTheCapturedPlainStream(t *testing.T) {
 		usage.InputTokens != 14876 || usage.OutputTokens != 5 ||
 		usage.CacheRead != 11008 || usage.CacheCreation != 0 {
 		t.Fatalf("usage = %+v, want the turn's own accounting", usage)
+	}
+	if events[4].Kind != EventTurnEnd {
+		t.Fatalf("last = %+v, want codex's close of the turn", events[4])
 	}
 }
 
@@ -507,8 +511,9 @@ func TestCodexBackendObservedStreamKeepsProviderToolIdentity(t *testing.T) {
 		return nil
 	}
 	var observed []provider.ProgressEvent
-	if _, _, err := backend.StreamChatObserved(context.Background(), "gpt-5.6-sol",
-		[]provider.Message{{Role: "user", Content: "write hello.txt"}}, nil, nil,
+	var tokens strings.Builder
+	if _, _, err := backend.StreamChatObserved(provider.WithToolProgress(context.Background()), "gpt-5.6-sol",
+		[]provider.Message{{Role: "user", Content: "write hello.txt"}}, nil, func(s string) { tokens.WriteString(s) },
 		func(event provider.ProgressEvent) { observed = append(observed, event) }); err != nil {
 		t.Fatal(err)
 	}
@@ -527,6 +532,9 @@ func TestCodexBackendObservedStreamKeepsProviderToolIdentity(t *testing.T) {
 	}
 	if start.ID == "" || start.ID != finish.ID || start.Name == "" || start.Name != finish.Name {
 		t.Fatalf("tool correlation = start %+v, finish %+v", start, finish)
+	}
+	if start.Input == "" || finish.Output == "" || strings.Contains(tokens.String(), "· file-change") || strings.Contains(tokens.String(), "→ ok") {
+		t.Fatalf("typed tool results were lost or duplicated: start=%+v finish=%+v tokens=%q", start, finish, tokens.String())
 	}
 }
 
@@ -557,6 +565,17 @@ func TestCodexBackendSurfacesTheVendorCause(t *testing.T) {
 
 // An effort the vendor listed is accepted, one it did not is refused with the
 // vendor's set named; without a discovered set the seed applies.
+func TestCodexPreservesAnExactDiscoveredMaxEffort(t *testing.T) {
+	options := ExecutionOptions{Efforts: []string{"low", "high", "xhigh", "max"}}
+	inv, err := BuildCodexInvocationWithOptions("future-model", "code", "max", "", false, "test", options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(inv.Args, " "), "model_reasoning_effort=max") {
+		t.Fatalf("discovered max changed on the wire: %v", inv.Args)
+	}
+}
+
 func TestCodexEffortsFollowTheDiscoveredSet(t *testing.T) {
 	discovered := []string{"low", "medium", "high", "xhigh", "max", "ultra"}
 	if _, err := BuildCodexInvocationWithOptions("gpt-5.6-sol", "code", "ultra", "", false, "go", ExecutionOptions{Efforts: discovered}); err != nil {
@@ -570,8 +589,8 @@ func TestCodexEffortsFollowTheDiscoveredSet(t *testing.T) {
 		t.Fatalf("an undiscovered effort = %v, want the vendor's set named", err)
 	}
 	backend, err := NewCodexBackendFromHandleWithOptions("gpt-5.6-sol", "code", "max", "", false, ExecutionOptions{Efforts: discovered})
-	if err != nil || backend.Effort != "xhigh" {
-		t.Fatalf("max with a discovered set = %v, effort %q; want accepted as the vendor's xhigh", err, backend.Effort)
+	if err != nil || backend.Effort != "max" {
+		t.Fatalf("max with a discovered set = %v, effort %q; want the exact discovered max", err, backend.Effort)
 	}
 	// Efforts alone do not make an envelope: the session's own invocation
 	// must not gain a network override from them.
@@ -593,5 +612,42 @@ func TestUltraReachesTheVendorsUltraOnlyWhenListed(t *testing.T) {
 	}
 	if _, err := NewCodexBackendFromHandleWithOptions("gpt-5.6-luna", "code", "ultra", "", false, ExecutionOptions{Efforts: []string{"low", "medium", "high", "xhigh"}}); err == nil {
 		t.Fatal("ultra was accepted for a model whose vendor set stops at xhigh")
+	}
+}
+
+// Adopted from the V43.5 C1/C2 re-check (C3): Codex says how an item ended in
+// its status (codex-rs exec_events.rs: completed, failed, declined), and a
+// failed or declined item may carry no exit code. The status is read as well
+// as the exit code, so a declined `rm -rf build` never reads as having run.
+func TestTranslateCodexReadsHowAnItemEnded(t *testing.T) {
+	command := func(status, exit, output string) string {
+		return `{"type":"item.completed","item":{"id":"c1","type":"command_execution","command":"rm -rf build","aggregated_output":` +
+			output + `,"exit_code":` + exit + `,"status":"` + status + `"}}`
+	}
+	patch := func(status string) string {
+		return `{"type":"item.completed","item":{"id":"f1","type":"file_change","changes":[{"path":"/work/main.go","kind":"update"}],"status":"` + status + `"}}`
+	}
+	for _, c := range []struct {
+		name, line string
+		isError    bool
+		output     string
+	}{
+		{"declined command", command("declined", "null", `""`), true, "declined"},
+		{"failed command without an exit code", command("failed", "null", `""`), true, ""},
+		{"failed command with an exit code", command("failed", "2", `"boom\n"`), true, "boom\n"},
+		{"completed command", command("completed", "0", `"ok\n"`), false, "ok\n"},
+		// An older stream may carry an exit code and no status.
+		{"exit code without a status", command("", "2", `"boom\n"`), true, "boom\n"},
+		{"declined command with output", command("declined", "null", `"refused by policy\n"`), true, "refused by policy\n"},
+		{"failed patch", patch("failed"), true, "update /work/main.go"},
+		{"completed patch", patch("completed"), false, "update /work/main.go"},
+	} {
+		events := translateCodexAll(t, [][]byte{[]byte(c.line)})
+		if len(events) != 1 || events[0].Kind != EventTool {
+			t.Fatalf("%s: events = %+v, want one tool outcome", c.name, events)
+		}
+		if events[0].ToolIsError != c.isError || events[0].ToolOutput != c.output {
+			t.Errorf("%s: outcome error=%v output=%q, want error=%v output=%q", c.name, events[0].ToolIsError, events[0].ToolOutput, c.isError, c.output)
+		}
 	}
 }

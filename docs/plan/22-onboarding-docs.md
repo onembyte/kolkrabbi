@@ -2,6 +2,15 @@
 
 Status: hardened on 2026-08-27 · supersedes: — · PLAN.md item 22
 
+V43.4c.1 updates the first-run text quoted below (acceptance in CHECKPOINTS.md; not yet released).
+Without an OpenRouter key, kolk exits with the usage status and prints
+`kolk needs an API key to use OpenRouter models.`, the hidden `/key` prompt, `Then run: kolk`, and
+`Or start locally, without a key: kolk -m ollama/qwen2.5-coder:7b`. The local route reuses a
+running or installed Ollama. On macOS and Linux it sets up the native runtime on the first prompt.
+Elsewhere it explains that Ollama must be installed separately. Model downloads stay explicit
+(`docs/localia.md`). The landing page shows the released v1.3.4 text until the release that
+ships V43.
+
 ## Decision (the short version)
 
 A documentation item is the easiest one in this plan to write fiction about, so this one starts from

@@ -46,3 +46,48 @@ func TestThePromptBlockEndsWithTheRequest(t *testing.T) {
 		}
 	}
 }
+
+func TestPromptsHaveSpacingAndFullRowShadingInEveryTheme(t *testing.T) {
+	defer func() { _ = SetTheme("kolkrabbi"); SetPalette("256") }()
+	if echo := promptEcho("first\n\nsecond"); !strings.HasPrefix(echo, "\n") || !strings.HasSuffix(echo, "\n\n") {
+		t.Fatalf("prompt has no separation from adjacent logs: %q", echo)
+	}
+	for _, theme := range Themes() {
+		_ = SetTheme(theme)
+		for _, tier := range []string{"256", "16"} {
+			SetPalette(tier)
+			m := New(Status{})
+			m.AppendTranscript(promptEcho("first\n\nsecond"))
+			view := m.renderView(50, 14, -1)
+			for _, row := range strings.Split(view, "\n") {
+				if strings.Contains(row, "first") || strings.Contains(row, "second") {
+					if !strings.Contains(row, activePalette[styleUser]) || activePalette[styleUser] == "" || visibleWidth(row) != 50 {
+						t.Fatalf("theme %s tier %s does not shade the whole prompt row: %q", theme, tier, row)
+					}
+				}
+			}
+		}
+	}
+}
+
+// A request that opens with a blank line (a pasted leading newline, or
+// Shift+Enter first) is still one shaded block. Its marker row is "❯ " alone,
+// which the renderer must not trim into a line it no longer recognises.
+func TestAPromptOpeningWithABlankLineStaysOneBlock(t *testing.T) {
+	for _, prompt := range []string{"\nfix the footer\nand the rows", "   \nfix the footer", "\n\nfix it"} {
+		rows, _ := renderMarkdownStyledBlocks(promptEcho(prompt), 60)
+		sawMarker := false
+		for _, row := range rows {
+			if strings.TrimSpace(row.text) == "" {
+				continue
+			}
+			if row.style != styleUser {
+				t.Fatalf("prompt %q: row %q is not shaded as the user's:\n%+v", prompt, row.text, rows)
+			}
+			sawMarker = sawMarker || strings.HasPrefix(row.text, promptMarker)
+		}
+		if !sawMarker {
+			t.Fatalf("prompt %q lost its marker row:\n%+v", prompt, rows)
+		}
+	}
+}

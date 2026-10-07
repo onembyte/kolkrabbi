@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/onembyte/kolkrabbi/internal/secret"
@@ -95,8 +96,14 @@ func Classify(err error) (Limit, bool) {
 	}
 	var urlErr *url.Error
 	var netErr net.Error
-	if errors.As(err, &urlErr) || errors.As(err, &netErr) {
+	if errors.As(err, &urlErr) || errors.As(err, &netErr) && !localErrno(netErr) {
 		return Limit{Kind: LimitTransport, Scope: ScopeEndpoint, Message: secret.Scrub(err.Error()), Source: "transport"}, true
+	}
+	// A file error reaching here is the disk's, whatever its words: EDQUOT
+	// reads "disc quota exceeded", which is not a plan's quota.
+	var errno syscall.Errno
+	if errors.As(err, &errno) {
+		return Limit{}, false
 	}
 	if allowancePhrase(err.Error()) {
 		return Limit{Kind: LimitSubscriptionAllowance, Scope: ScopeAccount, Message: secret.Scrub(err.Error()), Source: "phrase"}, true
@@ -174,4 +181,14 @@ func refusalPhrase(message string) bool {
 		}
 	}
 	return false
+}
+
+// localErrno is a bare errno found where a net.Error was looked for. Errno has
+// both of net.Error's methods, but alone it is the disk's or the kernel's
+// answer to a file call (a full disk, a quota, a read-only volume), not an
+// unreachable endpoint: the network wraps its errnos in *net.OpError, which
+// the search meets first.
+func localErrno(err net.Error) bool {
+	_, bare := err.(syscall.Errno)
+	return bare
 }
