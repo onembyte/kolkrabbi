@@ -100,7 +100,7 @@ Then, in the session:
 
 Once the session is open, `/key` handles key storage without a config edit.
 
-Known first-run limitation in 1.3.5: without any credentials, the default
+Known first-run limitation in 1.3.6: without any credentials, the default
 OpenRouter startup exits before the in-session `/key` setup is reachable.
 An existing credential or `OPENROUTER_API_KEY` environment value, or a keyless
 compatible/local endpoint, is currently needed to open that first session.

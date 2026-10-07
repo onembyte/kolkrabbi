@@ -5,18 +5,20 @@ optimization baseline. The September F0–F7 work is closed. The September 9 O0,
 O1, O2, O3, O5, O6, O8, O9, O11, O12 and O15 work is already committed. Preserve
 those results rather than rebuilding them. The original continuation baseline
 was v1.3.4; v1.3.5 was published and verified. Final documentation CI exposed
-a parallel-transcript race; its single owned fix and v1.3.6 verification take
-precedence over the queue below. See the October release checklist.
+a parallel-transcript race, and patch CI found a recovery-fixture readiness
+assumption. Both follow-ups are closed; the verified public release is now
+v1.3.6 (`631cd60`, tap `3d36f53`). See the October release checklist.
 
 ## Current testable release scope
 
-Finish V43 recovery and terminal/Localia polish, then verify the release and
-Homebrew tap. October review found and fixed:
+V43 recovery and terminal/Localia polish have been verified through the release
+and Homebrew tap. October review found and fixed:
 
 - model fallback/rotation that could replay a vendor turn after tool work;
 - lost resume-delivery claims across the asynchronous TUI boundary;
 - invalid saved main-task state/round counts admitted on durable restart;
 - a test helper's disk-size limit leaking into coverage-report generation.
+- a parallel worker's fallback notice bypassing its private transcript buffer.
 
 Tests fail before the corresponding fix. Independent real-adapter/runtime
 mutation reproduces a third request with the old TUI API; the corrected path

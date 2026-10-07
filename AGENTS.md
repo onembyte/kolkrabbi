@@ -56,10 +56,12 @@ vendor/TUI/fallback/restart review is CLEAN after October fixes. v1.3.5 ships
 05986d1 after green full gates, branch/release CI, independent public signature
 verification and Homebrew/installer/updater rehearsals (tap 387c7c5).
 `docs/october-release-checklist.md` records that closeout and the next open
-correctness leaves. Final docs CI 37632527908 caught a parallel transcript race;
-Codex owns the immediate buffering fix and a new v1.3.6 release. Keep v1.3.5
-immutable and require fresh independent/gate/package evidence for the patch.
-After that, credential-free startup must allow setup before model use.
+correctness leaves. Final docs CI caught a parallel transcript race; patch CI
+also exposed a separate recovery-fixture ordering assumption. Both fixes are
+closed with independent RED/GREEN evidence. v1.3.6 ships `631cd60` after green
+branch CI 37667517349/release 37668047438, authenticated artifacts, tap `3d36f53`
+and actual Brew/installer/updater/code/agent rehearsals. Keep published tags
+immutable. Credential-free startup is the next open leaf: allow setup before model use.
 Do not claim the current fresh `/key` onboarding works: it exits before the
 session. Preserve the four-command outside surface and hidden credential input.
 No implementation of this new leaf is claimed yet.

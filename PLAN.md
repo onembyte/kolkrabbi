@@ -27,7 +27,7 @@ kolk                                # 2. open the session/setup surface.
 
 The owner's September 2 closed outside-session surface supersedes the original
 `kolk key <key>` example: credentials must never be pasted into argv/history.
-As of v1.3.5, credential-free startup exits before `/key` is reachable; this is
+As of v1.3.6, credential-free startup exits before `/key` is reachable; this is
 an open correctness checkpoint, not an achieved north-star claim. Verified
 release evidence and the next leaf are in `docs/october-release-checklist.md`.
 

@@ -44,28 +44,33 @@ this stays a step a person takes, and is written into the contract rather than l
 
 Owner: **Codex**. Independent verification: a separate review agent, per AGENTS.md.
 2026-10-07 continuation: the owner requested completion of the interrupted
-optimization/polish work and a verified Homebrew release. Codex owns the
-remaining V43 closeout. The September split and missing-import/format blockers
+optimization/polish work and a verified Homebrew release. Codex completed the
+V43 closeout and immediate CI follow-ups below. The September split and
+missing-import/format blockers
 are historical: the untouched baseline passed `make check` (5,119 tests).
 Capture and Native recovery remain closed. Current vendor recovery, TUI
 delivery, restart validation and in-turn fallback fixes have a non-author
 CLEAN review. Their final shared gate passed (5,158 tests); Surfaces and
-documentation walk-back are closed. v1.3.5 is now committed/pushed, green in
+documentation walk-back are closed. v1.3.5 was committed/pushed, green in
 branch and release CI, independently signature-verified and rehearsed through
 Homebrew, public installer and PTY updater. Fresh credential-free setup remains
 an open correctness checkpoint: `/key` guidance currently precedes the session
 it needs. Existing credentials and compatible/local endpoints still work.
 Final documentation CI 37632527908 exposed a real parallel-transcript race:
 the fallback announcement bypassed the child buffer while the scheduler wrote
-run-cost output. Codex owns this single follow-up leaf; regression, independent
+run-cost output. Codex completed this single follow-up leaf; regression, independent
 mutation review, full gates (5,162 tests), root race and snapshot passed. Patch
-v1.3.6 publication is pending. CI 37666528082 exposed a separate recovery
+CI 37666528082 exposed a separate recovery
 fixture ordering assumption (no data race): the first child could fail before
 the sibling was admitted. Codex's fixture-only readiness barrier passed
 independent old RED/fixed adversarial race ×100, focused race and full gates.
 All recovery assertions and production admission behavior are unchanged. Do not
-rewrite the v1.3.5 tag or hide
-the failure by rerunning CI. Credential-free setup follows this immediate fix.
+rewrite published tags or hide failures by rerunning CI. Credential-free setup
+follows these immediate fixes.
+v1.3.6 now ships `631cd60`: branch CI 37667517349 and release 37668047438 are
+green, public signatures/archives independently verified, tap `3d36f53` pushed,
+actual Brew upgrade/test/code/agent and isolated installer/PTY updater passed.
+Both immediate follow-up leaves are closed; fresh-key startup is next and open.
 Ordered execution is in
 `docs/october-release-checklist.md`; larger unfinished optimizations are
 explicitly retained in `docs/optimization-resume-audit.md`.

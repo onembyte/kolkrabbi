@@ -8,6 +8,32 @@ One line per step. Verification is a command someone else can re-run.
 
 ---
 
+## 2026-10-07 — v1.3.6 verified patch and Homebrew handoff
+
+Annotated v1.3.6 at 631cd60a94fa54016768aaff52ae6c7f6f55a767 was published
+only after branch CI 37667517349 passed all six jobs. Release 37668047438
+verify/publish passed: tagged Linux full gate 5,159 tests, 10,760,376 bytes,
+cold/sandbox p50 both 1.6 ms; snapshot 21 passed. Final local root race passed
+(83.6%), and serial snapshot at the committed candidate passed 21 checks.
+Parent public verifier and independent offline Cosign/archive/architecture/
+formula verification CLEAN, exact tag-workflow/OIDC identity and four hashes.
+Independent evidence: /private/tmp/kolk-v136-offline-review.sAQ1aT.
+
+Tap3d36f53 was pushed after review; real Brewupdate/scoped1.3.5→1.3.6upgrade
+and formula test passed. kolkrabbi alias resolves current1.3.6. Public installer
+and real PTY /update each upgraded isolated1.3.5 copies, then reported current
+after restart. Actual Brew code write +agent plan/two tasks/synthesis passed;
+file exactly two lines, no remote model/credits. All mocks/updater PTYs closed.
+Other formulae, casks, tap trust and the older curl binary were left unchanged
+(Brew itself/tap metadata refreshed normally). PATH still selects that older
+copy; test explicitly with $(brew --prefix)/bin/kolk --mode code.
+
+The two CI follow-ups below are closed; fresh credential-free startup remains
+open and takes precedence over optional optimizations. No published tag was
+rewritten and no physical/GPU/subscription trial is implied.
+
+---
+
 ## 2026-10-07 — ordinary-error recovery fixture readiness
 
 Patch CI 37666528082 passed normal Linux/macOS tests, lint and budgets but
@@ -15,7 +41,7 @@ failed TestAChildErrorRecoveryDrainsAnInflightSiblingBeforeSaving in the race
 job (112947064150). No data race was reported: the first child could fail and
 correctly close scheduler admission before its supposed in-flight sibling
 started. The original quiescent-save assertion then described a scenario the
-fixture had not actually established. Release remains held; no rerun masking.
+fixture had not actually established. Release was held at that point; no rerun masking.
 
 Independent private scheduler-yield overlay reproduced the exact old RED
 under GOMAXPROCS=1/race, no network: first settled, two siblings still queued.
@@ -28,7 +54,8 @@ Parent focused recovery race ×100 passed. Independent scheduler-yield old RED,
 fixed race ×100 GREEN and ordinary/pause recovery race ×30 GREEN; scoped CLEAN.
 Evidence: /private/tmp/kolk-recovery-fixture-review.MUVZzO. Full gate passed:
 5,162 tests, lint 0, all contracts/platforms, unchanged size 10,428,370 bytes;
-cold p50 5.9 ms, sandbox p50 7.5 ms. Final root race/fresh branch CI pending.
+cold p50 5.9 ms, sandbox p50 7.5 ms. Final root race and fresh branch CI
+subsequently passed; publication evidence is in the closeout above.
 
 ---
 
@@ -57,7 +84,8 @@ for plain/live cases. It also pins live callback and monotonic durable fallback
 event while a scheduler writes concurrently. Scoped fix CLEAN; version/site
 contracts independently passed. Evidence: /private/tmp/kolk-output-review.CPV9Em.
 Listener-based review execution hit approval-review limits; the pure probe ran
-without network/escalation. Fresh branch CI/publication and tap remain pending.
+without network/escalation. Fresh branch CI/publication and tap were held then;
+the later fixture follow-up and verified publication are recorded above.
 Never rewrite the existing v1.3.5 tag. Fresh-key onboarding remains queued.
 
 ---

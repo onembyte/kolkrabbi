@@ -2,7 +2,8 @@
 
 Resumed by Codex on 2026-10-07 at the owner's request. The original working tree
 contained V43 implementation begun in earlier sessions, based on `5869a00`
-after public `v1.3.4`. Verified `v1.3.5` now ships commit `05986d1`. File timestamps showed the
+after public `v1.3.4`. Verified `v1.3.5` shipped commit `05986d1`; verified
+`v1.3.6` now ships `631cd60` after the CI follow-ups below. File timestamps showed the
 unfinished vendor-recovery follow-up last changed on 2026-10-01. Older V34 and
 optimization headings are historical and must not override this queue.
 
@@ -48,12 +49,12 @@ Owner: Codex. Documentation CI 37632527908 found a production data race in
 `TestARoutedPlanPausesRestartsResumesAndCompacts`: a worker's fallback notice
 wrote directly to the shared transcript while the scheduler reported run cost.
 This takes precedence over credential-free startup. v1.3.5 remains immutable;
-the handoff recommendation must move to v1.3.6 after verification.
+the verified handoff recommendation is now v1.3.6.
 
 - [x] Add a deterministic RED buffering regression, route the fallback notice
   through the existing child output buffer, and verify live route events remain.
 - [x] Independent review, focused race repetitions, full gates and snapshot.
-- [ ] Green branch CI, publish v1.3.6, authenticate artifacts, update/test tap,
+- [x] Green branch CI, publish v1.3.6, authenticate artifacts, update/test tap,
   public installer and in-session updater. Then resume credential-free setup.
 - [x] Follow-up fixture leaf (Codex): CI 37666528082 found the ordinary-error
   recovery test assumed a sibling was running without establishing readiness.
@@ -76,8 +77,35 @@ private warning/result, final flush, live callback and monotonic durable
 fallback event. Independent site 474/release 24/workflow 41/verifier 30/surface
 24 GREEN; scoped fix CLEAN. Evidence: `/private/tmp/kolk-output-review.CPV9Em`.
 The reviewer's listener-based run was blocked by approval-review limits; its
-accepted pure probe needed neither escalation nor network. Fresh CI must still
-exercise the full listener-based suite before tagging.
+accepted pure probe needed neither escalation nor network. Fresh CI 37667517349
+subsequently exercised the full listener-based suite successfully before tagging.
+
+### Verified patch handoff — 2026-10-07
+
+- Final branch CI 37667517349 at `631cd60`: all six jobs passed, including
+  real Ubuntu race/coverage and Linux/macOS tests. Final local root race passed
+  (83.6%); serial snapshot at this commit passed 21 checks.
+- Annotated `v1.3.6` resolves to `631cd60a94fa54016768aaff52ae6c7f6f55a767`
+  (tag object `08f1f71c1f6860a9846741e524b861544e052757`). Release workflow
+  37668047438 verify/publish passed. Tagged Linux gate: 5,159 tests,
+  10,760,376 bytes, cold/sandbox p50 both 1.6 ms; snapshot 21 passed.
+- Public verifier passed signature, four archive checksums/layouts and host
+  identity. Non-author offline verification independently authenticated the
+  exact tag-workflow/OIDC identity using cached trusted roots, checked all
+  four archives/architectures/under-11-MiB sizes and generated tap bytes: CLEAN.
+  Evidence: `/private/tmp/kolk-v136-offline-review.sAQ1aT`.
+- Tap `3d36f53` pushed after review. Real `brew update`, scoped 1.3.5 → 1.3.6
+  upgrade and `brew test onembyte/tap/kolk` passed. The kolkrabbi alias resolves
+  the same current formula. No unrelated formula/cask was upgraded or trusted.
+- Freshly downloaded public installer matches `site/install.sh`; isolated
+  1.3.5 → 1.3.6 then up-to-date passed. Real PTY `/update` likewise upgraded an
+  isolated copy, restarted and reported current 1.3.6; no model prompt was sent.
+- Actual Brew binary completed mock-backed code write, agent plan/two delegated
+  tools/synthesis; final file exactly two lines. Private state/workspace only,
+  no remote provider or API credit. Host reports 1.3.6, tagged commit and Go
+  1.25.0 darwin/arm64. These are not real provider/GPU/physical-terminal trials.
+- The older curl binary remains first in PATH; launch the Brew executable
+  explicitly. Fresh credential-free setup below remains open in this patch.
 
 The existing distribution is a formula in the `onembyte/tap` tap, covering
 macOS/Linux and amd64/arm64. Confirm the tap and formula against the published
@@ -174,4 +202,4 @@ of `kolk key`. Acceptance for this next, unimplemented leaf:
 - Existing keys, environment precedence, corrupt stores, local/compatible
   endpoints and signed-in vendors without an OpenRouter key remain correct.
 - Real fresh-profile PTY RED first, focused race, independent review/full gates,
-  then a new version and packaged smoke; never rewrite the published v1.3.5 tag.
+  then a new version and packaged smoke; never rewrite any published tag.
