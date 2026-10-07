@@ -125,13 +125,14 @@ func TestNewAgentNeverWaitsOnTheNetworkWhenACatalogCacheExists(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A provider that answers slowly. Before the fix this delay was paid on
-	// the startup path, in full, twice.
+	// Keep the provider blocked until startup returns. A wall-clock speed
+	// assertion confuses CPU contention with waiting on the network.
+	release := make(chan struct{})
 	var hits int32
 	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&hits, 1)
 		select {
-		case <-time.After(700 * time.Millisecond):
+		case <-release:
 		case <-r.Context().Done():
 			return
 		}
@@ -139,21 +140,24 @@ func TestNewAgentNeverWaitsOnTheNetworkWhenACatalogCacheExists(t *testing.T) {
 		_, _ = io.WriteString(w, `{"data":[{"id":"network/newer:free","context_length":128000,"supported_parameters":["tools"],"pricing":{"prompt":"0","completion":"0"}}]}`)
 	}))
 	defer slow.Close()
+	defer close(release)
 
 	a, _, _ := newTestApp(t, "")
 	t.Cleanup(a.joinBackground)
 	a.chooseDefault = chooseDefaultModel
-	started := time.Now()
-	agent, err := a.newAgent(context.Background(), &options{baseURL: slow.URL})
-	elapsed := time.Since(started)
+	// Expire before the catalog's own timeout: a synchronous request that
+	// silently falls back to cache after timing out must also fail this test.
+	ctx, cancel := context.WithTimeout(context.Background(), firstRunCatalogTimeout/2)
+	defer cancel()
+	agent, err := a.newAgent(ctx, &options{baseURL: slow.URL})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if agent.Model != "cached/coder:free" {
 		t.Fatalf("model = %q, want the cached catalog's choice", agent.Model)
 	}
-	if elapsed > 400*time.Millisecond {
-		t.Fatalf("startup took %v with a catalog on disk; it must not wait on the network", elapsed)
+	if ctx.Err() != nil {
+		t.Fatal("startup waited on the blocked provider despite a catalog on disk")
 	}
 }
 

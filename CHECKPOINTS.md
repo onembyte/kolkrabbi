@@ -108,6 +108,15 @@ Detailed review checklist: `docs/v43-checklist.md` (resumed 2026-09-21 at V43.3c
   the old Darwin baseline. Release was held. The measured rebaseline, actual
   public-claim enforcement and size-map evidence are in docs/build-log.md.
   A green follow-up CI remains mandatory before the v1.3.5 tag.
+- CI 37626548802 exposed listener PID/thread and sibling-admission assumptions
+  in old fixtures. Foreign-process ownership now uses a real child; recovery
+  draining establishes two admitted children before the error. Independent
+  forced-yield overlay reproduced old RED/current GREEN. Cached-startup
+  readiness also replaces a CPU-sensitive threshold; independent synchronous
+  catalog mutant is refused by the corrected deadline. No production shell or
+  scheduler change. Five-file scoped CLEAN, shared gate 5,159 tests/lint 0 and
+  all contracts green; final deadline race ×20 passed. Detailed evidence in
+  docs/build-log.md; fresh Linux CI and publication are still required.
 
 - [x] **V43.1 readable terminal identity and model controls** — keep model/effort visible in the
   footer, picker and worker rows; restore a small pixel octopus beside activity. Verify narrow

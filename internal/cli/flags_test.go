@@ -103,6 +103,13 @@ func TestFlagTableIsWellFormed(t *testing.T) {
 	}
 }
 
+func TestEffortHelpDescribesBudgets(t *testing.T) {
+	f := lookupFlag("--effort")
+	if f == nil || f.summary != "select model tier and reasoning/tool budgets" {
+		t.Fatalf("effort help = %+v; effort must not imply plan truncation or concurrency changes", f)
+	}
+}
+
 // A flag must never accidentally collide with a command name, unless it is an
 // intentional flag twin (model, mode, effort) defined in docs/plan/09-command-surface.md §1.2.
 func TestFlagsAndCommandsDoNotCollide(t *testing.T) {

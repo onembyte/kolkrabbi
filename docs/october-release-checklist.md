@@ -77,3 +77,8 @@ No release is declared before its verification and package-manager handoff.
 - Budget follow-up independent CLEAN: all four builds below the 11 MiB promise;
   scratch matrix rejects public-bound equality, true ratchet growth and the
   unchanged absolute ceiling. Legacy MB/drifted site claims are also rejected.
+- Follow-up CI 37626548802 exposed Linux PID/thread and recovery-test scheduling
+  assumptions. Release remains held. Fixtures now use an actual foreign process
+  and an explicit sibling-readiness barrier; independent adversarial scheduling
+  reproduced old RED/fixed GREEN. Cached-startup timing also uses blocked network
+  readiness instead of a CPU-sensitive speed threshold. Evidence in build-log.

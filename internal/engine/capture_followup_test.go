@@ -179,6 +179,7 @@ func TestChildToolErrorClosesAdmissionUntilTheDrainedSave(t *testing.T) {
 				sess.fail = map[string]error{"error": errors.New("disk unavailable")}
 			}
 			repairing, releaseRepair, siblingClosed := make(chan struct{}), make(chan struct{}), make(chan struct{})
+			siblingOpened := make(chan struct{})
 			var opened atomic.Int32
 			var early atomic.Bool
 			sess.at = func(reason string, run *continuity.Run) {
@@ -208,6 +209,14 @@ func TestChildToolErrorClosesAdmissionUntilTheDrainedSave(t *testing.T) {
 						return captureMessagesBackend(func(_ []provider.Message) (provider.Message, error) {
 							calls++
 							if calls == 1 {
+								// Establish two admitted children before triggering the
+								// failure. Otherwise the gate may correctly close before
+								// the sibling launches, making the fixture deadlock.
+								select {
+								case <-siblingOpened:
+								case <-ctx.Done():
+									return provider.Message{}, ctx.Err()
+								}
 								return provider.Message{Role: "assistant", ToolCalls: []provider.ToolCall{{ID: "missing", Function: provider.FunctionCall{Name: "read_file", Arguments: `{"path":"` + root + `/missing"}`}}}}, nil
 							}
 							close(repairing)
@@ -220,6 +229,7 @@ func TestChildToolErrorClosesAdmissionUntilTheDrainedSave(t *testing.T) {
 						}), nil
 					}
 					if n == 2 {
+						close(siblingOpened)
 						return &captureClosingBackend{captureMessagesBackend: captureMessagesBackend(func(_ []provider.Message) (provider.Message, error) {
 							select {
 							case <-repairing:
@@ -236,7 +246,14 @@ func TestChildToolErrorClosesAdmissionUntilTheDrainedSave(t *testing.T) {
 				},
 			})
 			done := make(chan error, 1)
-			go func() { done <- agent.RunTurn(ctx, "three independent tasks") }()
+			go func() {
+				defer close(done)
+				done <- agent.RunTurn(ctx, "three independent tasks")
+			}()
+			defer func() {
+				cancel()
+				<-done
+			}()
 			select {
 			case <-siblingClosed:
 			case <-ctx.Done():

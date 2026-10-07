@@ -8,6 +8,42 @@ One line per step. Verification is a command someone else can re-run.
 
 ---
 
+## 2026-10-07 — deterministic release-gate fixtures
+
+Follow-up CI 37626548802 rejected three Linux jobs because the listener test
+used `PID + 1` as a foreign process. Linux may use that ID for a thread sharing
+the current process's descriptors. The negative check now uses a real owned
+child process with no inherited listener; production ownership checks remain
+unchanged. Local listener race ×10 passed; Linux CI remains mandatory.
+
+The race job also exposed a scheduling assumption in the recovery-drain
+fixture: a first child's tool error can correctly close admission before the
+second child opens. A readiness barrier now establishes the intended two-live-
+children scenario before failing. Independent scheduler-yield overlay under
+GOMAXPROCS=1 reproduced the old fixture's two timeout failures and passed the
+fixed fixture ×10. Original admission/drained-save assertions are unchanged;
+failure cleanup now cancels and joins the run. Parent focused engine/CLI race
+×30 passed. Independent evidence: `/private/tmp/kolk-listener-review.gqt4dR`.
+
+The full local gate under concurrent suite load exposed an older cached-startup
+test's 400 ms speed threshold (observed 732 ms with the correct cached model).
+It now keeps network responses blocked until startup returns and uses only a
+failure timeout, checking the actual nonblocking contract rather than CPU load.
+Focused race ×20 passed. `--effort` help is also corrected from orchestration
+width to model/reasoning/tool budgets; a new help regression was RED then GREEN.
+These are focused O10.1 improvements, not closure of its remaining test queue.
+
+Independent cached-startup mutation proved why the root deadline must precede
+the catalog's four-second fallback timeout: the superseded five-second fixture
+passed the synchronous-request mutant; the corrected deadline refused it after
+two seconds. Current unmutated fixture race ×10 passed. Final five-file delta
+review CLEAN; no production listener/scheduler change. Shared `make check`
+passed 5,159 tests, lint 0, all five platform compiles and every contract gate.
+Size remains 10,428,370 bytes; cold p50 7.3 ms, sandbox overhead p50 8.3 ms.
+The final deadline correction also passed parent focused race ×20.
+
+---
+
 ## 2026-10-07 — Linux release budget follow-up
 
 Candidate `b042dbb` passed Ubuntu/macOS tests, lint, guardrails and the new

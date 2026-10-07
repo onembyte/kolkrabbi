@@ -22,7 +22,14 @@ func TestProcessOwnsOnlyItsExactLoopbackListener(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("this process owns %s: ok=%v err=%v", listener.Addr(), ok, err)
 	}
-	ok, err = ProcessOwnsLoopbackListener(ctx, os.Getpid()+1, listener.Addr().String())
+	// PID+1 can be one of this process's thread IDs on Linux and share its
+	// descriptors. Use a real, live foreign process with no inherited listener.
+	child, err := StartManagedProcess(ctx, "sleep", []string{"10"}, []string{"PATH=/usr/bin:/bin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = child.Close() }()
+	ok, err = ProcessOwnsLoopbackListener(ctx, child.cmd.Process.Pid, listener.Addr().String())
 	if err == nil && ok {
 		t.Fatal("another PID was credited with this listener")
 	}
