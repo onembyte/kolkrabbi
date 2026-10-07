@@ -14,10 +14,12 @@ cd "$(dirname "$0")/.."
 # and with docs/build-log.md's size map re-run. BIN_CEILING is absolute: no
 # commit message buys past it.
 #
-# Measured 2026-09-09 on darwin/arm64, go1.26.4:
+# Rebased 2026-10-07 from the real Ubuntu/amd64 CI release-profile build.
+# The V43 bytes buy durable recovery, managed runtimes and readable work logs;
+# docs/build-log.md records the failed old ratchet and the current size map.
 #   CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o kolk ./cmd/kolk
-#   9,507,938 bytes = 9.07 MB
-BIN_BASELINE=9507938             # 9.07 MB, measured 2026-09-09
+#   10,760,376 bytes = 10.26 MiB
+BIN_BASELINE=10760376            # 10.26 MiB, measured 2026-10-07
 BIN_HARD=$(( BIN_BASELINE * 110 / 100 ))
 BIN_CEILING=$((20 * 1024 * 1024)) # 20 MB — the absolute ceiling
 START_HARD_MS=30
@@ -38,12 +40,22 @@ filesize() { # portable stat
 echo "── binary size ──"
 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o "$out/kolk" ./cmd/kolk
 size="$(filesize "$out/kolk")"
-printf 'kolk: %s bytes (%.2f MB)\n' "$size" "$(echo "$size" | awk '{print $1/1048576}')"
+printf 'kolk: %s bytes (%.2f MiB)\n' "$size" "$(echo "$size" | awk '{print $1/1048576}')"
 printf 'ratchet: %s bytes (baseline %s + 10%%), ceiling %s bytes\n' "$BIN_HARD" "$BIN_BASELINE" "$BIN_CEILING"
 if [ "$size" -gt "$BIN_CEILING" ]; then
   echo "::error::kolk exceeds the 20 MB absolute ceiling"; status=1
 elif [ "$size" -gt "$BIN_HARD" ]; then
   echo "::error::kolk is $size bytes, past the ratchet of $BIN_HARD (baseline $BIN_BASELINE + 10%). Either give the bytes back, or raise BIN_BASELINE in a commit that says what they bought."; status=1
+fi
+
+# Compare the actual build, not only a historical baseline, to the public
+# promise. The old baseline-only check missed Linux growth while macOS passed.
+claim_mib="$(grep -oE 'static binary under [0-9]+ ?MiB' README.md | head -1 |
+  grep -oE '[0-9]+' | head -1)"
+if [[ ! "$claim_mib" =~ ^[0-9]+$ ]]; then
+  echo "::error::README has no explicit MiB binary claim"; status=1
+elif [ "$size" -ge $(( claim_mib * 1024 * 1024 )) ]; then
+  echo "::error::kolk is $size bytes, not under the public ${claim_mib} MiB claim"; status=1
 fi
 
 echo "── cold start ──"

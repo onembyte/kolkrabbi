@@ -8,6 +8,79 @@ One line per step. Verification is a command someone else can re-run.
 
 ---
 
+## 2026-10-07 — Linux release budget follow-up
+
+Candidate `b042dbb` passed Ubuntu/macOS tests, lint, guardrails and the new
+race/coverage job (Ubuntu total 83.1%, coverage artifact uploaded), but CI run
+37624838397 refused the Linux size budget: **10,760,376 bytes = 10.26 MiB**,
+above the old 10,458,731-byte ratchet seeded from September's Darwin build.
+Cold start was 1.7 ms and native sandbox overhead 1.2 ms; 5,155 Linux tests
+cleared the 4,642 floor. No tag was published from this failed run.
+
+The baseline is explicitly rebased to this measured Ubuntu size. The added
+bytes buy V43's durable compressed recovery/validation and continuation,
+managed Localia runtime installation/GPU/lifetime handling, typed work records
+and terminal rendering. The +10% ratchet and 20 MiB absolute ceiling remain;
+an additional check now compares the *actual* build to the public promise,
+not just its historical baseline. README/site consistently say **under
+11 MiB**, including units. Local Go 1.26.4 cross-build of Linux/amd64 measures
+11,153,570 bytes (10.64 MiB); Darwin/arm64 measures 10,428,370 (9.95 MiB).
+CI's Go version follows go.mod's 1.25 line. These are distinct measured builds,
+not a claim that every platform produces identical bytes.
+
+Independent four-platform stripped Go 1.26.4 builds: darwin/amd64 11,363,696
+(largest, 10.84 MiB), darwin/arm64 10,428,370, linux/amd64 11,153,570 and
+linux/arm64 10,223,778 bytes; all meet the 11 MiB public bound. Independent
+unchanged-script scratch matrix: baseline and 11 MiB minus one byte pass;
+11 MiB equality fails the public claim, 11,836,414 fails the ratchet and
+20 MiB plus one fails the absolute ceiling. Site probes reject both old MB
+units and numeric drift. Non-author verdict CLEAN; site 474 checks passed.
+
+Current size map, `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath`
+and `go tool nm -size -sort size`, Go 1.26.4, top 30. `nm` includes address-space
+symbols, so these figures must not be added up as file size; e.g. the DRBG
+memory buffer is not 32 MiB of shipped file contents.
+
+```text
+33554432 crypto/internal/fips140/drbg.memory
+712344   go:func.*
+93464    runtime.mheap_
+88064    crypto/internal/fips140/nistec.p256PrecomputedEmbed
+69632    runtime.cgroupScratch
+30736    crypto/internal/fips140/edwards25519.basepointTablePrecomp
+27550    internal/cli.(*app).runConfig
+26489    runtime.findfunctab
+25029    protocol.validateEventData
+21782    chacha20poly1305.chacha20Poly1305Seal.abi0
+19592    crypto/internal/fips140/sha3.keccakF1600.abi0
+19426    unicode/norm.decomps
+19426    chacha20poly1305.chacha20Poly1305Open.abi0
+17280    x/net/idna.idnaValues
+16576    unicode/bidi.bidiValues
+16507    internal/cli.(*app).slash
+16064    runtime.semtable
+13270    crypto/tls.(*clientHelloMsg).marshalMsg
+12604    runtime.typelink
+12416    unicode/norm.nfkcValues
+12295    internal/engine.(*Agent).streamChatOnObserved
+12091    crypto/tls.(*Conn).readRecordOrCCS
+11845    internal/engine.(*Agent).runSubagent
+11768    internal/cli.(*app).newAgent
+11611    time.parse
+11141    internal/engine.(*Agent).runOrchestrated
+11136    internal/strconv.pow10Tab
+10521    unicode.map.init.2
+10520    net/http.(*Transport).dialConn
+10440    runtime.memstats
+```
+
+Text-symbol sums for selected application packages: CLI 425,778; engine
+413,451; TUI 209,829; local 148,217; agentcli 95,704; session 64,863; zstd
+43,549 bytes. O13 remains the measured function-refactor queue; disabling
+recovery, redaction or runtime safety is not a size optimization.
+
+---
+
 ## 2026-10-07 — interrupted V43 closeout and optimization audit
 
 Preserved the prior V43 working tree and ordered its remaining recovery,

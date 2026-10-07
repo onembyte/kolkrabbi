@@ -151,7 +151,7 @@ contains index.html 'Claude Code &amp; Codex CLI alternative</title>' "the title
 contains index.html 'AI coding agent for the terminal' "the meta description does not say what kolk is"
 contains index.html 'Ollama' "the hero does not name a local provider"
 contains index.html 'One static binary under' "the landing page does not state the binary size"
-contains index.html '10&nbsp;MB, milliseconds to start' "the binary claim drifted from what check-budgets.sh measures"
+contains index.html '11&nbsp;MiB, milliseconds to start' "the binary claim drifted from what check-budgets.sh measures"
 
 # The size claim is made in seven places -- README.md and six site pages -- and
 # before 2026-09-09 they all said "under 9 MB" about a binary that had grown to
@@ -161,7 +161,7 @@ contains index.html '10&nbsp;MB, milliseconds to start' "the binary claim drifte
 # gate going red (OPTIMIZATION_PLAN.md O12).
 size_claims_agree() {
   local readme="$ROOT/README.md" mb budget_bytes claim_bytes page found
-  mb="$(grep -oE 'static binary under [0-9]+ ?(MB|&nbsp;MB)' "$readme" | head -1 |
+  mb="$(grep -oE 'static binary under [0-9]+ ?MiB' "$readme" | head -1 |
     grep -oE '[0-9]+' | head -1)"
   if [ -n "$mb" ]; then pass; else
     fail "README.md no longer states a binary size the site can be checked against"
@@ -172,13 +172,18 @@ size_claims_agree() {
   while IFS= read -r page; do
     while IFS= read -r claim; do
       found=1
+	  if [[ "$claim" != *MiB ]]; then
+	    fail "${page#"$SITE"/} has a stale MB size claim rather than measured MiB"
+	    continue
+	  fi
+	  claim="$(printf '%s\n' "$claim" | grep -oE '[0-9]+')"
       if [ "$claim" = "$mb" ]; then pass; else
-        fail "${page#"$SITE"/} says the binary is under $claim MB while README.md says $mb MB"
+        fail "${page#"$SITE"/} says the binary is under $claim MiB while README.md says $mb MiB"
       fi
-    done < <(grep -oE '[Uu]nder [0-9]+(&nbsp;| )MB' "$page" | grep -oE '[0-9]+')
+    done < <(grep -oE '[Uu]nder [0-9]+(&nbsp;| )(MB|MiB)' "$page")
   done < <(find "$SITE" -name '*.html' -o -name '*.txt' | sort)
   if [ "$found" = 1 ]; then pass; else
-    fail "no site page states the binary size, so README.md's $mb MB is unchecked"
+    fail "no site page states the binary size, so README.md's $mb MiB is unchecked"
   fi
 
   # The claim has to be true of the binary the budgets actually measure.
@@ -187,7 +192,7 @@ size_claims_agree() {
   if [ -z "$budget_bytes" ]; then
     fail "scripts/check-budgets.sh has no BIN_BASELINE for the README claim to be checked against"
   elif [ "$budget_bytes" -lt "$claim_bytes" ]; then pass; else
-    fail "README.md claims under $mb MB while check-budgets.sh measured $budget_bytes bytes"
+    fail "README.md claims under $mb MiB while check-budgets.sh measured $budget_bytes bytes"
   fi
 }
 size_claims_agree

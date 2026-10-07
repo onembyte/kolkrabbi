@@ -69,3 +69,11 @@ No release is declared before its verification and package-manager handoff.
 - Pushed CI, published assets and Homebrew handoff are not complete until
   their results are recorded here. The current PATH selects the older curl
   binary at `~/.local/bin/kolk`; Homebrew identity must be checked explicitly.
+- Candidate commit b042dbb pushed. CI 37624838397 passed every job except the
+  old binary ratchet (Linux 10,760,376 bytes). Release held. Measured rebaseline,
+  top-30 size map and the actual public-size check are recorded in build-log;
+  fresh CI must be green before tagging. Baseline Homebrew 1.3.4 install/test
+  passed; the old curl copy was preserved.
+- Budget follow-up independent CLEAN: all four builds below the 11 MiB promise;
+  scratch matrix rejects public-bound equality, true ratchet growth and the
+  unchanged absolute ceiling. Legacy MB/drifted site claims are also rejected.

@@ -16,7 +16,7 @@ Think Claude Code, but: separate chat, code, and agent modes, an effort dial tha
 selects *which model* and reasoning/tool budgets instead of just thinking tokens, and
 every call tracked locally so you learn which models actually earn their cost.
 
-Go, two dependencies, a single static binary under 10MB, milliseconds to start.
+Go, two dependencies, a single static binary under 11 MiB, milliseconds to start.
 
 ```bash
 curl -fsSL https://kolkrabbi.francomichetti.com/install.sh | sh   # macOS and Linux

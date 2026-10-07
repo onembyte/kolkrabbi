@@ -333,6 +333,13 @@ false. `BIN_BASELINE` + 10 % is now the failing gate, 20 MB the absolute ceiling
 accepted-cost note in `docs/build-log.md`: kolkrabbi's own code is 11.2 % of the sized symbols,
 `net/http` + crypto + Unicode tables 15.5 %, the rest runtime and reflect metadata.
 
+**2026-10-07 release follow-up:** Linux V43 crossed the old Darwin-seeded ratchet
+(10,760,376 bytes vs 10,458,731). The size-map was rerun and the baseline explicitly
+rebased to that actual Ubuntu build; +10% and the 20 MiB ceiling remain. The public
+claim is now under 11 MiB and budgets compare the actual build to it, closing the
+old baseline-only blind spot. Larger local Go 1.26.4 Linux cross-build is 10.64 MiB.
+See the dated build-log entry for accepted feature costs, measurements and CI evidence.
+
 ### O15 — Errors, not panics, for a bad session ID  ·  P3  ·  **done 2026-09-09**
 
 `path()`, `CooldownsFile()`, `CkptDir()` panic on an invalid ID. `Load` validates before

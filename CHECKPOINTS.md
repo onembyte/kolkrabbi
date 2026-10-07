@@ -103,6 +103,11 @@ Detailed review checklist: `docs/v43-checklist.md` (resumed 2026-09-21 at V43.3c
   corrected stale Homebrew refusal, effort task-count truncation, hidden key
   guidance and full-replay-on-doubt; native Bash sandbox remains correctly
   described as opt-in, not universal vendor/Windows confinement.
+- Release CI follow-up: b042dbb's CI 37624838397 passed tests, lint, guards and
+  race+coverage (Ubuntu 83.1%) but rejected Linux's 10,760,376-byte build against
+  the old Darwin baseline. Release was held. The measured rebaseline, actual
+  public-claim enforcement and size-map evidence are in docs/build-log.md.
+  A green follow-up CI remains mandatory before the v1.3.5 tag.
 
 - [x] **V43.1 readable terminal identity and model controls** — keep model/effort visible in the
   footer, picker and worker rows; restore a small pixel octopus beside activity. Verify narrow
