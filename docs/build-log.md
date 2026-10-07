@@ -10,6 +10,15 @@ One line per step. Verification is a command someone else can re-run.
 
 ## 2026-10-07 — deterministic release-gate fixtures
 
+CI 37628431599 at 0d102e3 subsequently passed all six jobs, including real Linux
+ownership, recovery race/coverage, budgets, macOS and guardrails. Final packaged
+help review also caught obsolete width/accounting prose below the flag table;
+positive and inverse help tests were RED for five assertions, then GREEN.
+The old static surface gate required that wrong width prose and was corrected
+to pin model/reasoning/tool budgets, whole-plan retention and the data directory.
+Non-author focused help race ×10 CLEAN; lint 0, surface 24 and plan 110 passed.
+This help-only follow-up requires fresh branch CI before tagging.
+
 Follow-up CI 37626548802 rejected three Linux jobs because the listener test
 used `PID + 1` as a foreign process. Linux may use that ID for a thread sharing
 the current process's descriptors. The negative check now uses a real owned

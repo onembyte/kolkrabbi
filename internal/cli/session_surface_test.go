@@ -87,6 +87,7 @@ func TestHelpIsTheFrontDoor(t *testing.T) {
 		"What it can do:",
 		"three modes", "an effort dial", "any provider", "permission tiers",
 		"local accounting", "checkpoints", "project memory",
+		"reasoning budget", "every planned task stays in the run", "local data directory",
 		"OPENROUTER_API_KEY", "KOLK_CONFIG_DIR",
 	} {
 		if !strings.Contains(got, want) {
@@ -105,7 +106,7 @@ func TestHelpIsTheFrontDoor(t *testing.T) {
 		}
 	}
 	// And it never advertises a verb that was retired.
-	for _, gone := range []string{"kolk config", "kolk key", "kolk stats", "kolk completion"} {
+	for _, gone := range []string{"kolk config", "kolk key", "kolk stats", "kolk completion", "how wide an agent run", "~/.config/kolk/stats.jsonl"} {
 		if strings.Contains(got, gone) {
 			t.Errorf("kolk help still advertises %q", gone)
 		}

@@ -523,15 +523,16 @@ things a session cannot do:
 What it can do:
   three modes        /mode chat (no tools) · code (the tool loop) · agent
                      (plans tasks, routes each to a model, runs them, answers once)
-  an effort dial     /effort low|medium|high|max|ultra picks the model tier, the tool-round
-                     limit, the shell timeout, and how wide an agent run may go
+  an effort dial     /effort low|medium|high|max|ultra picks the model tier,
+                     reasoning budget and tool-round allowance;
+                     every planned task stays in the run
   any provider       OpenRouter, any OpenAI-compatible URL (Ollama, LiteLLM, vLLM),
                      a Claude or Codex subscription through its own CLI, or local Ollama
   your money's rules a model you pick is a ceiling: an orchestrated run may route to
                      something cheaper, never to something dearer
   permission tiers   /permissions ask · auto-approve · full-auto — and a floor no tier
                      removes: credential files, system paths, sudo, curl-into-shell
-  local accounting   every call's tokens, cost and latency in ~/.config/kolk/stats.jsonl;
+  local accounting   every call's tokens, cost and latency in the local data directory;
                      /rate 1-5 adds your judgement, /stats and /dash read it back
   checkpoints        /diff, /changes, /undo and /rewind take back what a turn wrote
   careful progression append /saga to a request to work it in committed chapters

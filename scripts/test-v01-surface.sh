@@ -31,8 +31,11 @@ contains "$CLI/flags.go" '<chat|code|agent>' "CLI mode flag does not name exactl
 contains "$CLI/flags.go" 'agent = orchestrated' "CLI mode flag does not explain agent mode"
 contains "$CLI/cli.go" 'kolk — chat, code, and ordered agents in one terminal' "top-level help does not name the three-mode release"
 contains "$CLI/cli.go" '/mode chat (no tools) · code (the tool loop) · agent' "top-level help does not name the three modes"
-contains "$CLI/cli.go" 'the model tier, the tool-round' "top-level help does not explain what effort scales"
-contains "$CLI/cli.go" 'how wide an agent run may go' "top-level help does not explain agent effort"
+contains "$CLI/cli.go" 'picks the model tier' "top-level help does not explain model effort"
+contains "$CLI/cli.go" 'reasoning budget and tool-round allowance' "top-level help does not explain what effort scales"
+contains "$CLI/cli.go" 'every planned task stays in the run' "top-level help does not preserve the whole plan"
+excludes "$CLI/cli.go" 'how wide an agent run|orchestration width' "top-level help claims effort changes plan width"
+excludes "$CLI/cli.go" '~/.config/kolk/stats.jsonl' "top-level help advertises the retired accounting path"
 contains "$CLI/slash.go" '{"permissions", "[ask|auto-approve|full-auto]"' "in-session help does not list the permission tiers"
 contains "$CLI/slash.go" '"full-auto", "", "stop asking' "in-session help does not list the full-auto tier"
 # Update retired as an outside-session verb on 2026-09-02 (docs/plan/09): the
