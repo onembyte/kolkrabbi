@@ -59,7 +59,12 @@ Final documentation CI 37632527908 exposed a real parallel-transcript race:
 the fallback announcement bypassed the child buffer while the scheduler wrote
 run-cost output. Codex owns this single follow-up leaf; regression, independent
 mutation review, full gates (5,162 tests), root race and snapshot passed. Patch
-v1.3.6 publication is pending. Do not rewrite the v1.3.5 tag or hide
+v1.3.6 publication is pending. CI 37666528082 exposed a separate recovery
+fixture ordering assumption (no data race): the first child could fail before
+the sibling was admitted. Codex's fixture-only readiness barrier passed
+independent old RED/fixed adversarial race ×100, focused race and full gates.
+All recovery assertions and production admission behavior are unchanged. Do not
+rewrite the v1.3.5 tag or hide
 the failure by rerunning CI. Credential-free setup follows this immediate fix.
 Ordered execution is in
 `docs/october-release-checklist.md`; larger unfinished optimizations are

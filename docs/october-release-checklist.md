@@ -55,6 +55,18 @@ the handoff recommendation must move to v1.3.6 after verification.
 - [x] Independent review, focused race repetitions, full gates and snapshot.
 - [ ] Green branch CI, publish v1.3.6, authenticate artifacts, update/test tap,
   public installer and in-session updater. Then resume credential-free setup.
+- [x] Follow-up fixture leaf (Codex): CI 37666528082 found the ordinary-error
+  recovery test assumed a sibling was running without establishing readiness.
+  Add a channel barrier before the first failure; retain quiescent save and
+  third-task admission assertions. Production scheduler stays unchanged.
+
+Fixture acceptance: independent scheduler-yield old RED matches CI's exact
+failure (no data-race diagnostic); fixed adversarial race ×100 GREEN and
+ordinary/pause recovery race ×30 GREEN. Parent focused recovery race ×100
+GREEN and fresh serial full gate GREEN (5,162 tests, lint 0, binary unchanged,
+cold p50 5.9 ms, sandbox p50 7.5 ms). Original provider-handle semantics,
+three-second context bound and all recovery assertions are preserved.
+Evidence: `/private/tmp/kolk-recovery-fixture-review.MUVZzO`.
 
 Acceptance: parent regression RED (both transcript/live), focused race ×30
 GREEN, full root race GREEN (83.6%), serial `make check` GREEN (5,162 tests,

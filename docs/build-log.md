@@ -8,6 +8,30 @@ One line per step. Verification is a command someone else can re-run.
 
 ---
 
+## 2026-10-07 — ordinary-error recovery fixture readiness
+
+Patch CI 37666528082 passed normal Linux/macOS tests, lint and budgets but
+failed TestAChildErrorRecoveryDrainsAnInflightSiblingBeforeSaving in the race
+job (112947064150). No data race was reported: the first child could fail and
+correctly close scheduler admission before its supposed in-flight sibling
+started. The original quiescent-save assertion then described a scenario the
+fixture had not actually established. Release remains held; no rerun masking.
+
+Independent private scheduler-yield overlay reproduced the exact old RED
+under GOMAXPROCS=1/race, no network: first settled, two siblings still queued.
+Codex added secondStarted: failed-child's factory waits (or observes context
+cancellation), and the in-flight child's StreamChat signals readiness. The
+original child backend and provider-handle semantics are retained. Production
+orchestrator SHA-256 remains ca11730a78f4d7bf4e6a2491adce8ac5fd7da8eafa2e82e5ec07af1304e4ffe4.
+No scheduler, error-recovery or third-task admission assertion was relaxed.
+Parent focused recovery race ×100 passed. Independent scheduler-yield old RED,
+fixed race ×100 GREEN and ordinary/pause recovery race ×30 GREEN; scoped CLEAN.
+Evidence: /private/tmp/kolk-recovery-fixture-review.MUVZzO. Full gate passed:
+5,162 tests, lint 0, all contracts/platforms, unchanged size 10,428,370 bytes;
+cold p50 5.9 ms, sandbox p50 7.5 ms. Final root race/fresh branch CI pending.
+
+---
+
 ## 2026-10-07 — parallel fallback transcript race, v1.3.6 candidate
 
 Documentation CI 37632527908 at dbeadf7 caught a real data race, not a flaky

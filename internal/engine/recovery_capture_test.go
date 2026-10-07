@@ -209,6 +209,7 @@ func executionPauseRecorded(ctx context.Context) bool { return pauseGate(ctx).st
 func TestAChildErrorRecoveryDrainsAnInflightSiblingBeforeSaving(t *testing.T) {
 	sess := &captureRecoverySession{FakeSession: enginetest.NewFakeSession("s_child_drain", "parent")}
 	var recovered, thirdStarted atomic.Bool
+	secondStarted := make(chan struct{})
 	secondDone := make(chan struct{})
 	sess.before = func(reason string, run *continuity.Run) {
 		select {
@@ -230,12 +231,21 @@ func TestAChildErrorRecoveryDrainsAnInflightSiblingBeforeSaving(t *testing.T) {
 		Backend: &answeringBackend{}, Model: "parent", Mode: ModeAgent, Effort: EffortMedium,
 		Permission: PermissionFullAuto, Sess: sess, Root: t.TempDir(), Out: io.Discard,
 		MaxConcurrentTasks: 2,
-		SubagentBackend: func(_ context.Context, model, _, _ string, _ SubagentCapabilities) (ChatBackend, error) {
+		SubagentBackend: func(ctx context.Context, model, _, _ string, _ SubagentCapabilities) (ChatBackend, error) {
 			switch model {
 			case "failed-child":
+				// Establish the two-in-flight scenario before failing. Without
+				// this barrier the scheduler can correctly close admission
+				// before the sibling starts, leaving nothing to drain.
+				select {
+				case <-secondStarted:
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				}
 				return childCaptureBackend{text: "partial", err: errors.New("first failed")}, nil
 			case "inflight-child":
 				return contextChildBackendFunc(func(ctx context.Context, _ func(string)) (provider.Message, provider.Meta, error) {
+					close(secondStarted)
 					for {
 						run := sess.RunState()
 						if run != nil && len(run.Tasks) == 3 && run.Tasks[0].Status == "failed" {
