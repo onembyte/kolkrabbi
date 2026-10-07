@@ -68,6 +68,66 @@ func TestTheFallbackToTheCeilingIsAnnouncedNotSilent(t *testing.T) {
 	}
 }
 
+// Parallel workers must not write to the parent's transcript: even a one-line
+// warning can race with scheduler milestones. Keep the warning with its child
+// report; the live route callback still announces the transition immediately.
+func TestParallelFallbackNoticeStaysInTheChildReport(t *testing.T) {
+	for _, live := range []bool{false, true} {
+		name := "transcript"
+		if live {
+			name = "live"
+		}
+		t.Run(name, func(t *testing.T) {
+			srv := enginetest.New(enginetest.Step{Text: "done"})
+			defer srv.Close()
+			a, parent, _, _ := newTestAgentInternal(t, srv, ModeAgent)
+			a.SetSessionModel("claude-sonnet")
+			a.MaxConcurrentTasks = 2
+			a.Root = t.TempDir()
+			var routes []SubagentStatus
+			if live {
+				a.Subagents = func(status SubagentStatus) { routes = append(routes, status) }
+			}
+			a.SubagentBackend = func(_ context.Context, model, _, _ string, _ SubagentCapabilities) (ChatBackend, error) {
+				if model == "claude-haiku" {
+					return nil, errors.New("no such vendor process")
+				}
+				return &openedBackend{model: model, inner: a.sessionBackend()}, nil
+			}
+			tasks := []Task{{Title: "inspect", Kind: KindResearch, Model: "claude-haiku"}}
+			finished := make(chan taskRun, 1)
+			a.runOneTask(context.Background(), finished, "inspect", tasks, make([]string, 1), 0, "child-test", &sync.Mutex{})
+			report := <-finished
+			if report.err != nil {
+				t.Fatal(report.err)
+			}
+			if parent.Len() != 0 {
+				t.Fatalf("worker bypassed private transcript buffer: %q", parent.String())
+			}
+			warning := "inspect could not start on claude-haiku; falling back to claude-sonnet"
+			if strings.Count(report.output, warning) != 1 {
+				t.Fatalf("child report lost or duplicated fallback warning: %q", report.output)
+			}
+			a.flushTaskReport(tasks, report)
+			if !live {
+				if strings.Count(parent.String(), warning) != 1 {
+					t.Fatalf("flushed transcript lost or duplicated warning: %q", parent.String())
+				}
+				return
+			}
+			if parent.Len() != 0 {
+				t.Fatalf("live surface unexpectedly flushed private transcript: %q", parent.String())
+			}
+			for _, route := range routes {
+				if route.Model == "claude-sonnet" && route.Step == "falling back to claude-sonnet" {
+					return
+				}
+			}
+			t.Fatalf("live fallback transition missing: %+v", routes)
+		})
+	}
+}
+
 func TestFallbackUpdatesTheLiveSubagentRouteWhileItIsWorking(t *testing.T) {
 	srv := enginetest.New(enginetest.Step{Text: "done"})
 	defer srv.Close()

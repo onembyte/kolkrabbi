@@ -42,6 +42,31 @@ closure. The final repository gate is run after material implementation changes.
 
 ## Homebrew handoff
 
+### Immediate patch follow-up — parallel transcript output
+
+Owner: Codex. Documentation CI 37632527908 found a production data race in
+`TestARoutedPlanPausesRestartsResumesAndCompacts`: a worker's fallback notice
+wrote directly to the shared transcript while the scheduler reported run cost.
+This takes precedence over credential-free startup. v1.3.5 remains immutable;
+the handoff recommendation must move to v1.3.6 after verification.
+
+- [x] Add a deterministic RED buffering regression, route the fallback notice
+  through the existing child output buffer, and verify live route events remain.
+- [x] Independent review, focused race repetitions, full gates and snapshot.
+- [ ] Green branch CI, publish v1.3.6, authenticate artifacts, update/test tap,
+  public installer and in-session updater. Then resume credential-free setup.
+
+Acceptance: parent regression RED (both transcript/live), focused race ×30
+GREEN, full root race GREEN (83.6%), serial `make check` GREEN (5,162 tests,
+lint 0, all contracts), snapshot 21 GREEN. Non-author no-network backend probe
+race ×30 GREEN and old-writer mutation RED; checks concurrent scheduler writes,
+private warning/result, final flush, live callback and monotonic durable
+fallback event. Independent site 474/release 24/workflow 41/verifier 30/surface
+24 GREEN; scoped fix CLEAN. Evidence: `/private/tmp/kolk-output-review.CPV9Em`.
+The reviewer's listener-based run was blocked by approval-review limits; its
+accepted pure probe needed neither escalation nor network. Fresh CI must still
+exercise the full listener-based suite before tagging.
+
 The existing distribution is a formula in the `onembyte/tap` tap, covering
 macOS/Linux and amd64/arm64. Confirm the tap and formula against the published
 release. The intended install command is `brew install onembyte/tap/kolk`;

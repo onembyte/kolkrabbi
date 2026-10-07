@@ -4,7 +4,9 @@ The interrupted working tree is V43 product polish and recovery, not a fresh
 optimization baseline. The September F0–F7 work is closed. The September 9 O0,
 O1, O2, O3, O5, O6, O8, O9, O11, O12 and O15 work is already committed. Preserve
 those results rather than rebuilding them. The original continuation baseline
-was v1.3.4; the verified public release is now v1.3.5.
+was v1.3.4; v1.3.5 was published and verified. Final documentation CI exposed
+a parallel-transcript race; its single owned fix and v1.3.6 verification take
+precedence over the queue below. See the October release checklist.
 
 ## Current testable release scope
 

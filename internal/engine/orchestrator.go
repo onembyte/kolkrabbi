@@ -578,7 +578,7 @@ func (a *Agent) runOneTask(ctx context.Context, finished chan<- taskRun, userInp
 	// knows what it already did.
 	if openErr != nil && saved.ProviderState == "" {
 		if ceiling := a.SessionModel(); ceiling != "" && ceiling != model {
-			fmt.Fprintf(a.Out, "%s  ◆ %s could not start on %s; falling back to %s%s\n",
+			fmt.Fprintf(out, "%s  ◆ %s could not start on %s; falling back to %s%s\n",
 				colorDim, tasks[index].Title, model, ceiling, colorReset)
 			release()
 			model = ceiling

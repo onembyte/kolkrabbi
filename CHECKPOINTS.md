@@ -55,6 +55,12 @@ branch and release CI, independently signature-verified and rehearsed through
 Homebrew, public installer and PTY updater. Fresh credential-free setup remains
 an open correctness checkpoint: `/key` guidance currently precedes the session
 it needs. Existing credentials and compatible/local endpoints still work.
+Final documentation CI 37632527908 exposed a real parallel-transcript race:
+the fallback announcement bypassed the child buffer while the scheduler wrote
+run-cost output. Codex owns this single follow-up leaf; regression, independent
+mutation review, full gates (5,162 tests), root race and snapshot passed. Patch
+v1.3.6 publication is pending. Do not rewrite the v1.3.5 tag or hide
+the failure by rerunning CI. Credential-free setup follows this immediate fix.
 Ordered execution is in
 `docs/october-release-checklist.md`; larger unfinished optimizations are
 explicitly retained in `docs/optimization-resume-audit.md`.

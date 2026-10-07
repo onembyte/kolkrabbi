@@ -8,6 +8,36 @@ One line per step. Verification is a command someone else can re-run.
 
 ---
 
+## 2026-10-07 — parallel fallback transcript race, v1.3.6 candidate
+
+Documentation CI 37632527908 at dbeadf7 caught a real data race, not a flaky
+assertion: runOneTask's fallback announcement wrote directly to a.Out while
+the scheduler's noteRunCost wrote to the same transcript. v1.3.5's earlier
+green runs remain historical evidence, not proof against this interleaving.
+
+TestParallelFallbackNoticeStaysInTheChildReport was RED for both transcript
+and live surfaces: worker bypassed private transcript buffer. The one-line
+fix uses the existing per-child out writer. Reports flush in plan order and
+retain exactly one warning; the live route callback still announces fallback.
+No locking wrapper was added to tests to mask the production write.
+
+Parent focused engine race/fallback/continuity/report-order tests passed ×30.
+Full root `go test -race -coverprofile=<private temp>/coverage-v1.3.6.out
+-count=1 ./...` passed, 83.6% coverage. Four-archive snapshot passed 21 checks.
+An initial full gate overlapped GoReleaser deleting dist, so an architecture
+walk found that directory absent; repeat serially after snapshot completion.
+The serial `make check` passed: 5,162 tests, lint 0, five platform compiles,
+all contracts; binary 10,428,370 bytes, cold p50 6.2 ms, sandbox p50 8.4 ms.
+Independent no-network backend race probe ×30 GREEN, old-writer overlay RED
+for plain/live cases. It also pins live callback and monotonic durable fallback
+event while a scheduler writes concurrently. Scoped fix CLEAN; version/site
+contracts independently passed. Evidence: /private/tmp/kolk-output-review.CPV9Em.
+Listener-based review execution hit approval-review limits; the pure probe ran
+without network/escalation. Fresh branch CI/publication and tap remain pending.
+Never rewrite the existing v1.3.5 tag. Fresh-key onboarding remains queued.
+
+---
+
 ## 2026-10-07 — v1.3.5 publication and package handoff
 
 Published annotated v1.3.5 at 05986d115392b25a44a709c9dc829338304f0e73 only

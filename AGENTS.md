@@ -56,7 +56,10 @@ vendor/TUI/fallback/restart review is CLEAN after October fixes. v1.3.5 ships
 05986d1 after green full gates, branch/release CI, independent public signature
 verification and Homebrew/installer/updater rehearsals (tap 387c7c5).
 `docs/october-release-checklist.md` records that closeout and the next open
-correctness leaf: credential-free startup must allow setup before model use.
+correctness leaves. Final docs CI 37632527908 caught a parallel transcript race;
+Codex owns the immediate buffering fix and a new v1.3.6 release. Keep v1.3.5
+immutable and require fresh independent/gate/package evidence for the patch.
+After that, credential-free startup must allow setup before model use.
 Do not claim the current fresh `/key` onboarding works: it exits before the
 session. Preserve the four-command outside surface and hidden credential input.
 No implementation of this new leaf is claimed yet.
