@@ -171,9 +171,9 @@ func TestPlanModelsCarriesStatusContextAndProvenance(t *testing.T) {
 	}
 }
 
-// The compact /model list says which rows are not yet proved, and why a gone
-// one is there at all.
-func TestBareModelChoicesSayWhatIsUnverifiedAndWhatIsGone(t *testing.T) {
+// Compact /model choices mark previews but do not offer retired rows. The full
+// /pmodels matrix above retains retirement diagnostics for configured models.
+func TestBareModelChoicesMarkPreviewsAndDoNotOfferGoneModels(t *testing.T) {
 	dirs := isolateConnectorState(t)
 	signInAs(t, dirs, "anthropic", "Claude Max", "claude")
 	signInAs(t, dirs, "openai", "ChatGPT Plus", "codex")
@@ -190,8 +190,8 @@ func TestBareModelChoicesSayWhatIsUnverifiedAndWhatIsGone(t *testing.T) {
 	if !strings.Contains(got, "claude-fable") || !strings.Contains(got, "unverified until a turn confirms it") {
 		t.Fatalf("choices did not mark the previewed row: %q", got)
 	}
-	if !strings.Contains(got, "gone: the vendor no longer lists it") {
-		t.Fatalf("choices did not say what happened to a retired row: %q", got)
+	if strings.Contains(got, "gone: the vendor no longer lists it") || strings.Contains(got, "gpt-5.6-pro") {
+		t.Fatalf("choices offered a retired row: %q", got)
 	}
 	if strings.Contains(got, "gpt-5.6-sol · ChatGPT Plus · enabled · ") {
 		t.Fatalf("a listed row was decorated: %q", got)

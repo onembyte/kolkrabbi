@@ -32,7 +32,7 @@ func anthropicGateway() []provider.ModelInfo {
 	}
 }
 
-// One row per family the CLI names, strongest first; the exact ids behind
+// Family aliases remain strongest first; the exact ids behind
 // each newest first; variants out; the vendor's efforts on; every row
 // unverified until a turn says otherwise.
 func TestClaudePreviewGroupsTheGatewayByTheCLIsFamilies(t *testing.T) {
@@ -46,7 +46,9 @@ func TestClaudePreviewGroupsTheGatewayByTheCLIsFamilies(t *testing.T) {
 	}
 	var rows []string
 	for _, model := range catalog.Models {
-		rows = append(rows, model.ID)
+		if model.Rank > 0 {
+			rows = append(rows, model.ID) // family aliases retain their existing order
+		}
 		if model.Status != provider.StatusUnverified {
 			t.Errorf("%s status = %q, want unverified before any turn", model.ID, model.Status)
 		}

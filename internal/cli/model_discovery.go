@@ -26,8 +26,8 @@ func modelListerFor(connector string, gateway []provider.ModelInfo) provider.Mod
 		return agentcli.CodexLister{}
 	case "claude":
 		// Previewed, not listed: the CLI has no catalog command, and the
-		// gateway carries the exact ids it publishes. One row per family the
-		// CLI's aliases name, unverified until the first prompt's init.model.
+		// gateway carries the exact ids it publishes. Family aliases plus
+		// pinned versions, unverified until the first prompt's init.model.
 		return agentcli.ClaudePreviewLister{Gateway: gateway}
 	case "gemini":
 		return provider.GatewayPreviewLister{Vendor: "gemini", Prefix: "google", Gateway: gateway}

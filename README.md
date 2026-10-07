@@ -48,6 +48,10 @@ benefits from decomposition and isolated working contexts.
 /effort low | medium | high | max | ultra
 ```
 
+In the interactive TUI, bare `/effort` opens a purple picker with your current
+level selected. Use Up/Down and Enter to apply, or Esc to cancel. Explicit
+commands such as `/effort high` still work; the plain REPL keeps its status output.
+
 `ultrathink` scales thinking on one vendor's model. Kolkrabbi's effort scales
 across providers: each level maps to a model tier you choose, and it also sets
 the tool-round limit per turn and the shell timeout. The planner keeps every task;
@@ -64,6 +68,13 @@ being truncated by effort. `ultra` is the fifth rung above `max`; it is also how
 
 Zero-config still works: unset tiers fall back to the session model, so
 tiers are a pure optimization, never a requirement.
+
+The `/model` picker includes visible models discovered from your vendor CLIs,
+not just Kolk's original model ladder. Claude family aliases remain alongside
+separately selectable pinned versions; gateway previews are marked unverified
+until a real turn confirms access. Codex choices follow its live catalog.
+Use `/models --refresh` to refresh discovery, then `/model` to choose. Hidden
+and retired vendor rows are not offered; signed-out choices explain how to log in.
 
 ## The local dashboard
 

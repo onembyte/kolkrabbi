@@ -31,6 +31,14 @@ As of v1.3.6, credential-free startup exits before `/key` is reachable; this is
 an open correctness checkpoint, not an achieved north-star claim. Verified
 release evidence and the next leaf are in `docs/october-release-checklist.md`.
 
+Owner-directed October TUI polish also covers bare `/effort` and complete
+model choices: Claude aliases remain available beside separately selectable
+discovered versions; Codex's visible discovered catalog is not limited to the
+seed ladder. Showing a choice is not a claim of entitlement on every plan.
+The active login supplies the route, Claude gateway previews remain unverified,
+and hidden/retired rows are not offered. Verification/package status lives in
+CHECKPOINTS.md; onboarding remains a separate open correctness leaf.
+
 Binding rules, which every remaining item inherits:
 
 1. **Zero-config is the product, not a feature.** A brand-new user must never be required to read,

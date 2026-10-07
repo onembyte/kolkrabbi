@@ -23,8 +23,9 @@ import (
 // exact ids — `anthropic/claude-fable-5`, `claude-opus-5`, `claude-sonnet-5`,
 // `claude-haiku-4.5` — while the CLI takes a family alias (`fable`, `opus`,
 // `sonnet`, `haiku`) and resolves it to the latest of that family. So a row is
-// a family: the alias the CLI takes, the exact ids the gateway knows behind it
-// newest first, the largest context among them, and the CLI's effort set.
+// a family alias plus separate pinned-version rows. Aliases retain newest-first
+// exact ids and the largest context; pinned rows carry only their own context.
+// Gateway dotted versions are translated to the vendor's hyphenated full IDs.
 //
 // Only families the CLI's own help names are rows. A family the gateway
 // carries and the CLI does not is not invented here; it is nothing until a
@@ -58,6 +59,7 @@ func (l ClaudePreviewLister) Discover(context.Context) (provider.VendorCatalog, 
 	}
 	type member struct {
 		id      string
+		display string
 		version float64
 		context int
 	}
@@ -72,11 +74,11 @@ func (l ClaudePreviewLister) Discover(context.Context) (provider.VendorCatalog, 
 		if !ok {
 			continue
 		}
-		families[family] = append(families[family], member{id: model.ID, version: version, context: model.ContextLength})
+		families[family] = append(families[family], member{id: model.ID, display: model.Name, version: version, context: model.ContextLength})
 	}
 	catalog := provider.VendorCatalog{
 		Vendor:        "claude",
-		Source:        "gateway preview of anthropic/claude-*, grouped by the CLI's family aliases",
+		Source:        "gateway preview of anthropic/claude-*, family aliases and pinned versions",
 		VendorVersion: l.Version,
 		FetchedAt:     now(),
 	}
@@ -100,6 +102,24 @@ func (l ClaudePreviewLister) Discover(context.Context) (provider.VendorCatalog, 
 			}
 		}
 		catalog.Models = append(catalog.Models, row)
+		seen := map[string]bool{}
+		for _, m := range members {
+			id := strings.ReplaceAll(strings.TrimPrefix(strings.ToLower(strings.TrimSpace(m.id)), "anthropic/"), ".", "-")
+			if seen[id] {
+				continue
+			}
+			seen[id] = true
+			display := m.display
+			if display == "" {
+				display = id
+			}
+			// No cost/capability rank is inferred for pinned versions. The
+			// vendor's next real turn, not catalog discovery, verifies access.
+			catalog.Models = append(catalog.Models, provider.DiscoveredModel{
+				ID: id, Display: display, ExactIDs: []string{m.id},
+				Efforts: ClaudeEfforts(), Context: m.context, Status: provider.StatusUnverified,
+			})
+		}
 	}
 	if len(catalog.Models) == 0 {
 		return provider.VendorCatalog{}, fmt.Errorf("claude: the gateway catalog carries no anthropic/claude-* family the CLI names")

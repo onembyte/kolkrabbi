@@ -8,6 +8,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Releases and prebuilt binaries: <https://github.com/onembyte/kolkrabbi/releases>
 
+## [1.3.7] — 2026-10-07
+
+### Fixed
+
+- Bare `/effort` opens a keyboard-selectable TUI picker at the current level.
+- Model choices include distinct discovered Claude versions and visible Codex
+  models, preserving native dispatch, preview status and account-bound routes.
+- `/models --refresh` reaches catalog discovery and appears in help/completion;
+  outside-session help and retired-command guidance point to `/models`.
+
+Credential-free startup remains an open onboarding task; this release does not
+change that requirement or model entitlement.
+
 ## [1.2.1] — 2026-08-27
 
 ### Added
@@ -274,4 +287,3 @@ Releases and prebuilt binaries: <https://github.com/onembyte/kolkrabbi/releases>
 - Harden item 4 -- subscription backends (Claude Max via the vendor CLI)
 - Harden item 3 -- the provider layer
 - Adopt github.com/onembyte/kolkrabbi module path and target package names
-

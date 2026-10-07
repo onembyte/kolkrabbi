@@ -178,6 +178,12 @@ func (a *app) tuiRepl(ctx context.Context, ag *engine.Agent) error {
 			sagaRequest := markedSaga && goal != ""
 			if looksLikeSlashCommand(trimmedPrompt) && !sagaRequest {
 				prompt = trimmedPrompt
+				if picked, shown := tuiEffortPickerCommand(turnContext, screen.Ask, ag, prompt); shown {
+					if picked == "" {
+						return nil // dismissed without changing effort
+					}
+					prompt = picked
+				}
 				// `/model` with no argument is the picker, not a catalog dump: the
 				// screen can offer every model with an effort dial alongside, so
 				// a plain list is the worse answer. The plain REPL keeps its
@@ -307,10 +313,17 @@ func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 	if a.pulledNames != nil {
 		pulled = a.pulledNames()
 	}
+	vendorModels := a.vendorCatalogs()
 	for _, group := range tuiSubscriptionModelGroups(a) {
 		plan, signedIn := preferredTUISubscriptionPlan(a, group, manifest)
+		display := ""
+		if catalog, found := vendorModels.Vendors[plan.Connector]; found {
+			if row, found := catalog.Find(plan.Model); found && row.Display != "" {
+				display = row.Display + " · "
+			}
+		}
 		if signedIn {
-			name := "via your " + plan.Connector + " login"
+			name := display + "via your " + plan.Connector + " login"
 			// A previewed row is a name the gateway published, not one this
 			// login has been shown to accept. Saying so in the picker is the
 			// difference between offering a model and promising one.
@@ -325,7 +338,7 @@ func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 			continue
 		}
 		out = append(out, tui.ModelSpec{
-			ID: plan.Model, Name: fmt.Sprintf("sign in first:  /plans login %s %q", plan.Provider, plan.Plan),
+			ID: plan.Model, Name: display + "sign in first:  " + subscriptionLoginCommand(plan),
 			Efforts: append([]string(nil), plan.Efforts...),
 			Cost:    tui.CostSubscriptionLogin, Rank: tui.ModelRank(tui.CostSubscriptionLogin),
 		})
@@ -361,7 +374,11 @@ func tuiModels(ctx context.Context, a *app, ag *engine.Agent) []tui.ModelSpec {
 // same provider model through the same CLI. Plans still matter to login and
 // dispatch, but they are limits/account metadata rather than distinct models.
 func tuiSubscriptionModelGroups(a *app) [][]provider.PlanModel {
-	catalog := a.planModels("")
+	var manifest provider.ConnectorManifest
+	if dirs, err := a.locate(); err == nil {
+		manifest, _ = provider.LoadConnectors(dirs.ConnectorsFile())
+	}
+	catalog := a.subscriptionModelChoices(manifest)
 	groups := make([][]provider.PlanModel, 0, len(catalog))
 	indices := make(map[string]int)
 	for _, plan := range catalog {
@@ -429,6 +446,41 @@ func tuiModelPickerCommand(ctx context.Context, screen *tui.Runtime, a *app, ag 
 	return picked, true
 }
 
+// Bare /effort is an option overlay only on the interactive screen. Selection
+// dispatches the existing command so persistence and provider restarts have
+// one owner; dismissal consumes the bare command without a legacy status dump.
+func tuiEffortPickerCommand(ctx context.Context, ask func(context.Context, tui.Question) (string, bool), ag *engine.Agent, prompt string) (string, bool) {
+	if strings.TrimSpace(prompt) != "/effort" {
+		return "", false
+	}
+	current, _ := engine.NormalizeEffort(ag.Effort)
+	question := tui.Question{
+		Title: "effort", Prompt: "Choose Kolk effort — ↑/↓ select, Enter apply, Esc cancel",
+	}
+	descriptions := map[string]string{
+		engine.EffortLow: "quick checks", engine.EffortMedium: "balanced",
+		engine.EffortHigh: "deeper analysis", engine.EffortMax: "thorough work",
+		engine.EffortUltra: "extended reasoning",
+	}
+	for index, effort := range engine.CanonicalEfforts {
+		label := effort + " · " + descriptions[effort]
+		if effort == current {
+			question.InitialIndex = index
+			label += " (current)"
+		}
+		question.Options = append(question.Options, label)
+	}
+	selected, ok := ask(ctx, question)
+	if ok {
+		for index, label := range question.Options {
+			if selected == label {
+				return "/effort " + engine.CanonicalEfforts[index], true
+			}
+		}
+	}
+	return "", true
+}
+
 // tuiModelPickEntries is the /model suggestion list, one row per model with
 // the effort dial of its plan where the plan offers one. The dial starts at
 // the level the session already runs at — mapped down onto whatever the plan
@@ -474,7 +526,7 @@ func tuiWelcome(messageCount int) string {
 	// way to discover and the thing that makes the three dials worth having.
 	// A resumed session has met them already, and repeating it every time is
 	// how an orientation becomes noise.
-	welcome.WriteString("Switch anytime with /mode, /effort or /model. Bare /model opens a picker.\n")
+	welcome.WriteString("Switch anytime with /mode, /effort or /model. Bare /model and /effort open pickers.\n")
 	return welcome.String()
 }
 

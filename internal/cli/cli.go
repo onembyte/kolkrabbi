@@ -370,7 +370,7 @@ func lookupCommand(name string) *command {
 // the whole sentence is one argument and never equals a verb.
 var retiredVerbs = map[string]string{
 	"key": "/key", "model": "/model", "effort": "/effort", "mode": "/mode",
-	"config": "/config", "models": "/model", "plans": "/plans", "pmodels": "/pmodels",
+	"config": "/config", "models": "/models", "plans": "/plans", "pmodels": "/pmodels",
 	"localia": "/localia", "update": "/update", "stats": "/stats", "dash": "/dash",
 	"devices": "/devices", "version": "/version", "doctor": "/doctor", "resume": "/resume", "continue": "/continue", "theme": "/theme", "mcp": "/mcp",
 }

@@ -31,8 +31,9 @@ func words(list ...string) []tui.Choice { return []tui.Choice{{Words: list}} }
 var slashCommandTable = []slashCommand{
 	{"key", "[<provider>] | - | --why [<provider>] | --backend <keychain|file> [<provider>]", "add an API key (read hidden, never from the line); --why shows where it comes from; --backend moves it", []tui.Choice{{Words: []string{"-", "--why", "--backend"}}, {After: []string{"--backend"}, Words: []string{"keychain", "file"}}}},
 	{"mode", "<chat|code|agent>", "switch mode (agent = orchestrated; code is default)", words("chat", "code", "agent")},
-	{"effort", "<low|medium|high|max|ultra>", "set reasoning effort and tool-round allowance", words("low", "medium", "high", "max", "ultra")},
+	{"effort", "[low|medium|high|max|ultra]", "pick effort (bare opens a picker in a terminal) or set reasoning and tool-round allowance", words("low", "medium", "high", "max", "ultra")},
 	{"model", "[id | alias] [effort]", "pick or switch this session's model (bare opens a picker in a terminal)", nil},
+	{"models", "[--refresh] [filter]", "list model catalogs; --refresh asks the gateway and signed-in vendors again", words("--refresh")},
 	{"plans", "[filter] | login <provider> <plan>", "list plans or start provider-owned login", words("login")},
 	{"plogin", "[filter]", "search plans and start provider-owned login", nil},
 	{"pmodels", "[filter]", "list models and effort levels exposed by plan connectors", nil},
@@ -510,6 +511,10 @@ func (a *app) slash(ctx context.Context, ag *engine.Agent, line string) bool {
 		a.setSandbox(ag, arg)
 	case "/ask", "/auto-approve", "/full-auto":
 		a.setPermission(ag, strings.TrimPrefix(cmd, "/"))
+	case "/models":
+		if err := a.runModels(ctx, strings.Fields(arg)); err != nil {
+			fmt.Fprintf(a.stderr, "could not list models: %v\n", err)
+		}
 	case "/model":
 		modelRef, selectedEffort := splitModelSelection(arg)
 		if modelRef == "" {

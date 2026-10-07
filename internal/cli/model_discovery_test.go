@@ -70,8 +70,11 @@ func TestClaudePreviewCarriesTheVendorEffortSet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(catalog.Models) != 1 || catalog.Models[0].ID != "claude-sonnet" || strings.Join(catalog.Models[0].Efforts, ",") != "low,medium,high,xhigh,max" || catalog.Models[0].ExactIDs[0] != "anthropic/claude-sonnet-5" {
+	if len(catalog.Models) != 2 || catalog.Models[0].ID != "claude-sonnet" || strings.Join(catalog.Models[0].Efforts, ",") != "low,medium,high,xhigh,max" || catalog.Models[0].ExactIDs[0] != "anthropic/claude-sonnet-5" {
 		t.Fatalf("claude preview = %+v, want the family row with the CLI's five efforts and the exact gateway id", catalog.Models)
+	}
+	if exact, ok := catalog.Find("claude-sonnet-5"); !ok || exact.Status != provider.StatusUnverified {
+		t.Fatalf("pinned version not previewed separately: %+v", catalog.Models)
 	}
 }
 

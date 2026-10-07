@@ -175,7 +175,72 @@ No release is declared before its verification and package-manager handoff.
 - Older curl copy remains first in the owner's PATH and was not modified.
   Use `$(brew --prefix)/bin/kolk --mode code` to test this Homebrew build.
 
+## v1.3.7 UI patch publication — 2026-10-07
+
+Owner explicitly requested publication after testing the source UI successfully.
+Codex owns packaging; the non-author reviewer checks release/tap artifacts.
+Scope: the three verified effort/model-choice/public-refresh leaves below.
+Credential-free onboarding remains open and is not included.
+
+- [x] Confirm v1.3.7 is unclaimed; preserve earlier published tags.
+- [~] Refresh site/snapshot version, final local full/race gates and commit the
+  reviewed patch. Rehearse the committed candidate's four archives.
+- [ ] Push and require green branch CI before tagging v1.3.7.
+- [ ] Require green release CI and authenticate every published artifact.
+- [ ] Independently verify public artifacts and generated tap formula; publish
+  the tap update and test actual Homebrew/installer/in-session update paths.
+- [ ] Record the exact commits/runs and hand off the update command.
+
+Preflight: final `make check` GREEN (5,181 tests, lint 0, all five platform
+compiles and contracts); full root race/coverage GREEN (83.7%). The test-count
+floor is ratcheted to 4,662 (90% of the current suite), not lowered; size and
+performance budgets are unchanged. Fresh non-author integrated actual-TUI and
+model-discovery tests plus release/site/installer/surface contracts CLEAN:
+`/private/tmp/kolk-v137-preflight-review.YSrYXa/REVIEW.md`. Public tag, CI,
+authenticated assets and package-manager handoff remain pending.
+
 ## Next correctness checkpoint, before optional optimization
+
+Owner-directed UI follow-up (2026-10-07), Codex:
+
+- [x] Bare `/effort` opens a purple, keyboard-selectable effort overlay in the
+  TUI, with current level selected; Enter uses existing `/effort <level>`, Esc
+  cancels without mutation. Preserve explicit arguments and plain REPL output.
+  Test-first, actual-dispatch selection/Esc regression, independent behavioral
+  old-wiring RED/current race ×30 GREEN and scoped CLEAN; full `make check`
+  GREEN (5,170 tests, lint 0, all platforms/contracts). Acceptance is in
+  CHECKPOINTS.md. This small leaf precedes onboarding at the owner's request.
+- [ ] Package the effort-picker follow-up in a new patch after release gates;
+  local completion does not mean it is in Homebrew. v1.3.6 remains published.
+
+Owner-directed model-list follow-up (2026-10-07), Codex:
+
+- [x] Offer distinct discovered Claude versions alongside the latest family
+  aliases, and every visible discovered Codex model before its first turn.
+  Exact Claude IDs must reach vendor argv unchanged (gateway dotted versions
+  become native hyphenated IDs). Preserve each pinned context, preview status,
+  active-account routing and conservative cross-tier derivation. No inference
+  probes, guessed entitlement or model-version seed additions. Exclude hidden,
+  gone and absent seed entries; signed-out rows need a real login instruction.
+  Parent test-first regressions/focused race, independent behavioral mutations
+  and race ×30 CLEAN, final full `make check` GREEN (5,175 tests). Metadata-only
+  installed Codex lister and public gateway rehearsal passed without inference.
+  Acceptance is recorded in CHECKPOINTS.md.
+- [ ] Package both UI follow-ups together in a new patch; source testing only
+  until publication. Run `/models --refresh` before opening `/model` so an older
+  cached family-only catalog does not hide the new rows.
+
+Owner screenshot follow-up (2026-10-07), Codex:
+
+- [x] Connect the previously unreachable `/models` catalog handler to session
+  dispatch, help and completion, including `--refresh`. The preceding model-list
+  tests exercised discovery/presentation but missed the public command. Actual
+  slash and exact outside-help/refusal RED/GREEN now cover that gap; selected
+  model/effort/conversation stay unchanged. Independent actual slash/TUI race
+  ×30 and behavioral mutations CLEAN; final full gate GREEN (5,181 tests),
+  CLI/TUI race GREEN. Acceptance is in CHECKPOINTS.md.
+- [ ] Package the public-refresh fix with both local UI leaves; local completion
+  does not update Homebrew, and no fifth outside verb was introduced.
 
 Fresh credential-free startup still exits with `/key` guidance before opening
 the session in which `/key` runs. Confirmed with the published Homebrew binary,

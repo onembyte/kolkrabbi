@@ -8,6 +8,116 @@ One line per step. Verification is a command someone else can re-run.
 
 ---
 
+## 2026-10-07 — v1.3.7 publication preflight
+
+Owner requested publication after testing the source TUI. Package only the
+three verified effort/model-choice/public-refresh leaves below. Remote v1.3.7
+is unclaimed; v1.3.6 and all prior tags remain immutable. Site/snapshot version
+and paired contracts updated; changelog names exact scope and open onboarding.
+
+Final `GOCACHE=/private/tmp/kolk-oct07-go-cache
+GOLANGCI_LINT_CACHE=/private/tmp/kolk-oct07-lint-cache make check` GREEN:
+5,181 tests, lint 0, five platform compiles, all contracts; full root race and
+coverage GREEN (83.7%). Test-count floor raised to 4,662 (90% of current suite),
+without relaxing size/performance budgets. Fresh non-author integrated TUI,
+model/discovery and publication contracts CLEAN:
+/private/tmp/kolk-v137-preflight-review.YSrYXa/REVIEW.md.
+Committed snapshot, branch/release CI, signed assets and tap handoff pending;
+preflight is not publication. Credential-free startup remains open.
+
+---
+
+## 2026-10-07 — public `/models --refresh` dispatch
+
+The owner's source-TUI screenshot exposed an omitted boundary: the catalog
+handler existed, but `/models` was missing from slash dispatch and its registry.
+The preceding model-list leaf tested discovery/presentation, not this public
+refresh entry point. Actual slash regression RED (unknown command), then GREEN:
+wire the existing handler and advertise refresh through help/completion.
+
+Non-author review also found `kolk help models` and `kolk help /models` were
+rewritten to model switching by retired-verb guidance. Exact public help/refusal
+regression RED, then GREEN with `models` → `/models`; strengthen the older
+prefix-only help assertion. `kolk models` stays refused; no fifth outside verb.
+Focused CLI race ×3 GREEN covers dispatch, force-refresh despite a fresh cache,
+subsequent cached listing, help/completion and outside guidance. The fixture
+accepts only GET metadata, not inference, and session/model/effort stay unchanged.
+Final `GOCACHE=/private/tmp/kolk-oct07-go-cache
+GOLANGCI_LINT_CACHE=/private/tmp/kolk-oct07-lint-cache make check` GREEN:
+5,181 tests, lint 0, five platform compiles and all contracts. Binary 10,444,946
+bytes; cold/sandbox p50 5.6/5.7 ms. Full CLI/TUI race GREEN (44.700/2.274 s).
+Real `go run ./cmd/kolk help models` prints catalog refresh usage. Non-author
+actual slash/TUI probes race ×30 GREEN (9.474 s), missing-dispatch and
+missing-registry behavioral mutations RED. Uncached HTTP 503 is surfaced while
+vendor rows remain visible. No TCP/DNS/inference or credential inspection;
+scoped CLEAN: /private/tmp/kolk-model-refresh-review.uWsIjZ/REVIEW.md.
+Closed locally; restart the process to load changes. No release or Homebrew
+update is claimed.
+
+---
+
+## 2026-10-07 — distinct discovered models in the picker
+
+Owner-directed follow-up. The Claude preview grouped all versions into family
+aliases, while the picker depended on the conservative tier matrix, which
+excludes newly discovered Claude/Codex models until a turn verifies them.
+Test-first RED proved both omissions. Retain aliases but add unverified pinned
+Claude rows (own context, no inferred rank, native hyphenated IDs). Presentation
+offers all visible discovered models through the actual login, or names the
+vendor sign-in without inventing a tier. Hidden/gone/absent seed choices are out;
+`/pmodels` retains diagnostics. Tier derivation and continuity stay unchanged.
+
+Parent affected-package race GREEN (provider/agentcli/cli/tui), final focused
+race ×10 GREEN. Non-author focused/extra race ×30 GREEN covers future and legacy
+versions, duplicates, context, hidden/gone seeds, disabled login, stable ordering,
+actual-plan resolution, exact dispatch and sole pinned roster. Exact old-lister
+and suppressed-discovered-rows overlays behavioral RED: scoped CLEAN.
+Evidence: /private/tmp/kolk-model-versions-review.9CnEsr/REVIEW.md.
+
+Final `GOCACHE=/private/tmp/kolk-oct07-go-cache
+GOLANGCI_LINT_CACHE=/private/tmp/kolk-oct07-lint-cache make check` GREEN:
+5,175 tests, lint 0, five platform compiles and all contracts. Binary 10,444,914
+bytes; cold/sandbox p50 7.1/7.3 ms. No dependency or budget increase.
+Metadata-only `KOLK_LIVE_VENDOR=1 go test ./internal/provider/agentcli
+-run '^TestLiveCodexCatalogAnswers$' -count=1 -timeout=30s -v` passed using
+Codex 0.160.1, including 6/6.1 models. Anonymous public gateway metadata had
+Claude Opus/Sonnet 5 and 5.5; official vendor docs confirmed native ID spelling.
+No inference; vendor authentication stayed vendor-owned and credential material
+was not inspected or printed. No universal model-count assertion.
+
+Closed locally, packaging pending together with the effort picker. Homebrew
+remains v1.3.6. Source testing should refresh discovery with `/models --refresh`
+before opening `/model`; cached family-only rows can otherwise survive the TTL.
+Credential-free onboarding remains open and no published tag is rewritten.
+
+---
+
+## 2026-10-07 — bare `/effort` TUI picker
+
+The owner's screenshot exposed a genuine remaining legacy command path in the
+new TUI, not a PATH/version issue. Bare `/effort` now opens the existing purple
+option overlay at the current level, with arrow/Enter, numeric choice and Esc.
+Selection dispatches existing slash semantics/persistence. Explicit arguments
+and plain REPL output remain unchanged; there is no provider or billing change.
+
+Test-first helper/controller RED then GREEN; actual app.tuiRepl pipe-input
+selection/Esc regression observes rendered readiness, not sleeping. Non-author
+exact old-wiring mutation is behavioral RED; current actual dispatch race ×30
+GREEN also covers current Enter and numeric choice. Default model questions,
+refusal, cancellation/draft preservation, sanitized title and widths 0–80 passed
+independent race ×30: scoped CLEAN. Evidence:
+/private/tmp/kolk-effort-review.dGRtNZ/REVIEW.md.
+
+`GOCACHE=/private/tmp/kolk-oct07-go-cache
+GOLANGCI_LINT_CACHE=/private/tmp/kolk-oct07-lint-cache make check` GREEN:
+5,170 tests, lint 0, five platform compiles, all contracts. Binary 10,428,386
+bytes; cold/sandbox p50 6.6/7.6 ms. The UI leaf is closed locally, not published:
+Homebrew still offers v1.3.6. Fresh credential-free startup remains open.
+Full affected-package `go test -race ./internal/tui ./internal/cli -count=1
+-timeout=300s` GREEN (2.401/42.599 s); post-doc plan/surface/diff checks GREEN.
+
+---
+
 ## 2026-10-07 — v1.3.6 verified patch and Homebrew handoff
 
 Annotated v1.3.6 at 631cd60a94fa54016768aaff52ae6c7f6f55a767 was published

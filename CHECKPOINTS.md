@@ -71,12 +71,130 @@ v1.3.6 now ships `631cd60`: branch CI 37667517349 and release 37668047438 are
 green, public signatures/archives independently verified, tap `3d36f53` pushed,
 actual Brew upgrade/test/code/agent and isolated installer/PTY updater passed.
 Both immediate follow-up leaves are closed; fresh-key startup is next and open.
+Owner-directed exception, 2026-10-07: the owner showed bare `/effort` still
+printing its legacy text response in the polished TUI. Codex owns this one UI
+leaf before returning to fresh-key startup: reuse the existing option overlay,
+highlight current effort, support arrows/Enter/Esc, dispatch existing `/effort`
+semantics, preserve explicit arguments and plain REPL. This leaf is closed
+locally with the acceptance evidence below; packaging is still pending.
+No routing/billing/provider capability change.
+Owner-directed model-list follow-up, 2026-10-07: Codex owns exposing distinct
+Claude versions and all visible discovered Codex models in the picker. Preserve
+family aliases, exact vendor dispatch, account-bound routes, hidden/gone filters
+and preview status. No burned-in version additions, inference probes, automatic
+model switch or invented cross-plan entitlement. Test each discovery/presentation
+boundary independently. This leaf is closed locally with non-author CLEAN
+and the final full gate below; packaging remains pending.
+Owner screenshot follow-up, 2026-10-07: Codex owns connecting `/models` to
+the existing catalog handler, help and completion. The preceding model-list
+leaf proved discovery/presentation but missed public refresh dispatch. This
+single correction preserves `/model` switching and the four outside verbs;
+actual slash RED/GREEN, non-author CLEAN and the final full gate are complete.
+Public help and retired-verb guidance also point to `/models`, not the separate
+model-switching command. Closed locally; packaging remains pending.
+Owner requested publication, 2026-10-07: Codex owns packaging these three
+verified UI leaves as v1.3.7. Refresh version metadata, require final local and
+green branch/release CI, authenticate all public assets, independently review
+the generated Homebrew formula and rehearse package/installer/updater. Keep
+published tags immutable; no new onboarding/provider behavior is included.
 Ordered execution is in
 `docs/october-release-checklist.md`; larger unfinished optimizations are
 explicitly retained in `docs/optimization-resume-audit.md`.
 The owner's six priorities authorize this forward queue; historical partial V34 leaves remain
 open and are not release claims. Design: `docs/plan/38-product-polish.md`.
 Detailed review checklist: `docs/v43-checklist.md` (resumed 2026-09-21 at V43.3c).
+
+### October bare `/effort` picker — acceptance, 2026-10-07
+
+- [x] Bare `/effort` uses the purple option overlay, selecting the current
+  canonical level. Arrows/Enter and numbers apply through existing slash
+  dispatch; Esc cancels without mutation. Generic model questions still default
+  to the first option and their original heading. Composer draft is preserved.
+- [x] Explicit arguments, numeric/legacy aliases, persistence and plain REPL
+  status remain on their existing paths; no model/provider call is added.
+- [x] Test-first helper/controller RED, then GREEN. Repository actual-TUI
+  pipe-input regression covers selection and Esc, synchronized by rendered
+  readiness rather than sleeps. Removing only the new dispatch wiring makes
+  that regression RED (picker never opens), independently reproduced.
+- [x] Non-author actual TUI race ×30 GREEN: arrows, current Enter, numeric
+  choice and Esc. Question/default/refusal/cancel/draft/sanitization/narrow-width
+  probes race ×30 GREEN; old-wiring behavioral RED. Scoped review CLEAN:
+  `/private/tmp/kolk-effort-review.dGRtNZ/REVIEW.md`.
+- [x] `GOCACHE=/private/tmp/kolk-oct07-go-cache
+  GOLANGCI_LINT_CACHE=/private/tmp/kolk-oct07-lint-cache make check`: GREEN,
+  5,170 tests, lint 0, five platform compiles and all contracts. Binary
+  10,428,386 bytes; cold/sandbox p50 6.6/7.6 ms. No budget/dependency change.
+- [x] Full affected-package race gate: `GOCACHE=/private/tmp/kolk-oct07-go-cache
+  go test -race ./internal/tui ./internal/cli -count=1 -timeout=300s` GREEN
+  (TUI 2.401 s, CLI 42.599 s). Post-documentation plan/surface checks and
+  `git diff --check` also GREEN.
+- [ ] Publish/package this UI follow-up in a new patch; v1.3.6 remains the
+  available Homebrew release. No physical-terminal/provider trial is implied.
+
+### October discovered model choices — acceptance, 2026-10-07
+
+- [x] Discovery RED: Opus 5/5.5 and Sonnet 5/5.5 had no separate selectable
+  rows. GREEN: retain family aliases; add every discovered base version as an
+  unverified, unranked native ID with its own context. Dotted gateway versions
+  become vendor hyphenated IDs; batch/fast variants remain excluded. Future
+  version and duplicate tests prove this is discovery, not a new version seed.
+- [x] Presentation RED: fresh Claude/Codex discoveries had zero picker rows,
+  both signed in and signed out. GREEN: choices use visible discoveries through
+  actual-login by-name resolution without projecting them onto every plan.
+  Signed-out rows give a provider login instruction, not a guessed plan.
+  Hidden/gone/absent seeds and unknown hidden/gone rows are not offered.
+- [x] Selection retains native vendor argv and active Max/Plus route; exact
+  Claude versions remain a sole unranked roster rung. Existing conservative
+  `DerivePlanModels` and fallback/continuity policy are unchanged. Plain choices
+  use the same visible rows; `/pmodels` keeps retirement diagnostics.
+- [x] Parent `go test -race ./internal/provider ./internal/provider/agentcli
+  ./internal/cli ./internal/tui -count=1 -timeout=300s` GREEN. Final focused
+  discovery/choices race ×10 GREEN (including future/duplicate tests).
+- [x] Non-author focused and extra adversarial probes race ×30 GREEN, including
+  future/legacy versions, duplicate/case/whitespace IDs, own context, disabled
+  login, stable ordering and no unverified cross-tier projection. Exact old
+  Claude lister and suppressed-discovered-choices overlays are behavioral RED.
+  Scoped CLEAN: `/private/tmp/kolk-model-versions-review.9CnEsr/REVIEW.md`.
+- [x] Final `GOCACHE=/private/tmp/kolk-oct07-go-cache
+  GOLANGCI_LINT_CACHE=/private/tmp/kolk-oct07-lint-cache make check` GREEN:
+  5,175 tests, lint 0, five platform compiles and every contract. Binary
+  10,444,914 bytes; cold/sandbox p50 7.1/7.3 ms. No budget/dependency increase.
+- [x] Metadata-only production Codex lister rehearsal passed with installed
+  0.160.1 (including current 6/6.1 models); public gateway contained distinct
+  Claude 5/5.5 rows. No inference; vendor authentication stayed vendor-owned,
+  and credential material was not inspected or printed. Catalog
+  counts/visibility are vendor/account dependent, not a universal promise.
+- [ ] Publish/package both local UI follow-ups in a new patch. Homebrew still
+  offers v1.3.6; refresh cached discovery with `/models --refresh` when testing
+  from source. No physical-terminal or vendor inference trial is claimed.
+
+### October public model refresh dispatch — acceptance, 2026-10-07
+
+- [x] Actual `/models` and `/models --refresh codex` dispatch regression was
+  behavioral RED (unknown command); GREEN registers the existing catalog handler
+  in slash dispatch, help and completion. Fresh cached vendor metadata is still
+  force-refreshed before rendering; the next unforced listing uses the new cache.
+- [x] Independent review found retired `models` guidance also redirected public
+  help to `/model`. Exact public help/retired-command regression RED, then GREEN
+  with `models` mapping to `/models`. Strengthen the older prefix-only help test.
+  The four outside verbs remain unchanged: `kolk models` is still refused.
+- [x] Focused CLI race ×3 GREEN, including public help/refusal and fixed-word
+  completion. Regression accepts only GET catalog metadata, not inference;
+  selected model, effort and conversation remain unchanged.
+- [x] Final `GOCACHE=/private/tmp/kolk-oct07-go-cache
+  GOLANGCI_LINT_CACHE=/private/tmp/kolk-oct07-lint-cache make check` GREEN:
+  5,181 tests, lint 0, five platform compiles and all contracts; binary
+  10,444,946 bytes, cold/sandbox p50 5.6/5.7 ms. Full CLI/TUI race GREEN
+  (`go test -race ./internal/cli ./internal/tui -count=1 -timeout=300s`,
+  44.700/2.274 s). Real `go run ./cmd/kolk help models` shows catalog usage.
+- [x] Non-author actual slash and `app.tuiRepl` metadata-only probes race ×30
+  GREEN (9.474 s). Missing dispatch is behavioral RED (unknown command);
+  missing registry is help/completion/public-help RED. Uncached HTTP 503 is
+  surfaced while vendor rows still render; cached fallback policy unchanged.
+  No inference, TCP/DNS or credential inspection. Scoped CLEAN evidence:
+  `/private/tmp/kolk-model-refresh-review.uWsIjZ/REVIEW.md`.
+- [ ] Publish/package with the two preceding local UI leaves; v1.3.6 remains
+  the available Homebrew version. An already running process needs restarting.
 
 ### October recovery closeout evidence — 2026-10-07
 
@@ -16144,7 +16262,7 @@ Subcheckpoints, one at a time:
     seed never heard of (`gpt-5.5`, status `listed`) on both ChatGPT tiers before anyone had seen it
     answer; `/pmodels` carried the rows. Green: a discovered row reaches the connector's tiers only
     once its status is `verified` — the first answered turn, through `VendorCatalogs.Verify`. Until
-    then it is a row nowhere, and reachable by name through a new resolver step: on the plan the
+    then it has no tier-matrix row, and is reachable by name through a new resolver step: on the plan the
     vendor's enabled connector is signed into (the one plan known to see that catalog), with the
     vendor's efforts and context; not signed in, the answer names the connector and the login command
     — it never falls through to "not a plan model", which would have routed a subscription model to
@@ -16154,6 +16272,10 @@ Subcheckpoints, one at a time:
     model truly belongs to stays the connector's set — the catalog still carries no tier, and the
     owner chose conservatism over invention. provider, cli, arch; lint linux; vet windows; site
     347/347; `make check`.
+    October 7 model-picker follow-up supersedes "row nowhere" as a UI claim:
+    visible discoveries are offered through the actual login (or with an
+    explicit sign-in requirement), without assigning them to every tier.
+    The conservative `DerivePlanModels` rule itself is unchanged.
   - [x] **V34.4b (owner decided 2026-09-05: add a fifth level `ultra`) a vendor `ultra` the four-level dial cannot reach** — accepted by name,
     unreachable through `/effort`; a fifth level or a mapping is a product decision.
     **Closed 2026-09-05, on main.** Red observed: `NormalizeEffort("ultra")` was `max` and `5` was
@@ -17998,7 +18120,10 @@ Green, F4.3 (owner correction: preview from the gateway, verify on the first pro
 vendor without a catalog): `agentcli.ClaudePreviewLister` — one row per family the CLI's aliases
 name, strongest first, built from the gateway's `anthropic/claude-*` ids (modern and legacy
 spellings), exact ids newest first, largest context, `ClaudeEfforts()`, `unverified`; variants
-never match the family pattern; an unknown family is never a row. `provider.VendorCatalogs` in
+never match the family pattern; an unknown family is never a row. October 7
+model-list polish supersedes the family-only presentation: discovered pinned
+versions now have their own unverified, unranked native-ID rows. Alias ranking
+and newest-first metadata remain unchanged. `provider.VendorCatalogs` in
 `vendor-models.json` (`paths.VendorCatalogFile`, atomic, creates the cache directory): `Replace`
 carries `verified` forward and keeps dropped rows as `gone`; `Verify` promotes and records the
 vendor's resolved id first; `Gone` retires only a listed row. `verifyingBackend.observe` runs on

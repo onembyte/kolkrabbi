@@ -66,7 +66,7 @@ func (a *app) printPlanModelChoices() error {
 	if err != nil {
 		return err
 	}
-	models := a.planModels("")
+	models := a.subscriptionModelChoices(manifest)
 	if len(models) == 0 {
 		return nil
 	}
@@ -79,7 +79,7 @@ func (a *app) printPlanModelChoices() error {
 		}
 		status := model.Access
 		if model.Access == "provider CLI" {
-			status = fmt.Sprintf("sign in: /plans login %s %q", model.Provider, model.Plan)
+			status = "sign in: " + subscriptionLoginCommand(model)
 			for _, connector := range manifest.Connectors {
 				if connector.Provider == model.Provider && connector.Name == model.Connector && connector.Enabled {
 					status = "enabled"

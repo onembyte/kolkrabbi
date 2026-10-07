@@ -5,23 +5,32 @@ import (
 	"strings"
 )
 
-// Question is a fixed-option decision put to the user by the model. It is a
+// Question is a fixed-option decision put to the user by the model or host. It is a
 // picker rather than a typed reply because the answers are known: typing one
 // out invites a spelling the model then has to interpret, and re-reading the
 // options to type one is work the arrow keys already do.
 type Question struct {
+	// Title names a host-owned picker. Empty retains the model-question heading.
+	Title   string
 	Prompt  string
 	Options []string
+	// InitialIndex selects the current setting without changing the default
+	// first-option behavior of model questions. Invalid indexes select zero.
+	InitialIndex int
 }
 
-// RequestQuestion opens the picker. The first option is preselected: the model
-// is told to put its recommendation there, so Enter alone is a sensible answer.
+// RequestQuestion opens the picker at InitialIndex. Model questions default to
+// the first option, where their recommendation belongs; host pickers can start
+// at the current setting without changing it.
 func (c *Controller) RequestQuestion(question Question) {
 	options := make([]string, len(question.Options))
 	copy(options, question.Options)
-	c.question = &Question{Prompt: question.Prompt, Options: options}
+	c.question = &Question{Title: question.Title, Prompt: question.Prompt, Options: options, InitialIndex: question.InitialIndex}
 	c.lastOptions = options
-	c.questionIndex = 0
+	c.questionIndex = question.InitialIndex
+	if c.questionIndex < 0 || c.questionIndex >= len(options) {
+		c.questionIndex = 0
+	}
 	c.beforeQuestion = c.status.Lifecycle
 	c.setLifecycle("question")
 }
@@ -33,7 +42,7 @@ func (c *Controller) Question() *Question {
 	}
 	options := make([]string, len(c.question.Options))
 	copy(options, c.question.Options)
-	return &Question{Prompt: c.question.Prompt, Options: options}
+	return &Question{Title: c.question.Title, Prompt: c.question.Prompt, Options: options, InitialIndex: c.question.InitialIndex}
 }
 
 // QuestionIndex is the highlighted row, for tests and adapters.
@@ -88,8 +97,12 @@ func (c *Controller) chosen(effect Effect) questionReply {
 // questionLines draws the picker. It carries no key legend: the marker and the
 // numbers say what to do, and the rest of the app teaches the same two keys.
 func (c *Controller) questionLines(width int) []string {
+	title := sanitizeTerminalLine(c.question.Title)
+	if title == "" {
+		title = "question"
+	}
 	lines := []string{
-		horizontalRule("question", width),
+		horizontalRule(title, width),
 		clipLine(sanitizeTerminalLine(c.question.Prompt), width),
 	}
 	for index, option := range c.question.Options {

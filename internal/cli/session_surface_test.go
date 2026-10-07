@@ -197,7 +197,7 @@ func TestHelpFindsSessionCommandsAndSessionsVerbs(t *testing.T) {
 		"config":  "usage: /config",
 		"/config": "usage: /config",
 		"model":   "usage: /model",
-		"models":  "usage: /model",
+		"models":  "usage: /models [--refresh] [filter]",
 		"resume":  "usage: /resume",
 		"export":  "usage: kolk sessions",
 		"fork":    "usage: kolk sessions",
