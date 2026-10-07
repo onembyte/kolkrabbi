@@ -1,6 +1,6 @@
 # Product polish checklist
 
-Updated 2026-09-24. Owner: Codex. Execution order and acceptance evidence live in
+Updated 2026-10-07. Owner: Codex. Execution order and acceptance evidence live in
 `CHECKPOINTS.md`; this checklist expands the owner's priorities into reviewable work.
 Only the active leaf changes production code. A checked implementation is not a release claim.
 
@@ -408,10 +408,16 @@ returns CLEAN. Evidence is in CHECKPOINTS.md.
     output, and background tasks.
   - A resume continues exactly where the run stopped, with no completed work repeated.
   - A failed save is visible on every surface, stream-json included.
-  - stream-json's stdout stays pure NDJSON. Found during item 2 and dating from aac7994:
-    `--mode agent` prints the "agent lane: …" report (`reportAgentLane`) there first.
-- [~] Release, once every item above is [x] and every gate is green.
+  - stream-json's stdout stays pure NDJSON. October startup reservation fixes the
+    September agent-lane contamination; `recovery_stream_test.go` verifies it.
+- [x] Release the implemented §8 leaves after their gates pass; §7's explicitly
+  open physical/provider trials remain unverified and outside this closeout.
   - Commit, push, cut the next version, and publish the release.
   - Update the Homebrew formula and the curl installer, and verify each end to end.
   - Update the landing page (§7's release-time item) and the site.
   - Leave the tree clean.
+  - v1.3.5 at 05986d1, green CI/release, independently verified public signatures
+    and four archives, tap 387c7c5, actual Homebrew upgrade/test, curl installer
+    and PTY updater verified. Full evidence: docs/october-release-checklist.md.
+    Fresh credential-free onboarding remains an explicitly open correctness
+    checkpoint; physical/provider/GPU trials above remain unverified.

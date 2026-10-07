@@ -50,8 +50,12 @@ are historical: the untouched baseline passed `make check` (5,119 tests).
 Capture and Native recovery remain closed. Current vendor recovery, TUI
 delivery, restart validation and in-turn fallback fixes have a non-author
 CLEAN review. Their final shared gate passed (5,158 tests); Surfaces and
-documentation walk-back are closed. Commit/push, green CI, signed release and
-Homebrew verification are next. Ordered execution is in
+documentation walk-back are closed. v1.3.5 is now committed/pushed, green in
+branch and release CI, independently signature-verified and rehearsed through
+Homebrew, public installer and PTY updater. Fresh credential-free setup remains
+an open correctness checkpoint: `/key` guidance currently precedes the session
+it needs. Existing credentials and compatible/local endpoints still work.
+Ordered execution is in
 `docs/october-release-checklist.md`; larger unfinished optimizations are
 explicitly retained in `docs/optimization-resume-audit.md`.
 The owner's six priorities authorize this forward queue; historical partial V34 leaves remain
@@ -117,6 +121,17 @@ Detailed review checklist: `docs/v43-checklist.md` (resumed 2026-09-21 at V43.3c
   scheduler change. Five-file scoped CLEAN, shared gate 5,159 tests/lint 0 and
   all contracts green; final deadline race ×20 passed. Detailed evidence in
   docs/build-log.md; fresh Linux CI and publication are still required.
+- Final publication: v1.3.5 at 05986d1; branch CI 37628950051 and release
+  37629415554 green. Tagged Linux full gate: 5,156 tests, 10,760,376 bytes,
+  cold/sandbox p50 2.3 ms each; surface 24 and all other contracts pass.
+  Parent and non-author public Sigstore/four-archive/host verification CLEAN.
+  Tap 387c7c5 matches authenticated checksums; actual Homebrew upgrade/test
+  and alias passed. Isolated public installer and real PTY updater both
+  upgraded 1.3.4 → 1.3.5 and then reported up-to-date. Actual packaged code
+  write and agent plan/two tasks/synthesis passed against the local mock;
+  final file exactly two lines, no API credit used. PATH still shadows Brew
+  with the untouched older curl binary. All evidence and the freshly confirmed
+  open onboarding gap are in docs/october-release-checklist.md.
 
 - [x] **V43.1 readable terminal identity and model controls** — keep model/effort visible in the
   footer, picker and worker rows; restore a small pixel octopus beside activity. Verify narrow

@@ -52,9 +52,15 @@ before coordinating ownership. Findings and claimed follow-up work go in
 
 Codex owns the V43 recovery closeout and release at the owner's request. No
 earlier production-file owner is currently writing this tree. Independent
-vendor/TUI/fallback/restart review is CLEAN after October fixes; full shared
-gates and distribution verification remain mandatory before publishing.
-`docs/october-release-checklist.md` is the current execution queue and
+vendor/TUI/fallback/restart review is CLEAN after October fixes. v1.3.5 ships
+05986d1 after green full gates, branch/release CI, independent public signature
+verification and Homebrew/installer/updater rehearsals (tap 387c7c5).
+`docs/october-release-checklist.md` records that closeout and the next open
+correctness leaf: credential-free startup must allow setup before model use.
+Do not claim the current fresh `/key` onboarding works: it exits before the
+session. Preserve the four-command outside surface and hidden credential input.
+No implementation of this new leaf is claimed yet.
+The same checklist is the current execution queue and
 `docs/optimization-resume-audit.md` orders explicitly unfinished optimizations.
 Historical F5/V34/V43 peer-build-blocker notes above must not override it.
 The September 2 unimplemented-sandbox note is also historical: V34.1e.0–.6

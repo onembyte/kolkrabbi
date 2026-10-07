@@ -20,10 +20,16 @@ Research inputs gathered on 2026-08-21 live in `docs/research/`.
 Kolkrabbi's whole surface must fit on a napkin:
 
 ```
-curl -fsSL <install-url> | sh        # 1. one command to install. no runtime, no deps, no prompts.
-kolk key sk-or-v1-…                  # 2. one command for a key (any provider's key).
-kolk                                 # 3. it works. no config file was ever opened.
+curl -fsSL <install-url> | sh        # 1. one command to install. no runtime or toolchain.
+kolk                                # 2. open the session/setup surface.
+/key                                # 3. enter a key hidden, then work; no config edit.
 ```
+
+The owner's September 2 closed outside-session surface supersedes the original
+`kolk key <key>` example: credentials must never be pasted into argv/history.
+As of v1.3.5, credential-free startup exits before `/key` is reachable; this is
+an open correctness checkpoint, not an achieved north-star claim. Verified
+release evidence and the next leaf are in `docs/october-release-checklist.md`.
 
 Binding rules, which every remaining item inherits:
 
@@ -34,9 +40,9 @@ Binding rules, which every remaining item inherits:
    catalog — all derived at runtime (item 8), never a setup questionnaire.
 3. **One install command**, single static binary, no runtime and no toolchain on the user's machine
    (item 20). Package managers are additional paths, never the required one.
-4. **One key command**, provider-agnostic — `kolk key <key>` accepts any supported provider's key
-   and infers the provider from the key's shape where it can; `kolk login` is the optional
-   nicer path, never the required one (item 5).
+4. **One key command**, provider-agnostic — in-session `/key` reads a supported provider's key
+   hidden; `/plans login` is the optional provider-owned sign-in path (items 5, 9).
+   Neither adds an outside-session verb or sends a setup command to a model.
 5. **Complexity is opt-in and discoverable later.** Profiles, tiers, routing, permissions, MCP —
    every one of them ships *off*, with a working default, and is found when wanted (items 7, 9, 16, 18).
 6. **Simple to type beats simple to explain.** Short verbs, no flags required for the common path

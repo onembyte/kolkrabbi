@@ -1,8 +1,8 @@
 # October continuation and release checklist
 
-Resumed by Codex on 2026-10-07 at the owner's request. The working tree contains
-the V43 implementation begun in earlier sessions; its newest committed baseline
-is `5869a00`, following the public `v1.3.4` release. File timestamps show the
+Resumed by Codex on 2026-10-07 at the owner's request. The original working tree
+contained V43 implementation begun in earlier sessions, based on `5869a00`
+after public `v1.3.4`. Verified `v1.3.5` now ships commit `05986d1`. File timestamps showed the
 unfinished vendor-recovery follow-up last changed on 2026-10-01. Older V34 and
 optimization headings are historical and must not override this queue.
 
@@ -35,9 +35,9 @@ closure. The final repository gate is run after material implementation changes.
    optimization checklists. Record physical/provider trials as unverified.
 7. [x] Verify the final shared tree: focused race, full make check, release
    snapshot and installer contracts. Refresh release-time landing-page examples.
-8. [~] Commit reviewed changes, push, require green branch CI, and publish the
+8. [x] Commit reviewed changes, push, require green branch CI, and publish the
    next available version after v1.3.4. Verify signed release artifacts.
-9. [ ] Update the Homebrew tap from published checksums and exercise a clean
+9. [x] Update the Homebrew tap from published checksums and exercise a clean
    tap install plus upgrade. Verify the curl installer/updater independently.
 
 ## Homebrew handoff
@@ -78,7 +78,63 @@ No release is declared before its verification and package-manager handoff.
   scratch matrix rejects public-bound equality, true ratchet growth and the
   unchanged absolute ceiling. Legacy MB/drifted site claims are also rejected.
 - Follow-up CI 37626548802 exposed Linux PID/thread and recovery-test scheduling
-  assumptions. Release remains held. Fixtures now use an actual foreign process
+  assumptions. Release was held at that point. Fixtures now use an actual foreign process
   and an explicit sibling-readiness barrier; independent adversarial scheduling
   reproduced old RED/fixed GREEN. Cached-startup timing also uses blocked network
   readiness instead of a CPU-sensitive speed threshold. Evidence in build-log.
+
+## Verified publication and handoff — 2026-10-07
+
+- Final branch CI 37628950051 at `05986d1`: all six jobs green, including Ubuntu
+  race/coverage, Linux/macOS tests, lint, budgets and guardrails.
+- Annotated `v1.3.5` resolves to `05986d115392b25a44a709c9dc829338304f0e73`.
+  Release workflow 37629415554: verify and publish green. Tagged Linux gate:
+  5,156 tests; size 10,760,376 bytes; cold and sandbox overhead p50 both 2.3 ms.
+  Surface now 24 checks; remaining contracts and four-archive snapshot pass.
+- Public `scripts/verify-release.sh v1.3.5`: Sigstore signature, all four SHA-256
+  archives and stamped host identity pass. A non-author reran it independently:
+  CLEAN. No physical terminal, real model subscription or GPU trial is implied.
+- Homebrew tap commit `387c7c5`: generated formula exactly matches authenticated
+  release checksums for four targets; non-author CLEAN before pushing. Real
+  fresh baseline 1.3.4 install/test, then `brew update` and scoped
+  `brew upgrade onembyte/tap/kolk` to 1.3.5 passed. `brew test` passed;
+  `brew install onembyte/tap/kolkrabbi` resolved the same current formula.
+- Downloaded public installer: isolated 1.3.4 → 1.3.5 upgrade, then up-to-date
+  check passed. Real PTY `/update`: separate isolated 1.3.4 → 1.3.5 upgrade,
+  restart, and up-to-date check passed. Piped stdin is a model prompt, not slash
+  dispatch; the initial pipe experiment made only a failed localhost request.
+- Actual Homebrew binary: mock-backed code write, agent plan/two tasks/synthesis
+  passed; final file exactly two lines. All state and edits isolated in temporary
+  directories, no API credit spent. Downloaded binary reports version 1.3.5,
+  tagged commit and Go 1.25.0 darwin/arm64.
+- Older curl copy remains first in the owner's PATH and was not modified.
+  Use `$(brew --prefix)/bin/kolk --mode code` to test this Homebrew build.
+
+## Next correctness checkpoint, before optional optimization
+
+Fresh credential-free startup still exits with `/key` guidance before opening
+the session in which `/key` runs. Confirmed with the published Homebrew binary,
+empty private KOLK directories and both key environment overrides removed.
+This pre-existing onboarding gap is **open**, not part of the completed upgrade
+rehearsal. Existing credentials or a compatible/local endpoint allow startup.
+Design a credential-free control/setup surface without adding a fifth outside
+verb or sending commands to a model; cover hidden key input, provider login,
+cancellation, persistence and first model turn test-first. Then take the ordered
+optimization queue in `docs/optimization-resume-audit.md`, one owned leaf at a time.
+
+Independent fresh-profile PTY verification reproduced this gap and the refusal
+of `kolk key`. Acceptance for this next, unimplemented leaf:
+
+- Fresh interactive `kolk` reaches a credential-not-ready setup session; `/key`,
+  help and exit work without a provider/tool call or invented authorization.
+- Hidden key cancellation/success, same-session readiness and restart persistence
+  pass; credential shape/storage/endpoint binding remain unchanged.
+- Keyed-backend model/tool execution occurs only after a valid credential and
+  explicit request; key verification/catalog discovery and keyless local or
+  compatible endpoints remain possible. Single-shot/stream-json missing
+  credentials stays bounded and reports
+  an actually executable recovery path, not an unreachable slash command.
+- Existing keys, environment precedence, corrupt stores, local/compatible
+  endpoints and signed-in vendors without an OpenRouter key remain correct.
+- Real fresh-profile PTY RED first, focused race, independent review/full gates,
+  then a new version and packaged smoke; never rewrite the published v1.3.5 tag.

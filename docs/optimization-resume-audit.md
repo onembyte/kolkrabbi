@@ -3,7 +3,8 @@
 The interrupted working tree is V43 product polish and recovery, not a fresh
 optimization baseline. The September F0–F7 work is closed. The September 9 O0,
 O1, O2, O3, O5, O6, O8, O9, O11, O12 and O15 work is already committed. Preserve
-those results rather than rebuilding them. The public baseline is v1.3.4.
+those results rather than rebuilding them. The original continuation baseline
+was v1.3.4; the verified public release is now v1.3.5.
 
 ## Current testable release scope
 
@@ -22,6 +23,14 @@ preserve refused journals and completed background actions/dependency results.
 CI race+coverage and executable smoke checks close O10.3–5/O17, not all of O10.
 
 ## Ordered unfinished optimization work
+
+Before optional optimization, close the fresh credential-free startup gap
+recorded in `docs/october-release-checklist.md`: the public binary exits before
+the `/key` session surface becomes reachable. Existing-profile upgrade and
+mock modes are verified; fresh onboarding is not. Vendor interrupted/unknown
+tool-status rendering and real 429 classification observations remain separate
+correctness/observability follow-ups in `docs/v43-checklist.md` §7, not verified
+live-provider behavior. They must not be disguised as performance work.
 
 Each item is its own owned, measured checkpoint; these are not shipped claims.
 

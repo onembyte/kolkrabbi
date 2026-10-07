@@ -8,6 +8,34 @@ One line per step. Verification is a command someone else can re-run.
 
 ---
 
+## 2026-10-07 — v1.3.5 publication and package handoff
+
+Published annotated v1.3.5 at 05986d115392b25a44a709c9dc829338304f0e73 only
+after branch CI 37628950051 passed all six jobs. Release 37629415554 verified
+the tagged full gate (5,156 Linux tests; 10,760,376 bytes; cold/sandbox p50
+2.3 ms each), rehearsed four archives, signed/published and verified assets.
+Parent and non-author `scripts/verify-release.sh v1.3.5` both passed Sigstore,
+four checksums and downloaded host identity. Tap 387c7c5 matches generator
+output and authenticated manifest exactly; non-author CLEAN before push.
+
+Actual baseline fresh Brew1.3.4 install/test, scoped Brewupgrade1.3.5 and
+formula test passed; kolkrabbi alias resolves the same formula. Isolated
+public installer and real PTY `/update` each upgraded1.3.4→1.3.5, then reported
+up-to-date. Actual Homebrew binary completed mock code write and agent plan,
+two delegated tools and synthesis; file exactly two lines, no API credit spent.
+Old curl binary and user session/settings preserved; PATH still selects the
+older copy, so use `$(brew --prefix)/bin/kolk --mode code` for this release.
+
+Fresh no-credential PTY startup uncovered a pre-existing onboarding gap:
+the process exits before the session that `/key` guidance needs. Independently
+confirmed, no model call made. Existing credentials or a compatible/local
+endpoint still work. This next correctness leaf is explicitly open before
+optional optimization; its TDD contract and release evidence are recorded in
+docs/october-release-checklist.md. Published tags are never rewritten, and no
+unperformed subscription/GPU/physical-terminal trial is called verified.
+
+---
+
 ## 2026-10-07 — deterministic release-gate fixtures
 
 CI 37628431599 at 0d102e3 subsequently passed all six jobs, including real Linux

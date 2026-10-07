@@ -20,7 +20,7 @@ Go, two dependencies, a single static binary under 11 MiB, milliseconds to start
 
 ```bash
 curl -fsSL https://kolkrabbi.francomichetti.com/install.sh | sh   # macOS and Linux
-kolk                                                              # opens a session
+kolk                                                              # starts a session when credentials are available
 ```
 
 *Kolkrabbi* is Icelandic for octopus — *kol* ("coal") + *krabbi* ("crab").
@@ -89,7 +89,7 @@ token-based elsewhere.
 
 ```bash
 curl -fsSL https://kolkrabbi.francomichetti.com/install.sh | sh   # macOS and Linux, amd64 and arm64
-kolk                                                              # opens a session
+kolk                                                              # starts a session when credentials are available
 ```
 
 Then, in the session:
@@ -98,7 +98,14 @@ Then, in the session:
 /key                    # asks for the key, hidden; any supported provider
 ```
 
-That's the whole setup. Everything else is optional.
+Once the session is open, `/key` handles key storage without a config edit.
+
+Known first-run limitation in 1.3.5: without any credentials, the default
+OpenRouter startup exits before the in-session `/key` setup is reachable.
+An existing credential or `OPENROUTER_API_KEY` environment value, or a keyless
+compatible/local endpoint, is currently needed to open that first session.
+The credential-free setup surface is the next correctness checkpoint; see
+[the current release checklist](docs/october-release-checklist.md).
 
 Commands live **inside** the session: `kolk` opens one and `/key`, `/model`, `/config`,
 `/stats` and the rest work there. Only four things run outside a session — `kolk
