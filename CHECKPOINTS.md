@@ -76,7 +76,7 @@ printing its legacy text response in the polished TUI. Codex owns this one UI
 leaf before returning to fresh-key startup: reuse the existing option overlay,
 highlight current effort, support arrows/Enter/Esc, dispatch existing `/effort`
 semantics, preserve explicit arguments and plain REPL. This leaf is closed
-locally with the acceptance evidence below; packaging is still pending.
+with the acceptance evidence below and ships in v1.3.7.
 No routing/billing/provider capability change.
 Owner-directed model-list follow-up, 2026-10-07: Codex owns exposing distinct
 Claude versions and all visible discovered Codex models in the picker. Preserve
@@ -84,19 +84,23 @@ family aliases, exact vendor dispatch, account-bound routes, hidden/gone filters
 and preview status. No burned-in version additions, inference probes, automatic
 model switch or invented cross-plan entitlement. Test each discovery/presentation
 boundary independently. This leaf is closed locally with non-author CLEAN
-and the final full gate below; packaging remains pending.
+and the final full gate below; it ships in v1.3.7.
 Owner screenshot follow-up, 2026-10-07: Codex owns connecting `/models` to
 the existing catalog handler, help and completion. The preceding model-list
 leaf proved discovery/presentation but missed public refresh dispatch. This
 single correction preserves `/model` switching and the four outside verbs;
 actual slash RED/GREEN, non-author CLEAN and the final full gate are complete.
 Public help and retired-verb guidance also point to `/models`, not the separate
-model-switching command. Closed locally; packaging remains pending.
+model-switching command. Closed and published in v1.3.7.
 Owner requested publication, 2026-10-07: Codex owns packaging these three
 verified UI leaves as v1.3.7. Refresh version metadata, require final local and
 green branch/release CI, authenticate all public assets, independently review
 the generated Homebrew formula and rehearse package/installer/updater. Keep
 published tags immutable; no new onboarding/provider behavior is included.
+Publication is closed: v1.3.7 ships `fe397f9` after green branch CI
+37692468790 and release 37692924340, independent authenticated-artifact/tap
+CLEAN, tap `f9af21d` and actual Brew upgrade/test/TUI/code/agent plus isolated
+public installer/PTY updater. Fresh credential-free setup remains next and open.
 Ordered execution is in
 `docs/october-release-checklist.md`; larger unfinished optimizations are
 explicitly retained in `docs/optimization-resume-audit.md`.
@@ -128,8 +132,8 @@ Detailed review checklist: `docs/v43-checklist.md` (resumed 2026-09-21 at V43.3c
   go test -race ./internal/tui ./internal/cli -count=1 -timeout=300s` GREEN
   (TUI 2.401 s, CLI 42.599 s). Post-documentation plan/surface checks and
   `git diff --check` also GREEN.
-- [ ] Publish/package this UI follow-up in a new patch; v1.3.6 remains the
-  available Homebrew release. No physical-terminal/provider trial is implied.
+- [x] Published in v1.3.7 with signed artifacts and verified Homebrew handoff.
+  Actual packaged PTY passed; no real vendor inference trial is implied.
 
 ### October discovered model choices — acceptance, 2026-10-07
 
@@ -164,9 +168,9 @@ Detailed review checklist: `docs/v43-checklist.md` (resumed 2026-09-21 at V43.3c
   Claude 5/5.5 rows. No inference; vendor authentication stayed vendor-owned,
   and credential material was not inspected or printed. Catalog
   counts/visibility are vendor/account dependent, not a universal promise.
-- [ ] Publish/package both local UI follow-ups in a new patch. Homebrew still
-  offers v1.3.6; refresh cached discovery with `/models --refresh` when testing
-  from source. No physical-terminal or vendor inference trial is claimed.
+- [x] Published with the effort and public-refresh leaves in v1.3.7, available
+  through Homebrew. Refresh discovery with `/models --refresh` before `/model`.
+  Catalog visibility remains vendor/account dependent.
 
 ### October public model refresh dispatch — acceptance, 2026-10-07
 
@@ -193,8 +197,38 @@ Detailed review checklist: `docs/v43-checklist.md` (resumed 2026-09-21 at V43.3c
   surfaced while vendor rows still render; cached fallback policy unchanged.
   No inference, TCP/DNS or credential inspection. Scoped CLEAN evidence:
   `/private/tmp/kolk-model-refresh-review.uWsIjZ/REVIEW.md`.
-- [ ] Publish/package with the two preceding local UI leaves; v1.3.6 remains
-  the available Homebrew version. An already running process needs restarting.
+- [x] Published with the two preceding leaves in v1.3.7; real installer,
+  Homebrew TUI and in-session updater passed. Restart already running processes.
+
+### October v1.3.7 publication — acceptance, 2026-10-07
+
+- [x] Final local `make check` GREEN (5,181 tests); full root race/coverage
+  GREEN (83.7%). Test floor raised to 4,662; other budgets/dependencies unchanged.
+  Non-author integrated leaf/contract preflight CLEAN. Committed-candidate
+  `KOLK_GORELEASER_BIN=/private/tmp/kolk-release-tools.K1LNJj/goreleaser
+  ./scripts/test-release-snapshot.sh` GREEN, 21 checks.
+- [x] Commit `fe397f9848dc4ea5cb40e0aef6e1a079777b1324` pushed; branch CI
+  37692468790 all six jobs GREEN before annotated tag v1.3.7
+  (`5cfbae146262cf1f04811ff5dbd2ed44b3f0e819`). Release 37692924340
+  verify/publish GREEN: Linux gate 5,178 tests, binary 10,776,760 bytes,
+  cold/sandbox p50 1.4/1.5 ms; snapshot 21 checks. Published tags unchanged.
+- [x] `scripts/verify-release.sh v1.3.7` authenticated exact tag-workflow/OIDC
+  manifest and four archive checksums/layouts/host identity. Non-author offline
+  signature, all architectures/under-11-MiB sizes, clean CGO-free stamped builds
+  and generated tap bytes CLEAN: `/private/tmp/kolk-v137-public-review.nnwHCA`.
+- [x] Tap `f9af21d` pushed. Real `brew update`, scoped 1.3.6 → 1.3.7
+  `brew upgrade onembyte/tap/kolk`, `brew test onembyte/tap/kolk` GREEN.
+  kolkrabbi alias reports 1.3.7. Actual Brew PTY effort/refresh passed, and
+  mock-backed code write + agent plan/two tasks/synthesis left exactly two lines.
+- [x] Public installer equals `site/install.sh`; private fresh install,
+  1.3.6 → 1.3.7 upgrade and up-to-date check GREEN. Real PTY `/update` upgraded
+  another isolated 1.3.6 copy; after restart, `/update` reported current 1.3.7.
+  Packaged PTY read only mock catalog metadata; no API credit or credential
+  inspection. All mock/PTY processes closed; real user state left untouched.
+- [x] Homebrew normally cleaned its old 1.3.6 package/cache; public immutable
+  release still offers recovery. Separate curl copy remains earlier in PATH;
+  use `$(brew --prefix)/bin/kolk` to run this Brew version. No unrelated
+  formula/cask upgrade and no fresh-key onboarding claim.
 
 ### October recovery closeout evidence — 2026-10-07
 

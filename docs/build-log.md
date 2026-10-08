@@ -8,6 +8,43 @@ One line per step. Verification is a command someone else can re-run.
 
 ---
 
+## 2026-10-07 — v1.3.7 verified publication and Homebrew handoff
+
+Published immutable annotated tag v1.3.7 at
+fe397f9848dc4ea5cb40e0aef6e1a079777b1324 (tag object
+5cfbae146262cf1f04811ff5dbd2ed44b3f0e819), after committed snapshot 21 checks
+and branch CI 37692468790 all six jobs GREEN. Release 37692924340 verify and
+publish GREEN: tagged Linux make check 5,178 tests, 10,776,760 bytes,
+cold/sandbox p50 1.4/1.5 ms and four-archive snapshot 21 checks.
+
+Parent `PATH=/private/tmp/kolk-release-tools.K1LNJj:$PATH
+./scripts/verify-release.sh v1.3.7` authenticated all public artifacts. Independent
+offline exact tag-workflow/GitHub-OIDC Sigstore verification, four manifest
+digests, regular archive members, expected architectures, under-11-MiB sizes,
+clean CGO-free version/commit stamps and generator-identical tap formula CLEAN:
+/private/tmp/kolk-v137-public-review.nnwHCA/REVIEW.md.
+
+Tap f9af21d pushed. Real `brew update`, scoped
+`brew upgrade onembyte/tap/kolk` 1.3.6 → 1.3.7 and `brew test onembyte/tap/kolk`
+passed. The kolkrabbi alias reports stable/installed 1.3.7. Actual Brew PTY
+effort/refresh metadata-only rehearsal passed; mock-backed code write and agent
+plan/two tasks/synthesis left exactly two lines in private state/workspace.
+Public installer equals site/install.sh: private fresh install, old-version
+upgrade and up-to-date check passed. Real PTY `/update` upgraded another isolated
+1.3.6 copy, then reported current 1.3.7 after restart. Rehearsal evidence and
+scripts under /private/tmp/kolk-v137-handoff.EBwslT and
+/private/tmp/kolk-release-tools.K1LNJj/rehearse-v137.py. All mock/PTY processes
+closed; no remote model credit or credential inspection.
+
+Homebrew cleaned its old package/cache as usual; immutable 1.3.6 downloads remain
+available. No unrelated formula/cask upgrade. The owner's separate older curl
+copy and real sessions were preserved; launch `$(brew --prefix)/bin/kolk` to
+avoid PATH shadowing. The owner confirmed the source UI works. No fresh-key
+onboarding or real vendor inference trial is claimed. Publication closed;
+credential-free setup is next and open.
+
+---
+
 ## 2026-10-07 — v1.3.7 publication preflight
 
 Owner requested publication after testing the source TUI. Package only the

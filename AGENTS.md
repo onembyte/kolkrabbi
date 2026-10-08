@@ -65,6 +65,12 @@ immutable. Credential-free startup is the next open leaf: allow setup before mod
 Do not claim the current fresh `/key` onboarding works: it exits before the
 session. Preserve the four-command outside surface and hidden credential input.
 No implementation of this new leaf is claimed yet.
+The owner-directed effort/model-picker/public-refresh follow-ups now ship in
+v1.3.7 at `fe397f9`: branch CI 37692468790 and release 37692924340 GREEN,
+independent public signature/archive/tap CLEAN, tap `f9af21d` and real Brew
+upgrade/test/TUI plus isolated installer/updater rehearsals passed. The owner
+confirmed the source UI works. Fresh credential-free startup remains open;
+this UI patch did not implement it. Preserve immutable published tags.
 The same checklist is the current execution queue and
 `docs/optimization-resume-audit.md` orders explicitly unfinished optimizations.
 Historical F5/V34/V43 peer-build-blocker notes above must not override it.

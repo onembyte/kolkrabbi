@@ -3,7 +3,8 @@
 Resumed by Codex on 2026-10-07 at the owner's request. The original working tree
 contained V43 implementation begun in earlier sessions, based on `5869a00`
 after public `v1.3.4`. Verified `v1.3.5` shipped commit `05986d1`; verified
-`v1.3.6` now ships `631cd60` after the CI follow-ups below. File timestamps showed the
+`v1.3.6` ships `631cd60` after the CI follow-ups below; the owner-directed UI
+patch `v1.3.7` ships `fe397f9`. File timestamps showed the
 unfinished vendor-recovery follow-up last changed on 2026-10-01. Older V34 and
 optimization headings are historical and must not override this queue.
 
@@ -183,21 +184,40 @@ Scope: the three verified effort/model-choice/public-refresh leaves below.
 Credential-free onboarding remains open and is not included.
 
 - [x] Confirm v1.3.7 is unclaimed; preserve earlier published tags.
-- [~] Refresh site/snapshot version, final local full/race gates and commit the
+- [x] Refresh site/snapshot version, final local full/race gates and commit the
   reviewed patch. Rehearse the committed candidate's four archives.
-- [ ] Push and require green branch CI before tagging v1.3.7.
-- [ ] Require green release CI and authenticate every published artifact.
-- [ ] Independently verify public artifacts and generated tap formula; publish
+- [x] Push and require green branch CI before tagging v1.3.7.
+- [x] Require green release CI and authenticate every published artifact.
+- [x] Independently verify public artifacts and generated tap formula; publish
   the tap update and test actual Homebrew/installer/in-session update paths.
-- [ ] Record the exact commits/runs and hand off the update command.
+- [x] Record the exact commits/runs and hand off the update command.
 
 Preflight: final `make check` GREEN (5,181 tests, lint 0, all five platform
 compiles and contracts); full root race/coverage GREEN (83.7%). The test-count
 floor is ratcheted to 4,662 (90% of the current suite), not lowered; size and
 performance budgets are unchanged. Fresh non-author integrated actual-TUI and
 model-discovery tests plus release/site/installer/surface contracts CLEAN:
-`/private/tmp/kolk-v137-preflight-review.YSrYXa/REVIEW.md`. Public tag, CI,
-authenticated assets and package-manager handoff remain pending.
+`/private/tmp/kolk-v137-preflight-review.YSrYXa/REVIEW.md`.
+
+Published handoff: commit `fe397f9848dc4ea5cb40e0aef6e1a079777b1324`, annotated
+tag `5cfbae146262cf1f04811ff5dbd2ed44b3f0e819`. Branch CI 37692468790 all six
+jobs GREEN before tag; release 37692924340 verify/publish GREEN. Tagged Linux
+full gate: 5,178 tests, 10,776,760-byte binary, cold/sandbox p50 1.4/1.5 ms;
+snapshot 21 passed. Parent `scripts/verify-release.sh v1.3.7` and independent
+exact Sigstore workflow/OIDC authentication, four archives/build stamps and
+generator-matched tap CLEAN: `/private/tmp/kolk-v137-public-review.nnwHCA`.
+
+Tap `f9af21d` pushed. Actual `brew update`, scoped 1.3.6 → 1.3.7 upgrade and
+formula test passed; the kolkrabbi alias reports 1.3.7. Actual Brew PTY effort
+selection and refresh passed against metadata only; mock-backed code and agent
+turns left exactly two lines. Public installer matches the source script:
+private fresh install, upgrade and current check passed. Another isolated old
+copy upgraded through actual PTY `/update`, then reported current after restart.
+No API credit, credential inspection or real user state mutation. All temporary
+processes closed. Homebrew cleaned old package/cache normally; older curl copy
+still precedes Brew in PATH. Use `"$(brew --prefix)/bin/kolk" --mode code`.
+No real vendor inference, fresh-key onboarding or universal model entitlement
+is claimed. Publication is closed; credential-free startup below is next.
 
 ## Next correctness checkpoint, before optional optimization
 
@@ -210,8 +230,7 @@ Owner-directed UI follow-up (2026-10-07), Codex:
   old-wiring RED/current race ×30 GREEN and scoped CLEAN; full `make check`
   GREEN (5,170 tests, lint 0, all platforms/contracts). Acceptance is in
   CHECKPOINTS.md. This small leaf precedes onboarding at the owner's request.
-- [ ] Package the effort-picker follow-up in a new patch after release gates;
-  local completion does not mean it is in Homebrew. v1.3.6 remains published.
+- [x] Published and handed off through Homebrew in v1.3.7; evidence above.
 
 Owner-directed model-list follow-up (2026-10-07), Codex:
 
@@ -226,8 +245,8 @@ Owner-directed model-list follow-up (2026-10-07), Codex:
   and race ×30 CLEAN, final full `make check` GREEN (5,175 tests). Metadata-only
   installed Codex lister and public gateway rehearsal passed without inference.
   Acceptance is recorded in CHECKPOINTS.md.
-- [ ] Package both UI follow-ups together in a new patch; source testing only
-  until publication. Run `/models --refresh` before opening `/model` so an older
+- [x] Published both UI follow-ups in v1.3.7. Run `/models --refresh` before
+  opening `/model` so an older
   cached family-only catalog does not hide the new rows.
 
 Owner screenshot follow-up (2026-10-07), Codex:
@@ -239,8 +258,8 @@ Owner screenshot follow-up (2026-10-07), Codex:
   model/effort/conversation stay unchanged. Independent actual slash/TUI race
   ×30 and behavioral mutations CLEAN; final full gate GREEN (5,181 tests),
   CLI/TUI race GREEN. Acceptance is in CHECKPOINTS.md.
-- [ ] Package the public-refresh fix with both local UI leaves; local completion
-  does not update Homebrew, and no fifth outside verb was introduced.
+- [x] Published with both UI leaves in v1.3.7 and verified through Homebrew;
+  no fifth outside verb was introduced.
 
 Fresh credential-free startup still exits with `/key` guidance before opening
 the session in which `/key` runs. Confirmed with the published Homebrew binary,
